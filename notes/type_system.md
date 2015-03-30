@@ -41,3 +41,32 @@ ensure that the compiler can validate method calls on these classes.
 
 Perhaps as a start its best to only check for the existence of a method during
 runtime, this would also make the compiler a bit less complicated.
+
+## Type Syntax
+
+In most cases the Aeon compiler should be able to infer the type of a variable
+based on the value assigned to it. In some cases this is not possible, one of
+those examples would be an instance variable without a default value.
+
+The syntax used for annotating types is as following:
+
+    type = identifier ':' constant
+
+For example:
+
+    number: Integer
+
+This can be combined with a default value, although this is not required as the
+type can be inferred based on the value:
+
+    let number: Integer = 10
+
+The syntax is the same for arguments:
+
+    def some_method(number: Integer) {
+
+    }
+
+And for instance variables:
+
+    @number: Integer
