@@ -1,0 +1,34 @@
+import aeon::actor
+
+let numbers = [10, 20, 30]
+
+let actor = Actor.spawn {
+    # Inside a new actor/thread. Unlike regular closures this block does _not_
+    # have access to anything defined outside itself. For example, referring to
+    # "numbers" would be a compiler erorr.
+
+    accept(Array<Integer>) |numbers| {
+        IO.print(numbers)
+    }
+}
+
+# Copies over the array and its contents to the new thread.
+actor.send(numbers)
+
+# Alternatively we can expose copies of objects to an Actor upon its creation:
+
+let actor = Actor.spawn(numbers) |numbers| {
+    # Now we _can_ access numbers since this Actor has its own, isolated copy.
+    IO.print(numbers)
+}
+
+# If an actor terminats itself we can hook into that.
+
+let actor = Actor.spawn {
+    terminate!('Something went horribly wrong')
+}
+
+# If the actor was already terminated the closure is invoked right away.
+actor.on_terminate |reason| {
+    IO.puts(reason) # => 'Something went horribly wrong'
+}

@@ -1,0 +1,21 @@
+# By default everything in Aeon is immutable, including HashMap, Array, etc. To
+# make something mutable you can use the "mut" keyword.
+
+let numbers = [10, 20, 30]
+
+numbers.push(10) # compiler error since "numbers" is immutable
+
+let mut numbers = [10, 20, 30]
+
+numbers.push(10) # works fine now since "numbers" is mutable
+
+# Same with hashes:
+
+let ages = {'Alice': 27}
+
+ages['Bob'] = 25 # compiler error
+
+# Now make it mutable
+let mut ages = {'Alice': 27}
+
+ages['Bob'] = 25

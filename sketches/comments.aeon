@@ -1,0 +1,23 @@
+# Regular comments start with a hash sign similar to languages such as Ruby and
+# Python. Unlike most languages comments _are_ part of the language and they can
+# be queried (similar to docstrings in Python) during runtime.
+#
+# The way this works is that any set of comments preceding the definition of an
+# entity (objects, traits, methods, etc) is attached to said entity. For
+# example:
+
+# This comment is associated with the metod below.
+def some_method() { }
+
+# To query the documentation of an entity, simply grab the object and call
+# "doc" on it.
+
+# For a method:
+STDOUT.print(method('some_method').doc) # => 'This comment is associated with...'
+
+# For a constant:
+
+# This is a number
+NUMBER = 10
+
+STDOUT.print(constant('NUMBER').doc) # => 'This is a number'

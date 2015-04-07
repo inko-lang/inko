@@ -1,0 +1,46 @@
+# Aeon being gradually typed means you can trade some compile-time safety for
+# greater flexibility. However, because Aeon uses static typing by default you
+# must explicitly "tag" identifiers as being dynamic.
+#
+# To make something dynamic you can use the "dyn" keyword, which does two
+# things:
+#
+# 1. Change the type to the Any trait
+# 2. Tell the compiler to not perform any checks on the object
+#
+
+let number = 10 # Statically typed, set once and can't be changed
+number     = 20 # Compiler error
+
+# Dynamically typed, can be changed later. The object itself however is still
+# immutable.
+dyn number = 10
+number     = 20 # works fine
+
+# A more complex example, an array with dynamic values:
+dyn values = [10, 20.5, 'Hello']
+
+# The dynamic type is inherited by "value" in this case. This means that the
+# compiler can't perform any checks on it.
+vales.each |value| {
+    STDOUT.print(value)
+}
+
+# A simple box/container object:
+object Box {
+    dyn @wrapped
+
+    def construct(dyn wrapped) {
+        @wrapped = wrapped
+    }
+
+    # The return type of this method is declared as being dynamic
+    def unwrap() -> dyn {
+        return @wrapped
+    }
+}
+
+# All of this is valid:
+Box.new(10)
+Box.new('Hello')
+Box.new(Box.new(10))
