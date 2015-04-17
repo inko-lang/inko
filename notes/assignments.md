@@ -1,4 +1,4 @@
-# Variable & Instance Variables
+# Variable Assignments
 
 Aeon has 3 types of variable assignments:
 
