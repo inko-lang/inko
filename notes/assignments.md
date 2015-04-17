@@ -42,22 +42,26 @@ variable is mutable:
 
 Instance variables are variables that are available to an instance of a class.
 These are the same as "class instance variables" in Smalltalk and "instance
-variables" in Ruby. Similar to regular variables one must use `let` to assign a
-variable:dyn
+variables" in Ruby.
 
-    let @number = 10
+Because instance variables are defined in a class' body (opposed to in a method)
+there's no need to use `let` to assign a value to the variable. For example:
+
+    class Person {
+        @name: String
+
+        def construct() {
+            @name = 'something'
+        }
+    }
 
 Unlike regular variables an instance variable must be prefixed by a `@` to
 distinguish it from a local variable.
 
-The mutability rules of local variables also apply to instance variables:
-
-    let mut @number = 10
-
-    @number = 20
-
-Instance variables are always private, thus you can not assign them from the
-outside of an instance.
+Unlike local variables you can not use the `mut` keyword for instance variables
+as mutability of these variables is inherited from the instance of a class. That
+is, instance variables are only mutable if the instance itself has been declared
+mutable.
 
 ## Dynamic Variable Assignments
 
@@ -68,21 +72,21 @@ Marking a variable as dynamic means you _can_ re-assign the variable and you
 _can_ re-assign it a different type. However, you can not modify the value
 itself unless you also mark the variable as being mutable.
 
-Dynamic variables are assigned using the `dyn` keyword instead of `let`:
+Dynamic variables are declared by simply omitting the `let` keyword:
 
-    dyn number = 10
-
+    number = 10
     number = 'Alice' # This works fine
 
 This however doesn't mark the value the variable holds as being mutable, you
 still have to use the `mut` keyword for this:
 
-    dyn mut numbers = [10, 20, 30]
+    mut numbers = [10, 20, 30]
 
     numbers.push(40) # ok!
 
-The `dyn` keyword can also be used for instance variables:
+Instance variables can be turned into dynamically typed variables by simply
+omitting the type signature:
 
-    dyn @number = 10
-
-    @number = 'Alice'
+    class Example {
+        @number
+    }
