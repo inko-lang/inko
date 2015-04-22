@@ -28,7 +28,7 @@ Unlike methods a closure _always_ has a return value, thus the return type can
 be omitted. In such a case the return type is determined based on the closure's
 body. This means that the above can also be written as this:
 
-    let closure (number: Integer) { number * 2 }
+    let closure = (number: Integer) { number * 2 }
 
 Since `number` is an Integer and `Integer#*` also returns an `Integer` the
 language knows that this closure will always return an `Integer`.
