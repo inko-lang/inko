@@ -1,4 +1,4 @@
-import aeon::actor
+import thread::actor
 
 let numbers = [10, 20, 30]
 
@@ -7,7 +7,7 @@ let actor = Actor.spawn {
     # have access to anything defined outside itself. For example, referring to
     # "numbers" would be a compiler erorr.
 
-    accept(Array<Integer>) |numbers| {
+    accept(Array<Integer>) (numbers) {
         IO.print(numbers)
     }
 }
@@ -17,7 +17,7 @@ actor.send(numbers)
 
 # Alternatively we can expose copies of objects to an Actor upon its creation:
 
-let actor = Actor.spawn(numbers) |numbers| {
+let actor = Actor.spawn(numbers) (numbers) {
     # Now we _can_ access numbers since this Actor has its own, isolated copy.
     IO.print(numbers)
 }
@@ -29,6 +29,6 @@ let actor = Actor.spawn {
 }
 
 # If the actor was already terminated the closure is invoked right away.
-actor.on_terminate |reason| {
+actor.on_terminate (reason) {
     IO.puts(reason) # => 'Something went horribly wrong'
 }

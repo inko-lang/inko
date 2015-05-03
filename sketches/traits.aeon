@@ -1,0 +1,24 @@
+trait Enumerable<T> {
+    def map(func: (T) -> R) -> Array<R> {
+        let mut values: Array<R> = []
+
+        each (value) {
+            values.push(func(value))
+        }
+
+        values
+    }
+}
+
+class Array<T = dynamic> {
+    use Enumerable<T>
+
+    # aliasing methods:
+
+    use Enumerable<T> {
+        select as array_select,
+        map    as array_map
+    }
+}
+
+# vim: set ft=aeon:

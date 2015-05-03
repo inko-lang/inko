@@ -1,0 +1,31 @@
+module ffi {
+    enum Type {
+        Pointer,
+        Void,
+        String,
+        Integer
+    }
+
+    trait Library {
+        def self.library(names: Array<String>) {
+            ...
+        }
+
+        def self.attach_function(lname: String, cname: String, types: Array<Type>, ret: Type) {
+            ...
+        }
+    }
+}
+
+class Libc {
+    use ffi::Library
+
+    library 'libc'
+
+    attach_function 'malloc', 'malloc', [ffi::Type::Integer], ffi::Type::Pointer
+    attach_function 'free', 'free', [ffi::Type::Pointer], ffi::Type::Void
+}
+
+let pointer = Libc.malloc(1024)
+
+Libc.free(pointer)

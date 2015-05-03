@@ -1,0 +1,141 @@
+class Array<T = dynamic> {
+    ---
+    The Array class can contain a sequence of values of a fixed or dynamic type.
+    Unless an explicit type is given the type of the array members is inferred
+    based on the first value added to the array.
+
+    Example:
+
+        let numbers = [10, 20, 30]
+
+    Using an explicit type:
+
+        let numbers: Array<Integer> = [10, 20, 30]
+
+    Using a dynamic type:
+
+        let numbers: Array<dynamic> = [10, "foo"]
+    ---
+
+    @vector_index: Integer
+
+    def construct(*members: T) {
+        ---
+        Creates a new array, optionally using a set of initial values.
+
+        Example:
+
+            let numbers = Array.new(10, 20, 30)
+
+        Alternatively you can use [ and ] for arrays:
+
+            let numbers = [10, 20, 30]
+
+        This is just syntax sugar for the first example.
+        ---
+
+        @vector_index = %vector_allocate(self, members)
+    }
+
+    def push(value: T) {
+        ---
+        Pushes a new value into the array.
+
+        Example:
+
+            let mut numbers = []
+
+            numbers.push(10)
+            numbers.push(20)
+        ---
+
+        %vector_push(self, @vector_index, value)
+    }
+
+    def pop() -> T {
+        ---
+        Removes and returns the last value of the array.
+
+        Example:
+
+            let mut numbers = [10, 20, 30]
+
+            numbers.pop # -> 30
+        ---
+
+        %vector_pop(self, @vector_index)
+    }
+
+    def each(func: (T)) {
+        ---
+        Calls the supplied function for every value in the array. Each value is
+        passed as the first argument to this function.
+
+        Example:
+
+            let numbers = [10, 20, 30]
+
+            numbers.each (number: Integer) {
+                STDOUT.print(number)
+            }
+
+        Return values of the supplied function are ignored.
+        ---
+
+        let mut index = 0
+
+        { index < length }.while_true {
+            let value = %vector_index(self, @vector_index, index)
+
+            func(value)
+        }
+    }
+
+    def map(func: (T) -> R) -> Array<R> {
+        let mut retvals = []
+
+        each (value: T) {
+            retvals.push(func(value))
+        }
+
+        retvals
+    }
+
+    def select(func: (T) -> Boolean) -> Array<T> {
+        let mut selected = []
+
+        each (value: T) {
+            func(value).if_true { selected.push(value) }
+        }
+
+        selected
+    }
+
+    def reject(func: (T) -> Boolean) -> Array<T> {
+        let mut selected = []
+
+        each (value: T) {
+            func(value).if_false { selected.push(value) }
+        }
+
+        selected
+    }
+
+    def clone() -> Array<T> {
+        map (value: T) { value }
+    }
+
+    def +(other: Array<T>) -> Array<T> {
+        let mut copy = clone
+
+        other.each (value: T) {
+            copy.push(value)
+        }
+
+        copy
+    }
+}
+
+let numbers = [10, 20, 30] # same as Array.new(10, 20, 30)
+
+# vim: set ft=aeon:
