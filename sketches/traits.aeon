@@ -11,14 +11,7 @@ trait Enumerable<T> {
 }
 
 class Array<T = dynamic> {
-    use Enumerable<T>
-
-    # aliasing methods:
-
-    use Enumerable<T> {
-        select as array_select,
-        map    as array_map
-    }
+    use Enumerable<T>, select = 'array_select', map = 'array_map'
 }
 
 # vim: set ft=aeon:
