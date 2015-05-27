@@ -7,7 +7,6 @@ mod gc {
 }
 
 mod call_frame;
-mod class;
 mod compiled_code;
 mod heap;
 mod instruction;
