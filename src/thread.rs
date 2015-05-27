@@ -1,6 +1,8 @@
 use call_frame::CallFrame;
 use compiled_code::CompiledCode;
 use heap::Heap;
+use register::Register;
+use variable_scope::VariableScope;
 use std::mem;
 
 pub struct Thread<'l> {
@@ -31,5 +33,21 @@ impl<'l> Thread<'l> {
 
         // TODO: this might move the data from heap back to the stack?
         self.call_frame = *parent;
+    }
+
+    pub fn register(&mut self) -> &mut Register<'l> {
+        &mut self.call_frame.register
+    }
+
+    pub fn variable_scope(&mut self) -> &mut VariableScope<'l> {
+        &mut self.call_frame.variables
+    }
+
+    pub fn young_heap(&mut self) -> &mut Heap<'l> {
+        &mut self.young_heap
+    }
+
+    pub fn mature_heap(&mut self) -> &mut Heap<'l> {
+        &mut self.mature_heap
     }
 }

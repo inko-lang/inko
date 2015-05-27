@@ -1,11 +1,13 @@
 use register::Register;
+use variable_scope::VariableScope;
 
 pub struct CallFrame<'l> {
     pub name: &'l str,
     pub file: &'l str,
     pub line: usize,
     pub parent: Option<Box<CallFrame<'l>>>,
-    pub register: Register
+    pub register: Register<'l>,
+    pub variables: VariableScope<'l>
 }
 
 impl<'l> CallFrame<'l> {
@@ -15,7 +17,8 @@ impl<'l> CallFrame<'l> {
             file: file,
             line: line,
             parent: Option::None,
-            register: Register::new()
+            register: Register::new(),
+            variables: VariableScope::new()
         };
 
         frame

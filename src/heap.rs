@@ -1,4 +1,4 @@
-use object::Object;
+use object::{Object, ObjectValue};
 
 const DEFAULT_CAPACITY: usize = 1024;
 
@@ -17,5 +17,17 @@ impl <'l> Heap<'l> {
 
     pub fn capacity(&self) -> usize {
         self.members.capacity()
+    }
+
+    pub fn allocate(&mut self, value: ObjectValue<'l>) -> &Object<'l> {
+        let object = Object::new(value);
+
+        self.members.push(object);
+
+        self.members.last().unwrap()
+    }
+
+    pub fn allocate_integer(&mut self, value: isize) -> &Object<'l> {
+        self.allocate(ObjectValue::Integer(value))
     }
 }

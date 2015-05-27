@@ -1,5 +1,3 @@
-use types::IntegerVector;
-
 #[derive(Debug)]
 pub enum InstructionType {
     SetInteger,
@@ -19,13 +17,13 @@ pub enum InstructionType {
 
 pub struct Instruction {
     pub instruction_type: InstructionType,
-    pub arguments: IntegerVector,
+    pub arguments: Vec<isize>,
     pub line: usize,
     pub column: usize
 }
 
 impl Instruction {
-    pub fn new(ins_type: InstructionType, arguments: IntegerVector, line: usize, column: usize) -> Instruction {
+    pub fn new(ins_type: InstructionType, arguments: Vec<isize>, line: usize, column: usize) -> Instruction {
         Instruction {
             instruction_type: ins_type,
             arguments: arguments,

@@ -13,7 +13,6 @@ mod instruction;
 mod object;
 mod register;
 mod thread;
-mod types;
 mod virtual_machine;
 mod variable_scope;
 

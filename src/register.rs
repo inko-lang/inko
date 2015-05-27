@@ -1,19 +1,21 @@
 use std::collections::HashMap;
 
-pub struct Register {
-    slots: HashMap<usize, usize>
+use object::Object;
+
+pub struct Register<'l> {
+    slots: HashMap<isize, &'l Object<'l>>
 }
 
-impl Register {
-    pub fn new() -> Register {
+impl<'l> Register<'l> {
+    pub fn new() -> Register<'l> {
         Register { slots: HashMap::new() }
     }
 
-    pub fn set(&mut self, slot: usize, value: usize) {
+    pub fn set(&mut self, slot: isize, value: &'l Object<'l>) {
         self.slots.insert(slot, value);
     }
 
-    pub fn get(&self, slot: usize) -> &usize {
+    pub fn get(&self, slot: isize) -> &'l Object<'l> {
         self.slots.get(&slot).unwrap()
     }
 }

@@ -34,9 +34,10 @@ impl<'l> VirtualMachine<'l> {
     }
 
     pub fn set_integer(&self, thread: &mut Thread, instruction: &Instruction) {
-        let slot  = instruction.arguments[0];
-        let value = instruction.arguments[1];
+        let slot   = instruction.arguments[0];
+        let value  = instruction.arguments[1];
+        let object = thread.young_heap().allocate_integer(value);
 
-        thread.call_frame.register.set(slot, value);
+        thread.register().set(slot, object);
     }
 }
