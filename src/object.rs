@@ -8,15 +8,14 @@ pub enum ObjectValue<'l> {
     Integer(isize),
     Float(f64),
     String(String),
-    Array(Vec<&'l Object<'l>>)//,
-    //Hash(HashMap<&'l Object<'l>, &'l Object<'l>>)
+    Array(Vec<RcObject<'l>>)
 }
 
 pub type RcObject<'l> = Rc<Object<'l>>;
 
 pub struct Object<'l> {
-    pub instance_variables: HashMap<&'l str, &'l Object<'l>>,
-    pub methods: HashMap<&'l str, CompiledCode>,
+    pub instance_variables: HashMap<String, RcObject<'l>>,
+    pub methods: HashMap<String, CompiledCode>,
     pub value: ObjectValue<'l>,
     pub pinned: bool
 }

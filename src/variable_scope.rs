@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-use object::Object;
+use object::RcObject;
 
 pub struct VariableScope<'l> {
-    pub local_variables: HashMap<&'l str, &'l Object<'l>>,
-    pub instance_variables: HashMap<&'l str, &'l Object<'l>>,
+    pub local_variables: Vec<RcObject<'l>>,
     pub parent: Option<&'l VariableScope<'l>>
 }
 
 impl<'l> VariableScope<'l> {
     pub fn new() -> VariableScope<'l> {
         VariableScope {
-            local_variables: HashMap::new(),
-            instance_variables: HashMap::new(),
+            local_variables: Vec::new(),
             parent: Option::None
         }
     }

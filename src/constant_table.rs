@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use object::Object;
+use object::RcObject;
 
 pub struct ConstantTable<'l> {
-    pub constants: HashMap<&'l str, &'l Object<'l>>,
+    pub constants: HashMap<String, RcObject<'l>>,
     pub parent: Option<&'l ConstantTable<'l>>
 }
