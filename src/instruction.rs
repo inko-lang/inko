@@ -11,7 +11,7 @@ pub enum InstructionType {
     GetConstant,
     SetInstanceVariable,
     GetInstanceVariable,
-    SendMessage,
+    Send,
     Return
 }
 
