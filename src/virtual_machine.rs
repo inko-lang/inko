@@ -24,8 +24,14 @@ impl<'l> VirtualMachine<'l> {
                 InstructionType::SetInteger => {
                     self.set_integer(thread, code, &instruction);
                 },
+                InstructionType::SetFloat => {
+                    self.set_float(thread, code, &instruction);
+                },
                 _ => {
-                    panic!("Unknown instruction type {:?}", instruction.instruction_type);
+                    panic!(
+                        "Unknown instruction type {:?}",
+                        instruction.instruction_type
+                    );
                 }
             };
         }
@@ -36,8 +42,19 @@ impl<'l> VirtualMachine<'l> {
     pub fn set_integer(&self, thread: &mut Thread, code: &CompiledCode,
                        instruction: &Instruction) {
         let slot   = instruction.arguments[0];
-        let value  = instruction.arguments[1];
+        let index  = instruction.arguments[1];
+        let value  = code.integer_literals[index];
         let object = thread.young_heap().allocate_integer(value);
+
+        thread.register().set(slot, object);
+    }
+
+    pub fn set_float(&self, thread: &mut Thread, code: &CompiledCode,
+                     instruction: &Instruction) {
+        let slot   = instruction.arguments[0];
+        let index  = instruction.arguments[1];
+        let value  = code.float_literals[index];
+        let object = thread.young_heap().allocate_float(value);
 
         thread.register().set(slot, object);
     }
