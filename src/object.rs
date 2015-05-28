@@ -16,7 +16,7 @@ pub type RcObject<'l> = Rc<Object<'l>>;
 
 pub struct Object<'l> {
     pub instance_variables: HashMap<&'l str, &'l Object<'l>>,
-    pub methods: HashMap<&'l str, CompiledCode<'l>>,
+    pub methods: HashMap<&'l str, CompiledCode>,
     pub value: ObjectValue<'l>,
     pub pinned: bool
 }

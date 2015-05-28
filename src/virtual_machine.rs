@@ -16,7 +16,7 @@ impl<'l> VirtualMachine<'l> {
         }
     }
 
-    pub fn run(&self, thread: &mut Thread<'l>, code: &CompiledCode<'l>) {
+    pub fn run(&self, thread: &mut Thread<'l>, code: &CompiledCode) {
         thread.add_call_frame_from_compiled_code(code);
 
         for instruction in &code.instructions {

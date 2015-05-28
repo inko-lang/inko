@@ -21,8 +21,8 @@ impl<'l> Thread<'l> {
         }
     }
 
-    pub fn add_call_frame_from_compiled_code(&mut self, code: &CompiledCode<'l>) {
-        let mut frame = CallFrame::new(code.name, code.file, code.line);
+    pub fn add_call_frame_from_compiled_code(&mut self, code: &CompiledCode) {
+        let mut frame = CallFrame::new(code.name.clone(), code.file.clone(), code.line);
 
         mem::swap(&mut self.call_frame, &mut frame);
 

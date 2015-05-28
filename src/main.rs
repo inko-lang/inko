@@ -23,22 +23,15 @@ use instruction::{InstructionType, Instruction};
 use thread::Thread;
 
 fn main() {
+    let name = "main".to_string();
+    let file = "(eval)".to_string();
+
     let vm    = VirtualMachine::new();
     let ins   = Instruction::new(InstructionType::SetInteger, vec![0, 1], 1, 1);
-    let frame = CallFrame::new("main", "(eval)", 1);
+    let frame = CallFrame::new(name.clone(), file.clone(), 1);
+    let cc    = CompiledCode::new(name.clone(), file.clone(), 1, vec![ins]);
 
     let mut thread = Thread::new(frame);
-
-    let cc = CompiledCode {
-        name: "main",
-        file: "(eval)",
-        line: 1,
-        required_arguments: 0,
-        optional_arguments: 0,
-        rest_argument: false,
-        locals: Vec::new(),
-        instructions: vec![ins]
-    };
 
     vm.run(&mut thread, &cc);
 }
