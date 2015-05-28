@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::collections::HashMap;
 
 use compiled_code::CompiledCode;
@@ -10,6 +11,8 @@ pub enum ObjectValue<'l> {
     Array(Vec<&'l Object<'l>>)//,
     //Hash(HashMap<&'l Object<'l>, &'l Object<'l>>)
 }
+
+pub type RcObject<'l> = Rc<Object<'l>>;
 
 pub struct Object<'l> {
     pub instance_variables: HashMap<&'l str, &'l Object<'l>>,

@@ -1,9 +1,10 @@
+use std::mem;
+
 use call_frame::CallFrame;
 use compiled_code::CompiledCode;
 use heap::Heap;
 use register::Register;
 use variable_scope::VariableScope;
-use std::mem;
 
 pub struct Thread<'l> {
     pub call_frame: CallFrame<'l>,
