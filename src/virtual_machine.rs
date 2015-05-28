@@ -22,7 +22,7 @@ impl<'l> VirtualMachine<'l> {
         for instruction in &code.instructions {
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
-                    self.set_integer(thread, &instruction);
+                    self.set_integer(thread, code, &instruction);
                 },
                 _ => {
                     panic!("Unknown instruction type {:?}", instruction.instruction_type);
@@ -33,7 +33,8 @@ impl<'l> VirtualMachine<'l> {
         thread.pop_call_frame();
     }
 
-    pub fn set_integer(&self, thread: &mut Thread, instruction: &Instruction) {
+    pub fn set_integer(&self, thread: &mut Thread, code: &CompiledCode,
+                       instruction: &Instruction) {
         let slot   = instruction.arguments[0];
         let value  = instruction.arguments[1];
         let object = thread.young_heap().allocate_integer(value);
