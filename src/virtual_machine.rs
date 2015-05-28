@@ -39,7 +39,7 @@ impl<'l> VirtualMachine<'l> {
         thread.pop_call_frame();
     }
 
-    pub fn set_integer(&self, thread: &mut Thread, code: &CompiledCode,
+    pub fn set_integer(&self, thread: &mut Thread<'l>, code: &CompiledCode,
                        instruction: &Instruction) {
         let slot   = instruction.arguments[0];
         let index  = instruction.arguments[1];
@@ -49,7 +49,7 @@ impl<'l> VirtualMachine<'l> {
         thread.register().set(slot, object);
     }
 
-    pub fn set_float(&self, thread: &mut Thread, code: &CompiledCode,
+    pub fn set_float(&self, thread: &mut Thread<'l>, code: &CompiledCode,
                      instruction: &Instruction) {
         let slot   = instruction.arguments[0];
         let index  = instruction.arguments[1];
@@ -57,5 +57,25 @@ impl<'l> VirtualMachine<'l> {
         let object = thread.young_heap().allocate_float(value);
 
         thread.register().set(slot, object);
+    }
+
+    pub fn send(&self, thread: &mut Thread<'l>, code: &CompiledCode,
+                instruction: &Instruction) {
+        let result_slot   = instruction.arguments[0];
+        let receiver_slot = instruction.arguments[1];
+        let name_index    = instruction.arguments[2];
+        let arg_count     = instruction.arguments[3];
+
+        let receiver  = thread.register().get(receiver_slot);
+        let ref name  = code.string_literals[name_index];
+
+        if ( !receiver.methods.contains_key(name) ) {
+            // TODO: make this a proper VM error with a backtrace
+            panic!("Undefined method {}", name);
+        }
+
+        let ref method_code = receiver.methods[name];
+
+        self.run(thread, method_code);
     }
 }
