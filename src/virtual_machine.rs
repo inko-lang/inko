@@ -107,8 +107,8 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.add_call_frame_from_compiled_code(code);
 
         // Now we can set the arguments in the new register
-        for (index, arg) in arguments.iter().enumerate() {
-            thread_ref.register().set(index, arg.clone());
+        for arg in arguments.iter() {
+            thread_ref.variable_scope().add(arg.clone());
         }
 
         // TODO: handle return values

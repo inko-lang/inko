@@ -16,4 +16,8 @@ impl<'l> VariableScope<'l> {
     pub fn set_parent(&mut self, parent: &'l VariableScope<'l>) {
         self.parent = Option::Some(parent);
     }
+
+    pub fn add(&mut self, variable: RcObject<'l>) {
+        self.local_variables.push(variable);
+    }
 }
