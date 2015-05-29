@@ -47,9 +47,14 @@ impl<'l> VirtualMachine<'l> {
                     self.send(thread.clone(), code, &instruction);
                 },
                 _ => {
-                    panic!(
-                        "Unknown instruction type {:?}",
-                        instruction.instruction_type
+                    let thread_ref = thread.borrow_mut();
+
+                    self.terminate_vm(
+                        &thread_ref,
+                        format!(
+                            "Unknown instruction \"{:?}\"",
+                            instruction.instruction_type
+                        )
                     );
                 }
             };
