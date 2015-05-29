@@ -17,21 +17,23 @@ mod virtual_machine;
 mod variable_scope;
 
 use virtual_machine::VirtualMachine;
-use call_frame::CallFrame;
 use compiled_code::CompiledCode;
 use instruction::{InstructionType, Instruction};
-use thread::Thread;
 
 fn main() {
-    let name = "main".to_string();
-    let file = "(eval)".to_string();
+    let mut vm = VirtualMachine::new();
+    let mut cc = CompiledCode::new(
+        "main".to_string(),
+        "(eval)".to_string(),
+        1,
+        vec![
+            Instruction::new(InstructionType::SetInteger, vec![0, 0], 1, 1),
+            Instruction::new(InstructionType::Send, vec![1, 0, 0, 0], 1, 1)
+        ]
+    );
 
-    let vm    = VirtualMachine::new();
-    let ins   = Instruction::new(InstructionType::SetInteger, vec![0, 1], 1, 1);
-    let frame = CallFrame::new(name.clone(), file.clone(), 1);
-    let cc    = CompiledCode::new(name.clone(), file.clone(), 1, vec![ins]);
+    cc.add_integer_literal(10);
+    cc.add_string_literal("to_s".to_string());
 
-    let mut thread = Thread::new(frame);
-
-    vm.run(&mut thread, &cc);
+    vm.start(&cc);
 }

@@ -1,3 +1,4 @@
+use call_frame::CallFrame;
 use instruction::Instruction;
 
 pub struct CompiledCode {
@@ -39,5 +40,13 @@ impl CompiledCode {
 
     pub fn add_float_literal(&mut self, value: f64) {
         self.float_literals.push(value);
+    }
+
+    pub fn add_string_literal(&mut self, value: String) {
+        self.string_literals.push(value);
+    }
+
+    pub fn new_call_frame<'a>(&self) -> CallFrame<'a> {
+        CallFrame::new(self.name.clone(), self.file.clone(), self.line)
     }
 }
