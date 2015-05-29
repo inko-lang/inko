@@ -164,12 +164,31 @@ impl<'l> VirtualMachine<'l> {
             format!("Attempt to call {} on an undefined receiver", name)
         );
 
-        let ref method_code = some_or_terminate!(
-            receiver.methods.get(name),
-            self,
-            thread_ref,
-            format!("Undefined method \"{}\" called on an object", name)
-        );
+        // Method defined directly on the object?
+        let opt_method_code = if receiver.methods.contains_key(name) {
+            receiver.methods.get(name)
+        }
+
+        // Method defined in the prototype?
+        else if receiver.prototype.is_some() {
+            receiver.prototype.as_ref().unwrap().methods.get(name)
+        }
+
+        // Method not defined at all :<
+        else {
+            Option::None
+        };
+
+        let ref method_code = match opt_method_code {
+            Option::Some(obj) => { obj },
+
+            Option::None => {
+                self.terminate_vm(
+                    &thread_ref,
+                    format!("Undefined method \"{}\" called on an object", name)
+                );
+            }
+        };
 
         let mut arguments: Vec<RcObject<'l>> = Vec::new();
 

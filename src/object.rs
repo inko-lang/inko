@@ -18,7 +18,8 @@ pub struct Object<'l> {
     pub instance_variables: HashMap<String, RcObject<'l>>,
     pub methods: HashMap<String, CompiledCode>,
     pub value: ObjectValue<'l>,
-    pub pinned: bool
+    pub pinned: bool,
+    pub prototype: Option<RcObject<'l>>
 }
 
 impl<'l> Object<'l> {
@@ -27,7 +28,8 @@ impl<'l> Object<'l> {
             instance_variables: HashMap::new(),
             methods: HashMap::new(),
             value: value,
-            pinned: false
+            pinned: false,
+            prototype: Option::None
         }
     }
 }
