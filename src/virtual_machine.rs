@@ -56,8 +56,9 @@ impl<'l> VirtualMachine<'l> {
         self.run(thread, code);
     }
 
-    pub fn run(&self, thread: RcThread<'l>, code: &CompiledCode) {
+    pub fn run(&self, thread: RcThread<'l>, code: &CompiledCode) -> Option<RcObject<'l>> {
         let mut skip_until: Option<usize> = Option::None;
+        let mut retval = Option::None;
 
         for (index, instruction) in code.instructions.iter().enumerate() {
             if skip_until.is_some() {
@@ -79,6 +80,9 @@ impl<'l> VirtualMachine<'l> {
                 InstructionType::Send => {
                     self.ins_send(thread.clone(), code, &instruction);
                 },
+                InstructionType::Return => {
+                    retval = self.ins_return(thread.clone(), code, &instruction);
+                },
                 InstructionType::GotoIfUndef => {
                     skip_until = self
                         .ins_goto_if_undef(thread.clone(), code, &instruction);
@@ -96,6 +100,8 @@ impl<'l> VirtualMachine<'l> {
                 }
             };
         }
+
+        retval
     }
 
     fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
@@ -175,11 +181,22 @@ impl<'l> VirtualMachine<'l> {
             thread_ref.variable_scope().add(arg.clone());
         }
 
-        // TODO: handle return values
+        let return_val = self.run(thread.clone(), method_code);
 
-        self.run(thread.clone(), method_code);
+        if return_val.is_some() {
+            thread_ref.register().set(result_slot, return_val.unwrap())
+        }
 
         thread_ref.pop_call_frame();
+    }
+
+    fn ins_return(&self, thread: RcThread<'l>, code: &CompiledCode,
+                  instruction: &Instruction) -> Option<RcObject<'l>> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot = instruction.arguments[0];
+
+        thread_ref.register().get(slot)
     }
 
     fn ins_goto_if_undef(&self, thread: RcThread<'l>, code: &CompiledCode,
