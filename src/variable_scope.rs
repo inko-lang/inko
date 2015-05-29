@@ -20,4 +20,11 @@ impl<'l> VariableScope<'l> {
     pub fn add(&mut self, variable: RcObject<'l>) {
         self.local_variables.push(variable);
     }
+
+    pub fn get(&self, index: usize) -> Option<RcObject<'l>> {
+        match self.local_variables.get(index) {
+            Option::Some(object) => { Option::Some(object.clone()) },
+            Option::None         => { Option::None }
+        }
+    }
 }

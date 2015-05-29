@@ -36,6 +36,10 @@ impl<'l> Thread<'l> {
         self.call_frame = *parent;
     }
 
+    pub fn call_frame(&self) -> &CallFrame<'l> {
+        &self.call_frame
+    }
+
     pub fn register(&mut self) -> &mut Register<'l> {
         &mut self.call_frame.register
     }

@@ -10,6 +10,7 @@ mod call_frame;
 mod compiled_code;
 mod heap;
 mod instruction;
+mod macros;
 mod object;
 mod register;
 mod thread;
@@ -23,7 +24,7 @@ use instruction::{InstructionType, Instruction};
 fn main() {
     let mut vm = VirtualMachine::new();
     let mut cc = CompiledCode::new(
-        "main".to_string(),
+        "<main>".to_string(),
         "(eval)".to_string(),
         1,
         vec![

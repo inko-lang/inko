@@ -15,7 +15,10 @@ impl<'l> Register<'l> {
         self.slots.insert(slot, value);
     }
 
-    pub fn get(&self, slot: usize) -> RcObject<'l> {
-        self.slots.get(&slot).unwrap().clone()
+    pub fn get(&self, slot: usize) -> Option<RcObject<'l>> {
+        match self.slots.get(&slot) {
+            Option::Some(object) => { Option::Some(object.clone()) },
+            Option::None         => { Option::None }
+        }
     }
 }

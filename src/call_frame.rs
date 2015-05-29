@@ -27,4 +27,16 @@ impl<'l> CallFrame<'l> {
     pub fn set_parent(&mut self, parent: CallFrame<'l>) {
         self.parent = Option::Some(Box::new(parent));
     }
+
+    pub fn each_frame<F>(&self, mut closure: F) where F : FnMut(&CallFrame<'l>) {
+        let mut frame = self;
+
+        closure(frame);
+
+        while frame.parent.is_some() {
+            frame = frame.parent.as_ref().unwrap();
+
+            closure(frame);
+        }
+    }
 }

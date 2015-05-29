@@ -1,11 +1,14 @@
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
+use std::io::{self, Write};
+use std::process;
 
 use compiled_code::CompiledCode;
 use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object::RcObject;
 use thread::Thread;
+use macros;
 
 pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
 
@@ -86,22 +89,41 @@ impl<'l> VirtualMachine<'l> {
         let name_index    = instruction.arguments[2];
         let arg_count     = instruction.arguments[3];
 
-        let receiver  = thread_ref.register().get(receiver_slot);
-        let ref name  = code.string_literals[name_index];
+        let name = some_or_terminate!(
+            code.string_literals.get(name_index),
+            self,
+            thread_ref,
+            format!("No method name literal defined at index {}", name_index)
+        );
 
-        if !receiver.methods.contains_key(name) {
-            // TODO: make this a proper VM error with a backtrace
-            panic!("Undefined method {}", name);
-        }
+        let receiver = some_or_terminate!(
+            thread_ref.register().get(receiver_slot),
+            self,
+            thread_ref,
+            format!("Attempt to call {} on an undefined receiver", name)
+        );
 
-        let ref method_code = receiver.methods[name];
+        let ref method_code = some_or_terminate!(
+            receiver.methods.get(name),
+            self,
+            thread_ref,
+            format!("Undefined method \"{}\" called on an object", name)
+        );
+
         let mut arguments: Vec<RcObject<'l>> = Vec::new();
 
         // First collect the arguments before we switch over to a new register
         for index in 4..(4 + arg_count) {
             let arg_index = instruction.arguments[index];
 
-            arguments.push(thread_ref.register().get(arg_index));
+            let arg = some_or_terminate!(
+                thread_ref.register().get(arg_index),
+                self,
+                thread_ref,
+                "Attempt to use an undefined value as an argument".to_string()
+            );
+
+            arguments.push(arg);
         }
 
         thread_ref.add_call_frame_from_compiled_code(code);
@@ -116,5 +138,22 @@ impl<'l> VirtualMachine<'l> {
         self.run(thread.clone(), method_code);
 
         thread_ref.pop_call_frame();
+    }
+
+    fn terminate_vm(&self, thread: &RefMut<Thread<'l>>, message: String) -> ! {
+        let mut stderr = io::stderr();
+        let mut error  = message.to_string();
+
+        thread.call_frame().each_frame(|frame| {
+            error.push_str(
+                &format!("\n{}:{} in {}", frame.file, frame.line, frame.name)
+            );
+        });
+
+        write!(&mut stderr, "{}\n", error).unwrap();
+
+        // TODO: shut down threads properly
+
+        process::exit(1);
     }
 }
