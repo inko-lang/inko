@@ -71,6 +71,9 @@ impl<'l> VirtualMachine<'l> {
             }
 
             match instruction.instruction_type {
+                InstructionType::SetObject => {
+                    self.ins_set_object(thread.clone(), code, &instruction);
+                },
                 InstructionType::SetInteger => {
                     self.ins_set_integer(thread.clone(), code, &instruction);
                 },
@@ -102,6 +105,16 @@ impl<'l> VirtualMachine<'l> {
         }
 
         retval
+    }
+
+    fn ins_set_object(&self, thread: RcThread<'l>, _: &CompiledCode,
+                      instruction: &Instruction) {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot  = instruction.arguments[0];
+        let value = thread_ref.young_heap().allocate_object();
+
+        thread_ref.register().set(slot, value);
     }
 
     fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
@@ -190,7 +203,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.pop_call_frame();
     }
 
-    fn ins_return(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_return(&self, thread: RcThread<'l>, _: &CompiledCode,
                   instruction: &Instruction) -> Option<RcObject<'l>> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -199,7 +212,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().get(slot)
     }
 
-    fn ins_goto_if_undef(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_goto_if_undef(&self, thread: RcThread<'l>, _: &CompiledCode,
                          instruction: &Instruction) -> Option<usize> {
         let mut thread_ref = thread.borrow_mut();
 

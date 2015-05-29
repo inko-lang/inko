@@ -10,6 +10,7 @@ instructions.
 
 The following instructions are supported by the VM:
 
+* set_object
 * set_integer
 * set_float
 * set_string
@@ -35,6 +36,18 @@ dedicated instructions.
 
 The bytecode will be serialized to files using either msgpack or cap'n proto, I
 haven't decided yet. Either way it won't be a home grown format.
+
+## set_object
+
+Allocates a new regular object and stores it in the given slot.
+
+Signature:
+
+    set_object TARGET_SLOT
+
+Example:
+
+    set_object 0
 
 ## set_integer
 

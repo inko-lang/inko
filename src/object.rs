@@ -5,6 +5,7 @@ use compiled_code::CompiledCode;
 
 // TODO: use different Object structs instead of smacking all this in Object
 pub enum ObjectValue<'l> {
+    None,
     Integer(isize),
     Float(f64),
     String(String),

@@ -29,6 +29,10 @@ impl <'l> Heap<'l> {
         object
     }
 
+    pub fn allocate_object(&mut self) -> RcObject<'l> {
+        self.allocate(ObjectValue::None)
+    }
+
     pub fn allocate_integer(&mut self, value: isize) -> RcObject<'l> {
         self.allocate(ObjectValue::Integer(value))
     }

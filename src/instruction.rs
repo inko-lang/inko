@@ -1,5 +1,6 @@
 #[derive(Debug)]
 pub enum InstructionType {
+    SetObject,
     SetInteger,
     SetFloat,
     SetString,
