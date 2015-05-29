@@ -251,6 +251,40 @@ Because allocating strings when sending a message using a literal name is a
 waste a compiled code object would have to store the literal names. These names
 are in turn used when sending messages.
 
+The Aeon VM supports 3 types of arguments when sending messages:
+
+* Positional arguments
+* Named arguments
+* Rest arguments
+
+Positional arguments are set in order:
+
+    example(1, 2, 3)
+
+Named arguments are set using the name of the argument, the order does not
+matter:
+
+    example(a = 1, c = 3, b = 2)
+
+Named arguments are simply mapped to their positional equivalents.
+
+A rest argument is an argument defined as `*argment` and consumes all arguments
+that were not assigned to positional arguments. For example, consider the
+following method definition:
+
+    def example(a, *other) { }
+
+When called using `example(a)` the `other` variable should be set to an empty
+array. When called using `example(a, b, c, d)` the `other` variable should be
+set to the array `[b, c, d]`.
+
+When a `send` instruction is invoked it will lookup the compiled code object of
+the method or raise a VM error if the method doesn't exist. It's up to
+compilers/languages to delegate non existing methods to a catch-all handler if
+needed. Once the compiled code object is found a new call frame is created and
+the arguments are set as local variables in the new call frame's register. These
+variables should be set in the same order as they are defined as arguments.
+
 ## return
 
 TODO
