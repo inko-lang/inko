@@ -71,17 +71,17 @@ impl<'l> VirtualMachine<'l> {
 
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
-                    self.set_integer(thread.clone(), code, &instruction);
+                    self.ins_set_integer(thread.clone(), code, &instruction);
                 },
                 InstructionType::SetFloat => {
-                    self.set_float(thread.clone(), code, &instruction);
+                    self.ins_set_float(thread.clone(), code, &instruction);
                 },
                 InstructionType::Send => {
-                    self.send(thread.clone(), code, &instruction);
+                    self.ins_send(thread.clone(), code, &instruction);
                 },
                 InstructionType::GotoIfUndef => {
-                    skip_until =
-                        self.goto_if_undef(thread.clone(), code, &instruction);
+                    skip_until = self
+                        .ins_goto_if_undef(thread.clone(), code, &instruction);
                 },
                 _ => {
                     let thread_ref = thread.borrow_mut();
@@ -98,7 +98,7 @@ impl<'l> VirtualMachine<'l> {
         }
     }
 
-    fn set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
                        instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -110,7 +110,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    fn set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
                      instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -122,7 +122,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    fn send(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
                 instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -182,8 +182,8 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.pop_call_frame();
     }
 
-    fn goto_if_undef(&self, thread: RcThread<'l>, code: &CompiledCode,
-                instruction: &Instruction) -> Option<usize> {
+    fn ins_goto_if_undef(&self, thread: RcThread<'l>, code: &CompiledCode,
+                         instruction: &Instruction) -> Option<usize> {
         let mut thread_ref = thread.borrow_mut();
 
         let go_to      = instruction.arguments[0];
