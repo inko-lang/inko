@@ -24,6 +24,7 @@ The following instructions are supported by the VM:
 * return
 * get_cscope
 * get_tscope
+* goto_if_undef
 
 There is no dedicated instruction for setting a Hash/Dictionary as this can (or
 at least should) be implemented in Aeon itself.
@@ -294,3 +295,63 @@ TODO
 TODO
 
 ## get_tscope
+
+## goto_if_undef
+
+Jumps to the given instruction if a register slot is not set.
+
+Signature:
+
+    goto_if_undef INSTRUCTION_INDEX, VALUE_SLOT
+
+Example:
+
+    Locals:
+      0: foo
+
+    Integers:
+      0: 10
+
+    0: get_local     0, 0 # foo
+    1: goto_if_undef 4, 0
+    2: set_integer   1, 0 # 10
+    3: set_local     0, 1 # foo = 10
+    4: return        0
+
+This is equivalent to the following pseudo code:
+
+    if !foo {
+        foo = 10
+    }
+
+    return foo
+
+A more expanded example:
+
+    def add(left, right = 10) -> Numeric {
+        left + right
+    }
+
+This would produce:
+
+    Arguments:
+      required: 1
+
+    Locals:
+      0: left
+      1: right
+
+    Literals:
+      0: "+"
+
+    Integers:
+      0: 10
+
+    Instructions:
+      0: get_local     0, 1          # right
+      1: goto_if_undef 4, 0
+      2: set_integer   1, 0          # 10
+      3: set_local     1, 1          # right = 10
+      4: get_local     2, 0          # left
+      5: send          4, 2, 0, 1, 0 # left + right
+      6: return        4

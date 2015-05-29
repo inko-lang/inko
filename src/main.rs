@@ -10,7 +10,6 @@ mod call_frame;
 mod compiled_code;
 mod heap;
 mod instruction;
-mod macros;
 mod object;
 mod register;
 mod thread;
@@ -34,6 +33,8 @@ fn main() {
     );
 
     cc.add_integer_literal(10);
+    cc.add_integer_literal(20);
+
     cc.add_string_literal("to_s".to_string());
 
     vm.start(&cc);

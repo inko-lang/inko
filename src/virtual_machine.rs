@@ -8,7 +8,29 @@ use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object::RcObject;
 use thread::Thread;
-use macros;
+
+/// Matches the option and returns the wrapped value if present, exits with a VM
+/// error when it's not.
+///
+/// Example:
+///
+///     let option     = Option::None;
+///     let thread_ref = thread.borrow_mut();
+///
+///     let value = some_or_terminate!(option, self, thread_ref, "Bummer!");
+///
+macro_rules! some_or_terminate {
+    ($value: expr, $vm: expr, $thread: expr, $message: expr) => {
+        match $value {
+            Option::Some(wrapped) => {
+                wrapped
+            },
+            Option::None => {
+                $vm.terminate_vm(&$thread, $message);
+            }
+        }
+    }
+}
 
 pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
 
@@ -35,7 +57,18 @@ impl<'l> VirtualMachine<'l> {
     }
 
     pub fn run(&self, thread: RcThread<'l>, code: &CompiledCode) {
-        for instruction in &code.instructions {
+        let mut skip_until: Option<usize> = Option::None;
+
+        for (index, instruction) in code.instructions.iter().enumerate() {
+            if skip_until.is_some() {
+                if index < skip_until.unwrap() {
+                    continue;
+                }
+                else {
+                    skip_until = Option::None;
+                }
+            }
+
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
                     self.set_integer(thread.clone(), code, &instruction);
@@ -45,6 +78,10 @@ impl<'l> VirtualMachine<'l> {
                 },
                 InstructionType::Send => {
                     self.send(thread.clone(), code, &instruction);
+                },
+                InstructionType::GotoIfUndef => {
+                    skip_until =
+                        self.goto_if_undef(thread.clone(), code, &instruction);
                 },
                 _ => {
                     let thread_ref = thread.borrow_mut();
@@ -61,7 +98,7 @@ impl<'l> VirtualMachine<'l> {
         }
     }
 
-    pub fn set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
                        instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -73,7 +110,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    pub fn set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
                      instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -85,7 +122,7 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    pub fn send(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn send(&self, thread: RcThread<'l>, code: &CompiledCode,
                 instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
@@ -143,6 +180,20 @@ impl<'l> VirtualMachine<'l> {
         self.run(thread.clone(), method_code);
 
         thread_ref.pop_call_frame();
+    }
+
+    fn goto_if_undef(&self, thread: RcThread<'l>, code: &CompiledCode,
+                instruction: &Instruction) -> Option<usize> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let go_to      = instruction.arguments[0];
+        let value_slot = instruction.arguments[1];
+        let value      = thread_ref.register().get(value_slot);
+
+        match value {
+            Option::Some(_) => { Option::None },
+            Option::None    => { Option::Some(go_to) }
+        }
     }
 
     fn terminate_vm(&self, thread: &RefMut<Thread<'l>>, message: String) -> ! {

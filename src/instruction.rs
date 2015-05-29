@@ -12,7 +12,8 @@ pub enum InstructionType {
     SetInstanceVariable,
     GetInstanceVariable,
     Send,
-    Return
+    Return,
+    GotoIfUndef
 }
 
 pub struct Instruction {
