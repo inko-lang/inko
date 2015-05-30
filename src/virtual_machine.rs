@@ -164,40 +164,12 @@ impl<'l> VirtualMachine<'l> {
             format!("Attempt to call {} on an undefined receiver", name)
         );
 
-        let mut opt_method_code: Option<&CompiledCode> = Option::None;
-
-        // Method defined directly on the object
-        if receiver.methods.contains_key(name) {
-            opt_method_code = receiver.methods.get(name)
-        }
-
-        // Method defined somewhere in the object hierarchy
-        else if receiver.parent.is_some() {
-            let mut parent = receiver.parent.as_ref();
-
-            while parent.is_some() {
-                let unwrapped = parent.unwrap();
-
-                if unwrapped.methods.contains_key(name) {
-                    opt_method_code = unwrapped.methods.get(name);
-
-                    break;
-                }
-
-                parent = unwrapped.parent.as_ref();
-            }
-        }
-
-        let ref method_code = match opt_method_code {
-            Option::Some(obj) => { obj },
-
-            Option::None => {
-                self.terminate_vm(
-                    &thread_ref,
-                    format!("Undefined method \"{}\" called on an object", name)
-                );
-            }
-        };
+        let method_code = some_or_terminate!(
+            receiver.lookup_method(&name),
+            self,
+            thread_ref,
+            format!("Undefined method \"{}\" called on an object", name)
+        );
 
         let mut arguments: Vec<RcObject<'l>> = Vec::new();
 
