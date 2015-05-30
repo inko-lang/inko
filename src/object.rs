@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use compiled_code::CompiledCode;
+use compiled_code::RcCompiledCode;
 
 // TODO: use different Object structs instead of smacking all this in Object
 pub enum ObjectValue<'l> {
@@ -17,11 +17,11 @@ pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
 
 pub struct Object<'l> {
     pub instance_variables: HashMap<String, RcObject<'l>>,
-    pub methods: HashMap<String, CompiledCode>,
+    pub methods: HashMap<String, RcCompiledCode>,
     pub value: ObjectValue<'l>,
     pub pinned: bool,
-    pub parent: Option<RcObject<'l>>,
-    pub method_cache: HashMap<String, &'l CompiledCode>
+    pub parent: Option<&'l Object<'l>>,
+    pub method_cache: HashMap<String, RcCompiledCode>
 }
 
 impl<'l> Object<'l> {
@@ -40,19 +40,17 @@ impl<'l> Object<'l> {
         Rc::new(RefCell::new(Object::new(value)))
     }
 
-    pub fn lookup_method(&self, name: &String) -> Option<&CompiledCode> {
-        let mut retval: Option<&CompiledCode> = Option::None;
+    pub fn lookup_method(&mut self, name: &String) -> Option<RcCompiledCode> {
+        let mut retval: Option<RcCompiledCode> = Option::None;
 
         // Method looked up previously and stored in the cache
         if self.method_cache.contains_key(name) {
-            // .get() returns a reference, but we already store a reference in
-            // the cache, thus we'd get &&CompiledCode instead of &CompiledCode.
-            retval = Option::Some(self.method_cache[name])
+            retval = self.method_cache.get(name).cloned();
         }
 
         // Method defined directly on the object
         else if self.methods.contains_key(name) {
-            retval = self.methods.get(name)
+            retval = self.methods.get(name).cloned();
         }
 
         // Method defined somewhere in the object hierarchy
@@ -60,10 +58,10 @@ impl<'l> Object<'l> {
             let mut parent = self.parent.as_ref();
 
             while parent.is_some() {
-                let unwrapped = parent.unwrap().borrow();
+                let unwrapped = parent.unwrap();
 
                 if unwrapped.methods.contains_key(name) {
-                    retval = unwrapped.methods.get(name);
+                    retval = unwrapped.methods.get(name).cloned();
 
                     break;
                 }
@@ -73,7 +71,7 @@ impl<'l> Object<'l> {
         }
 
         if retval.is_some() {
-            //self.method_cache.insert(name.clone(), retval.as_ref().unwrap());
+            self.method_cache.insert(name.clone(), retval.clone().unwrap());
         }
 
         retval

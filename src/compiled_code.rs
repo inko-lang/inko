@@ -1,5 +1,9 @@
+use std::rc::Rc;
+
 use call_frame::CallFrame;
 use instruction::Instruction;
+
+pub type RcCompiledCode = Rc<CompiledCode>;
 
 pub struct CompiledCode {
     pub name: String,
