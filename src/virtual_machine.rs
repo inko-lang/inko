@@ -164,20 +164,29 @@ impl<'l> VirtualMachine<'l> {
             format!("Attempt to call {} on an undefined receiver", name)
         );
 
-        // Method defined directly on the object?
-        let opt_method_code = if receiver.methods.contains_key(name) {
-            receiver.methods.get(name)
+        let mut opt_method_code: Option<&CompiledCode> = Option::None;
+
+        // Method defined directly on the object
+        if receiver.methods.contains_key(name) {
+            opt_method_code = receiver.methods.get(name)
         }
 
-        // Method defined in the prototype?
+        // Method defined somewhere in the object hierarchy
         else if receiver.parent.is_some() {
-            receiver.parent.as_ref().unwrap().methods.get(name)
-        }
+            let mut parent = receiver.parent.as_ref();
 
-        // Method not defined at all :<
-        else {
-            Option::None
-        };
+            while parent.is_some() {
+                let unwrapped = parent.unwrap();
+
+                if unwrapped.methods.contains_key(name) {
+                    opt_method_code = unwrapped.methods.get(name);
+
+                    break;
+                }
+
+                parent = unwrapped.parent.as_ref();
+            }
+        }
 
         let ref method_code = match opt_method_code {
             Option::Some(obj) => { obj },
