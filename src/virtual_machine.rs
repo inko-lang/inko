@@ -164,8 +164,10 @@ impl<'l> VirtualMachine<'l> {
             format!("Attempt to call {} on an undefined receiver", name)
         );
 
+        let receiver_ref = receiver.borrow_mut();
+
         let method_code = some_or_terminate!(
-            receiver.lookup_method(&name),
+            receiver_ref.lookup_method(name),
             self,
             thread_ref,
             format!("Undefined method \"{}\" called on an object", name)

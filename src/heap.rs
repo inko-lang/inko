@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use object::{Object, RcObject, ObjectValue};
 
 const DEFAULT_CAPACITY: usize = 1024;
@@ -22,7 +20,7 @@ impl <'l> Heap<'l> {
     }
 
     pub fn allocate(&mut self, value: ObjectValue<'l>) -> RcObject<'l> {
-        let object = Rc::new(Object::new(value));
+        let object = Object::new_rc(value);
 
         self.members.push(object.clone());
 
