@@ -1,35 +1,11 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::io::{self, Write};
-use std::process;
 
 use compiled_code::CompiledCode;
 use instruction::{InstructionType, Instruction};
 use object::RcObject;
 use thread::Thread;
-
-/// Matches the option and returns the wrapped value if present, exiting the VM
-/// otherwise.
-///
-/// # Examples
-///
-///     let option     = Option::None;
-///     let thread_ref = thread.borrow_mut();
-///
-///     let value = some_or_terminate!(option, self, thread_ref, "Bummer!");
-///
-macro_rules! some_or_terminate {
-    ($value: expr, $vm: expr, $thread: expr, $message: expr) => {
-        match $value {
-            Option::Some(wrapped) => {
-                wrapped
-            },
-            Option::None => {
-                $vm.terminate_vm(&$thread, $message);
-            }
-        }
-    }
-}
 
 /// A mutable, reference counted Thread.
 pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
@@ -59,13 +35,24 @@ impl<'l> VirtualMachine<'l> {
     /// execution as the main thread is executed in the same OS thread as the
     /// caller of this function is operating in.
     ///
-    pub fn start(&mut self, code: &CompiledCode) {
+    pub fn start(&mut self, code: &CompiledCode) -> Result<(), ()> {
         let frame  = code.new_call_frame();
         let thread = Rc::new(RefCell::new(Thread::new(frame)));
 
         self.threads.push(thread.clone());
 
-        self.run(thread, code);
+        let result = self.run(thread.clone(), code);
+
+        return match result {
+            Result::Ok(_)        => Result::Ok(()),
+            Result::Err(message) => {
+                self.print_error(thread, message);
+
+                // TODO: shut down threads
+
+                Result::Err(())
+            }
+        }
     }
 
     /// Runs a CompiledCode for a specific Thread.
@@ -77,7 +64,8 @@ impl<'l> VirtualMachine<'l> {
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
     ///
-    pub fn run(&self, thread: RcThread<'l>, code: &CompiledCode) -> Option<RcObject<'l>> {
+    pub fn run(&self, thread: RcThread<'l>,
+               code: &CompiledCode) -> Result<Option<RcObject<'l>>, String> {
         let mut skip_until: Option<usize> = Option::None;
         let mut retval = Option::None;
 
@@ -93,39 +81,37 @@ impl<'l> VirtualMachine<'l> {
 
             match instruction.instruction_type {
                 InstructionType::SetObject => {
-                    self.ins_set_object(thread.clone(), code, &instruction);
+                    try!(self.ins_set_object(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetInteger => {
-                    self.ins_set_integer(thread.clone(), code, &instruction);
+                    try!(self.ins_set_integer(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetFloat => {
-                    self.ins_set_float(thread.clone(), code, &instruction);
+                    try!(self.ins_set_float(thread.clone(), code, &instruction));
                 },
                 InstructionType::Send => {
-                    self.ins_send(thread.clone(), code, &instruction);
+                    try!(self.ins_send(thread.clone(), code, &instruction));
                 },
                 InstructionType::Return => {
-                    retval = self.ins_return(thread.clone(), code, &instruction);
+                    retval = try!(
+                        self.ins_return(thread.clone(), code, &instruction)
+                    );
                 },
                 InstructionType::GotoIfUndef => {
-                    skip_until = self
-                        .ins_goto_if_undef(thread.clone(), code, &instruction);
+                    skip_until = try!(
+                        self.ins_goto_if_undef(thread.clone(), code, &instruction)
+                    );
                 },
                 _ => {
-                    let thread_ref = thread.borrow_mut();
-
-                    self.terminate_vm(
-                        &thread_ref,
-                        format!(
-                            "Unknown instruction \"{:?}\"",
-                            instruction.instruction_type
-                        )
-                    );
+                    return Result::Err(format!(
+                        "Unknown instruction \"{:?}\"",
+                        instruction.instruction_type
+                    ));
                 }
             };
         }
 
-        retval
+        Ok(retval)
     }
 
     /// Allocates and sets a regular object in a register slot.
@@ -138,13 +124,19 @@ impl<'l> VirtualMachine<'l> {
     ///     0: set_object 0
     ///
     pub fn ins_set_object(&self, thread: RcThread<'l>, _: &CompiledCode,
-                          instruction: &Instruction) {
+                          instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let slot  = instruction.arguments[0];
+        let index = *try!(
+            instruction.arguments.get(0)
+                .ok_or("set_object requires a single argument".to_string())
+        );
+
         let value = thread_ref.young_heap().allocate_object();
 
-        thread_ref.register().set(slot, value);
+        thread_ref.register().set(index, value);
+
+        Ok(())
     }
 
     /// Allocates and sets an integer in a register slot.
@@ -164,15 +156,29 @@ impl<'l> VirtualMachine<'l> {
     ///     0: set_integer 0, 0
     ///
     pub fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
-                           instruction: &Instruction) {
+                           instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let slot   = instruction.arguments[0];
-        let index  = instruction.arguments[1];
-        let value  = code.integer_literals[index];
+        let slot = *try!(
+            instruction.arguments.get(0)
+                .ok_or("set_integer argument 1 is required".to_string())
+        );
+
+        let index = *try!(
+            instruction.arguments.get(1)
+                .ok_or("set_integer argument 2 is required".to_string())
+        );
+
+        let value = *try!(
+            code.integer_literals.get(index)
+                .ok_or("set_integer received an undefined literal".to_string())
+        );
+
         let object = thread_ref.young_heap().allocate_integer(value);
 
         thread_ref.register().set(slot, object);
+
+        Ok(())
     }
 
     /// Allocates and sets a float in a register slot.
@@ -192,15 +198,29 @@ impl<'l> VirtualMachine<'l> {
     ///     0: set_float 0, 0
     ///
     pub fn ins_set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
-                         instruction: &Instruction) {
+                         instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let slot   = instruction.arguments[0];
-        let index  = instruction.arguments[1];
-        let value  = code.float_literals[index];
+        let slot = *try!(
+            instruction.arguments.get(0)
+                .ok_or("set_float argument 1 is required".to_string())
+        );
+
+        let index = *try!(
+            instruction.arguments.get(1)
+                .ok_or("set_float argument 2 is required".to_string())
+        );
+
+        let value  = *try!(
+            code.float_literals.get(index)
+                .ok_or("set_float received an undefined literal".to_string())
+        );
+
         let object = thread_ref.young_heap().allocate_float(value);
 
         thread_ref.register().set(slot, object);
+
+        Ok(())
     }
 
     /// Sends a message and stores the result in a register slot.
@@ -232,35 +252,44 @@ impl<'l> VirtualMachine<'l> {
     ///     2: send        2, 0, 0, 1, 1  # 10.+(20)
     ///
     pub fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
-                    instruction: &Instruction) {
+                    instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let result_slot   = instruction.arguments[0];
-        let receiver_slot = instruction.arguments[1];
-        let name_index    = instruction.arguments[2];
-        let arg_count     = instruction.arguments[3];
-
-        let name = some_or_terminate!(
-            code.string_literals.get(name_index),
-            self,
-            thread_ref,
-            format!("No method name literal defined at index {}", name_index)
+        let result_slot = *try!(
+            instruction.arguments.get(0)
+                .ok_or("send argument 1 is required".to_string())
         );
 
-        let receiver = some_or_terminate!(
-            thread_ref.register().get(receiver_slot),
-            self,
-            thread_ref,
-            format!("Attempt to call {} on an undefined receiver", name)
+        let receiver_slot = *try!(
+            instruction.arguments.get(1)
+                .ok_or("send argument 2 is required".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments.get(2)
+                .ok_or("send argument 3 is required".to_string())
+        );
+
+        let arg_count = *try!(
+            instruction.arguments.get(3)
+                .ok_or("send argument 4 is required".to_string())
+        );
+
+        let name = try!(
+            code.string_literals.get(name_index)
+                .ok_or("send received an undefined literal".to_string())
+        );
+
+        let receiver = try!(
+            thread_ref.register().get(receiver_slot)
+                .ok_or(format!("Attempt to call {} on an undefined receiver", name))
         );
 
         let mut receiver_ref = receiver.borrow_mut();
 
-        let method_code = &some_or_terminate!(
-            receiver_ref.lookup_method(name),
-            self,
-            thread_ref,
-            format!("Undefined method \"{}\" called on an object", name)
+        let method_code = &try!(
+            receiver_ref.lookup_method(name)
+                .ok_or(format!("Undefined method \"{}\" called on an object", name))
         );
 
         let mut arguments: Vec<RcObject<'l>> = Vec::new();
@@ -269,11 +298,9 @@ impl<'l> VirtualMachine<'l> {
         for index in 4..(4 + arg_count) {
             let arg_index = instruction.arguments[index];
 
-            let arg = some_or_terminate!(
-                thread_ref.register().get(arg_index),
-                self,
-                thread_ref,
-                "Attempt to use an undefined value as an argument".to_string()
+            let arg = try!(
+                thread_ref.register().get(arg_index)
+                    .ok_or(format!("send argument {} is undefined", index))
             );
 
             arguments.push(arg);
@@ -286,13 +313,15 @@ impl<'l> VirtualMachine<'l> {
             thread_ref.variable_scope().add(arg.clone());
         }
 
-        let return_val = self.run(thread.clone(), method_code);
+        let return_val = try!(self.run(thread.clone(), method_code));
 
         if return_val.is_some() {
             thread_ref.register().set(result_slot, return_val.unwrap())
         }
 
         thread_ref.pop_call_frame();
+
+        Ok(())
     }
 
     /// Returns the value in the given register slot.
@@ -312,12 +341,16 @@ impl<'l> VirtualMachine<'l> {
     ///     1: return      0
     ///
     fn ins_return(&self, thread: RcThread<'l>, _: &CompiledCode,
-                  instruction: &Instruction) -> Option<RcObject<'l>> {
+                  instruction: &Instruction)
+                  -> Result<Option<RcObject<'l>>, String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let slot = instruction.arguments[0];
+        let slot = *try!(
+            instruction.arguments.get(0)
+                .ok_or("return argument 1 is required".to_string())
+        );
 
-        thread_ref.register().get(slot)
+        Ok(thread_ref.register().get(slot))
     }
 
     /// Jumps to an instruction if a slot is not set.
@@ -340,38 +373,41 @@ impl<'l> VirtualMachine<'l> {
     /// Here slot "0" would be set to "20".
     ///
     pub fn ins_goto_if_undef(&self, thread: RcThread<'l>, _: &CompiledCode,
-                             instruction: &Instruction) -> Option<usize> {
+                             instruction: &Instruction)
+                             -> Result<Option<usize>, String> {
         let mut thread_ref = thread.borrow_mut();
 
-        let go_to      = instruction.arguments[0];
-        let value_slot = instruction.arguments[1];
-        let value      = thread_ref.register().get(value_slot);
+        let go_to = *try!(
+            instruction.arguments.get(0)
+                .ok_or("goto_if_undef argument 1 is required".to_string())
+        );
 
-        match value {
+        let value_slot = *try!(
+            instruction.arguments.get(1)
+                .ok_or("goto_if_undef argument 2 is required".to_string())
+        );
+
+        let value   = thread_ref.register().get(value_slot);
+        let matched = match value {
             Option::Some(_) => { Option::None },
             Option::None    => { Option::Some(go_to) }
-        }
+        };
+
+        Ok(matched)
     }
 
-    /// Prints a VM backtrace and terminates the current VM instance.
-    ///
-    /// This should only be used for serious errors that can't be handled in any
-    /// reasonable way.
-    ///
-    fn terminate_vm(&self, thread: &RefMut<Thread<'l>>, message: String) -> ! {
+    /// Prints a VM backtrace of a given thread with a message.
+    fn print_error(&self, thread: RcThread<'l>, message: String) {
+        let thread_ref = thread.borrow();
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
 
-        thread.call_frame().each_frame(|frame| {
+        thread_ref.call_frame().each_frame(|frame| {
             error.push_str(
                 &format!("\n{}:{} in {}", frame.file, frame.line, frame.name)
             );
         });
 
         write!(&mut stderr, "{}\n", error).unwrap();
-
-        // TODO: shut down threads properly
-        // TODO: replace exit with something that doesn't kill the entire process
-        process::exit(1);
     }
 }

@@ -1,5 +1,7 @@
 extern crate libaeon;
 
+use std::process;
+
 use libaeon::virtual_machine::VirtualMachine;
 use libaeon::compiled_code::CompiledCode;
 use libaeon::instruction::{InstructionType, Instruction};
@@ -21,5 +23,9 @@ fn main() {
 
     cc.add_string_literal("to_s".to_string());
 
-    vm.start(&cc);
+    let result = vm.start(&cc);
+
+    if result.is_err() {
+        process::exit(1);
+    }
 }
