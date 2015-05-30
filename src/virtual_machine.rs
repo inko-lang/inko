@@ -4,15 +4,14 @@ use std::io::{self, Write};
 use std::process;
 
 use compiled_code::CompiledCode;
-use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object::RcObject;
 use thread::Thread;
 
-/// Matches the option and returns the wrapped value if present, exits with a VM
-/// error when it's not.
+/// Matches the option and returns the wrapped value if present, exiting the VM
+/// otherwise.
 ///
-/// Example:
+/// # Examples
 ///
 ///     let option     = Option::None;
 ///     let thread_ref = thread.borrow_mut();
@@ -32,21 +31,34 @@ macro_rules! some_or_terminate {
     }
 }
 
+/// A mutable, reference counted Thread.
 pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
 
+/// Structure representing a single VM instance.
+///
+/// A VirtualMachine manages threads, runs instructions, starts/terminates
+/// threads and so on. VirtualMachine instances are fully self contained
+/// allowing multiple instances to run fully isolated in the same process.
+///
 pub struct VirtualMachine<'l> {
-    threads: Vec<RcThread<'l>>,
-    global_heap: Heap<'l>
+    /// All threads that are currently active.
+    pub threads: Vec<RcThread<'l>>
 }
 
 impl<'l> VirtualMachine<'l> {
+    /// Creates a new VirtualMachine without any threads.
     pub fn new() -> VirtualMachine<'l> {
         VirtualMachine {
-            threads: Vec::new(),
-            global_heap: Heap::new()
+            threads: Vec::new()
         }
     }
 
+    /// Starts the main thread
+    ///
+    /// This requires a CompiledCode to run. Calling this method will block
+    /// execution as the main thread is executed in the same OS thread as the
+    /// caller of this function is operating in.
+    ///
     pub fn start(&mut self, code: &CompiledCode) {
         let frame  = code.new_call_frame();
         let thread = Rc::new(RefCell::new(Thread::new(frame)));
@@ -56,6 +68,15 @@ impl<'l> VirtualMachine<'l> {
         self.run(thread, code);
     }
 
+    /// Runs a CompiledCode for a specific Thread.
+    ///
+    /// This iterates over all instructions in the CompiledCode, executing them
+    /// one by one (except when certain instructions dictate otherwise).
+    ///
+    /// The return value is whatever the last CompiledCode returned (if
+    /// anything). Values are only returned when a CompiledCode ends with a
+    /// "return" instruction.
+    ///
     pub fn run(&self, thread: RcThread<'l>, code: &CompiledCode) -> Option<RcObject<'l>> {
         let mut skip_until: Option<usize> = Option::None;
         let mut retval = Option::None;
@@ -107,8 +128,17 @@ impl<'l> VirtualMachine<'l> {
         retval
     }
 
-    fn ins_set_object(&self, thread: RcThread<'l>, _: &CompiledCode,
-                      instruction: &Instruction) {
+    /// Allocates and sets a regular object in a register slot.
+    ///
+    /// This instruction requires a single argument: the index of the slot to
+    /// store the object in.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object 0
+    ///
+    pub fn ins_set_object(&self, thread: RcThread<'l>, _: &CompiledCode,
+                          instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
         let slot  = instruction.arguments[0];
@@ -117,8 +147,24 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, value);
     }
 
-    fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
-                       instruction: &Instruction) {
+    /// Allocates and sets an integer in a register slot.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The slot index to store the integer in.
+    /// 2. The index of the integer literals to use for the value.
+    ///
+    /// The integer literal is extracted from the given CompiledCode.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_integer 0, 0
+    ///
+    pub fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
+                           instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
         let slot   = instruction.arguments[0];
@@ -129,8 +175,24 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    fn ins_set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
-                     instruction: &Instruction) {
+    /// Allocates and sets a float in a register slot.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The slot index to store the float in.
+    /// 2. The index of the float literals to use for the value.
+    ///
+    /// The float literal is extracted from the given CompiledCode.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///
+    ///     0: set_float 0, 0
+    ///
+    pub fn ins_set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
+                         instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
         let slot   = instruction.arguments[0];
@@ -141,8 +203,36 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().set(slot, object);
     }
 
-    fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
-                instruction: &Instruction) {
+    /// Sends a message and stores the result in a register slot.
+    ///
+    /// This instruction requires at least 4 arguments:
+    ///
+    /// 1. The slot index to store the result in.
+    /// 2. The slot index of the receiver.
+    /// 3. The index of the string literals to use for the method name.
+    /// 4. The amount of arguments to pass (0 or more).
+    ///
+    /// If the argument amount is set to N where N > 0 then the N instruction
+    /// arguments following the 4th instruction argument are used as arguments
+    /// for sending the message.
+    ///
+    /// This instruction does not allocate a String for the method name.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 20
+    ///
+    ///     string_literals:
+    ///       0: "+"
+    ///
+    ///     0: set_integer 0, 0           # 10
+    ///     1: set_integer 1, 1           # 20
+    ///     2: send        2, 0, 0, 1, 1  # 10.+(20)
+    ///
+    pub fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
+                    instruction: &Instruction) {
         let mut thread_ref = thread.borrow_mut();
 
         let result_slot   = instruction.arguments[0];
@@ -205,6 +295,22 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.pop_call_frame();
     }
 
+    /// Returns the value in the given register slot.
+    ///
+    /// As register slots can be left empty this method returns an Option
+    /// instead of returning an Object directly.
+    ///
+    /// This instruction takes a single argument: the slot index containing the
+    /// value to return.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: return      0
+    ///
     fn ins_return(&self, thread: RcThread<'l>, _: &CompiledCode,
                   instruction: &Instruction) -> Option<RcObject<'l>> {
         let mut thread_ref = thread.borrow_mut();
@@ -214,8 +320,27 @@ impl<'l> VirtualMachine<'l> {
         thread_ref.register().get(slot)
     }
 
-    fn ins_goto_if_undef(&self, thread: RcThread<'l>, _: &CompiledCode,
-                         instruction: &Instruction) -> Option<usize> {
+    /// Jumps to an instruction if a slot is not set.
+    ///
+    /// This instruction takes two arguments:
+    ///
+    /// 1. The instruction index to jump to if a slot is not set.
+    /// 2. The slot index to check.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 20
+    ///
+    ///     0: goto_if_undef 0, 1
+    ///     1: set_integer   0, 0
+    ///     2: set_integer   0, 1
+    ///
+    /// Here slot "0" would be set to "20".
+    ///
+    pub fn ins_goto_if_undef(&self, thread: RcThread<'l>, _: &CompiledCode,
+                             instruction: &Instruction) -> Option<usize> {
         let mut thread_ref = thread.borrow_mut();
 
         let go_to      = instruction.arguments[0];
@@ -228,6 +353,11 @@ impl<'l> VirtualMachine<'l> {
         }
     }
 
+    /// Prints a VM backtrace and terminates the current VM instance.
+    ///
+    /// This should only be used for serious errors that can't be handled in any
+    /// reasonable way.
+    ///
     fn terminate_vm(&self, thread: &RefMut<Thread<'l>>, message: String) -> ! {
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
@@ -241,7 +371,7 @@ impl<'l> VirtualMachine<'l> {
         write!(&mut stderr, "{}\n", error).unwrap();
 
         // TODO: shut down threads properly
-
+        // TODO: replace exit with something that doesn't kill the entire process
         process::exit(1);
     }
 }

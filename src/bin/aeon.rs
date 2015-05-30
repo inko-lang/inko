@@ -1,24 +1,8 @@
-// FIXME: re-enable once all code is actually used.
-#![allow(dead_code)]
+extern crate libaeon;
 
-mod gc {
-    mod baker;
-    mod immix;
-}
-
-mod call_frame;
-mod compiled_code;
-mod heap;
-mod instruction;
-mod object;
-mod register;
-mod thread;
-mod virtual_machine;
-mod variable_scope;
-
-use virtual_machine::VirtualMachine;
-use compiled_code::CompiledCode;
-use instruction::{InstructionType, Instruction};
+use libaeon::virtual_machine::VirtualMachine;
+use libaeon::compiled_code::CompiledCode;
+use libaeon::instruction::{InstructionType, Instruction};
 
 fn main() {
     let mut vm = VirtualMachine::new();

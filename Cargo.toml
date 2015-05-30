@@ -3,3 +3,6 @@
 name = "aeon"
 version = "0.0.1"
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
+
+[lib]
+name = "libaeon"
