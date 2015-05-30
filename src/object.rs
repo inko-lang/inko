@@ -19,7 +19,7 @@ pub struct Object<'l> {
     pub methods: HashMap<String, CompiledCode>,
     pub value: ObjectValue<'l>,
     pub pinned: bool,
-    pub prototype: Option<RcObject<'l>>
+    pub parent: Option<RcObject<'l>>
 }
 
 impl<'l> Object<'l> {
@@ -29,7 +29,7 @@ impl<'l> Object<'l> {
             methods: HashMap::new(),
             value: value,
             pinned: false,
-            prototype: Option::None
+            parent: Option::None
         }
     }
 }

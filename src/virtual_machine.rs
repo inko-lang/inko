@@ -170,8 +170,8 @@ impl<'l> VirtualMachine<'l> {
         }
 
         // Method defined in the prototype?
-        else if receiver.prototype.is_some() {
-            receiver.prototype.as_ref().unwrap().methods.get(name)
+        else if receiver.parent.is_some() {
+            receiver.parent.as_ref().unwrap().methods.get(name)
         }
 
         // Method not defined at all :<
