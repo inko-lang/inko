@@ -1,10 +1,15 @@
 use std::mem;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use call_frame::CallFrame;
 use compiled_code::CompiledCode;
 use heap::Heap;
 use register::Register;
 use variable_scope::VariableScope;
+
+/// A mutable, reference counted Thread.
+pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
 
 /// Struct representing a VM thread.
 ///
@@ -46,6 +51,11 @@ impl<'l> Thread<'l> {
             young_heap: Heap::new(),
             mature_heap: Heap::new()
         }
+    }
+
+    /// Creates a new mutable, reference counted Thread.
+    pub fn with_rc(call_frame: CallFrame<'l>) -> RcThread<'l> {
+        Rc::new(RefCell::new(Thread::new(call_frame)))
     }
 
     /// Sets the current CallFrame from a CompiledCode.

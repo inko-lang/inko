@@ -1,14 +1,9 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::io::{self, Write};
 
 use compiled_code::CompiledCode;
 use instruction::{InstructionType, Instruction};
 use object::RcObject;
-use thread::Thread;
-
-/// A mutable, reference counted Thread.
-pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
+use thread::{Thread, RcThread};
 
 /// Structure representing a single VM instance.
 ///
@@ -37,7 +32,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     pub fn start(&mut self, code: &CompiledCode) -> Result<(), ()> {
         let frame  = code.new_call_frame();
-        let thread = Rc::new(RefCell::new(Thread::new(frame)));
+        let thread = Thread::with_rc(frame);
 
         self.threads.push(thread.clone());
 
