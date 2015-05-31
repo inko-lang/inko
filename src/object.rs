@@ -1,6 +1,7 @@
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::RwLock;
 
 use compiled_code::RcCompiledCode;
 
@@ -38,9 +39,11 @@ pub struct Object<'l> {
     /// Name of the object
     pub name: String,
 
+    /// The instance variables of the object. These don't use a lock as objects
+    /// can't be modified from multiple threads in parallel.
     pub instance_variables: HashMap<String, RcObject<'l>>,
 
-    pub methods: HashMap<String, RcCompiledCode>,
+    pub methods: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// A value associated with the object, if any.
     pub value: ObjectValue<'l>,
@@ -52,7 +55,7 @@ pub struct Object<'l> {
     pub parent: Option<&'l Object<'l>>,
 
     /// Cache for any looked up methods.
-    pub method_cache: HashMap<String, RcCompiledCode>
+    pub method_cache: RwLock<HashMap<String, RcCompiledCode>>,
 }
 
 impl<'l> Object<'l> {
@@ -66,11 +69,11 @@ impl<'l> Object<'l> {
         Object {
             name: "(anonymous object)".to_string(),
             instance_variables: HashMap::new(),
-            methods: HashMap::new(),
+            methods: RwLock::new(HashMap::new()),
             value: value,
             pinned: false,
             parent: None,
-            method_cache: HashMap::new()
+            method_cache: RwLock::new(HashMap::new())
         }
     }
 
@@ -109,35 +112,45 @@ impl<'l> Object<'l> {
     pub fn lookup_method(&mut self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
-        // Method looked up previously and stored in the cache
-        if self.method_cache.contains_key(name) {
-            retval = self.method_cache.get(name).cloned();
-        }
+        {
+            // Scoped to this block so that they're dropped automatically by the
+            // time we're updating the method cache.
+            let method_cache = self.method_cache.read().unwrap();
+            let methods      = self.methods.read().unwrap();
 
-        // Method defined directly on the object
-        else if self.methods.contains_key(name) {
-            retval = self.methods.get(name).cloned();
-        }
+            // Method looked up previously and stored in the cache
+            if method_cache.contains_key(name) {
+                retval = method_cache.get(name).cloned();
+            }
 
-        // Method defined somewhere in the object hierarchy
-        else if self.parent.is_some() {
-            let mut parent = self.parent.as_ref();
+            // Method defined directly on the object
+            else if methods.contains_key(name) {
+                retval = methods.get(name).cloned();
+            }
 
-            while parent.is_some() {
-                let unwrapped = parent.unwrap();
+            // Method defined somewhere in the object hierarchy
+            else if self.parent.is_some() {
+                let mut parent = self.parent.as_ref();
 
-                if unwrapped.methods.contains_key(name) {
-                    retval = unwrapped.methods.get(name).cloned();
+                while parent.is_some() {
+                    let unwrapped      = parent.unwrap();
+                    let parent_methods = unwrapped.methods.read().unwrap();
 
-                    break;
+                    if parent_methods.contains_key(name) {
+                        retval = parent_methods.get(name).cloned();
+
+                        break;
+                    }
+
+                    parent = unwrapped.parent.as_ref();
                 }
-
-                parent = unwrapped.parent.as_ref();
             }
         }
 
         if retval.is_some() {
-            self.method_cache.insert(name.clone(), retval.clone().unwrap());
+            let mut method_cache = self.method_cache.write().unwrap();
+
+            method_cache.insert(name.clone(), retval.clone().unwrap());
         }
 
         retval
