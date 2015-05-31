@@ -35,7 +35,7 @@ pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
 /// used for global objects such as classes and bootstrapped objects.
 ///
 pub struct Object<'l> {
-    /// Name of the object, set to "(anonymous object)" by default.
+    /// Name of the object
     pub name: String,
 
     pub instance_variables: HashMap<String, RcObject<'l>>,

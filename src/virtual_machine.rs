@@ -92,6 +92,9 @@ impl<'l> VirtualMachine<'l> {
                         self.ins_return(thread.clone(), code, &instruction)
                     );
                 },
+                InstructionType::SetName => {
+                    try!(self.ins_set_name(thread.clone(), code, &instruction));
+                },
                 InstructionType::GotoIfUndef => {
                     skip_until = try!(
                         self.ins_goto_if_undef(thread.clone(), code, &instruction)
@@ -410,6 +413,52 @@ impl<'l> VirtualMachine<'l> {
         };
 
         Ok(matched)
+    }
+
+    /// Sets the name of an object.
+    ///
+    /// This instruction takes two arguments:
+    ///
+    /// 1. The slot index of the object for which to set the name.
+    /// 2. The string literal index containing the name of the object.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "Integer"
+    ///
+    ///     0: set_object 0
+    ///     1: set_name   0, 0
+    ///
+    pub fn ins_set_name(&self, thread: RcThread<'l>, code: &CompiledCode,
+                        instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let obj_index = *try!(
+            instruction.arguments.get(0)
+                .ok_or("set_name argument 1 is required".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments.get(1)
+                .ok_or("set_name argument 2 is required".to_string())
+        );
+
+        let name = try!(
+            code.string_literals.get(name_index)
+                .ok_or("set_name received an undefined literal".to_string())
+        );
+
+        let obj = try!(
+            thread_ref.register().get(obj_index)
+                .ok_or("set_name called for an undefined object".to_string())
+        );
+
+        let mut obj_ref = obj.borrow_mut();
+
+        obj_ref.name = name.clone();
+
+        Ok(())
     }
 
     /// Prints a VM backtrace of a given thread with a message.
