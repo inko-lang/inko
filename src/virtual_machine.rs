@@ -97,6 +97,11 @@ impl<'l> VirtualMachine<'l> {
                         self.ins_goto_if_undef(thread.clone(), code, &instruction)
                     );
                 },
+                InstructionType::GotoIfDef => {
+                    skip_until = try!(
+                        self.ins_goto_if_def(thread.clone(), code, &instruction)
+                    );
+                },
                 _ => {
                     return Err(format!(
                         "Unknown instruction \"{:?}\"",
@@ -430,6 +435,49 @@ impl<'l> VirtualMachine<'l> {
         let matched = match value {
             Some(_) => { None },
             None    => { Some(go_to) }
+        };
+
+        Ok(matched)
+    }
+
+    /// Jumps to an instruction if a slot is set.
+    ///
+    /// This instruction takes two arguments:
+    ///
+    /// 1. The instruction index to jump to if a slot is set.
+    /// 2. The slot index to check.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 20
+    ///
+    ///     0: set_integer   0, 0
+    ///     1: goto_if_def   3, 0
+    ///     2: set_integer   0, 1
+    ///
+    /// Here slot "0" would be set to "10".
+    ///
+    pub fn ins_goto_if_def(&self, thread: RcThread<'l>, _: &CompiledCode,
+                             instruction: &Instruction)
+                             -> Result<Option<usize>, String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let go_to = *try!(
+            instruction.arguments.get(0)
+                .ok_or("goto_if_def argument 1 is required".to_string())
+        );
+
+        let value_slot = *try!(
+            instruction.arguments.get(1)
+                .ok_or("goto_if_def argument 2 is required".to_string())
+        );
+
+        let value   = thread_ref.register().get(value_slot);
+        let matched = match value {
+            Some(_) => { Some(go_to) },
+            None    => { None }
         };
 
         Ok(matched)
