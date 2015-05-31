@@ -230,10 +230,11 @@ impl<'l> VirtualMachine<'l> {
     /// 1. The slot index to store the result in.
     /// 2. The slot index of the receiver.
     /// 3. The index of the string literals to use for the method name.
-    /// 4. The amount of arguments to pass (0 or more).
+    /// 4. A boolean (1 or 0) indicating if private methods can be called.
+    /// 5. The amount of arguments to pass (0 or more).
     ///
     /// If the argument amount is set to N where N > 0 then the N instruction
-    /// arguments following the 4th instruction argument are used as arguments
+    /// arguments following the 5th instruction argument are used as arguments
     /// for sending the message.
     ///
     /// This instruction does not allocate a String for the method name.
@@ -247,9 +248,9 @@ impl<'l> VirtualMachine<'l> {
     ///     string_literals:
     ///       0: "+"
     ///
-    ///     0: set_integer 0, 0           # 10
-    ///     1: set_integer 1, 1           # 20
-    ///     2: send        2, 0, 0, 1, 1  # 10.+(20)
+    ///     0: set_integer 0, 0              # 10
+    ///     1: set_integer 1, 1              # 20
+    ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
     ///
     pub fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
@@ -270,9 +271,14 @@ impl<'l> VirtualMachine<'l> {
                 .ok_or("send argument 3 is required".to_string())
         );
 
-        let arg_count = *try!(
+        let allow_private = *try!(
             instruction.arguments.get(3)
                 .ok_or("send argument 4 is required".to_string())
+        );
+
+        let arg_count = *try!(
+            instruction.arguments.get(4)
+                .ok_or("send argument 5 is required".to_string())
         );
 
         let name = try!(
@@ -289,13 +295,17 @@ impl<'l> VirtualMachine<'l> {
 
         let method_code = &try!(
             receiver_ref.lookup_method(name)
-                .ok_or(format!("Undefined method \"{}\" called on an object", name))
+                .ok_or(format!("Undefined method \"{}\" called", name))
         );
+
+        if method_code.is_private() && allow_private == 0 {
+            return Err(format!("Can't call private method \"{}\"", name));
+        }
 
         let mut arguments: Vec<RcObject<'l>> = Vec::new();
 
         // First collect the arguments before we switch over to a new register
-        for index in 4..(4 + arg_count) {
+        for index in 5..(5 + arg_count) {
             let arg_index = instruction.arguments[index];
 
             let arg = try!(

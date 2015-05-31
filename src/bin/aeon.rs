@@ -14,7 +14,7 @@ fn main() {
         1,
         vec![
             Instruction::new(InstructionType::SetInteger, vec![0, 0], 1, 1),
-            Instruction::new(InstructionType::Send, vec![1, 0, 0, 0], 1, 1)
+            Instruction::new(InstructionType::Send, vec![1, 0, 0, 0, 0], 1, 1)
         ]
     );
 

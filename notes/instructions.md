@@ -231,7 +231,8 @@ Sends a message to a receiver and stores the results in a register slot.
 
 Signature:
 
-    send TARGET_SLOT, RECEIVER_SLOT, NAME_LITERAL_SLOT, ARG_AMOUNT, ARG_SLOT1, ...
+    send TARGET_SLOT, RECEIVER_SLOT, NAME_LITERAL_SLOT, ALLOW_PRIVATE,
+         ARG_AMOUNT, ARG_SLOT1, ...
 
 Example:
 
@@ -244,7 +245,7 @@ Example:
 
     set_integer 0, 0
     set_integer 1, 1
-    send        2, 0, 0, 1, 1
+    send        2, 0, 0, 0, 1, 1
 
                 ^  ^  ^
                 |  |  |

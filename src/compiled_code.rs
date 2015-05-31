@@ -6,6 +6,12 @@ use instruction::Instruction;
 /// A reference counteded (using Rc) CompiledCode object.
 pub type RcCompiledCode = Rc<CompiledCode>;
 
+/// Enum indicating the visibility of a method
+pub enum MethodVisibility {
+    Public,
+    Private
+}
+
 /// A CompiledCode contains all information required to run a block of code.
 ///
 /// This includes methods, classes, blocks/closures (e.g. in a language such as
@@ -34,8 +40,13 @@ pub struct CompiledCode {
     /// The amount of required arguments.
     pub required_arguments: usize,
 
+    /// The method visibility (public or private)
+    pub visibility: MethodVisibility,
+
     /// List of local variable names.
     pub locals: Vec<String>,
+
+    /// The instructions to execute.
     pub instructions: Vec<Instruction>,
 
     /// Any literal integers appearing in the source code.
@@ -63,6 +74,7 @@ impl CompiledCode {
             file: file,
             line: line,
             required_arguments: 0,
+            visibility: MethodVisibility::Public,
             locals: Vec::new(),
             instructions: instructions,
             integer_literals: Vec::new(),
@@ -110,5 +122,13 @@ impl CompiledCode {
     /// Creates and returns a CallFrame based on the current CompiledCode.
     pub fn new_call_frame<'a>(&self) -> CallFrame<'a> {
         CallFrame::new(self.name.clone(), self.file.clone(), self.line)
+    }
+
+    /// Returns true for a private CompiledCode
+    pub fn is_private(&self) -> bool {
+        match self.visibility {
+            MethodVisibility::Private => true,
+            _                         => false
+        }
     }
 }
