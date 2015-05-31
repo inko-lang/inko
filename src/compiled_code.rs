@@ -33,8 +33,6 @@ pub struct CompiledCode {
 
     /// The amount of required arguments.
     pub required_arguments: usize,
-    pub optional_arguments: usize,
-    pub rest_argument: bool,
 
     /// List of local variable names.
     pub locals: Vec<String>,
@@ -65,8 +63,6 @@ impl CompiledCode {
             file: file,
             line: line,
             required_arguments: 0,
-            optional_arguments: 0,
-            rest_argument: false,
             locals: Vec::new(),
             instructions: instructions,
             integer_literals: Vec::new(),
