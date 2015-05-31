@@ -52,8 +52,8 @@ impl<'l> Register<'l> {
     ///
     pub fn get(&self, slot: usize) -> Option<RcObject<'l>> {
         match self.slots.get(&slot) {
-            Option::Some(object) => { Option::Some(object.clone()) },
-            Option::None         => { Option::None }
+            Some(object) => { Some(object.clone()) },
+            None         => { None }
         }
     }
 }

@@ -41,7 +41,7 @@ impl<'l> CallFrame<'l> {
             name: name,
             file: file,
             line: line,
-            parent: Option::None,
+            parent: None,
             register: Register::new(),
             variables: VariableScope::new()
         };
@@ -51,7 +51,7 @@ impl<'l> CallFrame<'l> {
 
     /// Boxes and sets the current frame's parent.
     pub fn set_parent(&mut self, parent: CallFrame<'l>) {
-        self.parent = Option::Some(Box::new(parent));
+        self.parent = Some(Box::new(parent));
     }
 
     /// Calls the supplied closure for the current and any parent frames.

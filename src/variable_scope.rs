@@ -32,8 +32,8 @@ impl<'l> VariableScope<'l> {
     /// Returns a local variable wrapped in an Option.
     pub fn get(&self, index: usize) -> Option<RcObject<'l>> {
         match self.local_variables.get(index) {
-            Option::Some(object) => { Option::Some(object.clone()) },
-            Option::None         => { Option::None }
+            Some(object) => { Some(object.clone()) },
+            None         => { None }
         }
     }
 }

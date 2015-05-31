@@ -64,7 +64,7 @@ impl<'l> Object<'l> {
             methods: HashMap::new(),
             value: value,
             pinned: false,
-            parent: Option::None,
+            parent: None,
             method_cache: HashMap::new()
         }
     }
@@ -102,7 +102,7 @@ impl<'l> Object<'l> {
     ///     }
     ///
     pub fn lookup_method(&mut self, name: &String) -> Option<RcCompiledCode> {
-        let mut retval: Option<RcCompiledCode> = Option::None;
+        let mut retval: Option<RcCompiledCode> = None;
 
         // Method looked up previously and stored in the cache
         if self.method_cache.contains_key(name) {

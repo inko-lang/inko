@@ -44,13 +44,13 @@ impl<'l> VirtualMachine<'l> {
         let result = self.run(thread.clone(), code);
 
         return match result {
-            Result::Ok(_)        => Result::Ok(()),
-            Result::Err(message) => {
+            Ok(_)        => Ok(()),
+            Err(message) => {
                 self.print_error(thread, message);
 
                 // TODO: shut down threads
 
-                Result::Err(())
+                Err(())
             }
         }
     }
@@ -66,8 +66,8 @@ impl<'l> VirtualMachine<'l> {
     ///
     pub fn run(&self, thread: RcThread<'l>,
                code: &CompiledCode) -> Result<Option<RcObject<'l>>, String> {
-        let mut skip_until: Option<usize> = Option::None;
-        let mut retval = Option::None;
+        let mut skip_until: Option<usize> = None;
+        let mut retval = None;
 
         for (index, instruction) in code.instructions.iter().enumerate() {
             if skip_until.is_some() {
@@ -75,7 +75,7 @@ impl<'l> VirtualMachine<'l> {
                     continue;
                 }
                 else {
-                    skip_until = Option::None;
+                    skip_until = None;
                 }
             }
 
@@ -103,7 +103,7 @@ impl<'l> VirtualMachine<'l> {
                     );
                 },
                 _ => {
-                    return Result::Err(format!(
+                    return Err(format!(
                         "Unknown instruction \"{:?}\"",
                         instruction.instruction_type
                     ));
@@ -389,8 +389,8 @@ impl<'l> VirtualMachine<'l> {
 
         let value   = thread_ref.register().get(value_slot);
         let matched = match value {
-            Option::Some(_) => { Option::None },
-            Option::None    => { Option::Some(go_to) }
+            Some(_) => { None },
+            None    => { Some(go_to) }
         };
 
         Ok(matched)
