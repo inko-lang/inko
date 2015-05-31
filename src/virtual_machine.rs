@@ -283,18 +283,29 @@ impl<'l> VirtualMachine<'l> {
 
         let receiver = try!(
             thread_ref.register().get(receiver_slot)
-                .ok_or(format!("Attempt to call {} on an undefined receiver", name))
+                .ok_or(format!(
+                    "Attempt to call {} on an undefined receiver",
+                    name
+                ))
         );
 
         let mut receiver_ref = receiver.borrow_mut();
 
         let method_code = &try!(
             receiver_ref.lookup_method(name)
-                .ok_or(format!("Undefined method \"{}\" called", name))
+                .ok_or(format!(
+                    "Undefined method \"{}\" called on {}",
+                    name,
+                    receiver_ref.name()
+                ))
         );
 
         if method_code.is_private() && allow_private == 0 {
-            return Err(format!("Can't call private method \"{}\"", name));
+            return Err(format!(
+                "Can't call private method \"{}\" on {}",
+                name,
+                receiver_ref.name()
+            ));
         }
 
         let mut arguments: Vec<RcObject<'l>> = Vec::new();

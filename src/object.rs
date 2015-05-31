@@ -35,7 +35,11 @@ pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
 /// used for global objects such as classes and bootstrapped objects.
 ///
 pub struct Object<'l> {
+    /// Name of the object, set to "(anonymous object)" by default.
+    pub name: String,
+
     pub instance_variables: HashMap<String, RcObject<'l>>,
+
     pub methods: HashMap<String, RcCompiledCode>,
 
     /// A value associated with the object, if any.
@@ -60,6 +64,7 @@ impl<'l> Object<'l> {
     ///
     pub fn new(value: ObjectValue<'l>) -> Object<'l> {
         Object {
+            name: "(anonymous object)".to_string(),
             instance_variables: HashMap::new(),
             methods: HashMap::new(),
             value: value,
@@ -136,5 +141,10 @@ impl<'l> Object<'l> {
         }
 
         retval
+    }
+
+    /// Returns a reference to the object's name.
+    pub fn name(&self) -> &String {
+        &self.name
     }
 }
