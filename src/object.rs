@@ -147,9 +147,9 @@ impl<'l> Object<'l> {
             }
         }
 
-        if retval.is_some() {
-            let mut method_cache = self.method_cache.write().unwrap();
+        let mut method_cache = self.method_cache.write().unwrap();
 
+        if retval.is_some() && !method_cache.contains_key(name) {
             method_cache.insert(name.clone(), retval.clone().unwrap());
         }
 
