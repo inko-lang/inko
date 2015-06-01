@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InstructionType {
     SetObject,
     SetInteger,
@@ -15,9 +15,11 @@ pub enum InstructionType {
     Send,
     Return,
     GotoIfUndef,
-    GotoIfDef
+    GotoIfDef,
+    DefMethod
 }
 
+#[derive(Clone)]
 pub struct Instruction {
     pub instruction_type: InstructionType,
     pub arguments: Vec<usize>,

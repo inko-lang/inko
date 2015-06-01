@@ -27,13 +27,9 @@ pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
 /// (using the ObjectValue enum). This is not ideal due to the enum being at
 /// least the size of the largest variant. This might change in the future.
 ///
-/// Objects can have instance variables, methods and a method cache. The method
-/// cache is used to cache lookups of methods from a parent object, removing the
-/// need for going through the same lookup process every time the same method is
-/// called.
-///
-/// Objects can be pinned to prevent garbage collection, this should only be
-/// used for global objects such as classes and bootstrapped objects.
+/// Objects can have instance variables, methods, a parent, etc. Objects can be
+/// pinned to prevent garbage collection, this should only be used for global
+/// objects such as classes and bootstrapped objects.
 ///
 pub struct Object<'l> {
     /// Name of the object
@@ -52,10 +48,7 @@ pub struct Object<'l> {
     pub pinned: bool,
 
     /// An optional parent object.
-    pub parent: Option<&'l Object<'l>>,
-
-    /// Cache for any looked up methods.
-    pub method_cache: RwLock<HashMap<String, RcCompiledCode>>,
+    pub parent: Option<&'l Object<'l>>
 }
 
 impl<'l> Object<'l> {
@@ -72,8 +65,7 @@ impl<'l> Object<'l> {
             methods: RwLock::new(HashMap::new()),
             value: value,
             pinned: false,
-            parent: None,
-            method_cache: RwLock::new(HashMap::new())
+            parent: None
         }
     }
 
@@ -112,48 +104,43 @@ impl<'l> Object<'l> {
     pub fn lookup_method(&mut self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
-        {
-            // Scoped to this block so that they're dropped automatically by the
-            // time we're updating the method cache.
-            let method_cache = self.method_cache.read().unwrap();
-            let methods      = self.methods.read().unwrap();
+        let methods = self.methods.read().unwrap();
 
-            // Method looked up previously and stored in the cache
-            if method_cache.contains_key(name) {
-                retval = method_cache.get(name).cloned();
-            }
-
-            // Method defined directly on the object
-            else if methods.contains_key(name) {
-                retval = methods.get(name).cloned();
-            }
-
-            // Method defined somewhere in the object hierarchy
-            else if self.parent.is_some() {
-                let mut parent = self.parent.as_ref();
-
-                while parent.is_some() {
-                    let unwrapped      = parent.unwrap();
-                    let parent_methods = unwrapped.methods.read().unwrap();
-
-                    if parent_methods.contains_key(name) {
-                        retval = parent_methods.get(name).cloned();
-
-                        break;
-                    }
-
-                    parent = unwrapped.parent.as_ref();
-                }
-            }
+        // Method defined directly on the object
+        if methods.contains_key(name) {
+            retval = methods.get(name).cloned();
         }
 
-        let mut method_cache = self.method_cache.write().unwrap();
+        // Method defined somewhere in the object hierarchy
+        else if self.parent.is_some() {
+            let mut parent = self.parent.as_ref();
 
-        if retval.is_some() && !method_cache.contains_key(name) {
-            method_cache.insert(name.clone(), retval.clone().unwrap());
+            while parent.is_some() {
+                let unwrapped      = parent.unwrap();
+                let parent_methods = unwrapped.methods.read().unwrap();
+
+                if parent_methods.contains_key(name) {
+                    retval = parent_methods.get(name).cloned();
+
+                    break;
+                }
+
+                parent = unwrapped.parent.as_ref();
+            }
         }
 
         retval
+    }
+
+    /// Adds a new method
+    ///
+    /// Adding a method is synchronized using a write lock.
+    ///
+    pub fn add_method(&mut self, name: &String, code: RcCompiledCode) {
+        let mut methods = self.methods.write().unwrap();
+        let method_name = name.clone();
+
+        methods.insert(method_name, code.clone());
     }
 
     /// Returns a reference to the object's name.

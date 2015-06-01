@@ -7,6 +7,7 @@ use instruction::Instruction;
 pub type RcCompiledCode = Rc<CompiledCode>;
 
 /// Enum indicating the visibility of a method
+#[derive(Clone)]
 pub enum MethodVisibility {
     Public,
     Private
@@ -27,6 +28,7 @@ pub enum MethodVisibility {
 /// CompiledCode replacing the old version instead of patching an existing
 /// CompiledCode.
 ///
+#[derive(Clone)]
 pub struct CompiledCode {
     /// The name of the CompiledCode, usually the method name.
     pub name: String,
@@ -56,7 +58,12 @@ pub struct CompiledCode {
     pub float_literals: Vec<f64>,
 
     /// Any literal strings appearing in the source code.
-    pub string_literals: Vec<String>
+    pub string_literals: Vec<String>,
+
+    /// Extra CompiledCode objects to associate with the current one. This can
+    /// be used to store CompiledCode objects for every method in a class in the
+    /// CompiledCode object of said class.
+    pub code_objects: Vec<CompiledCode>
 }
 
 impl CompiledCode {
@@ -79,7 +86,8 @@ impl CompiledCode {
             instructions: instructions,
             integer_literals: Vec::new(),
             float_literals: Vec::new(),
-            string_literals: Vec::new()
+            string_literals: Vec::new(),
+            code_objects: Vec::new()
         }
     }
 
@@ -130,5 +138,10 @@ impl CompiledCode {
             MethodVisibility::Private => true,
             _                         => false
         }
+    }
+
+    /// Returns a reference counted copy of this CompiledCode
+    pub fn to_rc(&self) -> RcCompiledCode {
+        Rc::new(self.clone())
     }
 }

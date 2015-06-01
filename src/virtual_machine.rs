@@ -102,6 +102,11 @@ impl<'l> VirtualMachine<'l> {
                         self.ins_goto_if_def(thread.clone(), code, &instruction)
                     );
                 },
+                InstructionType::DefMethod => {
+                    try!(
+                        self.ins_def_method(thread.clone(), code, &instruction)
+                    );
+                },
                 _ => {
                     return Err(format!(
                         "Unknown instruction \"{:?}\"",
@@ -481,6 +486,55 @@ impl<'l> VirtualMachine<'l> {
         };
 
         Ok(matched)
+    }
+
+    /// Defines a method for an object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The slot index of the object for which to define the method.
+    /// 2. The string literal index containing the method name.
+    /// 3. The code object index containing the CompiledCode of the method.
+    ///
+    fn ins_def_method(&self, thread: RcThread<'l>, code: &CompiledCode,
+                      instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let object_index = *try!(
+            instruction.arguments.get(0)
+                .ok_or("def_method argument 1 is required".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments.get(1)
+                .ok_or("def_method argument 2 is required".to_string())
+        );
+
+        let code_index = *try!(
+            instruction.arguments.get(2)
+                .ok_or("deF_method argument 3 is required".to_string())
+        );
+
+        let object = try!(
+            thread_ref.register().get(object_index)
+                .ok_or("def_method requires an existing object".to_string())
+        );
+
+        let name = try!(
+            code.string_literals.get(name_index)
+                .ok_or("def_method received an undefined name literal".to_string())
+        );
+
+        let method_code = try!(
+            code.code_objects.get(code_index)
+                .ok_or("def_method received an undefined code object".to_string())
+        );
+
+        let mut object_ref = object.borrow_mut();
+
+        object_ref.add_method(name, method_code.to_rc());
+
+        Ok(())
     }
 
     /// Prints a VM backtrace of a given thread with a message.
