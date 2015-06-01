@@ -113,7 +113,7 @@ impl Object {
 
         // Method defined somewhere in the object hierarchy
         else if self.parent.is_some() {
-            let mut parent = self.parent.as_ref();
+            let mut parent = self.parent.clone();
 
             while parent.is_some() {
                 let unwrapped      = parent.unwrap();
@@ -126,7 +126,7 @@ impl Object {
                     break;
                 }
 
-                parent = parent_ref.parent.as_ref();
+                parent = parent_ref.parent.clone();
             }
         }
 
