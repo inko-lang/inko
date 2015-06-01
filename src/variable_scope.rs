@@ -11,26 +11,26 @@ use object::RcObject;
 /// threads having their own memory (and variable scope) there's no need for
 /// synchronization either.
 ///
-pub struct VariableScope<'l> {
+pub struct VariableScope {
     /// The local variables in the current scope.
-    pub local_variables: Vec<RcObject<'l>>
+    pub local_variables: Vec<RcObject>
 }
 
-impl<'l> VariableScope<'l> {
+impl VariableScope {
     /// Creates a new, empty VariableScope.
-    pub fn new() -> VariableScope<'l> {
+    pub fn new() -> VariableScope {
         VariableScope {
             local_variables: Vec::new()
         }
     }
 
     /// Adds a new variable to the current scope.
-    pub fn add(&mut self, variable: RcObject<'l>) {
+    pub fn add(&mut self, variable: RcObject) {
         self.local_variables.push(variable);
     }
 
     /// Returns a local variable wrapped in an Option.
-    pub fn get(&self, index: usize) -> Option<RcObject<'l>> {
+    pub fn get(&self, index: usize) -> Option<RcObject> {
         match self.local_variables.get(index) {
             Some(object) => { Some(object.clone()) },
             None         => { None }

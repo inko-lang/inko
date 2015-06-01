@@ -13,13 +13,13 @@ use object::RcObject;
 /// slot. The result of this expression would also be stored in a slot before
 /// being assigned to the "number" variable.
 ///
-pub struct Register<'l> {
-    slots: HashMap<usize, RcObject<'l>>
+pub struct Register {
+    slots: HashMap<usize, RcObject>
 }
 
-impl<'l> Register<'l> {
+impl Register {
     /// Creates a new Register.
-    pub fn new() -> Register<'l> {
+    pub fn new() -> Register {
         Register { slots: HashMap::new() }
     }
 
@@ -32,7 +32,7 @@ impl<'l> Register<'l> {
     ///
     ///     register.set(0, obj);
     ///
-    pub fn set(&mut self, slot: usize, value: RcObject<'l>) {
+    pub fn set(&mut self, slot: usize, value: RcObject) {
         self.slots.insert(slot, value);
     }
 
@@ -50,7 +50,7 @@ impl<'l> Register<'l> {
     ///
     ///     register.get(0) // => Option<...>
     ///
-    pub fn get(&self, slot: usize) -> Option<RcObject<'l>> {
+    pub fn get(&self, slot: usize) -> Option<RcObject> {
         match self.slots.get(&slot) {
             Some(object) => { Some(object.clone()) },
             None         => { None }

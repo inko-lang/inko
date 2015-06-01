@@ -6,16 +6,16 @@ use std::sync::RwLock;
 use compiled_code::RcCompiledCode;
 
 /// Enum for storing different values in an Object.
-pub enum ObjectValue<'l> {
+pub enum ObjectValue {
     None,
     Integer(isize),
     Float(f64),
     String(String),
-    Array(Vec<RcObject<'l>>)
+    Array(Vec<RcObject>)
 }
 
 /// A mutable, reference counted Object.
-pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
+pub type RcObject = Rc<RefCell<Object>>;
 
 /// A generic Object type with an optional value.
 ///
@@ -31,34 +31,34 @@ pub type RcObject<'l> = Rc<RefCell<Object<'l>>>;
 /// pinned to prevent garbage collection, this should only be used for global
 /// objects such as classes and bootstrapped objects.
 ///
-pub struct Object<'l> {
+pub struct Object {
     /// Name of the object
     pub name: String,
 
     /// The instance variables of the object. These don't use a lock as objects
     /// can't be modified from multiple threads in parallel.
-    pub instance_variables: HashMap<String, RcObject<'l>>,
+    pub instance_variables: HashMap<String, RcObject>,
 
     pub methods: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// A value associated with the object, if any.
-    pub value: ObjectValue<'l>,
+    pub value: ObjectValue,
 
     /// When set to "true" this object won't be GC'd.
     pub pinned: bool,
 
     /// An optional parent object.
-    pub parent: Option<&'l Object<'l>>
+    pub parent: Option<RcObject>
 }
 
-impl<'l> Object<'l> {
+impl Object {
     /// Creates a regular Object without using an Rc.
     ///
     /// # Examples
     ///
     ///     let obj = Object::new(ObjectValue::Integer(10));
     ///
-    pub fn new(value: ObjectValue<'l>) -> Object<'l> {
+    pub fn new(value: ObjectValue) -> Object {
         Object {
             name: "(anonymous object)".to_string(),
             instance_variables: HashMap::new(),
@@ -75,7 +75,7 @@ impl<'l> Object<'l> {
     ///
     ///     let obj = Object::with_rc(ObjectValue::Integer(10));
     ///
-    pub fn with_rc(value: ObjectValue<'l>) -> RcObject<'l> {
+    pub fn with_rc(value: ObjectValue) -> RcObject {
         Rc::new(RefCell::new(Object::new(value)))
     }
 
@@ -101,7 +101,7 @@ impl<'l> Object<'l> {
     ///         ...
     ///     }
     ///
-    pub fn lookup_method(&mut self, name: &String) -> Option<RcCompiledCode> {
+    pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
         let methods = self.methods.read().unwrap();
@@ -117,7 +117,8 @@ impl<'l> Object<'l> {
 
             while parent.is_some() {
                 let unwrapped      = parent.unwrap();
-                let parent_methods = unwrapped.methods.read().unwrap();
+                let parent_ref     = unwrapped.borrow();
+                let parent_methods = parent_ref.methods.read().unwrap();
 
                 if parent_methods.contains_key(name) {
                     retval = parent_methods.get(name).cloned();
@@ -125,7 +126,7 @@ impl<'l> Object<'l> {
                     break;
                 }
 
-                parent = unwrapped.parent.as_ref();
+                parent = parent_ref.parent.as_ref();
             }
         }
 

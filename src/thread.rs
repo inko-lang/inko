@@ -9,7 +9,7 @@ use register::Register;
 use variable_scope::VariableScope;
 
 /// A mutable, reference counted Thread.
-pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
+pub type RcThread = Rc<RefCell<Thread>>;
 
 /// Struct representing a VM thread.
 ///
@@ -22,19 +22,19 @@ pub type RcThread<'l> = Rc<RefCell<Thread<'l>>>;
 /// young/mature heaps and providers various convenience methods for allocating
 /// objects and working with registers.
 ///
-pub struct Thread<'l> {
+pub struct Thread {
     /// The current call frame.
-    pub call_frame: CallFrame<'l>,
+    pub call_frame: CallFrame,
 
     /// The young heap, most objects will be allocated here.
-    pub young_heap: Heap<'l>,
+    pub young_heap: Heap,
 
     /// The mature heap, used for big objects or those that have outlived
     /// several GC cycles.
-    pub mature_heap: Heap<'l>
+    pub mature_heap: Heap
 }
 
-impl<'l> Thread<'l> {
+impl Thread {
     /// Creates a new Thread.
     ///
     /// This does _not_ start an actual OS thread as this is handled by the VM
@@ -45,7 +45,7 @@ impl<'l> Thread<'l> {
     ///     let frame  = CallFrame::new(...);
     ///     let thread = Thread::new(frame);
     ///
-    pub fn new(call_frame: CallFrame<'l>) -> Thread<'l> {
+    pub fn new(call_frame: CallFrame) -> Thread {
         Thread {
             call_frame: call_frame,
             young_heap: Heap::new(),
@@ -54,7 +54,7 @@ impl<'l> Thread<'l> {
     }
 
     /// Creates a new mutable, reference counted Thread.
-    pub fn with_rc(call_frame: CallFrame<'l>) -> RcThread<'l> {
+    pub fn with_rc(call_frame: CallFrame) -> RcThread {
         Rc::new(RefCell::new(Thread::new(call_frame)))
     }
 
@@ -76,27 +76,27 @@ impl<'l> Thread<'l> {
     }
 
     /// Returns a reference to the current call frame.
-    pub fn call_frame(&self) -> &CallFrame<'l> {
+    pub fn call_frame(&self) -> &CallFrame {
         &self.call_frame
     }
 
     /// Returns a mutable reference to the current register.
-    pub fn register(&mut self) -> &mut Register<'l> {
+    pub fn register(&mut self) -> &mut Register {
         &mut self.call_frame.register
     }
 
     /// Returns a mutable reference to the current variable scope.
-    pub fn variable_scope(&mut self) -> &mut VariableScope<'l> {
+    pub fn variable_scope(&mut self) -> &mut VariableScope {
         &mut self.call_frame.variables
     }
 
     /// Returns a mutable reference to the current young heap.
-    pub fn young_heap(&mut self) -> &mut Heap<'l> {
+    pub fn young_heap(&mut self) -> &mut Heap {
         &mut self.young_heap
     }
 
     /// Returns a mutable reference to the current mature heap.
-    pub fn mature_heap(&mut self) -> &mut Heap<'l> {
+    pub fn mature_heap(&mut self) -> &mut Heap {
         &mut self.mature_heap
     }
 }

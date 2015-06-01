@@ -8,7 +8,7 @@ use variable_scope::VariableScope;
 /// scope. This makes it easy to remove those values again when unwinding the
 /// call stack: simply remove the CallFrame and everything else is also removed.
 ///
-pub struct CallFrame<'l> {
+pub struct CallFrame {
     /// The name of the CallFrame, usually the same as the method name.
     pub name: String,
 
@@ -19,16 +19,16 @@ pub struct CallFrame<'l> {
     pub line: usize,
 
     /// An optional parent CallFrame.
-    pub parent: Option<Box<CallFrame<'l>>>,
+    pub parent: Option<Box<CallFrame>>,
 
     /// Register for storing temporary values.
-    pub register: Register<'l>,
+    pub register: Register,
 
     /// Storage for local variables.
-    pub variables: VariableScope<'l>
+    pub variables: VariableScope
 }
 
-impl<'l> CallFrame<'l> {
+impl CallFrame {
     /// Creates a basic CallFrame with only details such as the name, file and
     /// line number set.
     ///
@@ -36,7 +36,7 @@ impl<'l> CallFrame<'l> {
     ///
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
-    pub fn new(name: String, file: String, line: usize) -> CallFrame<'l> {
+    pub fn new(name: String, file: String, line: usize) -> CallFrame {
         let frame = CallFrame {
             name: name,
             file: file,
@@ -50,7 +50,7 @@ impl<'l> CallFrame<'l> {
     }
 
     /// Boxes and sets the current frame's parent.
-    pub fn set_parent(&mut self, parent: CallFrame<'l>) {
+    pub fn set_parent(&mut self, parent: CallFrame) {
         self.parent = Some(Box::new(parent));
     }
 
@@ -65,7 +65,7 @@ impl<'l> CallFrame<'l> {
     ///         println!("Frame: {}", frame.name);
     ///     });
     ///
-    pub fn each_frame<F>(&self, mut closure: F) where F : FnMut(&CallFrame<'l>) {
+    pub fn each_frame<F>(&self, mut closure: F) where F : FnMut(&CallFrame) {
         let mut frame = self;
 
         closure(frame);

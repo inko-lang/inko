@@ -128,7 +128,7 @@ impl CompiledCode {
     }
 
     /// Creates and returns a CallFrame based on the current CompiledCode.
-    pub fn new_call_frame<'a>(&self) -> CallFrame<'a> {
+    pub fn new_call_frame(&self) -> CallFrame {
         CallFrame::new(self.name.clone(), self.file.clone(), self.line)
     }
 

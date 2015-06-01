@@ -11,14 +11,14 @@ use thread::{Thread, RcThread};
 /// threads and so on. VirtualMachine instances are fully self contained
 /// allowing multiple instances to run fully isolated in the same process.
 ///
-pub struct VirtualMachine<'l> {
+pub struct VirtualMachine {
     /// All threads that are currently active.
-    pub threads: Vec<RcThread<'l>>
+    pub threads: Vec<RcThread>
 }
 
-impl<'l> VirtualMachine<'l> {
+impl VirtualMachine {
     /// Creates a new VirtualMachine without any threads.
-    pub fn new() -> VirtualMachine<'l> {
+    pub fn new() -> VirtualMachine {
         VirtualMachine {
             threads: Vec::new()
         }
@@ -59,8 +59,8 @@ impl<'l> VirtualMachine<'l> {
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
     ///
-    pub fn run(&self, thread: RcThread<'l>,
-               code: &CompiledCode) -> Result<Option<RcObject<'l>>, String> {
+    pub fn run(&self, thread: RcThread,
+               code: &CompiledCode) -> Result<Option<RcObject>, String> {
         let mut skip_until: Option<usize> = None;
         let mut retval = None;
 
@@ -140,7 +140,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     ///     0: set_object 0, 0
     ///
-    pub fn ins_set_object(&self, thread: RcThread<'l>, code: &CompiledCode,
+    pub fn ins_set_object(&self, thread: RcThread, code: &CompiledCode,
                           instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -183,7 +183,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     ///     0: set_integer 0, 0
     ///
-    pub fn ins_set_integer(&self, thread: RcThread<'l>, code: &CompiledCode,
+    pub fn ins_set_integer(&self, thread: RcThread, code: &CompiledCode,
                            instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -225,7 +225,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     ///     0: set_float 0, 0
     ///
-    pub fn ins_set_float(&self, thread: RcThread<'l>, code: &CompiledCode,
+    pub fn ins_set_float(&self, thread: RcThread, code: &CompiledCode,
                          instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -280,7 +280,7 @@ impl<'l> VirtualMachine<'l> {
     ///     1: set_integer 1, 1              # 20
     ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
     ///
-    pub fn ins_send(&self, thread: RcThread<'l>, code: &CompiledCode,
+    pub fn ins_send(&self, thread: RcThread, code: &CompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -341,7 +341,7 @@ impl<'l> VirtualMachine<'l> {
             ));
         }
 
-        let mut arguments: Vec<RcObject<'l>> = Vec::new();
+        let mut arguments: Vec<RcObject> = Vec::new();
 
         // First collect the arguments before we switch over to a new register
         for index in 5..(5 + arg_count) {
@@ -389,9 +389,9 @@ impl<'l> VirtualMachine<'l> {
     ///     0: set_integer 0, 0
     ///     1: return      0
     ///
-    fn ins_return(&self, thread: RcThread<'l>, _: &CompiledCode,
+    fn ins_return(&self, thread: RcThread, _: &CompiledCode,
                   instruction: &Instruction)
-                  -> Result<Option<RcObject<'l>>, String> {
+                  -> Result<Option<RcObject>, String> {
         let mut thread_ref = thread.borrow_mut();
 
         let slot = *try!(
@@ -421,7 +421,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     /// Here slot "0" would be set to "20".
     ///
-    pub fn ins_goto_if_undef(&self, thread: RcThread<'l>, _: &CompiledCode,
+    pub fn ins_goto_if_undef(&self, thread: RcThread, _: &CompiledCode,
                              instruction: &Instruction)
                              -> Result<Option<usize>, String> {
         let mut thread_ref = thread.borrow_mut();
@@ -464,7 +464,7 @@ impl<'l> VirtualMachine<'l> {
     ///
     /// Here slot "0" would be set to "10".
     ///
-    pub fn ins_goto_if_def(&self, thread: RcThread<'l>, _: &CompiledCode,
+    pub fn ins_goto_if_def(&self, thread: RcThread, _: &CompiledCode,
                              instruction: &Instruction)
                              -> Result<Option<usize>, String> {
         let mut thread_ref = thread.borrow_mut();
@@ -496,7 +496,7 @@ impl<'l> VirtualMachine<'l> {
     /// 2. The string literal index containing the method name.
     /// 3. The code object index containing the CompiledCode of the method.
     ///
-    fn ins_def_method(&self, thread: RcThread<'l>, code: &CompiledCode,
+    fn ins_def_method(&self, thread: RcThread, code: &CompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.borrow_mut();
 
@@ -538,7 +538,7 @@ impl<'l> VirtualMachine<'l> {
     }
 
     /// Prints a VM backtrace of a given thread with a message.
-    fn print_error(&self, thread: RcThread<'l>, message: String) {
+    fn print_error(&self, thread: RcThread, message: String) {
         let thread_ref = thread.borrow();
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
