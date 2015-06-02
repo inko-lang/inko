@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::sync::RwLock;
 
+use class::RcClass;
 use compiled_code::CompiledCode;
 use constant_cache::{RcConstantCache, ConstantCache};
 use heap::Heap;
@@ -15,25 +16,55 @@ use thread::{Thread, RcThread};
 /// allowing multiple instances to run fully isolated in the same process.
 ///
 pub struct VirtualMachine {
-    /// All threads that are currently active.
-    pub threads: Vec<RcThread>,
+    // All threads that are currently active.
+    threads: Vec<RcThread>,
 
-    /// The global heap is used for allocating classes, generic top-level
-    /// constants and other objects that usually stick around for a program's
-    /// entire lifetime, regardless of what thread created the data.
-    pub global_heap: RwLock<Heap>,
+    // The global heap is used for allocating classes, generic top-level
+    // constants and other objects that usually stick around for a program's
+    // entire lifetime, regardless of what thread created the data.
+    global_heap: RwLock<Heap>,
 
-    /// Global constant cache used for built-in constants.
-    pub constant_cache: RcConstantCache
+    // These core classes are cached as attributes to speed up allocations of
+    // these classes (a ConstantCache still requires a hash lookup).
+    object_class: RcClass,
+    integer_class: RcClass,
+    float_class: RcClass,
+    string_class: RcClass,
+    array_class: RcClass
 }
 
 impl VirtualMachine {
     /// Creates a new VirtualMachine without any threads.
+    ///
+    /// This also takes care of setting up the basic layout of the various core
+    /// classes.
+    ///
     pub fn new() -> VirtualMachine {
+        let mut heap = Heap::new();
+
+        let object_class  = heap.allocate_pinned_class("Object".to_string())
+            .unwrap_class();
+
+        let integer_class = heap.allocate_pinned_class("Integer".to_string())
+            .unwrap_class();
+
+        let float_class = heap.allocate_pinned_class("Float".to_string())
+            .unwrap_class();
+
+        let string_class = heap.allocate_pinned_class("String".to_string())
+            .unwrap_class();
+
+        let array_class = heap.allocate_pinned_class("Array".to_string())
+            .unwrap_class();
+
         VirtualMachine {
             threads: Vec::new(),
-            global_heap: RwLock::new(Heap::new()),
-            constant_cache: ConstantCache::with_rc()
+            global_heap: RwLock::new(heap),
+            object_class: object_class,
+            integer_class: integer_class,
+            float_class: float_class,
+            string_class: string_class,
+            array_class: array_class
         }
     }
 
@@ -44,8 +75,6 @@ impl VirtualMachine {
     /// caller of this function is operating in.
     ///
     pub fn start(&mut self, code: &CompiledCode) -> Result<(), ()> {
-        self.prepare();
-
         let frame  = code.new_call_frame();
         let thread = Thread::with_rc(frame);
 
@@ -63,38 +92,6 @@ impl VirtualMachine {
                 Err(())
             }
         }
-    }
-
-    /// Prepares the VM by setting up various core classes.
-    pub fn prepare(&mut self) {
-        let object = self.prepare_object();
-        let others = ["Integer", "Float", "String", "Array"];
-
-        let object_class   = object.unwrap_class();
-        let mut object_ref = object_class.borrow_mut();
-        let mut heap       = self.global_heap.write().unwrap();
-        let mut cache      = self.constant_cache.borrow_mut();
-
-        for name in others.iter() {
-            let klass = heap.allocate_pinned_class(name.to_string());
-
-            cache.insert(name.to_string(), klass.clone());
-
-            object_ref.add_constant(name.to_string(), klass);
-        }
-    }
-
-    /// Sets up and returns the Object class.
-    pub fn prepare_object(&mut self) -> RcObjectType {
-        let mut heap     = self.global_heap.write().unwrap();
-        let object_name  = "Object".to_string();
-        let object_class = heap.allocate_pinned_class(object_name.clone());
-
-        let mut cache = self.constant_cache.borrow_mut();
-
-        cache.insert(object_name, object_class.clone());
-
-        object_class
     }
 
     /// Runs a CompiledCode for a specific Thread.
