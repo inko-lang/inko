@@ -67,6 +67,11 @@ impl Class {
         self.name.as_ref()
     }
 
+    /// Sets the parent class.
+    pub fn set_parent_class(&mut self, class: RcClass) {
+        self.parent_class = Some(class);
+    }
+
     /// Looks up the method for the given name.
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
@@ -103,7 +108,6 @@ impl Class {
     /// Adds a new method.
     ///
     /// Adding a method is synchronized using a write lock.
-    ///
     pub fn add_method(&mut self, name: String, code: RcCompiledCode) {
         let mut methods = self.methods.write().unwrap();
 
@@ -115,6 +119,17 @@ impl Class {
         let mut constants = self.constants.write().unwrap();
 
         constants.insert(name, value);
+    }
+
+    /// Adds a class as a constant.
+    ///
+    /// This requires an RcObject which has an associated RcClass with a name.
+    pub fn add_class(&mut self, object: RcObject) {
+        let object_ref = object.borrow();
+        let class_ref  = object_ref.class.borrow();
+        let name       = class_ref.name().unwrap().clone();
+
+        self.add_constant(name, object.clone());
     }
 
     /// Looks up a constant.

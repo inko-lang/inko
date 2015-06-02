@@ -41,11 +41,58 @@ impl VirtualMachine {
     pub fn new() -> VirtualMachine {
         let mut heap = Heap::new();
 
-        let object_class  = heap.allocate_pinned_class("Object".to_string());
-        let integer_class = heap.allocate_pinned_class("Integer".to_string());
-        let float_class   = heap.allocate_pinned_class("Float".to_string());
-        let string_class  = heap.allocate_pinned_class("String".to_string());
-        let array_class   = heap.allocate_pinned_class("Array".to_string());
+        let class_class = heap
+            .allocate_vm_class("Class".to_string(), None);
+
+        // Object extends Class
+        let object_class = heap
+            .allocate_vm_class("Object".to_string(), Some(class_class.clone()));
+
+        // Integer extends Object
+        let integer_class = heap
+            .allocate_vm_class("Integer".to_string(), Some(object_class.clone()));
+
+        // Float extends Object
+        let float_class = heap
+            .allocate_vm_class("Float".to_string(), Some(object_class.clone()));
+
+        // String extends Object
+        let string_class = heap
+            .allocate_vm_class("String".to_string(), Some(object_class.clone()));
+
+        // Array extends Object
+        let array_class = heap
+            .allocate_vm_class("Array".to_string(), Some(object_class.clone()));
+
+        // The classes as they are accessed from the actual language.
+        {
+            let lang_class_class = heap
+                .allocate_class(class_class.clone(), class_class.clone());
+
+            let lang_object_class = heap
+                .allocate_class(class_class.clone(), object_class.clone());
+
+            let lang_integer_class = heap
+                .allocate_class(class_class.clone(), integer_class.clone());
+
+            let lang_float_class = heap
+                .allocate_class(class_class.clone(), float_class.clone());
+
+            let lang_string_class = heap
+                .allocate_class(class_class.clone(), string_class.clone());
+
+            let lang_array_class = heap
+                .allocate_class(class_class.clone(), array_class.clone());
+
+            let mut object_ref = object_class.borrow_mut();
+
+            object_ref.add_class(lang_class_class);
+            object_ref.add_class(lang_object_class);
+            object_ref.add_class(lang_integer_class);
+            object_ref.add_class(lang_float_class);
+            object_ref.add_class(lang_string_class);
+            object_ref.add_class(lang_array_class);
+        }
 
         VirtualMachine {
             threads: Vec::new(),

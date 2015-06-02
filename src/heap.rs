@@ -1,5 +1,5 @@
 use class::{Class, RcClass};
-use object::RcObject;
+use object::{Object, RcObject, ObjectValue};
 
 const DEFAULT_CAPACITY: usize = 1024;
 
@@ -13,10 +13,9 @@ pub struct Heap {
     /// Any objects stored on the heap.
     pub objects: Vec<RcObject>,
 
-    /// Any classes stored on the heap. These are usually pinned and may be
-    /// larger than an Object, hence they are stored separately. Unpinned
-    /// classes are only to be GC'd when there are no instances of it on the
-    /// heap. This is only the case for anonymous classes.
+    /// Allocated native classes, that is: the Class structs in the VM. Since
+    /// these usually stick around for the program's lifetime they are stored
+    /// separately. If a Class is pinned it's never removed.
     pub classes: Vec<RcClass>
 }
 
@@ -54,12 +53,35 @@ impl Heap {
         self.classes.push(klass);
     }
 
-    /// Allocates a new pinned, named Class.
-    pub fn allocate_pinned_class(&mut self, name: String) -> RcClass {
+    /// Allocates and stores a native VM Class.
+    ///
+    /// These classes are pinned to prevent them from being garbage collected.
+    pub fn allocate_vm_class(&mut self, name: String,
+                                 parent: Option<RcClass>) -> RcClass {
         let klass = Class::with_pinned_rc(Some(name));
+
+        if parent.is_some() {
+            klass.borrow_mut().set_parent_class(parent.unwrap());
+        }
 
         self.store_class(klass.clone());
 
         klass
+    }
+
+    /// Allocates a class in the language
+    ///
+    /// These objects represent classes in the actual language, they are pinned
+    /// to prevent garbage collection.
+    pub fn allocate_class(&mut self, instance_of: RcClass,
+                          actual_class: RcClass) -> RcObject {
+        let value  = ObjectValue::Class(actual_class);
+        let object = Object::with_rc(instance_of, value);
+
+        object.borrow_mut().pinned = true;
+
+        self.store_object(object.clone());
+
+        object
     }
 }

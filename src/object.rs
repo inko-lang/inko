@@ -11,7 +11,8 @@ pub enum ObjectValue {
     Integer(isize),
     Float(f64),
     String(String),
-    Array(Vec<RcObject>)
+    Array(Vec<RcObject>),
+    Class(RcClass)
 }
 
 /// A mutable, reference counted Object.
@@ -32,6 +33,7 @@ pub struct Object {
     pub instance_variables: HashMap<String, RcObject>,
 
     /// A value associated with the object, if any.
+    // TODO: use something like a pointer so Object isn't super fat size wise
     pub value: ObjectValue,
 
     /// When set to "true" this object won't be GC'd.
