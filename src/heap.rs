@@ -1,5 +1,5 @@
-use class::Class;
-use object::{ObjectType, RcObjectType};
+use class::{Class, RcClass};
+use object::RcObject;
 
 const DEFAULT_CAPACITY: usize = 1024;
 
@@ -10,8 +10,14 @@ const DEFAULT_CAPACITY: usize = 1024;
 /// threads.
 ///
 pub struct Heap {
-    /// The objects stored on the heap.
-    pub members: Vec<RcObjectType>
+    /// Any objects stored on the heap.
+    pub objects: Vec<RcObject>,
+
+    /// Any classes stored on the heap. These are usually pinned and may be
+    /// larger than an Object, hence they are stored separately. Unpinned
+    /// classes are only to be GC'd when there are no instances of it on the
+    /// heap. This is only the case for anonymous classes.
+    pub classes: Vec<RcClass>
 }
 
 impl Heap {
@@ -32,24 +38,27 @@ impl Heap {
     ///     let heap = Heap::with_capacity(2048);
     ///
     pub fn with_capacity(capacity: usize) -> Heap {
-        Heap { members: Vec::with_capacity(capacity) }
+        Heap {
+            objects: Vec::with_capacity(capacity),
+            classes: Vec::with_capacity(capacity)
+        }
     }
 
-    /// Returns the capacity of the heap.
-    pub fn capacity(&self) -> usize {
-        self.members.capacity()
+    /// Stores the given Object on the heap.
+    pub fn store_object(&mut self, object: RcObject) {
+        self.objects.push(object);
     }
 
-    /// Stores the given object on the heap.
-    pub fn store(&mut self, object: RcObjectType) {
-        self.members.push(object);
+    /// Stores the given Class on the heap.
+    pub fn store_class(&mut self, klass: RcClass) {
+        self.classes.push(klass);
     }
 
     /// Allocates a new pinned, named Class.
-    pub fn allocate_pinned_class(&mut self, name: String) -> RcObjectType {
-        let klass = ObjectType::rc_class(Class::with_pinned_rc(Some(name)));
+    pub fn allocate_pinned_class(&mut self, name: String) -> RcClass {
+        let klass = Class::with_pinned_rc(Some(name));
 
-        self.store(klass.clone());
+        self.store_class(klass.clone());
 
         klass
     }

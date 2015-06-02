@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::RwLock;
 
-use object::RcObjectType;
+use object::RcObject;
 use compiled_code::RcCompiledCode;
 
 /// A mutable, reference counted Class.
@@ -33,7 +33,7 @@ pub struct Class {
     pub methods: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// The constants defined in this class.
-    pub constants: RwLock<HashMap<String, RcObjectType>>
+    pub constants: RwLock<HashMap<String, RcObject>>
 }
 
 impl Class {
@@ -111,7 +111,7 @@ impl Class {
     }
 
     /// Adds a constant.
-    pub fn add_constant(&mut self, name: String, value: RcObjectType) {
+    pub fn add_constant(&mut self, name: String, value: RcObject) {
         let mut constants = self.constants.write().unwrap();
 
         constants.insert(name, value);
@@ -121,8 +121,8 @@ impl Class {
     ///
     /// If a constant is not found in the current class this method will try to
     /// find it in one of the parent classes.
-    pub fn lookup_constant(&self, name: &String) -> Option<RcObjectType> {
-        let mut retval: Option<RcObjectType> = None;
+    pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
+        let mut retval: Option<RcObject> = None;
 
         let constants = self.constants.read().unwrap();
 

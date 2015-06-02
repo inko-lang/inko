@@ -14,39 +14,6 @@ pub enum ObjectValue {
     Array(Vec<RcObject>)
 }
 
-/// The type of an object.
-pub enum ObjectType {
-    Class(RcClass),
-    Object(RcObject)
-}
-
-impl ObjectType {
-    /// Wraps an RcClass in an RcObjectType.
-    pub fn rc_class(klass: RcClass) -> RcObjectType {
-        Rc::new(ObjectType::Class(klass))
-    }
-
-    /// Wraps an RcObject in an RcObjectType.
-    pub fn rc_object(object: RcObject) -> RcObjectType {
-        Rc::new(ObjectType::Object(object))
-    }
-
-    /// Returns the wrapped Class or panics
-    pub fn unwrap_class(&self) -> RcClass {
-        match *self {
-            ObjectType::Class(ref klass) => klass.clone(),
-            _ => {
-                panic!(
-                    "Called `ObjectType::unwrap_class()` on a non `Class` value"
-                );
-            }
-        }
-    }
-}
-
-/// An immutable, reference counted ObjectType.
-pub type RcObjectType = Rc<ObjectType>;
-
 /// A mutable, reference counted Object.
 pub type RcObject = Rc<RefCell<Object>>;
 

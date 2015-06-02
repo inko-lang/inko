@@ -3,10 +3,9 @@ use std::sync::RwLock;
 
 use class::RcClass;
 use compiled_code::CompiledCode;
-use constant_cache::{RcConstantCache, ConstantCache};
 use heap::Heap;
 use instruction::{InstructionType, Instruction};
-use object::{RcObject, RcObjectType};
+use object::{Object, ObjectValue, RcObject};
 use thread::{Thread, RcThread};
 
 /// Structure representing a single VM instance.
@@ -42,20 +41,11 @@ impl VirtualMachine {
     pub fn new() -> VirtualMachine {
         let mut heap = Heap::new();
 
-        let object_class  = heap.allocate_pinned_class("Object".to_string())
-            .unwrap_class();
-
-        let integer_class = heap.allocate_pinned_class("Integer".to_string())
-            .unwrap_class();
-
-        let float_class = heap.allocate_pinned_class("Float".to_string())
-            .unwrap_class();
-
-        let string_class = heap.allocate_pinned_class("String".to_string())
-            .unwrap_class();
-
-        let array_class = heap.allocate_pinned_class("Array".to_string())
-            .unwrap_class();
+        let object_class  = heap.allocate_pinned_class("Object".to_string());
+        let integer_class = heap.allocate_pinned_class("Integer".to_string());
+        let float_class   = heap.allocate_pinned_class("Float".to_string());
+        let string_class  = heap.allocate_pinned_class("String".to_string());
+        let array_class   = heap.allocate_pinned_class("Array".to_string());
 
         VirtualMachine {
             threads: Vec::new(),
@@ -195,9 +185,11 @@ impl VirtualMachine {
                 .ok_or("set_integer received an undefined literal".to_string())
         );
 
-        //let object = thread_ref.young_heap().allocate_integer(value);
+        let obj_value = ObjectValue::Integer(value);
+        let obj       = Object::with_rc(self.integer_class.clone(), obj_value);
 
-        //thread_ref.register().set(slot, object);
+        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.register().set(slot, obj);
 
         Ok(())
     }
@@ -237,9 +229,11 @@ impl VirtualMachine {
                 .ok_or("set_float received an undefined literal".to_string())
         );
 
-        //let object = thread_ref.young_heap().allocate_float(value);
+        let obj_value = ObjectValue::Float(value);
+        let obj       = Object::with_rc(self.integer_class.clone(), obj_value);
 
-        //thread_ref.register().set(slot, object);
+        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.register().set(slot, obj);
 
         Ok(())
     }
@@ -315,7 +309,7 @@ impl VirtualMachine {
                 ))
         );
 
-        let mut receiver_ref = receiver.borrow_mut();
+        let receiver_ref = receiver.borrow_mut();
 
         let method_code = &try!(
             receiver_ref.lookup_method(name)

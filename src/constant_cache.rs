@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::RwLock;
 
-use object::RcObjectType;
+use object::RcObject;
 
 /// Cache for constants looked up in a given scope.
 ///
@@ -11,7 +11,7 @@ use object::RcObjectType;
 /// removing the need for full constant lookups on every reference.
 ///
 pub struct ConstantCache {
-    pub constants: RwLock<HashMap<String, RcObjectType>>
+    pub constants: RwLock<HashMap<String, RcObject>>
 }
 
 /// A mutable, reference counted constant cache.
@@ -29,14 +29,14 @@ impl ConstantCache {
     }
 
     /// Inserts a new constant into the cache.
-    pub fn insert(&mut self, name: String, value: RcObjectType) {
+    pub fn insert(&mut self, name: String, value: RcObject) {
         let mut constants = self.constants.write().unwrap();
 
         constants.insert(name, value);
     }
 
     /// Looks up a constant from the cache.
-    pub fn get(&mut self, name: &String) -> Option<RcObjectType> {
+    pub fn get(&mut self, name: &String) -> Option<RcObject> {
         let constants = self.constants.read().unwrap();
 
         constants.get(name).cloned()
