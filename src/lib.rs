@@ -7,7 +7,9 @@ pub mod gc {
 }
 
 pub mod call_frame;
+pub mod class;
 pub mod compiled_code;
+pub mod constant_cache;
 pub mod heap;
 pub mod instruction;
 pub mod object;

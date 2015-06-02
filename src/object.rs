@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::RwLock;
 
+use class::RcClass;
 use compiled_code::RcCompiledCode;
 
 /// Enum for storing different values in an Object.
@@ -14,138 +14,111 @@ pub enum ObjectValue {
     Array(Vec<RcObject>)
 }
 
+/// The type of an object.
+pub enum ObjectType {
+    Class(RcClass),
+    Object(RcObject)
+}
+
+impl ObjectType {
+    /// Wraps an RcClass in an RcObjectType.
+    pub fn rc_class(klass: RcClass) -> RcObjectType {
+        Rc::new(ObjectType::Class(klass))
+    }
+
+    /// Wraps an RcObject in an RcObjectType.
+    pub fn rc_object(object: RcObject) -> RcObjectType {
+        Rc::new(ObjectType::Object(object))
+    }
+
+    /// Returns the wrapped Class or panics
+    pub fn unwrap_class(&self) -> RcClass {
+        match *self {
+            ObjectType::Class(ref klass) => klass.clone(),
+            _ => {
+                panic!(
+                    "Called `ObjectType::unwrap_class()` on a non `Class` value"
+                );
+            }
+        }
+    }
+}
+
+/// An immutable, reference counted ObjectType.
+pub type RcObjectType = Rc<ObjectType>;
+
 /// A mutable, reference counted Object.
 pub type RcObject = Rc<RefCell<Object>>;
 
-/// A generic Object type with an optional value.
+/// An Object/instance structure, optionally with an associated value.
 ///
-/// The Object type represents an object in Aeon, be it a class, instance (e.g.
-/// integer) or anything in between. Basically if it's exposed to the language
-/// it's probably an Object.
-///
-/// Currently there's a single Object for all possible values that can be stored
-/// (using the ObjectValue enum). This is not ideal due to the enum being at
-/// least the size of the largest variant. This might change in the future.
-///
-/// Objects can have instance variables, methods, a parent, etc. Objects can be
-/// pinned to prevent garbage collection, this should only be used for global
-/// objects such as classes and bootstrapped objects.
+/// An Object in the VM is used to represent an instance of some Class in the
+/// Aeon language. For example, the string "foo" is stored as an Object in the
+/// VM mapped to the corresponding Class (using the Class struct in the VM).
 ///
 pub struct Object {
-    /// Name of the object
-    pub name: String,
+    /// The class of the object.
+    pub class: RcClass,
 
     /// The instance variables of the object. These don't use a lock as objects
     /// can't be modified from multiple threads in parallel.
     pub instance_variables: HashMap<String, RcObject>,
 
-    pub methods: RwLock<HashMap<String, RcCompiledCode>>,
-
     /// A value associated with the object, if any.
     pub value: ObjectValue,
 
     /// When set to "true" this object won't be GC'd.
-    pub pinned: bool,
-
-    /// An optional parent object.
-    pub parent: Option<RcObject>
+    pub pinned: bool
 }
 
 impl Object {
     /// Creates a regular Object without using an Rc.
-    ///
-    /// # Examples
-    ///
-    ///     let obj = Object::new(ObjectValue::Integer(10));
-    ///
-    pub fn new(value: ObjectValue) -> Object {
+    pub fn new(class: RcClass, value: ObjectValue) -> Object {
         Object {
-            name: "(anonymous object)".to_string(),
+            class: class,
             instance_variables: HashMap::new(),
-            methods: RwLock::new(HashMap::new()),
             value: value,
-            pinned: false,
-            parent: None
+            pinned: false
         }
     }
 
     /// Creates a mutable, reference counted Object.
-    ///
-    /// # Examples
-    ///
-    ///     let obj = Object::with_rc(ObjectValue::Integer(10));
-    ///
-    pub fn with_rc(value: ObjectValue) -> RcObject {
-        Rc::new(RefCell::new(Object::new(value)))
+    pub fn with_rc(class: RcClass, value: ObjectValue) -> RcObject {
+        Rc::new(RefCell::new(Object::new(class, value)))
     }
 
-    /// Looks up and caches a method if it exists.
-    ///
-    /// A method is looked up in 3 steps:
-    ///
-    /// 1. If it's in the method cache, use it.
-    /// 2. If it's not in the cache but defined on the object, use that.
-    /// 3. If it's not cached and not defined in the current object walk the
-    ///    object hierarchy, if found the method is used.
-    ///
-    /// Once a method is found it's cached in the method cache to speed up any
-    /// following method calls.
-    ///
-    /// # Examples
-    ///
-    ///     let obj  = Object::new(ObjectValue::Integer(10));
-    ///     let name = "to_s".to_string();
-    ///     let code = obj.lookup_method(&name);
-    ///
-    ///     if code.is_some() {
-    ///         ...
-    ///     }
-    ///
+    /// Looks up and returns a method for the given name.
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
-        let mut retval: Option<RcCompiledCode> = None;
+        let class_ref = self.class.borrow();
 
-        let methods = self.methods.read().unwrap();
+        class_ref.lookup_method(name)
+    }
 
-        // Method defined directly on the object
-        if methods.contains_key(name) {
-            retval = methods.get(name).cloned();
-        }
+    /// Returns an error message for undefined method calls.
+    pub fn undefined_method_error(&self, name: &String) -> String {
+        let class_ref = self.class.borrow();
 
-        // Method defined somewhere in the object hierarchy
-        else if self.parent.is_some() {
-            let mut parent = self.parent.clone();
-
-            while parent.is_some() {
-                let unwrapped      = parent.unwrap();
-                let parent_ref     = unwrapped.borrow();
-                let parent_methods = parent_ref.methods.read().unwrap();
-
-                if parent_methods.contains_key(name) {
-                    retval = parent_methods.get(name).cloned();
-
-                    break;
-                }
-
-                parent = parent_ref.parent.clone();
+        match class_ref.name() {
+            Some(class_name) => {
+                format!("Undefined method {} called on a {}", name, class_name)
+            },
+            None => {
+                format!("Undefined method {} called", name)
             }
         }
-
-        retval
     }
 
-    /// Adds a new method
-    ///
-    /// Adding a method is synchronized using a write lock.
-    ///
-    pub fn add_method(&mut self, name: &String, code: RcCompiledCode) {
-        let mut methods = self.methods.write().unwrap();
-        let method_name = name.clone();
+    /// Returns an error message for private method calls.
+    pub fn private_method_error(&self, name: &String) -> String {
+        let class_ref = self.class.borrow();
 
-        methods.insert(method_name, code.clone());
-    }
-
-    /// Returns a reference to the object's name.
-    pub fn name(&self) -> &String {
-        &self.name
+        match class_ref.name() {
+            Some(class_name) => {
+                format!("Private method {} called on a {}", name, class_name)
+            },
+            None => {
+                format!("Private method {} called", name)
+            }
+        }
     }
 }

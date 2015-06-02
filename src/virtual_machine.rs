@@ -1,8 +1,11 @@
 use std::io::{self, Write};
+use std::sync::RwLock;
 
 use compiled_code::CompiledCode;
+use constant_cache::{RcConstantCache, ConstantCache};
+use heap::Heap;
 use instruction::{InstructionType, Instruction};
-use object::RcObject;
+use object::{RcObject, RcObjectType};
 use thread::{Thread, RcThread};
 
 /// Structure representing a single VM instance.
@@ -13,14 +16,24 @@ use thread::{Thread, RcThread};
 ///
 pub struct VirtualMachine {
     /// All threads that are currently active.
-    pub threads: Vec<RcThread>
+    pub threads: Vec<RcThread>,
+
+    /// The global heap is used for allocating classes, generic top-level
+    /// constants and other objects that usually stick around for a program's
+    /// entire lifetime, regardless of what thread created the data.
+    pub global_heap: RwLock<Heap>,
+
+    /// Global constant cache used for built-in constants.
+    pub constant_cache: RcConstantCache
 }
 
 impl VirtualMachine {
     /// Creates a new VirtualMachine without any threads.
     pub fn new() -> VirtualMachine {
         VirtualMachine {
-            threads: Vec::new()
+            threads: Vec::new(),
+            global_heap: RwLock::new(Heap::new()),
+            constant_cache: ConstantCache::with_rc()
         }
     }
 
@@ -31,6 +44,8 @@ impl VirtualMachine {
     /// caller of this function is operating in.
     ///
     pub fn start(&mut self, code: &CompiledCode) -> Result<(), ()> {
+        self.prepare();
+
         let frame  = code.new_call_frame();
         let thread = Thread::with_rc(frame);
 
@@ -48,6 +63,38 @@ impl VirtualMachine {
                 Err(())
             }
         }
+    }
+
+    /// Prepares the VM by setting up various core classes.
+    pub fn prepare(&mut self) {
+        let object = self.prepare_object();
+        let others = ["Integer", "Float", "String", "Array"];
+
+        let object_class   = object.unwrap_class();
+        let mut object_ref = object_class.borrow_mut();
+        let mut heap       = self.global_heap.write().unwrap();
+        let mut cache      = self.constant_cache.borrow_mut();
+
+        for name in others.iter() {
+            let klass = heap.allocate_pinned_class(name.to_string());
+
+            cache.insert(name.to_string(), klass.clone());
+
+            object_ref.add_constant(name.to_string(), klass);
+        }
+    }
+
+    /// Sets up and returns the Object class.
+    pub fn prepare_object(&mut self) -> RcObjectType {
+        let mut heap     = self.global_heap.write().unwrap();
+        let object_name  = "Object".to_string();
+        let object_class = heap.allocate_pinned_class(object_name.clone());
+
+        let mut cache = self.constant_cache.borrow_mut();
+
+        cache.insert(object_name, object_class.clone());
+
+        object_class
     }
 
     /// Runs a CompiledCode for a specific Thread.
@@ -75,9 +122,6 @@ impl VirtualMachine {
             }
 
             match instruction.instruction_type {
-                InstructionType::SetObject => {
-                    try!(self.ins_set_object(thread.clone(), code, &instruction));
-                },
                 InstructionType::SetInteger => {
                     try!(self.ins_set_integer(thread.clone(), code, &instruction));
                 },
@@ -119,54 +163,6 @@ impl VirtualMachine {
         Ok(retval)
     }
 
-    /// Allocates and sets a regular object in a register slot.
-    ///
-    /// This instruction requires a single argument: the index of the slot to
-    /// store the object in.
-    ///
-    /// Optionally you can provide a 2nd argument that can be used to set the
-    /// name of the object.
-    ///
-    /// # Examples
-    ///
-    /// Creating a bare object:
-    ///
-    ///     0: set_object 0
-    ///
-    /// Creating an object with a name:
-    ///
-    ///     string_literals
-    ///       0: "foo"
-    ///
-    ///     0: set_object 0, 0
-    ///
-    pub fn ins_set_object(&self, thread: RcThread, code: &CompiledCode,
-                          instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
-
-        let index = *try!(
-            instruction.arguments.get(0)
-                .ok_or("set_object requires a single argument".to_string())
-        );
-
-        let name_index = instruction.arguments.get(1);
-
-        let object = thread_ref.young_heap().allocate_object();
-
-        if name_index.is_some() {
-            let name = try!(
-                code.string_literals.get(*name_index.unwrap())
-                    .ok_or("set_object received an undefined literal".to_string())
-            );
-
-            object.borrow_mut().name = name.clone();
-        }
-
-        thread_ref.register().set(index, object);
-
-        Ok(())
-    }
-
     /// Allocates and sets an integer in a register slot.
     ///
     /// This instruction requires two arguments:
@@ -202,9 +198,9 @@ impl VirtualMachine {
                 .ok_or("set_integer received an undefined literal".to_string())
         );
 
-        let object = thread_ref.young_heap().allocate_integer(value);
+        //let object = thread_ref.young_heap().allocate_integer(value);
 
-        thread_ref.register().set(slot, object);
+        //thread_ref.register().set(slot, object);
 
         Ok(())
     }
@@ -244,9 +240,9 @@ impl VirtualMachine {
                 .ok_or("set_float received an undefined literal".to_string())
         );
 
-        let object = thread_ref.young_heap().allocate_float(value);
+        //let object = thread_ref.young_heap().allocate_float(value);
 
-        thread_ref.register().set(slot, object);
+        //thread_ref.register().set(slot, object);
 
         Ok(())
     }
@@ -326,19 +322,11 @@ impl VirtualMachine {
 
         let method_code = &try!(
             receiver_ref.lookup_method(name)
-                .ok_or(format!(
-                    "Undefined method \"{}\" called on {}",
-                    name,
-                    receiver_ref.name()
-                ))
+                .ok_or(receiver_ref.undefined_method_error(name))
         );
 
         if method_code.is_private() && allow_private == 0 {
-            return Err(format!(
-                "Can't call private method \"{}\" on {}",
-                name,
-                receiver_ref.name()
-            ));
+            return Err(receiver_ref.private_method_error(name));
         }
 
         let mut arguments: Vec<RcObject> = Vec::new();
@@ -530,9 +518,10 @@ impl VirtualMachine {
                 .ok_or("def_method received an undefined code object".to_string())
         );
 
-        let mut object_ref = object.borrow_mut();
+        let object_ref    = object.borrow();
+        let mut class_ref = object_ref.class.borrow_mut();
 
-        object_ref.add_method(name, method_code.to_rc());
+        class_ref.add_method(name.clone(), method_code.to_rc());
 
         Ok(())
     }

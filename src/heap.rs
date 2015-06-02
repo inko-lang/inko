@@ -1,4 +1,5 @@
-use object::{Object, RcObject, ObjectValue};
+use class::Class;
+use object::{ObjectType, RcObjectType};
 
 const DEFAULT_CAPACITY: usize = 1024;
 
@@ -10,7 +11,7 @@ const DEFAULT_CAPACITY: usize = 1024;
 ///
 pub struct Heap {
     /// The objects stored on the heap.
-    pub members: Vec<RcObject>
+    pub members: Vec<RcObjectType>
 }
 
 impl Heap {
@@ -39,60 +40,17 @@ impl Heap {
         self.members.capacity()
     }
 
-    /// Allocates a new object on the heap.
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::new();
-    ///     let obj  = heap.allocate(ObjectValue::Integer(10));
-    ///
-    pub fn allocate(&mut self, value: ObjectValue) -> RcObject {
-        let object = Object::with_rc(value);
-
-        self.members.push(object.clone());
-
-        object
+    /// Stores the given object on the heap.
+    pub fn store(&mut self, object: RcObjectType) {
+        self.members.push(object);
     }
 
-    /// Allocates a generic object.
-    ///
-    /// These objects can be used for objects that don't have a specific value
-    /// (e.g. a class).
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::new();
-    ///     let obj  = heap.allocate_object();
-    ///
-    pub fn allocate_object(&mut self) -> RcObject {
-        self.allocate(ObjectValue::None)
-    }
+    /// Allocates a new pinned, named Class.
+    pub fn allocate_pinned_class(&mut self, name: String) -> RcObjectType {
+        let klass = ObjectType::rc_class(Class::with_pinned_rc(Some(name)));
 
-    /// Allocates an integer object.
-    ///
-    /// These objects automatically have their parent set to the global
-    /// "Integer" object.
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::new();
-    ///     let obj  = heap.allocate_integer(10);
-    ///
-    pub fn allocate_integer(&mut self, value: isize) -> RcObject {
-        self.allocate(ObjectValue::Integer(value))
-    }
+        self.store(klass.clone());
 
-    /// Allocates a float object.
-    ///
-    /// These objects automatically have their parent set to the global
-    /// "Float" object.
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::new();
-    ///     let obj  = heap.allocate_float(10.5);
-    ///
-    pub fn allocate_float(&mut self, value: f64) -> RcObject {
-        self.allocate(ObjectValue::Float(value))
+        klass
     }
 }

@@ -1,6 +1,5 @@
 #[derive(Debug, Clone)]
 pub enum InstructionType {
-    SetObject,
     SetInteger,
     SetFloat,
     SetString,
@@ -16,7 +15,8 @@ pub enum InstructionType {
     Return,
     GotoIfUndef,
     GotoIfDef,
-    DefMethod
+    DefMethod,
+    OpenClass
 }
 
 #[derive(Clone)]
