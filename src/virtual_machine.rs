@@ -162,6 +162,9 @@ impl VirtualMachine {
                 InstructionType::SetFloat => {
                     try!(self.ins_set_float(thread.clone(), code, &instruction));
                 },
+                InstructionType::SetString => {
+                    try!(self.ins_set_string(thread.clone(), code, &instruction));
+                },
                 InstructionType::Send => {
                     try!(self.ins_send(thread.clone(), code, &instruction));
                 },
@@ -278,6 +281,50 @@ impl VirtualMachine {
 
         let obj_value = ObjectValue::Float(value);
         let obj       = Object::with_rc(self.integer_class.clone(), obj_value);
+
+        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.register().set(slot, obj);
+
+        Ok(())
+    }
+
+    /// Allocates and sets a string in a register slot.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The slot index to store the float in.
+    /// 2. The index of the string literal to use for the value.
+    ///
+    /// The string literal is extracted from the given CompiledCode.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "foo"
+    ///
+    ///     set_string 0, 0
+    ///
+    pub fn ins_set_string(&self, thread: RcThread, code: &CompiledCode,
+                          instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot = *try!(
+            instruction.arguments.get(0)
+                .ok_or("set_string argument 1 is required".to_string())
+        );
+
+        let index = *try!(
+            instruction.arguments.get(1)
+                .ok_or("set_string argument 2 is required".to_string())
+        );
+
+        let value = try!(
+            code.string_literals.get(index)
+                .ok_or("set_string received an undefined literal".to_string())
+        );
+
+        let obj_value = ObjectValue::String(value.clone());
+        let obj       = Object::with_rc(self.string_class.clone(), obj_value);
 
         thread_ref.young_heap().store_object(obj.clone());
         thread_ref.register().set(slot, obj);
