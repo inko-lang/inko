@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use call_frame::CallFrame;
 use instruction::Instruction;
 
 /// A reference counteded (using Rc) CompiledCode object.
@@ -127,9 +126,9 @@ impl CompiledCode {
         self.string_literals.push(value);
     }
 
-    /// Creates and returns a CallFrame based on the current CompiledCode.
-    pub fn new_call_frame(&self) -> CallFrame {
-        CallFrame::new(self.name.clone(), self.file.clone(), self.line)
+    /// Adds a new CompiledCode to the current CompiledCode
+    pub fn add_code_object(&mut self, value: CompiledCode) {
+        self.code_objects.push(value);
     }
 
     /// Returns true for a private CompiledCode

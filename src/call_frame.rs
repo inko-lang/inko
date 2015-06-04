@@ -1,3 +1,4 @@
+use compiled_code::CompiledCode;
 use register::Register;
 use variable_scope::VariableScope;
 
@@ -47,6 +48,11 @@ impl CallFrame {
         };
 
         frame
+    }
+
+    /// Creates a new CallFrame from a CompiledCode
+    pub fn from_code(code: &CompiledCode, context: RcObject) -> CallFrame {
+        CallFrame::new(code.name.clone(), code.file.clone(), code.line, context)
     }
 
     /// Boxes and sets the current frame's parent.
