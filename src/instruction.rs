@@ -1,23 +1,23 @@
 /// Enum containing all possible instruction types.
 #[derive(Debug, Clone)]
 pub enum InstructionType {
+    SetObject,
     SetInteger,
     SetFloat,
     SetString,
     SetArray,
-    SetHash,
     SetLocal,
     GetLocal,
-    SetConstant,
-    GetConstant,
-    SetInstanceVariable,
-    GetInstanceVariable,
+    GetSelf,
+    SetConst,
+    GetConst,
+    SetAttr,
+    GetAttr,
     Send,
     Return,
     GotoIfUndef,
     GotoIfDef,
-    DefMethod,
-    OpenClass
+    DefMethod
 }
 
 /// Struct for storing information about a single instruction.
