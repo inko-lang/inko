@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use call_frame::CallFrame;
-use compiled_code::CompiledCode;
 use heap::Heap;
 use register::Register;
 use variable_scope::VariableScope;
@@ -59,9 +58,7 @@ impl Thread {
     }
 
     /// Sets the current CallFrame from a CompiledCode.
-    pub fn add_call_frame_from_compiled_code(&mut self, code: &CompiledCode) {
-        let mut frame = code.new_call_frame();
-
+    pub fn push_call_frame(&mut self, mut frame: CallFrame) {
         mem::swap(&mut self.call_frame, &mut frame);
 
         self.call_frame.set_parent(frame);
