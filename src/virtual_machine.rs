@@ -133,31 +133,25 @@ impl VirtualMachine {
                     try!(self.ins_set_name(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetIntegerPrototype => {
-                    try!(
-                        self.ins_set_integer_prototype(
-                            thread.clone(),
-                            code,
-                            &instruction
-                        )
-                    );
+                    try!(self.ins_set_integer_prototype(
+                        thread.clone(),
+                        code,
+                        &instruction
+                    ));
                 },
                 InstructionType::SetFloatPrototype => {
-                    try!(
-                        self.ins_set_float_prototype(
-                            thread.clone(),
-                            code,
-                            &instruction
-                        )
-                    );
+                    try!(self.ins_set_float_prototype(
+                        thread.clone(),
+                        code,
+                        &instruction
+                    ));
                 },
                 InstructionType::SetStringPrototype => {
-                    try!(
-                        self.ins_set_string_prototype(
-                            thread.clone(),
-                            code,
-                            &instruction
-                        )
-                    );
+                    try!(self.ins_set_string_prototype(
+                        thread.clone(),
+                        code,
+                        &instruction
+                    ));
                 },
                 InstructionType::GetConst => {
                     try!(
@@ -708,6 +702,15 @@ impl VirtualMachine {
         let arguments = try!(
             self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
+
+        if arguments.len() != method_code.required_arguments {
+            return Err(format!(
+                "send: \"{}\" requires {} arguments, {} given",
+                name,
+                method_code.required_arguments,
+                arguments.len()
+            ));
+        }
 
         let retval = try!(
             self.run_code(thread.clone(), method_code, arguments)
