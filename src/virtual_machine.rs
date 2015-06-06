@@ -688,18 +688,17 @@ impl VirtualMachine {
                 ))
         );
 
-        let receiver_ref = receiver.borrow_mut();
-
         let method_code = &try!(
-            receiver_ref.lookup_method(name)
-                .ok_or(receiver_ref.undefined_method_error(name))
+            receiver.borrow()
+                .lookup_method(name)
+                .ok_or(receiver.borrow().undefined_method_error(name))
         );
 
         if method_code.is_private() && allow_private == 0 {
-            return Err(receiver_ref.private_method_error(name));
+            return Err(receiver.borrow().private_method_error(name));
         }
 
-        let arguments = try!(
+        let mut arguments = try!(
             self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
 
@@ -711,6 +710,9 @@ impl VirtualMachine {
                 arguments.len()
             ));
         }
+
+        // Expose the receiver as "self" to the method
+        arguments.insert(0, receiver);
 
         let retval = try!(
             self.run_code(thread.clone(), method_code, arguments)
