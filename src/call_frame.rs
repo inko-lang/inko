@@ -51,8 +51,8 @@ impl CallFrame {
     }
 
     /// Creates a new CallFrame from a CompiledCode
-    pub fn from_code(code: &CompiledCode, context: RcObject) -> CallFrame {
-        CallFrame::new(code.name.clone(), code.file.clone(), code.line, context)
+    pub fn from_code(code: &CompiledCode) -> CallFrame {
+        CallFrame::new(code.name.clone(), code.file.clone(), code.line)
     }
 
     /// Boxes and sets the current frame's parent.

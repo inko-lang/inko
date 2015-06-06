@@ -1,5 +1,4 @@
-use class::{Class, RcClass};
-use object::{Object, RcObject, ObjectValue};
+use object::RcObject;
 
 const DEFAULT_CAPACITY: usize = 1024;
 
@@ -11,12 +10,7 @@ const DEFAULT_CAPACITY: usize = 1024;
 ///
 pub struct Heap {
     /// Any objects stored on the heap.
-    pub objects: Vec<RcObject>,
-
-    /// Allocated native classes, that is: the Class structs in the VM. Since
-    /// these usually stick around for the program's lifetime they are stored
-    /// separately. If a Class is pinned it's never removed.
-    pub classes: Vec<RcClass>
+    pub objects: Vec<RcObject>
 }
 
 impl Heap {
@@ -38,8 +32,7 @@ impl Heap {
     ///
     pub fn with_capacity(capacity: usize) -> Heap {
         Heap {
-            objects: Vec::with_capacity(capacity),
-            classes: Vec::with_capacity(capacity)
+            objects: Vec::with_capacity(capacity)
         }
     }
 
@@ -48,11 +41,7 @@ impl Heap {
         self.objects.push(object);
     }
 
-    /// Stores the given Class on the heap.
-    pub fn store_class(&mut self, klass: RcClass) {
-        self.classes.push(klass);
-    }
-
+    /*
     /// Allocates and stores a native VM Class.
     ///
     /// These classes are pinned to prevent them from being garbage collected.
@@ -84,4 +73,5 @@ impl Heap {
 
         object
     }
+    */
 }

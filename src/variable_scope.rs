@@ -13,15 +13,24 @@ use object::RcObject;
 ///
 pub struct VariableScope {
     /// The local variables in the current scope.
-    pub local_variables: Vec<RcObject>
+    pub local_variables: Vec<RcObject>,
+
+    /// The parent variable scope, if any.
+    pub parent: Option<Box<VariableScope>>
 }
 
 impl VariableScope {
     /// Creates a new, empty VariableScope.
     pub fn new() -> VariableScope {
         VariableScope {
-            local_variables: Vec::new()
+            local_variables: Vec::new(),
+            parent: None
         }
+    }
+
+    /// Boxes and sets the current scope's parent.
+    pub fn set_parent(&mut self, parent: VariableScope) {
+        self.parent = Some(Box::new(parent));
     }
 
     /// Adds a new variable to the current scope.
