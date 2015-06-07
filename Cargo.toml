@@ -1,8 +1,13 @@
 [package]
 
-name = "aeon"
+name    = "aeon"
 version = "0.0.1"
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 
 [lib]
-name = "libaeon"
+name    = "libaeon"
+doctest = false
+
+[[bin]]
+name = "aeon"
+test = false
