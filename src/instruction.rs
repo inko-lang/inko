@@ -23,7 +23,8 @@ pub enum InstructionType {
     GotoIfDef,
     DefMethod,
     RunCode,
-    GetToplevel
+    GetToplevel,
+    AddInteger
 }
 
 /// Struct for storing information about a single instruction.

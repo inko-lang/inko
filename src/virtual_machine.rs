@@ -73,7 +73,7 @@ impl VirtualMachine {
         let result = self.run(thread.clone(), code);
 
         return match result {
-            Ok(_)        => Ok(()),
+            Ok(_)        => { Ok(()) },
             Err(message) => {
                 self.print_error(thread, message);
 
@@ -201,6 +201,11 @@ impl VirtualMachine {
                     try!(
                         self.ins_get_toplevel(thread.clone(), code, &instruction)
                     );
+                },
+                InstructionType::AddInteger => {
+                    try!(
+                        self.ins_add_integer(thread.clone(), code, &instruction)
+                    );
                 }
             };
         }
@@ -252,9 +257,7 @@ impl VirtualMachine {
                 .ok_or("set_integer: no Integer prototype set up".to_string())
         );
 
-        let obj = Object::with_rc(ObjectValue::Integer(value));
-
-        obj.borrow_mut().set_prototype(prototype.clone());
+        let obj = Object::new_integer(value, prototype.clone());
 
         thread_ref.young_heap().store_object(obj.clone());
         thread_ref.register().set(slot, obj);
@@ -1337,6 +1340,84 @@ impl VirtualMachine {
         );
 
         thread_ref.register().set(slot, self.top_level.clone());
+
+        Ok(())
+    }
+
+    /// Performs an integer addition
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the left-hand side object.
+    /// 3. The register slot of the right-hand side object.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 20
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: set_integer 1, 1
+    ///     2: add_integer 2, 0, 1
+    ///
+    fn ins_add_integer(&mut self, thread: RcThread, _: &CompiledCode,
+                       instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("add_integer: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("add_integer: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("add_integer: missing right-hand slot index".to_string())
+        );
+
+        let left_object = try!(
+            thread_ref.register()
+                .get(left_index)
+                .ok_or("add_integer: undefined left-hand object".to_string())
+        );
+
+        let right_object = try!(
+            thread_ref.register()
+                .get(right_index)
+                .ok_or("add_integer: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            self.integer_prototype
+                .as_ref()
+                .ok_or("add_integer: no Integer prototype set up".to_string())
+        );
+
+        let left_ref  = left_object.borrow();
+        let right_ref = right_object.borrow();
+
+        if !left_ref.value.is_integer() || !right_ref.value.is_integer() {
+            return Err(
+                "add_integer: both objects must be integers".to_string()
+            )
+        }
+
+        let added = left_ref.value.unwrap_integer() +
+            right_ref.value.unwrap_integer();
+
+        let obj = Object::new_integer(added, prototype.clone());
+
+        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.register().set(slot, obj);
 
         Ok(())
     }

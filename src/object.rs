@@ -14,6 +14,26 @@ pub enum ObjectValue {
     Array(Vec<RcObject>)
 }
 
+impl ObjectValue {
+    /// Returns true if the current value is an ObjectValue::Integer.
+    pub fn is_integer(&self) -> bool {
+        match *self {
+            ObjectValue::Integer(_) => true,
+            _                       => false
+        }
+    }
+
+    /// Returns a wrapped integer or panics.
+    pub fn unwrap_integer(&self) -> isize {
+        match *self {
+            ObjectValue::Integer(val) => val,
+            _ => {
+                panic!("ObjectValue::unwrap_integer() called on a non integer");
+            }
+        }
+    }
+}
+
 /// A mutable, reference counted Object.
 pub type RcObject = Rc<RefCell<Object>>;
 
@@ -64,6 +84,15 @@ impl Object {
     /// Creates a mutable, reference counted Object.
     pub fn with_rc(value: ObjectValue) -> RcObject {
         Rc::new(RefCell::new(Object::new(value)))
+    }
+
+    /// Creates a new Integer object.
+    pub fn new_integer(value: isize, prototype: RcObject) -> RcObject {
+        let obj = Object::with_rc(ObjectValue::Integer(value));
+
+        obj.borrow_mut().set_prototype(prototype);
+
+        obj
     }
 
     /// Returns the name of this object.
