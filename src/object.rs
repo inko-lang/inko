@@ -209,4 +209,42 @@ impl Object {
 
         retval
     }
+
+    /// Adds a new attribute to the object.
+    pub fn add_attribute(&mut self, name: String, object: RcObject) {
+        let mut attrs = self.attributes.write().unwrap();
+
+        attrs.insert(name, object);
+    }
+
+    /// Returns the attribute for the given name.
+    pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
+        let mut retval: Option<RcObject> = None;
+
+        let attrs = self.attributes.read().unwrap();
+
+        if attrs.contains_key(name) {
+            retval = attrs.get(name).cloned();
+        }
+
+        else if self.prototype.is_some() {
+            let mut parent = self.prototype.clone();
+
+            while parent.is_some() {
+                let unwrapped    = parent.unwrap();
+                let parent_ref   = unwrapped.borrow();
+                let parent_attrs = parent_ref.attributes.read().unwrap();
+
+                if parent_attrs.contains_key(name) {
+                    retval = parent_attrs.get(name).cloned();
+
+                    break;
+                }
+
+                parent = parent_ref.prototype.clone();
+            }
+        }
+
+        retval
+    }
 }

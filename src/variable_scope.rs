@@ -33,9 +33,14 @@ impl VariableScope {
         self.parent = Some(Box::new(parent));
     }
 
-    /// Adds a new variable to the current scope.
-    pub fn add(&mut self, variable: RcObject) {
-        self.local_variables.push(variable);
+    /// Pushes a new variable into the current scope.
+    pub fn add(&mut self, value: RcObject) {
+        self.local_variables.push(value);
+    }
+
+    /// Inserts a variable at a specific place.
+    pub fn insert(&mut self, index: usize, value: RcObject) {
+        self.local_variables.insert(index, value);
     }
 
     /// Returns a local variable wrapped in an Option.

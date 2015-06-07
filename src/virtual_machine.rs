@@ -27,10 +27,10 @@ pub struct VirtualMachine {
     top_level: RcObject,
 
     // Various core objects that can be created using specialized instructions.
-    integer_object: Option<RcObject>,
-    float_object: Option<RcObject>,
-    string_object: Option<RcObject>,
-    array_object: Option<RcObject>,
+    integer_prototype: Option<RcObject>,
+    float_prototype: Option<RcObject>,
+    string_prototype: Option<RcObject>,
+    array_prototype: Option<RcObject>,
 }
 
 impl VirtualMachine {
@@ -51,10 +51,10 @@ impl VirtualMachine {
             threads: Vec::new(),
             global_heap: RwLock::new(heap),
             top_level: top_level,
-            integer_object: None,
-            float_object: None,
-            string_object: None,
-            array_object: None
+            integer_prototype: None,
+            float_prototype: None,
+            string_prototype: None,
+            array_prototype: None
         }
     }
 
@@ -110,24 +110,19 @@ impl VirtualMachine {
 
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
-                    try!(
-                        self.ins_set_integer(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_set_integer(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetFloat => {
-                    try!(
-                        self.ins_set_float(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_set_float(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetString => {
-                    try!(
-                        self.ins_set_string(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_set_string(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetObject => {
-                    try!(
-                        self.ins_set_object(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_set_object(thread.clone(), code, &instruction));
+                },
+                InstructionType::SetArray => {
+                    try!(self.ins_set_array(thread.clone(), code, &instruction));
                 },
                 InstructionType::SetName => {
                     try!(self.ins_set_name(thread.clone(), code, &instruction));
@@ -153,10 +148,30 @@ impl VirtualMachine {
                         &instruction
                     ));
                 },
+                InstructionType::SetArrayPrototype => {
+                    try!(self.ins_set_array_prototype(
+                        thread.clone(),
+                        code,
+                        &instruction
+                    ));
+                },
+                InstructionType::SetLocal => {
+                    try!(self.ins_set_local(thread.clone(), code, &instruction));
+                },
+                InstructionType::GetLocal => {
+                    try!(self.ins_get_local(thread.clone(), code, &instruction));
+                },
+                InstructionType::SetConst => {
+                    try!(self.ins_set_const(thread.clone(), code, &instruction));
+                },
                 InstructionType::GetConst => {
-                    try!(
-                        self.ins_get_const(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_get_const(thread.clone(), code, &instruction));
+                },
+                InstructionType::SetAttr => {
+                    try!(self.ins_set_attr(thread.clone(), code, &instruction));
+                },
+                InstructionType::GetAttr => {
+                    try!(self.ins_get_attr(thread.clone(), code, &instruction));
                 },
                 InstructionType::Send => {
                     try!(self.ins_send(thread.clone(), code, &instruction));
@@ -177,9 +192,7 @@ impl VirtualMachine {
                     );
                 },
                 InstructionType::DefMethod => {
-                    try!(
-                        self.ins_def_method(thread.clone(), code, &instruction)
-                    );
+                    try!(self.ins_def_method(thread.clone(), code, &instruction));
                 },
                 InstructionType::RunCode => {
                     try!(self.ins_run_code(thread.clone(), code, &instruction));
@@ -188,12 +201,6 @@ impl VirtualMachine {
                     try!(
                         self.ins_get_toplevel(thread.clone(), code, &instruction)
                     );
-                },
-                _ => {
-                    return Err(format!(
-                        "Unknown instruction \"{:?}\"",
-                        instruction.instruction_type
-                    ));
                 }
             };
         }
@@ -240,7 +247,7 @@ impl VirtualMachine {
         );
 
         let prototype = try!(
-            self.integer_object
+            self.integer_prototype
                 .as_ref()
                 .ok_or("set_integer: no Integer prototype set up".to_string())
         );
@@ -294,7 +301,7 @@ impl VirtualMachine {
         );
 
         let prototype = try!(
-            self.float_object
+            self.float_prototype
                 .as_ref()
                 .ok_or("set_float: no Float prototype set up".to_string())
         );
@@ -348,7 +355,7 @@ impl VirtualMachine {
         );
 
         let prototype = try!(
-            self.string_object
+            self.string_prototype
                 .as_ref()
                 .ok_or("set_string: no String prototype set up".to_string())
         );
@@ -381,7 +388,7 @@ impl VirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_objet: missing slot index".to_string())
+                .ok_or("set_object: missing slot index".to_string())
         );
 
         let proto_index_opt = instruction.arguments.get(1);
@@ -399,6 +406,61 @@ impl VirtualMachine {
 
             obj.borrow_mut().set_prototype(proto);
         }
+
+        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.register().set(slot, obj);
+
+        Ok(())
+    }
+
+    /// Allocates and sets an array in a register slot.
+    ///
+    /// This instruction requires at least two arguments:
+    ///
+    /// 1. The register slot to store the array in.
+    /// 2. The amount of values to store in the array.
+    ///
+    /// If the 2nd argument is N where N > 0 then all N following arguments are
+    /// used as values for the array.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object          0
+    ///     1: set_array_prototype 0
+    ///     2: set_object          1
+    ///     3: set_object          2
+    ///     4: set_array           3, 2, 1, 2
+    ///
+    fn ins_set_array(&mut self, thread: RcThread, _: &CompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_array: missing slot index".to_string())
+        );
+
+        let val_count = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("set_array: missing value count".to_string())
+        );
+
+        let values = try!(
+            self.collect_arguments(thread.clone(), instruction, 2, val_count)
+        );
+
+        let prototype = try!(
+            self.array_prototype
+                .as_ref()
+                .ok_or("set_array: no Array prototype set up".to_string())
+        );
+
+        let obj = Object::with_rc(ObjectValue::Array(values));
+
+        obj.borrow_mut()
+            .set_prototype(prototype.clone());
+
+        let mut thread_ref = thread.borrow_mut();
 
         thread_ref.young_heap().store_object(obj.clone());
         thread_ref.register().set(slot, obj);
@@ -481,7 +543,7 @@ impl VirtualMachine {
                 .ok_or("set_integer_prototype: undefined source object")
         );
 
-        self.integer_object = Some(object.clone());
+        self.integer_prototype = Some(object.clone());
 
         Ok(())
     }
@@ -513,7 +575,7 @@ impl VirtualMachine {
                 .ok_or("set_float_prototype: undefined source object")
         );
 
-        self.float_object = Some(object.clone());
+        self.float_prototype = Some(object.clone());
 
         Ok(())
     }
@@ -545,7 +607,182 @@ impl VirtualMachine {
                 .ok_or("set_string_prototype: undefined source object")
         );
 
-        self.string_object = Some(object.clone());
+        self.string_prototype = Some(object.clone());
+
+        Ok(())
+    }
+
+    /// Sets the prototype for Array objects.
+    ///
+    /// This instruction requires one argument: the slot index pointing to an
+    /// object to use as the prototype.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object          0
+    ///     1: set_array_prototype 0
+    ///
+    fn ins_set_array_prototype(&mut self, thread: RcThread,
+                               _: &CompiledCode,
+                               instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_array_prototype: missing object slot")
+        );
+
+        let object = try!(
+            thread_ref.register()
+                .get(slot)
+                .ok_or("set_array_prototype: undefined source object")
+        );
+
+        self.array_prototype = Some(object.clone());
+
+        Ok(())
+    }
+
+    /// Sets a local variable to a given slot's value.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The local variable index to set.
+    /// 2. The slot index containing the object to store in the variable.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object 0
+    ///     1: set_local  0, 0
+    ///
+    fn ins_set_local(&mut self, thread: RcThread, _: &CompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let local_index = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_local: missing local variable index".to_string())
+        );
+
+        let object_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("set_local: missing object slot".to_string())
+        );
+
+        let object = try!(
+            thread_ref.register()
+                .get(object_index)
+                .ok_or("set_local: undefined object".to_string())
+        );
+
+        thread_ref.variable_scope().insert(local_index, object);
+
+        Ok(())
+    }
+
+    /// Gets a local variable and stores it in a register slot.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the local's value in.
+    /// 2. The local variable index to get the value from.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object 0
+    ///     1: set_local  0, 0
+    ///     2: get_local  1, 0
+    ///
+    fn ins_get_local(&mut self, thread: RcThread, _: &CompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let slot_index = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("get_local: missing slot index".to_string())
+        );
+
+        let local_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("get_local: missing local variable index".to_string())
+        );
+
+        let object = try!(
+            thread_ref.variable_scope()
+                .get(local_index)
+                .ok_or("get_local: undefined local variable index".to_string())
+        );
+
+        thread_ref.register().set(slot_index, object);
+
+        Ok(())
+    }
+
+    /// Sets a constant in a given object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The slot index pointing to the object to store the constant in.
+    /// 2. The slot index pointing to the object to store.
+    /// 3. The string literal index to use for the constant name.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals
+    ///       0: "Object"
+    ///
+    ///     0: get_toplevel 0
+    ///     1: set_object   1
+    ///     2: set_name     1, 0
+    ///     3: set_const    0, 1, 0
+    ///
+    fn ins_set_const(&mut self, thread: RcThread, code: &CompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let target_slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_const: missing target object slot".to_string())
+        );
+
+        let source_slot = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("set_const: missing source object slot".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("set_const: missing string literal index".to_string())
+        );
+
+        let target = try!(
+            thread_ref.register()
+                .get(target_slot)
+                .ok_or("set_const: undefined target object".to_string())
+        );
+
+        let source = try!(
+            thread_ref.register()
+                .get(source_slot)
+                .ok_or("set_const: undefined source object".to_string())
+        );
+
+        let name = try!(
+            code.string_literals
+                .get(name_index)
+                .ok_or("set_const: undefined string literal".to_string())
+        );
+
+        target.borrow_mut()
+            .add_constant(name.clone(), source);
 
         Ok(())
     }
@@ -607,6 +844,136 @@ impl VirtualMachine {
         );
 
         thread_ref.register().set(index, object);
+
+        Ok(())
+    }
+
+    /// Sets an attribute value in a specific object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot containing the object for which to set the
+    ///    attribute.
+    /// 2. The register slot containing the object to set as the attribute
+    ///    value.
+    /// 3. A string literal index pointing to the name to use for the attribute.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals
+    ///       0: "foo"
+    ///
+    ///     0: set_object 0
+    ///     1: set_object 1
+    ///     2: set_attr   1, 0, 0
+    ///
+    fn ins_set_attr(&mut self, thread: RcThread, code: &CompiledCode,
+                    instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let target_index = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_attr: missing target object slot".to_string())
+        );
+
+        let source_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("set_attr: missing source object slot".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("set_attr: missing string literal index".to_string())
+        );
+
+        let target_object = try!(
+            thread_ref.register()
+                .get(target_index)
+                .ok_or("set_attr: undefined target object".to_string())
+        );
+
+        let source_object = try!(
+            thread_ref.register()
+                .get(source_index)
+                .ok_or("set_attr: undefined target object".to_string())
+        );
+
+        let name = try!(
+            code.string_literals
+                .get(name_index)
+                .ok_or("set_attr: undefined string literal".to_string())
+        );
+
+        target_object.borrow_mut()
+            .add_attribute(name.clone(), source_object);
+
+        Ok(())
+    }
+
+    /// Gets an attribute from an object and stores it in a register slot.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the attribute's value in.
+    /// 2. The register slot containing the object from which to retrieve the
+    ///    attribute.
+    /// 3. A string literal index pointing to the attribute name.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals
+    ///       0: "foo"
+    ///
+    ///     0: set_object 0
+    ///     1: set_object 1
+    ///     2: set_attr   1, 0, 0
+    ///     3: get_attr   2, 1, 0
+    ///
+    fn ins_get_attr(&mut self, thread: RcThread, code: &CompiledCode,
+                    instruction: &Instruction) -> Result<(), String> {
+        let mut thread_ref = thread.borrow_mut();
+
+        let target_index = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("get_attr: missing target slot index".to_string())
+        );
+
+        let source_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("get_attr: missing source slot index".to_string())
+        );
+
+        let name_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("get_attr: missing string literal index".to_string())
+        );
+
+        let source = try!(
+            thread_ref.register()
+                .get(source_index)
+                .ok_or("get_attr: undefined source object".to_string())
+        );
+
+        let name = try!(
+            code.string_literals
+                .get(name_index)
+                .ok_or("get_attr: undefined string literal".to_string())
+        );
+
+        let attr = try!(
+            source.borrow()
+                .lookup_attribute(name)
+                .ok_or(format!("get_attr: undefined attribute \"{}\"", name))
+        );
+
+        thread_ref.register()
+            .set(target_index, attr);
 
         Ok(())
     }
