@@ -1,6 +1,6 @@
 use object::RcObject;
 
-const DEFAULT_CAPACITY: usize = 1024;
+pub const DEFAULT_CAPACITY: usize = 1024;
 
 /// Struct for storing runtime objects.
 ///
@@ -39,5 +39,35 @@ impl Heap {
     /// Stores the given Object on the heap.
     pub fn store_object(&mut self, object: RcObject) {
         self.objects.push(object);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object::{Object, ObjectValue};
+
+    #[test]
+    fn test_new() {
+        let heap = Heap::new();
+
+        assert_eq!(heap.objects.capacity(), DEFAULT_CAPACITY);
+    }
+
+    #[test]
+    fn test_with_capacity() {
+        let heap = Heap::with_capacity(128);
+
+        assert_eq!(heap.objects.capacity(), 128);
+    }
+
+    #[test]
+    fn test_store_object() {
+        let object   = Object::with_rc(ObjectValue::None);
+        let mut heap = Heap::new();
+
+        heap.store_object(object);
+
+        assert_eq!(heap.objects.len(), 1);
     }
 }
