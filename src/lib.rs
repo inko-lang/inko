@@ -1,6 +1,3 @@
-// FIXME: re-enable once all code is actually used.
-#![allow(dead_code)]
-
 pub mod gc {
     mod baker;
     mod immix;
