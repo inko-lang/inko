@@ -40,38 +40,4 @@ impl Heap {
     pub fn store_object(&mut self, object: RcObject) {
         self.objects.push(object);
     }
-
-    /*
-    /// Allocates and stores a native VM Class.
-    ///
-    /// These classes are pinned to prevent them from being garbage collected.
-    pub fn allocate_vm_class(&mut self, name: String,
-                                 parent: Option<RcClass>) -> RcClass {
-        let klass = Class::with_pinned_rc(Some(name));
-
-        if parent.is_some() {
-            klass.borrow_mut().set_parent_class(parent.unwrap());
-        }
-
-        self.store_class(klass.clone());
-
-        klass
-    }
-
-    /// Allocates a class in the language
-    ///
-    /// These objects represent classes in the actual language, they are pinned
-    /// to prevent garbage collection.
-    pub fn allocate_class(&mut self, instance_of: RcClass,
-                          actual_class: RcClass) -> RcObject {
-        let value  = ObjectValue::Class(actual_class);
-        let object = Object::with_rc(instance_of, value);
-
-        object.borrow_mut().pinned = true;
-
-        self.store_object(object.clone());
-
-        object
-    }
-    */
 }
