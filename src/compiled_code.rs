@@ -144,3 +144,74 @@ impl CompiledCode {
         Rc::new(self.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use instruction::{Instruction, InstructionType};
+
+    fn new_compiled_code() -> CompiledCode {
+        let ins = Instruction::new(InstructionType::Return, vec![0], 1, 1);
+
+        CompiledCode
+            ::new("foo".to_string(), "bar.aeon".to_string(), 1, vec![ins])
+    }
+
+    #[test]
+    fn test_new() {
+        let code = new_compiled_code();
+
+        assert_eq!(code.name, "foo".to_string());
+        assert_eq!(code.file, "bar.aeon".to_string());
+        assert_eq!(code.line, 1);
+        assert_eq!(code.instructions.len(), 1);
+    }
+
+    #[test]
+    fn test_add_integer_literal() {
+        let mut code = new_compiled_code();
+
+        code.add_integer_literal(10);
+
+        assert_eq!(code.integer_literals[0], 10);
+    }
+
+    #[test]
+    fn test_add_float_literal() {
+        let mut code = new_compiled_code();
+
+        code.add_float_literal(10.5);
+
+        assert_eq!(code.float_literals[0], 10.5);
+    }
+
+    #[test]
+    fn test_add_string_literal() {
+        let mut code = new_compiled_code();
+
+        code.add_string_literal("foo".to_string());
+
+        assert_eq!(code.string_literals[0], "foo".to_string());
+    }
+
+    #[test]
+    fn test_add_code_object() {
+        let mut code1 = new_compiled_code();
+        let code2     = new_compiled_code();
+
+        code1.add_code_object(code2);
+
+        assert_eq!(code1.code_objects.len(), 1);
+    }
+
+    #[test]
+    fn test_is_private() {
+        let mut code = new_compiled_code();
+
+        assert_eq!(code.is_private(), false);
+
+        code.visibility = MethodVisibility::Private;
+
+        assert!(code.is_private());
+    }
+}
