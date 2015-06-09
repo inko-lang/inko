@@ -37,7 +37,7 @@ impl Heap {
     }
 
     /// Stores the given Object on the heap.
-    pub fn store_object(&mut self, object: RcObject) {
+    pub fn allocate_object(&mut self, object: RcObject) {
         self.objects.push(object);
     }
 }
@@ -62,11 +62,11 @@ mod tests {
     }
 
     #[test]
-    fn test_store_object() {
+    fn test_allocate_object() {
         let object   = Object::with_rc(ObjectValue::None);
         let mut heap = Heap::new();
 
-        heap.store_object(object);
+        heap.allocate_object(object);
 
         assert_eq!(heap.objects.len(), 1);
     }

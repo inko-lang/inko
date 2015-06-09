@@ -4,6 +4,7 @@ use std::cell::RefCell;
 
 use call_frame::CallFrame;
 use heap::Heap;
+use object::RcObject;
 use register::Register;
 use variable_scope::VariableScope;
 
@@ -95,5 +96,10 @@ impl Thread {
     /// Returns a mutable reference to the current mature heap.
     pub fn mature_heap(&mut self) -> &mut Heap {
         &mut self.mature_heap
+    }
+
+    /// Allocates a new object on one of the available heaps.
+    pub fn allocate_object(&mut self, object: RcObject) {
+        self.young_heap().allocate_object(object);
     }
 }

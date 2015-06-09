@@ -1,9 +1,7 @@
 use std::io::{self, Write};
-use std::sync::RwLock;
 
 use call_frame::CallFrame;
 use compiled_code::CompiledCode;
-use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object::{Object, ObjectValue, RcObject};
 use thread::{Thread, RcThread};
@@ -17,11 +15,6 @@ use thread::{Thread, RcThread};
 pub struct VirtualMachine {
     // All threads that are currently active.
     threads: Vec<RcThread>,
-
-    // The global heap is used for allocating constants and other objects that
-    // usually stick around for a program's entire lifetime, regardless of what
-    // thread created the data.
-    global_heap: RwLock<Heap>,
 
     // The top-level object used for storing global constants.
     top_level: RcObject,
@@ -40,16 +33,12 @@ impl VirtualMachine {
     /// classes.
     ///
     pub fn new() -> VirtualMachine {
-        let mut heap  = Heap::new();
         let top_level = Object::with_rc(ObjectValue::None);
 
         top_level.borrow_mut().pin();
 
-        heap.store_object(top_level.clone());
-
         VirtualMachine {
             threads: Vec::new(),
-            global_heap: RwLock::new(heap),
             top_level: top_level,
             integer_prototype: None,
             float_prototype: None,
@@ -259,7 +248,7 @@ impl VirtualMachine {
 
         let obj = Object::new_integer(value, prototype.clone());
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
@@ -313,7 +302,7 @@ impl VirtualMachine {
 
         obj.borrow_mut().set_prototype(prototype.clone());
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
@@ -367,7 +356,7 @@ impl VirtualMachine {
 
         obj.borrow_mut().set_prototype(prototype.clone());
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
@@ -410,7 +399,7 @@ impl VirtualMachine {
             obj.borrow_mut().set_prototype(proto);
         }
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
@@ -465,7 +454,7 @@ impl VirtualMachine {
 
         let mut thread_ref = thread.borrow_mut();
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
@@ -1416,7 +1405,7 @@ impl VirtualMachine {
 
         let obj = Object::new_integer(added, prototype.clone());
 
-        thread_ref.young_heap().store_object(obj.clone());
+        thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
 
         Ok(())
