@@ -2,10 +2,10 @@ use std::rc::Rc;
 
 use instruction::Instruction;
 
-/// A reference counteded (using Rc) CompiledCode object.
+/// A reference counted CompiledCode.
 pub type RcCompiledCode = Rc<CompiledCode>;
 
-/// Enum indicating the visibility of a method
+/// Enum indicating the visibility of a method.
 #[derive(Clone)]
 pub enum MethodVisibility {
     Public,

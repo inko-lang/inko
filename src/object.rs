@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::RwLock;
@@ -35,7 +34,7 @@ impl ObjectValue {
 }
 
 /// A mutable, reference counted Object.
-pub type RcObject = Rc<RefCell<Object>>;
+pub type RcObject = Rc<RwLock<Object>>;
 
 /// An Object/instance structure, optionally with an associated value.
 ///
@@ -51,13 +50,13 @@ pub struct Object {
     pub prototype: Option<RcObject>,
 
     /// The attributes of the object.
-    pub attributes: RwLock<HashMap<String, RcObject>>,
+    pub attributes: HashMap<String, RcObject>,
 
     /// The constants defined in this object.
-    pub constants: RwLock<HashMap<String, RcObject>>,
+    pub constants: HashMap<String, RcObject>,
 
     /// The methods defined on this object.
-    pub methods: RwLock<HashMap<String, RcCompiledCode>>,
+    pub methods: HashMap<String, RcCompiledCode>,
 
     /// A value associated with the object, if any.
     // TODO: use something like a pointer so Object isn't super fat size wise
@@ -73,9 +72,9 @@ impl Object {
         Object {
             name: None,
             prototype: None,
-            attributes: RwLock::new(HashMap::new()),
-            constants: RwLock::new(HashMap::new()),
-            methods: RwLock::new(HashMap::new()),
+            attributes: HashMap::new(),
+            constants: HashMap::new(),
+            methods: HashMap::new(),
             value: value,
             pinned: false
         }
@@ -83,14 +82,14 @@ impl Object {
 
     /// Creates a mutable, reference counted Object.
     pub fn with_rc(value: ObjectValue) -> RcObject {
-        Rc::new(RefCell::new(Object::new(value)))
+        Rc::new(RwLock::new(Object::new(value)))
     }
 
     /// Creates a new Integer object.
     pub fn new_integer(value: isize, prototype: RcObject) -> RcObject {
         let obj = Object::with_rc(ObjectValue::Integer(value));
 
-        obj.borrow_mut().set_prototype(prototype);
+        obj.write().unwrap().set_prototype(prototype);
 
         obj
     }
@@ -125,7 +124,7 @@ impl Object {
             )
         }
         else if self.prototype.is_some() {
-            let proto = self.prototype.as_ref().unwrap().borrow();
+            let proto = self.prototype.as_ref().unwrap().read().unwrap();
 
             proto.undefined_method_error(name)
         }
@@ -144,7 +143,7 @@ impl Object {
             )
         }
         else if self.prototype.is_some() {
-            let proto = self.prototype.as_ref().unwrap().borrow();
+            let proto = self.prototype.as_ref().unwrap().read().unwrap();
 
             proto.private_method_error(name)
         }
@@ -155,20 +154,16 @@ impl Object {
 
     /// Adds a new method.
     pub fn add_method(&mut self, name: String, code: RcCompiledCode) {
-        let mut methods = self.methods.write().unwrap();
-
-        methods.insert(name, code.clone());
+        self.methods.insert(name, code.clone());
     }
 
     /// Looks up the method for the given name.
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
-        let methods = self.methods.read().unwrap();
-
         // Method defined directly on the object
-        if methods.contains_key(name) {
-            retval = methods.get(name).cloned();
+        if self.methods.contains_key(name) {
+            retval = self.methods.get(name).cloned();
         }
 
         // Method defined somewhere in the object hierarchy
@@ -176,12 +171,11 @@ impl Object {
             let mut parent = self.prototype.clone();
 
             while parent.is_some() {
-                let unwrapped      = parent.unwrap();
-                let parent_ref     = unwrapped.borrow();
-                let parent_methods = parent_ref.methods.read().unwrap();
+                let unwrapped  = parent.unwrap();
+                let parent_ref = unwrapped.read().unwrap();
 
-                if parent_methods.contains_key(name) {
-                    retval = parent_methods.get(name).cloned();
+                if parent_ref.methods.contains_key(name) {
+                    retval = parent_ref.methods.get(name).cloned();
 
                     break;
                 }
@@ -195,14 +189,12 @@ impl Object {
 
     /// Adds a constant.
     pub fn add_constant(&mut self, name: String, value: RcObject) {
-        let mut constants = self.constants.write().unwrap();
-
-        constants.insert(name, value);
+        self.constants.insert(name, value);
     }
 
     /// Adds a constant with the same name as the object.
     pub fn add_named_constant(&mut self, value: RcObject) {
-        let name = value.borrow().name().unwrap().clone();
+        let name = value.read().unwrap().name().unwrap().clone();
 
         self.add_constant(name, value);
     }
@@ -211,10 +203,8 @@ impl Object {
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let constants = self.constants.read().unwrap();
-
-        if constants.contains_key(name) {
-            retval = constants.get(name).cloned();
+        if self.constants.contains_key(name) {
+            retval = self.constants.get(name).cloned();
         }
 
         // Look up the constant in one of the parents.
@@ -222,12 +212,11 @@ impl Object {
             let mut parent = self.prototype.clone();
 
             while parent.is_some() {
-                let unwrapped        = parent.unwrap();
-                let parent_ref       = unwrapped.borrow();
-                let parent_constants = parent_ref.constants.read().unwrap();
+                let unwrapped  = parent.unwrap();
+                let parent_ref = unwrapped.read().unwrap();
 
-                if parent_constants.contains_key(name) {
-                    retval = parent_constants.get(name).cloned();
+                if parent_ref.constants.contains_key(name) {
+                    retval = parent_ref.constants.get(name).cloned();
 
                     break;
                 }
@@ -241,31 +230,26 @@ impl Object {
 
     /// Adds a new attribute to the object.
     pub fn add_attribute(&mut self, name: String, object: RcObject) {
-        let mut attrs = self.attributes.write().unwrap();
-
-        attrs.insert(name, object);
+        self.attributes.insert(name, object);
     }
 
     /// Returns the attribute for the given name.
     pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let attrs = self.attributes.read().unwrap();
-
-        if attrs.contains_key(name) {
-            retval = attrs.get(name).cloned();
+        if self.attributes.contains_key(name) {
+            retval = self.attributes.get(name).cloned();
         }
 
         else if self.prototype.is_some() {
             let mut parent = self.prototype.clone();
 
             while parent.is_some() {
-                let unwrapped    = parent.unwrap();
-                let parent_ref   = unwrapped.borrow();
-                let parent_attrs = parent_ref.attributes.read().unwrap();
+                let unwrapped  = parent.unwrap();
+                let parent_ref = unwrapped.read().unwrap();
 
-                if parent_attrs.contains_key(name) {
-                    retval = parent_attrs.get(name).cloned();
+                if parent_ref.attributes.contains_key(name) {
+                    retval = parent_ref.attributes.get(name).cloned();
 
                     break;
                 }

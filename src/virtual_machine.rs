@@ -35,7 +35,7 @@ impl VirtualMachine {
     pub fn new() -> VirtualMachine {
         let top_level = Object::with_rc(ObjectValue::None);
 
-        top_level.borrow_mut().pin();
+        top_level.write().unwrap().pin();
 
         VirtualMachine {
             threads: Vec::new(),
@@ -220,7 +220,7 @@ impl VirtualMachine {
     ///
     fn ins_set_integer(&mut self, thread: RcThread, code: &CompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -272,7 +272,7 @@ impl VirtualMachine {
     ///
     fn ins_set_float(&mut self, thread: RcThread, code: &CompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -300,7 +300,7 @@ impl VirtualMachine {
 
         let obj = Object::with_rc(ObjectValue::Float(value));
 
-        obj.borrow_mut().set_prototype(prototype.clone());
+        obj.write().unwrap().set_prototype(prototype.clone());
 
         thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
@@ -326,7 +326,7 @@ impl VirtualMachine {
     ///
     fn ins_set_string(&mut self, thread: RcThread, code: &CompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -354,7 +354,7 @@ impl VirtualMachine {
 
         let obj = Object::with_rc(ObjectValue::String(value.clone()));
 
-        obj.borrow_mut().set_prototype(prototype.clone());
+        obj.write().unwrap().set_prototype(prototype.clone());
 
         thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
@@ -375,7 +375,7 @@ impl VirtualMachine {
     ///
     fn ins_set_object(&mut self, thread: RcThread, _: &CompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -396,7 +396,7 @@ impl VirtualMachine {
                     .ok_or("set_object: prototype is undefined".to_string())
             );
 
-            obj.borrow_mut().set_prototype(proto);
+            obj.write().unwrap().set_prototype(proto);
         }
 
         thread_ref.allocate_object(obj.clone());
@@ -449,10 +449,10 @@ impl VirtualMachine {
 
         let obj = Object::with_rc(ObjectValue::Array(values));
 
-        obj.borrow_mut()
+        obj.write().unwrap()
             .set_prototype(prototype.clone());
 
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         thread_ref.allocate_object(obj.clone());
         thread_ref.register().set(slot, obj);
@@ -477,7 +477,7 @@ impl VirtualMachine {
     ///
     fn ins_set_name(&mut self, thread: RcThread, code: &CompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -503,7 +503,7 @@ impl VirtualMachine {
                 .ok_or("set_name: undefined string literal".to_string())
         );
 
-        obj.borrow_mut().set_name(name.clone());
+        obj.write().unwrap().set_name(name.clone());
 
         Ok(())
     }
@@ -521,7 +521,7 @@ impl VirtualMachine {
     fn ins_set_integer_prototype(&mut self, thread: RcThread,
                                  _: &CompiledCode,
                                  instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -553,7 +553,7 @@ impl VirtualMachine {
     fn ins_set_float_prototype(&mut self, thread: RcThread,
                                _: &CompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -585,7 +585,7 @@ impl VirtualMachine {
     fn ins_set_string_prototype(&mut self, thread: RcThread,
                                 _: &CompiledCode,
                                 instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -617,7 +617,7 @@ impl VirtualMachine {
     fn ins_set_array_prototype(&mut self, thread: RcThread,
                                _: &CompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -650,7 +650,7 @@ impl VirtualMachine {
     ///
     fn ins_set_local(&mut self, thread: RcThread, _: &CompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let local_index = *try!(
             instruction.arguments
@@ -690,7 +690,7 @@ impl VirtualMachine {
     ///
     fn ins_get_local(&mut self, thread: RcThread, _: &CompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot_index = *try!(
             instruction.arguments
@@ -735,7 +735,7 @@ impl VirtualMachine {
     ///
     fn ins_set_const(&mut self, thread: RcThread, code: &CompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let target_slot = *try!(
             instruction.arguments
@@ -773,7 +773,7 @@ impl VirtualMachine {
                 .ok_or("set_const: undefined string literal".to_string())
         );
 
-        target.borrow_mut()
+        target.write().unwrap()
             .add_constant(name.clone(), source);
 
         Ok(())
@@ -797,7 +797,7 @@ impl VirtualMachine {
     ///
     fn ins_get_const(&mut self, thread: RcThread, code: &CompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let index = *try!(
             instruction.arguments
@@ -830,7 +830,7 @@ impl VirtualMachine {
         );
 
         let object = try!(
-            src.borrow()
+            src.read().unwrap()
                 .lookup_constant(name)
                 .ok_or(format!("get_const: Undefined constant {}", name))
         );
@@ -861,7 +861,7 @@ impl VirtualMachine {
     ///
     fn ins_set_attr(&mut self, thread: RcThread, code: &CompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let target_index = *try!(
             instruction.arguments
@@ -899,7 +899,7 @@ impl VirtualMachine {
                 .ok_or("set_attr: undefined string literal".to_string())
         );
 
-        target_object.borrow_mut()
+        target_object.write().unwrap()
             .add_attribute(name.clone(), source_object);
 
         Ok(())
@@ -926,7 +926,7 @@ impl VirtualMachine {
     ///
     fn ins_get_attr(&mut self, thread: RcThread, code: &CompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let target_index = *try!(
             instruction.arguments
@@ -959,7 +959,7 @@ impl VirtualMachine {
         );
 
         let attr = try!(
-            source.borrow()
+            source.read().unwrap()
                 .lookup_attribute(name)
                 .ok_or(format!("get_attr: undefined attribute \"{}\"", name))
         );
@@ -1038,7 +1038,7 @@ impl VirtualMachine {
         );
 
         let receiver = try!(
-            thread.borrow_mut()
+            thread.write().unwrap()
                 .register()
                 .get(receiver_slot)
                 .ok_or(format!(
@@ -1048,13 +1048,13 @@ impl VirtualMachine {
         );
 
         let method_code = &try!(
-            receiver.borrow()
+            receiver.read().unwrap()
                 .lookup_method(name)
-                .ok_or(receiver.borrow().undefined_method_error(name))
+                .ok_or(receiver.read().unwrap().undefined_method_error(name))
         );
 
         if method_code.is_private() && allow_private == 0 {
-            return Err(receiver.borrow().private_method_error(name));
+            return Err(receiver.read().unwrap().private_method_error(name));
         }
 
         let mut arguments = try!(
@@ -1078,7 +1078,7 @@ impl VirtualMachine {
         );
 
         if retval.is_some() {
-            thread.borrow_mut().register().set(result_slot, retval.unwrap());
+            thread.write().unwrap().register().set(result_slot, retval.unwrap());
         }
 
         Ok(())
@@ -1103,7 +1103,7 @@ impl VirtualMachine {
     fn ins_return(&mut self, thread: RcThread, _: &CompiledCode,
                   instruction: &Instruction)
                   -> Result<Option<RcObject>, String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -1136,7 +1136,7 @@ impl VirtualMachine {
     fn ins_goto_if_undef(&mut self, thread: RcThread, _: &CompiledCode,
                          instruction: &Instruction)
                          -> Result<Option<usize>, String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let go_to = *try!(
             instruction.arguments
@@ -1181,7 +1181,7 @@ impl VirtualMachine {
     fn ins_goto_if_def(&mut self, thread: RcThread, _: &CompiledCode,
                        instruction: &Instruction)
                        -> Result<Option<usize>, String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let go_to = *try!(
             instruction.arguments
@@ -1214,7 +1214,7 @@ impl VirtualMachine {
     ///
     fn ins_def_method(&mut self, thread: RcThread, code: &CompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let receiver_index = *try!(
             instruction.arguments
@@ -1252,7 +1252,7 @@ impl VirtualMachine {
                 .ok_or("def_method: undefined code object index".to_string())
         );
 
-        let mut receiver_ref = receiver.borrow_mut();
+        let mut receiver_ref = receiver.write().unwrap();
 
         receiver_ref.add_method(name.clone(), method_code.to_rc());
 
@@ -1304,7 +1304,7 @@ impl VirtualMachine {
         let retval = try!(self.run_code(thread.clone(), code_obj, arguments));
 
         if retval.is_some() {
-            thread.borrow_mut().register().set(result_index, retval.unwrap())
+            thread.write().unwrap().register().set(result_index, retval.unwrap())
         }
 
         Ok(())
@@ -1320,7 +1320,7 @@ impl VirtualMachine {
     ///
     fn ins_get_toplevel(&mut self, thread: RcThread, _: &CompiledCode,
                         instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -1353,7 +1353,7 @@ impl VirtualMachine {
     ///
     fn ins_add_integer(&mut self, thread: RcThread, _: &CompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
@@ -1391,8 +1391,8 @@ impl VirtualMachine {
                 .ok_or("add_integer: no Integer prototype set up".to_string())
         );
 
-        let left_ref  = left_object.borrow();
-        let right_ref = right_object.borrow();
+        let left_ref  = left_object.read().unwrap();
+        let right_ref = right_object.read().unwrap();
 
         if !left_ref.value.is_integer() || !right_ref.value.is_integer() {
             return Err(
@@ -1411,9 +1411,57 @@ impl VirtualMachine {
         Ok(())
     }
 
+    /// Runs a CompiledCode in a new thread.
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the thread object in.
+    /// 2. A code objects index pointing to the CompiledCode object to run.
+    ///
+    /// # Examples
+    ///
+    ///     code_objects
+    ///       0: CompiledCode(name="foo")
+    ///
+    ///     0: set_object           0
+    ///     1: set_thread_prototype 0
+    ///     2. start_thread         1, 0
+    ///
+    fn ins_start_thread(&mut self, thread: RcThread, code: &CompiledCode,
+                        instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("start_thread: missing slot index".to_string())
+        );
+
+        let code_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("start_thread: missing code object index".to_string())
+        );
+
+        let thread_code = try!(
+            code.code_objects
+                .get(code_index)
+                .ok_or("start_thread: undefined code object".to_string())
+        );
+
+        let frame     = CallFrame::from_code(thread_code);
+        let vm_thread = Thread::with_rc(frame);
+
+        self.threads.push(vm_thread.clone());
+
+        let handle = thread::spawn(|| {
+            // TODO: access to self, vm_thread and thread_code
+        });
+
+        Ok(())
+    }
+
     /// Prints a VM backtrace of a given thread with a message.
     fn print_error(&mut self, thread: RcThread, message: String) {
-        let thread_ref = thread.borrow();
+        let thread_ref = thread.read().unwrap();
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
 
@@ -1435,7 +1483,7 @@ impl VirtualMachine {
         // Scoped so the borrow_mut is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            let mut thread_ref = thread.borrow_mut();
+            let mut thread_ref = thread.write().unwrap();
 
             thread_ref.push_call_frame(CallFrame::from_code(code));
 
@@ -1448,7 +1496,7 @@ impl VirtualMachine {
 
         let return_val = try!(self.run(thread.clone(), code));
 
-        thread.borrow_mut().pop_call_frame();
+        thread.write().unwrap().pop_call_frame();
 
         Ok(return_val)
     }
@@ -1459,7 +1507,7 @@ impl VirtualMachine {
                          amount: usize) -> Result<Vec<RcObject>, String> {
         let mut args: Vec<RcObject> = Vec::new();
 
-        let mut thread_ref = thread.borrow_mut();
+        let mut thread_ref = thread.write().unwrap();
 
         for index in offset..(offset + amount) {
             let arg_index = instruction.arguments[index];
