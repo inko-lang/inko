@@ -1,9 +1,9 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 use instruction::Instruction;
 
 /// A reference counted CompiledCode.
-pub type RcCompiledCode = Rc<CompiledCode>;
+pub type RcCompiledCode = Arc<CompiledCode>;
 
 /// Enum indicating the visibility of a method.
 #[derive(Clone)]
@@ -141,7 +141,7 @@ impl CompiledCode {
 
     /// Returns a reference counted copy of this CompiledCode
     pub fn to_rc(&self) -> RcCompiledCode {
-        Rc::new(self.clone())
+        Arc::new(self.clone())
     }
 }
 

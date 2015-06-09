@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use object::RcObject;
 
@@ -14,7 +13,7 @@ pub struct ConstantCache {
 }
 
 /// A mutable, reference counted constant cache.
-pub type RcConstantCache = Rc<RwLock<ConstantCache>>;
+pub type RcConstantCache = Arc<RwLock<ConstantCache>>;
 
 impl ConstantCache {
     /// Creates a new ConstantCache.
@@ -24,7 +23,7 @@ impl ConstantCache {
 
     /// Creates a new reference counted ConstantCache.
     pub fn with_rc() -> RcConstantCache {
-        Rc::new(RwLock::new(ConstantCache::new()))
+        Arc::new(RwLock::new(ConstantCache::new()))
     }
 
     /// Inserts a new constant into the cache.

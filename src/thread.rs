@@ -1,6 +1,5 @@
 use std::mem;
-use std::rc::Rc;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use call_frame::CallFrame;
 use heap::Heap;
@@ -9,7 +8,7 @@ use register::Register;
 use variable_scope::VariableScope;
 
 /// A mutable, reference counted Thread.
-pub type RcThread = Rc<RwLock<Thread>>;
+pub type RcThread = Arc<RwLock<Thread>>;
 
 /// Struct representing a VM thread.
 ///
@@ -55,7 +54,7 @@ impl Thread {
 
     /// Creates a new mutable, reference counted Thread.
     pub fn with_rc(call_frame: CallFrame) -> RcThread {
-        Rc::new(RwLock::new(Thread::new(call_frame)))
+        Arc::new(RwLock::new(Thread::new(call_frame)))
     }
 
     /// Sets the current CallFrame from a CompiledCode.

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use compiled_code::RcCompiledCode;
 
@@ -34,7 +33,7 @@ impl ObjectValue {
 }
 
 /// A mutable, reference counted Object.
-pub type RcObject = Rc<RwLock<Object>>;
+pub type RcObject = Arc<RwLock<Object>>;
 
 /// An Object/instance structure, optionally with an associated value.
 ///
@@ -82,7 +81,7 @@ impl Object {
 
     /// Creates a mutable, reference counted Object.
     pub fn with_rc(value: ObjectValue) -> RcObject {
-        Rc::new(RwLock::new(Object::new(value)))
+        Arc::new(RwLock::new(Object::new(value)))
     }
 
     /// Creates a new Integer object.
