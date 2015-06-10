@@ -11,6 +11,7 @@ pub enum InstructionType {
     SetFloatPrototype,
     SetStringPrototype,
     SetArrayPrototype,
+    SetThreadPrototype,
     SetLocal,
     GetLocal,
     SetConst,

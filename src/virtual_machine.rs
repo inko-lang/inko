@@ -244,6 +244,22 @@ pub trait ArcMethods {
     fn ins_set_array_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Sets the prototype for Thread objects.
+    ///
+    /// This instruction requires one argument: the slot index pointing to an
+    /// object to use as the prototype.
+    ///
+    /// This instruction also updates any existing threads with the new
+    /// prototype.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object           0
+    ///     1: set_thread_prototype 0
+    ///
+    fn ins_set_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Sets a local variable to a given slot's value.
     ///
     /// This instruction requires two arguments:
@@ -656,6 +672,13 @@ impl ArcMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
+                InstructionType::SetThreadPrototype => {
+                    try!(self.ins_set_thread_prototype(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
                 InstructionType::SetLocal => {
                     try!(self.ins_set_local(
                         thread.clone(),
@@ -1055,7 +1078,8 @@ impl ArcMethods for RcVirtualMachine {
     }
 
     fn ins_set_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
-                               instruction: &Instruction) -> Result<(), String> {
+                               instruction: &Instruction)
+                               -> Result<(), String> {
         let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
@@ -1073,6 +1097,38 @@ impl ArcMethods for RcVirtualMachine {
         let mut proto_ref = self.array_prototype.write().unwrap();
 
         *proto_ref = Some(object.clone());
+
+        Ok(())
+    }
+
+    fn ins_set_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                                instruction: &Instruction)
+                                -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_array_prototype: missing object slot")
+        );
+
+        let object = try!(
+            thread.write()
+                .unwrap()
+                .register()
+                .get(slot)
+                .ok_or("set_array_prototype: undefined source object")
+        );
+
+        let mut proto_ref = self.array_prototype.write().unwrap();
+
+        *proto_ref = Some(object.clone());
+
+        // Update the prototype of all existing threads (usually only the main
+        // thread at this point).
+        let mut threads = self.threads.write().unwrap();
+
+        for thread in threads.iter() {
+            thread.write().unwrap().set_prototype(object.clone());
+        }
 
         Ok(())
     }
