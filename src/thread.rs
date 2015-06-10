@@ -4,7 +4,6 @@ use std::thread;
 
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use heap::Heap;
 use object::RcObject;
 use register::Register;
 use variable_scope::VariableScope;
@@ -19,20 +18,12 @@ pub type RcThread = Arc<RwLock<Thread>>;
 /// are _not_ green threads, instead the VM uses regular threads and creates a
 /// new Thread struct for every OS thread.
 ///
-/// The Thread struct stores information such as the current call frame, the
-/// young/mature heaps and providers various convenience methods for allocating
-/// objects and working with registers.
+/// The Thread struct stores information such as the current call frame and the
+/// native Rust thread bound to this structure.
 ///
 pub struct Thread {
     /// The current call frame.
     pub call_frame: CallFrame,
-
-    /// The young heap, most objects will be allocated here.
-    pub young_heap: Heap,
-
-    /// The mature heap, used for big objects or those that have outlived
-    /// several GC cycles.
-    pub mature_heap: Heap,
 
     /// The native Thread handle, set automatically to the current thread.
     pub native_thread: thread::Thread
@@ -52,8 +43,6 @@ impl Thread {
     pub fn new(call_frame: CallFrame) -> Thread {
         Thread {
             call_frame: call_frame,
-            young_heap: Heap::new(),
-            mature_heap: Heap::new(),
             native_thread: thread::current()
         }
     }
@@ -98,20 +87,5 @@ impl Thread {
     /// Returns a mutable reference to the current variable scope.
     pub fn variable_scope(&mut self) -> &mut VariableScope {
         &mut self.call_frame.variables
-    }
-
-    /// Returns a mutable reference to the current young heap.
-    pub fn young_heap(&mut self) -> &mut Heap {
-        &mut self.young_heap
-    }
-
-    /// Returns a mutable reference to the current mature heap.
-    pub fn mature_heap(&mut self) -> &mut Heap {
-        &mut self.mature_heap
-    }
-
-    /// Allocates a new object on one of the available heaps.
-    pub fn allocate_object(&mut self, object: RcObject) {
-        self.young_heap().allocate_object(object);
     }
 }

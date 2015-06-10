@@ -1,6 +1,11 @@
+use std::sync::{Arc, RwLock};
+
 use object::RcObject;
 
 pub const DEFAULT_CAPACITY: usize = 1024;
+
+/// A mutable, reference counted Heap.
+pub type RcHeap = Arc<RwLock<Heap>>;
 
 /// Struct for storing runtime objects.
 ///
@@ -36,8 +41,13 @@ impl Heap {
         }
     }
 
+    /// Creates a new reference counted Heap.
+    pub fn with_rc() -> RcHeap {
+        Arc::new(RwLock::new(Heap::new()))
+    }
+
     /// Stores the given Object on the heap.
-    pub fn allocate_object(&mut self, object: RcObject) {
+    pub fn store(&mut self, object: RcObject) {
         self.objects.push(object);
     }
 }
@@ -62,11 +72,20 @@ mod tests {
     }
 
     #[test]
-    fn test_allocate_object() {
+    fn test_with_rc() {
+        let heap = Heap::with_rc();
+
+        let heap_ref = heap.read().unwrap();
+
+        assert_eq!(heap_ref.objects.capacity(), DEFAULT_CAPACITY);
+    }
+
+    #[test]
+    fn test_store() {
         let object   = Object::with_rc(ObjectValue::None);
         let mut heap = Heap::new();
 
-        heap.allocate_object(object);
+        heap.store(object);
 
         assert_eq!(heap.objects.len(), 1);
     }
