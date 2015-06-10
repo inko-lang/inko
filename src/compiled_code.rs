@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use instruction::Instruction;
 
-/// A reference counted CompiledCode.
+/// A mutable, reference counted CompiledCode.
 pub type RcCompiledCode = Arc<CompiledCode>;
 
 /// Enum indicating the visibility of a method.
@@ -62,8 +62,10 @@ pub struct CompiledCode {
     /// Extra CompiledCode objects to associate with the current one. This can
     /// be used to store CompiledCode objects for every method in a class in the
     /// CompiledCode object of said class.
-    pub code_objects: Vec<CompiledCode>
+    pub code_objects: Vec<RcCompiledCode>
 }
+
+unsafe impl Sync for CompiledCode {}
 
 impl CompiledCode {
     /// Creates a basic CompiledCode with a set of instructions. Other data such
@@ -88,6 +90,12 @@ impl CompiledCode {
             string_literals: Vec::new(),
             code_objects: Vec::new()
         }
+    }
+
+    /// Creates a new reference counted CompiledCode.
+    pub fn with_rc(name: String, file: String, line: usize,
+               instructions: Vec<Instruction>) -> RcCompiledCode {
+        Arc::new(CompiledCode::new(name, file, line, instructions))
     }
 
     /// Adds a new integer literal to the current CompiledCode.
@@ -127,7 +135,7 @@ impl CompiledCode {
     }
 
     /// Adds a new CompiledCode to the current CompiledCode
-    pub fn add_code_object(&mut self, value: CompiledCode) {
+    pub fn add_code_object(&mut self, value: RcCompiledCode) {
         self.code_objects.push(value);
     }
 
@@ -137,11 +145,6 @@ impl CompiledCode {
             MethodVisibility::Private => true,
             _                         => false
         }
-    }
-
-    /// Returns a reference counted copy of this CompiledCode
-    pub fn to_rc(&self) -> RcCompiledCode {
-        Arc::new(self.clone())
     }
 }
 

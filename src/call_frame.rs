@@ -1,4 +1,4 @@
-use compiled_code::CompiledCode;
+use compiled_code::RcCompiledCode;
 use register::Register;
 use variable_scope::VariableScope;
 
@@ -51,7 +51,7 @@ impl CallFrame {
     }
 
     /// Creates a new CallFrame from a CompiledCode
-    pub fn from_code(code: &CompiledCode) -> CallFrame {
+    pub fn from_code(code: RcCompiledCode) -> CallFrame {
         CallFrame::new(code.name.clone(), code.file.clone(), code.line)
     }
 

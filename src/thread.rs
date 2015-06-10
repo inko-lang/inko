@@ -1,7 +1,9 @@
 use std::mem;
 use std::sync::{Arc, RwLock};
+use std::thread;
 
 use call_frame::CallFrame;
+use compiled_code::RcCompiledCode;
 use heap::Heap;
 use object::RcObject;
 use register::Register;
@@ -30,7 +32,10 @@ pub struct Thread {
 
     /// The mature heap, used for big objects or those that have outlived
     /// several GC cycles.
-    pub mature_heap: Heap
+    pub mature_heap: Heap,
+
+    /// The native Thread handle, set automatically to the current thread.
+    pub native_thread: thread::Thread
 }
 
 impl Thread {
@@ -48,13 +53,21 @@ impl Thread {
         Thread {
             call_frame: call_frame,
             young_heap: Heap::new(),
-            mature_heap: Heap::new()
+            mature_heap: Heap::new(),
+            native_thread: thread::current()
         }
     }
 
     /// Creates a new mutable, reference counted Thread.
     pub fn with_rc(call_frame: CallFrame) -> RcThread {
         Arc::new(RwLock::new(Thread::new(call_frame)))
+    }
+
+    /// Creates a new Thread from a CompiledCode/CallFrame.
+    pub fn from_code(code: RcCompiledCode) -> RcThread {
+        let frame = CallFrame::from_code(code);
+
+        Thread::with_rc(frame)
     }
 
     /// Sets the current CallFrame from a CompiledCode.

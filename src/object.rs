@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use compiled_code::RcCompiledCode;
+use thread::RcThread;
 
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
@@ -9,7 +10,8 @@ pub enum ObjectValue {
     Integer(isize),
     Float(f64),
     String(String),
-    Array(Vec<RcObject>)
+    Array(Vec<RcObject>),
+    Thread(RcThread)
 }
 
 impl ObjectValue {
@@ -87,6 +89,15 @@ impl Object {
     /// Creates a new Integer object.
     pub fn new_integer(value: isize, prototype: RcObject) -> RcObject {
         let obj = Object::with_rc(ObjectValue::Integer(value));
+
+        obj.write().unwrap().set_prototype(prototype);
+
+        obj
+    }
+
+    /// Creates a new Thread object.
+    pub fn new_thread(value: RcThread, prototype: RcObject) -> RcObject {
+        let obj = Object::with_rc(ObjectValue::Thread(value));
 
         obj.write().unwrap().set_prototype(prototype);
 

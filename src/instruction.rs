@@ -24,7 +24,8 @@ pub enum InstructionType {
     DefMethod,
     RunCode,
     GetToplevel,
-    AddInteger
+    AddInteger,
+    StartThread
 }
 
 /// Struct for storing information about a single instruction.
