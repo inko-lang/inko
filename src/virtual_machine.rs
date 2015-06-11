@@ -5,8 +5,8 @@ use std::sync::mpsc::channel;
 
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use heap::{Heap, RcHeap};
 use instruction::{InstructionType, Instruction};
+use memory_manager::MemoryManager;
 use object::{Object, ObjectValue, RcObject};
 use thread::{Thread, RcThread};
 
@@ -23,44 +23,16 @@ pub struct VirtualMachine {
     // All threads that are currently active.
     threads: RwLock<Vec<RcObject>>,
 
-    // The top-level object used for storing global constants.
-    top_level: RcObject,
-
-    /// The young heap, most objects will be allocated here.
-    young_heap: RcHeap,
-
-    /// The mature heap, used for big objects or those that have outlived
-    /// several GC cycles.
-    mature_heap: RcHeap,
-
-    // Various core objects that can be created using specialized instructions.
-    integer_prototype: RwLock<Option<RcObject>>,
-    float_prototype: RwLock<Option<RcObject>>,
-    string_prototype: RwLock<Option<RcObject>>,
-    array_prototype: RwLock<Option<RcObject>>,
-    thread_prototype: RwLock<Option<RcObject>>
+    // The struct for allocating/managing memory.
+    memory_manager: MemoryManager
 }
 
 impl VirtualMachine {
     /// Creates a new VirtualMachine.
     pub fn new() -> RcVirtualMachine {
-        let top_level   = Object::new(ObjectValue::None);
-        let mature_heap = Heap::new();
-
-        top_level.write().unwrap().pin();
-
-        mature_heap.write().unwrap().store(top_level.clone());
-
         let vm = VirtualMachine {
             threads: RwLock::new(Vec::new()),
-            top_level: top_level,
-            young_heap: Heap::new(),
-            mature_heap: mature_heap,
-            integer_prototype: RwLock::new(None),
-            float_prototype: RwLock::new(None),
-            string_prototype: RwLock::new(None),
-            array_prototype: RwLock::new(None),
-            thread_prototype: RwLock::new(None)
+            memory_manager: MemoryManager::new()
         };
 
         Arc::new(vm)
@@ -567,12 +539,6 @@ pub trait ArcMethods {
     /// Runs a CompiledCode in a new thread.
     fn run_thread(&self, RcCompiledCode) -> RcObject;
 
-    /// Creates and allocates a new RcObject.
-    fn allocate(&self, ObjectValue, RcObject) -> RcObject;
-
-    /// Allocates an exiting RcObject on the heap.
-    fn allocate_prepared(&self, RcObject);
-
     /// Allocates a new Thread Object
     fn allocate_thread(&self, RcThread) -> RcObject;
 }
@@ -822,14 +788,14 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_integer: undefined integer literal".to_string())
         );
 
-        let proto_ref = self.integer_prototype.read().unwrap();
-
         let prototype = try!(
-           proto_ref.as_ref()
+            self.memory_manager
+                .integer_prototype()
                 .ok_or("set_integer: no Integer prototype set up".to_string())
         );
 
-        let obj = self.allocate(ObjectValue::Integer(value), prototype.clone());
+        let obj = self.memory_manager
+            .allocate(ObjectValue::Integer(value), prototype.clone());
 
         thread.write().unwrap().register().set(slot, obj);
 
@@ -856,14 +822,14 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_float: undefined float literal".to_string())
         );
 
-        let proto_ref = self.float_prototype.read().unwrap();
-
         let prototype = try!(
-            proto_ref.as_ref()
+            self.memory_manager
+                .float_prototype()
                 .ok_or("set_float: no Float prototype set up".to_string())
         );
 
-        let obj = self.allocate(ObjectValue::Float(value), prototype.clone());
+        let obj = self.memory_manager
+            .allocate(ObjectValue::Float(value), prototype.clone());
 
         thread.write().unwrap().register().set(slot, obj);
 
@@ -890,14 +856,13 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_string: undefined string literal".to_string())
         );
 
-        let proto_ref = self.string_prototype.read().unwrap();
-
         let prototype = try!(
-            proto_ref.as_ref()
+            self.memory_manager
+                .string_prototype()
                 .ok_or("set_string: no String prototype set up".to_string())
         );
 
-        let obj = self
+        let obj = self.memory_manager
             .allocate(ObjectValue::String(value.clone()), prototype.clone());
 
         thread.write().unwrap().register().set(slot, obj);
@@ -931,7 +896,7 @@ impl ArcMethods for RcVirtualMachine {
             obj.write().unwrap().set_prototype(proto);
         }
 
-        self.allocate_prepared(obj.clone());
+        self.memory_manager.allocate_prepared(obj.clone());
 
         thread_ref.register().set(slot, obj);
 
@@ -956,14 +921,14 @@ impl ArcMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 2, val_count)
         );
 
-        let proto_ref = self.array_prototype.read().unwrap();
-
         let prototype = try!(
-            proto_ref.as_ref()
+            self.memory_manager
+                .array_prototype()
                 .ok_or("set_array: no Array prototype set up".to_string())
         );
 
-        let obj = self.allocate(ObjectValue::Array(values), prototype.clone());
+        let obj = self.memory_manager
+            .allocate(ObjectValue::Array(values), prototype.clone());
 
         thread.write().unwrap().register().set(slot, obj);
 
@@ -1019,9 +984,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_integer_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.integer_prototype.write().unwrap();
-
-        *proto_ref = Some(object.clone());
+        self.memory_manager.set_integer_prototype(object);
 
         Ok(())
     }
@@ -1042,9 +1005,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_float_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.float_prototype.write().unwrap();
-
-        *proto_ref = Some(object.clone());
+        self.memory_manager.set_float_prototype(object);
 
         Ok(())
     }
@@ -1065,9 +1026,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_string_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.string_prototype.write().unwrap();
-
-        *proto_ref = Some(object.clone());
+        self.memory_manager.set_string_prototype(object);
 
         Ok(())
     }
@@ -1089,9 +1048,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_array_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.array_prototype.write().unwrap();
-
-        *proto_ref = Some(object.clone());
+        self.memory_manager.set_array_prototype(object);
 
         Ok(())
     }
@@ -1113,9 +1070,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_array_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.thread_prototype.write().unwrap();
-
-        *proto_ref = Some(object.clone());
+        self.memory_manager.set_thread_prototype(object.clone());
 
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
@@ -1616,7 +1571,9 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("get_toplevel: missing slot index")
         );
 
-        thread_ref.register().set(slot, self.top_level.clone());
+        let top_level = self.memory_manager.top_level.clone();
+
+        thread_ref.register().set(slot, top_level);
 
         Ok(())
     }
@@ -1655,10 +1612,9 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("add_integer: undefined right-hand object".to_string())
         );
 
-        let proto_ref = self.integer_prototype.read().unwrap();
-
         let prototype = try!(
-            proto_ref.as_ref()
+            self.memory_manager
+                .integer_prototype()
                 .ok_or("add_integer: no Integer prototype set up".to_string())
         );
 
@@ -1674,7 +1630,8 @@ impl ArcMethods for RcVirtualMachine {
         let added = left_ref.value.unwrap_integer() +
             right_ref.value.unwrap_integer();
 
-        let obj = self.allocate(ObjectValue::Integer(added), prototype.clone());
+        let obj = self.memory_manager
+            .allocate(ObjectValue::Integer(added), prototype.clone());
 
         thread_ref.register().set(slot, obj);
 
@@ -1702,10 +1659,9 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("start_thread: undefined code object".to_string())
         );
 
-        let proto_ref = self.thread_prototype.read().unwrap();
-
         try!(
-            proto_ref.as_ref()
+            self.memory_manager
+                .thread_prototype()
                 .ok_or("start_thread: no Thread prototype set up".to_string())
         );
 
@@ -1811,31 +1767,18 @@ impl ArcMethods for RcVirtualMachine {
         thread_obj
     }
 
-    fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
-        let obj = Object::new(value);
-
-        obj.write().unwrap().set_prototype(proto);
-
-        self.allocate_prepared(obj.clone());
-
-        obj
-    }
-
-    fn allocate_prepared(&self, object: RcObject) {
-        self.young_heap.write().unwrap().store(object);
-    }
-
+    // TODO: move into MemoryManager/ThreadManager
     fn allocate_thread(&self, thread: RcThread) -> RcObject {
-        let proto_ref  = self.thread_prototype.read().unwrap();
-        let proto      = proto_ref.as_ref();
+        let proto = self.memory_manager.thread_prototype();
 
         let thread_obj = if proto.is_some() {
-            self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
+            self.memory_manager
+                .allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
         }
         else {
             let obj = Object::new(ObjectValue::Thread(thread));
 
-            self.allocate_prepared(obj.clone());
+            self.memory_manager.allocate_prepared(obj.clone());
 
             obj
         };
