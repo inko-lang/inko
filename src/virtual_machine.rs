@@ -1767,21 +1767,8 @@ impl ArcMethods for RcVirtualMachine {
         thread_obj
     }
 
-    // TODO: move into MemoryManager/ThreadManager
     fn allocate_thread(&self, thread: RcThread) -> RcObject {
-        let proto = self.memory_manager.thread_prototype();
-
-        let thread_obj = if proto.is_some() {
-            self.memory_manager
-                .allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
-        }
-        else {
-            let obj = Object::new(ObjectValue::Thread(thread));
-
-            self.memory_manager.allocate_prepared(obj.clone());
-
-            obj
-        };
+        let thread_obj = self.memory_manager.allocate_thread(thread);
 
         self.threads.write().unwrap().push(thread_obj.clone());
 

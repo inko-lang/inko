@@ -2,6 +2,7 @@ use std::sync::RwLock;
 
 use heap::{Heap, RcHeap};
 use object::{Object, ObjectValue, RcObject};
+use thread::RcThread;
 
 /// Structure for managing memory
 ///
@@ -76,6 +77,24 @@ impl MemoryManager {
     /// Allocates an exiting RcObject on the heap.
     pub fn allocate_prepared(&self, object: RcObject) {
         self.young_heap.write().unwrap().store(object);
+    }
+
+    /// Allocates a Thread object based on an existing RcThread.
+    pub fn allocate_thread(&self, thread: RcThread) -> RcObject {
+        let proto = self.thread_prototype();
+
+        let thread_obj = if proto.is_some() {
+            self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
+        }
+        else {
+            let obj = Object::new(ObjectValue::Thread(thread));
+
+            self.allocate_prepared(obj.clone());
+
+            obj
+        };
+
+        thread_obj
     }
 
     /// Returns the integer prototype.
