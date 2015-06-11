@@ -102,9 +102,9 @@ mod tests {
     #[test]
     fn test_from_code() {
         let code = CompiledCode
-            ::new("foo".to_string(), "test.aeon".to_string(), 1, vec![]);
+            ::with_rc("foo".to_string(), "test.aeon".to_string(), 1, vec![]);
 
-        let frame = CallFrame::from_code(&code);
+        let frame = CallFrame::from_code(code);
 
         assert_eq!(frame.name, "foo".to_string());
         assert_eq!(frame.file, "test.aeon".to_string());

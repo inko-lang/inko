@@ -150,6 +150,8 @@ impl CompiledCode {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use instruction::{Instruction, InstructionType};
 
@@ -202,7 +204,7 @@ mod tests {
         let mut code1 = new_compiled_code();
         let code2     = new_compiled_code();
 
-        code1.add_code_object(code2);
+        code1.add_code_object(Arc::new(code2));
 
         assert_eq!(code1.code_objects.len(), 1);
     }
