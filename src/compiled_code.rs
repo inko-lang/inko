@@ -6,7 +6,6 @@ use instruction::Instruction;
 pub type RcCompiledCode = Arc<CompiledCode>;
 
 /// Enum indicating the visibility of a method.
-#[derive(Clone)]
 pub enum MethodVisibility {
     Public,
     Private
@@ -27,7 +26,6 @@ pub enum MethodVisibility {
 /// CompiledCode replacing the old version instead of patching an existing
 /// CompiledCode.
 ///
-#[derive(Clone)]
 pub struct CompiledCode {
     /// The name of the CompiledCode, usually the method name.
     pub name: String,
