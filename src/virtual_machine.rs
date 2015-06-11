@@ -924,7 +924,7 @@ impl ArcMethods for RcVirtualMachine {
 
         let proto_index_opt = instruction.arguments.get(1);
 
-        let obj = Object::with_rc(ObjectValue::None);
+        let obj = Object::new(ObjectValue::None);
 
         if proto_index_opt.is_some() {
             let proto_index = *proto_index_opt.unwrap();
@@ -1819,7 +1819,7 @@ impl ArcMethods for RcVirtualMachine {
     }
 
     fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
-        let obj = Object::with_rc(value);
+        let obj = Object::new(value);
 
         obj.write().unwrap().set_prototype(proto);
 
@@ -1840,7 +1840,7 @@ impl ArcMethods for RcVirtualMachine {
             self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
         }
         else {
-            let obj = Object::with_rc(ObjectValue::Thread(thread));
+            let obj = Object::new(ObjectValue::Thread(thread));
 
             self.allocate_prepared(obj.clone());
 

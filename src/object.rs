@@ -78,9 +78,9 @@ pub struct Object {
 }
 
 impl Object {
-    /// Creates a regular Object without using an Rc.
-    pub fn new(value: ObjectValue) -> Object {
-        Object {
+    /// Creates a new Object
+    pub fn new(value: ObjectValue) -> RcObject {
+        let obj = Object {
             name: None,
             prototype: None,
             attributes: HashMap::new(),
@@ -88,17 +88,14 @@ impl Object {
             methods: HashMap::new(),
             value: value,
             pinned: false
-        }
-    }
+        };
 
-    /// Creates a mutable, reference counted Object.
-    pub fn with_rc(value: ObjectValue) -> RcObject {
-        Arc::new(RwLock::new(Object::new(value)))
+        Arc::new(RwLock::new(obj))
     }
 
     /// Creates a new Integer object.
     pub fn new_integer(value: isize, prototype: RcObject) -> RcObject {
-        let obj = Object::with_rc(ObjectValue::Integer(value));
+        let obj = Object::new(ObjectValue::Integer(value));
 
         obj.write().unwrap().set_prototype(prototype);
 
@@ -107,7 +104,7 @@ impl Object {
 
     /// Creates a new Thread object.
     pub fn new_thread(value: RcThread, prototype: RcObject) -> RcObject {
-        let obj = Object::with_rc(ObjectValue::Thread(value));
+        let obj = Object::new(ObjectValue::Thread(value));
 
         obj.write().unwrap().set_prototype(prototype);
 

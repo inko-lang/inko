@@ -28,7 +28,7 @@ impl Register {
     /// # Examples
     ///
     ///     let mut register = Register::new();
-    ///     let obj          = Object::with_rc(ObjectValue::Integer(10));
+    ///     let obj          = Object::new(ObjectValue::Integer(10));
     ///
     ///     register.set(0, obj);
     ///
@@ -44,7 +44,7 @@ impl Register {
     /// # Examples
     ///
     ///     let mut register = Register::new();
-    ///     let obj          = Object::with_rc(ObjectValue::Integer(10));
+    ///     let obj          = Object::new(ObjectValue::Integer(10));
     ///
     ///     register.set(0, obj);
     ///

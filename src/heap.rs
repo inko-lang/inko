@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let object   = Object::with_rc(ObjectValue::None);
+        let object   = Object::new(ObjectValue::None);
         let mut heap = Heap::new();
 
         heap.store(object);
