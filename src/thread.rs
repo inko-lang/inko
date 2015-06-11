@@ -11,6 +11,9 @@ use variable_scope::VariableScope;
 /// A mutable, reference counted Thread.
 pub type RcThread = Arc<RwLock<Thread>>;
 
+/// The type of JoinHandle for threads.
+pub type JoinHandle = thread::JoinHandle<()>;
+
 /// Struct representing a VM thread.
 ///
 /// The Thread struct represents a VM thread which in turn can be mapped to an
@@ -25,8 +28,14 @@ pub struct Thread {
     /// The current call frame.
     pub call_frame: CallFrame,
 
-    /// The native Thread handle, set automatically to the current thread.
-    pub native_thread: thread::Thread
+    /// The return value of the thread, if any.
+    pub value: Option<RcObject>,
+
+    /// Boolean indicating if this is the main thread.
+    pub main_thread: bool,
+
+    /// The JoinHandle of the current thread.
+    join_handle: Option<JoinHandle>,
 }
 
 impl Thread {
@@ -35,28 +44,27 @@ impl Thread {
     /// This does _not_ start an actual OS thread as this is handled by the VM
     /// itself. Creating a thread requires an already existing CallFrame.
     ///
-    /// # Examples
-    ///
-    ///     let frame  = CallFrame::new(...);
-    ///     let thread = Thread::new(frame);
-    ///
-    pub fn new(call_frame: CallFrame) -> Thread {
+    pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> Thread {
         Thread {
             call_frame: call_frame,
-            native_thread: thread::current()
+            value: None,
+            main_thread: false,
+            join_handle: handle
         }
     }
 
     /// Creates a new mutable, reference counted Thread.
-    pub fn with_rc(call_frame: CallFrame) -> RcThread {
-        Arc::new(RwLock::new(Thread::new(call_frame)))
+    pub fn with_rc(call_frame: CallFrame,
+                   handle: Option<JoinHandle>) -> RcThread {
+        Arc::new(RwLock::new(Thread::new(call_frame, handle)))
     }
 
     /// Creates a new Thread from a CompiledCode/CallFrame.
-    pub fn from_code(code: RcCompiledCode) -> RcThread {
+    pub fn from_code(code: RcCompiledCode,
+                     handle: Option<JoinHandle>) -> RcThread {
         let frame = CallFrame::from_code(code);
 
-        Thread::with_rc(frame)
+        Thread::with_rc(frame, handle)
     }
 
     /// Sets the current CallFrame from a CompiledCode.
@@ -87,5 +95,15 @@ impl Thread {
     /// Returns a mutable reference to the current variable scope.
     pub fn variable_scope(&mut self) -> &mut VariableScope {
         &mut self.call_frame.variables
+    }
+
+    /// Marks the current thread as the main thread.
+    pub fn set_main(&mut self) {
+        self.main_thread = true;
+    }
+
+    /// Consumes and returns the JoinHandle.
+    pub fn take_join_handle(&mut self) -> Option<JoinHandle> {
+        self.join_handle.take()
     }
 }

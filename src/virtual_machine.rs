@@ -48,15 +48,18 @@ impl VirtualMachine {
     /// classes.
     ///
     pub fn new() -> VirtualMachine {
-        let top_level = Object::with_rc(ObjectValue::None);
+        let top_level   = Object::with_rc(ObjectValue::None);
+        let mature_heap = Heap::with_rc();
 
         top_level.write().unwrap().pin();
+
+        mature_heap.write().unwrap().store(top_level.clone());
 
         VirtualMachine {
             threads: RwLock::new(Vec::new()),
             top_level: top_level,
             young_heap: Heap::with_rc(),
-            mature_heap: Heap::with_rc(),
+            mature_heap: mature_heap,
             integer_prototype: RwLock::new(None),
             float_prototype: RwLock::new(None),
             string_prototype: RwLock::new(None),
@@ -568,9 +571,6 @@ pub trait ArcMethods {
     fn collect_arguments(&self, RcThread, &Instruction, usize, usize)
         -> Result<Vec<RcObject>, String>;
 
-    /// Stores a thread in the VM and the heap.
-    fn store_thread(&self, RcObject);
-
     /// Runs a CompiledCode in a new thread.
     fn run_thread(&self, RcCompiledCode) -> RcObject;
 
@@ -579,24 +579,26 @@ pub trait ArcMethods {
 
     /// Allocates an exiting RcObject on the heap.
     fn allocate_prepared(&self, RcObject);
+
+    /// Allocates a new Thread Object
+    fn allocate_thread(&self, RcThread) -> RcObject;
 }
 
 impl ArcMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        let thread     = Thread::from_code(code.clone());
-        let thread_obj = Object::with_rc(ObjectValue::Thread(thread.clone()));
+        let vm_thread = Thread::from_code(code.clone(), None);
 
-        self.allocate_prepared(thread_obj.clone());
-        self.store_thread(thread_obj.clone());
+        vm_thread.write().unwrap().set_main();
 
-        let result = self.run(thread.clone(), code);
+        self.allocate_thread(vm_thread.clone());
 
+        let result = self.run(vm_thread.clone(), code);
+
+        // TODO: replace this with a supervisor thread
         match result {
-            Ok(_)        => { Ok(()) },
+            Ok(_)        => Ok(()),
             Err(message) => {
-                self.print_error(thread, message);
-
-                // TODO: shut down all threads
+                self.print_error(vm_thread, message);
 
                 Err(())
             }
@@ -1118,13 +1120,13 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_array_prototype: undefined source object")
         );
 
-        let mut proto_ref = self.array_prototype.write().unwrap();
+        let mut proto_ref = self.thread_prototype.write().unwrap();
 
         *proto_ref = Some(object.clone());
 
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
-        let mut threads = self.threads.write().unwrap();
+        let threads = self.threads.read().unwrap();
 
         for thread in threads.iter() {
             thread.write().unwrap().set_prototype(object.clone());
@@ -1772,8 +1774,7 @@ impl ArcMethods for RcVirtualMachine {
             let arg_index = instruction.arguments[index];
 
             let arg = try!(
-                thread_ref
-                    .register()
+                thread_ref.register()
                     .get(arg_index)
                     .ok_or(format!("argument {} is undefined", index))
             );
@@ -1784,30 +1785,37 @@ impl ArcMethods for RcVirtualMachine {
         Ok(args)
     }
 
-    fn store_thread(&self, thread: RcObject) {
-        self.threads.write().unwrap().push(thread.clone());
-    }
-
     fn run_thread(&self, code: RcCompiledCode) -> RcObject {
         let self_clone = self.clone();
+        let code_clone = code.clone();
 
-        let (chan_in, chan_out) = channel();
+        let (chan_sender, chan_receiver) = channel();
 
         let handle = thread::spawn(move || {
-            let vm_thread  = Thread::from_code(code.clone());
-            let proto_ref  = self_clone.thread_prototype.read().unwrap();
-            let proto      = proto_ref.as_ref().unwrap();
-            let thread_obj = self_clone
-                .allocate(ObjectValue::Thread(vm_thread.clone()), proto.clone());
+            let vm_thread: RcThread = chan_receiver.recv().unwrap();
 
-            self_clone.store_thread(thread_obj.clone());
+            let result = self_clone.run(vm_thread.clone(), code_clone);
 
-            chan_in.send(thread_obj.clone());
+            // TODO: remove thread from self.threads
 
-            let result = self_clone.run(vm_thread.clone(), code);
+            match result {
+                Ok(obj) => {
+                    vm_thread.write().unwrap().value = obj;
+                },
+                Err(message) => {
+                    self_clone.print_error(vm_thread, message);
+
+                    // TODO: shut down all threads
+                }
+            };
         });
 
-        chan_out.recv().unwrap()
+        let vm_thread  = Thread::from_code(code.clone(), Some(handle));
+        let thread_obj = self.allocate_thread(vm_thread.clone());
+
+        chan_sender.send(vm_thread.clone()).unwrap();
+
+        thread_obj
     }
 
     fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
@@ -1822,5 +1830,25 @@ impl ArcMethods for RcVirtualMachine {
 
     fn allocate_prepared(&self, object: RcObject) {
         self.young_heap.write().unwrap().store(object);
+    }
+
+    fn allocate_thread(&self, thread: RcThread) -> RcObject {
+        let proto_ref  = self.thread_prototype.read().unwrap();
+        let proto      = proto_ref.as_ref();
+
+        let thread_obj = if proto.is_some() {
+            self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
+        }
+        else {
+            let obj = Object::with_rc(ObjectValue::Thread(thread));
+
+            self.allocate_prepared(obj.clone());
+
+            obj
+        };
+
+        self.threads.write().unwrap().push(thread_obj.clone());
+
+        thread_obj
     }
 }

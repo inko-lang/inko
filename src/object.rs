@@ -32,6 +32,16 @@ impl ObjectValue {
             }
         }
     }
+
+    /// Returns a wrapped thread or panics.
+    pub fn unwrap_thread(&self) -> RcThread {
+        match *self {
+            ObjectValue::Thread(ref val) => val.clone(),
+            _ => {
+                panic!("ObjectValue::unwrap_thread() called on a non thread");
+            }
+        }
+    }
 }
 
 /// A mutable, reference counted Object.
