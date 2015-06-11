@@ -45,7 +45,7 @@ impl VirtualMachine {
     /// Creates a new VirtualMachine.
     pub fn new() -> RcVirtualMachine {
         let top_level   = Object::new(ObjectValue::None);
-        let mature_heap = Heap::with_rc();
+        let mature_heap = Heap::new();
 
         top_level.write().unwrap().pin();
 
@@ -54,7 +54,7 @@ impl VirtualMachine {
         let vm = VirtualMachine {
             threads: RwLock::new(Vec::new()),
             top_level: top_level,
-            young_heap: Heap::with_rc(),
+            young_heap: Heap::new(),
             mature_heap: mature_heap,
             integer_prototype: RwLock::new(None),
             float_prototype: RwLock::new(None),

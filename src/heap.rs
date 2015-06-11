@@ -25,25 +25,12 @@ impl Heap {
     ///
     ///     let heap = Heap::new();
     ///
-    pub fn new() -> Heap {
-        Heap::with_capacity(DEFAULT_CAPACITY)
-    }
+    pub fn new() -> RcHeap {
+        let heap = Heap {
+            objects: Vec::with_capacity(DEFAULT_CAPACITY)
+        };
 
-    /// Creates a Heap with a custom capacity.
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::with_capacity(2048);
-    ///
-    pub fn with_capacity(capacity: usize) -> Heap {
-        Heap {
-            objects: Vec::with_capacity(capacity)
-        }
-    }
-
-    /// Creates a new reference counted Heap.
-    pub fn with_rc() -> RcHeap {
-        Arc::new(RwLock::new(Heap::new()))
+        Arc::new(RwLock::new(heap))
     }
 
     /// Stores the given Object on the heap.
@@ -61,23 +48,7 @@ mod tests {
     fn test_new() {
         let heap = Heap::new();
 
-        assert_eq!(heap.objects.capacity(), DEFAULT_CAPACITY);
-    }
-
-    #[test]
-    fn test_with_capacity() {
-        let heap = Heap::with_capacity(128);
-
-        assert_eq!(heap.objects.capacity(), 128);
-    }
-
-    #[test]
-    fn test_with_rc() {
-        let heap = Heap::with_rc();
-
-        let heap_ref = heap.read().unwrap();
-
-        assert_eq!(heap_ref.objects.capacity(), DEFAULT_CAPACITY);
+        assert_eq!(heap.read().unwrap().objects.capacity(), DEFAULT_CAPACITY);
     }
 
     #[test]
@@ -85,8 +56,8 @@ mod tests {
         let object   = Object::new(ObjectValue::None);
         let mut heap = Heap::new();
 
-        heap.store(object);
+        heap.write().unwrap().store(object);
 
-        assert_eq!(heap.objects.len(), 1);
+        assert_eq!(heap.read().unwrap().objects.len(), 1);
     }
 }
