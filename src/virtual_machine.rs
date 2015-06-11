@@ -42,20 +42,16 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    /// Creates a new VirtualMachine without any threads.
-    ///
-    /// This also takes care of setting up the basic layout of the various core
-    /// classes.
-    ///
-    pub fn new() -> VirtualMachine {
-        let top_level   = Object::with_rc(ObjectValue::None);
+    /// Creates a new VirtualMachine.
+    pub fn new() -> RcVirtualMachine {
+        let top_level   = Object::new(ObjectValue::None);
         let mature_heap = Heap::with_rc();
 
         top_level.write().unwrap().pin();
 
         mature_heap.write().unwrap().store(top_level.clone());
 
-        VirtualMachine {
+        let vm = VirtualMachine {
             threads: RwLock::new(Vec::new()),
             top_level: top_level,
             young_heap: Heap::with_rc(),
@@ -65,12 +61,9 @@ impl VirtualMachine {
             string_prototype: RwLock::new(None),
             array_prototype: RwLock::new(None),
             thread_prototype: RwLock::new(None)
-        }
-    }
+        };
 
-    /// Creates a reference counted VirtualMachine
-    pub fn with_rc() -> RcVirtualMachine {
-        Arc::new(VirtualMachine::new())
+        Arc::new(vm)
     }
 }
 
