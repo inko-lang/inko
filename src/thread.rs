@@ -40,23 +40,15 @@ pub struct Thread {
 
 impl Thread {
     /// Creates a new Thread.
-    ///
-    /// This does _not_ start an actual OS thread as this is handled by the VM
-    /// itself. Creating a thread requires an already existing CallFrame.
-    ///
-    pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> Thread {
-        Thread {
+    pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> RcThread {
+        let thread = Thread {
             call_frame: call_frame,
             value: None,
             main_thread: false,
             join_handle: handle
-        }
-    }
+        };
 
-    /// Creates a new mutable, reference counted Thread.
-    pub fn with_rc(call_frame: CallFrame,
-                   handle: Option<JoinHandle>) -> RcThread {
-        Arc::new(RwLock::new(Thread::new(call_frame, handle)))
+        Arc::new(RwLock::new(thread))
     }
 
     /// Creates a new Thread from a CompiledCode/CallFrame.
@@ -64,7 +56,7 @@ impl Thread {
                      handle: Option<JoinHandle>) -> RcThread {
         let frame = CallFrame::from_code(code);
 
-        Thread::with_rc(frame, handle)
+        Thread::new(frame, handle)
     }
 
     /// Sets the current CallFrame from a CompiledCode.
