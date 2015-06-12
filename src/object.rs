@@ -118,6 +118,11 @@ impl Object {
         self.pinned = true;
     }
 
+    /// Unpins the current object.
+    pub fn unpin(&mut self) {
+        self.pinned = false;
+    }
+
     /// Returns an error message for undefined method calls.
     pub fn undefined_method_error(&self, name: &String) -> String {
         if self.name().is_some() {
