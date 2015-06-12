@@ -6,15 +6,16 @@
 
 use std::io::{self, Write};
 use std::thread;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::mpsc::channel;
 
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use instruction::{InstructionType, Instruction};
 use memory_manager::{MemoryManager, RcMemoryManager};
-use object::{Object, ObjectValue, RcObject};
+use object::{ObjectValue, RcObject};
 use thread::{Thread, RcThread};
+use thread_list::ThreadList;
 
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
@@ -22,7 +23,7 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 /// Structure representing a single VM instance.
 pub struct VirtualMachine {
     // All threads that are currently active.
-    threads: RwLock<Vec<RcObject>>,
+    threads: ThreadList,
 
     // The struct for allocating/managing memory.
     memory_manager: RcMemoryManager
@@ -32,7 +33,7 @@ impl VirtualMachine {
     /// Creates a new VirtualMachine.
     pub fn new() -> RcVirtualMachine {
         let vm = VirtualMachine {
-            threads: RwLock::new(Vec::new()),
+            threads: ThreadList::new(),
             memory_manager: MemoryManager::new()
         };
 
@@ -1075,11 +1076,7 @@ impl ArcMethods for RcVirtualMachine {
 
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
-        let threads = self.threads.read().unwrap();
-
-        for thread in threads.iter() {
-            thread.write().unwrap().set_prototype(object.clone());
-        }
+        self.threads.set_prototype(object);
 
         Ok(())
     }
@@ -1771,7 +1768,7 @@ impl ArcMethods for RcVirtualMachine {
     fn allocate_thread(&self, thread: RcThread) -> RcObject {
         let thread_obj = self.memory_manager.allocate_thread(thread);
 
-        self.threads.write().unwrap().push(thread_obj.clone());
+        self.threads.add(thread_obj.clone());
 
         thread_obj
     }

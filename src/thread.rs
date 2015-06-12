@@ -3,9 +3,6 @@
 //! This module can be used to create the required structures used to map a Rust
 //! thread with a virtual machine thread (and thus a thread in the language
 //! itself).
-//!
-//! This module itself doesn't deal with spawning Rust threads, for that the
-//! ThreadManager should be used.
 
 use std::mem;
 use std::sync::{Arc, RwLock};
