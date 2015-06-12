@@ -1,3 +1,9 @@
+//! Generic runtime Objects
+//!
+//! The Object struct is used to represent an object created during runtime. It
+//! can be used to wrap native values (e.g. an integer or a string), look up
+//! methods, add constants, etc.
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -47,12 +53,7 @@ impl ObjectValue {
 /// A mutable, reference counted Object.
 pub type RcObject = Arc<RwLock<Object>>;
 
-/// An Object/instance structure, optionally with an associated value.
-///
-/// An Object in the VM is used to represent an instance of some Class in the
-/// Aeon language. For example, the string "foo" is stored as an Object in the
-/// VM mapped to the corresponding Class (using the Class struct in the VM).
-///
+/// Structure for storing information about a single Object.
 pub struct Object {
     /// The name of the object, used in error messages if present.
     pub name: Option<String>,

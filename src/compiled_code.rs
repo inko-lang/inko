@@ -1,3 +1,18 @@
+//! A CompiledCode contains all information required to run a block of code.
+//!
+//! This includes methods, classes, blocks/closures (e.g. in a language such as
+//! Ruby) and so on. Basically anything that should be executed is a
+//! CompiledCode.
+//!
+//! A CompiledCode object should contain everything that is needed to run it
+//! including any literals such as integers, floats, strings as well as other
+//! metadata such as the amount of required arguments.
+//!
+//! CompiledCode objects should not be mutated after they have been fully set
+//! up. If a method is modified this should result in a completely new
+//! CompiledCode replacing the old version instead of patching an existing
+//! CompiledCode.
+
 use std::sync::Arc;
 
 use instruction::Instruction;
@@ -11,21 +26,7 @@ pub enum MethodVisibility {
     Private
 }
 
-/// A CompiledCode contains all information required to run a block of code.
-///
-/// This includes methods, classes, blocks/closures (e.g. in a language such as
-/// Ruby) and so on. Basically anything that should be executed is a
-/// CompiledCode.
-///
-/// A CompiledCode object should contain everything that is needed to run it
-/// including any literals such as integers, floats, strings as well as other
-/// metadata such as the amount of required arguments.
-///
-/// CompiledCode objects should not be mutated after they have been fully set
-/// up. If a method is modified this should result in a completely new
-/// CompiledCode replacing the old version instead of patching an existing
-/// CompiledCode.
-///
+/// Structure for storing compiled code information.
 pub struct CompiledCode {
     /// The name of the CompiledCode, usually the method name.
     pub name: String,

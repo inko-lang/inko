@@ -1,3 +1,12 @@
+//! Virtual Machine Threads
+//!
+//! This module can be used to create the required structures used to map a Rust
+//! thread with a virtual machine thread (and thus a thread in the language
+//! itself).
+//!
+//! This module itself doesn't deal with spawning Rust threads, for that the
+//! ThreadManager should be used.
+
 use std::mem;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -15,15 +24,6 @@ pub type RcThread = Arc<RwLock<Thread>>;
 pub type JoinHandle = thread::JoinHandle<()>;
 
 /// Struct representing a VM thread.
-///
-/// The Thread struct represents a VM thread which in turn can be mapped to an
-/// actual thread, although this is technically not required. Note that these
-/// are _not_ green threads, instead the VM uses regular threads and creates a
-/// new Thread struct for every OS thread.
-///
-/// The Thread struct stores information such as the current call frame and the
-/// native Rust thread bound to this structure.
-///
 pub struct Thread {
     /// The current call frame.
     pub call_frame: CallFrame,

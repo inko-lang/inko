@@ -1,16 +1,21 @@
-use std::sync::RwLock;
+//! Module for managing memory and prototypes.
+//!
+//! A MemoryManager can be used to allocate new objects on a heap as well as
+//! registering/looking up object prototypes.
+//!
+//! A MemoryManager struct can be safely shared between threads as any mutable
+//! operation uses a read-write lock.
+
+use std::sync::{Arc, RwLock};
 
 use heap::{Heap, RcHeap};
 use object::{Object, ObjectValue, RcObject};
 use thread::RcThread;
 
+/// A reference counted MemoryManager.
+pub type RcMemoryManager = Arc<MemoryManager>;
+
 /// Structure for managing memory
-///
-/// This struct and its implementation mainly act as wrappers around the various
-/// available heaps and garbage collectors. This makes it easier to trigger GC
-/// runs, allocate objects and perform other operations without dumping all of
-/// this in the VirtualMachine struct.
-///
 pub struct MemoryManager {
     // The top-level object used for storing global constants.
     pub top_level: RcObject,
@@ -43,7 +48,7 @@ impl MemoryManager {
     ///
     /// This also takes care of setting up the top-level object.
     ///
-    pub fn new() -> MemoryManager {
+    pub fn new() -> RcMemoryManager {
         let top_level   = Object::new(ObjectValue::None);
         let mature_heap = Heap::new();
 
@@ -51,7 +56,7 @@ impl MemoryManager {
 
         mature_heap.write().unwrap().store(top_level.clone());
 
-        MemoryManager {
+        let manager = MemoryManager {
             top_level: top_level,
             young_heap: Heap::new(),
             mature_heap: mature_heap,
@@ -60,7 +65,9 @@ impl MemoryManager {
             string_prototype: RwLock::new(None),
             array_prototype: RwLock::new(None),
             thread_prototype: RwLock::new(None)
-        }
+        };
+
+        Arc::new(manager)
     }
 
     /// Creates and allocates a new RcObject.

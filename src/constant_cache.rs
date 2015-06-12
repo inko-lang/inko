@@ -1,13 +1,15 @@
+//! Caching of constant lookups
+//!
+//! A ConstantCache can be used to cache any found constants at some point in a
+//! program. By caching the constant repeated lookups for the same constant
+//! don't have to potentially walk through big object prototype trees.
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use object::RcObject;
 
 /// Cache for constants looked up in a given scope.
-///
-/// This struct can be used to cache constants available in a given scope,
-/// removing the need for full constant lookups on every reference.
-///
 pub struct ConstantCache {
     pub constants: HashMap<String, RcObject>
 }

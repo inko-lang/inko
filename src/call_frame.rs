@@ -1,14 +1,15 @@
+//! A CallFrame contains information about a location where code is being
+//! executed.
+//!
+//! A CallFrame is also used for storing values and variables for a certain
+//! scope. This makes it easy to remove those values again when unwinding the
+//! call stack: simply remove the CallFrame and everything else is also removed.
+
 use compiled_code::RcCompiledCode;
 use register::Register;
 use variable_scope::VariableScope;
 
-/// A CallFrame contains information about a location where code is being
-/// executed (file, line, etc).
-///
-/// A CallFrame is also used for storing values and variables for a certain
-/// scope. This makes it easy to remove those values again when unwinding the
-/// call stack: simply remove the CallFrame and everything else is also removed.
-///
+/// Structure for storing call frame data.
 pub struct CallFrame {
     /// The name of the CallFrame, usually the same as the method name.
     pub name: String,

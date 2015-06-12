@@ -1,18 +1,18 @@
+//! The Register is used for storing temporary values in a slot.
+//!
+//! For example, take the following code:
+//!
+//!     number = 10 + 20
+//!
+//! Here both 10 and 20 are temporary values that would be stored in a register
+//! slot. The result of this expression would also be stored in a slot before
+//! being assigned to the "number" variable.
+
 use std::collections::HashMap;
 
 use object::RcObject;
 
 /// Structure used for storing temporary values of a scope.
-///
-/// The Register is used for storing temporary values in a slot. For example,
-/// take the following code:
-///
-///     number = 10 + 20
-///
-/// Here both 10 and 20 are temporary values that would be stored in a register
-/// slot. The result of this expression would also be stored in a slot before
-/// being assigned to the "number" variable.
-///
 pub struct Register {
     slots: HashMap<usize, RcObject>
 }

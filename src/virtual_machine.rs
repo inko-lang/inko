@@ -1,3 +1,9 @@
+//! Virtual Machine for running instructions
+//!
+//! A VirtualMachine manages threads, runs instructions, starts/terminates
+//! threads and so on. VirtualMachine instances are fully self contained
+//! allowing multiple instances to run fully isolated in the same process.
+
 use std::io::{self, Write};
 use std::thread;
 use std::sync::{Arc, RwLock};
@@ -6,7 +12,7 @@ use std::sync::mpsc::channel;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use instruction::{InstructionType, Instruction};
-use memory_manager::MemoryManager;
+use memory_manager::{MemoryManager, RcMemoryManager};
 use object::{Object, ObjectValue, RcObject};
 use thread::{Thread, RcThread};
 
@@ -14,17 +20,12 @@ use thread::{Thread, RcThread};
 pub type RcVirtualMachine = Arc<VirtualMachine>;
 
 /// Structure representing a single VM instance.
-///
-/// A VirtualMachine manages threads, runs instructions, starts/terminates
-/// threads and so on. VirtualMachine instances are fully self contained
-/// allowing multiple instances to run fully isolated in the same process.
-///
 pub struct VirtualMachine {
     // All threads that are currently active.
     threads: RwLock<Vec<RcObject>>,
 
     // The struct for allocating/managing memory.
-    memory_manager: MemoryManager
+    memory_manager: RcMemoryManager
 }
 
 impl VirtualMachine {

@@ -1,3 +1,8 @@
+//! Virtual Machine Instructions
+//!
+//! An Instruction contains information about a single instruction such as the
+//! type and arguments.
+
 /// Enum containing all possible instruction types.
 #[derive(Debug, Clone)]
 pub enum InstructionType {

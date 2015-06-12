@@ -1,21 +1,17 @@
+//! A VariableScope contains all the local variables of a given scope.
+//!
+//! These variables are stored and accessed by index, it's up to the compiler to
+//! provide/use the correct indexes.
+
 use object::RcObject;
 
 /// Structure for storing local variables
-///
-/// A VariableScope contains all the local variables of a given scope. These are
-/// stored and accessed by index, it's up to the compiler to provide/use the
-/// correct indexes.
-///
-/// In the case of closures the local variables can simply be copied over into a
-/// new VariableScope (instead of setting some sort of parent scope). Due to
-/// threads having their own memory (and variable scope) there's no need for
-/// synchronization either.
-///
 pub struct VariableScope {
     /// The local variables in the current scope.
     pub local_variables: Vec<RcObject>,
 
     /// The parent variable scope, if any.
+    // TODO: re-investigate setting the parent scope for closures.
     pub parent: Option<Box<VariableScope>>
 }
 
