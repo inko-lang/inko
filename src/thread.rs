@@ -31,6 +31,9 @@ pub struct Thread {
     /// Boolean indicating if this is the main thread.
     pub main_thread: bool,
 
+    /// Boolean that indicates if the current thread should be terminated.
+    pub should_stop: bool,
+
     /// The JoinHandle of the current thread.
     join_handle: Option<JoinHandle>,
 }
@@ -42,6 +45,7 @@ impl Thread {
             call_frame: call_frame,
             value: None,
             main_thread: false,
+            should_stop: false,
             join_handle: handle
         };
 
@@ -89,6 +93,11 @@ impl Thread {
     /// Marks the current thread as the main thread.
     pub fn set_main(&mut self) {
         self.main_thread = true;
+    }
+
+    /// Instructs the thread to gracefully terminate itself.
+    pub fn stop(&mut self) {
+        self.should_stop = true;
     }
 
     /// Consumes and returns the JoinHandle.

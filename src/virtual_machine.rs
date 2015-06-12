@@ -6,7 +6,7 @@
 
 use std::io::{self, Write};
 use std::thread;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use call_frame::CallFrame;
@@ -26,7 +26,10 @@ pub struct VirtualMachine {
     threads: ThreadList,
 
     // The struct for allocating/managing memory.
-    memory_manager: RcMemoryManager
+    memory_manager: RcMemoryManager,
+
+    // The status of the VM when exiting.
+    exit_status: RwLock<Result<(), ()>>
 }
 
 impl VirtualMachine {
@@ -34,7 +37,8 @@ impl VirtualMachine {
     pub fn new() -> RcVirtualMachine {
         let vm = VirtualMachine {
             threads: ThreadList::new(),
-            memory_manager: MemoryManager::new()
+            memory_manager: MemoryManager::new(),
+            exit_status: RwLock::new(Ok(()))
         };
 
         Arc::new(vm)
@@ -528,7 +532,7 @@ pub trait ArcMethods {
         -> Result<(), String>;
 
     /// Prints a VM backtrace of a given thread with a message.
-    fn print_error(&self, RcThread, String);
+    fn error(&self, RcThread, String);
 
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcThread, RcCompiledCode, Vec<RcObject>)
@@ -539,7 +543,7 @@ pub trait ArcMethods {
         -> Result<Vec<RcObject>, String>;
 
     /// Runs a CompiledCode in a new thread.
-    fn run_thread(&self, RcCompiledCode) -> RcObject;
+    fn run_thread(&self, RcCompiledCode, bool) -> RcObject;
 
     /// Allocates a new Thread Object
     fn allocate_thread(&self, RcThread) -> RcObject;
@@ -547,23 +551,15 @@ pub trait ArcMethods {
 
 impl ArcMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        let vm_thread = Thread::from_code(code.clone(), None);
+        let thread_obj = self.run_thread(code, true);
+        let vm_thread  = thread_obj.read().unwrap().value.unwrap_thread();
+        let handle     = vm_thread.write().unwrap().take_join_handle();
 
-        vm_thread.write().unwrap().set_main();
-
-        self.allocate_thread(vm_thread.clone());
-
-        let result = self.run(vm_thread.clone(), code);
-
-        // TODO: replace this with a supervisor thread
-        match result {
-            Ok(_)        => Ok(()),
-            Err(message) => {
-                self.print_error(vm_thread, message);
-
-                Err(())
-            }
+        if handle.is_some() {
+            handle.unwrap().join().unwrap();
         }
+
+        *self.exit_status.read().unwrap()
     }
 
     fn run(&self, thread: RcThread,
@@ -572,6 +568,11 @@ impl ArcMethods for RcVirtualMachine {
         let mut retval = None;
 
         for (index, instruction) in code.instructions.iter().enumerate() {
+            // TODO: this might be too expensive for every instruction.
+            if thread.read().unwrap().should_stop {
+                return Ok(None);
+            }
+
             if skip_until.is_some() {
                 if index < skip_until.unwrap() {
                     continue;
@@ -1663,17 +1664,19 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("start_thread: no Thread prototype set up".to_string())
         );
 
-        let thread_object = self.run_thread(thread_code);
+        let thread_object = self.run_thread(thread_code, false);
 
         thread.write().unwrap().register().set(slot, thread_object);
 
         Ok(())
     }
 
-    fn print_error(&self, thread: RcThread, message: String) {
+    fn error(&self, thread: RcThread, message: String) {
         let thread_ref = thread.read().unwrap();
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
+
+        *self.exit_status.write().unwrap() = Err(());
 
         thread_ref.call_frame().each_frame(|frame| {
             error.push_str(&format!(
@@ -1684,7 +1687,9 @@ impl ArcMethods for RcVirtualMachine {
             ));
         });
 
-        write!(&mut stderr, "{}\n", error).unwrap();
+        write!(&mut stderr, "Fatal error:\n\n{}\n\n", error).unwrap();
+
+        stderr.flush().unwrap();
     }
 
     fn run_code(&self, thread: RcThread, code: RcCompiledCode,
@@ -1732,27 +1737,32 @@ impl ArcMethods for RcVirtualMachine {
         Ok(args)
     }
 
-    fn run_thread(&self, code: RcCompiledCode) -> RcObject {
+    fn run_thread(&self, code: RcCompiledCode, main_thread: bool) -> RcObject {
         let self_clone = self.clone();
         let code_clone = code.clone();
 
         let (chan_sender, chan_receiver) = channel();
 
         let handle = thread::spawn(move || {
-            let vm_thread: RcThread = chan_receiver.recv().unwrap();
+            let thread_obj: RcObject = chan_receiver.recv().unwrap();
+            let vm_thread = thread_obj.read().unwrap().value.unwrap_thread();
 
             let result = self_clone.run(vm_thread.clone(), code_clone);
 
-            // TODO: remove thread from self.threads
+            self_clone.threads.remove(thread_obj.clone());
+
+            // After this there's a chance thread_obj might be GC'd so we can't
+            // reliably use it any more.
+            thread_obj.write().unwrap().unpin();
 
             match result {
                 Ok(obj) => {
                     vm_thread.write().unwrap().value = obj;
                 },
                 Err(message) => {
-                    self_clone.print_error(vm_thread, message);
+                    self_clone.error(vm_thread, message);
 
-                    // TODO: shut down all threads
+                    self_clone.threads.stop();
                 }
             };
         });
@@ -1760,7 +1770,11 @@ impl ArcMethods for RcVirtualMachine {
         let vm_thread  = Thread::from_code(code.clone(), Some(handle));
         let thread_obj = self.allocate_thread(vm_thread.clone());
 
-        chan_sender.send(vm_thread.clone()).unwrap();
+        if main_thread {
+            vm_thread.write().unwrap().set_main();
+        }
+
+        chan_sender.send(thread_obj.clone()).unwrap();
 
         thread_obj
     }

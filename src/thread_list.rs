@@ -50,4 +50,22 @@ impl ThreadList {
             thread.write().unwrap().set_prototype(proto.clone());
         }
     }
+
+    /// Stops all threads
+    pub fn stop(&self) {
+        let threads = self.threads.read().unwrap();
+
+        for thread in threads.iter() {
+            let thread_obj = thread.write().unwrap();
+            let vm_thread  = thread_obj.value.unwrap_thread();
+
+            vm_thread.write().unwrap().stop();
+
+            let join_handle = vm_thread.write().unwrap().take_join_handle();
+
+            if join_handle.is_some() {
+                join_handle.unwrap().join().unwrap();
+            }
+        }
+    }
 }
