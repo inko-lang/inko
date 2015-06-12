@@ -544,9 +544,6 @@ pub trait ArcMethods {
 
     /// Runs a CompiledCode in a new thread.
     fn run_thread(&self, RcCompiledCode, bool) -> RcObject;
-
-    /// Allocates a new Thread Object
-    fn allocate_thread(&self, RcThread) -> RcObject;
 }
 
 impl ArcMethods for RcVirtualMachine {
@@ -1768,21 +1765,15 @@ impl ArcMethods for RcVirtualMachine {
         });
 
         let vm_thread  = Thread::from_code(code.clone(), Some(handle));
-        let thread_obj = self.allocate_thread(vm_thread.clone());
+        let thread_obj = self.memory_manager.allocate_thread(vm_thread.clone());
+
+        self.threads.add(thread_obj.clone());
 
         if main_thread {
             vm_thread.write().unwrap().set_main();
         }
 
         chan_sender.send(thread_obj.clone()).unwrap();
-
-        thread_obj
-    }
-
-    fn allocate_thread(&self, thread: RcThread) -> RcObject {
-        let thread_obj = self.memory_manager.allocate_thread(thread);
-
-        self.threads.add(thread_obj.clone());
 
         thread_obj
     }
