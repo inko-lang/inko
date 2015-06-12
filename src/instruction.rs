@@ -30,7 +30,7 @@ pub enum InstructionType {
     DefMethod,
     RunCode,
     GetToplevel,
-    AddInteger,
+    IntegerAdd,
     StartThread
 }
 

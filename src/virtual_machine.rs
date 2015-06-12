@@ -507,9 +507,9 @@ pub trait ArcMethods {
     ///
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
-    ///     2: add_integer 2, 0, 1
+    ///     2: integer_add 2, 0, 1
     ///
-    fn ins_add_integer(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
     /// Runs a CompiledCode in a new thread.
@@ -748,8 +748,8 @@ impl ArcMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
-                InstructionType::AddInteger => {
-                    try!(self.ins_add_integer(
+                InstructionType::IntegerAdd => {
+                    try!(self.ins_integer_add(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -1574,44 +1574,44 @@ impl ArcMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_add_integer(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
         let mut thread_ref = thread.write().unwrap();
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("add_integer: missing target slot index".to_string())
+                .ok_or("integer_add: missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("add_integer: missing left-hand slot index".to_string())
+                .ok_or("integer_add: missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("add_integer: missing right-hand slot index".to_string())
+                .ok_or("integer_add: missing right-hand slot index".to_string())
         );
 
         let left_object = try!(
             thread_ref.register()
                 .get(left_index)
-                .ok_or("add_integer: undefined left-hand object".to_string())
+                .ok_or("integer_add: undefined left-hand object".to_string())
         );
 
         let right_object = try!(
             thread_ref.register()
                 .get(right_index)
-                .ok_or("add_integer: undefined right-hand object".to_string())
+                .ok_or("integer_add: undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             self.memory_manager
                 .integer_prototype()
-                .ok_or("add_integer: no Integer prototype set up".to_string())
+                .ok_or("integer_add: no Integer prototype set up".to_string())
         );
 
         let left_ref  = left_object.read().unwrap();
@@ -1619,7 +1619,7 @@ impl ArcMethods for RcVirtualMachine {
 
         if !left_ref.value.is_integer() || !right_ref.value.is_integer() {
             return Err(
-                "add_integer: both objects must be integers".to_string()
+                "integer_add: both objects must be integers".to_string()
             )
         }
 
