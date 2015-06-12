@@ -105,6 +105,9 @@ impl MemoryManager {
             obj
         };
 
+        // Prevent the thread from being GC'd if there are no references to it.
+        thread_obj.write().unwrap().pin();
+
         thread_obj
     }
 
