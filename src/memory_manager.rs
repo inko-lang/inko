@@ -17,7 +17,10 @@ pub type RcMemoryManager = Arc<MemoryManager>;
 
 /// Structure for managing memory
 pub struct MemoryManager {
-    // The top-level object used for storing global constants.
+    /// The latest available object ID.
+    pub object_id: RwLock<usize>,
+
+    /// The top-level object used for storing global constants.
     pub top_level: RcObject,
 
     /// The young heap, most objects will be allocated here.
@@ -49,7 +52,7 @@ impl MemoryManager {
     /// This also takes care of setting up the top-level object.
     ///
     pub fn new() -> RcMemoryManager {
-        let top_level   = Object::new(ObjectValue::None);
+        let top_level   = Object::new(0, ObjectValue::None);
         let mature_heap = Heap::new();
 
         top_level.write().unwrap().pin();
@@ -57,6 +60,7 @@ impl MemoryManager {
         mature_heap.write().unwrap().store(top_level.clone());
 
         let manager = MemoryManager {
+            object_id: RwLock::new(1),
             top_level: top_level,
             young_heap: Heap::new(),
             mature_heap: mature_heap,
@@ -72,7 +76,7 @@ impl MemoryManager {
 
     /// Creates and allocates a new RcObject.
     pub fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
-        let obj = Object::new(value);
+        let obj = self.new_object(value);
 
         obj.write().unwrap().set_prototype(proto);
 
@@ -94,7 +98,7 @@ impl MemoryManager {
             self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
         }
         else {
-            let obj = Object::new(ObjectValue::Thread(thread));
+            let obj = self.new_object(ObjectValue::Thread(thread));
 
             self.allocate_prepared(obj.clone());
 
@@ -162,5 +166,22 @@ impl MemoryManager {
         let mut proto = self.thread_prototype.write().unwrap();
 
         *proto = Some(object);
+    }
+
+    /// Returns a new object ID.
+    fn new_object_id(&self) -> usize {
+        let mut object_id = self.object_id.write().unwrap();
+
+        *object_id += 1;
+
+        *object_id
+    }
+
+    /// Returns a new Object with an object ID.
+    pub fn new_object(&self, value: ObjectValue) -> RcObject {
+        let obj_id = self.new_object_id();
+        let obj    = Object::new(obj_id, value);
+
+        obj
     }
 }

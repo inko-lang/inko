@@ -883,7 +883,7 @@ impl ArcMethods for RcVirtualMachine {
 
         let proto_index_opt = instruction.arguments.get(1);
 
-        let obj = Object::new(ObjectValue::None);
+        let obj = self.memory_manager.new_object(ObjectValue::None);
 
         if proto_index_opt.is_some() {
             let proto_index = *proto_index_opt.unwrap();
@@ -1692,7 +1692,7 @@ impl ArcMethods for RcVirtualMachine {
 
     fn run_code(&self, thread: RcThread, code: RcCompiledCode,
                 args: Vec<RcObject>) -> Result<Option<RcObject>, String> {
-        // Scoped so the borrow_mut is local to the block, allowing recursive
+        // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
             let mut thread_ref = thread.write().unwrap();

@@ -55,6 +55,9 @@ pub type RcObject = Arc<RwLock<Object>>;
 
 /// Structure for storing information about a single Object.
 pub struct Object {
+    /// A unique ID associated with the object.
+    pub id: usize,
+
     /// The name of the object, used in error messages if present.
     pub name: Option<String>,
 
@@ -80,8 +83,9 @@ pub struct Object {
 
 impl Object {
     /// Creates a new Object
-    pub fn new(value: ObjectValue) -> RcObject {
+    pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
+            id: id,
             name: None,
             prototype: None,
             attributes: HashMap::new(),
@@ -92,24 +96,6 @@ impl Object {
         };
 
         Arc::new(RwLock::new(obj))
-    }
-
-    /// Creates a new Integer object.
-    pub fn new_integer(value: isize, prototype: RcObject) -> RcObject {
-        let obj = Object::new(ObjectValue::Integer(value));
-
-        obj.write().unwrap().set_prototype(prototype);
-
-        obj
-    }
-
-    /// Creates a new Thread object.
-    pub fn new_thread(value: RcThread, prototype: RcObject) -> RcObject {
-        let obj = Object::new(ObjectValue::Thread(value));
-
-        obj.write().unwrap().set_prototype(prototype);
-
-        obj
     }
 
     /// Returns the name of this object.
