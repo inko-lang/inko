@@ -59,9 +59,9 @@ impl ThreadList {
             let thread_obj = thread.write().unwrap();
             let vm_thread  = thread_obj.value.unwrap_thread();
 
-            vm_thread.write().unwrap().stop();
+            vm_thread.stop();
 
-            let join_handle = vm_thread.write().unwrap().take_join_handle();
+            let join_handle = vm_thread.take_join_handle();
 
             if join_handle.is_some() {
                 join_handle.unwrap().join().unwrap();

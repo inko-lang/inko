@@ -550,7 +550,7 @@ impl ArcMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         let thread_obj = self.run_thread(code, true);
         let vm_thread  = thread_obj.read().unwrap().value.unwrap_thread();
-        let handle     = vm_thread.write().unwrap().take_join_handle();
+        let handle     = vm_thread.take_join_handle();
 
         if handle.is_some() {
             handle.unwrap().join().unwrap();
@@ -566,7 +566,7 @@ impl ArcMethods for RcVirtualMachine {
 
         for (index, instruction) in code.instructions.iter().enumerate() {
             // TODO: this might be too expensive for every instruction.
-            if thread.read().unwrap().should_stop {
+            if thread.should_stop() {
                 return Ok(None);
             }
 
@@ -797,7 +797,7 @@ impl ArcMethods for RcVirtualMachine {
         let obj = self.memory_manager
             .allocate(ObjectValue::Integer(value), prototype.clone());
 
-        thread.write().unwrap().register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
@@ -831,7 +831,7 @@ impl ArcMethods for RcVirtualMachine {
         let obj = self.memory_manager
             .allocate(ObjectValue::Float(value), prototype.clone());
 
-        thread.write().unwrap().register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
@@ -865,15 +865,13 @@ impl ArcMethods for RcVirtualMachine {
         let obj = self.memory_manager
             .allocate(ObjectValue::String(value.clone()), prototype.clone());
 
-        thread.write().unwrap().register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
 
     fn ins_set_object(&self, thread: RcThread, _: RcCompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -888,8 +886,7 @@ impl ArcMethods for RcVirtualMachine {
             let proto_index = *proto_index_opt.unwrap();
 
             let proto = try!(
-                thread_ref.register()
-                    .get(proto_index)
+                thread.get_register(proto_index)
                     .ok_or("set_object: prototype is undefined".to_string())
             );
 
@@ -898,7 +895,7 @@ impl ArcMethods for RcVirtualMachine {
 
         self.memory_manager.allocate_prepared(obj.clone());
 
-        thread_ref.register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
@@ -930,15 +927,13 @@ impl ArcMethods for RcVirtualMachine {
         let obj = self.memory_manager
             .allocate(ObjectValue::Array(values), prototype.clone());
 
-        thread.write().unwrap().register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
 
     fn ins_set_name(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -952,8 +947,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let obj = try!(
-            thread_ref.register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_name: undefined target object".to_string())
         );
 
@@ -970,8 +964,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -979,8 +971,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_integer_prototype: undefined source object")
         );
 
@@ -991,8 +982,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1000,8 +989,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_float_prototype: undefined source object")
         );
 
@@ -1012,8 +1000,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1021,8 +1007,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_string_prototype: undefined source object")
         );
 
@@ -1034,8 +1019,6 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction)
                                -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1043,8 +1026,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_array_prototype: undefined source object")
         );
 
@@ -1063,10 +1045,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread.write()
-                .unwrap()
-                .register()
-                .get(slot)
+            thread.get_register(slot)
                 .ok_or("set_array_prototype: undefined source object")
         );
 
@@ -1081,8 +1060,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let local_index = *try!(
             instruction.arguments
                 .get(0)
@@ -1096,20 +1073,17 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.register()
-                .get(object_index)
+            thread.get_register(object_index)
                 .ok_or("set_local: undefined object".to_string())
         );
 
-        thread_ref.variable_scope().insert(local_index, object);
+        thread.set_local(local_index, object);
 
         Ok(())
     }
 
     fn ins_get_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot_index = *try!(
             instruction.arguments
                 .get(0)
@@ -1123,20 +1097,17 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            thread_ref.variable_scope()
-                .get(local_index)
+            thread.get_local(local_index)
                 .ok_or("get_local: undefined local variable index".to_string())
         );
 
-        thread_ref.register().set(slot_index, object);
+        thread.set_register(slot_index, object);
 
         Ok(())
     }
 
     fn ins_set_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let target_slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1156,14 +1127,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let target = try!(
-            thread_ref.register()
-                .get(target_slot)
+            thread.get_register(target_slot)
                 .ok_or("set_const: undefined target object".to_string())
         );
 
         let source = try!(
-            thread_ref.register()
-                .get(source_slot)
+            thread.get_register(source_slot)
                 .ok_or("set_const: undefined source object".to_string())
         );
 
@@ -1180,8 +1149,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_get_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let index = *try!(
             instruction.arguments
                 .get(0)
@@ -1207,8 +1174,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let src = try!(
-            thread_ref.register()
-                .get(src_index)
+            thread.get_register(src_index)
                 .ok_or("get_const: undefined source object".to_string())
         );
 
@@ -1218,15 +1184,13 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or(format!("get_const: Undefined constant {}", name))
         );
 
-        thread_ref.register().set(index, object);
+        thread.set_register(index, object);
 
         Ok(())
     }
 
     fn ins_set_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let target_index = *try!(
             instruction.arguments
                 .get(0)
@@ -1246,14 +1210,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let target_object = try!(
-            thread_ref.register()
-                .get(target_index)
+            thread.get_register(target_index)
                 .ok_or("set_attr: undefined target object".to_string())
         );
 
         let source_object = try!(
-            thread_ref.register()
-                .get(source_index)
+            thread.get_register(source_index)
                 .ok_or("set_attr: undefined target object".to_string())
         );
 
@@ -1272,8 +1234,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_get_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let target_index = *try!(
             instruction.arguments
                 .get(0)
@@ -1293,8 +1253,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let source = try!(
-            thread_ref.register()
-                .get(source_index)
+            thread.get_register(source_index)
                 .ok_or("get_attr: undefined source object".to_string())
         );
 
@@ -1310,7 +1269,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or(format!("get_attr: undefined attribute \"{}\"", name))
         );
 
-        thread_ref.register().set(target_index, attr);
+        thread.set_register(target_index, attr);
 
         Ok(())
     }
@@ -1354,9 +1313,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let receiver = try!(
-            thread.write().unwrap()
-                .register()
-                .get(receiver_slot)
+            thread.get_register(receiver_slot)
                 .ok_or(format!(
                     "send: \"{}\" called on an undefined receiver",
                     name
@@ -1394,7 +1351,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         if retval.is_some() {
-            thread.write().unwrap().register().set(result_slot, retval.unwrap());
+            thread.set_register(result_slot, retval.unwrap());
         }
 
         Ok(())
@@ -1403,22 +1360,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_return(&self, thread: RcThread, _: RcCompiledCode,
                   instruction: &Instruction)
                   -> Result<Option<RcObject>, String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
                 .ok_or("return: missing return slot".to_string())
         );
 
-        Ok(thread_ref.register().get(slot))
+        Ok(thread.get_register(slot))
     }
 
     fn ins_goto_if_undef(&self, thread: RcThread, _: RcCompiledCode,
                          instruction: &Instruction)
                          -> Result<Option<usize>, String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let go_to = *try!(
             instruction.arguments
                 .get(0)
@@ -1431,7 +1384,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("goto_if_undef: missing value slot".to_string())
         );
 
-        let value   = thread_ref.register().get(value_slot);
+        let value   = thread.get_register(value_slot);
         let matched = match value {
             Some(_) => { None },
             None    => { Some(go_to) }
@@ -1443,8 +1396,6 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_goto_if_def(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction)
                        -> Result<Option<usize>, String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let go_to = *try!(
             instruction.arguments
                 .get(0)
@@ -1457,7 +1408,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("goto_if_def: missing value slot".to_string())
         );
 
-        let value   = thread_ref.register().get(value_slot);
+        let value   = thread.get_register(value_slot);
         let matched = match value {
             Some(_) => { Some(go_to) },
             None    => { None }
@@ -1468,8 +1419,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_def_method(&self, thread: RcThread, code: RcCompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let receiver_index = *try!(
             instruction.arguments
                 .get(0)
@@ -1489,8 +1438,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let receiver = try!(
-            thread_ref.register()
-                .get(receiver_index)
+            thread.get_register(receiver_index)
                 .ok_or("def_method: undefined receiver".to_string())
         );
 
@@ -1548,10 +1496,7 @@ impl ArcMethods for RcVirtualMachine {
         let retval = try!(self.run_code(thread.clone(), code_obj, arguments));
 
         if retval.is_some() {
-            thread.write()
-                .unwrap()
-                .register()
-                .set(result_index, retval.unwrap());
+            thread.set_register(result_index, retval.unwrap());
         }
 
         Ok(())
@@ -1559,8 +1504,6 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_get_toplevel(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1569,15 +1512,13 @@ impl ArcMethods for RcVirtualMachine {
 
         let top_level = self.memory_manager.top_level.clone();
 
-        thread_ref.register().set(slot, top_level);
+        thread.set_register(slot, top_level);
 
         Ok(())
     }
 
     fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let mut thread_ref = thread.write().unwrap();
-
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1597,14 +1538,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let left_object = try!(
-            thread_ref.register()
-                .get(left_index)
+            thread.get_register(left_index)
                 .ok_or("integer_add: undefined left-hand object".to_string())
         );
 
         let right_object = try!(
-            thread_ref.register()
-                .get(right_index)
+            thread.get_register(right_index)
                 .ok_or("integer_add: undefined right-hand object".to_string())
         );
 
@@ -1629,7 +1568,7 @@ impl ArcMethods for RcVirtualMachine {
         let obj = self.memory_manager
             .allocate(ObjectValue::Integer(added), prototype.clone());
 
-        thread_ref.register().set(slot, obj);
+        thread.set_register(slot, obj);
 
         Ok(())
     }
@@ -1663,19 +1602,19 @@ impl ArcMethods for RcVirtualMachine {
 
         let thread_object = self.run_thread(thread_code, false);
 
-        thread.write().unwrap().register().set(slot, thread_object);
+        thread.set_register(slot, thread_object);
 
         Ok(())
     }
 
     fn error(&self, thread: RcThread, message: String) {
-        let thread_ref = thread.read().unwrap();
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
+        let frame      = thread.call_frame.read().unwrap();
 
         *self.exit_status.write().unwrap() = Err(());
 
-        thread_ref.call_frame().each_frame(|frame| {
+        frame.each_frame(|frame| {
             error.push_str(&format!(
                 "\n{} line {} in \"{}\"",
                 frame.file,
@@ -1694,20 +1633,16 @@ impl ArcMethods for RcVirtualMachine {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            let mut thread_ref = thread.write().unwrap();
-
-            thread_ref.push_call_frame(CallFrame::from_code(code.clone()));
-
-            let mut variables = thread_ref.variable_scope();
+            thread.push_call_frame(CallFrame::from_code(code.clone()));
 
             for arg in args.iter() {
-                variables.add(arg.clone());
+                thread.add_local(arg.clone());
             }
         }
 
         let return_val = try!(self.run(thread.clone(), code));
 
-        thread.write().unwrap().pop_call_frame();
+        thread.pop_call_frame();
 
         Ok(return_val)
     }
@@ -1717,14 +1652,11 @@ impl ArcMethods for RcVirtualMachine {
                          amount: usize) -> Result<Vec<RcObject>, String> {
         let mut args: Vec<RcObject> = Vec::new();
 
-        let mut thread_ref = thread.write().unwrap();
-
         for index in offset..(offset + amount) {
             let arg_index = instruction.arguments[index];
 
             let arg = try!(
-                thread_ref.register()
-                    .get(arg_index)
+                thread.get_register(arg_index)
                     .ok_or(format!("argument {} is undefined", index))
             );
 
@@ -1754,7 +1686,7 @@ impl ArcMethods for RcVirtualMachine {
 
             match result {
                 Ok(obj) => {
-                    vm_thread.write().unwrap().value = obj;
+                    vm_thread.set_value(obj);
                 },
                 Err(message) => {
                     self_clone.error(vm_thread, message);
@@ -1770,7 +1702,7 @@ impl ArcMethods for RcVirtualMachine {
         self.threads.add(thread_obj.clone());
 
         if main_thread {
-            vm_thread.write().unwrap().set_main();
+            vm_thread.set_main();
         }
 
         chan_sender.send(thread_obj.clone()).unwrap();

@@ -11,11 +11,9 @@ use std::thread;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use object::RcObject;
-use register::Register;
-use variable_scope::VariableScope;
 
 /// A mutable, reference counted Thread.
-pub type RcThread = Arc<RwLock<Thread>>;
+pub type RcThread = Arc<Thread>;
 
 /// The type of JoinHandle for threads.
 pub type JoinHandle = thread::JoinHandle<()>;
@@ -23,33 +21,33 @@ pub type JoinHandle = thread::JoinHandle<()>;
 /// Struct representing a VM thread.
 pub struct Thread {
     /// The current call frame.
-    pub call_frame: CallFrame,
+    pub call_frame: RwLock<CallFrame>,
 
     /// The return value of the thread, if any.
-    pub value: Option<RcObject>,
+    pub value: RwLock<Option<RcObject>>,
 
     /// Boolean indicating if this is the main thread.
-    pub main_thread: bool,
+    pub main_thread: RwLock<bool>,
 
     /// Boolean that indicates if the current thread should be terminated.
-    pub should_stop: bool,
+    pub should_stop: RwLock<bool>,
 
     /// The JoinHandle of the current thread.
-    join_handle: Option<JoinHandle>,
+    join_handle: RwLock<Option<JoinHandle>>,
 }
 
 impl Thread {
     /// Creates a new Thread.
     pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
-            call_frame: call_frame,
-            value: None,
-            main_thread: false,
-            should_stop: false,
-            join_handle: handle
+            call_frame: RwLock::new(call_frame),
+            value: RwLock::new(None),
+            main_thread: RwLock::new(false),
+            should_stop: RwLock::new(false),
+            join_handle: RwLock::new(handle)
         };
 
-        Arc::new(RwLock::new(thread))
+        Arc::new(thread)
     }
 
     /// Creates a new Thread from a CompiledCode/CallFrame.
@@ -61,47 +59,80 @@ impl Thread {
     }
 
     /// Sets the current CallFrame from a CompiledCode.
-    pub fn push_call_frame(&mut self, mut frame: CallFrame) {
-        mem::swap(&mut self.call_frame, &mut frame);
+    pub fn push_call_frame(&self, mut frame: CallFrame) {
+        let mut target = self.call_frame.write().unwrap();
 
-        self.call_frame.set_parent(frame);
+        mem::swap(&mut *target, &mut frame);
+
+        target.set_parent(frame);
     }
 
     /// Switches the current call frame to the previous one.
-    pub fn pop_call_frame(&mut self) {
-        let parent = self.call_frame.parent.take().unwrap();
+    pub fn pop_call_frame(&self) {
+        let mut target = self.call_frame.write().unwrap();
+        let parent     = target.parent.take().unwrap();
 
         // TODO: this might move the data from heap back to the stack?
-        self.call_frame = *parent;
-    }
-
-    /// Returns a reference to the current call frame.
-    pub fn call_frame(&self) -> &CallFrame {
-        &self.call_frame
-    }
-
-    /// Returns a mutable reference to the current register.
-    pub fn register(&mut self) -> &mut Register {
-        &mut self.call_frame.register
-    }
-
-    /// Returns a mutable reference to the current variable scope.
-    pub fn variable_scope(&mut self) -> &mut VariableScope {
-        &mut self.call_frame.variables
+        *target = *parent;
     }
 
     /// Marks the current thread as the main thread.
-    pub fn set_main(&mut self) {
-        self.main_thread = true;
+    pub fn set_main(&self) {
+        *self.main_thread.write().unwrap() = true;
+    }
+
+    /// Sets the return value of the thread.
+    pub fn set_value(&self, value: Option<RcObject>) {
+        *self.value.write().unwrap() = value;
     }
 
     /// Instructs the thread to gracefully terminate itself.
-    pub fn stop(&mut self) {
-        self.should_stop = true;
+    pub fn stop(&self) {
+        *self.should_stop.write().unwrap() = true;
     }
 
     /// Consumes and returns the JoinHandle.
-    pub fn take_join_handle(&mut self) -> Option<JoinHandle> {
-        self.join_handle.take()
+    pub fn take_join_handle(&self) -> Option<JoinHandle> {
+        self.join_handle.write().unwrap().take()
+    }
+
+    /// Returns true if a thread should stop.
+    pub fn should_stop(&self) -> bool {
+        *self.should_stop.read().unwrap()
+    }
+
+    /// Gets a slot value from the current register.
+    pub fn get_register(&self, slot: usize) -> Option<RcObject> {
+        let frame = self.call_frame.read().unwrap();
+
+        frame.register.get(slot)
+    }
+
+    /// Sets a slot in the current register.
+    pub fn set_register(&self, slot: usize, value: RcObject) {
+        let mut frame = self.call_frame.write().unwrap();
+
+        frame.register.set(slot, value);
+    }
+
+    /// Inserts a local variable at a specific position.
+    pub fn set_local(&self, index: usize, value: RcObject) {
+        let mut frame = self.call_frame.write().unwrap();
+
+        frame.variables.insert(index, value);
+    }
+
+    /// Appends a new local variable to the current scope.
+    pub fn add_local(&self, value: RcObject) {
+        let mut frame = self.call_frame.write().unwrap();
+
+        frame.variables.add(value);
+    }
+
+    /// Returns a local variable from the current variable scope.
+    pub fn get_local(&self, index: usize) -> Option<RcObject> {
+        let frame = self.call_frame.read().unwrap();
+
+        frame.variables.get(index)
     }
 }
