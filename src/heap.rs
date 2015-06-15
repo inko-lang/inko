@@ -54,8 +54,8 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let object   = Object::new(ObjectValue::None);
-        let mut heap = Heap::new();
+        let object = Object::new(1, ObjectValue::None);
+        let heap   = Heap::new();
 
         heap.write().unwrap().store(object);
 
