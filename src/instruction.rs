@@ -27,6 +27,7 @@ pub enum InstructionType {
     Return,
     GotoIfUndef,
     GotoIfDef,
+    Goto,
     DefMethod,
     RunCode,
     GetToplevel,

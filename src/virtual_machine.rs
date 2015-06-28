@@ -454,6 +454,25 @@ pub trait ArcMethods {
     fn ins_goto_if_def(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<Option<usize>, String>;
 
+    /// Jumps to a specific instruction.
+    ///
+    /// This instruction takes one argument: the instruction index to jump to.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 20
+    ///
+    ///     0: goto        2
+    ///     1: set_integer 0, 0
+    ///     2: set_integer 0, 1
+    ///
+    /// Here slot 0 would be set to 20.
+    ///
+    fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<usize, String>;
+
     /// Defines a method for an object.
     ///
     /// This instruction requires 3 arguments:
@@ -564,7 +583,12 @@ impl ArcMethods for RcVirtualMachine {
         let mut skip_until: Option<usize> = None;
         let mut retval = None;
 
-        for (index, instruction) in code.instructions.iter().enumerate() {
+        let mut index = 0;
+        let count = code.instructions.len();
+
+        while index < count {
+            let ref instruction = code.instructions[index];
+
             // TODO: this might be too expensive for every instruction.
             if thread.should_stop() {
                 return Ok(None);
@@ -578,6 +602,10 @@ impl ArcMethods for RcVirtualMachine {
                     skip_until = None;
                 }
             }
+
+            // Incremented _before_ the instructions so that the "goto"
+            // instruction can overwrite it.
+            index += 1;
 
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
@@ -722,6 +750,13 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::GotoIfDef => {
                     skip_until = try!(self.ins_goto_if_def(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::Goto => {
+                    index = try!(self.ins_goto(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -1415,6 +1450,17 @@ impl ArcMethods for RcVirtualMachine {
         };
 
         Ok(matched)
+    }
+
+    fn ins_goto(&self, _: RcThread, _: RcCompiledCode,
+                instruction: &Instruction) -> Result<usize, String> {
+        let go_to = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("goto: missing instruction index".to_string())
+        );
+
+        Ok(go_to)
     }
 
     fn ins_def_method(&self, thread: RcThread, code: RcCompiledCode,
