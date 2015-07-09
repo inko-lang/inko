@@ -897,8 +897,10 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_string: no String prototype set up".to_string())
         );
 
+        let bytes = value.bytes().collect();
+
         let obj = self.memory_manager
-            .allocate(ObjectValue::String(value.clone()), prototype.clone());
+            .allocate(ObjectValue::ByteArray(bytes), prototype.clone());
 
         thread.set_register(slot, obj);
 

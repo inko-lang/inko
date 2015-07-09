@@ -15,7 +15,7 @@ pub enum ObjectValue {
     None,
     Integer(isize),
     Float(f64),
-    String(String),
+    ByteArray(Vec<u8>),
     Array(Vec<RcObject>),
     Thread(RcThread)
 }
