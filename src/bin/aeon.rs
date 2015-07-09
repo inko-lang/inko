@@ -1,13 +1,14 @@
 extern crate libaeon;
 
+use std::sync::Arc;
 use std::process;
 
-use libaeon::virtual_machine::VirtualMachine;
+use libaeon::virtual_machine::{VirtualMachine, ArcMethods};
 use libaeon::compiled_code::CompiledCode;
 use libaeon::instruction::{InstructionType, Instruction};
 
 fn main() {
-    let mut vm = VirtualMachine::new();
+    let vm = VirtualMachine::new();
     let mut cc = CompiledCode::new(
         "<main>".to_string(),
         "/tmp/test.rs".to_string(),
@@ -33,7 +34,7 @@ fn main() {
         vec![
             Instruction::new(InstructionType::SetInteger, vec![0, 0], 3, 1),
             Instruction::new(InstructionType::SetInteger, vec![1, 1], 3, 5),
-            Instruction::new(InstructionType::AddInteger, vec![2, 0, 1], 3, 3),
+            Instruction::new(InstructionType::IntegerAdd, vec![2, 0, 1], 3, 3),
             Instruction::new(InstructionType::Return, vec![2], 3, 1)
         ]
     );
@@ -41,9 +42,9 @@ fn main() {
     method_code.add_integer_literal(10);
     method_code.add_integer_literal(20);
 
-    cc.add_code_object(method_code);
+    cc.add_code_object(Arc::new(method_code));
 
-    let result = vm.start(&cc);
+    let result = vm.start(Arc::new(cc));
 
     if result.is_err() {
         process::exit(1);
