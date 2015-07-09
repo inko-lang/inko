@@ -55,7 +55,7 @@ impl MemoryManager {
         let top_level   = Object::new(0, ObjectValue::None);
         let mature_heap = Heap::new();
 
-        top_level.write().unwrap().pin();
+        top_level.pin();
 
         mature_heap.write().unwrap().store(top_level.clone());
 
@@ -78,7 +78,7 @@ impl MemoryManager {
     pub fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
         let obj = self.new_object(value);
 
-        obj.write().unwrap().set_prototype(proto);
+        obj.set_prototype(proto);
 
         self.allocate_prepared(obj.clone());
 
@@ -106,7 +106,7 @@ impl MemoryManager {
         };
 
         // Prevent the thread from being GC'd if there are no references to it.
-        thread_obj.write().unwrap().pin();
+        thread_obj.pin();
 
         thread_obj
     }

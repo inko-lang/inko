@@ -51,91 +51,102 @@ impl ObjectValue {
 }
 
 /// A mutable, reference counted Object.
-pub type RcObject = Arc<RwLock<Object>>;
+pub type RcObject = Arc<Object>;
 
 /// Structure for storing information about a single Object.
 pub struct Object {
     /// A unique ID associated with the object.
-    pub id: usize,
+    pub id: RwLock<usize>,
 
     /// The name of the object, used in error messages if present.
-    pub name: Option<String>,
+    pub name: RwLock<Option<String>>,
 
     /// The prototype of the object.
-    pub prototype: Option<RcObject>,
+    pub prototype: RwLock<Option<RcObject>>,
 
     /// The attributes of the object.
-    pub attributes: HashMap<String, RcObject>,
+    pub attributes: RwLock<HashMap<String, RcObject>>,
 
     /// The constants defined in this object.
-    pub constants: HashMap<String, RcObject>,
+    pub constants: RwLock<HashMap<String, RcObject>>,
 
     /// The methods defined on this object.
-    pub methods: HashMap<String, RcCompiledCode>,
+    pub methods: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// A value associated with the object, if any.
     // TODO: use something like a pointer so Object isn't super fat size wise
-    pub value: ObjectValue,
+    pub value: RwLock<ObjectValue>,
 
     /// When set to "true" this object won't be GC'd.
-    pub pinned: bool
+    pub pinned: RwLock<bool>
 }
 
 impl Object {
     /// Creates a new Object
     pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
-            id: id,
-            name: None,
-            prototype: None,
-            attributes: HashMap::new(),
-            constants: HashMap::new(),
-            methods: HashMap::new(),
-            value: value,
-            pinned: false
+            id: RwLock::new(id),
+            name: RwLock::new(None),
+            prototype: RwLock::new(None),
+            attributes: RwLock::new(HashMap::new()),
+            constants: RwLock::new(HashMap::new()),
+            methods: RwLock::new(HashMap::new()),
+            value: RwLock::new(value),
+            pinned: RwLock::new(false)
         };
 
-        Arc::new(RwLock::new(obj))
+        Arc::new(obj)
     }
 
-    /// Returns the name of this object.
-    pub fn name(&self) -> Option<&String> {
-        self.name.as_ref()
+    /// Returns the ID of this object.
+    pub fn id(&self) -> usize {
+        *self.id.read().unwrap()
     }
 
     /// Sets the name of this object.
-    pub fn set_name(&mut self, name: String) {
-        self.name = Some(name);
+    pub fn set_name(&self, name: String) {
+        let mut self_name = self.name.write().unwrap();
+
+        *self_name = Some(name);
     }
 
     /// Sets the prototype of this object.
-    pub fn set_prototype(&mut self, prototype: RcObject) {
-        self.prototype = Some(prototype);
+    pub fn set_prototype(&self, prototype: RcObject) {
+        let mut proto = self.prototype.write().unwrap();
+
+        *proto = Some(prototype);
     }
 
     /// Pins the current object.
-    pub fn pin(&mut self) {
-        self.pinned = true;
+    pub fn pin(&self) {
+        let mut pinned = self.pinned.write().unwrap();
+
+        *pinned = true;
     }
 
     /// Unpins the current object.
-    pub fn unpin(&mut self) {
-        self.pinned = false;
+    pub fn unpin(&self) {
+        let mut pinned = self.pinned.write().unwrap();
+
+        *pinned = false;
     }
 
     /// Returns an error message for undefined method calls.
     pub fn undefined_method_error(&self, name: &String) -> String {
-        if self.name().is_some() {
+        let proto    = self.prototype.read().unwrap();
+        let obj_name = self.name.read().unwrap();
+
+        if obj_name.is_some() {
             format!(
                 "Undefined method \"{}\" called on a {}",
                 name,
-                self.name().unwrap()
+                obj_name.as_ref().unwrap()
             )
         }
-        else if self.prototype.is_some() {
-            let proto = self.prototype.as_ref().unwrap().read().unwrap();
+        else if proto.is_some() {
+            let proto_unwrapped = proto.as_ref().unwrap();
 
-            proto.undefined_method_error(name)
+            proto_unwrapped.undefined_method_error(name)
         }
         else {
             format!("Undefined method \"{}\" called", name)
@@ -144,17 +155,20 @@ impl Object {
 
     /// Returns an error message for private method calls.
     pub fn private_method_error(&self, name: &String) -> String {
-        if self.name().is_some() {
+        let proto    = self.prototype.read().unwrap();
+        let obj_name = self.name.read().unwrap();
+
+        if obj_name.is_some() {
             format!(
                 "Private method \"{}\" called on a {}",
                 name,
-                self.name().unwrap()
+                obj_name.as_ref().unwrap()
             )
         }
-        else if self.prototype.is_some() {
-            let proto = self.prototype.as_ref().unwrap().read().unwrap();
+        else if proto.is_some() {
+            let proto_unwrapped = proto.as_ref().unwrap();
 
-            proto.private_method_error(name)
+            proto_unwrapped.private_method_error(name)
         }
         else {
             format!("Private method \"{}\" called", name)
@@ -162,34 +176,39 @@ impl Object {
     }
 
     /// Adds a new method.
-    pub fn add_method(&mut self, name: String, code: RcCompiledCode) {
-        self.methods.insert(name, code.clone());
+    pub fn add_method(&self, name: String, code: RcCompiledCode) {
+        let mut methods = self.methods.write().unwrap();
+
+        methods.insert(name, code.clone());
     }
 
     /// Looks up the method for the given name.
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
+        let methods = self.methods.read().unwrap();
+        let proto   = self.prototype.read().unwrap();
+
         // Method defined directly on the object
-        if self.methods.contains_key(name) {
-            retval = self.methods.get(name).cloned();
+        if methods.contains_key(name) {
+            retval = methods.get(name).cloned();
         }
 
         // Method defined somewhere in the object hierarchy
-        else if self.prototype.is_some() {
-            let mut parent = self.prototype.clone();
+        else if proto.is_some() {
+            let mut parent = proto.clone();
 
             while parent.is_some() {
-                let unwrapped  = parent.unwrap();
-                let parent_ref = unwrapped.read().unwrap();
+                let unwrapped      = parent.unwrap();
+                let parent_methods = unwrapped.methods.read().unwrap();
 
-                if parent_ref.methods.contains_key(name) {
-                    retval = parent_ref.methods.get(name).cloned();
+                if parent_methods.contains_key(name) {
+                    retval = parent_methods.get(name).cloned();
 
                     break;
                 }
 
-                parent = parent_ref.prototype.clone();
+                parent = unwrapped.prototype.read().unwrap().clone();
             }
         }
 
@@ -197,13 +216,15 @@ impl Object {
     }
 
     /// Adds a constant.
-    pub fn add_constant(&mut self, name: String, value: RcObject) {
-        self.constants.insert(name, value);
+    pub fn add_constant(&self, name: String, value: RcObject) {
+        let mut constants = self.constants.write().unwrap();
+
+        constants.insert(name, value);
     }
 
     /// Adds a constant with the same name as the object.
-    pub fn add_named_constant(&mut self, value: RcObject) {
-        let name = value.read().unwrap().name().unwrap().clone();
+    pub fn add_named_constant(&self, value: RcObject) {
+        let name = value.name.read().unwrap().clone().unwrap();
 
         self.add_constant(name, value);
     }
@@ -212,25 +233,28 @@ impl Object {
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        if self.constants.contains_key(name) {
-            retval = self.constants.get(name).cloned();
+        let constants = self.constants.read().unwrap();
+        let proto     = self.prototype.read().unwrap();
+
+        if constants.contains_key(name) {
+            retval = constants.get(name).cloned();
         }
 
         // Look up the constant in one of the parents.
-        else if self.prototype.is_some() {
-            let mut parent = self.prototype.clone();
+        else if proto.is_some() {
+            let mut parent = proto.clone();
 
             while parent.is_some() {
-                let unwrapped  = parent.unwrap();
-                let parent_ref = unwrapped.read().unwrap();
+                let unwrapped        = parent.unwrap();
+                let parent_constants = unwrapped.constants.read().unwrap();
 
-                if parent_ref.constants.contains_key(name) {
-                    retval = parent_ref.constants.get(name).cloned();
+                if parent_constants.contains_key(name) {
+                    retval = parent_constants.get(name).cloned();
 
                     break;
                 }
 
-                parent = parent_ref.prototype.clone();
+                parent = unwrapped.prototype.read().unwrap().clone();
             }
         }
 
@@ -238,32 +262,37 @@ impl Object {
     }
 
     /// Adds a new attribute to the object.
-    pub fn add_attribute(&mut self, name: String, object: RcObject) {
-        self.attributes.insert(name, object);
+    pub fn add_attribute(&self, name: String, object: RcObject) {
+        let mut attributes = self.attributes.write().unwrap();
+
+        attributes.insert(name, object);
     }
 
     /// Returns the attribute for the given name.
     pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        if self.attributes.contains_key(name) {
-            retval = self.attributes.get(name).cloned();
+        let proto      = self.prototype.read().unwrap();
+        let attributes = self.attributes.read().unwrap();
+
+        if attributes.contains_key(name) {
+            retval = attributes.get(name).cloned();
         }
 
-        else if self.prototype.is_some() {
-            let mut parent = self.prototype.clone();
+        else if proto.is_some() {
+            let mut parent = proto.clone();
 
             while parent.is_some() {
-                let unwrapped  = parent.unwrap();
-                let parent_ref = unwrapped.read().unwrap();
+                let unwrapped         = parent.unwrap();
+                let parent_attributes = unwrapped.attributes.read().unwrap();
 
-                if parent_ref.attributes.contains_key(name) {
-                    retval = parent_ref.attributes.get(name).cloned();
+                if parent_attributes.contains_key(name) {
+                    retval = parent_attributes.get(name).cloned();
 
                     break;
                 }
 
-                parent = parent_ref.prototype.clone();
+                parent = unwrapped.prototype.read().unwrap().clone();
             }
         }
 

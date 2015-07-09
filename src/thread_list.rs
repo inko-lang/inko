@@ -26,13 +26,13 @@ impl ThreadList {
     /// Removes a thread
     pub fn remove(&self, thread: RcObject) {
         let mut threads = self.threads.write().unwrap();
-        let thread_id   = thread.read().unwrap().id;
+        let thread_id   = thread.id();
 
         // TODO: Replace with some stdlib method
         let mut found: Option<usize> = None;
 
         for (index, thread) in threads.iter().enumerate() {
-            if thread.read().unwrap().id == thread_id {
+            if thread.id() == thread_id {
                 found = Some(index);
             }
         }
@@ -47,7 +47,7 @@ impl ThreadList {
         let threads = self.threads.read().unwrap();
 
         for thread in threads.iter() {
-            thread.write().unwrap().set_prototype(proto.clone());
+            thread.set_prototype(proto.clone());
         }
     }
 
@@ -56,8 +56,7 @@ impl ThreadList {
         let threads = self.threads.read().unwrap();
 
         for thread in threads.iter() {
-            let thread_obj = thread.write().unwrap();
-            let vm_thread  = thread_obj.value.unwrap_thread();
+            let vm_thread = thread.value.write().unwrap().unwrap_thread();
 
             vm_thread.stop();
 
