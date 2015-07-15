@@ -25,7 +25,7 @@ To extend another class:
 
     }
 
-    class Child extends Parent {
+    class Child : Parent {
 
     }
 
