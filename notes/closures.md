@@ -1,15 +1,18 @@
 # Closures
 
 Closures are anonymous functions that have access to local variables defined
-outside of a closure. A closure is created using curly braces:
+outside of a closure. A closure is created using parenthesis and curly braces:
 
-    { 'This is a closure' }
+    () { 'This is a closure' }
+
+The parenthesis are required to distinguish the closure syntax from hash
+literals.
 
 When assigned to a variable a closure can be called by either adding
 parenthesis or by explicitly invoking `call` (the former is just syntax sugar
 for this):
 
-    let closure = { 'This is a closure' }
+    let closure = () { 'This is a closure' }
 
     closure()
 
@@ -35,3 +38,16 @@ language knows that this closure will always return an `Integer`.
 
 Closures do not have their own `self` variable, instead they inherit `self` from
 whatever context the closure was created in.
+
+When calling methods there's a special way of passing closures as the last
+argument:
+
+    some_method {
+
+    }
+
+This is the same as:
+
+    some_method () {
+
+    }
