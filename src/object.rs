@@ -21,7 +21,6 @@ pub enum ObjectValue {
 }
 
 impl ObjectValue {
-    /// Returns true if the current value is an ObjectValue::Integer.
     pub fn is_integer(&self) -> bool {
         match *self {
             ObjectValue::Integer(_) => true,
@@ -29,7 +28,6 @@ impl ObjectValue {
         }
     }
 
-    /// Returns a wrapped integer or panics.
     pub fn unwrap_integer(&self) -> isize {
         match *self {
             ObjectValue::Integer(val) => val,
@@ -39,7 +37,6 @@ impl ObjectValue {
         }
     }
 
-    /// Returns a wrapped thread or panics.
     pub fn unwrap_thread(&self) -> RcThread {
         match *self {
             ObjectValue::Thread(ref val) => val.clone(),
@@ -61,16 +58,9 @@ pub struct Object {
     /// The name of the object, used in error messages if present.
     pub name: RwLock<Option<String>>,
 
-    /// The prototype of the object.
     pub prototype: RwLock<Option<RcObject>>,
-
-    /// The attributes of the object.
     pub attributes: RwLock<HashMap<String, RcObject>>,
-
-    /// The constants defined in this object.
     pub constants: RwLock<HashMap<String, RcObject>>,
-
-    /// The methods defined on this object.
     pub methods: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// A value associated with the object, if any.
@@ -82,7 +72,6 @@ pub struct Object {
 }
 
 impl Object {
-    /// Creates a new Object
     pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
             id: RwLock::new(id),
@@ -98,33 +87,28 @@ impl Object {
         Arc::new(obj)
     }
 
-    /// Returns the ID of this object.
     pub fn id(&self) -> usize {
         *self.id.read().unwrap()
     }
 
-    /// Sets the name of this object.
     pub fn set_name(&self, name: String) {
         let mut self_name = self.name.write().unwrap();
 
         *self_name = Some(name);
     }
 
-    /// Sets the prototype of this object.
     pub fn set_prototype(&self, prototype: RcObject) {
         let mut proto = self.prototype.write().unwrap();
 
         *proto = Some(prototype);
     }
 
-    /// Pins the current object.
     pub fn pin(&self) {
         let mut pinned = self.pinned.write().unwrap();
 
         *pinned = true;
     }
 
-    /// Unpins the current object.
     pub fn unpin(&self) {
         let mut pinned = self.pinned.write().unwrap();
 
@@ -175,14 +159,12 @@ impl Object {
         }
     }
 
-    /// Adds a new method.
     pub fn add_method(&self, name: String, code: RcCompiledCode) {
         let mut methods = self.methods.write().unwrap();
 
         methods.insert(name, code.clone());
     }
 
-    /// Looks up the method for the given name.
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
@@ -215,7 +197,6 @@ impl Object {
         retval
     }
 
-    /// Adds a constant.
     pub fn add_constant(&self, name: String, value: RcObject) {
         let mut constants = self.constants.write().unwrap();
 
@@ -229,7 +210,6 @@ impl Object {
         self.add_constant(name, value);
     }
 
-    /// Looks up a constant in the current or a parent object.
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
@@ -261,14 +241,12 @@ impl Object {
         retval
     }
 
-    /// Adds a new attribute to the object.
     pub fn add_attribute(&self, name: String, object: RcObject) {
         let mut attributes = self.attributes.write().unwrap();
 
         attributes.insert(name, object);
     }
 
-    /// Returns the attribute for the given name.
     pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
