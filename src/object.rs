@@ -53,7 +53,7 @@ pub type RcObject = Arc<Object>;
 /// Structure for storing information about a single Object.
 pub struct Object {
     /// A unique ID associated with the object.
-    pub id: RwLock<usize>,
+    pub id: usize,
 
     /// The name of the object, used in error messages if present.
     pub name: RwLock<Option<String>>,
@@ -74,7 +74,7 @@ pub struct Object {
 impl Object {
     pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
-            id: RwLock::new(id),
+            id: id,
             name: RwLock::new(None),
             prototype: RwLock::new(None),
             attributes: RwLock::new(HashMap::new()),
@@ -88,7 +88,7 @@ impl Object {
     }
 
     pub fn id(&self) -> usize {
-        *self.id.read().unwrap()
+        self.id
     }
 
     pub fn set_name(&self, name: String) {
