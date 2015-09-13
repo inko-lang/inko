@@ -111,67 +111,56 @@ impl MemoryManager {
         thread_obj
     }
 
-    /// Returns the integer prototype.
     pub fn integer_prototype(&self) -> Option<RcObject> {
         self.integer_prototype.read().unwrap().clone()
     }
 
-    /// Returns the float prototype.
     pub fn float_prototype(&self) -> Option<RcObject> {
         self.float_prototype.read().unwrap().clone()
     }
 
-    /// Returns the string prototype.
     pub fn string_prototype(&self) -> Option<RcObject> {
         self.string_prototype.read().unwrap().clone()
     }
 
-    /// Returns the array prototype.
     pub fn array_prototype(&self) -> Option<RcObject> {
         self.array_prototype.read().unwrap().clone()
     }
 
-    /// Returns the thread prototype.
     pub fn thread_prototype(&self) -> Option<RcObject> {
         self.thread_prototype.read().unwrap().clone()
     }
 
-    /// Sets the integer prototype.
     pub fn set_integer_prototype(&self, object: RcObject) {
         let mut proto = self.integer_prototype.write().unwrap();
 
         *proto = Some(object);
     }
 
-    /// Sets the float prototype.
     pub fn set_float_prototype(&self, object: RcObject) {
         let mut proto = self.float_prototype.write().unwrap();
 
         *proto = Some(object);
     }
 
-    /// Sets the string prototype.
     pub fn set_string_prototype(&self, object: RcObject) {
         let mut proto = self.string_prototype.write().unwrap();
 
         *proto = Some(object);
     }
 
-    /// Sets the array prototype.
     pub fn set_array_prototype(&self, object: RcObject) {
         let mut proto = self.array_prototype.write().unwrap();
 
         *proto = Some(object);
     }
 
-    /// Sets the thread prototype.
     pub fn set_thread_prototype(&self, object: RcObject) {
         let mut proto = self.thread_prototype.write().unwrap();
 
         *proto = Some(object);
     }
 
-    /// Returns a new object ID.
     fn new_object_id(&self) -> usize {
         let mut object_id = self.object_id.write().unwrap();
 
@@ -180,7 +169,6 @@ impl MemoryManager {
         *object_id
     }
 
-    /// Returns a new Object with an object ID.
     pub fn new_object(&self, value: ObjectValue) -> RcObject {
         let obj_id = self.new_object_id();
         let obj    = Object::new(obj_id, value);
