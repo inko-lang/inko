@@ -5,7 +5,6 @@
 //! allocated when actually needed.
 
 use std::collections::HashMap;
-use std::sync::RwLock;
 
 use compiled_code::RcCompiledCode;
 use object::RcObject;
