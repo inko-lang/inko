@@ -11,28 +11,25 @@ pub struct ThreadList {
 }
 
 impl ThreadList {
-    /// Returns a new ThreadList
     pub fn new() -> ThreadList {
         ThreadList {
             threads: RwLock::new(Vec::new())
         }
     }
 
-    /// Adds a new thread
     pub fn add(&self, thread: RcObject) {
         self.threads.write().unwrap().push(thread);
     }
 
-    /// Removes a thread
     pub fn remove(&self, thread: RcObject) {
         let mut threads = self.threads.write().unwrap();
-        let thread_id   = thread.id();
+        let thread_id   = thread.id;
 
         // TODO: Replace with some stdlib method
         let mut found: Option<usize> = None;
 
         for (index, thread) in threads.iter().enumerate() {
-            if thread.id() == thread_id {
+            if thread.id == thread_id {
                 found = Some(index);
             }
         }
@@ -51,7 +48,6 @@ impl ThreadList {
         }
     }
 
-    /// Stops all threads
     pub fn stop(&self) {
         let threads = self.threads.read().unwrap();
 

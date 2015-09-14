@@ -56,8 +56,6 @@ pub struct Object {
     pub id: usize,
     pub prototype: RwLock<Option<RcObject>>,
     pub header: RwLock<Option<Box<ObjectHeader>>>,
-
-    // TODO: use something like a pointer so Object isn't super fat size wise
     pub value: RwLock<ObjectValue>,
 }
 
@@ -71,10 +69,6 @@ impl Object {
         };
 
         Arc::new(obj)
-    }
-
-    pub fn id(&self) -> usize {
-        self.id
     }
 
     pub fn set_name(&self, name: String) {
