@@ -8,8 +8,8 @@ pub type ValuePointer = *const u8;
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
     None,
-    Integer(ValuePointer),
-    Float(ValuePointer),
+    Integer(isize),
+    Float(f64),
     ByteArray(ValuePointer),
     Array(ValuePointer),
     Thread(ValuePointer)
@@ -28,15 +28,7 @@ impl ObjectValue {
 
     pub fn as_integer(&self) -> isize {
         match *self {
-            ObjectValue::Integer(val) => {
-                unsafe {
-                    let boxed = mem::transmute::<ValuePointer, Box<isize>>(val);
-
-                    let pointer: *mut isize = mem::transmute(boxed);
-
-                    *pointer
-                }
-            },
+            ObjectValue::Integer(val) => val,
             _ => {
                 panic!("ObjectValue::as_integer() called on a non integer");
             }
@@ -68,23 +60,11 @@ pub fn thread(value: RcThread) -> ObjectValue {
 }
 
 pub fn integer(value: isize) -> ObjectValue {
-    let boxed = Box::new(value);
-
-    unsafe {
-        let pointer = mem::transmute::<Box<isize>, ValuePointer>(boxed);
-
-        ObjectValue::Integer(pointer)
-    }
+    ObjectValue::Integer(value)
 }
 
 pub fn float(value: f64) -> ObjectValue {
-    let boxed = Box::new(value);
-
-    unsafe {
-        let pointer = mem::transmute::<Box<f64>, ValuePointer>(boxed);
-
-        ObjectValue::Float(pointer)
-    }
+    ObjectValue::Float(value)
 }
 
 // TODO: remove me once strings are just regular arrays of integers.
