@@ -13,7 +13,8 @@ use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use instruction::{InstructionType, Instruction};
 use memory_manager::{MemoryManager, RcMemoryManager};
-use object::{ObjectValue, RcObject};
+use object::RcObject;
+use object_value;
 use thread::{Thread, RcThread};
 use thread_list::ThreadList;
 
@@ -568,7 +569,7 @@ pub trait ArcMethods {
 impl ArcMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         let thread_obj = self.run_thread(code, true);
-        let vm_thread  = thread_obj.value.write().unwrap().unwrap_thread();
+        let vm_thread  = thread_obj.value.write().unwrap().as_thread();
         let handle     = vm_thread.take_join_handle();
 
         if handle.is_some() {
@@ -830,7 +831,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let obj = self.memory_manager
-            .allocate(ObjectValue::Integer(value), prototype.clone());
+            .allocate(object_value::integer(value), prototype.clone());
 
         thread.set_register(slot, obj);
 
@@ -864,7 +865,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let obj = self.memory_manager
-            .allocate(ObjectValue::Float(value), prototype.clone());
+            .allocate(object_value::float(value), prototype.clone());
 
         thread.set_register(slot, obj);
 
@@ -900,7 +901,7 @@ impl ArcMethods for RcVirtualMachine {
         let bytes = value.bytes().collect();
 
         let obj = self.memory_manager
-            .allocate(ObjectValue::ByteArray(bytes), prototype.clone());
+            .allocate(object_value::byte_array(bytes), prototype.clone());
 
         thread.set_register(slot, obj);
 
@@ -917,7 +918,7 @@ impl ArcMethods for RcVirtualMachine {
 
         let proto_index_opt = instruction.arguments.get(1);
 
-        let obj = self.memory_manager.new_object(ObjectValue::None);
+        let obj = self.memory_manager.new_object(object_value::none());
 
         if proto_index_opt.is_some() {
             let proto_index = *proto_index_opt.unwrap();
@@ -962,7 +963,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let obj = self.memory_manager
-            .allocate(ObjectValue::Array(values), prototype.clone());
+            .allocate(object_value::array(values), prototype.clone());
 
         thread.set_register(slot, obj);
 
@@ -1603,10 +1604,10 @@ impl ArcMethods for RcVirtualMachine {
             )
         }
 
-        let added = left_val.unwrap_integer() + right_val.unwrap_integer();
+        let added = left_val.as_integer() + right_val.as_integer();
 
         let obj = self.memory_manager
-            .allocate(ObjectValue::Integer(added), prototype.clone());
+            .allocate(object_value::integer(added), prototype.clone());
 
         thread.set_register(slot, obj);
 
@@ -1714,7 +1715,7 @@ impl ArcMethods for RcVirtualMachine {
 
         let handle = thread::spawn(move || {
             let thread_obj: RcObject = chan_receiver.recv().unwrap();
-            let vm_thread = thread_obj.value.write().unwrap().unwrap_thread();
+            let vm_thread = thread_obj.value.write().unwrap().as_thread();
 
             let result = self_clone.run(vm_thread.clone(), code_clone);
 

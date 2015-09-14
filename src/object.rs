@@ -8,44 +8,7 @@ use std::sync::{Arc, RwLock};
 
 use compiled_code::RcCompiledCode;
 use object_header::ObjectHeader;
-use thread::RcThread;
-
-/// Enum for storing different values in an Object.
-pub enum ObjectValue {
-    None,
-    Integer(isize),
-    Float(f64),
-    ByteArray(Vec<u8>),
-    Array(Vec<RcObject>),
-    Thread(RcThread)
-}
-
-impl ObjectValue {
-    pub fn is_integer(&self) -> bool {
-        match *self {
-            ObjectValue::Integer(_) => true,
-            _                       => false
-        }
-    }
-
-    pub fn unwrap_integer(&self) -> isize {
-        match *self {
-            ObjectValue::Integer(val) => val,
-            _ => {
-                panic!("ObjectValue::unwrap_integer() called on a non integer");
-            }
-        }
-    }
-
-    pub fn unwrap_thread(&self) -> RcThread {
-        match *self {
-            ObjectValue::Thread(ref val) => val.clone(),
-            _ => {
-                panic!("ObjectValue::unwrap_thread() called on a non thread");
-            }
-        }
-    }
-}
+use object_value::ObjectValue;
 
 /// A mutable, reference counted Object.
 pub type RcObject = Arc<Object>;
@@ -56,7 +19,7 @@ pub struct Object {
     pub id: usize,
     pub prototype: RwLock<Option<RcObject>>,
     pub header: RwLock<Option<Box<ObjectHeader>>>,
-    pub value: RwLock<ObjectValue>,
+    pub value: RwLock<ObjectValue>
 }
 
 impl Object {

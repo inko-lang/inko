@@ -52,7 +52,7 @@ impl ThreadList {
         let threads = self.threads.read().unwrap();
 
         for thread in threads.iter() {
-            let vm_thread = thread.value.write().unwrap().unwrap_thread();
+            let vm_thread = thread.value.write().unwrap().as_thread();
 
             vm_thread.stop();
 

@@ -43,7 +43,8 @@ impl Heap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object::{Object, ObjectValue};
+    use object::Object;
+    use object_value;
 
     #[test]
     fn test_new() {
@@ -54,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let object = Object::new(1, ObjectValue::None);
+        let object = Object::new(1, object_value::none());
         let heap   = Heap::new();
 
         heap.write().unwrap().store(object);

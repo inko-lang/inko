@@ -9,7 +9,8 @@
 use std::sync::{Arc, RwLock};
 
 use heap::{Heap, RcHeap};
-use object::{Object, ObjectValue, RcObject};
+use object::{Object, RcObject};
+use object_value;
 use thread::RcThread;
 
 /// A reference counted MemoryManager.
@@ -42,7 +43,7 @@ pub struct MemoryManager {
     /// Prototype to use for array objects.
     pub array_prototype: RwLock<Option<RcObject>>,
 
-    /// Prototype to use for thread objets.
+    /// Prototype to use for thread objects.
     pub thread_prototype: RwLock<Option<RcObject>>
 }
 
@@ -52,7 +53,7 @@ impl MemoryManager {
     /// This also takes care of setting up the top-level object.
     ///
     pub fn new() -> RcMemoryManager {
-        let top_level   = Object::new(0, ObjectValue::None);
+        let top_level   = Object::new(0, object_value::none());
         let mature_heap = Heap::new();
 
         top_level.pin();
@@ -75,7 +76,7 @@ impl MemoryManager {
     }
 
     /// Creates and allocates a new RcObject.
-    pub fn allocate(&self, value: ObjectValue, proto: RcObject) -> RcObject {
+    pub fn allocate(&self, value: object_value::ObjectValue, proto: RcObject) -> RcObject {
         let obj = self.new_object(value);
 
         obj.set_prototype(proto);
@@ -95,10 +96,10 @@ impl MemoryManager {
         let proto = self.thread_prototype();
 
         let thread_obj = if proto.is_some() {
-            self.allocate(ObjectValue::Thread(thread), proto.unwrap().clone())
+            self.allocate(object_value::thread(thread), proto.unwrap().clone())
         }
         else {
-            let obj = self.new_object(ObjectValue::Thread(thread));
+            let obj = self.new_object(object_value::thread(thread));
 
             self.allocate_prepared(obj.clone());
 
@@ -169,7 +170,7 @@ impl MemoryManager {
         *object_id
     }
 
-    pub fn new_object(&self, value: ObjectValue) -> RcObject {
+    pub fn new_object(&self, value: object_value::ObjectValue) -> RcObject {
         let obj_id = self.new_object_id();
         let obj    = Object::new(obj_id, value);
 
