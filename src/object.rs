@@ -4,10 +4,10 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
 
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use compiled_code::RcCompiledCode;
+use object_header::ObjectHeader;
 use thread::RcThread;
 
 /// Enum for storing different values in an Object.
@@ -54,34 +54,20 @@ pub type RcObject = Arc<Object>;
 pub struct Object {
     /// A unique ID associated with the object.
     pub id: usize,
-
-    /// The name of the object, used in error messages if present.
-    pub name: RwLock<Option<String>>,
-
     pub prototype: RwLock<Option<RcObject>>,
-    pub attributes: RwLock<HashMap<String, RcObject>>,
-    pub constants: RwLock<HashMap<String, RcObject>>,
-    pub methods: RwLock<HashMap<String, RcCompiledCode>>,
+    pub header: RwLock<Option<Box<ObjectHeader>>>,
 
-    /// A value associated with the object, if any.
     // TODO: use something like a pointer so Object isn't super fat size wise
     pub value: RwLock<ObjectValue>,
-
-    /// When set to "true" this object won't be GC'd.
-    pub pinned: RwLock<bool>
 }
 
 impl Object {
     pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
             id: id,
-            name: RwLock::new(None),
             prototype: RwLock::new(None),
-            attributes: RwLock::new(HashMap::new()),
-            constants: RwLock::new(HashMap::new()),
-            methods: RwLock::new(HashMap::new()),
+            header: RwLock::new(None),
             value: RwLock::new(value),
-            pinned: RwLock::new(false)
         };
 
         Arc::new(obj)
@@ -92,9 +78,12 @@ impl Object {
     }
 
     pub fn set_name(&self, name: String) {
-        let mut self_name = self.name.write().unwrap();
+        self.allocate_header();
 
-        *self_name = Some(name);
+        let mut opt_header = self.header.write().unwrap();
+        let header_ref     = opt_header.as_mut().unwrap();
+
+        header_ref.name = Some(name);
     }
 
     pub fn set_prototype(&self, prototype: RcObject) {
@@ -104,27 +93,40 @@ impl Object {
     }
 
     pub fn pin(&self) {
-        let mut pinned = self.pinned.write().unwrap();
+        self.allocate_header();
 
-        *pinned = true;
+        let mut opt_header = self.header.write().unwrap();
+        let header_ref     = opt_header.as_mut().unwrap();
+
+        header_ref.pinned = true;
     }
 
     pub fn unpin(&self) {
-        let mut pinned = self.pinned.write().unwrap();
+        self.allocate_header();
 
-        *pinned = false;
+        let mut opt_header = self.header.write().unwrap();
+        let header_ref     = opt_header.as_mut().unwrap();
+
+        header_ref.pinned = false;
     }
 
     /// Returns an error message for undefined method calls.
     pub fn undefined_method_error(&self, name: &String) -> String {
-        let proto    = self.prototype.read().unwrap();
-        let obj_name = self.name.read().unwrap();
+        let proto      = self.prototype.read().unwrap();
+        let opt_header = self.header.read().unwrap();
+
+        let obj_name = if opt_header.is_some() {
+            opt_header.as_ref().unwrap().name.as_ref()
+        }
+        else {
+            None
+        };
 
         if obj_name.is_some() {
             format!(
                 "Undefined method \"{}\" called on a {}",
                 name,
-                obj_name.as_ref().unwrap()
+                obj_name.unwrap()
             )
         }
         else if proto.is_some() {
@@ -139,14 +141,21 @@ impl Object {
 
     /// Returns an error message for private method calls.
     pub fn private_method_error(&self, name: &String) -> String {
-        let proto    = self.prototype.read().unwrap();
-        let obj_name = self.name.read().unwrap();
+        let proto      = self.prototype.read().unwrap();
+        let opt_header = self.header.read().unwrap();
+
+        let obj_name = if opt_header.is_some() {
+            opt_header.as_ref().unwrap().name.as_ref()
+        }
+        else {
+            None
+        };
 
         if obj_name.is_some() {
             format!(
                 "Private method \"{}\" called on a {}",
                 name,
-                obj_name.as_ref().unwrap()
+                obj_name.unwrap()
             )
         }
         else if proto.is_some() {
@@ -160,37 +169,51 @@ impl Object {
     }
 
     pub fn add_method(&self, name: String, code: RcCompiledCode) {
-        let mut methods = self.methods.write().unwrap();
+        self.allocate_header();
 
-        methods.insert(name, code.clone());
+        let mut opt_header = self.header.write().unwrap();
+        let mut header_ref = opt_header.as_mut().unwrap();
+
+        header_ref.methods.insert(name, code.clone());
     }
 
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
-        let methods = self.methods.read().unwrap();
-        let proto   = self.prototype.read().unwrap();
+        let opt_header = self.header.read().unwrap();
+
+        if opt_header.is_none() {
+            return retval;
+        }
+
+        let header = opt_header.as_ref().unwrap();
+        let proto  = self.prototype.read().unwrap();
 
         // Method defined directly on the object
-        if methods.contains_key(name) {
-            retval = methods.get(name).cloned();
+        if header.methods.contains_key(name) {
+            retval = header.methods.get(name).cloned();
         }
 
         // Method defined somewhere in the object hierarchy
         else if proto.is_some() {
-            let mut parent = proto.clone();
+            let mut opt_parent = proto.clone();
 
-            while parent.is_some() {
-                let unwrapped      = parent.unwrap();
-                let parent_methods = unwrapped.methods.read().unwrap();
+            while opt_parent.is_some() {
+                let parent = opt_parent.unwrap();
 
-                if parent_methods.contains_key(name) {
-                    retval = parent_methods.get(name).cloned();
+                let opt_parent_header = parent.header.read().unwrap();
 
-                    break;
+                if opt_parent_header.is_some() {
+                    let parent_header = opt_parent_header.as_ref().unwrap();
+
+                    if parent_header.methods.contains_key(name) {
+                        retval = parent_header.methods.get(name).cloned();
+
+                        break;
+                    }
                 }
 
-                parent = unwrapped.prototype.read().unwrap().clone();
+                opt_parent = parent.prototype.read().unwrap().clone();
             }
         }
 
@@ -198,43 +221,60 @@ impl Object {
     }
 
     pub fn add_constant(&self, name: String, value: RcObject) {
-        let mut constants = self.constants.write().unwrap();
+        self.allocate_header();
 
-        constants.insert(name, value);
+        let mut opt_header = self.header.write().unwrap();
+        let mut header_ref = opt_header.as_mut().unwrap();
+
+        header_ref.constants.insert(name, value);
     }
 
     /// Adds a constant with the same name as the object.
     pub fn add_named_constant(&self, value: RcObject) {
-        let name = value.name.read().unwrap().clone().unwrap();
+        let opt_header = value.header.read().unwrap();
+        let header_ref = opt_header.as_ref().unwrap();
 
-        self.add_constant(name, value);
+        let name = header_ref.name.clone().unwrap();
+
+        self.add_constant(name, value.clone());
     }
 
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let constants = self.constants.read().unwrap();
-        let proto     = self.prototype.read().unwrap();
+        let opt_header = self.header.read().unwrap();
 
-        if constants.contains_key(name) {
-            retval = constants.get(name).cloned();
+        if opt_header.is_none() {
+            return retval;
+        }
+
+        let header = opt_header.as_ref().unwrap();
+        let proto  = self.prototype.read().unwrap();
+
+        if header.constants.contains_key(name) {
+            retval = header.constants.get(name).cloned();
         }
 
         // Look up the constant in one of the parents.
         else if proto.is_some() {
-            let mut parent = proto.clone();
+            let mut opt_parent = proto.clone();
 
-            while parent.is_some() {
-                let unwrapped        = parent.unwrap();
-                let parent_constants = unwrapped.constants.read().unwrap();
+            while opt_parent.is_some() {
+                let parent = opt_parent.unwrap();
 
-                if parent_constants.contains_key(name) {
-                    retval = parent_constants.get(name).cloned();
+                let opt_parent_header = parent.header.read().unwrap();
 
-                    break;
+                if opt_parent_header.is_some() {
+                    let parent_header = opt_parent_header.as_ref().unwrap();
+
+                    if parent_header.constants.contains_key(name) {
+                        retval = parent_header.constants.get(name).cloned();
+
+                        break;
+                    }
                 }
 
-                parent = unwrapped.prototype.read().unwrap().clone();
+                opt_parent = parent.prototype.read().unwrap().clone();
             }
         }
 
@@ -242,38 +282,37 @@ impl Object {
     }
 
     pub fn add_attribute(&self, name: String, object: RcObject) {
-        let mut attributes = self.attributes.write().unwrap();
+        self.allocate_header();
 
-        attributes.insert(name, object);
+        let mut opt_header = self.header.write().unwrap();
+        let mut header_ref = opt_header.as_mut().unwrap();
+
+        header_ref.attributes.insert(name, object.clone());
     }
 
     pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let proto      = self.prototype.read().unwrap();
-        let attributes = self.attributes.read().unwrap();
+        let opt_header = self.header.read().unwrap();
 
-        if attributes.contains_key(name) {
-            retval = attributes.get(name).cloned();
+        if opt_header.is_none() {
+            return retval;
         }
 
-        else if proto.is_some() {
-            let mut parent = proto.clone();
+        let header = opt_header.as_ref().unwrap();
 
-            while parent.is_some() {
-                let unwrapped         = parent.unwrap();
-                let parent_attributes = unwrapped.attributes.read().unwrap();
-
-                if parent_attributes.contains_key(name) {
-                    retval = parent_attributes.get(name).cloned();
-
-                    break;
-                }
-
-                parent = unwrapped.prototype.read().unwrap().clone();
-            }
+        if header.attributes.contains_key(name) {
+            retval = header.attributes.get(name).cloned();
         }
 
         retval
+    }
+
+    fn allocate_header(&self) {
+        let mut header = self.header.write().unwrap();
+
+        if header.is_none() {
+            *header = Some(Box::new(ObjectHeader::new()));
+        }
     }
 }

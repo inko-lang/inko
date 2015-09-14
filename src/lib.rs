@@ -10,6 +10,7 @@ pub mod heap;
 pub mod instruction;
 pub mod memory_manager;
 pub mod object;
+pub mod object_header;
 pub mod register;
 pub mod thread;
 pub mod thread_list;
