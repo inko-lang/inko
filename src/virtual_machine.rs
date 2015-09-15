@@ -569,7 +569,7 @@ pub trait ArcMethods {
 impl ArcMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         let thread_obj = self.run_thread(code, true);
-        let vm_thread  = thread_obj.value.write().unwrap().as_thread();
+        let vm_thread  = thread_obj.write().unwrap().value.as_thread();
         let handle     = vm_thread.take_join_handle();
 
         if handle.is_some() {
@@ -928,7 +928,7 @@ impl ArcMethods for RcVirtualMachine {
                     .ok_or("set_object: prototype is undefined".to_string())
             );
 
-            obj.set_prototype(proto);
+            obj.write().unwrap().set_prototype(proto);
         }
 
         self.memory_manager.allocate_prepared(obj.clone());
@@ -995,7 +995,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_name: undefined string literal".to_string())
         );
 
-        obj.set_name(name.clone());
+        obj.write().unwrap().set_name(name.clone());
 
         Ok(())
     }
@@ -1180,7 +1180,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_const: undefined string literal".to_string())
         );
 
-        target.add_constant(name.clone(), source);
+        target.write().unwrap().add_constant(name.clone(), source);
 
         Ok(())
     }
@@ -1217,7 +1217,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let object = try!(
-            src.lookup_constant(name)
+            src.read().unwrap().lookup_constant(name)
                 .ok_or(format!("get_const: Undefined constant {}", name))
         );
 
@@ -1262,7 +1262,8 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_attr: undefined string literal".to_string())
         );
 
-        target_object.add_attribute(name.clone(), source_object);
+        target_object.write().unwrap()
+            .add_attribute(name.clone(), source_object);
 
         Ok(())
     }
@@ -1299,7 +1300,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let attr = try!(
-            source.lookup_attribute(name)
+            source.read().unwrap().lookup_attribute(name)
                 .ok_or(format!("get_attr: undefined attribute \"{}\"", name))
         );
 
@@ -1346,13 +1347,15 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("send: undefined string literal".to_string())
         );
 
-        let receiver = try!(
+        let receiver_lock = try!(
             thread.get_register(receiver_slot)
                 .ok_or(format!(
                     "send: \"{}\" called on an undefined receiver",
                     name
                 ))
         );
+
+        let receiver = receiver_lock.read().unwrap();
 
         let method_code = try!(
             receiver.lookup_method(name)
@@ -1377,7 +1380,7 @@ impl ArcMethods for RcVirtualMachine {
         }
 
         // Expose the receiver as "self" to the method
-        arguments.insert(0, receiver);
+        arguments.insert(0, receiver_lock.clone());
 
         let retval = try!(
             self.run_code(thread.clone(), method_code, arguments)
@@ -1481,7 +1484,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("def_method: missing code object index".to_string())
         );
 
-        let receiver = try!(
+        let receiver_lock = try!(
             thread.get_register(receiver_index)
                 .ok_or("def_method: undefined receiver".to_string())
         );
@@ -1498,6 +1501,8 @@ impl ArcMethods for RcVirtualMachine {
                 .cloned()
                 .ok_or("def_method: undefined code object index".to_string())
         );
+
+        let mut receiver = receiver_lock.write().unwrap();
 
         receiver.add_method(name.clone(), method_code);
 
@@ -1579,12 +1584,12 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("integer_add: missing right-hand slot index".to_string())
         );
 
-        let left_object = try!(
+        let left_object_lock = try!(
             thread.get_register(left_index)
                 .ok_or("integer_add: undefined left-hand object".to_string())
         );
 
-        let right_object = try!(
+        let right_object_lock = try!(
             thread.get_register(right_index)
                 .ok_or("integer_add: undefined right-hand object".to_string())
         );
@@ -1595,16 +1600,17 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("integer_add: no Integer prototype set up".to_string())
         );
 
-        let left_val  = left_object.value.read().unwrap();
-        let right_val = right_object.value.read().unwrap();
+        let left_object  = left_object_lock.read().unwrap();
+        let right_object = right_object_lock.read().unwrap();
 
-        if !left_val.is_integer() || !right_val.is_integer() {
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
             return Err(
                 "integer_add: both objects must be integers".to_string()
             )
         }
 
-        let added = left_val.as_integer() + right_val.as_integer();
+        let added = left_object.value.as_integer() +
+            right_object.value.as_integer();
 
         let obj = self.memory_manager
             .allocate(object_value::integer(added), prototype.clone());
@@ -1715,7 +1721,7 @@ impl ArcMethods for RcVirtualMachine {
 
         let handle = thread::spawn(move || {
             let thread_obj: RcObject = chan_receiver.recv().unwrap();
-            let vm_thread = thread_obj.value.write().unwrap().as_thread();
+            let vm_thread = thread_obj.read().unwrap().value.as_thread();
 
             let result = self_clone.run(vm_thread.clone(), code_clone);
 
@@ -1723,7 +1729,7 @@ impl ArcMethods for RcVirtualMachine {
 
             // After this there's a chance thread_obj might be GC'd so we can't
             // reliably use it any more.
-            thread_obj.unpin();
+            thread_obj.write().unwrap().unpin();
 
             match result {
                 Ok(obj) => {

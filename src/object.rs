@@ -11,69 +11,64 @@ use object_header::ObjectHeader;
 use object_value::ObjectValue;
 
 /// A mutable, reference counted Object.
-pub type RcObject = Arc<Object>;
+pub type RcObject = Arc<RwLock<Object>>;
 
 /// Structure for storing information about a single Object.
 pub struct Object {
     /// A unique ID associated with the object.
     pub id: usize,
-    pub prototype: RwLock<Option<RcObject>>,
-    pub header: RwLock<Option<Box<ObjectHeader>>>,
-    pub value: RwLock<ObjectValue>
+    pub prototype: Option<RcObject>,
+    pub header: Option<Box<ObjectHeader>>,
+    pub value: ObjectValue
 }
 
 impl Object {
     pub fn new(id: usize, value: ObjectValue) -> RcObject {
         let obj = Object {
             id: id,
-            prototype: RwLock::new(None),
-            header: RwLock::new(None),
-            value: RwLock::new(value),
+            prototype: None,
+            header: None,
+            value: value,
         };
 
-        Arc::new(obj)
+        Arc::new(RwLock::new(obj))
     }
 
-    pub fn set_name(&self, name: String) {
+    pub fn set_name(&mut self, name: String) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let header_ref     = opt_header.as_mut().unwrap();
+        let header_ref = self.header.as_mut().unwrap();
 
         header_ref.name = Some(name);
     }
 
-    pub fn set_prototype(&self, prototype: RcObject) {
-        let mut proto = self.prototype.write().unwrap();
-
-        *proto = Some(prototype);
+    pub fn set_prototype(&mut self, prototype: RcObject) {
+        self.prototype = Some(prototype);
     }
 
-    pub fn pin(&self) {
+    pub fn pin(&mut self) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let header_ref     = opt_header.as_mut().unwrap();
+        let header_ref = self.header.as_mut().unwrap();
 
         header_ref.pinned = true;
     }
 
-    pub fn unpin(&self) {
+    pub fn unpin(&mut self) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let header_ref     = opt_header.as_mut().unwrap();
+        let header_ref = self.header.as_mut().unwrap();
 
         header_ref.pinned = false;
     }
 
     /// Returns an error message for undefined method calls.
     pub fn undefined_method_error(&self, name: &String) -> String {
-        let proto      = self.prototype.read().unwrap();
-        let opt_header = self.header.read().unwrap();
+        let proto      = self.prototype.as_ref();
+        let opt_header = self.header.as_ref();
 
         let obj_name = if opt_header.is_some() {
-            opt_header.as_ref().unwrap().name.as_ref()
+            opt_header.unwrap().name.as_ref()
         }
         else {
             None
@@ -87,7 +82,7 @@ impl Object {
             )
         }
         else if proto.is_some() {
-            let proto_unwrapped = proto.as_ref().unwrap();
+            let proto_unwrapped = proto.unwrap().read().unwrap();
 
             proto_unwrapped.undefined_method_error(name)
         }
@@ -98,11 +93,11 @@ impl Object {
 
     /// Returns an error message for private method calls.
     pub fn private_method_error(&self, name: &String) -> String {
-        let proto      = self.prototype.read().unwrap();
-        let opt_header = self.header.read().unwrap();
+        let proto      = self.prototype.as_ref();
+        let opt_header = self.header.as_ref();
 
         let obj_name = if opt_header.is_some() {
-            opt_header.as_ref().unwrap().name.as_ref()
+            opt_header.unwrap().name.as_ref()
         }
         else {
             None
@@ -116,7 +111,7 @@ impl Object {
             )
         }
         else if proto.is_some() {
-            let proto_unwrapped = proto.as_ref().unwrap();
+            let proto_unwrapped = proto.unwrap().read().unwrap();
 
             proto_unwrapped.private_method_error(name)
         }
@@ -125,11 +120,10 @@ impl Object {
         }
     }
 
-    pub fn add_method(&self, name: String, code: RcCompiledCode) {
+    pub fn add_method(&mut self, name: String, code: RcCompiledCode) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let mut header_ref = opt_header.as_mut().unwrap();
+        let mut header_ref = self.header.as_mut().unwrap();
 
         header_ref.methods.insert(name, code.clone());
     }
@@ -137,14 +131,13 @@ impl Object {
     pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
         let mut retval: Option<RcCompiledCode> = None;
 
-        let opt_header = self.header.read().unwrap();
+        let opt_header = self.header.as_ref();
 
         if opt_header.is_none() {
             return retval;
         }
 
-        let header = opt_header.as_ref().unwrap();
-        let proto  = self.prototype.read().unwrap();
+        let header = opt_header.unwrap();
 
         // Method defined directly on the object
         if header.methods.contains_key(name) {
@@ -152,16 +145,17 @@ impl Object {
         }
 
         // Method defined somewhere in the object hierarchy
-        else if proto.is_some() {
-            let mut opt_parent = proto.clone();
+        else if self.prototype.is_some() {
+            let mut opt_parent = self.prototype.clone();
 
             while opt_parent.is_some() {
-                let parent = opt_parent.unwrap();
+                let parent_ref = opt_parent.unwrap();
+                let parent     = parent_ref.read().unwrap();
 
-                let opt_parent_header = parent.header.read().unwrap();
+                let opt_parent_header = parent.header.as_ref();
 
                 if opt_parent_header.is_some() {
-                    let parent_header = opt_parent_header.as_ref().unwrap();
+                    let parent_header = opt_parent_header.unwrap();
 
                     if parent_header.methods.contains_key(name) {
                         retval = parent_header.methods.get(name).cloned();
@@ -170,26 +164,25 @@ impl Object {
                     }
                 }
 
-                opt_parent = parent.prototype.read().unwrap().clone();
+                opt_parent = parent.prototype.clone();
             }
         }
 
         retval
     }
 
-    pub fn add_constant(&self, name: String, value: RcObject) {
+    pub fn add_constant(&mut self, name: String, value: RcObject) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let mut header_ref = opt_header.as_mut().unwrap();
+        let mut header_ref = self.header.as_mut().unwrap();
 
         header_ref.constants.insert(name, value);
     }
 
     /// Adds a constant with the same name as the object.
-    pub fn add_named_constant(&self, value: RcObject) {
-        let opt_header = value.header.read().unwrap();
-        let header_ref = opt_header.as_ref().unwrap();
+    pub fn add_named_constant(&mut self, value: RcObject) {
+        let value_ref  = value.read().unwrap();
+        let header_ref = value_ref.header.as_ref().unwrap();
 
         let name = header_ref.name.clone().unwrap();
 
@@ -199,30 +192,30 @@ impl Object {
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let opt_header = self.header.read().unwrap();
+        let opt_header = self.header.as_ref();
 
         if opt_header.is_none() {
             return retval;
         }
 
-        let header = opt_header.as_ref().unwrap();
-        let proto  = self.prototype.read().unwrap();
+        let header = opt_header.unwrap();
 
         if header.constants.contains_key(name) {
             retval = header.constants.get(name).cloned();
         }
 
         // Look up the constant in one of the parents.
-        else if proto.is_some() {
-            let mut opt_parent = proto.clone();
+        else if self.prototype.is_some() {
+            let mut opt_parent = self.prototype.clone();
 
             while opt_parent.is_some() {
-                let parent = opt_parent.unwrap();
+                let parent_ref = opt_parent.unwrap();
+                let parent     = parent_ref.read().unwrap();
 
-                let opt_parent_header = parent.header.read().unwrap();
+                let opt_parent_header = parent.header.as_ref();
 
                 if opt_parent_header.is_some() {
-                    let parent_header = opt_parent_header.as_ref().unwrap();
+                    let parent_header = opt_parent_header.unwrap();
 
                     if parent_header.constants.contains_key(name) {
                         retval = parent_header.constants.get(name).cloned();
@@ -231,32 +224,31 @@ impl Object {
                     }
                 }
 
-                opt_parent = parent.prototype.read().unwrap().clone();
+                opt_parent = parent.prototype.clone();
             }
         }
 
         retval
     }
 
-    pub fn add_attribute(&self, name: String, object: RcObject) {
+    pub fn add_attribute(&mut self, name: String, object: RcObject) {
         self.allocate_header();
 
-        let mut opt_header = self.header.write().unwrap();
-        let mut header_ref = opt_header.as_mut().unwrap();
+        let header = self.header.as_mut().unwrap();
 
-        header_ref.attributes.insert(name, object.clone());
+        header.attributes.insert(name, object.clone());
     }
 
     pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 
-        let opt_header = self.header.read().unwrap();
+        let opt_header = self.header.as_ref();
 
         if opt_header.is_none() {
             return retval;
         }
 
-        let header = opt_header.as_ref().unwrap();
+        let header = opt_header.unwrap();
 
         if header.attributes.contains_key(name) {
             retval = header.attributes.get(name).cloned();
@@ -265,11 +257,9 @@ impl Object {
         retval
     }
 
-    fn allocate_header(&self) {
-        let mut header = self.header.write().unwrap();
-
-        if header.is_none() {
-            *header = Some(Box::new(ObjectHeader::new()));
+    fn allocate_header(&mut self) {
+        if self.header.is_none() {
+            self.header = Some(Box::new(ObjectHeader::new()));
         }
     }
 }
