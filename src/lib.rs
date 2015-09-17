@@ -1,8 +1,3 @@
-pub mod gc {
-    mod baker;
-    mod immix;
-}
-
 pub mod call_frame;
 pub mod compiled_code;
 pub mod constant_cache;
