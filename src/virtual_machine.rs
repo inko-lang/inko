@@ -581,6 +581,10 @@ impl ArcMethods for RcVirtualMachine {
 
     fn run(&self, thread: RcThread,
                code: RcCompiledCode) -> Result<Option<RcObject>, String> {
+        if thread.should_stop() {
+            return Ok(None);
+        }
+
         let mut skip_until: Option<usize> = None;
         let mut retval = None;
 
@@ -589,11 +593,6 @@ impl ArcMethods for RcVirtualMachine {
 
         while index < count {
             let ref instruction = code.instructions[index];
-
-            // TODO: this might be too expensive for every instruction.
-            if thread.should_stop() {
-                return Ok(None);
-            }
 
             if skip_until.is_some() {
                 if index < skip_until.unwrap() {
