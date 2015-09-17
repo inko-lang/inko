@@ -51,7 +51,7 @@ impl Thread {
     }
 
     pub fn push_call_frame(&self, mut frame: CallFrame) {
-        let mut target = self.call_frame.write().unwrap();
+        let mut target = write_lock!(self.call_frame);
 
         mem::swap(&mut *target, &mut frame);
 
@@ -59,7 +59,7 @@ impl Thread {
     }
 
     pub fn pop_call_frame(&self) {
-        let mut target = self.call_frame.write().unwrap();
+        let mut target = write_lock!(self.call_frame);
         let parent     = target.parent.take().unwrap();
 
         // TODO: this might move the data from heap back to the stack?
@@ -67,51 +67,51 @@ impl Thread {
     }
 
     pub fn set_main(&self) {
-        *self.main_thread.write().unwrap() = true;
+        *write_lock!(self.main_thread) = true;
     }
 
     pub fn set_value(&self, value: Option<RcObject>) {
-        *self.value.write().unwrap() = value;
+        *write_lock!(self.value) = value;
     }
 
     pub fn stop(&self) {
-        *self.should_stop.write().unwrap() = true;
+        *write_lock!(self.should_stop) = true;
     }
 
     pub fn take_join_handle(&self) -> Option<JoinHandle> {
-        self.join_handle.write().unwrap().take()
+        write_lock!(self.join_handle).take()
     }
 
     pub fn should_stop(&self) -> bool {
-        *self.should_stop.read().unwrap()
+        *read_lock!(self.should_stop)
     }
 
     pub fn get_register(&self, slot: usize) -> Option<RcObject> {
-        let frame = self.call_frame.read().unwrap();
+        let frame = read_lock!(self.call_frame);
 
         frame.register.get(slot)
     }
 
     pub fn set_register(&self, slot: usize, value: RcObject) {
-        let mut frame = self.call_frame.write().unwrap();
+        let mut frame = write_lock!(self.call_frame);
 
         frame.register.set(slot, value);
     }
 
     pub fn set_local(&self, index: usize, value: RcObject) {
-        let mut frame = self.call_frame.write().unwrap();
+        let mut frame = write_lock!(self.call_frame);
 
         frame.variables.insert(index, value);
     }
 
     pub fn add_local(&self, value: RcObject) {
-        let mut frame = self.call_frame.write().unwrap();
+        let mut frame = write_lock!(self.call_frame);
 
         frame.variables.add(value);
     }
 
     pub fn get_local(&self, index: usize) -> Option<RcObject> {
-        let frame = self.call_frame.read().unwrap();
+        let frame = read_lock!(self.call_frame);
 
         frame.variables.get(index)
     }

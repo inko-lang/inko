@@ -3,6 +3,7 @@ pub mod compiled_code;
 pub mod constant_cache;
 pub mod heap;
 pub mod instruction;
+pub mod macros;
 pub mod memory_manager;
 pub mod object;
 pub mod object_header;

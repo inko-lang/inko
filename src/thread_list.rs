@@ -18,18 +18,18 @@ impl ThreadList {
     }
 
     pub fn add(&self, thread: RcObject) {
-        self.threads.write().unwrap().push(thread);
+        write_lock!(self.threads).push(thread);
     }
 
     pub fn remove(&self, thread: RcObject) {
-        let mut threads = self.threads.write().unwrap();
-        let thread_id   = thread.read().unwrap().id;
+        let mut threads = write_lock!(self.threads);
+        let thread_id   = read_lock!(thread).id;
 
         // TODO: Replace with some stdlib method
         let mut found: Option<usize> = None;
 
         for (index, thread) in threads.iter().enumerate() {
-            if thread.read().unwrap().id == thread_id {
+            if read_lock!(thread).id == thread_id {
                 found = Some(index);
             }
         }
@@ -41,18 +41,18 @@ impl ThreadList {
 
     /// Sets the prototype of all threads
     pub fn set_prototype(&self, proto: RcObject) {
-        let threads = self.threads.read().unwrap();
+        let threads = read_lock!(self.threads);
 
         for thread in threads.iter() {
-            thread.write().unwrap().set_prototype(proto.clone());
+            write_lock!(thread).set_prototype(proto.clone());
         }
     }
 
     pub fn stop(&self) {
-        let threads = self.threads.read().unwrap();
+        let threads = read_lock!(self.threads);
 
         for thread in threads.iter() {
-            let vm_thread = thread.read().unwrap().value.as_thread();
+            let vm_thread = read_lock!(thread).value.as_thread();
 
             vm_thread.stop();
 

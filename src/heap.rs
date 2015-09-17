@@ -50,7 +50,7 @@ mod tests {
     fn test_new() {
         let heap = Heap::new();
 
-        assert_eq!(heap.read().unwrap().objects.capacity(), DEFAULT_CAPACITY);
+        assert_eq!(read_lock!(heap).objects.capacity(), DEFAULT_CAPACITY);
     }
 
     #[test]
@@ -58,8 +58,8 @@ mod tests {
         let object = Object::new(1, object_value::none());
         let heap   = Heap::new();
 
-        heap.write().unwrap().store(object);
+        write_lock!(heap).store(object);
 
-        assert_eq!(heap.read().unwrap().objects.len(), 1);
+        assert_eq!(read_lock!(heap).objects.len(), 1);
     }
 }

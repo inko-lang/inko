@@ -82,7 +82,7 @@ impl Object {
             )
         }
         else if proto.is_some() {
-            let proto_unwrapped = proto.unwrap().read().unwrap();
+            let proto_unwrapped = read_lock!(proto.unwrap());
 
             proto_unwrapped.undefined_method_error(name)
         }
@@ -111,7 +111,7 @@ impl Object {
             )
         }
         else if proto.is_some() {
-            let proto_unwrapped = proto.unwrap().read().unwrap();
+            let proto_unwrapped = read_lock!(proto.unwrap());
 
             proto_unwrapped.private_method_error(name)
         }
@@ -150,7 +150,7 @@ impl Object {
 
             while opt_parent.is_some() {
                 let parent_ref = opt_parent.unwrap();
-                let parent     = parent_ref.read().unwrap();
+                let parent     = read_lock!(parent_ref);
 
                 let opt_parent_header = parent.header.as_ref();
 
@@ -181,7 +181,7 @@ impl Object {
 
     /// Adds a constant with the same name as the object.
     pub fn add_named_constant(&mut self, value: RcObject) {
-        let value_ref  = value.read().unwrap();
+        let value_ref  = read_lock!(value);
         let header_ref = value_ref.header.as_ref().unwrap();
 
         let name = header_ref.name.clone().unwrap();
@@ -210,7 +210,7 @@ impl Object {
 
             while opt_parent.is_some() {
                 let parent_ref = opt_parent.unwrap();
-                let parent     = parent_ref.read().unwrap();
+                let parent     = read_lock!(parent_ref);
 
                 let opt_parent_header = parent.header.as_ref();
 
