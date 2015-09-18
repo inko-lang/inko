@@ -824,12 +824,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let prototype = try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .integer_prototype()
                 .ok_or("set_integer: no Integer prototype set up".to_string())
         );
 
-        let obj = self.memory_manager
+        let obj = write_lock!(self.memory_manager)
             .allocate(object_value::integer(value), prototype.clone());
 
         thread.set_register(slot, obj);
@@ -858,12 +858,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let prototype = try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .float_prototype()
                 .ok_or("set_float: no Float prototype set up".to_string())
         );
 
-        let obj = self.memory_manager
+        let obj = write_lock!(self.memory_manager)
             .allocate(object_value::float(value), prototype.clone());
 
         thread.set_register(slot, obj);
@@ -892,14 +892,14 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let prototype = try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .string_prototype()
                 .ok_or("set_string: no String prototype set up".to_string())
         );
 
         let bytes = value.bytes().collect();
 
-        let obj = self.memory_manager
+        let obj = write_lock!(self.memory_manager)
             .allocate(object_value::byte_array(bytes), prototype.clone());
 
         thread.set_register(slot, obj);
@@ -917,7 +917,8 @@ impl ArcMethods for RcVirtualMachine {
 
         let proto_index_opt = instruction.arguments.get(1);
 
-        let obj = self.memory_manager.new_object(object_value::none());
+        let obj = write_lock!(self.memory_manager)
+            .new_object(object_value::none());
 
         if proto_index_opt.is_some() {
             let proto_index = *proto_index_opt.unwrap();
@@ -930,7 +931,8 @@ impl ArcMethods for RcVirtualMachine {
             write_lock!(obj).set_prototype(proto);
         }
 
-        self.memory_manager.allocate_prepared(obj.clone());
+        write_lock!(self.memory_manager)
+            .allocate_prepared(obj.clone());
 
         thread.set_register(slot, obj);
 
@@ -956,12 +958,12 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let prototype = try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .array_prototype()
                 .ok_or("set_array: no Array prototype set up".to_string())
         );
 
-        let obj = self.memory_manager
+        let obj = write_lock!(self.memory_manager)
             .allocate(object_value::array(values), prototype.clone());
 
         thread.set_register(slot, obj);
@@ -1012,7 +1014,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_integer_prototype: undefined source object")
         );
 
-        self.memory_manager.set_integer_prototype(object);
+        write_lock!(self.memory_manager).set_integer_prototype(object);
 
         Ok(())
     }
@@ -1030,7 +1032,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_float_prototype: undefined source object")
         );
 
-        self.memory_manager.set_float_prototype(object);
+        write_lock!(self.memory_manager).set_float_prototype(object);
 
         Ok(())
     }
@@ -1048,7 +1050,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_string_prototype: undefined source object")
         );
 
-        self.memory_manager.set_string_prototype(object);
+        write_lock!(self.memory_manager).set_string_prototype(object);
 
         Ok(())
     }
@@ -1067,7 +1069,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_array_prototype: undefined source object")
         );
 
-        self.memory_manager.set_array_prototype(object);
+        write_lock!(self.memory_manager).set_array_prototype(object);
 
         Ok(())
     }
@@ -1086,7 +1088,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_array_prototype: undefined source object")
         );
 
-        self.memory_manager.set_thread_prototype(object.clone());
+        write_lock!(self.memory_manager).set_thread_prototype(object.clone());
 
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
@@ -1556,7 +1558,7 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("get_toplevel: missing slot index")
         );
 
-        let top_level = self.memory_manager.top_level.clone();
+        let top_level = read_lock!(self.memory_manager).top_level.clone();
 
         thread.set_register(slot, top_level);
 
@@ -1594,7 +1596,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         let prototype = try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .integer_prototype()
                 .ok_or("integer_add: no Integer prototype set up".to_string())
         );
@@ -1611,7 +1613,7 @@ impl ArcMethods for RcVirtualMachine {
         let added = left_object.value.as_integer() +
             right_object.value.as_integer();
 
-        let obj = self.memory_manager
+        let obj = write_lock!(self.memory_manager)
             .allocate(object_value::integer(added), prototype.clone());
 
         thread.set_register(slot, obj);
@@ -1641,7 +1643,7 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         try!(
-            self.memory_manager
+            read_lock!(self.memory_manager)
                 .thread_prototype()
                 .ok_or("start_thread: no Thread prototype set up".to_string())
         );
@@ -1742,8 +1744,10 @@ impl ArcMethods for RcVirtualMachine {
             };
         });
 
-        let vm_thread  = Thread::from_code(code.clone(), Some(handle));
-        let thread_obj = self.memory_manager.allocate_thread(vm_thread.clone());
+        let vm_thread = Thread::from_code(code.clone(), Some(handle));
+
+        let thread_obj = write_lock!(self.memory_manager)
+            .allocate_thread(vm_thread.clone());
 
         self.threads.add(thread_obj.clone());
 

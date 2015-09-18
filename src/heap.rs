@@ -4,37 +4,22 @@
 //! a program. These objects are garbage collected whenever they are no longer
 //! in use.
 
-use std::sync::{Arc, RwLock};
-
 use object::RcObject;
 
 pub const DEFAULT_CAPACITY: usize = 1024;
 
-/// A mutable, reference counted Heap.
-pub type RcHeap = Arc<RwLock<Heap>>;
-
 /// Struct for storing heap objects.
 pub struct Heap {
-    /// Any objects stored on the heap.
     pub objects: Vec<RcObject>
 }
 
 impl Heap {
-    /// Creates a Heap with a default capacity.
-    ///
-    /// # Examples
-    ///
-    ///     let heap = Heap::new();
-    ///
-    pub fn new() -> RcHeap {
-        let heap = Heap {
+    pub fn new() -> Heap {
+        Heap {
             objects: Vec::with_capacity(DEFAULT_CAPACITY)
-        };
-
-        Arc::new(RwLock::new(heap))
+        }
     }
 
-    /// Stores the given Object on the heap.
     pub fn store(&mut self, object: RcObject) {
         self.objects.push(object);
     }
@@ -50,7 +35,7 @@ mod tests {
     fn test_new() {
         let heap = Heap::new();
 
-        assert_eq!(read_lock!(heap).objects.capacity(), DEFAULT_CAPACITY);
+        assert_eq!(heap.objects.capacity(), DEFAULT_CAPACITY);
     }
 
     #[test]
@@ -58,8 +43,8 @@ mod tests {
         let object = Object::new(1, object_value::none());
         let heap   = Heap::new();
 
-        write_lock!(heap).store(object);
+        heap.store(object);
 
-        assert_eq!(read_lock!(heap).objects.len(), 1);
+        assert_eq!(heap.objects.len(), 1);
     }
 }
