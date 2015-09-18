@@ -13,7 +13,6 @@ use object::{Object, RcObject};
 use object_value;
 use thread::RcThread;
 
-/// A reference counted MemoryManager.
 pub type RcMemoryManager = Arc<MemoryManager>;
 
 /// Structure for managing memory
@@ -31,27 +30,14 @@ pub struct MemoryManager {
     /// several GC cycles.
     pub mature_heap: RcHeap,
 
-    /// Prototype to use for integer objects.
     pub integer_prototype: RwLock<Option<RcObject>>,
-
-    /// Prototype to use for float objects.
     pub float_prototype: RwLock<Option<RcObject>>,
-
-    /// Prototype to use for string objects.
     pub string_prototype: RwLock<Option<RcObject>>,
-
-    /// Prototype to use for array objects.
     pub array_prototype: RwLock<Option<RcObject>>,
-
-    /// Prototype to use for thread objects.
     pub thread_prototype: RwLock<Option<RcObject>>
 }
 
 impl MemoryManager {
-    /// Creates a new MemoryManager.
-    ///
-    /// This also takes care of setting up the top-level object.
-    ///
     pub fn new() -> RcMemoryManager {
         let top_level   = Object::new(0, object_value::none());
         let mature_heap = Heap::new();
