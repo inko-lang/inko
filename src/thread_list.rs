@@ -1,57 +1,49 @@
 //! A list of threads managed by the VM.
 
-use std::sync::RwLock;
-
 use object::RcObject;
 
 /// Struct for storing VM threads.
 pub struct ThreadList {
-    /// The list of threads.
-    pub threads: RwLock<Vec<RcObject>>
+    pub threads: Vec<RcObject>
 }
 
 impl ThreadList {
     pub fn new() -> ThreadList {
         ThreadList {
-            threads: RwLock::new(Vec::new())
+            threads: Vec::new()
         }
     }
 
-    pub fn add(&self, thread: RcObject) {
-        write_lock!(self.threads).push(thread);
+    pub fn add(&mut self, thread: RcObject) {
+        self.threads.push(thread);
     }
 
-    pub fn remove(&self, thread: RcObject) {
-        let mut threads = write_lock!(self.threads);
-        let thread_id   = read_lock!(thread).id;
+    pub fn remove(&mut self, thread: RcObject) {
+        let thread_id = read_lock!(thread).id;
 
         // TODO: Replace with some stdlib method
         let mut found: Option<usize> = None;
 
-        for (index, thread) in threads.iter().enumerate() {
+        for (index, thread) in self.threads.iter().enumerate() {
             if read_lock!(thread).id == thread_id {
                 found = Some(index);
             }
         }
 
         if found.is_some() {
-            threads.remove(found.unwrap());
+            self.threads.remove(found.unwrap());
         }
     }
 
     /// Sets the prototype of all threads
-    pub fn set_prototype(&self, proto: RcObject) {
-        let threads = read_lock!(self.threads);
-
-        for thread in threads.iter() {
+    pub fn set_prototype(&mut self, proto: RcObject) {
+        for thread in self.threads.iter() {
             write_lock!(thread).set_prototype(proto.clone());
         }
     }
 
-    pub fn stop(&self) {
-        let threads = read_lock!(self.threads);
-
-        for thread in threads.iter() {
+    pub fn stop(&mut self) {
+        for thread in self.threads.iter() {
             let vm_thread = read_lock!(thread).value.as_thread();
 
             vm_thread.stop();

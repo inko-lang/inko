@@ -24,7 +24,7 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 /// Structure representing a single VM instance.
 pub struct VirtualMachine {
     // All threads that are currently active.
-    threads: ThreadList,
+    threads: RwLock<ThreadList>,
 
     // The struct for allocating/managing memory.
     memory_manager: RcMemoryManager,
@@ -37,7 +37,7 @@ impl VirtualMachine {
     /// Creates a new VirtualMachine.
     pub fn new() -> RcVirtualMachine {
         let vm = VirtualMachine {
-            threads: ThreadList::new(),
+            threads: RwLock::new(ThreadList::new()),
             memory_manager: MemoryManager::new(),
             exit_status: RwLock::new(Ok(()))
         };
@@ -1092,7 +1092,7 @@ impl ArcMethods for RcVirtualMachine {
 
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
-        self.threads.set_prototype(object);
+        write_lock!(self.threads).set_prototype(object);
 
         Ok(())
     }
@@ -1726,7 +1726,7 @@ impl ArcMethods for RcVirtualMachine {
 
             let result = self_clone.run(vm_thread.clone(), code_clone);
 
-            self_clone.threads.remove(thread_obj.clone());
+            write_lock!(self_clone.threads).remove(thread_obj.clone());
 
             // After this there's a chance thread_obj might be GC'd so we can't
             // reliably use it any more.
@@ -1739,7 +1739,7 @@ impl ArcMethods for RcVirtualMachine {
                 Err(message) => {
                     self_clone.error(vm_thread, message);
 
-                    self_clone.threads.stop();
+                    write_lock!(self_clone.threads).stop();
                 }
             };
         });
@@ -1749,7 +1749,7 @@ impl ArcMethods for RcVirtualMachine {
         let thread_obj = write_lock!(self.memory_manager)
             .allocate_thread(vm_thread.clone());
 
-        self.threads.add(thread_obj.clone());
+        write_lock!(self.threads).add(thread_obj.clone());
 
         if main_thread {
             vm_thread.set_main();
