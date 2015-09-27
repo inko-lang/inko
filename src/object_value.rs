@@ -6,7 +6,7 @@ pub enum ObjectValue {
     None,
     Integer(isize),
     Float(f64),
-    ByteArray(Box<Vec<u8>>),
+    String(Box<String>),
     Array(Box<Vec<RcObject>>),
     Thread(RcThread)
 }
@@ -56,9 +56,8 @@ pub fn float(value: f64) -> ObjectValue {
     ObjectValue::Float(value)
 }
 
-// TODO: remove me once strings are just regular arrays of integers.
-pub fn byte_array(value: Vec<u8>) -> ObjectValue {
-    ObjectValue::ByteArray(Box::new(value))
+pub fn string(value: String) -> ObjectValue {
+    ObjectValue::String(Box::new(value))
 }
 
 pub fn array(value: Vec<RcObject>) -> ObjectValue {
