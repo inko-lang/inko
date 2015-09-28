@@ -32,6 +32,7 @@ pub enum InstructionType {
     RunCode,
     GetToplevel,
     IntegerAdd,
+    IntegerDiv,
     StartThread
 }
 
