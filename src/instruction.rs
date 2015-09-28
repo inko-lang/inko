@@ -33,6 +33,9 @@ pub enum InstructionType {
     GetToplevel,
     IntegerAdd,
     IntegerDiv,
+    IntegerMul,
+    IntegerSub,
+    IntegerMod,
     StartThread
 }
 

@@ -511,7 +511,7 @@ pub trait ArcMethods {
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Performs an integer addition
+    /// Integer Addition
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -532,7 +532,7 @@ pub trait ArcMethods {
     fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Performs an integer division
+    /// Integer Division
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -550,6 +550,66 @@ pub trait ArcMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_div 2, 0, 1
     fn ins_integer_div(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Integer Multiplication
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the left-hand side object.
+    /// 3. The register slot of the right-hand side object.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: set_integer 1, 1
+    ///     2: integer_mul 2, 0, 1
+    fn ins_integer_mul(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Integer Subtraction
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the left-hand side object.
+    /// 3. The register slot of the right-hand side object.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: set_integer 1, 1
+    ///     2: integer_sub 2, 0, 1
+    fn ins_integer_sub(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Integer Modulo
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the left-hand side object.
+    /// 3. The register slot of the right-hand side object.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: set_integer 1, 1
+    ///     2: integer_mod 2, 0, 1
+    fn ins_integer_mod(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
     /// Runs a CompiledCode in a new thread.
@@ -812,6 +872,27 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::IntegerDiv => {
                     try!(self.ins_integer_div(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerMul => {
+                    try!(self.ins_integer_mul(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerSub => {
+                    try!(self.ins_integer_sub(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerMod => {
+                    try!(self.ins_integer_mod(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -1692,6 +1773,174 @@ impl ArcMethods for RcVirtualMachine {
         }
 
         let result = left_object.value.as_integer() /
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_mul(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_mul: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_mul: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_mul: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_mul: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_mul: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_mul: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_mul: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() *
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_sub(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_sub: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_sub: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_sub: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_sub: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_sub: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_sub: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_sub: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() -
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_mod(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_mod: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_mod: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_mod: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_mod: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_mod: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_mod: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_mod: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() %
             right_object.value.as_integer();
 
         let obj = write_lock!(self.memory_manager)
