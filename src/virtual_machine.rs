@@ -612,6 +612,23 @@ pub trait ArcMethods {
     fn ins_integer_mod(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Integer to Float Conversion
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the integer to convert.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_integer      0, 0
+    ///     1: integer_to_float 1, 0
+    fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Runs a CompiledCode in a new thread.
     ///
     /// This instruction requires 2 arguments:
@@ -893,6 +910,13 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::IntegerMod => {
                     try!(self.ins_integer_mod(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerToFloat => {
+                    try!(self.ins_integer_to_float(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -1945,6 +1969,49 @@ impl ArcMethods for RcVirtualMachine {
 
         let obj = write_lock!(self.memory_manager)
             .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_to_float(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_to_float: missing target slot index".to_string())
+        );
+
+        let int_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_to_float: missing source slot index".to_string())
+        );
+
+        let integer_lock = try!(
+            thread.get_register(int_index)
+                .ok_or("integer_to_float: undefined source object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .float_prototype()
+                .ok_or("integer_to_float: no Float prototype set up".to_string())
+        );
+
+        let integer = read_lock!(integer_lock);
+
+        if !integer.value.is_integer() {
+            return Err(
+                "integer_to_float: source object is not an Integer".to_string()
+            );
+        }
+
+        let result = integer.value.as_integer() as f64;
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::float(result), prototype.clone());
 
         thread.set_register(slot, obj);
 

@@ -36,6 +36,7 @@ pub enum InstructionType {
     IntegerMul,
     IntegerSub,
     IntegerMod,
+    IntegerToFloat,
     StartThread
 }
 
