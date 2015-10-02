@@ -40,8 +40,8 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let object = Object::new(1, object_value::none());
-        let heap   = Heap::new();
+        let object   = Object::new(1, object_value::none());
+        let mut heap = Heap::new();
 
         heap.store(object);
 
