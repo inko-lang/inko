@@ -2157,3 +2157,121 @@ impl ArcMethods for RcVirtualMachine {
         thread_obj
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use call_frame::CallFrame;
+    use compiled_code::CompiledCode;
+    use instruction::{Instruction, InstructionType};
+    use thread::Thread;
+
+    macro_rules! compiled_code {
+        ($ins: expr) => (
+            CompiledCode::new("test".to_string(), "test".to_string(), 1, $ins)
+        );
+    }
+
+    macro_rules! call_frame {
+        () => (
+            CallFrame::new("foo".to_string(), "foo".to_string(), 1)
+        );
+    }
+
+    macro_rules! instruction {
+        ($ins_type: expr, $args: expr) => (
+            Instruction::new($ins_type, $args, 1, 1)
+        );
+    }
+
+    macro_rules! run {
+        ($vm: ident, $thread: expr, $cc: expr) => (
+            $vm.run($thread.clone(), Arc::new($cc))
+        );
+    }
+
+    // TODO: test for start()
+    // TODO: test for run()
+
+    #[test]
+    fn test_ins_set_integer_without_arguments() {
+        let vm = VirtualMachine::new();
+        let cc = compiled_code!(
+            vec![instruction!(InstructionType::SetInteger, Vec::new())]
+        );
+
+        let thread = Thread::new(call_frame!(), None);
+        let result = run!(vm, thread, cc);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ins_set_integer_without_literal_index() {
+        let vm = VirtualMachine::new();
+        let cc = compiled_code!(
+            vec![instruction!(InstructionType::SetInteger, vec![0])]
+        );
+
+        let thread = Thread::new(call_frame!(), None);
+        let result = run!(vm, thread, cc);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ins_set_integer_with_undefined_literal() {
+        let vm = VirtualMachine::new();
+        let cc = compiled_code!(
+            vec![instruction!(InstructionType::SetInteger, vec![0, 0])]
+        );
+
+        let thread = Thread::new(call_frame!(), None);
+        let result = run!(vm, thread, cc);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ins_set_integer_without_integer_prototype() {
+        let vm = VirtualMachine::new();
+
+        let mut cc = compiled_code!(
+            vec![instruction!(InstructionType::SetInteger, vec![0, 0])]
+        );
+
+        cc.add_integer_literal(10);
+
+        let thread = Thread::new(call_frame!(), None);
+        let result = run!(vm, thread, cc);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ins_set_integer_with_valid_arguments() {
+        let vm = VirtualMachine::new();
+
+        let mut cc = compiled_code!(
+            vec![
+                instruction!(InstructionType::SetObject, vec![0]),
+                instruction!(InstructionType::SetIntegerPrototype, vec![0]),
+                instruction!(InstructionType::SetInteger, vec![1, 0])
+            ]
+        );
+
+        cc.add_integer_literal(10);
+
+        let thread = Thread::new(call_frame!(), None);
+        let result = run!(vm, thread, cc);
+
+        let int_obj = thread.get_register(1).unwrap();
+        let value   = read_lock!(int_obj).value.as_integer();
+
+        assert!(result.is_ok());
+
+        assert_eq!(value, 10);
+    }
+}
