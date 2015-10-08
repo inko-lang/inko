@@ -614,7 +614,7 @@ pub trait ArcMethods {
 
     /// Integer to Float Conversion
     ///
-    /// This instruction requires 3 arguments:
+    /// This instruction requires 2 arguments:
     ///
     /// 1. The register slot to store the result in.
     /// 2. The register slot of the integer to convert.
@@ -627,6 +627,46 @@ pub trait ArcMethods {
     ///     0: set_integer      0, 0
     ///     1: integer_to_float 1, 0
     fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Integer Bitwise AND
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the integer to operate on.
+    /// 3. The register slot of the integer to use as the operand.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer         0, 0
+    ///     1: set_integer         1, 1
+    ///     1: integer_bitwise_and 2, 0, 1
+    fn ins_integer_bitwise_and(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Integer Bitwise OR
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the integer to operate on.
+    /// 3. The register slot of the integer to use as the operand.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer        0, 0
+    ///     1: set_integer        1, 1
+    ///     1: integer_bitwise_or 2, 0, 1
+    fn ins_integer_bitwise_or(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
     /// Runs a CompiledCode in a new thread.
@@ -917,6 +957,20 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::IntegerToFloat => {
                     try!(self.ins_integer_to_float(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerBitwiseAnd => {
+                    try!(self.ins_integer_bitwise_and(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerBitwiseOr => {
+                    try!(self.ins_integer_bitwise_or(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -2012,6 +2066,118 @@ impl ArcMethods for RcVirtualMachine {
 
         let obj = write_lock!(self.memory_manager)
             .allocate(object_value::float(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_bitwise_and(&self, thread: RcThread, _: RcCompiledCode,
+                               instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_bitwise_and: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_bitwise_and: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_bitwise_and: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_bitwise_and: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_bitwise_and: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_bitwise_and: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_bitwise_and: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() &
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_bitwise_or(&self, thread: RcThread, _: RcCompiledCode,
+                               instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_bitwise_and: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_bitwise_and: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_bitwise_and: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_bitwise_and: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_bitwise_and: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_bitwise_and: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_bitwise_and: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() |
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
 
         thread.set_register(slot, obj);
 
