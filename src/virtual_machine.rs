@@ -245,6 +245,32 @@ pub trait ArcMethods {
     fn ins_set_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// True Prototypes
+    ///
+    /// This instruction sets the prototype used for "true" objects. This
+    /// instruction requires one argument: the slot index pointing to the object
+    /// to use as the prototype.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object         0
+    ///     1: set_true_prototype 0
+    fn ins_set_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// False Prototypes
+    ///
+    /// This instruction sets the prototype used for "false" objects. This
+    /// instruction requires one argument: the slot index pointing to the object
+    /// to use as the prototype.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object          0
+    ///     1: set_false_prototype 0
+    fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Sets a local variable to a given slot's value.
     ///
     /// This instruction requires two arguments:
@@ -882,6 +908,20 @@ impl ArcMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
+                InstructionType::SetTruePrototype => {
+                    try!(self.ins_set_true_prototype(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::SetFalsePrototype => {
+                    try!(self.ins_set_false_prototype(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
                 InstructionType::SetLocal => {
                     try!(self.ins_set_local(
                         thread.clone(),
@@ -1345,12 +1385,12 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_array_prototype: missing object slot")
+                .ok_or("set_thread_prototype: missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_array_prototype: undefined source object")
+                .ok_or("set_thread_prototype: undefined source object")
         );
 
         write_lock!(self.memory_manager).set_thread_prototype(object.clone());
@@ -1358,6 +1398,42 @@ impl ArcMethods for RcVirtualMachine {
         // Update the prototype of all existing threads (usually only the main
         // thread at this point).
         write_lock!(self.threads).set_prototype(object);
+
+        Ok(())
+    }
+
+    fn ins_set_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                              instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_true_prototype: missing object slot")
+        );
+
+        let object = try!(
+            thread.get_register(slot)
+                .ok_or("set_true_prototype: undefined source object")
+        );
+
+        write_lock!(self.memory_manager).set_true_prototype(object.clone());
+
+        Ok(())
+    }
+
+    fn ins_set_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                              instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_false_prototype: missing object slot")
+        );
+
+        let object = try!(
+            thread.get_register(slot)
+                .ok_or("set_false_prototype: undefined source object")
+        );
+
+        write_lock!(self.memory_manager).set_false_prototype(object.clone());
 
         Ok(())
     }

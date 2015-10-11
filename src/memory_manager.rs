@@ -34,7 +34,9 @@ pub struct MemoryManager {
     pub float_prototype: Option<RcObject>,
     pub string_prototype: Option<RcObject>,
     pub array_prototype: Option<RcObject>,
-    pub thread_prototype: Option<RcObject>
+    pub thread_prototype: Option<RcObject>,
+    pub true_prototype: Option<RcObject>,
+    pub false_prototype: Option<RcObject>
 }
 
 impl MemoryManager {
@@ -55,7 +57,9 @@ impl MemoryManager {
             float_prototype: None,
             string_prototype: None,
             array_prototype: None,
-            thread_prototype: None
+            thread_prototype: None,
+            true_prototype: None,
+            false_prototype: None
         };
 
         Arc::new(RwLock::new(manager))
@@ -136,6 +140,14 @@ impl MemoryManager {
 
     pub fn set_thread_prototype(&mut self, object: RcObject) {
         self.thread_prototype = Some(object);
+    }
+
+    pub fn set_true_prototype(&mut self, object: RcObject) {
+        self.true_prototype = Some(object);
+    }
+
+    pub fn set_false_prototype(&mut self, object: RcObject) {
+        self.false_prototype = Some(object);
     }
 
     fn new_object_id(&mut self) -> usize {
