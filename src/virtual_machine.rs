@@ -669,6 +669,26 @@ pub trait ArcMethods {
     fn ins_integer_bitwise_or(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Integer Bitwise XOR
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the integer to operate on.
+    /// 3. The register slot of the integer to use as the operand.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 2
+    ///
+    ///     0: set_integer         0, 0
+    ///     1: set_integer         1, 1
+    ///     1: integer_bitwise_xor 2, 0, 1
+    fn ins_integer_bitwise_xor(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Integer Left Shifting
     ///
     /// This instruction requires 3 arguments:
@@ -1011,6 +1031,13 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::IntegerBitwiseOr => {
                     try!(self.ins_integer_bitwise_or(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerBitwiseXor => {
+                    try!(self.ins_integer_bitwise_xor(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -2228,6 +2255,62 @@ impl ArcMethods for RcVirtualMachine {
         }
 
         let result = left_object.value.as_integer() |
+            right_object.value.as_integer();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::integer(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_bitwise_xor(&self, thread: RcThread, _: RcCompiledCode,
+                               instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_bitwise_xor: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_bitwise_xor: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_bitwise_xor: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_bitwise_xor: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_bitwise_xor: undefined right-hand object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .integer_prototype()
+                .ok_or("integer_bitwise_xor: no Integer prototype set up".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_bitwise_xor: both objects must be integers".to_string()
+            );
+        }
+
+        let result = left_object.value.as_integer() ^
             right_object.value.as_integer();
 
         let obj = write_lock!(self.memory_manager)

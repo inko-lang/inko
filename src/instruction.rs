@@ -39,6 +39,7 @@ pub enum InstructionType {
     IntegerToFloat,
     IntegerBitwiseAnd,
     IntegerBitwiseOr,
+    IntegerBitwiseXor,
     IntegerShiftLeft,
     IntegerShiftRight,
     StartThread
