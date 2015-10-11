@@ -16,8 +16,8 @@ fn main() {
         vec![
             Instruction::new(InstructionType::SetObject, vec![0], 1, 1),
             Instruction::new(InstructionType::SetIntegerPrototype, vec![0], 1, 1),
-            Instruction::new(InstructionType::SetName, vec![0, 1], 1, 1),
             Instruction::new(InstructionType::SetObject, vec![1], 1, 1),
+            Instruction::new(InstructionType::SetName, vec![1, 1], 1, 1),
             Instruction::new(InstructionType::DefMethod, vec![1, 0, 0], 2, 1),
             Instruction::new(InstructionType::Send, vec![2, 1, 0, 0, 0], 3, 1),
             Instruction::new(InstructionType::Return, vec![2], 3, 1)
