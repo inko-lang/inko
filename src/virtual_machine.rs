@@ -271,6 +271,32 @@ pub trait ArcMethods {
     fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Allocates a true value
+    ///
+    /// This instruction requires only one argument: the slot index to store the
+    /// object in.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object         0
+    ///     1: set_true_prototype 0
+    ///     2: set_true           1
+    fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
+    /// Allocates a false value
+    ///
+    /// This instruction requires only one argument: the slot index to store the
+    /// object in.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object          0
+    ///     1: set_false_prototype 0
+    ///     2: set_false           1
+    fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Sets a local variable to a given slot's value.
     ///
     /// This instruction requires two arguments:
@@ -922,6 +948,20 @@ impl ArcMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
+                InstructionType::SetTrue => {
+                    try!(self.ins_set_true(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::SetFalse => {
+                    try!(self.ins_set_false(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
                 InstructionType::SetLocal => {
                     try!(self.ins_set_local(
                         thread.clone(),
@@ -1434,6 +1474,50 @@ impl ArcMethods for RcVirtualMachine {
         );
 
         write_lock!(self.memory_manager).set_false_prototype(object.clone());
+
+        Ok(())
+    }
+
+    fn ins_set_true(&self, thread: RcThread, _: RcCompiledCode,
+                    instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_true: missing object slot")
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .true_prototype()
+                .ok_or("set_true: no True prototype set up".to_string())
+        );
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::none(), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_set_false(&self, thread: RcThread, _: RcCompiledCode,
+                    instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("set_false: missing object slot")
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .false_prototype()
+                .ok_or("set_false: no True prototype set up".to_string())
+        );
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::none(), prototype.clone());
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }

@@ -122,6 +122,14 @@ impl MemoryManager {
         self.thread_prototype.clone()
     }
 
+    pub fn true_prototype(&self) -> Option<RcObject> {
+        self.true_prototype.clone()
+    }
+
+    pub fn false_prototype(&self) -> Option<RcObject> {
+        self.false_prototype.clone()
+    }
+
     pub fn set_integer_prototype(&mut self, object: RcObject) {
         self.integer_prototype = Some(object);
     }
