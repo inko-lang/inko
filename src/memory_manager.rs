@@ -36,7 +36,13 @@ pub struct MemoryManager {
     pub array_prototype: Option<RcObject>,
     pub thread_prototype: Option<RcObject>,
     pub true_prototype: Option<RcObject>,
-    pub false_prototype: Option<RcObject>
+    pub false_prototype: Option<RcObject>,
+
+    // These are not allocated on any specific heap as they'll never be garbage
+    // collected. This also makes retrieving these objects trivial (instead of
+    // having to find them somewhere in a heap).
+    pub true_object: Option<RcObject>,
+    pub false_object: Option<RcObject>
 }
 
 impl MemoryManager {
@@ -59,7 +65,9 @@ impl MemoryManager {
             array_prototype: None,
             thread_prototype: None,
             true_prototype: None,
-            false_prototype: None
+            false_prototype: None,
+            true_object: None,
+            false_object: None
         };
 
         Arc::new(RwLock::new(manager))
@@ -130,6 +138,14 @@ impl MemoryManager {
         self.false_prototype.clone()
     }
 
+    pub fn true_object(&self) -> Option<RcObject> {
+        self.true_object.clone()
+    }
+
+    pub fn false_object(&self) -> Option<RcObject> {
+        self.false_object.clone()
+    }
+
     pub fn set_integer_prototype(&mut self, object: RcObject) {
         self.integer_prototype = Some(object);
     }
@@ -150,12 +166,35 @@ impl MemoryManager {
         self.thread_prototype = Some(object);
     }
 
+    /// Sets the prototype and object to use for every "true" occurrence.
     pub fn set_true_prototype(&mut self, object: RcObject) {
         self.true_prototype = Some(object);
+
+        let true_obj = self.new_object(object_value::none());
+
+        {
+            let mut lock = write_lock!(true_obj);
+
+            lock.set_prototype(self.true_prototype().unwrap());
+            lock.pin();
+        };
+
+        self.true_object = Some(true_obj);
     }
 
     pub fn set_false_prototype(&mut self, object: RcObject) {
         self.false_prototype = Some(object);
+
+        let false_obj = self.new_object(object_value::none());
+
+        {
+            let mut lock = write_lock!(false_obj);
+
+            lock.set_prototype(self.false_prototype().unwrap());
+            lock.pin();
+        };
+
+        self.false_object = Some(false_obj);
     }
 
     fn new_object_id(&mut self) -> usize {

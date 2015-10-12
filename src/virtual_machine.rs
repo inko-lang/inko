@@ -271,7 +271,7 @@ pub trait ArcMethods {
     fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates a true value
+    /// Sets a true value
     ///
     /// This instruction requires only one argument: the slot index to store the
     /// object in.
@@ -284,7 +284,7 @@ pub trait ArcMethods {
     fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates a false value
+    /// Sets a false value
     ///
     /// This instruction requires only one argument: the slot index to store the
     /// object in.
@@ -1486,16 +1486,13 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_true: missing object slot")
         );
 
-        let prototype = try!(
+        let object = try!(
             read_lock!(self.memory_manager)
-                .true_prototype()
-                .ok_or("set_true: no True prototype set up".to_string())
+                .true_object()
+                .ok_or("set_true: no True object set up".to_string())
         );
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::none(), prototype.clone());
-
-        thread.set_register(slot, obj);
+        thread.set_register(slot, object);
 
         Ok(())
     }
@@ -1508,16 +1505,13 @@ impl ArcMethods for RcVirtualMachine {
                 .ok_or("set_false: missing object slot")
         );
 
-        let prototype = try!(
+        let object = try!(
             read_lock!(self.memory_manager)
-                .false_prototype()
-                .ok_or("set_false: no True prototype set up".to_string())
+                .false_object()
+                .ok_or("set_false: no False object set up".to_string())
         );
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::none(), prototype.clone());
-
-        thread.set_register(slot, obj);
+        thread.set_register(slot, object);
 
         Ok(())
     }
