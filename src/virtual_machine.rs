@@ -1348,6 +1348,12 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> Result<(), String> {
+        if read_lock!(self.memory_manager).integer_prototype().is_some() {
+            return Err(
+                "set_integer_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1366,6 +1372,12 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
+        if read_lock!(self.memory_manager).float_prototype().is_some() {
+            return Err(
+                "set_float_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1384,6 +1396,12 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> Result<(), String> {
+        if read_lock!(self.memory_manager).string_prototype().is_some() {
+            return Err(
+                "set_string_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1403,6 +1421,12 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction)
                                -> Result<(), String> {
+        if read_lock!(self.memory_manager).array_prototype().is_some() {
+            return Err(
+                "set_array_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1422,6 +1446,12 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction)
                                 -> Result<(), String> {
+        if read_lock!(self.memory_manager).thread_prototype().is_some() {
+            return Err(
+                "set_thread_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1444,6 +1474,12 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
+        if read_lock!(self.memory_manager).true_prototype().is_some() {
+            return Err(
+                "set_true_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
@@ -1462,6 +1498,12 @@ impl ArcMethods for RcVirtualMachine {
 
     fn ins_set_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
+        if read_lock!(self.memory_manager).false_prototype().is_some() {
+            return Err(
+                "set_false_prototype: prototype already defined".to_string()
+            );
+        }
+
         let slot = *try!(
             instruction.arguments
                 .get(0)
