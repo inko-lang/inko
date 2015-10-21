@@ -67,7 +67,7 @@ pub trait ArcMethods {
     fn run(&self, RcThread, RcCompiledCode)
         -> Result<Option<RcObject>, String>;
 
-    /// Allocates and sets an integer in a register slot.
+    /// Sets an integer in a register slot.
     ///
     /// This instruction requires two arguments:
     ///
@@ -86,7 +86,7 @@ pub trait ArcMethods {
     fn ins_set_integer(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates and sets a float in a register slot.
+    /// Sets a float in a register slot.
     ///
     /// This instruction requires two arguments:
     ///
@@ -105,7 +105,7 @@ pub trait ArcMethods {
     fn ins_set_float(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates and sets a string in a register slot.
+    /// Sets a string in a register slot.
     ///
     /// This instruction requires two arguments:
     ///
@@ -124,7 +124,7 @@ pub trait ArcMethods {
     fn ins_set_string(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates and sets an object in a register slot.
+    /// Sets an object in a register slot.
     ///
     /// This instruction requires at least one argument: the slot to store the
     /// object in. Optionally an extra argument can be provided, this argument
@@ -138,7 +138,7 @@ pub trait ArcMethods {
     fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Allocates and sets an array in a register slot.
+    /// Sets an array in a register slot.
     ///
     /// This instruction requires at least two arguments:
     ///
@@ -245,7 +245,7 @@ pub trait ArcMethods {
     fn ins_set_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// True Prototypes
+    /// Sets the prototype for "true" objects.
     ///
     /// This instruction sets the prototype used for "true" objects. This
     /// instruction requires one argument: the slot index pointing to the object
@@ -258,7 +258,7 @@ pub trait ArcMethods {
     fn ins_set_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// False Prototypes
+    /// Sets the prototype for "false" objects.
     ///
     /// This instruction sets the prototype used for "false" objects. This
     /// instruction requires one argument: the slot index pointing to the object
@@ -271,7 +271,7 @@ pub trait ArcMethods {
     fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Sets a true value
+    /// Sets a "true" value in a register slot.
     ///
     /// This instruction requires only one argument: the slot index to store the
     /// object in.
@@ -284,7 +284,7 @@ pub trait ArcMethods {
     fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Sets a false value
+    /// Sets a "false" value in a register slot.
     ///
     /// This instruction requires only one argument: the slot index to store the
     /// object in.
@@ -412,7 +412,7 @@ pub trait ArcMethods {
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Sends a message and stores the result in a register slot.
+    /// Sends a message
     ///
     /// This instruction requires at least 4 arguments:
     ///
@@ -563,7 +563,7 @@ pub trait ArcMethods {
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Addition
+    /// Adds two integers
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -584,7 +584,7 @@ pub trait ArcMethods {
     fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Division
+    /// Divides an integer
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -604,7 +604,7 @@ pub trait ArcMethods {
     fn ins_integer_div(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Multiplication
+    /// Multiplies an integer
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -624,7 +624,7 @@ pub trait ArcMethods {
     fn ins_integer_mul(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Subtraction
+    /// Subtracts an integer
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -644,7 +644,7 @@ pub trait ArcMethods {
     fn ins_integer_sub(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Modulo
+    /// Gets the modulo of an integer
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -664,7 +664,7 @@ pub trait ArcMethods {
     fn ins_integer_mod(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer to Float Conversion
+    /// Converts an integer to a float
     ///
     /// This instruction requires 2 arguments:
     ///
@@ -681,7 +681,7 @@ pub trait ArcMethods {
     fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Bitwise AND
+    /// Performs an integer bitwise AND.
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -701,7 +701,7 @@ pub trait ArcMethods {
     fn ins_integer_bitwise_and(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Bitwise OR
+    /// Performs an integer bitwise OR.
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -721,7 +721,7 @@ pub trait ArcMethods {
     fn ins_integer_bitwise_or(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Bitwise XOR
+    /// Performs an integer bitwise XOR.
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -741,7 +741,7 @@ pub trait ArcMethods {
     fn ins_integer_bitwise_xor(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Left Shifting
+    /// Shifts an integer to the left.
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -761,7 +761,7 @@ pub trait ArcMethods {
     fn ins_integer_shift_left(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
-    /// Integer Right Shifting
+    /// Shifts an integer to the right.
     ///
     /// This instruction requires 3 arguments:
     ///
