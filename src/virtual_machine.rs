@@ -1184,25 +1184,25 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_integer: missing target slot".to_string())
+                .ok_or("missing target slot".to_string())
         );
 
         let index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_integer: missing integer literal index".to_string())
+                .ok_or("missing integer literal index".to_string())
         );
 
         let value = *try!(
             code.integer_literals
                 .get(index)
-                .ok_or("set_integer: undefined integer literal".to_string())
+                .ok_or("undefined integer literal".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("set_integer: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let obj = write_lock!(self.memory_manager)
@@ -1218,25 +1218,25 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_float: missing target slot".to_string())
+                .ok_or("missing target slot".to_string())
         );
 
         let index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_float: missing float literal index".to_string())
+                .ok_or("missing float literal index".to_string())
         );
 
         let value  = *try!(
             code.float_literals
                 .get(index)
-                .ok_or("set_float: undefined float literal".to_string())
+                .ok_or("undefined float literal".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .float_prototype()
-                .ok_or("set_float: no Float prototype set up".to_string())
+                .ok_or("no Float prototype set up".to_string())
         );
 
         let obj = write_lock!(self.memory_manager)
@@ -1252,25 +1252,25 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_string: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_string: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let value = try!(
             code.string_literals
                 .get(index)
-                .ok_or("set_string: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .string_prototype()
-                .ok_or("set_string: no String prototype set up".to_string())
+                .ok_or("no String prototype set up".to_string())
         );
 
         let obj = write_lock!(self.memory_manager)
@@ -1286,7 +1286,7 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_object: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let proto_index_opt = instruction.arguments.get(1);
@@ -1299,7 +1299,7 @@ impl ArcMethods for RcVirtualMachine {
 
             let proto = try!(
                 thread.get_register(proto_index)
-                    .ok_or("set_object: prototype is undefined".to_string())
+                    .ok_or("prototype is undefined".to_string())
             );
 
             write_lock!(obj).set_prototype(proto);
@@ -1318,13 +1318,13 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_array: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let val_count = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_array: missing value count".to_string())
+                .ok_or("missing value count".to_string())
         );
 
         let values = try!(
@@ -1334,7 +1334,7 @@ impl ArcMethods for RcVirtualMachine {
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .array_prototype()
-                .ok_or("set_array: no Array prototype set up".to_string())
+                .ok_or("no Array prototype set up".to_string())
         );
 
         let obj = write_lock!(self.memory_manager)
@@ -1350,24 +1350,24 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_name: missing object slot".to_string())
+                .ok_or("missing object slot".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_name: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let obj = try!(
             thread.get_register(slot)
-                .ok_or("set_name: undefined target object".to_string())
+                .ok_or("undefined target object".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("set_name: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         write_lock!(obj).set_name(name.clone());
@@ -1378,20 +1378,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> Result<(), String> {
         if read_lock!(self.memory_manager).integer_prototype().is_some() {
-            return Err(
-                "set_integer_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_integer_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_integer_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_integer_prototype(object);
@@ -1402,20 +1400,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
         if read_lock!(self.memory_manager).float_prototype().is_some() {
-            return Err(
-                "set_float_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_float_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_float_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_float_prototype(object);
@@ -1426,20 +1422,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> Result<(), String> {
         if read_lock!(self.memory_manager).string_prototype().is_some() {
-            return Err(
-                "set_string_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_string_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_string_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_string_prototype(object);
@@ -1451,20 +1445,18 @@ impl ArcMethods for RcVirtualMachine {
                                instruction: &Instruction)
                                -> Result<(), String> {
         if read_lock!(self.memory_manager).array_prototype().is_some() {
-            return Err(
-                "set_array_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_array_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_array_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_array_prototype(object);
@@ -1476,20 +1468,18 @@ impl ArcMethods for RcVirtualMachine {
                                 instruction: &Instruction)
                                 -> Result<(), String> {
         if read_lock!(self.memory_manager).thread_prototype().is_some() {
-            return Err(
-                "set_thread_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_thread_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_thread_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_thread_prototype(object.clone());
@@ -1504,20 +1494,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
         if read_lock!(self.memory_manager).true_prototype().is_some() {
-            return Err(
-                "set_true_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_true_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_true_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_true_prototype(object.clone());
@@ -1528,20 +1516,18 @@ impl ArcMethods for RcVirtualMachine {
     fn ins_set_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
         if read_lock!(self.memory_manager).false_prototype().is_some() {
-            return Err(
-                "set_false_prototype: prototype already defined".to_string()
-            );
+            return Err("prototype already defined".to_string());
         }
 
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_false_prototype: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             thread.get_register(slot)
-                .ok_or("set_false_prototype: undefined source object")
+                .ok_or("undefined source object")
         );
 
         write_lock!(self.memory_manager).set_false_prototype(object.clone());
@@ -1554,13 +1540,13 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_true: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             read_lock!(self.memory_manager)
                 .true_object()
-                .ok_or("set_true: no True object set up".to_string())
+                .ok_or("no True object set up".to_string())
         );
 
         thread.set_register(slot, object);
@@ -1573,13 +1559,13 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_false: missing object slot")
+                .ok_or("missing object slot")
         );
 
         let object = try!(
             read_lock!(self.memory_manager)
                 .false_object()
-                .ok_or("set_false: no False object set up".to_string())
+                .ok_or("no False object set up".to_string())
         );
 
         thread.set_register(slot, object);
@@ -1592,18 +1578,18 @@ impl ArcMethods for RcVirtualMachine {
         let local_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_local: missing local variable index".to_string())
+                .ok_or("missing local variable index".to_string())
         );
 
         let object_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_local: missing object slot".to_string())
+                .ok_or("missing object slot".to_string())
         );
 
         let object = try!(
             thread.get_register(object_index)
-                .ok_or("set_local: undefined object".to_string())
+                .ok_or("undefined object".to_string())
         );
 
         thread.set_local(local_index, object);
@@ -1616,18 +1602,18 @@ impl ArcMethods for RcVirtualMachine {
         let slot_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("get_local: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let local_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("get_local: missing local variable index".to_string())
+                .ok_or("missing local variable index".to_string())
         );
 
         let object = try!(
             thread.get_local(local_index)
-                .ok_or("get_local: undefined local variable index".to_string())
+                .ok_or("undefined local variable index".to_string())
         );
 
         thread.set_register(slot_index, object);
@@ -1640,35 +1626,35 @@ impl ArcMethods for RcVirtualMachine {
         let target_slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_const: missing target object slot".to_string())
+                .ok_or("missing target object slot".to_string())
         );
 
         let source_slot = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_const: missing source object slot".to_string())
+                .ok_or("missing source object slot".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("set_const: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let target = try!(
             thread.get_register(target_slot)
-                .ok_or("set_const: undefined target object".to_string())
+                .ok_or("undefined target object".to_string())
         );
 
         let source = try!(
             thread.get_register(source_slot)
-                .ok_or("set_const: undefined source object".to_string())
+                .ok_or("undefined source object".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("set_const: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         write_lock!(target).add_constant(name.clone(), source);
@@ -1681,35 +1667,35 @@ impl ArcMethods for RcVirtualMachine {
         let index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("get_const: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let src_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("get_const: missing source index".to_string())
+                .ok_or("missing source index".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("get_const: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("get_const: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         let src = try!(
             thread.get_register(src_index)
-                .ok_or("get_const: undefined source object".to_string())
+                .ok_or("undefined source object".to_string())
         );
 
         let object = try!(
             read_lock!(src).lookup_constant(name)
-                .ok_or(format!("get_const: Undefined constant {}", name))
+                .ok_or(format!("Undefined constant {}", name))
         );
 
         thread.set_register(index, object);
@@ -1722,35 +1708,35 @@ impl ArcMethods for RcVirtualMachine {
         let target_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("set_attr: missing target object slot".to_string())
+                .ok_or("missing target object slot".to_string())
         );
 
         let source_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("set_attr: missing source object slot".to_string())
+                .ok_or("missing source object slot".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("set_attr: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let target_object = try!(
             thread.get_register(target_index)
-                .ok_or("set_attr: undefined target object".to_string())
+                .ok_or("undefined target object".to_string())
         );
 
         let source_object = try!(
             thread.get_register(source_index)
-                .ok_or("set_attr: undefined target object".to_string())
+                .ok_or("undefined target object".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("set_attr: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         write_lock!(target_object)
@@ -1764,35 +1750,35 @@ impl ArcMethods for RcVirtualMachine {
         let target_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("get_attr: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let source_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("get_attr: missing source slot index".to_string())
+                .ok_or("missing source slot index".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("get_attr: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let source = try!(
             thread.get_register(source_index)
-                .ok_or("get_attr: undefined source object".to_string())
+                .ok_or("undefined source object".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("get_attr: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(format!("get_attr: undefined attribute \"{}\"", name))
+                .ok_or(format!("undefined attribute \"{}\"", name))
         );
 
         thread.set_register(target_index, attr);
@@ -1805,43 +1791,43 @@ impl ArcMethods for RcVirtualMachine {
         let result_slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("send: missing result slot".to_string())
+                .ok_or("missing result slot".to_string())
         );
 
         let receiver_slot = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("send: missing receiver slot".to_string())
+                .ok_or("missing receiver slot".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("send: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let allow_private = *try!(
             instruction.arguments
                 .get(3)
-                .ok_or("send: missing method visibility".to_string())
+                .ok_or("missing method visibility".to_string())
         );
 
         let arg_count = *try!(
             instruction.arguments
                 .get(4)
-                .ok_or("send: missing argument count".to_string())
+                .ok_or("missing argument count".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("send: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         let receiver_lock = try!(
             thread.get_register(receiver_slot)
                 .ok_or(format!(
-                    "send: \"{}\" called on an undefined receiver",
+                    "\"{}\" called on an undefined receiver",
                     name
                 ))
         );
@@ -1863,7 +1849,7 @@ impl ArcMethods for RcVirtualMachine {
 
         if arguments.len() != method_code.required_arguments {
             return Err(format!(
-                "send: \"{}\" requires {} arguments, {} given",
+                "\"{}\" requires {} arguments, {} given",
                 name,
                 method_code.required_arguments,
                 arguments.len()
@@ -1890,7 +1876,7 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("return: missing return slot".to_string())
+                .ok_or("missing return slot".to_string())
         );
 
         Ok(thread.get_register(slot))
@@ -1902,13 +1888,13 @@ impl ArcMethods for RcVirtualMachine {
         let go_to = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("goto_if_undef: missing instruction index".to_string())
+                .ok_or("missing instruction index".to_string())
         );
 
         let value_slot = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("goto_if_undef: missing value slot".to_string())
+                .ok_or("missing value slot".to_string())
         );
 
         let value   = thread.get_register(value_slot);
@@ -1926,13 +1912,13 @@ impl ArcMethods for RcVirtualMachine {
         let go_to = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("goto_if_def: missing instruction index".to_string())
+                .ok_or("missing instruction index".to_string())
         );
 
         let value_slot = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("goto_if_def: missing value slot".to_string())
+                .ok_or("missing value slot".to_string())
         );
 
         let value   = thread.get_register(value_slot);
@@ -1949,7 +1935,7 @@ impl ArcMethods for RcVirtualMachine {
         let go_to = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("goto: missing instruction index".to_string())
+                .ok_or("missing instruction index".to_string())
         );
 
         Ok(go_to)
@@ -1960,37 +1946,37 @@ impl ArcMethods for RcVirtualMachine {
         let receiver_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("def_method: missing receiver slot".to_string())
+                .ok_or("missing receiver slot".to_string())
         );
 
         let name_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("def_method: missing string literal index".to_string())
+                .ok_or("missing string literal index".to_string())
         );
 
         let code_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("def_method: missing code object index".to_string())
+                .ok_or("missing code object index".to_string())
         );
 
         let receiver_lock = try!(
             thread.get_register(receiver_index)
-                .ok_or("def_method: undefined receiver".to_string())
+                .ok_or("undefined receiver".to_string())
         );
 
         let name = try!(
             code.string_literals
                 .get(name_index)
-                .ok_or("def_method: undefined string literal".to_string())
+                .ok_or("undefined string literal".to_string())
         );
 
         let method_code = try!(
             code.code_objects
                 .get(code_index)
                 .cloned()
-                .ok_or("def_method: undefined code object index".to_string())
+                .ok_or("undefined code object index".to_string())
         );
 
         let mut receiver = write_lock!(receiver_lock);
@@ -2005,26 +1991,26 @@ impl ArcMethods for RcVirtualMachine {
         let result_index = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("run_code: missing result slot".to_string())
+                .ok_or("missing result slot".to_string())
         );
 
         let code_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("run_code: missing code object index".to_string())
+                .ok_or("missing code object index".to_string())
         );
 
         let arg_count = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("run_code: missing argument count".to_string())
+                .ok_or("missing argument count".to_string())
         );
 
         let code_obj = try!(
             code.code_objects
                 .get(code_index)
                 .cloned()
-                .ok_or("run_code: undefined code object".to_string())
+                .ok_or("undefined code object".to_string())
         );
 
         let arguments = try!(
@@ -2045,7 +2031,7 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("get_toplevel: missing slot index")
+                .ok_or("missing slot index")
         );
 
         let top_level = read_lock!(self.memory_manager).top_level.clone();
@@ -2060,44 +2046,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_add: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_add: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_add: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_add: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_add: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_add: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_add: both objects must be integers".to_string()
-            )
+            return Err("both objects must be integers".to_string());
         }
 
         let added = left_object.value.as_integer() +
@@ -2116,44 +2100,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_div: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_div: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_div: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_div: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_div: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_div: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_div: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() /
@@ -2172,44 +2154,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_mul: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_mul: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_mul: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_mul: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_mul: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_mul: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_mul: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() *
@@ -2228,44 +2208,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_sub: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_sub: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_sub: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_sub: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_sub: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_sub: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_sub: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() -
@@ -2284,44 +2262,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_mod: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_mod: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_mod: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_mod: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_mod: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_mod: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_mod: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() %
@@ -2340,32 +2316,30 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_to_float: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let int_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_to_float: missing source slot index".to_string())
+                .ok_or("missing source slot index".to_string())
         );
 
         let integer_lock = try!(
             thread.get_register(int_index)
-                .ok_or("integer_to_float: undefined source object".to_string())
+                .ok_or("undefined source object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .float_prototype()
-                .ok_or("integer_to_float: no Float prototype set up".to_string())
+                .ok_or("no Float prototype set up".to_string())
         );
 
         let integer = read_lock!(integer_lock);
 
         if !integer.value.is_integer() {
-            return Err(
-                "integer_to_float: source object is not an Integer".to_string()
-            );
+            return Err("source object is not an Integer".to_string());
         }
 
         let result = integer.value.as_integer() as f64;
@@ -2383,44 +2357,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_bitwise_and: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_bitwise_and: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_bitwise_and: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_bitwise_and: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_bitwise_and: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_bitwise_and: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_bitwise_and: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() &
@@ -2439,44 +2411,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_bitwise_or: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_bitwise_or: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_bitwise_or: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_bitwise_or: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_bitwise_or: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_bitwise_or: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_bitwise_or: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() |
@@ -2495,44 +2465,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_bitwise_xor: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_bitwise_xor: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_bitwise_xor: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_bitwise_xor: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_bitwise_xor: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_bitwise_xor: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_bitwise_xor: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() ^
@@ -2551,44 +2519,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_shift_left: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_shift_left: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_shift_left: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_shift_left: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_shift_left: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_shift_left: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_shift_left: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() <<
@@ -2607,44 +2573,42 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_shift_right: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_shift_right: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_shift_right: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_shift_right: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_shift_right: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let prototype = try!(
             read_lock!(self.memory_manager)
                 .integer_prototype()
-                .ok_or("integer_shift_right: no Integer prototype set up".to_string())
+                .ok_or("no Integer prototype set up".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_shift_right: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let result = left_object.value.as_integer() >>
@@ -2663,38 +2627,36 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("integer_smaller: missing target slot index".to_string())
+                .ok_or("missing target slot index".to_string())
         );
 
         let left_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("integer_smaller: missing left-hand slot index".to_string())
+                .ok_or("missing left-hand slot index".to_string())
         );
 
         let right_index = *try!(
             instruction.arguments
                 .get(2)
-                .ok_or("integer_smaller: missing right-hand slot index".to_string())
+                .ok_or("missing right-hand slot index".to_string())
         );
 
         let left_object_lock = try!(
             thread.get_register(left_index)
-                .ok_or("integer_smaller: undefined left-hand object".to_string())
+                .ok_or("undefined left-hand object".to_string())
         );
 
         let right_object_lock = try!(
             thread.get_register(right_index)
-                .ok_or("integer_smaller: undefined right-hand object".to_string())
+                .ok_or("undefined right-hand object".to_string())
         );
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
         if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err(
-                "integer_smaller: both objects must be integers".to_string()
-            );
+            return Err("both objects must be integers".to_string());
         }
 
         let smaller = left_object.value.as_integer() <
@@ -2704,14 +2666,14 @@ impl ArcMethods for RcVirtualMachine {
             try!(
                 read_lock!(self.memory_manager)
                     .true_object()
-                    .ok_or("integer_smaller: no True object set up".to_string())
+                    .ok_or("no True object set up".to_string())
             )
         }
         else {
             try!(
                 read_lock!(self.memory_manager)
                     .false_object()
-                    .ok_or("integer_smaller: no True object set up".to_string())
+                    .ok_or("no True object set up".to_string())
             )
         };
 
@@ -2725,26 +2687,26 @@ impl ArcMethods for RcVirtualMachine {
         let slot = *try!(
             instruction.arguments
                 .get(0)
-                .ok_or("start_thread: missing slot index".to_string())
+                .ok_or("missing slot index".to_string())
         );
 
         let code_index = *try!(
             instruction.arguments
                 .get(1)
-                .ok_or("start_thread: missing code object index".to_string())
+                .ok_or("missing code object index".to_string())
         );
 
         let thread_code = try!(
             code.code_objects
                 .get(code_index)
                 .cloned()
-                .ok_or("start_thread: undefined code object".to_string())
+                .ok_or("undefined code object".to_string())
         );
 
         try!(
             read_lock!(self.memory_manager)
                 .thread_prototype()
-                .ok_or("start_thread: no Thread prototype set up".to_string())
+                .ok_or("no Thread prototype set up".to_string())
         );
 
         let thread_object = self.run_thread(thread_code, false);
