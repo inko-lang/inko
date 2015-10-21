@@ -781,6 +781,28 @@ pub trait ArcMethods {
     fn ins_integer_shift_right(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Checks if one integer is smaller than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot containing the integer to compare.
+    /// 3. The register slot containing the integer to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///       1: 5
+    ///
+    ///     0: set_integer     0, 0
+    ///     1: set_integer     1, 1
+    ///     2: integer_smaller 2, 0, 1
+    fn ins_integer_smaller(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Runs a CompiledCode in a new thread.
     ///
     /// This instruction requires 2 arguments:
@@ -1132,6 +1154,13 @@ impl ArcMethods for RcVirtualMachine {
                 },
                 InstructionType::IntegerShiftRight => {
                     try!(self.ins_integer_shift_right(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
+                InstructionType::IntegerSmaller => {
+                    try!(self.ins_integer_smaller(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -2625,6 +2654,68 @@ impl ArcMethods for RcVirtualMachine {
             .allocate(object_value::integer(result), prototype.clone());
 
         thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_smaller(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("integer_smaller: missing target slot index".to_string())
+        );
+
+        let left_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("integer_smaller: missing left-hand slot index".to_string())
+        );
+
+        let right_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("integer_smaller: missing right-hand slot index".to_string())
+        );
+
+        let left_object_lock = try!(
+            thread.get_register(left_index)
+                .ok_or("integer_smaller: undefined left-hand object".to_string())
+        );
+
+        let right_object_lock = try!(
+            thread.get_register(right_index)
+                .ok_or("integer_smaller: undefined right-hand object".to_string())
+        );
+
+        let left_object  = read_lock!(left_object_lock);
+        let right_object = read_lock!(right_object_lock);
+
+        if !left_object.value.is_integer() || !right_object.value.is_integer() {
+            return Err(
+                "integer_smaller: both objects must be integers".to_string()
+            );
+        }
+
+        let smaller = left_object.value.as_integer() <
+            right_object.value.as_integer();
+
+        let boolean = if smaller {
+            try!(
+                read_lock!(self.memory_manager)
+                    .true_object()
+                    .ok_or("integer_smaller: no True object set up".to_string())
+            )
+        }
+        else {
+            try!(
+                read_lock!(self.memory_manager)
+                    .false_object()
+                    .ok_or("integer_smaller: no True object set up".to_string())
+            )
+        };
+
+        thread.set_register(slot, boolean);
 
         Ok(())
     }

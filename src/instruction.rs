@@ -46,6 +46,7 @@ pub enum InstructionType {
     IntegerBitwiseXor,
     IntegerShiftLeft,
     IntegerShiftRight,
+    IntegerSmaller,
     StartThread
 }
 
