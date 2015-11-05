@@ -46,7 +46,7 @@ impl VirtualMachine {
     }
 }
 
-pub trait ArcMethods {
+pub trait VirtualMachineMethods {
     /// Starts the main thread
     ///
     /// This requires a CompiledCode to run. Calling this method will block
@@ -881,7 +881,7 @@ pub trait ArcMethods {
     fn run_thread(&self, RcCompiledCode, bool) -> RcObject;
 }
 
-impl ArcMethods for RcVirtualMachine {
+impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         let thread_obj = self.run_thread(code, true);
         let vm_thread  = write_lock!(thread_obj).value.as_thread();
