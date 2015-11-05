@@ -47,6 +47,7 @@ pub enum InstructionType {
     IntegerShiftLeft,
     IntegerShiftRight,
     IntegerSmaller,
+    IntegerGreater,
     StartThread
 }
 
