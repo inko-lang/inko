@@ -3,7 +3,8 @@ extern crate libaeon;
 use std::sync::Arc;
 use std::process;
 
-use libaeon::virtual_machine::{VirtualMachine, VirtualMachineMethods};
+use libaeon::virtual_machine::VirtualMachine;
+use libaeon::virtual_machine_methods::VirtualMachineMethods;
 use libaeon::compiled_code::CompiledCode;
 use libaeon::instruction::{InstructionType, Instruction};
 

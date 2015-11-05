@@ -12,4 +12,5 @@ pub mod register;
 pub mod thread;
 pub mod thread_list;
 pub mod virtual_machine;
+pub mod virtual_machine_methods;
 pub mod variable_scope;
