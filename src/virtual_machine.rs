@@ -35,7 +35,6 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    /// Creates a new VirtualMachine.
     pub fn new() -> RcVirtualMachine {
         let vm = VirtualMachine {
             threads: RwLock::new(ThreadList::new()),
