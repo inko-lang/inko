@@ -41,6 +41,7 @@ pub enum InstructionType {
     IntegerSub,
     IntegerMod,
     IntegerToFloat,
+    IntegerToString,
     IntegerBitwiseAnd,
     IntegerBitwiseOr,
     IntegerBitwiseXor,

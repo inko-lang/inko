@@ -639,6 +639,23 @@ pub trait VirtualMachineMethods {
     fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Converts an integer to a string
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the integer to convert.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_integer       0, 0
+    ///     1: integer_to_string 1, 0
+    fn ins_integer_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Performs an integer bitwise AND.
     ///
     /// This instruction requires 3 arguments:

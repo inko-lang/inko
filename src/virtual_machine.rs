@@ -333,6 +333,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
+                InstructionType::IntegerToString => {
+                    try!(self.ins_integer_to_string(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
+                },
                 InstructionType::IntegerBitwiseAnd => {
                     try!(self.ins_integer_bitwise_and(
                         thread.clone(),
@@ -1569,6 +1576,47 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let obj = write_lock!(self.memory_manager)
             .allocate(object_value::float(result), prototype.clone());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_integer_to_string(&self, thread: RcThread, _: RcCompiledCode,
+                             instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("missing target slot index".to_string())
+        );
+
+        let int_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("missing source slot index".to_string())
+        );
+
+        let integer_lock = try!(
+            thread.get_register(int_index)
+                .ok_or("undefined source object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .string_prototype()
+                .ok_or("no String prototype set up".to_string())
+        );
+
+        let integer = read_lock!(integer_lock);
+
+        if !integer.value.is_integer() {
+            return Err("source object is not an Integer".to_string());
+        }
+
+        let result = integer.value.as_integer().to_string();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::string(result), prototype.clone());
 
         thread.set_register(slot, obj);
 
