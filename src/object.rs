@@ -257,6 +257,26 @@ impl Object {
         retval
     }
 
+    pub fn truthy(&self) -> bool {
+        if self.header.is_some() {
+            let opt_header = self.header.as_ref();
+
+            opt_header.unwrap().truthy
+        }
+        // All objects except "false" evaluate to true
+        else {
+            true
+        }
+    }
+
+    pub fn set_falsy(&mut self) {
+        self.allocate_header();
+
+        let opt_header = self.header.as_mut();
+
+        opt_header.unwrap().set_falsy();
+    }
+
     fn allocate_header(&mut self) {
         if self.header.is_none() {
             self.header = Some(Box::new(ObjectHeader::new()));

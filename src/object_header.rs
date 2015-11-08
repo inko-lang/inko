@@ -18,7 +18,10 @@ pub struct ObjectHeader {
     pub methods: HashMap<String, RcCompiledCode>,
 
     /// When set to "true" this object won't be GC'd.
-    pub pinned: bool
+    pub pinned: bool,
+
+    /// Whether the object should be considered truthy (e.g. in conditionals)
+    pub truthy: bool,
 }
 
 impl ObjectHeader {
@@ -28,7 +31,12 @@ impl ObjectHeader {
             attributes: HashMap::new(),
             constants: HashMap::new(),
             methods: HashMap::new(),
-            pinned: false
+            pinned: false,
+            truthy: true
         }
+    }
+
+    pub fn set_falsy(&mut self) {
+        self.truthy = false;
     }
 }

@@ -421,7 +421,7 @@ pub trait VirtualMachineMethods {
     fn ins_return(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<Option<RcObject>, String>;
 
-    /// Jumps to an instruction if a slot is not set.
+    /// Jumps to an instruction if a slot is not set or set to false.
     ///
     /// This instruction takes two arguments:
     ///
@@ -434,13 +434,12 @@ pub trait VirtualMachineMethods {
     ///       0: 10
     ///       1: 20
     ///
-    ///     0: goto_if_undef 0, 1
+    ///     0: goto_if_false 0, 1
     ///     1: set_integer   0, 0
     ///     2: set_integer   0, 1
     ///
     /// Here slot "0" would be set to "20".
-    ///
-    fn ins_goto_if_undef(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_goto_if_false(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<Option<usize>, String>;
 
     /// Jumps to an instruction if a slot is set.
@@ -456,13 +455,12 @@ pub trait VirtualMachineMethods {
     ///       0: 10
     ///       1: 20
     ///
-    ///     0: set_integer   0, 0
-    ///     1: goto_if_def   3, 0
-    ///     2: set_integer   0, 1
+    ///     0: set_integer  0, 0
+    ///     1: goto_if_true 3, 0
+    ///     2: set_integer  0, 1
     ///
     /// Here slot "0" would be set to "10".
-    ///
-    fn ins_goto_if_def(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_goto_if_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<Option<usize>, String>;
 
     /// Jumps to a specific instruction.

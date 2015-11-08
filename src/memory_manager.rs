@@ -191,6 +191,7 @@ impl MemoryManager {
             let mut lock = write_lock!(false_obj);
 
             lock.set_prototype(self.false_prototype().unwrap());
+            lock.set_falsy();
             lock.pin();
         };
 

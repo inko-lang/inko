@@ -249,15 +249,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         &instruction
                     ));
                 },
-                InstructionType::GotoIfUndef => {
-                    skip_until = try!(self.ins_goto_if_undef(
+                InstructionType::GotoIfFalse => {
+                    skip_until = try!(self.ins_goto_if_false(
                         thread.clone(),
                         code.clone(),
                         &instruction
                     ));
                 },
-                InstructionType::GotoIfDef => {
-                    skip_until = try!(self.ins_goto_if_def(
+                InstructionType::GotoIfTrue => {
+                    skip_until = try!(self.ins_goto_if_true(
                         thread.clone(),
                         code.clone(),
                         &instruction
@@ -1112,7 +1112,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(thread.get_register(slot))
     }
 
-    fn ins_goto_if_undef(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_goto_if_false(&self, thread: RcThread, _: RcCompiledCode,
                          instruction: &Instruction)
                          -> Result<Option<usize>, String> {
         let go_to = *try!(
@@ -1129,14 +1129,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let value   = thread.get_register(value_slot);
         let matched = match value {
-            Some(_) => { None },
-            None    => { Some(go_to) }
+            Some(obj) => {
+                if read_lock!(obj).truthy() {
+                    None
+                }
+                else {
+                    Some(go_to)
+                }
+            },
+            None => { Some(go_to) }
         };
 
         Ok(matched)
     }
 
-    fn ins_goto_if_def(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_goto_if_true(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction)
                        -> Result<Option<usize>, String> {
         let go_to = *try!(
@@ -1153,8 +1160,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let value   = thread.get_register(value_slot);
         let matched = match value {
-            Some(_) => { Some(go_to) },
-            None    => { None }
+            Some(obj) => {
+                if read_lock!(obj).truthy() {
+                    Some(go_to)
+                }
+                else {
+                    None
+                }
+            },
+            None => { None }
         };
 
         Ok(matched)
