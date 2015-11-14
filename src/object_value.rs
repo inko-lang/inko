@@ -19,11 +19,27 @@ impl ObjectValue {
         }
     }
 
+    pub fn is_float(&self) -> bool {
+        match *self {
+            ObjectValue::Float(_) => true,
+            _                     => false
+        }
+    }
+
     pub fn as_integer(&self) -> isize {
         match *self {
             ObjectValue::Integer(val) => val,
             _ => {
                 panic!("ObjectValue::as_integer() called on a non integer");
+            }
+        }
+    }
+
+    pub fn as_float(&self) -> f64 {
+        match *self {
+            ObjectValue::Float(val) => val,
+            _ => {
+                panic!("ObjectValue::as_float() called on a non float");
             }
         }
     }

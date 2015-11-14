@@ -536,7 +536,6 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_add 2, 0, 1
-    ///
     fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
@@ -839,6 +838,25 @@ pub trait VirtualMachineMethods {
     fn ins_start_thread(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
 
+    /// Adds two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the receiver.
+    /// 3. The register slot of the float to add.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///       1: 0.5
+    ///
+    ///     0: set_float 0, 0
+    ///     1: set_float 1, 1
+    ///     2: float_add 2, 0, 1
+    fn ins_float_add(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

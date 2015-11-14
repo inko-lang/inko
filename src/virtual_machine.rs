@@ -402,6 +402,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         code.clone(),
                         &instruction
                     ));
+                },
+                InstructionType::FloatAdd => {
+                    try!(self.ins_float_add(
+                        thread.clone(),
+                        code.clone(),
+                        &instruction
+                    ));
                 }
             };
         }
@@ -2117,6 +2124,59 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let thread_object = self.run_thread(thread_code, false);
 
         thread.set_register(slot, thread_object);
+
+        Ok(())
+    }
+
+    fn ins_float_add(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let slot = *try!(
+            instruction.arguments
+                .get(0)
+                .ok_or("missing target slot index".to_string())
+        );
+
+        let receiver_index = *try!(
+            instruction.arguments
+                .get(1)
+                .ok_or("missing receiver slot index".to_string())
+        );
+
+        let arg_index = *try!(
+            instruction.arguments
+                .get(2)
+                .ok_or("missing argument slot index".to_string())
+        );
+
+        let receiver_lock = try!(
+            thread.get_register(receiver_index)
+                .ok_or("undefined receiver object".to_string())
+        );
+
+        let arg_lock = try!(
+            thread.get_register(arg_index)
+                .ok_or("undefined argument object".to_string())
+        );
+
+        let prototype = try!(
+            read_lock!(self.memory_manager)
+                .float_prototype()
+                .ok_or("no Float prototype set up".to_string())
+        );
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        if !receiver.value.is_float() || !arg.value.is_float() {
+            return Err("both objects must be floats".to_string());
+        }
+
+        let added = receiver.value.as_float() + arg.value.as_float();
+
+        let obj = write_lock!(self.memory_manager)
+            .allocate(object_value::float(added), prototype.clone());
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }
