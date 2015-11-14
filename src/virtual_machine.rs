@@ -19,6 +19,13 @@ use virtual_machine_methods::VirtualMachineMethods;
 use thread::{Thread, RcThread};
 use thread_list::ThreadList;
 
+/// Calls an instruction method on a given receiver.
+macro_rules! run {
+    ($rec: expr, $name: ident, $thread: ident, $code: ident, $ins: ident) => (
+        try!($rec.$name($thread.clone(), $code.clone(), &$ins));
+    );
+}
+
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
 
@@ -89,326 +96,157 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
-                    try!(self.ins_set_integer(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_integer, thread, code, instruction);
                 },
                 InstructionType::SetFloat => {
-                    try!(self.ins_set_float(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_float, thread, code, instruction);
                 },
                 InstructionType::SetString => {
-                    try!(self.ins_set_string(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_string, thread, code, instruction);
                 },
                 InstructionType::SetObject => {
-                    try!(self.ins_set_object(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_object, thread, code, instruction);
                 },
                 InstructionType::SetArray => {
-                    try!(self.ins_set_array(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_array, thread, code, instruction);
                 },
                 InstructionType::SetName => {
-                    try!(self.ins_set_name(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_name, thread, code, instruction);
                 },
                 InstructionType::SetIntegerPrototype => {
-                    try!(self.ins_set_integer_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_integer_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetFloatPrototype => {
-                    try!(self.ins_set_float_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_float_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetStringPrototype => {
-                    try!(self.ins_set_string_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_string_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetArrayPrototype => {
-                    try!(self.ins_set_array_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_array_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetThreadPrototype => {
-                    try!(self.ins_set_thread_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_thread_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetTruePrototype => {
-                    try!(self.ins_set_true_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_true_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetFalsePrototype => {
-                    try!(self.ins_set_false_prototype(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_false_prototype, thread, code,
+                         instruction);
                 },
                 InstructionType::SetTrue => {
-                    try!(self.ins_set_true(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_true, thread, code, instruction);
                 },
                 InstructionType::SetFalse => {
-                    try!(self.ins_set_false(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_false, thread, code, instruction);
                 },
                 InstructionType::SetLocal => {
-                    try!(self.ins_set_local(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_local, thread, code, instruction);
                 },
                 InstructionType::GetLocal => {
-                    try!(self.ins_get_local(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_get_local, thread, code, instruction);
                 },
                 InstructionType::SetConst => {
-                    try!(self.ins_set_const(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_const, thread, code, instruction);
                 },
                 InstructionType::GetConst => {
-                    try!(self.ins_get_const(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_get_const, thread, code, instruction);
                 },
                 InstructionType::SetAttr => {
-                    try!(self.ins_set_attr(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_set_attr, thread, code, instruction);
                 },
                 InstructionType::GetAttr => {
-                    try!(self.ins_get_attr(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_get_attr, thread, code, instruction);
                 },
                 InstructionType::Send => {
-                    try!(self.ins_send(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_send, thread, code, instruction);
                 },
                 InstructionType::Return => {
-                    retval = try!(self.ins_return(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    retval = run!(self, ins_return, thread, code, instruction);
                 },
                 InstructionType::GotoIfFalse => {
-                    skip_until = try!(self.ins_goto_if_false(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    skip_until = run!(self, ins_goto_if_false, thread, code,
+                                      instruction);
                 },
                 InstructionType::GotoIfTrue => {
-                    skip_until = try!(self.ins_goto_if_true(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    skip_until = run!(self, ins_goto_if_true, thread, code,
+                                      instruction);
                 },
                 InstructionType::Goto => {
-                    index = try!(self.ins_goto(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    index = run!(self, ins_goto, thread, code, instruction);
                 },
                 InstructionType::DefMethod => {
-                    try!(self.ins_def_method(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_def_method, thread, code, instruction);
                 },
                 InstructionType::RunCode => {
-                    try!(self.ins_run_code(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_run_code, thread, code, instruction);
                 },
                 InstructionType::GetToplevel => {
-                    try!(self.ins_get_toplevel(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_get_toplevel, thread, code, instruction);
                 },
                 InstructionType::IntegerAdd => {
-                    try!(self.ins_integer_add(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_add, thread, code, instruction);
                 },
                 InstructionType::IntegerDiv => {
-                    try!(self.ins_integer_div(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_div, thread, code, instruction);
                 },
                 InstructionType::IntegerMul => {
-                    try!(self.ins_integer_mul(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_mul, thread, code, instruction);
                 },
                 InstructionType::IntegerSub => {
-                    try!(self.ins_integer_sub(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_sub, thread, code, instruction);
                 },
                 InstructionType::IntegerMod => {
-                    try!(self.ins_integer_mod(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_mod, thread, code, instruction);
                 },
                 InstructionType::IntegerToFloat => {
-                    try!(self.ins_integer_to_float(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_to_float, thread, code, instruction);
                 },
                 InstructionType::IntegerToString => {
-                    try!(self.ins_integer_to_string(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_to_string, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerBitwiseAnd => {
-                    try!(self.ins_integer_bitwise_and(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_bitwise_and, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerBitwiseOr => {
-                    try!(self.ins_integer_bitwise_or(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_bitwise_or, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerBitwiseXor => {
-                    try!(self.ins_integer_bitwise_xor(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_bitwise_xor, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerShiftLeft => {
-                    try!(self.ins_integer_shift_left(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_shift_left, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerShiftRight => {
-                    try!(self.ins_integer_shift_right(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_shift_right, thread, code,
+                         instruction);
                 },
                 InstructionType::IntegerSmaller => {
-                    try!(self.ins_integer_smaller(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_smaller, thread, code, instruction);
                 },
                 InstructionType::IntegerGreater => {
-                    try!(self.ins_integer_greater(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_greater, thread, code, instruction);
                 },
                 InstructionType::IntegerEqual => {
-                    try!(self.ins_integer_equal(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_integer_equal, thread, code, instruction);
                 },
                 InstructionType::StartThread => {
-                    try!(self.ins_start_thread(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_start_thread, thread, code, instruction);
                 },
                 InstructionType::FloatAdd => {
-                    try!(self.ins_float_add(
-                        thread.clone(),
-                        code.clone(),
-                        &instruction
-                    ));
+                    run!(self, ins_float_add, thread, code, instruction);
                 }
             };
         }
