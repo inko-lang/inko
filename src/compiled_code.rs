@@ -145,6 +145,30 @@ impl CompiledCode {
             _                         => false
         }
     }
+
+    pub fn integer(&self, index: usize) -> Result<&isize, String> {
+        self.integer_literals
+            .get(index)
+            .ok_or(format!("undefined integer literal {}", index))
+    }
+
+    pub fn float(&self, index: usize) -> Result<&f64, String> {
+        self.float_literals
+            .get(index)
+            .ok_or(format!("undefined float literal {}", index))
+    }
+
+    pub fn string(&self, index: usize) -> Result<&String, String> {
+        self.string_literals
+            .get(index)
+            .ok_or(format!("undefined string literal {}", index))
+    }
+
+    pub fn code_object(&self, index: usize) -> Result<&RcCompiledCode, String> {
+        self.code_objects
+            .get(index)
+            .ok_or(format!("undefined code object {}", index))
+    }
 }
 
 #[cfg(test)]

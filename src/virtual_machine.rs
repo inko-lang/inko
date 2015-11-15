@@ -26,6 +26,34 @@ macro_rules! run {
     );
 }
 
+macro_rules! error_when_prototype_exists {
+    ($rec: expr, $name: ident) => (
+        if read_lock!($rec.memory_manager).$name().is_some() {
+            return Err("prototype already defined".to_string());
+        }
+    );
+}
+
+macro_rules! ensure_integers {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_integer() {
+                return Err("all objects must be integers".to_string());
+            }
+        )+
+    );
+}
+
+macro_rules! ensure_floats {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_float() {
+                return Err("all objects must be floats".to_string());
+            }
+        )+
+    );
+}
+
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
 
@@ -50,6 +78,52 @@ impl VirtualMachine {
         };
 
         Arc::new(vm)
+    }
+
+    fn integer_prototype(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .integer_prototype()
+            .ok_or("no integer prototype set up".to_string())
+    }
+
+    fn float_prototype(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .float_prototype()
+            .ok_or("no float prototype set up".to_string())
+    }
+
+    fn string_prototype(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .string_prototype()
+            .ok_or("no string prototype set up".to_string())
+    }
+
+    fn array_prototype(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .array_prototype()
+            .ok_or("no array prototype set up".to_string())
+    }
+
+    fn thread_prototype(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .thread_prototype()
+            .ok_or("no thread prototype set up".to_string())
+    }
+
+    fn false_object(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .false_object()
+            .ok_or("no false object set up".to_string())
+    }
+
+    fn true_object(&self) -> Result<RcObject, String> {
+        read_lock!(self.memory_manager)
+            .true_object()
+            .ok_or("no true object set up".to_string())
+    }
+
+    fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
+        write_lock!(self.memory_manager).allocate(value, prototype)
     }
 }
 
@@ -256,32 +330,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_integer(&self, thread: RcThread, code: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot".to_string())
-        );
+        let slot  = *try!(instruction.arg(0));
+        let index = *try!(instruction.arg(1));
+        let value = *try!(code.integer(index));
 
-        let index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing integer literal index".to_string())
-        );
-
-        let value = *try!(
-            code.integer_literals
-                .get(index)
-                .ok_or("undefined integer literal".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
-
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(value), prototype.clone());
+        let proto = try!(self.integer_prototype());
+        let obj   = self.allocate(object_value::integer(value), proto);
 
         thread.set_register(slot, obj);
 
@@ -290,32 +344,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_float(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot".to_string())
-        );
+        let slot  = *try!(instruction.arg(0));
+        let index = *try!(instruction.arg(1));
+        let value = *try!(code.float(index));
 
-        let index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing float literal index".to_string())
-        );
-
-        let value  = *try!(
-            code.float_literals
-                .get(index)
-                .ok_or("undefined float literal".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .float_prototype()
-                .ok_or("no Float prototype set up".to_string())
-        );
-
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::float(value), prototype.clone());
+        let proto = try!(self.float_prototype());
+        let obj   = self.allocate(object_value::float(value), proto);
 
         thread.set_register(slot, obj);
 
@@ -324,32 +358,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_string(&self, thread: RcThread, code: RcCompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
+        let slot  = *try!(instruction.arg(0));
+        let index = *try!(instruction.arg(1));
+        let value = try!(code.string(index));
 
-        let index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let value = try!(
-            code.string_literals
-                .get(index)
-                .ok_or("undefined string literal".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .string_prototype()
-                .ok_or("no String prototype set up".to_string())
-        );
-
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::string(value.clone()), prototype.clone());
+        let proto = try!(self.string_prototype());
+        let obj   = self.allocate(object_value::string(value.clone()), proto);
 
         thread.set_register(slot, obj);
 
@@ -358,11 +372,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_object(&self, thread: RcThread, _: RcCompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
+        let slot = *try!(instruction.arg(0));
 
         let proto_index_opt = instruction.arguments.get(1);
 
@@ -371,11 +381,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         if proto_index_opt.is_some() {
             let proto_index = *proto_index_opt.unwrap();
-
-            let proto = try!(
-                thread.get_register(proto_index)
-                    .ok_or("prototype is undefined".to_string())
-            );
+            let proto       = try!(thread.get_register(proto_index));
 
             write_lock!(obj).set_prototype(proto);
         }
@@ -390,30 +396,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_array(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
-
-        let val_count = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing value count".to_string())
-        );
+        let slot      = *try!(instruction.arg(0));
+        let val_count = *try!(instruction.arg(1));
 
         let values = try!(
             self.collect_arguments(thread.clone(), instruction, 2, val_count)
         );
 
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .array_prototype()
-                .ok_or("no Array prototype set up".to_string())
-        );
-
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::array(values), prototype.clone());
+        let proto = try!(self.array_prototype());
+        let obj   = self.allocate(object_value::array(values), proto);
 
         thread.set_register(slot, obj);
 
@@ -422,28 +413,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_name(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot".to_string())
-        );
+        let slot       = *try!(instruction.arg(0));
+        let name_index = *try!(instruction.arg(1));
 
-        let name_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let obj = try!(
-            thread.get_register(slot)
-                .ok_or("undefined target object".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
+        let obj  = try!(thread.get_register(slot));
+        let name = try!(code.string(name_index));
 
         write_lock!(obj).set_name(name.clone());
 
@@ -452,20 +426,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> Result<(), String> {
-        if read_lock!(self.memory_manager).integer_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, integer_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_integer_prototype(object);
 
@@ -474,20 +438,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        if read_lock!(self.memory_manager).float_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, float_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_float_prototype(object);
 
@@ -496,20 +450,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> Result<(), String> {
-        if read_lock!(self.memory_manager).string_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, string_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_string_prototype(object);
 
@@ -519,20 +463,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction)
                                -> Result<(), String> {
-        if read_lock!(self.memory_manager).array_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, array_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_array_prototype(object);
 
@@ -542,20 +476,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction)
                                 -> Result<(), String> {
-        if read_lock!(self.memory_manager).thread_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, thread_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_thread_prototype(object.clone());
 
@@ -568,20 +492,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
-        if read_lock!(self.memory_manager).true_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, true_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_true_prototype(object.clone());
 
@@ -590,20 +504,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> Result<(), String> {
-        if read_lock!(self.memory_manager).false_prototype().is_some() {
-            return Err("prototype already defined".to_string());
-        }
+        error_when_prototype_exists!(self, false_prototype);
 
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            thread.get_register(slot)
-                .ok_or("undefined source object")
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_false_prototype(object.clone());
 
@@ -612,17 +516,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_true(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            read_lock!(self.memory_manager)
-                .true_object()
-                .ok_or("no True object set up".to_string())
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(self.true_object());
 
         thread.set_register(slot, object);
 
@@ -631,17 +526,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_false(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing object slot")
-        );
-
-        let object = try!(
-            read_lock!(self.memory_manager)
-                .false_object()
-                .ok_or("no False object set up".to_string())
-        );
+        let slot   = *try!(instruction.arg(0));
+        let object = try!(self.false_object());
 
         thread.set_register(slot, object);
 
@@ -650,22 +536,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let local_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing local variable index".to_string())
-        );
+        let local_index  = *try!(instruction.arg(0));
+        let object_index = *try!(instruction.arg(1));
 
-        let object_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing object slot".to_string())
-        );
-
-        let object = try!(
-            thread.get_register(object_index)
-                .ok_or("undefined object".to_string())
-        );
+        let object = try!(thread.get_register(object_index));
 
         thread.set_local(local_index, object);
 
@@ -674,22 +548,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let slot_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
+        let slot_index  = *try!(instruction.arg(0));
+        let local_index = *try!(instruction.arg(1));
 
-        let local_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing local variable index".to_string())
-        );
-
-        let object = try!(
-            thread.get_local(local_index)
-                .ok_or("undefined local variable index".to_string())
-        );
+        let object = try!(thread.get_local(local_index));
 
         thread.set_register(slot_index, object);
 
@@ -698,39 +560,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let target_slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target object slot".to_string())
-        );
+        let target_slot = *try!(instruction.arg(0));
+        let source_slot = *try!(instruction.arg(1));
+        let name_index  = *try!(instruction.arg(2));
 
-        let source_slot = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source object slot".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let target = try!(
-            thread.get_register(target_slot)
-                .ok_or("undefined target object".to_string())
-        );
-
-        let source = try!(
-            thread.get_register(source_slot)
-                .ok_or("undefined source object".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
+        let target = try!(thread.get_register(target_slot));
+        let source = try!(thread.get_register(source_slot));
+        let name   = try!(code.string(name_index));
 
         write_lock!(target).add_constant(name.clone(), source);
 
@@ -739,34 +575,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
+        let index      = *try!(instruction.arg(0));
+        let src_index  = *try!(instruction.arg(1));
+        let name_index = *try!(instruction.arg(2));
 
-        let src_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source index".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
-
-        let src = try!(
-            thread.get_register(src_index)
-                .ok_or("undefined source object".to_string())
-        );
+        let name = try!(code.string(name_index));
+        let src  = try!(thread.get_register(src_index));
 
         let object = try!(
             read_lock!(src).lookup_constant(name)
@@ -780,39 +594,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let target_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target object slot".to_string())
-        );
-
-        let source_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source object slot".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let target_object = try!(
-            thread.get_register(target_index)
-                .ok_or("undefined target object".to_string())
-        );
-
-        let source_object = try!(
-            thread.get_register(source_index)
-                .ok_or("undefined target object".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
+        let target_index  = *try!(instruction.arg(0));
+        let source_index  = *try!(instruction.arg(1));
+        let name_index    = *try!(instruction.arg(2));
+        let target_object = try!(thread.get_register(target_index));
+        let source_object = try!(thread.get_register(source_index));
+        let name          = try!(code.string(name_index));
 
         write_lock!(target_object)
             .add_attribute(name.clone(), source_object);
@@ -822,38 +609,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let target_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let source_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source slot index".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let source = try!(
-            thread.get_register(source_index)
-                .ok_or("undefined source object".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
+        let target_index = *try!(instruction.arg(0));
+        let source_index = *try!(instruction.arg(1));
+        let name_index   = *try!(instruction.arg(2));
+        let source       = try!(thread.get_register(source_index));
+        let name         = try!(code.string(name_index));
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(format!("undefined attribute \"{}\"", name))
+                .ok_or(format!("undefined attribute {}", name))
         );
 
         thread.set_register(target_index, attr);
@@ -863,49 +627,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_send(&self, thread: RcThread, code: RcCompiledCode,
                 instruction: &Instruction) -> Result<(), String> {
-        let result_slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing result slot".to_string())
-        );
-
-        let receiver_slot = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing receiver slot".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let allow_private = *try!(
-            instruction.arguments
-                .get(3)
-                .ok_or("missing method visibility".to_string())
-        );
-
-        let arg_count = *try!(
-            instruction.arguments
-                .get(4)
-                .ok_or("missing argument count".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
-
-        let receiver_lock = try!(
-            thread.get_register(receiver_slot)
-                .ok_or(format!(
-                    "\"{}\" called on an undefined receiver",
-                    name
-                ))
-        );
+        let result_slot   = *try!(instruction.arg(0));
+        let receiver_slot = *try!(instruction.arg(1));
+        let name_index    = *try!(instruction.arg(2));
+        let allow_private = *try!(instruction.arg(3));
+        let arg_count     = *try!(instruction.arg(4));
+        let name          = try!(code.string(name_index));
+        let receiver_lock = try!(thread.get_register(receiver_slot));
 
         let receiver = read_lock!(receiver_lock);
 
@@ -924,7 +652,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         if arguments.len() != method_code.required_arguments {
             return Err(format!(
-                "\"{}\" requires {} arguments, {} given",
+                "{} requires {} arguments, {} given",
                 name,
                 method_code.required_arguments,
                 arguments.len()
@@ -948,31 +676,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_return(&self, thread: RcThread, _: RcCompiledCode,
                   instruction: &Instruction)
                   -> Result<Option<RcObject>, String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing return slot".to_string())
-        );
+        let slot = *try!(instruction.arg(0));
 
-        Ok(thread.get_register(slot))
+        Ok(thread.get_register_option(slot))
     }
 
     fn ins_goto_if_false(&self, thread: RcThread, _: RcCompiledCode,
                          instruction: &Instruction)
                          -> Result<Option<usize>, String> {
-        let go_to = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing instruction index".to_string())
-        );
+        let go_to      = *try!(instruction.arg(0));
+        let value_slot = *try!(instruction.arg(1));
+        let value      = thread.get_register_option(value_slot);
 
-        let value_slot = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing value slot".to_string())
-        );
-
-        let value   = thread.get_register(value_slot);
         let matched = match value {
             Some(obj) => {
                 if read_lock!(obj).truthy() {
@@ -991,19 +706,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_goto_if_true(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction)
                        -> Result<Option<usize>, String> {
-        let go_to = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing instruction index".to_string())
-        );
+        let go_to      = *try!(instruction.arg(0));
+        let value_slot = *try!(instruction.arg(1));
+        let value      = thread.get_register_option(value_slot);
 
-        let value_slot = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing value slot".to_string())
-        );
-
-        let value   = thread.get_register(value_slot);
         let matched = match value {
             Some(obj) => {
                 if read_lock!(obj).truthy() {
@@ -1021,52 +727,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_goto(&self, _: RcThread, _: RcCompiledCode,
                 instruction: &Instruction) -> Result<usize, String> {
-        let go_to = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing instruction index".to_string())
-        );
+        let go_to = *try!(instruction.arg(0));
 
         Ok(go_to)
     }
 
     fn ins_def_method(&self, thread: RcThread, code: RcCompiledCode,
                       instruction: &Instruction) -> Result<(), String> {
-        let receiver_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing receiver slot".to_string())
-        );
-
-        let name_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing string literal index".to_string())
-        );
-
-        let code_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing code object index".to_string())
-        );
-
-        let receiver_lock = try!(
-            thread.get_register(receiver_index)
-                .ok_or("undefined receiver".to_string())
-        );
-
-        let name = try!(
-            code.string_literals
-                .get(name_index)
-                .ok_or("undefined string literal".to_string())
-        );
-
-        let method_code = try!(
-            code.code_objects
-                .get(code_index)
-                .cloned()
-                .ok_or("undefined code object index".to_string())
-        );
+        let receiver_index = *try!(instruction.arg(0));
+        let name_index     = *try!(instruction.arg(1));
+        let code_index     = *try!(instruction.arg(2));
+        let receiver_lock  = try!(thread.get_register(receiver_index));
+        let name           = try!(code.string(name_index));
+        let method_code    = try!(code.code_object(code_index)).clone();
 
         let mut receiver = write_lock!(receiver_lock);
 
@@ -1077,30 +750,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_run_code(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> Result<(), String> {
-        let result_index = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing result slot".to_string())
-        );
-
-        let code_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing code object index".to_string())
-        );
-
-        let arg_count = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing argument count".to_string())
-        );
-
-        let code_obj = try!(
-            code.code_objects
-                .get(code_index)
-                .cloned()
-                .ok_or("undefined code object".to_string())
-        );
+        let result_index = *try!(instruction.arg(0));
+        let code_index   = *try!(instruction.arg(1));
+        let arg_count    = *try!(instruction.arg(2));
+        let code_obj     = try!(code.code_object(code_index)).clone();
 
         let arguments = try!(
             self.collect_arguments(thread.clone(), instruction, 3, arg_count)
@@ -1117,11 +770,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_toplevel(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index")
-        );
+        let slot = *try!(instruction.arg(0));
 
         let top_level = read_lock!(self.memory_manager).top_level.clone();
 
@@ -1132,52 +781,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let added = left_object.value.as_integer() +
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(added), prototype.clone());
+        let obj = self.allocate(object_value::integer(added), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1186,52 +805,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_div(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() /
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1240,52 +829,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mul(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() *
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1294,52 +853,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_sub(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() -
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1348,52 +877,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mod(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() %
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1402,39 +901,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_to_float(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
+        let slot         = *try!(instruction.arg(0));
+        let int_index    = *try!(instruction.arg(1));
+        let integer_lock = try!(thread.get_register(int_index));
+        let prototype    = try!(self.float_prototype());
+        let integer      = read_lock!(integer_lock);
 
-        let int_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source slot index".to_string())
-        );
-
-        let integer_lock = try!(
-            thread.get_register(int_index)
-                .ok_or("undefined source object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .float_prototype()
-                .ok_or("no Float prototype set up".to_string())
-        );
-
-        let integer = read_lock!(integer_lock);
-
-        if !integer.value.is_integer() {
-            return Err("source object is not an Integer".to_string());
-        }
+        ensure_integers!(integer);
 
         let result = integer.value.as_integer() as f64;
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::float(result), prototype.clone());
+        let obj = self.allocate(object_value::float(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1443,39 +920,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_to_string(&self, thread: RcThread, _: RcCompiledCode,
                              instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let int_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing source slot index".to_string())
-        );
-
-        let integer_lock = try!(
-            thread.get_register(int_index)
-                .ok_or("undefined source object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .string_prototype()
-                .ok_or("no String prototype set up".to_string())
-        );
+        let slot         = *try!(instruction.arg(0));
+        let int_index    = *try!(instruction.arg(1));
+        let integer_lock = try!(thread.get_register(int_index));
+        let prototype    = try!(self.string_prototype());
 
         let integer = read_lock!(integer_lock);
 
-        if !integer.value.is_integer() {
-            return Err("source object is not an Integer".to_string());
-        }
+        ensure_integers!(integer);
 
         let result = integer.value.as_integer().to_string();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::string(result), prototype.clone());
+        let obj = self.allocate(object_value::string(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1484,52 +940,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_and(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!( thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() &
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1538,52 +964,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_or(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() |
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1592,52 +988,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_xor(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() ^
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1646,52 +1012,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_left(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() <<
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1700,52 +1036,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_right(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .integer_prototype()
-                .ok_or("no Integer prototype set up".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
+        let prototype         = try!(self.integer_prototype());
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let result = left_object.value.as_integer() >>
             right_object.value.as_integer();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::integer(result), prototype.clone());
+        let obj = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1754,57 +1060,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_smaller(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let smaller = left_object.value.as_integer() <
             right_object.value.as_integer();
 
         let boolean = if smaller {
-            try!(
-                read_lock!(self.memory_manager)
-                    .true_object()
-                    .ok_or("no \"true\" object set up".to_string())
-            )
+            try!(self.true_object())
         }
         else {
-            try!(
-                read_lock!(self.memory_manager)
-                    .false_object()
-                    .ok_or("no \"false\" object set up".to_string())
-            )
+            try!(self.false_object())
         };
 
         thread.set_register(slot, boolean);
@@ -1814,57 +1088,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_greater(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let smaller = left_object.value.as_integer() >
             right_object.value.as_integer();
 
         let boolean = if smaller {
-            try!(
-                read_lock!(self.memory_manager)
-                    .true_object()
-                    .ok_or("no \"true\" object set up".to_string())
-            )
+            try!(self.true_object())
         }
         else {
-            try!(
-                read_lock!(self.memory_manager)
-                    .false_object()
-                    .ok_or("no \"false\" object set up".to_string())
-            )
+            try!(self.false_object())
         };
 
         thread.set_register(slot, boolean);
@@ -1874,57 +1116,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_equal(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let left_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing left-hand slot index".to_string())
-        );
-
-        let right_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing right-hand slot index".to_string())
-        );
-
-        let left_object_lock = try!(
-            thread.get_register(left_index)
-                .ok_or("undefined left-hand object".to_string())
-        );
-
-        let right_object_lock = try!(
-            thread.get_register(right_index)
-                .ok_or("undefined right-hand object".to_string())
-        );
+        let slot              = *try!(instruction.arg(0));
+        let left_index        = *try!(instruction.arg(1));
+        let right_index       = *try!(instruction.arg(2));
+        let left_object_lock  = try!(thread.get_register(left_index));
+        let right_object_lock = try!(thread.get_register(right_index));
 
         let left_object  = read_lock!(left_object_lock);
         let right_object = read_lock!(right_object_lock);
 
-        if !left_object.value.is_integer() || !right_object.value.is_integer() {
-            return Err("both objects must be integers".to_string());
-        }
+        ensure_integers!(left_object, right_object);
 
         let smaller = left_object.value.as_integer() ==
             right_object.value.as_integer();
 
         let boolean = if smaller {
-            try!(
-                read_lock!(self.memory_manager)
-                    .true_object()
-                    .ok_or("no \"true\" object set up".to_string())
-            )
+            try!(self.true_object())
         }
         else {
-            try!(
-                read_lock!(self.memory_manager)
-                    .false_object()
-                    .ok_or("no \"false\" object set up".to_string())
-            )
+            try!(self.false_object())
         };
 
         thread.set_register(slot, boolean);
@@ -1934,30 +1144,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_start_thread(&self, thread: RcThread, code: RcCompiledCode,
                         instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing slot index".to_string())
-        );
+        let slot        = *try!(instruction.arg(0));
+        let code_index  = *try!(instruction.arg(1));
+        let thread_code = try!(code.code_object(code_index)).clone();
 
-        let code_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing code object index".to_string())
-        );
-
-        let thread_code = try!(
-            code.code_objects
-                .get(code_index)
-                .cloned()
-                .ok_or("undefined code object".to_string())
-        );
-
-        try!(
-            read_lock!(self.memory_manager)
-                .thread_prototype()
-                .ok_or("no Thread prototype set up".to_string())
-        );
+        try!(self.thread_prototype());
 
         let thread_object = self.run_thread(thread_code, false);
 
@@ -1968,51 +1159,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_add(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> Result<(), String> {
-        let slot = *try!(
-            instruction.arguments
-                .get(0)
-                .ok_or("missing target slot index".to_string())
-        );
-
-        let receiver_index = *try!(
-            instruction.arguments
-                .get(1)
-                .ok_or("missing receiver slot index".to_string())
-        );
-
-        let arg_index = *try!(
-            instruction.arguments
-                .get(2)
-                .ok_or("missing argument slot index".to_string())
-        );
-
-        let receiver_lock = try!(
-            thread.get_register(receiver_index)
-                .ok_or("undefined receiver object".to_string())
-        );
-
-        let arg_lock = try!(
-            thread.get_register(arg_index)
-                .ok_or("undefined argument object".to_string())
-        );
-
-        let prototype = try!(
-            read_lock!(self.memory_manager)
-                .float_prototype()
-                .ok_or("no Float prototype set up".to_string())
-        );
+        let slot           = *try!(instruction.arg(0));
+        let receiver_index = *try!(instruction.arg(1));
+        let arg_index      = *try!(instruction.arg(2));
+        let receiver_lock  = try!(thread.get_register(receiver_index));
+        let arg_lock       = try!(thread.get_register(arg_index));
+        let prototype      = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
 
-        if !receiver.value.is_float() || !arg.value.is_float() {
-            return Err("both objects must be floats".to_string());
-        }
+        ensure_floats!(receiver, arg);
 
         let added = receiver.value.as_float() + arg.value.as_float();
 
-        let obj = write_lock!(self.memory_manager)
-            .allocate(object_value::float(added), prototype.clone());
+        let obj = self.allocate(object_value::float(added), prototype);
 
         thread.set_register(slot, obj);
 
@@ -2066,11 +1227,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         for index in offset..(offset + amount) {
             let arg_index = instruction.arguments[index];
-
-            let arg = try!(
-                thread.get_register(arg_index)
-                    .ok_or(format!("argument {} is undefined", index))
-            );
+            let arg       = try!(thread.get_register(arg_index));
 
             args.push(arg)
         }

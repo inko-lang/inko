@@ -81,4 +81,10 @@ impl Instruction {
             column: column
         }
     }
+
+    pub fn arg(&self, index: usize) -> Result<&usize, String> {
+        self.arguments
+            .get(index)
+            .ok_or(format!("undefined instruction argument {}", index))
+    }
 }
