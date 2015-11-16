@@ -2,6 +2,7 @@ use compiled_code::RcCompiledCode;
 use instruction::Instruction;
 use object::RcObject;
 use thread::RcThread;
+use virtual_machine_result::*;
 
 /// Trait defining all methods that should be available for a RcVirtualMachine.
 pub trait VirtualMachineMethods {
@@ -22,8 +23,7 @@ pub trait VirtualMachineMethods {
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
     ///
-    fn run(&self, RcThread, RcCompiledCode)
-        -> Result<Option<RcObject>, String>;
+    fn run(&self, RcThread, RcCompiledCode) -> OptionObjectResult;
 
     /// Sets an integer in a register slot.
     ///
@@ -42,7 +42,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///
     fn ins_set_integer(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets a float in a register slot.
     ///
@@ -61,8 +61,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///
     fn ins_set_float(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
-
+        -> EmptyResult;
     /// Sets a string in a register slot.
     ///
     /// This instruction requires two arguments:
@@ -80,7 +79,7 @@ pub trait VirtualMachineMethods {
     ///     set_string 0, 0
     ///
     fn ins_set_string(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets an object in a register slot.
     ///
@@ -94,7 +93,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_object 1, 0
     ///
     fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets an array in a register slot.
     ///
@@ -115,7 +114,7 @@ pub trait VirtualMachineMethods {
     ///     4: set_array           3, 2, 1, 2
     ///
     fn ins_set_array(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the name of a given object.
     ///
@@ -133,7 +132,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_name   0, 0
     ///
     fn ins_set_name(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for Integer objects.
     ///
@@ -146,7 +145,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer_prototype 0
     ///
     fn ins_set_integer_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for Float objects.
     ///
@@ -159,7 +158,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_float_prototype 0
     ///
     fn ins_set_float_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for String objects.
     ///
@@ -172,7 +171,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_string_prototype 0
     ///
     fn ins_set_string_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for Array objects.
     ///
@@ -185,7 +184,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_array_prototype 0
     ///
     fn ins_set_array_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for Thread objects.
     ///
@@ -201,7 +200,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_thread_prototype 0
     ///
     fn ins_set_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for "true" objects.
     ///
@@ -214,7 +213,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_object         0
     ///     1: set_true_prototype 0
     fn ins_set_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the prototype for "false" objects.
     ///
@@ -227,7 +226,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_object          0
     ///     1: set_false_prototype 0
     fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets a "true" value in a register slot.
     ///
@@ -240,7 +239,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_true_prototype 0
     ///     2: set_true           1
     fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets a "false" value in a register slot.
     ///
@@ -253,7 +252,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_false_prototype 0
     ///     2: set_false           1
     fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets a local variable to a given slot's value.
     ///
@@ -268,7 +267,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_local  0, 0
     ///
     fn ins_set_local(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Gets a local variable and stores it in a register slot.
     ///
@@ -284,7 +283,7 @@ pub trait VirtualMachineMethods {
     ///     2: get_local  1, 0
     ///
     fn ins_get_local(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets a constant in a given object.
     ///
@@ -305,7 +304,7 @@ pub trait VirtualMachineMethods {
     ///     3: set_const    0, 1, 0
     ///
     fn ins_set_const(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Looks up a constant and stores it in a register slot.
     ///
@@ -324,7 +323,7 @@ pub trait VirtualMachineMethods {
     ///     0: get_const 0, 0
     ///
     fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets an attribute value in a specific object.
     ///
@@ -346,7 +345,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_attr   1, 0, 0
     ///
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Gets an attribute from an object and stores it in a register slot.
     ///
@@ -368,7 +367,7 @@ pub trait VirtualMachineMethods {
     ///     3: get_attr   2, 1, 0
     ///
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sends a message
     ///
@@ -399,8 +398,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1              # 20
     ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
     ///
-    fn ins_send(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+    fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Returns the value in the given register slot.
     ///
@@ -419,7 +417,7 @@ pub trait VirtualMachineMethods {
     ///     1: return      0
     ///
     fn ins_return(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<Option<RcObject>, String>;
+        -> OptionObjectResult;
 
     /// Jumps to an instruction if a slot is not set or set to false.
     ///
@@ -440,7 +438,7 @@ pub trait VirtualMachineMethods {
     ///
     /// Here slot "0" would be set to "20".
     fn ins_goto_if_false(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<Option<usize>, String>;
+        -> OptionIntegerResult;
 
     /// Jumps to an instruction if a slot is set.
     ///
@@ -461,7 +459,7 @@ pub trait VirtualMachineMethods {
     ///
     /// Here slot "0" would be set to "10".
     fn ins_goto_if_true(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<Option<usize>, String>;
+        -> OptionIntegerResult;
 
     /// Jumps to a specific instruction.
     ///
@@ -479,8 +477,7 @@ pub trait VirtualMachineMethods {
     ///
     /// Here slot 0 would be set to 20.
     ///
-    fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<usize, String>;
+    fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction) -> IntegerResult;
 
     /// Defines a method for an object.
     ///
@@ -491,7 +488,7 @@ pub trait VirtualMachineMethods {
     /// 3. The code object index containing the CompiledCode of the method.
     ///
     fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Runs a CompiledCode.
     ///
@@ -506,7 +503,7 @@ pub trait VirtualMachineMethods {
     /// CompiledCode.
     ///
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Sets the top-level object in a register slot.
     ///
@@ -517,7 +514,7 @@ pub trait VirtualMachineMethods {
     ///     get_toplevel 0
     ///
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Adds two integers
     ///
@@ -537,7 +534,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_add 2, 0, 1
     fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Divides an integer
     ///
@@ -557,7 +554,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_div 2, 0, 1
     fn ins_integer_div(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Multiplies an integer
     ///
@@ -577,7 +574,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_mul 2, 0, 1
     fn ins_integer_mul(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Subtracts an integer
     ///
@@ -597,7 +594,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_sub 2, 0, 1
     fn ins_integer_sub(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Gets the modulo of an integer
     ///
@@ -617,7 +614,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1
     ///     2: integer_mod 2, 0, 1
     fn ins_integer_mod(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Converts an integer to a float
     ///
@@ -634,7 +631,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer      0, 0
     ///     1: integer_to_float 1, 0
     fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Converts an integer to a string
     ///
@@ -651,7 +648,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer       0, 0
     ///     1: integer_to_string 1, 0
     fn ins_integer_to_string(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Performs an integer bitwise AND.
     ///
@@ -671,7 +668,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer         1, 1
     ///     1: integer_bitwise_and 2, 0, 1
     fn ins_integer_bitwise_and(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Performs an integer bitwise OR.
     ///
@@ -691,7 +688,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer        1, 1
     ///     1: integer_bitwise_or 2, 0, 1
     fn ins_integer_bitwise_or(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Performs an integer bitwise XOR.
     ///
@@ -711,7 +708,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer         1, 1
     ///     1: integer_bitwise_xor 2, 0, 1
     fn ins_integer_bitwise_xor(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Shifts an integer to the left.
     ///
@@ -731,7 +728,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer        1, 1
     ///     1: integer_shift_left 2, 0, 1
     fn ins_integer_shift_left(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Shifts an integer to the right.
     ///
@@ -751,7 +748,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer         1, 1
     ///     1: integer_shift_right 2, 0, 1
     fn ins_integer_shift_right(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Checks if one integer is smaller than the other.
     ///
@@ -773,7 +770,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer     1, 1
     ///     2: integer_smaller 2, 0, 1
     fn ins_integer_smaller(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Checks if one integer is greater than the other.
     ///
@@ -795,7 +792,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer     1, 1
     ///     2: integer_greater 2, 0, 1
     fn ins_integer_greater(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Checks if two integers are equal.
     ///
@@ -817,7 +814,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer   1, 1
     ///     2: integer_equal 2, 0, 1
     fn ins_integer_equal(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Runs a CompiledCode in a new thread.
     ///
@@ -836,7 +833,7 @@ pub trait VirtualMachineMethods {
     ///     2. start_thread         1, 0
     ///
     fn ins_start_thread(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Adds two floats
     ///
@@ -856,7 +853,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_float 1, 1
     ///     2: float_add 2, 0, 1
     fn ins_float_add(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Multiplies two floats
     ///
@@ -876,18 +873,18 @@ pub trait VirtualMachineMethods {
     ///     1: set_float 1, 1
     ///     3: float_mul 2, 0, 1
     fn ins_float_mul(&self, RcThread, RcCompiledCode, &Instruction)
-        -> Result<(), String>;
+        -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcThread, RcCompiledCode, Vec<RcObject>)
-        -> Result<Option<RcObject>, String>;
+        -> OptionObjectResult;
 
     /// Collects a set of arguments from an instruction.
     fn collect_arguments(&self, RcThread, &Instruction, usize, usize)
-        -> Result<Vec<RcObject>, String>;
+        -> ObjectVecResult;
 
     /// Runs a CompiledCode in a new thread.
     fn run_thread(&self, RcCompiledCode, bool) -> RcObject;
