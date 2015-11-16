@@ -52,7 +52,8 @@ pub enum InstructionType {
     IntegerEqual,
     StartThread,
     FloatAdd,
-    FloatMul
+    FloatMul,
+    FloatDiv
 }
 
 /// Struct for storing information about a single instruction.
