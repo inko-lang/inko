@@ -53,7 +53,8 @@ pub enum InstructionType {
     StartThread,
     FloatAdd,
     FloatMul,
-    FloatDiv
+    FloatDiv,
+    FloatSub
 }
 
 /// Struct for storing information about a single instruction.

@@ -895,6 +895,26 @@ pub trait VirtualMachineMethods {
     fn ins_float_div(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Subtracts two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the receiver.
+    /// 3. The register slot of the float to subtract.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///       1: 5.0
+    ///
+    ///     0: set_float 0, 0
+    ///     1: set_float 1, 1
+    ///     2: float_sub 2, 0, 1
+    fn ins_float_sub(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
