@@ -54,7 +54,13 @@ pub enum InstructionType {
     FloatAdd,
     FloatMul,
     FloatDiv,
-    FloatSub
+    FloatSub,
+    FloatMod,
+    FloatToInteger,
+    FloatToString,
+    FloatSmaller,
+    FloatGreater,
+    FloatEquals
 }
 
 /// Struct for storing information about a single instruction.

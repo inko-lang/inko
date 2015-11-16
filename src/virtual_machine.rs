@@ -338,6 +338,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FloatSub => {
                     run!(self, ins_float_sub, thread, code, instruction);
+                },
+                InstructionType::FloatMod => {
+                    run!(self, ins_float_mod, thread, code, instruction);
+                },
+                InstructionType::FloatToInteger => {
+                    run!(self, ins_float_to_integer, thread, code, instruction);
+                },
+                InstructionType::FloatToString => {
+                    run!(self, ins_float_to_string, thread, code, instruction);
+                },
+                InstructionType::FloatSmaller => {
+                    run!(self, ins_float_smaller, thread, code, instruction);
+                },
+                InstructionType::FloatGreater => {
+                    run!(self, ins_float_greater, thread, code, instruction);
+                },
+                InstructionType::FloatEquals => {
+                    run!(self, ins_float_equals, thread, code, instruction);
                 }
             };
         }
@@ -870,7 +888,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn ins_integer_to_float(&self, thread: RcThread, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+                            instruction: &Instruction) -> EmptyResult {
         let slot         = try!(instruction.arg(0));
         let integer_lock = instruction_object!(instruction, thread, 1);
         let prototype    = try!(self.float_prototype());
@@ -1170,6 +1188,135 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let obj    = self.allocate(object_value::float(result), prototype);
 
         thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_float_mod(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.float_prototype());
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_floats!(receiver, arg);
+
+        let result = receiver.value.as_float() % arg.value.as_float();
+        let obj    = self.allocate(object_value::float(result), prototype);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_float_to_integer(&self, thread: RcThread, _: RcCompiledCode,
+                            instruction: &Instruction) -> EmptyResult {
+        let slot       = try!(instruction.arg(0));
+        let float_lock = instruction_object!(instruction, thread, 1);
+        let prototype  = try!(self.integer_prototype());
+        let float      = read_lock!(float_lock);
+
+        ensure_floats!(float);
+
+        let result = float.value.as_float() as isize;
+        let obj    = self.allocate(object_value::integer(result), prototype);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_float_to_string(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot       = try!(instruction.arg(0));
+        let float_lock = instruction_object!(instruction, thread, 1);
+        let prototype  = try!(self.string_prototype());
+        let float      = read_lock!(float_lock);
+
+        ensure_floats!(float);
+
+        let result = float.value.as_float().to_string();
+        let obj    = self.allocate(object_value::string(result), prototype);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_float_smaller(&self, thread: RcThread, _: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_floats!(receiver, arg);
+
+        let smaller = receiver.value.as_float() < arg.value.as_float();
+
+        let boolean = if smaller {
+            try!(self.true_object())
+        }
+        else {
+            try!(self.false_object())
+        };
+
+        thread.set_register(slot, boolean);
+
+        Ok(())
+    }
+
+    fn ins_float_greater(&self, thread: RcThread, _: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_floats!(receiver, arg);
+
+        let smaller = receiver.value.as_float() > arg.value.as_float();
+
+        let boolean = if smaller {
+            try!(self.true_object())
+        }
+        else {
+            try!(self.false_object())
+        };
+
+        thread.set_register(slot, boolean);
+
+        Ok(())
+    }
+
+    fn ins_float_equals(&self, thread: RcThread, _: RcCompiledCode,
+                        instruction: &Instruction) -> EmptyResult {
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_floats!(receiver, arg);
+
+        let smaller = receiver.value.as_float() == arg.value.as_float();
+
+        let boolean = if smaller {
+            try!(self.true_object())
+        }
+        else {
+            try!(self.false_object())
+        };
+
+        thread.set_register(slot, boolean);
 
         Ok(())
     }

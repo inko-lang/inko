@@ -915,6 +915,126 @@ pub trait VirtualMachineMethods {
     fn ins_float_sub(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the modulo of a float
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the receiver.
+    /// 3. The register slot of the float argument.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///       1: 5.0
+    ///
+    ///     0: set_float 0, 0
+    ///     1: set_float 1, 1
+    ///     2: float_mod 2, 0, 1
+    fn ins_float_mod(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Converts a float to an integer
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the float to convert.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///
+    ///     0: set_float        0, 0
+    ///     1: float_to_integer 1, 0
+    fn ins_float_to_integer(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Converts a float to a string
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the float to convert.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///
+    ///     0: set_float       0, 0
+    ///     1: float_to_string 1, 0
+    fn ins_float_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Checks if one float is smaller than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot containing the float to compare.
+    /// 3. The register slot containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.0
+    ///       1: 15.0
+    ///
+    ///     0: set_float     0, 0
+    ///     1: set_float     1, 1
+    ///     2: float_smaller 2, 0, 1
+    fn ins_float_smaller(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Checks if one float is greater than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot containing the float to compare.
+    /// 3. The register slot containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.0
+    ///       1: 15.0
+    ///
+    ///     0: set_float     0, 0
+    ///     1: set_float     1, 1
+    ///     2: float_greater 2, 0, 1
+    fn ins_float_greater(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Checks if two floats are equal.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot containing the float to compare.
+    /// 3. The register slot containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.0
+    ///       1: 15.0
+    ///
+    ///     0: set_float    0, 0
+    ///     1: set_float    1, 1
+    ///     2: float_equals 2, 0, 1
+    fn ins_float_equals(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
