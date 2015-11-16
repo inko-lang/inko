@@ -857,6 +857,27 @@ pub trait VirtualMachineMethods {
     ///     2: float_add 2, 0, 1
     fn ins_float_add(&self, RcThread, RcCompiledCode, &Instruction)
         -> Result<(), String>;
+
+    /// Multiplies two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the receiver.
+    /// 3. THe register slot of the float to multiply with.
+    ///
+    /// # Examples
+    ///
+    ///     float_literals:
+    ///       0: 10.5
+    ///       1. 2.0
+    ///
+    ///     0: set_float 0, 0
+    ///     1: set_float 1, 1
+    ///     3: float_mul 2, 0, 1
+    fn ins_float_mul(&self, RcThread, RcCompiledCode, &Instruction)
+        -> Result<(), String>;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

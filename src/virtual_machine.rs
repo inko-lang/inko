@@ -321,6 +321,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FloatAdd => {
                     run!(self, ins_float_add, thread, code, instruction);
+                },
+                InstructionType::FloatMul => {
+                    run!(self, ins_float_mul, thread, code, instruction);
                 }
             };
         }
@@ -1172,8 +1175,29 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let added = receiver.value.as_float() + arg.value.as_float();
+        let obj   = self.allocate(object_value::float(added), prototype);
 
-        let obj = self.allocate(object_value::float(added), prototype);
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_float_mul(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> Result<(), String> {
+        let slot           = *try!(instruction.arg(0));
+        let receiver_index = *try!(instruction.arg(1));
+        let arg_index      = *try!(instruction.arg(2));
+        let receiver_lock  = try!(thread.get_register(receiver_index));
+        let arg_lock       = try!(thread.get_register(arg_index));
+        let prototype      = try!(self.float_prototype());
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_floats!(receiver, arg);
+
+        let result = receiver.value.as_float() * arg.value.as_float();
+        let obj    = self.allocate(object_value::float(result), prototype);
 
         thread.set_register(slot, obj);
 
