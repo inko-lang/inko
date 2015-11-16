@@ -771,20 +771,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let added = left_object.value.as_integer() +
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(added), prototype);
+        let result = receiver.value.as_integer() + arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -793,20 +791,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_div(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() /
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() / arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -815,20 +811,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mul(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() *
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() * arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -837,20 +831,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_sub(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() -
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() - arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -859,20 +851,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mod(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() %
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() % arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -916,20 +906,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_and(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() &
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() & arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -938,20 +926,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_or(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() |
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() | arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -960,20 +946,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_xor(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() ^
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() ^ arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -982,20 +966,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_left(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() <<
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() << arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1004,20 +986,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_right(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
-        let prototype         = try!(self.integer_prototype());
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let prototype     = try!(self.integer_prototype());
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let result = left_object.value.as_integer() >>
-            right_object.value.as_integer();
-
-        let obj = self.allocate(object_value::integer(result), prototype);
+        let result = receiver.value.as_integer() >> arg.value.as_integer();
+        let obj    = self.allocate(object_value::integer(result), prototype);
 
         thread.set_register(slot, obj);
 
@@ -1026,17 +1006,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_smaller(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let smaller = left_object.value.as_integer() <
-            right_object.value.as_integer();
+        let smaller = receiver.value.as_integer() < arg.value.as_integer();
 
         let boolean = if smaller {
             try!(self.true_object())
@@ -1052,17 +1031,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_greater(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let smaller = left_object.value.as_integer() >
-            right_object.value.as_integer();
+        let smaller = receiver.value.as_integer() > arg.value.as_integer();
 
         let boolean = if smaller {
             try!(self.true_object())
@@ -1078,17 +1056,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_equal(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let slot              = try!(instruction.arg(0));
-        let left_object_lock  = instruction_object!(instruction, thread, 1);
-        let right_object_lock = instruction_object!(instruction, thread, 2);
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
 
-        let left_object  = read_lock!(left_object_lock);
-        let right_object = read_lock!(right_object_lock);
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
 
-        ensure_integers!(left_object, right_object);
+        ensure_integers!(receiver, arg);
 
-        let smaller = left_object.value.as_integer() ==
-            right_object.value.as_integer();
+        let smaller = receiver.value.as_integer() == arg.value.as_integer();
 
         let boolean = if smaller {
             try!(self.true_object())
