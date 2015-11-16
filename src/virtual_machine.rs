@@ -339,8 +339,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_integer(&self, thread: RcThread, code: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot  = *try!(instruction.arg(0));
-        let index = *try!(instruction.arg(1));
+        let slot  = try!(instruction.arg(0));
+        let index = try!(instruction.arg(1));
         let value = *try!(code.integer(index));
 
         let proto = try!(self.integer_prototype());
@@ -353,8 +353,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_float(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot  = *try!(instruction.arg(0));
-        let index = *try!(instruction.arg(1));
+        let slot  = try!(instruction.arg(0));
+        let index = try!(instruction.arg(1));
         let value = *try!(code.float(index));
 
         let proto = try!(self.float_prototype());
@@ -367,8 +367,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_string(&self, thread: RcThread, code: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let slot  = *try!(instruction.arg(0));
-        let index = *try!(instruction.arg(1));
+        let slot  = try!(instruction.arg(0));
+        let index = try!(instruction.arg(1));
         let value = try!(code.string(index));
 
         let proto = try!(self.string_prototype());
@@ -381,7 +381,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_object(&self, thread: RcThread, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let slot = *try!(instruction.arg(0));
+        let slot = try!(instruction.arg(0));
 
         let proto_index_opt = instruction.arguments.get(1);
 
@@ -405,8 +405,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_array(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot      = *try!(instruction.arg(0));
-        let val_count = *try!(instruction.arg(1));
+        let slot      = try!(instruction.arg(0));
+        let val_count = try!(instruction.arg(1));
 
         let values = try!(
             self.collect_arguments(thread.clone(), instruction, 2, val_count)
@@ -422,8 +422,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_name(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot       = *try!(instruction.arg(0));
-        let name_index = *try!(instruction.arg(1));
+        let slot       = try!(instruction.arg(0));
+        let name_index = try!(instruction.arg(1));
 
         let obj  = try!(thread.get_register(slot));
         let name = try!(code.string(name_index));
@@ -437,7 +437,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                  instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, integer_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_integer_prototype(object);
@@ -449,7 +449,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, float_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_float_prototype(object);
@@ -461,7 +461,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                 instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, string_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_string_prototype(object);
@@ -473,7 +473,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, array_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_array_prototype(object);
@@ -485,7 +485,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                 instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, thread_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_thread_prototype(object.clone());
@@ -501,7 +501,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                               instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, true_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_true_prototype(object.clone());
@@ -513,7 +513,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                               instruction: &Instruction) -> EmptyResult {
         error_when_prototype_exists!(self, false_prototype);
 
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(thread.get_register(slot));
 
         write_lock!(self.memory_manager).set_false_prototype(object.clone());
@@ -523,7 +523,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_true(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(self.true_object());
 
         thread.set_register(slot, object);
@@ -533,7 +533,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_false(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot   = *try!(instruction.arg(0));
+        let slot   = try!(instruction.arg(0));
         let object = try!(self.false_object());
 
         thread.set_register(slot, object);
@@ -543,8 +543,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let local_index  = *try!(instruction.arg(0));
-        let object_index = *try!(instruction.arg(1));
+        let local_index  = try!(instruction.arg(0));
+        let object_index = try!(instruction.arg(1));
 
         let object = try!(thread.get_register(object_index));
 
@@ -555,8 +555,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot_index  = *try!(instruction.arg(0));
-        let local_index = *try!(instruction.arg(1));
+        let slot_index  = try!(instruction.arg(0));
+        let local_index = try!(instruction.arg(1));
 
         let object = try!(thread.get_local(local_index));
 
@@ -567,9 +567,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let target_slot = *try!(instruction.arg(0));
-        let source_slot = *try!(instruction.arg(1));
-        let name_index  = *try!(instruction.arg(2));
+        let target_slot = try!(instruction.arg(0));
+        let source_slot = try!(instruction.arg(1));
+        let name_index  = try!(instruction.arg(2));
 
         let target = try!(thread.get_register(target_slot));
         let source = try!(thread.get_register(source_slot));
@@ -582,9 +582,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_const(&self, thread: RcThread, code: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let index      = *try!(instruction.arg(0));
-        let src_index  = *try!(instruction.arg(1));
-        let name_index = *try!(instruction.arg(2));
+        let index      = try!(instruction.arg(0));
+        let src_index  = try!(instruction.arg(1));
+        let name_index = try!(instruction.arg(2));
 
         let name = try!(code.string(name_index));
         let src  = try!(thread.get_register(src_index));
@@ -601,9 +601,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let target_index  = *try!(instruction.arg(0));
-        let source_index  = *try!(instruction.arg(1));
-        let name_index    = *try!(instruction.arg(2));
+        let target_index  = try!(instruction.arg(0));
+        let source_index  = try!(instruction.arg(1));
+        let name_index    = try!(instruction.arg(2));
         let target_object = try!(thread.get_register(target_index));
         let source_object = try!(thread.get_register(source_index));
         let name          = try!(code.string(name_index));
@@ -616,9 +616,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_attr(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let target_index = *try!(instruction.arg(0));
-        let source_index = *try!(instruction.arg(1));
-        let name_index   = *try!(instruction.arg(2));
+        let target_index = try!(instruction.arg(0));
+        let source_index = try!(instruction.arg(1));
+        let name_index   = try!(instruction.arg(2));
         let source       = try!(thread.get_register(source_index));
         let name         = try!(code.string(name_index));
 
@@ -634,11 +634,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_send(&self, thread: RcThread, code: RcCompiledCode,
                 instruction: &Instruction) -> EmptyResult {
-        let result_slot   = *try!(instruction.arg(0));
-        let receiver_slot = *try!(instruction.arg(1));
-        let name_index    = *try!(instruction.arg(2));
-        let allow_private = *try!(instruction.arg(3));
-        let arg_count     = *try!(instruction.arg(4));
+        let result_slot   = try!(instruction.arg(0));
+        let receiver_slot = try!(instruction.arg(1));
+        let name_index    = try!(instruction.arg(2));
+        let allow_private = try!(instruction.arg(3));
+        let arg_count     = try!(instruction.arg(4));
         let name          = try!(code.string(name_index));
         let receiver_lock = try!(thread.get_register(receiver_slot));
 
@@ -682,15 +682,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_return(&self, thread: RcThread, _: RcCompiledCode,
                   instruction: &Instruction) -> OptionObjectResult {
-        let slot = *try!(instruction.arg(0));
+        let slot = try!(instruction.arg(0));
 
         Ok(thread.get_register_option(slot))
     }
 
     fn ins_goto_if_false(&self, thread: RcThread, _: RcCompiledCode,
                          instruction: &Instruction) -> OptionIntegerResult {
-        let go_to      = *try!(instruction.arg(0));
-        let value_slot = *try!(instruction.arg(1));
+        let go_to      = try!(instruction.arg(0));
+        let value_slot = try!(instruction.arg(1));
         let value      = thread.get_register_option(value_slot);
 
         let matched = match value {
@@ -710,8 +710,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_goto_if_true(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> OptionIntegerResult {
-        let go_to      = *try!(instruction.arg(0));
-        let value_slot = *try!(instruction.arg(1));
+        let go_to      = try!(instruction.arg(0));
+        let value_slot = try!(instruction.arg(1));
         let value      = thread.get_register_option(value_slot);
 
         let matched = match value {
@@ -731,16 +731,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_goto(&self, _: RcThread, _: RcCompiledCode,
                 instruction: &Instruction) -> IntegerResult {
-        let go_to = *try!(instruction.arg(0));
+        let go_to = try!(instruction.arg(0));
 
         Ok(go_to)
     }
 
     fn ins_def_method(&self, thread: RcThread, code: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let receiver_index = *try!(instruction.arg(0));
-        let name_index     = *try!(instruction.arg(1));
-        let code_index     = *try!(instruction.arg(2));
+        let receiver_index = try!(instruction.arg(0));
+        let name_index     = try!(instruction.arg(1));
+        let code_index     = try!(instruction.arg(2));
         let receiver_lock  = try!(thread.get_register(receiver_index));
         let name           = try!(code.string(name_index));
         let method_code    = try!(code.code_object(code_index)).clone();
@@ -754,9 +754,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_run_code(&self, thread: RcThread, code: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let result_index = *try!(instruction.arg(0));
-        let code_index   = *try!(instruction.arg(1));
-        let arg_count    = *try!(instruction.arg(2));
+        let result_index = try!(instruction.arg(0));
+        let code_index   = try!(instruction.arg(1));
+        let arg_count    = try!(instruction.arg(2));
         let code_obj     = try!(code.code_object(code_index)).clone();
 
         let arguments = try!(
@@ -774,7 +774,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_toplevel(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let slot = *try!(instruction.arg(0));
+        let slot = try!(instruction.arg(0));
 
         let top_level = read_lock!(self.memory_manager).top_level.clone();
 
@@ -785,9 +785,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -809,9 +809,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_div(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -833,9 +833,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mul(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -857,9 +857,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_sub(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -881,9 +881,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_mod(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -905,8 +905,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_to_float(&self, thread: RcThread, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let slot         = *try!(instruction.arg(0));
-        let int_index    = *try!(instruction.arg(1));
+        let slot         = try!(instruction.arg(0));
+        let int_index    = try!(instruction.arg(1));
         let integer_lock = try!(thread.get_register(int_index));
         let prototype    = try!(self.float_prototype());
         let integer      = read_lock!(integer_lock);
@@ -923,8 +923,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_to_string(&self, thread: RcThread, _: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
-        let slot         = *try!(instruction.arg(0));
-        let int_index    = *try!(instruction.arg(1));
+        let slot         = try!(instruction.arg(0));
+        let int_index    = try!(instruction.arg(1));
         let integer_lock = try!(thread.get_register(int_index));
         let prototype    = try!(self.string_prototype());
 
@@ -942,9 +942,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_and(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!( thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -966,9 +966,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_or(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -990,9 +990,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_xor(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -1014,9 +1014,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_left(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -1038,9 +1038,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_shift_right(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
         let prototype         = try!(self.integer_prototype());
@@ -1062,9 +1062,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_smaller(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
 
@@ -1090,9 +1090,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_greater(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
 
@@ -1118,9 +1118,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_equal(&self, thread: RcThread, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let slot              = *try!(instruction.arg(0));
-        let left_index        = *try!(instruction.arg(1));
-        let right_index       = *try!(instruction.arg(2));
+        let slot              = try!(instruction.arg(0));
+        let left_index        = try!(instruction.arg(1));
+        let right_index       = try!(instruction.arg(2));
         let left_object_lock  = try!(thread.get_register(left_index));
         let right_object_lock = try!(thread.get_register(right_index));
 
@@ -1146,8 +1146,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_start_thread(&self, thread: RcThread, code: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let slot        = *try!(instruction.arg(0));
-        let code_index  = *try!(instruction.arg(1));
+        let slot        = try!(instruction.arg(0));
+        let code_index  = try!(instruction.arg(1));
         let thread_code = try!(code.code_object(code_index)).clone();
 
         try!(self.thread_prototype());
@@ -1161,9 +1161,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_add(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot           = *try!(instruction.arg(0));
-        let receiver_index = *try!(instruction.arg(1));
-        let arg_index      = *try!(instruction.arg(2));
+        let slot           = try!(instruction.arg(0));
+        let receiver_index = try!(instruction.arg(1));
+        let arg_index      = try!(instruction.arg(2));
         let receiver_lock  = try!(thread.get_register(receiver_index));
         let arg_lock       = try!(thread.get_register(arg_index));
         let prototype      = try!(self.float_prototype());
@@ -1183,9 +1183,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_mul(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot           = *try!(instruction.arg(0));
-        let receiver_index = *try!(instruction.arg(1));
-        let arg_index      = *try!(instruction.arg(2));
+        let slot           = try!(instruction.arg(0));
+        let receiver_index = try!(instruction.arg(1));
+        let arg_index      = try!(instruction.arg(2));
         let receiver_lock  = try!(thread.get_register(receiver_index));
         let arg_lock       = try!(thread.get_register(arg_index));
         let prototype      = try!(self.float_prototype());
@@ -1205,9 +1205,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_div(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot           = *try!(instruction.arg(0));
-        let receiver_index = *try!(instruction.arg(1));
-        let arg_index      = *try!(instruction.arg(2));
+        let slot           = try!(instruction.arg(0));
+        let receiver_index = try!(instruction.arg(1));
+        let arg_index      = try!(instruction.arg(2));
         let receiver_lock  = try!(thread.get_register(receiver_index));
         let arg_lock       = try!(thread.get_register(arg_index));
         let prototype      = try!(self.float_prototype());
@@ -1227,9 +1227,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_sub(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot           = *try!(instruction.arg(0));
-        let receiver_index = *try!(instruction.arg(1));
-        let arg_index      = *try!(instruction.arg(2));
+        let slot           = try!(instruction.arg(0));
+        let receiver_index = try!(instruction.arg(1));
+        let arg_index      = try!(instruction.arg(2));
         let receiver_lock  = try!(thread.get_register(receiver_index));
         let arg_lock       = try!(thread.get_register(arg_index));
         let prototype      = try!(self.float_prototype());

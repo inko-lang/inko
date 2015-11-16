@@ -85,9 +85,10 @@ impl Instruction {
         }
     }
 
-    pub fn arg(&self, index: usize) -> Result<&usize, String> {
+    pub fn arg(&self, index: usize) -> Result<usize, String> {
         self.arguments
             .get(index)
+            .cloned()
             .ok_or(format!("undefined instruction argument {}", index))
     }
 }
