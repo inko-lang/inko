@@ -71,3 +71,11 @@ macro_rules! instruction_object {
         try!($thread.get_register(index))
     });
 }
+
+macro_rules! ensure_array_within_bounds {
+    ($array: ident, $index: expr) => (
+        if $index > $array.len() {
+            return Err(format!("index {} is out of bounds", $index));
+        }
+    );
+}

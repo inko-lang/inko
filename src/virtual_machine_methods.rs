@@ -1043,10 +1043,9 @@ pub trait VirtualMachineMethods {
     /// 2. The index to insert the value at.
     /// 3. The register slot containing the value to insert.
     ///
-    /// An error is returned when inserting a value a position greater than the
-    /// length of the array.
+    /// An error is returned when the index is greater than the array length.
     ///
-    /// # Examples:
+    /// # Examples
     ///
     ///     integer_literals:
     ///       0: 10
@@ -1055,6 +1054,28 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer  0, 0
     ///     2: array_insert 0, 0, 0
     fn ins_array_insert(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Gets the value of an array index.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the value in.
+    /// 2. The register slot containing the array.
+    /// 3. The array index to get the value from.
+    ///
+    /// An error is returned when the index is greater than the array length.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_array    0
+    ///     1: set_integer  1, 0
+    ///     2: array_insert 0, 0, 1
+    ///     3: array_at     2, 0, 0
+    fn ins_array_at(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
