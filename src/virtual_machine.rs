@@ -20,59 +20,6 @@ use virtual_machine_result::*;
 use thread::{Thread, RcThread};
 use thread_list::ThreadList;
 
-/// Calls an instruction method on a given receiver.
-macro_rules! run {
-    ($rec: expr, $name: ident, $thread: ident, $code: ident, $ins: ident) => (
-        try!($rec.$name($thread.clone(), $code.clone(), &$ins));
-    );
-}
-
-macro_rules! error_when_prototype_exists {
-    ($rec: expr, $name: ident) => (
-        if read_lock!($rec.memory_manager).$name().is_some() {
-            return Err("prototype already defined".to_string());
-        }
-    );
-}
-
-macro_rules! ensure_integers {
-    ($($ident: ident),+) => (
-        $(
-            if !$ident.value.is_integer() {
-                return Err("all objects must be integers".to_string());
-            }
-        )+
-    );
-}
-
-macro_rules! ensure_floats {
-    ($($ident: ident),+) => (
-        $(
-            if !$ident.value.is_float() {
-                return Err("all objects must be floats".to_string());
-            }
-        )+
-    );
-}
-
-macro_rules! ensure_arrays {
-    ($($ident: ident),+) => (
-        $(
-            if !$ident.value.is_array() {
-                return Err("all objects must be arrays".to_string());
-            }
-        )+
-    );
-}
-
-macro_rules! instruction_object {
-    ($ins: ident, $thread: ident, $index: expr) => ({
-        let index = try!($ins.arg($index));
-
-        try!($thread.get_register(index))
-    });
-}
-
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
 
