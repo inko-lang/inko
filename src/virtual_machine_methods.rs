@@ -1078,6 +1078,28 @@ pub trait VirtualMachineMethods {
     fn ins_array_at(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Removes a value from an array.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the removed value in.
+    /// 2. The register slot containing the array to remove a value from.
+    /// 3. The index of the value to remove.
+    ///
+    /// An error is returned when the index is greater than the array length.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_array    0
+    ///     1: set_integer  1, 0
+    ///     3: array_insert 0, 0, 1
+    ///     4: array_remove 2, 0, 0
+    fn ins_array_remove(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
