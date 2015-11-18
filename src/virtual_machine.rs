@@ -322,6 +322,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::ArrayRemove => {
                     run!(self, ins_array_remove, thread, code, instruction);
+                },
+                InstructionType::ArrayLength => {
+                    run!(self, ins_array_length, thread, code, instruction);
                 }
             };
         }
@@ -1341,6 +1344,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let value = vector.remove(index);
 
         thread.set_register(slot, value);
+
+        Ok(())
+    }
+
+    fn ins_array_length(&self, thread: RcThread, _: RcCompiledCode,
+                        instruction: &Instruction) -> EmptyResult {
+        let slot       = try!(instruction.arg(0));
+        let array_lock = instruction_object!(instruction, thread, 1);
+        let array      = read_lock!(array_lock);
+
+        ensure_arrays!(array);
+
+        let vector = array.value.as_array();
+        let length = vector.len() as isize;
+
+        let proto = try!(self.integer_prototype());
+        let obj   = self.allocate(object_value::integer(length), proto);
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }

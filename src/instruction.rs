@@ -63,7 +63,8 @@ pub enum InstructionType {
     FloatEquals,
     ArrayInsert,
     ArrayAt,
-    ArrayRemove
+    ArrayRemove,
+    ArrayLength,
 }
 
 /// Struct for storing information about a single instruction.

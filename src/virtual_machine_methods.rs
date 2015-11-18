@@ -1100,6 +1100,20 @@ pub trait VirtualMachineMethods {
     fn ins_array_remove(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the amount of elements in an array.
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the length in.
+    /// 2. The register slot containing the array.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_array    0
+    ///     1: array_length 1, 0
+    fn ins_array_length(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
