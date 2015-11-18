@@ -325,6 +325,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::ArrayLength => {
                     run!(self, ins_array_length, thread, code, instruction);
+                },
+                InstructionType::ArrayClear => {
+                    run!(self, ins_array_clear, thread, code, instruction);
                 }
             };
         }
@@ -1363,6 +1366,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let obj   = self.allocate(object_value::integer(length), proto);
 
         thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_array_clear(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> EmptyResult {
+        let array_lock = instruction_object!(instruction, thread, 0);
+        let mut array  = write_lock!(array_lock);
+
+        ensure_arrays!(array);
+
+        let mut vector = array.value.as_array_mut();
+
+        vector.clear();
 
         Ok(())
     }

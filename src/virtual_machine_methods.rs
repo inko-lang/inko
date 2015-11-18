@@ -1114,6 +1114,22 @@ pub trait VirtualMachineMethods {
     fn ins_array_length(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Removes all elements from an array.
+    ///
+    /// This instruction requires 1 argument: the register slot of the array.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 10
+    ///
+    ///     0: set_integer  0, 0
+    ///     1: set_array    1
+    ///     2: array_insert 1, 0, 0
+    ///     3: array_clear  1
+    fn ins_array_clear(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

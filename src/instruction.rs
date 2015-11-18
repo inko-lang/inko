@@ -65,6 +65,7 @@ pub enum InstructionType {
     ArrayAt,
     ArrayRemove,
     ArrayLength,
+    ArrayClear
 }
 
 /// Struct for storing information about a single instruction.
