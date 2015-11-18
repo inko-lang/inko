@@ -26,6 +26,13 @@ impl ObjectValue {
         }
     }
 
+    pub fn is_array(&self) -> bool {
+        match *self {
+            ObjectValue::Array(_) => true,
+            _                     => false
+        }
+    }
+
     pub fn as_integer(&self) -> isize {
         match *self {
             ObjectValue::Integer(val) => val,
@@ -40,6 +47,24 @@ impl ObjectValue {
             ObjectValue::Float(val) => val,
             _ => {
                 panic!("ObjectValue::as_float() called on a non float");
+            }
+        }
+    }
+
+    pub fn as_array(&self) -> &Vec<RcObject> {
+        match *self {
+            ObjectValue::Array(ref val) => val,
+            _ => {
+                panic!("ObjectValue::as_Array() called on a non array");
+            }
+        }
+    }
+
+    pub fn as_array_mut(&mut self) -> &mut Vec<RcObject> {
+        match *self {
+            ObjectValue::Array(ref mut val) => val,
+            _ => {
+                panic!("ObjectValue::as_array_mut() called on a non array");
             }
         }
     }

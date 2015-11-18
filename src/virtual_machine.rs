@@ -55,6 +55,16 @@ macro_rules! ensure_floats {
     );
 }
 
+macro_rules! ensure_arrays {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_array() {
+                return Err("all objects must be arrays".to_string());
+            }
+        )+
+    );
+}
+
 macro_rules! instruction_object {
     ($ins: ident, $thread: ident, $index: expr) => ({
         let index = try!($ins.arg($index));
@@ -356,6 +366,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FloatEquals => {
                     run!(self, ins_float_equals, thread, code, instruction);
+                },
+                InstructionType::ArrayInsert => {
+                    run!(self, ins_array_insert, thread, code, instruction);
                 }
             };
         }
@@ -1317,6 +1330,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
         };
 
         thread.set_register(slot, boolean);
+
+        Ok(())
+    }
+
+    fn ins_array_insert(&self, thread: RcThread, _: RcCompiledCode,
+                        instruction: &Instruction) -> EmptyResult {
+        let array_lock = instruction_object!(instruction, thread, 0);
+        let index      = try!(instruction.arg(1));
+        let value_lock = instruction_object!(instruction, thread, 2);
+        let mut array  = write_lock!(array_lock);
+
+        ensure_arrays!(array);
+
+        let mut vector = array.value.as_array_mut();
+
+        if index > vector.len() {
+            return Err(
+                format!("index {} is greater than the array length", index)
+            );
+        }
+
+        vector.insert(index, value_lock);
 
         Ok(())
     }
