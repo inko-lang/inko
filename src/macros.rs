@@ -21,15 +21,6 @@ macro_rules! run {
     );
 }
 
-/// Returns an Err if a given prototype has already been defined.
-macro_rules! error_when_prototype_exists {
-    ($rec: expr, $name: ident) => (
-        if read_lock!($rec.memory_manager).$name().is_some() {
-            return Err("prototype already defined".to_string());
-        }
-    );
-}
-
 /// Returns an Err if any of the given arguments is not an integer.
 macro_rules! ensure_integers {
     ($($ident: ident),+) => (
@@ -83,10 +74,22 @@ macro_rules! instruction_object {
     });
 }
 
+/// Ensures the given index is within the bounds of the array.
 macro_rules! ensure_array_within_bounds {
     ($array: ident, $index: expr) => (
         if $index > $array.len() {
             return Err(format!("index {} is out of bounds", $index));
         }
     );
+}
+
+/// Returns a new, empty and pinned object.
+macro_rules! empty_pinned_object {
+    ($id: expr) => ({
+        let object = Object::new($id, object_value::none());
+
+        write_lock!(object).pin();
+
+        object
+    });
 }

@@ -46,46 +46,40 @@ impl VirtualMachine {
         Arc::new(vm)
     }
 
-    fn integer_prototype(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .integer_prototype()
-            .ok_or("no integer prototype set up".to_string())
+    fn integer_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).integer_prototype()
     }
 
-    fn float_prototype(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .float_prototype()
-            .ok_or("no float prototype set up".to_string())
+    fn float_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).float_prototype()
     }
 
-    fn string_prototype(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .string_prototype()
-            .ok_or("no string prototype set up".to_string())
+    fn string_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).string_prototype()
     }
 
-    fn array_prototype(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .array_prototype()
-            .ok_or("no array prototype set up".to_string())
+    fn array_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).array_prototype()
     }
 
-    fn thread_prototype(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .thread_prototype()
-            .ok_or("no thread prototype set up".to_string())
+    fn thread_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).thread_prototype()
     }
 
-    fn false_object(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .false_object()
-            .ok_or("no false object set up".to_string())
+    fn true_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).true_prototype()
     }
 
-    fn true_object(&self) -> ObjectResult {
-        read_lock!(self.memory_manager)
-            .true_object()
-            .ok_or("no true object set up".to_string())
+    fn false_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).false_prototype()
+    }
+
+    fn false_object(&self) -> RcObject {
+        read_lock!(self.memory_manager).false_object()
+    }
+
+    fn true_object(&self) -> RcObject {
+        read_lock!(self.memory_manager).true_object()
     }
 
     fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
@@ -152,32 +146,32 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::SetName => {
                     run!(self, ins_set_name, thread, code, instruction);
                 },
-                InstructionType::SetIntegerPrototype => {
-                    run!(self, ins_set_integer_prototype, thread, code,
+                InstructionType::GetIntegerPrototype => {
+                    run!(self, ins_get_integer_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetFloatPrototype => {
-                    run!(self, ins_set_float_prototype, thread, code,
+                InstructionType::GetFloatPrototype => {
+                    run!(self, ins_get_float_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetStringPrototype => {
-                    run!(self, ins_set_string_prototype, thread, code,
+                InstructionType::GetStringPrototype => {
+                    run!(self, ins_get_string_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetArrayPrototype => {
-                    run!(self, ins_set_array_prototype, thread, code,
+                InstructionType::GetArrayPrototype => {
+                    run!(self, ins_get_array_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetThreadPrototype => {
-                    run!(self, ins_set_thread_prototype, thread, code,
+                InstructionType::GetThreadPrototype => {
+                    run!(self, ins_get_thread_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetTruePrototype => {
-                    run!(self, ins_set_true_prototype, thread, code,
+                InstructionType::GetTruePrototype => {
+                    run!(self, ins_get_true_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetFalsePrototype => {
-                    run!(self, ins_set_false_prototype, thread, code,
+                InstructionType::GetFalsePrototype => {
+                    run!(self, ins_get_false_prototype, thread, code,
                          instruction);
                 },
                 InstructionType::SetTrue => {
@@ -344,8 +338,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let index = try!(instruction.arg(1));
         let value = *try!(code.integer(index));
 
-        let proto = try!(self.integer_prototype());
-        let obj   = self.allocate(object_value::integer(value), proto);
+        let obj = self.allocate(object_value::integer(value),
+                                self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -358,8 +352,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let index = try!(instruction.arg(1));
         let value = *try!(code.float(index));
 
-        let proto = try!(self.float_prototype());
-        let obj   = self.allocate(object_value::float(value), proto);
+        let obj = self.allocate(object_value::float(value),
+                                self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -372,8 +366,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let index = try!(instruction.arg(1));
         let value = try!(code.string(index));
 
-        let proto = try!(self.string_prototype());
-        let obj   = self.allocate(object_value::string(value.clone()), proto);
+        let obj = self.allocate(object_value::string(value.clone()),
+                                self.string_prototype());
 
         thread.set_register(slot, obj);
 
@@ -413,8 +407,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 2, val_count)
         );
 
-        let proto = try!(self.array_prototype());
-        let obj   = self.allocate(object_value::array(values), proto);
+        let obj = self.allocate(object_value::array(values),
+                                self.array_prototype());
 
         thread.set_register(slot, obj);
 
@@ -433,103 +427,83 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, integer_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_integer_prototype(object);
+        thread.set_register(slot, self.integer_prototype());
 
         Ok(())
     }
 
-    fn ins_set_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, float_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_float_prototype(object);
+        thread.set_register(slot, self.float_prototype());
 
         Ok(())
     }
 
-    fn ins_set_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, string_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_string_prototype(object);
+        thread.set_register(slot, self.string_prototype());
 
         Ok(())
     }
 
-    fn ins_set_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, array_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_array_prototype(object);
+        thread.set_register(slot, self.array_prototype());
 
         Ok(())
     }
 
-    fn ins_set_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                 instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, thread_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_thread_prototype(object.clone());
-
-        // Update the prototype of all existing threads (usually only the main
-        // thread at this point).
-        write_lock!(self.threads).set_prototype(object);
+        thread.set_register(slot, self.thread_prototype());
 
         Ok(())
     }
 
-    fn ins_set_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, true_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_true_prototype(object.clone());
+        thread.set_register(slot, self.true_prototype());
 
         Ok(())
     }
 
-    fn ins_set_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
                               instruction: &Instruction) -> EmptyResult {
-        error_when_prototype_exists!(self, false_prototype);
+        let slot = try!(instruction.arg(0));
 
-        let object = instruction_object!(instruction, thread, 0);
-
-        write_lock!(self.memory_manager).set_false_prototype(object.clone());
+        thread.set_register(slot, self.false_prototype());
 
         Ok(())
     }
 
     fn ins_set_true(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot   = try!(instruction.arg(0));
-        let object = try!(self.true_object());
+        let slot = try!(instruction.arg(0));
 
-        thread.set_register(slot, object);
+        thread.set_register(slot, self.true_object());
 
         Ok(())
     }
 
     fn ins_set_false(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot   = try!(instruction.arg(0));
-        let object = try!(self.false_object());
+        let slot = try!(instruction.arg(0));
 
-        thread.set_register(slot, object);
+        thread.set_register(slot, self.false_object());
 
         Ok(())
     }
@@ -767,7 +741,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -775,7 +748,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() + arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -787,7 +761,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -795,7 +768,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() / arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -807,7 +781,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -815,7 +788,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() * arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -827,7 +801,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -835,7 +808,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() - arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -847,7 +821,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -855,7 +828,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() % arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -866,13 +840,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                             instruction: &Instruction) -> EmptyResult {
         let slot         = try!(instruction.arg(0));
         let integer_lock = instruction_object!(instruction, thread, 1);
-        let prototype    = try!(self.float_prototype());
         let integer      = read_lock!(integer_lock);
 
         ensure_integers!(integer);
 
         let result = integer.value.as_integer() as f64;
-        let obj    = self.allocate(object_value::float(result), prototype);
+        let obj    = self.allocate(object_value::float(result),
+                                   self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -883,14 +857,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                              instruction: &Instruction) -> EmptyResult {
         let slot         = try!(instruction.arg(0));
         let integer_lock = instruction_object!(instruction, thread, 1);
-        let prototype    = try!(self.string_prototype());
 
         let integer = read_lock!(integer_lock);
 
         ensure_integers!(integer);
 
         let result = integer.value.as_integer().to_string();
-        let obj    = self.allocate(object_value::string(result), prototype);
+        let obj    = self.allocate(object_value::string(result),
+                                   self.string_prototype());
 
         thread.set_register(slot, obj);
 
@@ -902,7 +876,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -910,7 +883,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() & arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -922,7 +896,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -930,7 +903,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() | arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -942,7 +916,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -950,7 +923,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() ^ arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -962,7 +936,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -970,7 +943,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() << arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -982,7 +956,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.integer_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -990,7 +963,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() >> arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1011,10 +985,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_integer() < arg.value.as_integer();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1036,10 +1010,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_integer() > arg.value.as_integer();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1061,10 +1035,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_integer() == arg.value.as_integer();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1078,8 +1052,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let code_index  = try!(instruction.arg(1));
         let thread_code = try!(code.code_object(code_index)).clone();
 
-        try!(self.thread_prototype());
-
         let thread_object = self.run_thread(thread_code, false);
 
         thread.set_register(slot, thread_object);
@@ -1092,7 +1064,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -1100,7 +1071,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let added = receiver.value.as_float() + arg.value.as_float();
-        let obj   = self.allocate(object_value::float(added), prototype);
+        let obj   = self.allocate(object_value::float(added),
+                                  self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1112,7 +1084,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -1120,7 +1091,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() * arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result), prototype);
+        let obj    = self.allocate(object_value::float(result),
+                                   self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1132,7 +1104,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -1140,7 +1111,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() / arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result), prototype);
+        let obj    = self.allocate(object_value::float(result),
+                                   self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1152,7 +1124,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -1160,7 +1131,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() - arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result), prototype);
+        let obj    = self.allocate(object_value::float(result),
+                                   self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1172,7 +1144,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
-        let prototype     = try!(self.float_prototype());
 
         let receiver = read_lock!(receiver_lock);
         let arg      = read_lock!(arg_lock);
@@ -1180,7 +1151,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() % arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result), prototype);
+        let obj    = self.allocate(object_value::float(result),
+                                   self.float_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1191,13 +1163,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                             instruction: &Instruction) -> EmptyResult {
         let slot       = try!(instruction.arg(0));
         let float_lock = instruction_object!(instruction, thread, 1);
-        let prototype  = try!(self.integer_prototype());
         let float      = read_lock!(float_lock);
 
         ensure_floats!(float);
 
         let result = float.value.as_float() as isize;
-        let obj    = self.allocate(object_value::integer(result), prototype);
+        let obj    = self.allocate(object_value::integer(result),
+                                   self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1208,13 +1180,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                            instruction: &Instruction) -> EmptyResult {
         let slot       = try!(instruction.arg(0));
         let float_lock = instruction_object!(instruction, thread, 1);
-        let prototype  = try!(self.string_prototype());
         let float      = read_lock!(float_lock);
 
         ensure_floats!(float);
 
         let result = float.value.as_float().to_string();
-        let obj    = self.allocate(object_value::string(result), prototype);
+        let obj    = self.allocate(object_value::string(result),
+                                   self.string_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1235,10 +1207,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_float() < arg.value.as_float();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1260,10 +1232,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_float() > arg.value.as_float();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1285,10 +1257,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let smaller = receiver.value.as_float() == arg.value.as_float();
 
         let boolean = if smaller {
-            try!(self.true_object())
+            self.true_object()
         }
         else {
-            try!(self.false_object())
+            self.false_object()
         };
 
         thread.set_register(slot, boolean);
@@ -1365,8 +1337,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let vector = array.value.as_array();
         let length = vector.len() as isize;
 
-        let proto = try!(self.integer_prototype());
-        let obj   = self.allocate(object_value::integer(length), proto);
+        let obj = self.allocate(object_value::integer(length),
+                                self.integer_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1396,8 +1368,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(source);
 
         let lower = source.value.as_string().to_lowercase();
-        let proto = try!(self.string_prototype());
-        let obj   = self.allocate(object_value::string(lower), proto);
+        let obj   = self.allocate(object_value::string(lower),
+                                  self.string_prototype());
 
         thread.set_register(slot, obj);
 
@@ -1510,6 +1482,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use virtual_machine_methods::*;
     use call_frame::CallFrame;
     use compiled_code::CompiledCode;
     use instruction::{Instruction, InstructionType};
@@ -1582,31 +1555,11 @@ mod tests {
     }
 
     #[test]
-    fn test_ins_set_integer_without_integer_prototype() {
-        let vm = VirtualMachine::new();
-
-        let mut cc = compiled_code!(
-            vec![instruction!(InstructionType::SetInteger, vec![0, 0])]
-        );
-
-        cc.add_integer_literal(10);
-
-        let thread = Thread::new(call_frame!(), None);
-        let result = run!(vm, thread, cc);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn test_ins_set_integer_with_valid_arguments() {
         let vm = VirtualMachine::new();
 
         let mut cc = compiled_code!(
-            vec![
-                instruction!(InstructionType::SetObject, vec![0]),
-                instruction!(InstructionType::SetIntegerPrototype, vec![0]),
-                instruction!(InstructionType::SetInteger, vec![1, 0])
-            ]
+            vec![instruction!(InstructionType::SetInteger, vec![1, 0])]
         );
 
         cc.add_integer_literal(10);

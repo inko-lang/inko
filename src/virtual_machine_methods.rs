@@ -11,7 +11,6 @@ pub trait VirtualMachineMethods {
     /// This requires a CompiledCode to run. Calling this method will block
     /// execution as the main thread is executed in the same OS thread as the
     /// caller of this function is operating in.
-    ///
     fn start(&self, RcCompiledCode) -> Result<(), ()>;
 
     /// Runs a CompiledCode for a specific Thread.
@@ -22,7 +21,6 @@ pub trait VirtualMachineMethods {
     /// The return value is whatever the last CompiledCode returned (if
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
-    ///
     fn run(&self, RcThread, RcCompiledCode) -> OptionObjectResult;
 
     /// Sets an integer in a register slot.
@@ -40,7 +38,6 @@ pub trait VirtualMachineMethods {
     ///       0: 10
     ///
     ///     0: set_integer 0, 0
-    ///
     fn ins_set_integer(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -59,9 +56,9 @@ pub trait VirtualMachineMethods {
     ///       0: 10.5
     ///
     ///     0: set_float 0, 0
-    ///
     fn ins_set_float(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
+
     /// Sets a string in a register slot.
     ///
     /// This instruction requires two arguments:
@@ -77,7 +74,6 @@ pub trait VirtualMachineMethods {
     ///       0: "foo"
     ///
     ///     set_string 0, 0
-    ///
     fn ins_set_string(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -91,7 +87,6 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_object 1, 0
-    ///
     fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -107,12 +102,10 @@ pub trait VirtualMachineMethods {
     ///
     /// # Examples
     ///
-    ///     0: set_object          0
-    ///     1: set_array_prototype 0
-    ///     2: set_object          1
-    ///     3: set_object          2
-    ///     4: set_array           3, 2, 1, 2
-    ///
+    ///     0: set_object 0
+    ///     2: set_object 1
+    ///     3: set_object 2
+    ///     4: set_array  3, 2, 1, 2
     fn ins_set_array(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -130,102 +123,84 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_name   0, 0
-    ///
     fn ins_set_name(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for Integer objects.
+    /// Returns the prototype to use for integer objects.
     ///
-    /// This instruction requires one argument: the slot index pointing to an
-    /// object to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object            0
-    ///     1: set_integer_prototype 0
-    ///
-    fn ins_set_integer_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_integer_prototype 0
+    fn ins_get_integer_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for Float objects.
+    /// Returns the prototype to use for float objects.
     ///
-    /// This instruction requires one argument: the slot index pointing to an
-    /// object to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object          0
-    ///     1: set_float_prototype 0
-    ///
-    fn ins_set_float_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_float_prototype 0
+    fn ins_get_float_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for String objects.
+    /// Returns the prototype to use for string objects.
     ///
-    /// This instruction requires one argument: the slot index pointing to an
-    /// object to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object           0
-    ///     1: set_string_prototype 0
-    ///
-    fn ins_set_string_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_string_prototype 0
+    fn ins_get_string_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for Array objects.
+    /// Returns the prototype to use for array objects.
     ///
-    /// This instruction requires one argument: the slot index pointing to an
-    /// object to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object          0
-    ///     1: set_array_prototype 0
-    ///
-    fn ins_set_array_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_array_prototype 0
+    fn ins_get_array_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for Thread objects.
+    /// Gets the prototype to use for thread objects.
     ///
-    /// This instruction requires one argument: the slot index pointing to an
-    /// object to use as the prototype.
-    ///
-    /// This instruction also updates any existing threads with the new
-    /// prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object           0
-    ///     1: set_thread_prototype 0
-    ///
-    fn ins_set_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_thread_prototype 0
+    fn ins_get_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for "true" objects.
+    /// Gets the prototype to use for true objects.
     ///
-    /// This instruction sets the prototype used for "true" objects. This
-    /// instruction requires one argument: the slot index pointing to the object
-    /// to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object         0
-    ///     1: set_true_prototype 0
-    fn ins_set_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_true_prototype 0
+    fn ins_get_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the prototype for "false" objects.
+    /// Gets the prototype to use for false objects.
     ///
-    /// This instruction sets the prototype used for "false" objects. This
-    /// instruction requires one argument: the slot index pointing to the object
-    /// to use as the prototype.
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
     ///
     /// # Examples
     ///
-    ///     0: set_object          0
-    ///     1: set_false_prototype 0
-    fn ins_set_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_false_prototype 0
+    fn ins_get_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a "true" value in a register slot.
@@ -235,9 +210,7 @@ pub trait VirtualMachineMethods {
     ///
     /// # Examples
     ///
-    ///     0: set_object         0
-    ///     1: set_true_prototype 0
-    ///     2: set_true           1
+    ///     0: set_true 1
     fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -248,9 +221,7 @@ pub trait VirtualMachineMethods {
     ///
     /// # Examples
     ///
-    ///     0: set_object          0
-    ///     1: set_false_prototype 0
-    ///     2: set_false           1
+    ///     0: set_false 1
     fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -265,7 +236,6 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_local  0, 0
-    ///
     fn ins_set_local(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -281,7 +251,6 @@ pub trait VirtualMachineMethods {
     ///     0: set_object 0
     ///     1: set_local  0, 0
     ///     2: get_local  1, 0
-    ///
     fn ins_get_local(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -302,7 +271,6 @@ pub trait VirtualMachineMethods {
     ///     1: set_object   1
     ///     2: set_name     1, 0
     ///     3: set_const    0, 1, 0
-    ///
     fn ins_set_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -321,7 +289,6 @@ pub trait VirtualMachineMethods {
     ///       0: "Object"
     ///
     ///     0: get_const 0, 0
-    ///
     fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -343,7 +310,6 @@ pub trait VirtualMachineMethods {
     ///     0: set_object 0
     ///     1: set_object 1
     ///     2: set_attr   1, 0, 0
-    ///
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -365,7 +331,6 @@ pub trait VirtualMachineMethods {
     ///     1: set_object 1
     ///     2: set_attr   1, 0, 0
     ///     3: get_attr   2, 1, 0
-    ///
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -397,7 +362,6 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0              # 10
     ///     1: set_integer 1, 1              # 20
     ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
-    ///
     fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Returns the value in the given register slot.
@@ -415,7 +379,6 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer 0, 0
     ///     1: return      0
-    ///
     fn ins_return(&self, RcThread, RcCompiledCode, &Instruction)
         -> OptionObjectResult;
 
@@ -476,7 +439,6 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer 0, 1
     ///
     /// Here slot 0 would be set to 20.
-    ///
     fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction) -> IntegerResult;
 
     /// Defines a method for an object.
@@ -486,7 +448,6 @@ pub trait VirtualMachineMethods {
     /// 1. A slot index pointing to a specific object to define the method on.
     /// 2. The string literal index containing the method name.
     /// 3. The code object index containing the CompiledCode of the method.
-    ///
     fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -501,7 +462,6 @@ pub trait VirtualMachineMethods {
     /// If the amount of arguments is greater than 0 any following arguments are
     /// used as slot indexes for retrieving the arguments to pass to the
     /// CompiledCode.
-    ///
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -512,7 +472,6 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     get_toplevel 0
-    ///
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -828,10 +787,8 @@ pub trait VirtualMachineMethods {
     ///     code_objects
     ///       0: CompiledCode(name="foo")
     ///
-    ///     0: set_object           0
-    ///     1: set_thread_prototype 0
-    ///     2. start_thread         1, 0
-    ///
+    ///     0: set_object   0
+    ///     2. start_thread 1, 0
     fn ins_start_thread(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

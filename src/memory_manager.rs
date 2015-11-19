@@ -30,44 +30,59 @@ pub struct MemoryManager {
     /// several GC cycles.
     pub mature_heap: Heap,
 
-    pub integer_prototype: Option<RcObject>,
-    pub float_prototype: Option<RcObject>,
-    pub string_prototype: Option<RcObject>,
-    pub array_prototype: Option<RcObject>,
-    pub thread_prototype: Option<RcObject>,
-    pub true_prototype: Option<RcObject>,
-    pub false_prototype: Option<RcObject>,
+    pub integer_prototype: RcObject,
+    pub float_prototype: RcObject,
+    pub string_prototype: RcObject,
+    pub array_prototype: RcObject,
+    pub thread_prototype: RcObject,
+    pub true_prototype: RcObject,
+    pub false_prototype: RcObject,
 
     // These are not allocated on any specific heap as they'll never be garbage
     // collected. This also makes retrieving these objects trivial (instead of
     // having to find them somewhere in a heap).
-    pub true_object: Option<RcObject>,
-    pub false_object: Option<RcObject>
+    pub true_object: RcObject,
+    pub false_object: RcObject
 }
 
 impl MemoryManager {
     pub fn new() -> RcMemoryManager {
-        let top_level       = Object::new(0, object_value::none());
-        let mut mature_heap = Heap::new();
+        let top_level     = empty_pinned_object!(0);
+        let integer_proto = empty_pinned_object!(1);
+        let float_proto   = empty_pinned_object!(2);
+        let string_proto  = empty_pinned_object!(3);
+        let array_proto   = empty_pinned_object!(4);
+        let thread_proto  = empty_pinned_object!(5);
+        let true_proto    = empty_pinned_object!(6);
+        let false_proto   = empty_pinned_object!(7);
 
-        write_lock!(top_level).pin();
+        let true_obj  = empty_pinned_object!(8);
+        let false_obj = empty_pinned_object!(9);
 
-        mature_heap.store(top_level.clone());
+        {
+            let mut true_writer  = write_lock!(true_obj);
+            let mut false_writer = write_lock!(false_obj);
+
+            true_writer.set_prototype(true_proto.clone());
+
+            false_writer.set_prototype(false_proto.clone());
+            false_writer.set_falsy();
+        }
 
         let manager = MemoryManager {
-            object_id: 1,
+            object_id: 10,
             top_level: top_level,
             young_heap: Heap::new(),
             mature_heap: Heap::new(),
-            integer_prototype: None,
-            float_prototype: None,
-            string_prototype: None,
-            array_prototype: None,
-            thread_prototype: None,
-            true_prototype: None,
-            false_prototype: None,
-            true_object: None,
-            false_object: None
+            integer_prototype: integer_proto,
+            float_prototype: float_proto,
+            string_prototype: string_proto,
+            array_prototype: array_proto,
+            thread_prototype: thread_proto,
+            true_prototype: true_proto,
+            false_prototype: false_proto,
+            true_object: true_obj,
+            false_object: false_obj
         };
 
         Arc::new(RwLock::new(manager))
@@ -91,18 +106,8 @@ impl MemoryManager {
 
     /// Allocates a Thread object based on an existing RcThread.
     pub fn allocate_thread(&mut self, thread: RcThread) -> RcObject {
-        let proto = self.thread_prototype();
-
-        let thread_obj = if proto.is_some() {
-            self.allocate(object_value::thread(thread), proto.unwrap().clone())
-        }
-        else {
-            let obj = self.new_object(object_value::thread(thread));
-
-            self.allocate_prepared(obj.clone());
-
-            obj
-        };
+        let proto      = self.thread_prototype.clone();
+        let thread_obj = self.allocate(object_value::thread(thread), proto);
 
         // Prevent the thread from being GC'd if there are no references to it.
         write_lock!(thread_obj).pin();
@@ -110,92 +115,40 @@ impl MemoryManager {
         thread_obj
     }
 
-    pub fn integer_prototype(&self) -> Option<RcObject> {
+    pub fn integer_prototype(&self) -> RcObject {
         self.integer_prototype.clone()
     }
 
-    pub fn float_prototype(&self) -> Option<RcObject> {
+    pub fn float_prototype(&self) -> RcObject {
         self.float_prototype.clone()
     }
 
-    pub fn string_prototype(&self) -> Option<RcObject> {
+    pub fn string_prototype(&self) -> RcObject {
         self.string_prototype.clone()
     }
 
-    pub fn array_prototype(&self) -> Option<RcObject> {
+    pub fn array_prototype(&self) -> RcObject {
         self.array_prototype.clone()
     }
 
-    pub fn thread_prototype(&self) -> Option<RcObject> {
+    pub fn thread_prototype(&self) -> RcObject {
         self.thread_prototype.clone()
     }
 
-    pub fn true_prototype(&self) -> Option<RcObject> {
+    pub fn true_prototype(&self) -> RcObject {
         self.true_prototype.clone()
     }
 
-    pub fn false_prototype(&self) -> Option<RcObject> {
+    pub fn false_prototype(&self) -> RcObject {
         self.false_prototype.clone()
     }
 
-    pub fn true_object(&self) -> Option<RcObject> {
+    pub fn true_object(&self) -> RcObject {
         self.true_object.clone()
     }
 
-    pub fn false_object(&self) -> Option<RcObject> {
+    pub fn false_object(&self) -> RcObject {
         self.false_object.clone()
-    }
-
-    pub fn set_integer_prototype(&mut self, object: RcObject) {
-        self.integer_prototype = Some(object);
-    }
-
-    pub fn set_float_prototype(&mut self, object: RcObject) {
-        self.float_prototype = Some(object);
-    }
-
-    pub fn set_string_prototype(&mut self, object: RcObject) {
-        self.string_prototype = Some(object);
-    }
-
-    pub fn set_array_prototype(&mut self, object: RcObject) {
-        self.array_prototype = Some(object);
-    }
-
-    pub fn set_thread_prototype(&mut self, object: RcObject) {
-        self.thread_prototype = Some(object);
-    }
-
-    /// Sets the prototype and object to use for every "true" occurrence.
-    pub fn set_true_prototype(&mut self, object: RcObject) {
-        self.true_prototype = Some(object);
-
-        let true_obj = self.new_object(object_value::none());
-
-        {
-            let mut lock = write_lock!(true_obj);
-
-            lock.set_prototype(self.true_prototype().unwrap());
-            lock.pin();
-        };
-
-        self.true_object = Some(true_obj);
-    }
-
-    pub fn set_false_prototype(&mut self, object: RcObject) {
-        self.false_prototype = Some(object);
-
-        let false_obj = self.new_object(object_value::none());
-
-        {
-            let mut lock = write_lock!(false_obj);
-
-            lock.set_prototype(self.false_prototype().unwrap());
-            lock.set_falsy();
-            lock.pin();
-        };
-
-        self.false_object = Some(false_obj);
     }
 
     fn new_object_id(&mut self) -> usize {
