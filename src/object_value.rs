@@ -33,6 +33,13 @@ impl ObjectValue {
         }
     }
 
+    pub fn is_string(&self) -> bool {
+        match *self {
+            ObjectValue::String(_) => true,
+            _                      => false
+        }
+    }
+
     pub fn as_integer(&self) -> isize {
         match *self {
             ObjectValue::Integer(val) => val,
@@ -65,6 +72,15 @@ impl ObjectValue {
             ObjectValue::Array(ref mut val) => val,
             _ => {
                 panic!("ObjectValue::as_array_mut() called on a non array");
+            }
+        }
+    }
+
+    pub fn as_string(&self) -> &String {
+        match *self {
+            ObjectValue::String(ref val) => val,
+            _ => {
+                panic!("ObjectValue::as_string() called on a non string");
             }
         }
     }

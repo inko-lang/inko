@@ -1130,6 +1130,23 @@ pub trait VirtualMachineMethods {
     fn ins_array_clear(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Returns the lowercase equivalent of a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the new string in.
+    /// 2. The register slot containing the input string.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "HELLO"
+    ///
+    ///     0: set_string      0, 0
+    ///     1: string_to_lower 1, 0
+    fn ins_string_to_lower(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

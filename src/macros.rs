@@ -63,6 +63,17 @@ macro_rules! ensure_arrays {
     );
 }
 
+/// Returns an Err if any of the given arguments is not a string.
+macro_rules! ensure_strings {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_string() {
+                return Err("all objects must be strings".to_string());
+            }
+        )+
+    );
+}
+
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
     ($ins: ident, $thread: ident, $index: expr) => ({

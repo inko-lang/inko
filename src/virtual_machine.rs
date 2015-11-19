@@ -328,6 +328,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::ArrayClear => {
                     run!(self, ins_array_clear, thread, code, instruction);
+                },
+                InstructionType::StringToLower => {
+                    run!(self, ins_string_to_lower, thread, code, instruction);
                 }
             };
         }
@@ -1380,6 +1383,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let mut vector = array.value.as_array_mut();
 
         vector.clear();
+
+        Ok(())
+    }
+
+    fn ins_string_to_lower(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot        = try!(instruction.arg(0));
+        let source_lock = instruction_object!(instruction, thread, 1);
+        let source      = read_lock!(source_lock);
+
+        ensure_strings!(source);
+
+        let lower = source.value.as_string().to_lowercase();
+        let proto = try!(self.string_prototype());
+        let obj   = self.allocate(object_value::string(lower), proto);
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }
