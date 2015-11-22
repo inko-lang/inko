@@ -49,7 +49,7 @@ pub enum InstructionType {
     IntegerShiftRight,
     IntegerSmaller,
     IntegerGreater,
-    IntegerEqual,
+    IntegerEquals,
     StartThread,
     FloatAdd,
     FloatMul,

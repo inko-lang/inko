@@ -769,10 +769,10 @@ pub trait VirtualMachineMethods {
     ///       0: 10
     ///       1: 5
     ///
-    ///     0: set_integer   0, 0
-    ///     1: set_integer   1, 1
-    ///     2: integer_equal 2, 0, 1
-    fn ins_integer_equal(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: set_integer    0, 0
+    ///     1: set_integer    1, 1
+    ///     2: integer_equals 2, 0, 1
+    fn ins_integer_equals(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Runs a CompiledCode in a new thread.

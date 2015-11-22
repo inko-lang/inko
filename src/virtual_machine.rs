@@ -272,8 +272,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::IntegerGreater => {
                     run!(self, ins_integer_greater, thread, code, instruction);
                 },
-                InstructionType::IntegerEqual => {
-                    run!(self, ins_integer_equal, thread, code, instruction);
+                InstructionType::IntegerEquals => {
+                    run!(self, ins_integer_equals, thread, code, instruction);
                 },
                 InstructionType::StartThread => {
                     run!(self, ins_start_thread, thread, code, instruction);
@@ -1024,8 +1024,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_integer_equal(&self, thread: RcThread, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_equals(&self, thread: RcThread, _: RcCompiledCode,
+                          instruction: &Instruction) -> EmptyResult {
         let slot          = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let arg_lock      = instruction_object!(instruction, thread, 2);
