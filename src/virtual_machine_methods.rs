@@ -1158,6 +1158,32 @@ pub trait VirtualMachineMethods {
     fn ins_string_to_bytes(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Creates a string from an array of bytes
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot containing the array of bytes.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 104
+    ///       1: 101
+    ///       2: 108
+    ///       3: 108
+    ///       4: 111
+    ///
+    ///     0: set_integer       0, 0
+    ///     1: set_integer       1, 1
+    ///     2: set_integer       2, 2
+    ///     3: set_integer       3, 3
+    ///     4: set_integer       4, 4
+    ///     5: set_array         5, 5, 0, 1, 2, 3, 4
+    ///     6: string_from_bytes 6, 5
+    fn ins_string_from_bytes(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

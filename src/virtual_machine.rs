@@ -4,6 +4,7 @@
 //! threads and so on. VirtualMachine instances are fully self contained
 //! allowing multiple instances to run fully isolated in the same process.
 
+use std::error::Error;
 use std::io::{self, Write};
 use std::thread;
 use std::sync::{Arc, RwLock};
@@ -334,6 +335,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringToBytes => {
                     run!(self, ins_string_to_bytes, thread, code, instruction);
+                },
+                InstructionType::StringFromBytes => {
+                    run!(self, ins_string_from_bytes, thread, code, instruction);
                 }
             };
         }
@@ -1431,8 +1435,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                            instruction: &Instruction) -> EmptyResult {
         let slot     = try!(instruction.arg(0));
         let arg_lock = instruction_object!(instruction, thread, 1);
-
-        let arg = read_lock!(arg_lock);
+        let arg      = read_lock!(arg_lock);
 
         ensure_strings!(arg);
 
@@ -1444,6 +1447,37 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }).collect::<Vec<_>>();
 
         let obj = self.allocate(object_value::array(array), array_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_string_from_bytes(&self, thread: RcThread, _: RcCompiledCode,
+                             instruction: &Instruction) -> EmptyResult {
+        let slot     = try!(instruction.arg(0));
+        let arg_lock = instruction_object!(instruction, thread, 1);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_arrays!(arg);
+
+        let string_proto = self.string_prototype();
+        let array        = arg.value.as_array();
+
+        for int_lock in array.iter() {
+            let int = read_lock!(int_lock);
+
+            ensure_integers!(int);
+        }
+
+        let bytes = arg.value.as_array().iter().map(|ref int_lock| {
+            read_lock!(int_lock).value.as_integer() as u8
+        }).collect::<Vec<_>>();
+
+        let string = try!(String::from_utf8(bytes)
+                          .map_err(|err| { err.description().to_string() }));
+
+        let obj = self.allocate(object_value::string(string), string_proto);
 
         thread.set_register(slot, obj);
 
