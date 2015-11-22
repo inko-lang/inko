@@ -71,7 +71,8 @@ pub enum InstructionType {
     StringEquals,
     StringToBytes,
     StringFromBytes,
-    StringLength
+    StringLength,
+    StringSize
 }
 
 /// Struct for storing information about a single instruction.

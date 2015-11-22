@@ -341,6 +341,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringLength => {
                     run!(self, ins_string_length, thread, code, instruction);
+                },
+                InstructionType::StringSize => {
+                    run!(self, ins_string_size, thread, code, instruction);
                 }
             };
         }
@@ -1499,6 +1502,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let length = arg.value.as_string().chars().count() as isize;
         let obj    = self.allocate(object_value::integer(length), int_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_string_size(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> EmptyResult {
+        let slot     = try!(instruction.arg(0));
+        let arg_lock = instruction_object!(instruction, thread, 1);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_strings!(arg);
+
+        let int_proto = self.integer_prototype();
+
+        let size = arg.value.as_string().len() as isize;
+        let obj  = self.allocate(object_value::integer(size), int_proto);
 
         thread.set_register(slot, obj);
 
