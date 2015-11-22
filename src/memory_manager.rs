@@ -37,7 +37,6 @@ pub struct MemoryManager {
     pub thread_prototype: RcObject,
     pub true_prototype: RcObject,
     pub false_prototype: RcObject,
-    pub stdout_prototype: RcObject,
 
     // These are not allocated on any specific heap as they'll never be garbage
     // collected. This also makes retrieving these objects trivial (instead of
@@ -56,10 +55,9 @@ impl MemoryManager {
         let thread_proto  = empty_pinned_object!(5);
         let true_proto    = empty_pinned_object!(6);
         let false_proto   = empty_pinned_object!(7);
-        let stdout_proto  = empty_pinned_object!(8);
 
-        let true_obj  = empty_pinned_object!(9);
-        let false_obj = empty_pinned_object!(10);
+        let true_obj  = empty_pinned_object!(8);
+        let false_obj = empty_pinned_object!(9);
 
         {
             let mut true_writer  = write_lock!(true_obj);
@@ -72,7 +70,7 @@ impl MemoryManager {
         }
 
         let manager = MemoryManager {
-            object_id: 11,
+            object_id: 10,
             top_level: top_level,
             young_heap: Heap::new(),
             mature_heap: Heap::new(),
@@ -83,7 +81,6 @@ impl MemoryManager {
             thread_prototype: thread_proto,
             true_prototype: true_proto,
             false_prototype: false_proto,
-            stdout_prototype: stdout_proto,
             true_object: true_obj,
             false_object: false_obj
         };
@@ -144,10 +141,6 @@ impl MemoryManager {
 
     pub fn false_prototype(&self) -> RcObject {
         self.false_prototype.clone()
-    }
-
-    pub fn stdout_prototype(&self) -> RcObject {
-        self.stdout_prototype.clone()
     }
 
     pub fn true_object(&self) -> RcObject {
