@@ -1121,6 +1121,26 @@ pub trait VirtualMachineMethods {
     fn ins_string_to_upper(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Checks if two strings are equal.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the string to compare.
+    /// 3. The register slot of the string to compare with.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "HELLO"
+    ///       1: "hello"
+    ///
+    ///     0: set_string    0, 0
+    ///     1: set_string    1, 1
+    ///     2: string_equals 2, 0, 1
+    fn ins_string_equals(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

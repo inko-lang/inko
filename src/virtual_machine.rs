@@ -328,6 +328,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringToUpper => {
                     run!(self, ins_string_to_upper, thread, code, instruction);
+                },
+                InstructionType::StringEquals => {
+                    run!(self, ins_string_equals, thread, code, instruction);
                 }
             };
         }
@@ -1392,6 +1395,31 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                   self.string_prototype());
 
         thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_string_equals(&self, thread: RcThread, _: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let slot          = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let arg_lock      = instruction_object!(instruction, thread, 2);
+
+        let receiver = read_lock!(receiver_lock);
+        let arg      = read_lock!(arg_lock);
+
+        ensure_strings!(receiver, arg);
+
+        let result = receiver.value.as_string() == arg.value.as_string();
+
+        let boolean = if result {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(slot, boolean);
 
         Ok(())
     }
