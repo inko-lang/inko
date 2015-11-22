@@ -325,6 +325,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringToLower => {
                     run!(self, ins_string_to_lower, thread, code, instruction);
+                },
+                InstructionType::StringToUpper => {
+                    run!(self, ins_string_to_upper, thread, code, instruction);
                 }
             };
         }
@@ -1369,6 +1372,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let lower = source.value.as_string().to_lowercase();
         let obj   = self.allocate(object_value::string(lower),
+                                  self.string_prototype());
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_string_to_upper(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot        = try!(instruction.arg(0));
+        let source_lock = instruction_object!(instruction, thread, 1);
+        let source      = read_lock!(source_lock);
+
+        ensure_strings!(source);
+
+        let upper = source.value.as_string().to_uppercase();
+        let obj   = self.allocate(object_value::string(upper),
                                   self.string_prototype());
 
         thread.set_register(slot, obj);
