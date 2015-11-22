@@ -83,6 +83,10 @@ impl VirtualMachine {
         read_lock!(self.memory_manager).true_object()
     }
 
+    fn stdout_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).stdout_prototype()
+    }
+
     fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
         write_lock!(self.memory_manager).allocate(value, prototype)
     }
@@ -173,6 +177,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::GetFalsePrototype => {
                     run!(self, ins_get_false_prototype, thread, code,
+                         instruction);
+                },
+                InstructionType::GetStdoutPrototype => {
+                    run!(self, ins_get_stdout_prototype, thread, code,
                          instruction);
                 },
                 InstructionType::SetTrue => {
@@ -344,6 +352,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringSize => {
                     run!(self, ins_string_size, thread, code, instruction);
+                },
+                InstructionType::StdoutOpen => {
+                    run!(self, ins_stdout_open, thread, code, instruction);
                 }
             };
         }
@@ -505,6 +516,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot = try!(instruction.arg(0));
 
         thread.set_register(slot, self.false_prototype());
+
+        Ok(())
+    }
+
+    fn ins_get_stdout_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                                instruction: &Instruction) -> EmptyResult {
+        let slot = try!(instruction.arg(0));
+
+        thread.set_register(slot, self.stdout_prototype());
 
         Ok(())
     }
@@ -1520,6 +1540,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let size = arg.value.as_string().len() as isize;
         let obj  = self.allocate(object_value::integer(size), int_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_stdout_open(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> EmptyResult {
+        let slot = try!(instruction.arg(0));
+
+        let stdout_proto = self.stdout_prototype();
+        let obj          = self.allocate(object_value::none(), stdout_proto);
 
         thread.set_register(slot, obj);
 

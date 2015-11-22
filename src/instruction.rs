@@ -19,6 +19,7 @@ pub enum InstructionType {
     GetThreadPrototype,
     GetTruePrototype,
     GetFalsePrototype,
+    GetStdoutPrototype,
     SetTrue,
     SetFalse,
     SetLocal,
@@ -72,7 +73,8 @@ pub enum InstructionType {
     StringToBytes,
     StringFromBytes,
     StringLength,
-    StringSize
+    StringSize,
+    StdoutOpen
 }
 
 /// Struct for storing information about a single instruction.

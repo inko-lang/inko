@@ -65,6 +65,17 @@ macro_rules! ensure_strings {
     );
 }
 
+/// Returns an Err if any of the given arguments are not stdout objects.
+macro_rules! ensure_stdouts {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_stdout() {
+                return Err("all objects must be STDOUT ojects".to_string());
+            }
+        )+
+    );
+}
+
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
     ($ins: ident, $thread: ident, $index: expr) => ({

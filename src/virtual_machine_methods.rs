@@ -203,6 +203,17 @@ pub trait VirtualMachineMethods {
     fn ins_get_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the prototype to use for stdout objects.
+    ///
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
+    ///
+    /// # Examples
+    ///
+    ///     0: get_stdout_prototype 0
+    fn ins_get_stdout_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets a "true" value in a register slot.
     ///
     /// This instruction requires only one argument: the slot index to store the
@@ -1216,6 +1227,18 @@ pub trait VirtualMachineMethods {
     ///     0: set_string  0, 0
     ///     1: string_size 1, 0
     fn ins_string_size(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Returns a handle to STDOUT.
+    ///
+    /// This instruction requires 1 argument:
+    ///
+    /// 1. The register slot to store the result in.
+    ///
+    /// # Examples
+    ///
+    ///     0: stdout_open 0
+    fn ins_stdout_open(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
