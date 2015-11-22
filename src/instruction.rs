@@ -68,7 +68,8 @@ pub enum InstructionType {
     ArrayClear,
     StringToLower,
     StringToUpper,
-    StringEquals
+    StringEquals,
+    StringToBytes
 }
 
 /// Struct for storing information about a single instruction.

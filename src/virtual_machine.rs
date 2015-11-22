@@ -331,6 +331,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StringEquals => {
                     run!(self, ins_string_equals, thread, code, instruction);
+                },
+                InstructionType::StringToBytes => {
+                    run!(self, ins_string_to_bytes, thread, code, instruction);
                 }
             };
         }
@@ -1420,6 +1423,29 @@ impl VirtualMachineMethods for RcVirtualMachine {
         };
 
         thread.set_register(slot, boolean);
+
+        Ok(())
+    }
+
+    fn ins_string_to_bytes(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot     = try!(instruction.arg(0));
+        let arg_lock = instruction_object!(instruction, thread, 1);
+
+        let arg = read_lock!(arg_lock);
+
+        ensure_strings!(arg);
+
+        let int_proto   = self.integer_prototype();
+        let array_proto = self.array_prototype();
+
+        let array = arg.value.as_string().as_bytes().iter().map(|&b| {
+            self.allocate(object_value::integer(b as isize), int_proto.clone())
+        }).collect::<Vec<_>>();
+
+        let obj = self.allocate(object_value::array(array), array_proto);
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }
