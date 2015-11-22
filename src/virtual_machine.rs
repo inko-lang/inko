@@ -988,9 +988,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_integers!(receiver, arg);
 
-        let smaller = receiver.value.as_integer() < arg.value.as_integer();
+        let result = receiver.value.as_integer() < arg.value.as_integer();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
@@ -1013,9 +1013,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_integers!(receiver, arg);
 
-        let smaller = receiver.value.as_integer() > arg.value.as_integer();
+        let result = receiver.value.as_integer() > arg.value.as_integer();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
@@ -1038,9 +1038,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_integers!(receiver, arg);
 
-        let smaller = receiver.value.as_integer() == arg.value.as_integer();
+        let result = receiver.value.as_integer() == arg.value.as_integer();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
@@ -1210,9 +1210,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_floats!(receiver, arg);
 
-        let smaller = receiver.value.as_float() < arg.value.as_float();
+        let result = receiver.value.as_float() < arg.value.as_float();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
@@ -1235,9 +1235,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_floats!(receiver, arg);
 
-        let smaller = receiver.value.as_float() > arg.value.as_float();
+        let result = receiver.value.as_float() > arg.value.as_float();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
@@ -1260,9 +1260,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_floats!(receiver, arg);
 
-        let smaller = receiver.value.as_float() == arg.value.as_float();
+        let result = receiver.value.as_float() == arg.value.as_float();
 
-        let boolean = if smaller {
+        let boolean = if result {
             self.true_object()
         }
         else {
