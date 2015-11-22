@@ -1184,6 +1184,23 @@ pub trait VirtualMachineMethods {
     fn ins_string_from_bytes(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Returns the amount of characters in a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. The register slot of the string.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "hello"
+    ///
+    ///     0: set_string    0, 0
+    ///     1: string_length 1, 0
+    fn ins_string_length(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
