@@ -74,7 +74,8 @@ pub enum InstructionType {
     StringLength,
     StringSize,
     StdoutWrite,
-    StderrWrite
+    StderrWrite,
+    StdinRead
 }
 
 /// Struct for storing information about a single instruction.

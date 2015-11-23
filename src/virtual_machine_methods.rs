@@ -1252,6 +1252,23 @@ pub trait VirtualMachineMethods {
     fn ins_stderr_write(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Reads the given amount of bytes into a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the resulting string in.
+    /// 2. The register slot containing the amount of bytes to read.
+    ///
+    /// # Examples
+    ///
+    ///     integer_literals:
+    ///       0: 5
+    ///
+    ///     0: set_integer 0, 0
+    ///     1: stdin_read  1, 0
+    fn ins_stdin_read(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

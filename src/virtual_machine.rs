@@ -5,7 +5,7 @@
 //! allowing multiple instances to run fully isolated in the same process.
 
 use std::error::Error;
-use std::io::{self, Write};
+use std::io::{self, Write, Read};
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
@@ -350,6 +350,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StderrWrite => {
                     run!(self, ins_stderr_write, thread, code, instruction);
+                },
+                InstructionType::StdinRead => {
+                    run!(self, ins_stdin_read, thread, code, instruction);
                 }
             };
         }
@@ -1570,6 +1573,40 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_stdin_read(&self, thread: RcThread, _: RcCompiledCode,
+                      instruction: &Instruction) -> EmptyResult {
+        let slot = try!(instruction.arg(0));
+
+        let string_proto = self.string_prototype();
+
+        let mut buffer = if instruction.arguments.get(1).is_some() {
+            let arg_lock = instruction_object!(instruction, thread, 1);
+            let arg      = read_lock!(arg_lock);
+
+            ensure_integers!(arg);
+
+            let int_size = arg.value.as_integer();
+
+            if int_size < 0 {
+                return Err("can't read a negative amount of bytes from STDIN"
+                           .to_string());
+            }
+
+            String::with_capacity(int_size as usize)
+        }
+        else {
+            String::new()
+        };
+
+        try!(map_error!(io::stdin().read_to_string(&mut buffer)));
+
+        let obj = self.allocate(object_value::string(buffer), string_proto);
 
         thread.set_register(slot, obj);
 
