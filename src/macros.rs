@@ -93,3 +93,10 @@ macro_rules! empty_pinned_object {
         object
     });
 }
+
+/// Maps an Err to Result<(), String> using the Err's description
+macro_rules! map_error {
+    ($expr: expr) => (
+        $expr.map_err(|err| { err.description().to_string() })
+    );
+}

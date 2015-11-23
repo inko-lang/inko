@@ -1483,10 +1483,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
             read_lock!(int_lock).value.as_integer() as u8
         }).collect::<Vec<_>>();
 
-        let string = try!(String::from_utf8(bytes)
-                          .map_err(|err| { err.description().to_string() }));
-
-        let obj = self.allocate(object_value::string(string), string_proto);
+        let string = try!(map_error!(String::from_utf8(bytes)));
+        let obj    = self.allocate(object_value::string(string), string_proto);
 
         thread.set_register(slot, obj);
 
@@ -1537,12 +1535,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(arg);
 
-        let int_proto = self.integer_prototype();
-
+        let int_proto  = self.integer_prototype();
         let mut stdout = io::stdout();
 
-        let result = try!(stdout.write(arg.value.as_string().as_bytes())
-                          .map_err(|err| { err.description().to_string() }));
+        let result = try!(
+            map_error!(stdout.write(arg.value.as_string().as_bytes()))
+        );
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
