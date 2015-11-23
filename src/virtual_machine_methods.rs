@@ -1235,6 +1235,23 @@ pub trait VirtualMachineMethods {
     fn ins_stdout_write(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Writes a string to STDERR and returns the amount of written bytes.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the amount of written bytes in.
+    /// 2. The register slot containing the string to write.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "hello"
+    ///
+    ///     0: set_string   0, 0
+    ///     1: stderr_write 1, 0
+    fn ins_stderr_write(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
