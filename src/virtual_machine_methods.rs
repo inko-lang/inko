@@ -1269,6 +1269,17 @@ pub trait VirtualMachineMethods {
     fn ins_stdin_read(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Reads an entire line from STDIN into a string.
+    ///
+    /// This instruction requires 1 argument: the register slot to store the
+    /// resulting string in.
+    ///
+    /// # Examples
+    ///
+    ///     0: stdin_read_line 0
+    fn ins_stdin_read_line(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

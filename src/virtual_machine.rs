@@ -353,6 +353,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StdinRead => {
                     run!(self, ins_stdin_read, thread, code, instruction);
+                },
+                InstructionType::StdinReadLine => {
+                    run!(self, ins_stdin_read_line, thread, code, instruction);
                 }
             };
         }
@@ -1581,9 +1584,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_stdin_read(&self, thread: RcThread, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let slot = try!(instruction.arg(0));
-
-        let string_proto = self.string_prototype();
+        let slot  = try!(instruction.arg(0));
+        let proto = self.string_prototype();
 
         let mut buffer = if instruction.arguments.get(1).is_some() {
             let arg_lock = instruction_object!(instruction, thread, 1);
@@ -1606,7 +1608,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         try!(map_error!(io::stdin().read_to_string(&mut buffer)));
 
-        let obj = self.allocate(object_value::string(buffer), string_proto);
+        let obj = self.allocate(object_value::string(buffer), proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_stdin_read_line(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot  = try!(instruction.arg(0));
+        let proto = self.string_prototype();
+
+        let mut buffer = String::new();
+
+        try!(map_error!(io::stdin().read_line(&mut buffer)));
+
+        let obj = self.allocate(object_value::string(buffer), proto);
 
         thread.set_register(slot, obj);
 
