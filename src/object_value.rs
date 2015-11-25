@@ -1,3 +1,4 @@
+use std::fs;
 use object::RcObject;
 use thread::RcThread;
 
@@ -8,7 +9,8 @@ pub enum ObjectValue {
     Float(f64),
     String(Box<String>),
     Array(Box<Vec<RcObject>>),
-    Thread(RcThread)
+    Thread(RcThread),
+    File(Box<fs::File>)
 }
 
 impl ObjectValue {
@@ -34,6 +36,13 @@ impl ObjectValue {
     }
 
     pub fn is_string(&self) -> bool {
+        match *self {
+            ObjectValue::String(_) => true,
+            _                      => false
+        }
+    }
+
+    pub fn is_file(&self) -> bool {
         match *self {
             ObjectValue::String(_) => true,
             _                      => false
@@ -95,6 +104,20 @@ impl ObjectValue {
             }
         }
     }
+
+    pub fn as_file(&self) -> &fs::File {
+        match *self {
+            ObjectValue::File(ref val) => val,
+            _ => { panic!("ObjectValue::as_file() called on a non file") }
+        }
+    }
+
+    pub fn as_file_mut(&mut self) -> &mut fs::File {
+        match *self {
+            ObjectValue::File(ref mut val) => val,
+            _ => { panic!("ObjectValue::as_file_mut() called on a non file"); }
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -119,4 +142,8 @@ pub fn string(value: String) -> ObjectValue {
 
 pub fn array(value: Vec<RcObject>) -> ObjectValue {
     ObjectValue::Array(Box::new(value))
+}
+
+pub fn file(value: fs::File) -> ObjectValue {
+    ObjectValue::File(Box::new(value))
 }

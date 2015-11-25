@@ -8,6 +8,7 @@ pub mod memory_manager;
 pub mod object;
 pub mod object_header;
 pub mod object_value;
+pub mod open_options;
 pub mod register;
 pub mod thread;
 pub mod thread_list;

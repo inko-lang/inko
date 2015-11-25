@@ -1280,6 +1280,40 @@ pub trait VirtualMachineMethods {
     fn ins_stdin_read_line(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Opens a file handle in a particular mode (read-only, write-only, etc).
+    ///
+    /// This instruction requires X arguments:
+    ///
+    /// 1. The register slot to store the resulting object in.
+    /// 2. The path to the file to open.
+    /// 3. The register slot containing a string describing the mode to open the
+    ///    file in.
+    ///
+    /// The available file modes supported are the same as those supported by
+    /// the `fopen()` system call, thus:
+    ///
+    /// * r: opens a file for reading only
+    /// * r+: opens a file for reading and writing
+    /// * w: opens a file for writing only, truncating it if it exists, creating
+    ///   it otherwise
+    /// * w+: opens a file for reading and writing, truncating it if it exists,
+    ///   creating it if it doesn't exist
+    /// * a: opens a file for appending, creating it if it doesn't exist
+    /// * a+: opens a file for reading and appending, creating it if it doesn't
+    ///   exist
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "/etc/hostname"
+    ///       1: "r"
+    ///
+    ///     0: set_string 0, 0
+    ///     1: set_string 1, 1
+    ///     2: file_open  2, 0, 1
+    fn ins_file_open(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

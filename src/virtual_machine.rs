@@ -16,6 +16,7 @@ use instruction::{InstructionType, Instruction};
 use memory_manager::{MemoryManager, RcMemoryManager};
 use object::RcObject;
 use object_value;
+use open_options;
 use virtual_machine_methods::VirtualMachineMethods;
 use virtual_machine_result::*;
 use thread::{Thread, RcThread};
@@ -73,6 +74,10 @@ impl VirtualMachine {
 
     fn false_prototype(&self) -> RcObject {
         read_lock!(self.memory_manager).false_prototype()
+    }
+
+    fn file_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).file_prototype()
     }
 
     fn false_object(&self) -> RcObject {
@@ -356,6 +361,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::StdinReadLine => {
                     run!(self, ins_stdin_read_line, thread, code, instruction);
+                },
+                InstructionType::FileOpen => {
+                    run!(self, ins_file_open, thread, code, instruction);
                 }
             };
         }
@@ -1625,6 +1633,30 @@ impl VirtualMachineMethods for RcVirtualMachine {
         try!(map_error!(io::stdin().read_line(&mut buffer)));
 
         let obj = self.allocate(object_value::string(buffer), proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_file_open(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let slot      = try!(instruction.arg(0));
+        let path_lock = instruction_object!(instruction, thread, 1);
+        let mode_lock = instruction_object!(instruction, thread, 2);
+
+        let file_proto = self.file_prototype();
+
+        let path = read_lock!(path_lock);
+        let mode = read_lock!(mode_lock);
+
+        let path_string = path.value.as_string();
+        let mode_string = mode.value.as_string().as_ref();
+
+        let open_opts = try!(open_options::from_fopen_string(mode_string));
+        let file      = try!(map_error!(open_opts.open(path_string)));
+
+        let obj = self.allocate(object_value::file(file), file_proto);
 
         thread.set_register(slot, obj);
 
