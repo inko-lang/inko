@@ -65,6 +65,17 @@ macro_rules! ensure_strings {
     );
 }
 
+/// Returns an Err if any of the given arguments is not a file.
+macro_rules! ensure_files {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_file() {
+                return Err("all objects must be files".to_string());
+            }
+        )+
+    );
+}
+
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
     ($ins: ident, $thread: ident, $index: expr) => ({

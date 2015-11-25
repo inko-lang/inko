@@ -44,8 +44,8 @@ impl ObjectValue {
 
     pub fn is_file(&self) -> bool {
         match *self {
-            ObjectValue::String(_) => true,
-            _                      => false
+            ObjectValue::File(_) => true,
+            _                    => false
         }
     }
 

@@ -364,6 +364,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileOpen => {
                     run!(self, ins_file_open, thread, code, instruction);
+                },
+                InstructionType::FileWrite => {
+                    run!(self, ins_file_write, thread, code, instruction);
                 }
             };
         }
@@ -1657,6 +1660,32 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let file      = try!(map_error!(open_opts.open(path_string)));
 
         let obj = self.allocate(object_value::file(file), file_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_file_write(&self, thread: RcThread, _: RcCompiledCode,
+                      instruction: &Instruction) -> EmptyResult {
+        let slot        = try!(instruction.arg(0));
+        let file_lock   = instruction_object!(instruction, thread, 1);
+        let string_lock = instruction_object!(instruction, thread, 2);
+
+        let mut file = write_lock!(file_lock);
+        let string   = read_lock!(string_lock);
+
+        ensure_files!(file);
+        ensure_strings!(string);
+
+        let int_proto = self.integer_prototype();
+        let mut file  = file.value.as_file_mut();
+        let bytes     = string.value.as_string().as_bytes();
+
+        let result = try!(map_error!(file.write(bytes)));
+
+        let obj = self.allocate(object_value::integer(result as isize),
+                                int_proto);
 
         thread.set_register(slot, obj);
 
