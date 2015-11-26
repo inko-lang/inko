@@ -94,6 +94,15 @@ macro_rules! ensure_array_within_bounds {
     );
 }
 
+/// Ensures the given number of bytes to read is greater than 0
+macro_rules! ensure_positive_read_size {
+    ($size: expr) => (
+        if $size < 0 {
+            return Err("can't read a negative amount of bytes".to_string());
+        }
+    );
+}
+
 /// Returns a new, empty and pinned object.
 macro_rules! empty_pinned_object {
     ($id: expr) => ({

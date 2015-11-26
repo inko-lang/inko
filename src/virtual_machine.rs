@@ -367,6 +367,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileWrite => {
                     run!(self, ins_file_write, thread, code, instruction);
+                },
+                InstructionType::FileRead => {
+                    run!(self, ins_file_read, thread, code, instruction);
                 }
             };
         }
@@ -1606,10 +1609,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             let int_size = arg.value.as_integer();
 
-            if int_size < 0 {
-                return Err("can't read a negative amount of bytes from STDIN"
-                           .to_string());
-            }
+            ensure_positive_read_size!(int_size);
 
             String::with_capacity(int_size as usize)
         }
@@ -1686,6 +1686,42 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_file_read(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let slot         = try!(instruction.arg(0));
+        let file_lock    = instruction_object!(instruction, thread, 1);
+        let mut file_obj = write_lock!(file_lock);
+
+        ensure_files!(file_obj);
+
+        let mut buffer = if instruction.arguments.get(2).is_some() {
+            let size_lock = instruction_object!(instruction, thread, 2);
+            let size_obj  = read_lock!(size_lock);
+
+            ensure_integers!(size_obj);
+
+            let size = size_obj.value.as_integer();
+
+            ensure_positive_read_size!(size);
+
+            String::with_capacity(size as usize)
+        }
+        else {
+            String::new()
+        };
+
+        let int_proto = self.integer_prototype();
+        let mut file  = file_obj.value.as_file_mut();
+
+        try!(map_error!(file.read_to_string(&mut buffer)));
+
+        let obj = self.allocate(object_value::string(buffer), int_proto);
 
         thread.set_register(slot, obj);
 
