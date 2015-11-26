@@ -103,6 +103,29 @@ macro_rules! ensure_positive_read_size {
     );
 }
 
+/// Returns a string to use for reading from a file, optionally with a max size.
+macro_rules! file_reading_buffer {
+    ($instruction: ident, $thread: ident, $size_idx: expr) => (
+        if $instruction.arguments.get($size_idx).is_some() {
+            let size_lock = instruction_object!($instruction, $thread,
+                                                $size_idx);
+
+            let size_obj = read_lock!(size_lock);
+
+            ensure_integers!(size_obj);
+
+            let size = size_obj.value.as_integer();
+
+            ensure_positive_read_size!(size);
+
+            String::with_capacity(size as usize)
+        }
+        else {
+            String::new()
+        }
+    );
+}
+
 /// Returns a new, empty and pinned object.
 macro_rules! empty_pinned_object {
     ($id: expr) => ({

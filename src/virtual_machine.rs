@@ -1601,21 +1601,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot  = try!(instruction.arg(0));
         let proto = self.string_prototype();
 
-        let mut buffer = if instruction.arguments.get(1).is_some() {
-            let arg_lock = instruction_object!(instruction, thread, 1);
-            let arg      = read_lock!(arg_lock);
-
-            ensure_integers!(arg);
-
-            let int_size = arg.value.as_integer();
-
-            ensure_positive_read_size!(int_size);
-
-            String::with_capacity(int_size as usize)
-        }
-        else {
-            String::new()
-        };
+        let mut buffer = file_reading_buffer!(instruction, thread, 1);
 
         try!(map_error!(io::stdin().read_to_string(&mut buffer)));
 
@@ -1700,24 +1686,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_files!(file_obj);
 
-        let mut buffer = if instruction.arguments.get(2).is_some() {
-            let size_lock = instruction_object!(instruction, thread, 2);
-            let size_obj  = read_lock!(size_lock);
-
-            ensure_integers!(size_obj);
-
-            let size = size_obj.value.as_integer();
-
-            ensure_positive_read_size!(size);
-
-            String::with_capacity(size as usize)
-        }
-        else {
-            String::new()
-        };
-
-        let int_proto = self.integer_prototype();
-        let mut file  = file_obj.value.as_file_mut();
+        let mut buffer = file_reading_buffer!(instruction, thread, 2);
+        let int_proto  = self.integer_prototype();
+        let mut file   = file_obj.value.as_file_mut();
 
         try!(map_error!(file.read_to_string(&mut buffer)));
 
