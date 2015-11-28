@@ -126,17 +126,6 @@ macro_rules! file_reading_buffer {
     );
 }
 
-/// Returns a new, empty and pinned object.
-macro_rules! empty_pinned_object {
-    ($id: expr) => ({
-        let object = Object::new($id, object_value::none());
-
-        write_lock!(object).pin();
-
-        object
-    });
-}
-
 /// Maps an Err to Result<(), String> using the Err's description
 macro_rules! map_error {
     ($expr: expr) => (

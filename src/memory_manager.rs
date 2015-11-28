@@ -46,20 +46,29 @@ pub struct MemoryManager {
     pub false_object: RcObject
 }
 
+/// Returns a new, empty and pinned object.
+fn empty_pinned_object(id: usize) -> RcObject {
+    let object = Object::new(id, object_value::none());
+
+    write_lock!(object).pin();
+
+    object
+}
+
 impl MemoryManager {
     pub fn new() -> RcMemoryManager {
-        let top_level     = empty_pinned_object!(0);
-        let integer_proto = empty_pinned_object!(1);
-        let float_proto   = empty_pinned_object!(2);
-        let string_proto  = empty_pinned_object!(3);
-        let array_proto   = empty_pinned_object!(4);
-        let thread_proto  = empty_pinned_object!(5);
-        let true_proto    = empty_pinned_object!(6);
-        let false_proto   = empty_pinned_object!(7);
-        let file_proto    = empty_pinned_object!(8);
+        let top_level     = empty_pinned_object(0);
+        let integer_proto = empty_pinned_object(1);
+        let float_proto   = empty_pinned_object(2);
+        let string_proto  = empty_pinned_object(3);
+        let array_proto   = empty_pinned_object(4);
+        let thread_proto  = empty_pinned_object(5);
+        let true_proto    = empty_pinned_object(6);
+        let false_proto   = empty_pinned_object(7);
+        let file_proto    = empty_pinned_object(8);
 
-        let true_obj  = empty_pinned_object!(9);
-        let false_obj = empty_pinned_object!(10);
+        let true_obj  = empty_pinned_object(9);
+        let false_obj = empty_pinned_object(10);
 
         {
             let mut true_writer  = write_lock!(true_obj);
