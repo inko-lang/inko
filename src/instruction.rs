@@ -80,7 +80,8 @@ pub enum InstructionType {
     FileOpen,
     FileWrite,
     FileRead,
-    FileReadLine
+    FileReadLine,
+    FileFlush
 }
 
 /// Struct for storing information about a single instruction.

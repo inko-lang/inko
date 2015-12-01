@@ -1383,6 +1383,27 @@ pub trait VirtualMachineMethods {
     fn ins_file_read_line(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Flushes a file.
+    ///
+    /// This instruction requires one argument: the register slot containing the
+    /// file to flush.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "/etc/hostname"
+    ///       1: "w"
+    ///       2: "127.0.0.1 localhost"
+    ///
+    ///     0: set_string 0, 0
+    ///     1: set_string 1, 1
+    ///     2: set_string 2, 2
+    ///     3: file_open  3, 0, 1
+    ///     4: file_write 4, 3, 2
+    ///     5: file_flush 3
+    fn ins_file_flush(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

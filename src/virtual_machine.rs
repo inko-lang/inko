@@ -373,6 +373,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileReadLine => {
                     run!(self, ins_file_read_line, thread, code, instruction);
+                },
+                InstructionType::FileFlush => {
+                    run!(self, ins_file_flush, thread, code, instruction);
                 }
             };
         }
@@ -1728,6 +1731,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let obj    = self.allocate(object_value::string(string), proto);
 
         thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_file_flush(&self, thread: RcThread, _: RcCompiledCode,
+                      instruction: &Instruction) -> EmptyResult {
+        let file_lock    = instruction_object!(instruction, thread, 0);
+        let mut file_obj = write_lock!(file_lock);
+
+        ensure_files!(file_obj);
+
+        let mut file = file_obj.value.as_file_mut();
+
+        try!(map_error!(file.flush()));
 
         Ok(())
     }
