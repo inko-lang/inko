@@ -79,7 +79,8 @@ pub enum InstructionType {
     StdinReadLine,
     FileOpen,
     FileWrite,
-    FileRead
+    FileRead,
+    FileReadLine
 }
 
 /// Struct for storing information about a single instruction.

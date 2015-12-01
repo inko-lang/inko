@@ -370,6 +370,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileRead => {
                     run!(self, ins_file_read, thread, code, instruction);
+                },
+                InstructionType::FileReadLine => {
+                    run!(self, ins_file_read_line, thread, code, instruction);
                 }
             };
         }
@@ -1693,6 +1696,36 @@ impl VirtualMachineMethods for RcVirtualMachine {
         try!(map_error!(file.read_to_string(&mut buffer)));
 
         let obj = self.allocate(object_value::string(buffer), int_proto);
+
+        thread.set_register(slot, obj);
+
+        Ok(())
+    }
+
+    fn ins_file_read_line(&self, thread: RcThread, _: RcCompiledCode,
+                          instruction: &Instruction) -> EmptyResult {
+        let slot         = try!(instruction.arg(0));
+        let file_lock    = instruction_object!(instruction, thread, 1);
+        let mut file_obj = write_lock!(file_lock);
+
+        ensure_files!(file_obj);
+
+        let proto     = self.string_prototype();
+        let mut file  = file_obj.value.as_file_mut();
+        let mut bytes = Vec::new();
+
+        for result in file.bytes() {
+            let byte = try!(map_error!(result));
+
+            bytes.push(byte);
+
+            if byte == 0xA {
+                break;
+            }
+        }
+
+        let string = try!(map_error!(String::from_utf8(bytes)));
+        let obj    = self.allocate(object_value::string(string), proto);
 
         thread.set_register(slot, obj);
 

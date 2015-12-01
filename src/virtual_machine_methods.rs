@@ -1363,6 +1363,26 @@ pub trait VirtualMachineMethods {
     fn ins_file_read(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Reads an entire line from a file.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the resulting String in.
+    /// 2. The register slot containing the file to read from.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "/etc/hostname"
+    ///       1: "r"
+    ///
+    ///     0: set_string     0, 0
+    ///     1: set_string     1, 1
+    ///     2: file_open      2, 0, 1
+    ///     3: file_read_line 3, 2
+    fn ins_file_read_line(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
