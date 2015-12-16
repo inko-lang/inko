@@ -475,6 +475,36 @@ pub trait VirtualMachineMethods {
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Checks if a given object is an error object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the boolean result in.
+    /// 2. The register slot of the object to check.
+    ///
+    /// # Examples
+    ///
+    ///     0: stdin_read 0
+    ///     1: is_error   1, 0
+    fn ins_is_error(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Converts an error object to a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the string in.
+    /// 2. The register slot containing the error.
+    ///
+    /// # Examples
+    ///
+    ///     0: stdin_read      0
+    ///     1: is_error        1, 0
+    ///     2: goto_if_false   4, 1
+    ///     3: error_to_string 2, 0
+    fn ins_error_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Adds two integers
     ///
     /// This instruction requires 3 arguments:
@@ -1165,6 +1195,9 @@ pub trait VirtualMachineMethods {
     /// 1. The register slot to store the result in.
     /// 2. The register slot containing the array of bytes.
     ///
+    /// The result of this instruction is either a string based on the given
+    /// bytes, or an error object.
+    ///
     /// # Examples
     ///
     ///     integer_literals:
@@ -1222,8 +1255,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the amount of written bytes in.
+    /// 1. The register slot to store the resulting object in.
     /// 2. The register slot containing the string to write.
+    ///
+    /// The result of this instruction is either an integer indicating the
+    /// amount of bytes written, or an error object.
     ///
     /// # Examples
     ///
@@ -1239,8 +1275,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the amount of written bytes in.
+    /// 1. The register slot to store the resulting object in.
     /// 2. The register slot containing the string to write.
+    ///
+    /// The result of this instruction is either an integer indicating the
+    /// amount of bytes written, or an error object.
     ///
     /// # Examples
     ///
@@ -1256,8 +1295,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting string in.
+    /// 1. The register slot to store the resulting object in.
     /// 2. The register slot containing the amount of bytes to read.
+    ///
+    /// The result of this instruction is either a string containing the data
+    /// read, or an error object.
     ///
     /// # Examples
     ///
@@ -1272,7 +1314,10 @@ pub trait VirtualMachineMethods {
     /// Reads an entire line from STDIN into a string.
     ///
     /// This instruction requires 1 argument: the register slot to store the
-    /// resulting string in.
+    /// resulting object in.
+    ///
+    /// The result of this instruction is either a string containing the read
+    /// data, or an error object.
     ///
     /// # Examples
     ///
@@ -1288,6 +1333,9 @@ pub trait VirtualMachineMethods {
     /// 2. The path to the file to open.
     /// 3. The register slot containing a string describing the mode to open the
     ///    file in.
+    ///
+    /// The result of this instruction is either a file object or an error
+    /// object.
     ///
     /// The available file modes supported are the same as those supported by
     /// the `fopen()` system call, thus:
@@ -1322,6 +1370,9 @@ pub trait VirtualMachineMethods {
     /// 2. The register slot containing the file object to write to.
     /// 3. The register slot containing the string to write.
     ///
+    /// The result of this instruction is either the amount of written bytes or
+    /// an error object.
+    ///
     /// # Examples
     ///
     ///     string_literals:
@@ -1341,10 +1392,13 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction takes 3 arguments:
     ///
-    /// 1. The register slot to store the resulting string in.
+    /// 1. The register slot to store the resulting object in.
     /// 2. The register slot containing the file to read from.
     /// 3. The register slot containing the amount of bytes to read, if left out
     ///    all data is read instead.
+    ///
+    /// The result of this instruction is either a string containing the data
+    /// read, or an error object.
     ///
     /// # Examples
     ///
@@ -1367,8 +1421,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting String in.
+    /// 1. The register slot to store the resulting object in.
     /// 2. The register slot containing the file to read from.
+    ///
+    /// The result of this instruction is either a string containing the read
+    /// line, or an error object.
     ///
     /// # Examples
     ///
@@ -1385,8 +1442,13 @@ pub trait VirtualMachineMethods {
 
     /// Flushes a file.
     ///
-    /// This instruction requires one argument: the register slot containing the
-    /// file to flush.
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the result in.
+    /// 2. the register slot containing the file to flush.
+    ///
+    /// The resulting object is either boolean true (upon success), or an error
+    /// object.
     ///
     /// # Examples
     ///
@@ -1400,7 +1462,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_string 2, 2
     ///     3: file_open  3, 0, 1
     ///     4: file_write 4, 3, 2
-    ///     5: file_flush 3
+    ///     5: file_flush 5, 3
     fn ins_file_flush(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

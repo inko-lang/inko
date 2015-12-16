@@ -10,7 +10,8 @@ pub enum ObjectValue {
     String(Box<String>),
     Array(Box<Vec<RcObject>>),
     Thread(RcThread),
-    File(Box<fs::File>)
+    File(Box<fs::File>),
+    Error(Box<String>)
 }
 
 impl ObjectValue {
@@ -46,6 +47,13 @@ impl ObjectValue {
         match *self {
             ObjectValue::File(_) => true,
             _                    => false
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        match *self {
+            ObjectValue::Error(_) => true,
+            _                     => false
         }
     }
 
@@ -118,6 +126,13 @@ impl ObjectValue {
             _ => { panic!("ObjectValue::as_file_mut() called on a non file"); }
         }
     }
+
+    pub fn as_error(&self) -> &String {
+        match *self {
+            ObjectValue::Error(ref val) => val,
+            _ => { panic!("ObjectValue::as_error() called non a non error"); }
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -146,4 +161,8 @@ pub fn array(value: Vec<RcObject>) -> ObjectValue {
 
 pub fn file(value: fs::File) -> ObjectValue {
     ObjectValue::File(Box::new(value))
+}
+
+pub fn error(value: String) -> ObjectValue {
+    ObjectValue::Error(Box::new(value))
 }

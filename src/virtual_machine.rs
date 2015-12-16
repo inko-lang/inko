@@ -4,19 +4,19 @@
 //! threads and so on. VirtualMachine instances are fully self contained
 //! allowing multiple instances to run fully isolated in the same process.
 
-use std::error::Error;
 use std::io::{self, Write, Read};
+use std::fs::OpenOptions;
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
+use errors;
 use instruction::{InstructionType, Instruction};
 use memory_manager::{MemoryManager, RcMemoryManager};
 use object::RcObject;
 use object_value;
-use open_options;
 use virtual_machine_methods::VirtualMachineMethods;
 use virtual_machine_result::*;
 use thread::{Thread, RcThread};
@@ -90,6 +90,10 @@ impl VirtualMachine {
 
     fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
         write_lock!(self.memory_manager).allocate(value, prototype)
+    }
+
+    fn allocate_error(&self, name: &'static str) -> RcObject {
+        write_lock!(self.memory_manager).allocate_error(name)
     }
 }
 
@@ -229,6 +233,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::GetToplevel => {
                     run!(self, ins_get_toplevel, thread, code, instruction);
+                },
+                InstructionType::IsError => {
+                    run!(self, ins_is_error, thread, code, instruction);
+                },
+                InstructionType::ErrorToString => {
+                    run!(self, ins_error_to_string, thread, code, instruction);
                 },
                 InstructionType::IntegerAdd => {
                     run!(self, ins_integer_add, thread, code, instruction);
@@ -783,6 +793,39 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let top_level = read_lock!(self.memory_manager).top_level.clone();
 
         thread.set_register(slot, top_level);
+
+        Ok(())
+    }
+
+    fn ins_is_error(&self, thread: RcThread, _: RcCompiledCode,
+                    instruction: &Instruction) -> EmptyResult {
+        let slot     = try!(instruction.arg(0));
+        let obj_lock = instruction_object!(instruction, thread, 1);
+        let obj      = read_lock!(obj_lock);
+
+        let result = if obj.value.is_error() {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(slot, result);
+
+        Ok(())
+    }
+
+    fn ins_error_to_string(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let slot       = try!(instruction.arg(0));
+        let error_lock = instruction_object!(instruction, thread, 1);
+        let error      = read_lock!(error_lock);
+
+        let proto  = self.string_prototype();
+        let string = error.value.as_error().clone();
+        let result = self.allocate(object_value::string(string), proto);
+
+        thread.set_register(slot, result);
 
         Ok(())
     }
@@ -1512,7 +1555,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             read_lock!(int_lock).value.as_integer() as u8
         }).collect::<Vec<_>>();
 
-        let string = try!(map_error!(String::from_utf8(bytes)));
+        let string = try_error!(try_from_utf8!(bytes), self, thread, slot);
         let obj    = self.allocate(object_value::string(string), string_proto);
 
         thread.set_register(slot, obj);
@@ -1567,9 +1610,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let int_proto  = self.integer_prototype();
         let mut stdout = io::stdout();
 
-        let result = try!(
-            map_error!(stdout.write(arg.value.as_string().as_bytes()))
-        );
+        let result = try_io!(stdout.write(arg.value.as_string().as_bytes()),
+                             self, thread, slot);
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
@@ -1590,9 +1632,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let int_proto  = self.integer_prototype();
         let mut stderr = io::stderr();
 
-        let result = try!(
-            map_error!(stderr.write(arg.value.as_string().as_bytes()))
-        );
+        let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
+                             self, thread, slot);
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
@@ -1609,7 +1650,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let mut buffer = file_reading_buffer!(instruction, thread, 1);
 
-        try!(map_error!(io::stdin().read_to_string(&mut buffer)));
+        try_io!(io::stdin().read_to_string(&mut buffer), self, thread, slot);
 
         let obj = self.allocate(object_value::string(buffer), proto);
 
@@ -1625,7 +1666,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let mut buffer = String::new();
 
-        try!(map_error!(io::stdin().read_line(&mut buffer)));
+        try_io!(io::stdin().read_line(&mut buffer), self, thread, slot);
 
         let obj = self.allocate(object_value::string(buffer), proto);
 
@@ -1645,13 +1686,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let path = read_lock!(path_lock);
         let mode = read_lock!(mode_lock);
 
-        let path_string = path.value.as_string();
-        let mode_string = mode.value.as_string().as_ref();
+        let path_string   = path.value.as_string();
+        let mode_string   = mode.value.as_string().as_ref();
+        let mut open_opts = OpenOptions::new();
 
-        let open_opts = try!(open_options::from_fopen_string(mode_string));
-        let file      = try!(map_error!(open_opts.open(path_string)));
+        match mode_string {
+            "r"  => open_opts.read(true),
+            "r+" => open_opts.read(true).write(true).truncate(true).create(true),
+            "w"  => open_opts.write(true).truncate(true).create(true),
+            "w+" => open_opts.read(true).write(true).truncate(true).create(true),
+            "a"  => open_opts.append(true).create(true),
+            "a+" => open_opts.read(true).append(true).create(true),
+            _    => set_error!(errors::IO_INVALID_OPEN_MODE, self, thread, slot)
+        };
 
-        let obj = self.allocate(object_value::file(file), file_proto);
+        let file = try_io!(open_opts.open(path_string), self, thread, slot);
+        let obj  = self.allocate(object_value::file(file), file_proto);
 
         thread.set_register(slot, obj);
 
@@ -1674,7 +1724,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let mut file  = file.value.as_file_mut();
         let bytes     = string.value.as_string().as_bytes();
 
-        let result = try!(map_error!(file.write(bytes)));
+        let result = try_io!(file.write(bytes), self, thread, slot);
 
         let obj = self.allocate(object_value::integer(result as isize),
                                 int_proto);
@@ -1696,7 +1746,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let int_proto  = self.integer_prototype();
         let mut file   = file_obj.value.as_file_mut();
 
-        try!(map_error!(file.read_to_string(&mut buffer)));
+        try_io!(file.read_to_string(&mut buffer), self, thread, slot);
 
         let obj = self.allocate(object_value::string(buffer), int_proto);
 
@@ -1718,7 +1768,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let mut bytes = Vec::new();
 
         for result in file.bytes() {
-            let byte = try!(map_error!(result));
+            let byte = try_io!(result, self, thread, slot);
 
             bytes.push(byte);
 
@@ -1727,7 +1777,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
         }
 
-        let string = try!(map_error!(String::from_utf8(bytes)));
+        let string = try_error!(try_from_utf8!(bytes), self, thread, slot);
         let obj    = self.allocate(object_value::string(string), proto);
 
         thread.set_register(slot, obj);
@@ -1737,14 +1787,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_file_flush(&self, thread: RcThread, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let file_lock    = instruction_object!(instruction, thread, 0);
+        let slot         = try!(instruction.arg(0));
+        let file_lock    = instruction_object!(instruction, thread, 1);
         let mut file_obj = write_lock!(file_lock);
 
         ensure_files!(file_obj);
 
         let mut file = file_obj.value.as_file_mut();
 
-        try!(map_error!(file.flush()));
+        try_io!(file.flush(), self, thread, slot);
+
+        thread.set_register(slot, self.true_object());
 
         Ok(())
     }

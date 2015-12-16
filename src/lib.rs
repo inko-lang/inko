@@ -1,6 +1,7 @@
 pub mod call_frame;
 pub mod compiled_code;
 pub mod constant_cache;
+pub mod errors;
 pub mod heap;
 pub mod instruction;
 pub mod macros;
@@ -8,7 +9,6 @@ pub mod memory_manager;
 pub mod object;
 pub mod object_header;
 pub mod object_value;
-pub mod open_options;
 pub mod register;
 pub mod thread;
 pub mod thread_list;

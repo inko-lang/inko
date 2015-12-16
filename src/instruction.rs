@@ -35,6 +35,8 @@ pub enum InstructionType {
     DefMethod,
     RunCode,
     GetToplevel,
+    IsError,
+    ErrorToString,
     IntegerAdd,
     IntegerDiv,
     IntegerMul,
