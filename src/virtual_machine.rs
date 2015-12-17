@@ -4,7 +4,7 @@
 //! threads and so on. VirtualMachine instances are fully self contained
 //! allowing multiple instances to run fully isolated in the same process.
 
-use std::io::{self, Write, Read};
+use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 use std::thread;
 use std::sync::{Arc, RwLock};
@@ -386,6 +386,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileFlush => {
                     run!(self, ins_file_flush, thread, code, instruction);
+                },
+                InstructionType::FileSize => {
+                    run!(self, ins_file_size, thread, code, instruction);
+                },
+                InstructionType::FileSeek => {
+                    run!(self, ins_file_seek, thread, code, instruction);
                 }
             };
         }
@@ -1798,6 +1804,55 @@ impl VirtualMachineMethods for RcVirtualMachine {
         try_io!(file.flush(), self, thread, slot);
 
         thread.set_register(slot, self.true_object());
+
+        Ok(())
+    }
+
+    fn ins_file_size(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let slot      = try!(instruction.arg(0));
+        let file_lock = instruction_object!(instruction, thread, 1);
+        let file_obj  = read_lock!(file_lock);
+
+        ensure_files!(file_obj);
+
+        let file = file_obj.value.as_file();
+        let meta = try_io!(file.metadata(), self, thread, slot);
+
+        let size   = meta.len() as isize;
+        let proto  = self.integer_prototype();
+        let result = self.allocate(object_value::integer(size), proto);
+
+        thread.set_register(slot, result);
+
+        Ok(())
+    }
+
+    fn ins_file_seek(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let slot        = try!(instruction.arg(0));
+        let file_lock   = instruction_object!(instruction, thread, 1);
+        let offset_lock = instruction_object!(instruction, thread, 2);
+
+        let mut file_obj = write_lock!(file_lock);
+        let offset_obj   = read_lock!(offset_lock);
+
+        ensure_files!(file_obj);
+        ensure_integers!(offset_obj);
+
+        let mut file = file_obj.value.as_file_mut();
+        let offset   = offset_obj.value.as_integer();
+
+        ensure_positive_read_size!(offset);
+
+        let seek_from  = SeekFrom::Start(offset as u64);
+        let new_offset = try_io!(file.seek(seek_from), self, thread, slot);
+
+        let proto  = self.integer_prototype();
+        let result = self.allocate(object_value::integer(new_offset as isize),
+                                   proto);
+
+        thread.set_register(slot, result);
 
         Ok(())
     }

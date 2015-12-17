@@ -83,7 +83,9 @@ pub enum InstructionType {
     FileWrite,
     FileRead,
     FileReadLine,
-    FileFlush
+    FileFlush,
+    FileSize,
+    FileSeek
 }
 
 /// Struct for storing information about a single instruction.
