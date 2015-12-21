@@ -188,6 +188,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_get_false_prototype, thread, code,
                          instruction);
                 },
+                InstructionType::GetMethodPrototype => {
+                    run!(self, ins_get_method_prototype, thread, code,
+                         instruction);
+                },
                 InstructionType::SetTrue => {
                     run!(self, ins_set_true, thread, code, instruction);
                 },
@@ -557,6 +561,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot = try!(instruction.arg(0));
 
         thread.set_register(slot, self.false_prototype());
+
+        Ok(())
+    }
+
+    fn ins_get_method_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                                instruction: &Instruction) -> EmptyResult {
+        let slot = try!(instruction.arg(0));
+
+        thread.set_register(slot, self.method_prototype());
 
         Ok(())
     }

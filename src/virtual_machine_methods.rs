@@ -203,6 +203,17 @@ pub trait VirtualMachineMethods {
     fn ins_get_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the prototype to use for method objects.
+    ///
+    /// This instruction requires one argument: the register slot to store the
+    /// prototype in.
+    ///
+    /// # Examples
+    ///
+    ///     0: get_method_prototype 0
+    fn ins_get_method_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets a "true" value in a register slot.
     ///
     /// This instruction requires only one argument: the slot index to store the

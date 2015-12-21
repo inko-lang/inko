@@ -19,6 +19,7 @@ pub enum InstructionType {
     GetThreadPrototype,
     GetTruePrototype,
     GetFalsePrototype,
+    GetMethodPrototype,
     SetTrue,
     SetFalse,
     SetLocal,
