@@ -455,12 +455,12 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction takes at least 3 arguments:
     ///
-    /// 1. The slot index to store the return value in.
-    /// 2. The code object index pointing to the CompiledCode to run.
-    /// 3. The amount of arguments to pass to the CompiledCode.
+    /// 1. The register slot to store the return value in.
+    /// 2. The register slot containing the CompiledCode object to run.
+    /// 3. The register slot containing the amount of arguments to pass.
     ///
     /// If the amount of arguments is greater than 0 any following arguments are
-    /// used as slot indexes for retrieving the arguments to pass to the
+    /// used as register slots for retrieving the arguments to pass to the
     /// CompiledCode.
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;

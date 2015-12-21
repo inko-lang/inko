@@ -785,12 +785,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_code(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_run_code(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let result_index = try!(instruction.arg(0));
-        let code_index   = try!(instruction.arg(1));
-        let arg_count    = try!(instruction.arg(2));
-        let code_obj     = try!(code.code_object(code_index)).clone();
+        let slot     = try!(instruction.arg(0));
+        let cc_lock  = instruction_object!(instruction, thread, 1);
+        let arg_lock = instruction_object!(instruction, thread, 2);
+
+        let cc_obj  = read_lock!(cc_lock);
+        let arg_obj = read_lock!(arg_lock);
+
+        ensure_compiled_code!(cc_obj);
+        ensure_integers!(arg_obj);
+
+        let arg_count = arg_obj.value.as_integer() as usize;
+        let code_obj  = cc_obj.value.as_compiled_code();
 
         let arguments = try!(
             self.collect_arguments(thread.clone(), instruction, 3, arg_count)
@@ -799,7 +807,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let retval = try!(self.run_code(thread.clone(), code_obj, arguments));
 
         if retval.is_some() {
-            thread.set_register(result_index, retval.unwrap());
+            thread.set_register(slot, retval.unwrap());
         }
 
         Ok(())
