@@ -84,6 +84,10 @@ impl VirtualMachine {
         read_lock!(self.memory_manager).method_prototype()
     }
 
+    fn compiled_code_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).compiled_code_prototype()
+    }
+
     fn false_object(&self) -> RcObject {
         read_lock!(self.memory_manager).false_object()
     }
@@ -190,6 +194,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::GetMethodPrototype => {
                     run!(self, ins_get_method_prototype, thread, code,
+                         instruction);
+                },
+                InstructionType::GetCompiledCodePrototype => {
+                    run!(self, ins_get_compiled_code_prototype, thread, code,
                          instruction);
                 },
                 InstructionType::SetTrue => {
@@ -574,6 +582,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot = try!(instruction.arg(0));
 
         thread.set_register(slot, self.method_prototype());
+
+        Ok(())
+    }
+
+    fn ins_get_compiled_code_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                                       instruction: &Instruction) -> EmptyResult {
+        let slot = try!(instruction.arg(0));
+
+        thread.set_register(slot, self.compiled_code_prototype());
 
         Ok(())
     }
