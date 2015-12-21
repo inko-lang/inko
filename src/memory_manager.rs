@@ -38,6 +38,7 @@ pub struct MemoryManager {
     pub true_prototype: RcObject,
     pub false_prototype: RcObject,
     pub file_prototype: RcObject,
+    pub method_prototype: RcObject,
 
     // These are not allocated on any specific heap as they'll never be garbage
     // collected. This also makes retrieving these objects trivial (instead of
@@ -66,9 +67,10 @@ impl MemoryManager {
         let true_proto    = empty_pinned_object(6);
         let false_proto   = empty_pinned_object(7);
         let file_proto    = empty_pinned_object(8);
+        let method_proto  = empty_pinned_object(0);
 
-        let true_obj  = empty_pinned_object(9);
-        let false_obj = empty_pinned_object(10);
+        let true_obj  = empty_pinned_object(10);
+        let false_obj = empty_pinned_object(11);
 
         {
             let mut true_writer  = write_lock!(true_obj);
@@ -93,6 +95,7 @@ impl MemoryManager {
             true_prototype: true_proto,
             false_prototype: false_proto,
             file_prototype: file_proto,
+            method_prototype: method_proto,
             true_object: true_obj,
             false_object: false_obj
         };
@@ -165,6 +168,10 @@ impl MemoryManager {
 
     pub fn file_prototype(&self) -> RcObject {
         self.file_prototype.clone()
+    }
+
+    pub fn method_prototype(&self) -> RcObject {
+        self.method_prototype.clone()
     }
 
     pub fn true_object(&self) -> RcObject {

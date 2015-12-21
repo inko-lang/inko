@@ -6,7 +6,6 @@
 
 use std::collections::HashMap;
 
-use compiled_code::RcCompiledCode;
 use object::RcObject;
 
 pub struct ObjectHeader {
@@ -15,7 +14,7 @@ pub struct ObjectHeader {
 
     pub attributes: HashMap<String, RcObject>,
     pub constants: HashMap<String, RcObject>,
-    pub methods: HashMap<String, RcCompiledCode>,
+    pub methods: HashMap<String, RcObject>,
 
     /// When set to "true" this object won't be GC'd.
     pub pinned: bool,

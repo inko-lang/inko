@@ -1,6 +1,7 @@
 use std::fs;
 use object::RcObject;
 use thread::RcThread;
+use compiled_code::RcCompiledCode;
 
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
@@ -11,7 +12,8 @@ pub enum ObjectValue {
     Array(Box<Vec<RcObject>>),
     Thread(RcThread),
     File(Box<fs::File>),
-    Error(Box<String>)
+    Error(Box<String>),
+    CompiledCode(RcCompiledCode)
 }
 
 impl ObjectValue {
@@ -57,80 +59,80 @@ impl ObjectValue {
         }
     }
 
+    pub fn is_compiled_code(&self) -> bool {
+        match *self {
+            ObjectValue::CompiledCode(_) => true,
+            _                            => false
+        }
+    }
+
     pub fn as_integer(&self) -> isize {
         match *self {
             ObjectValue::Integer(val) => val,
-            _ => {
-                panic!("ObjectValue::as_integer() called on a non integer");
-            }
+            _ => panic!("ObjectValue::as_integer() called on a non integer")
         }
     }
 
     pub fn as_float(&self) -> f64 {
         match *self {
             ObjectValue::Float(val) => val,
-            _ => {
-                panic!("ObjectValue::as_float() called on a non float");
-            }
+            _ => panic!("ObjectValue::as_float() called on a non float")
         }
     }
 
     pub fn as_array(&self) -> &Vec<RcObject> {
         match *self {
             ObjectValue::Array(ref val) => val,
-            _ => {
-                panic!("ObjectValue::as_Array() called on a non array");
-            }
+            _ => panic!("ObjectValue::as_Array() called on a non array")
         }
     }
 
     pub fn as_array_mut(&mut self) -> &mut Vec<RcObject> {
         match *self {
             ObjectValue::Array(ref mut val) => val,
-            _ => {
-                panic!("ObjectValue::as_array_mut() called on a non array");
-            }
+            _ => panic!("ObjectValue::as_array_mut() called on a non array")
         }
     }
 
     pub fn as_string(&self) -> &String {
         match *self {
             ObjectValue::String(ref val) => val,
-            _ => {
-                panic!("ObjectValue::as_string() called on a non string");
-            }
+            _ => panic!("ObjectValue::as_string() called on a non string")
         }
     }
 
     pub fn as_thread(&self) -> RcThread {
         match *self {
-            ObjectValue::Thread(ref val) => {
-                val.clone()
-            },
-            _ => {
-                panic!("ObjectValue::as_thread() called on a non thread");
-            }
+            ObjectValue::Thread(ref val) => val.clone(),
+            _ => panic!("ObjectValue::as_thread() called on a non thread")
         }
     }
 
     pub fn as_file(&self) -> &fs::File {
         match *self {
             ObjectValue::File(ref val) => val,
-            _ => { panic!("ObjectValue::as_file() called on a non file") }
+            _ => panic!("ObjectValue::as_file() called on a non file")
         }
     }
 
     pub fn as_file_mut(&mut self) -> &mut fs::File {
         match *self {
             ObjectValue::File(ref mut val) => val,
-            _ => { panic!("ObjectValue::as_file_mut() called on a non file"); }
+            _ => panic!("ObjectValue::as_file_mut() called on a non file")
         }
     }
 
     pub fn as_error(&self) -> &String {
         match *self {
             ObjectValue::Error(ref val) => val,
-            _ => { panic!("ObjectValue::as_error() called non a non error"); }
+            _ => panic!("ObjectValue::as_error() called non a non error")
+        }
+    }
+
+    pub fn as_compiled_code(&self) -> RcCompiledCode {
+        match *self {
+            ObjectValue::CompiledCode(ref val) => val.clone(),
+            _ => panic!("ObjectValue::as_compiled_code() called on a non compiled code object")
         }
     }
 }
@@ -165,4 +167,8 @@ pub fn file(value: fs::File) -> ObjectValue {
 
 pub fn error(value: String) -> ObjectValue {
     ObjectValue::Error(Box::new(value))
+}
+
+pub fn compiled_code(value: RcCompiledCode) -> ObjectValue {
+    ObjectValue::CompiledCode(value)
 }

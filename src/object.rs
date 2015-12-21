@@ -6,7 +6,6 @@
 
 use std::sync::{Arc, RwLock};
 
-use compiled_code::RcCompiledCode;
 use object_header::ObjectHeader;
 use object_value::ObjectValue;
 
@@ -120,16 +119,16 @@ impl Object {
         }
     }
 
-    pub fn add_method(&mut self, name: String, code: RcCompiledCode) {
+    pub fn add_method(&mut self, name: String, method: RcObject) {
         self.allocate_header();
 
         let mut header_ref = self.header.as_mut().unwrap();
 
-        header_ref.methods.insert(name, code.clone());
+        header_ref.methods.insert(name, method);
     }
 
-    pub fn lookup_method(&self, name: &String) -> Option<RcCompiledCode> {
-        let mut retval: Option<RcCompiledCode> = None;
+    pub fn lookup_method(&self, name: &String) -> Option<RcObject> {
+        let mut retval: Option<RcObject> = None;
 
         let opt_header = self.header.as_ref();
 

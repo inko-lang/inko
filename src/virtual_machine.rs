@@ -80,6 +80,10 @@ impl VirtualMachine {
         read_lock!(self.memory_manager).file_prototype()
     }
 
+    fn method_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).method_prototype()
+    }
+
     fn false_object(&self) -> RcObject {
         read_lock!(self.memory_manager).false_object()
     }
@@ -665,10 +669,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let receiver = read_lock!(receiver_lock);
 
-        let method_code = try!(
+        let method_lock = try!(
             receiver.lookup_method(name)
                 .ok_or(receiver.undefined_method_error(name))
         );
+
+        let method_obj = read_lock!(method_lock);
+
+        ensure_compiled_code!(method_obj);
+
+        let method_code = method_obj.value.as_compiled_code();
 
         if method_code.is_private() && allow_private == 0 {
             return Err(receiver.private_method_error(name));
@@ -767,7 +777,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let mut receiver = write_lock!(receiver_lock);
 
-        receiver.add_method(name.clone(), method_code);
+        let object = self.allocate(object_value::compiled_code(method_code),
+                                   self.method_prototype());
+
+        receiver.add_method(name.clone(), object);
 
         Ok(())
     }

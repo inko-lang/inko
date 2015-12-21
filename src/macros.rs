@@ -76,6 +76,17 @@ macro_rules! ensure_files {
     );
 }
 
+/// Returns an Err if any of the given arguments is not a CompiledCode value.
+macro_rules! ensure_compiled_code {
+    ($($ident: ident),+) => (
+        $(
+            if !$ident.value.is_compiled_code() {
+                return Err("all objects must be compiled code objects".to_string());
+            }
+        )+
+    );
+}
+
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
     ($ins: ident, $thread: ident, $index: expr) => ({
