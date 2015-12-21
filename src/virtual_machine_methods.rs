@@ -458,9 +458,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. A slot index pointing to a specific object to define the method on.
-    /// 2. The string literal index containing the method name.
-    /// 3. The code object index containing the CompiledCode of the method.
+    /// 1. The register slot pointing to a specific object to define the method
+    ///    on.
+    /// 2. The register slot containing a String to use as the method name.
+    /// 3. The register slot containing the CompiledCode object to use for the
+    ///    method.
     fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
