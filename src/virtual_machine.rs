@@ -641,12 +641,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_attr(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_attr(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let target_object = instruction_object!(instruction, thread, 0);
         let source_object = instruction_object!(instruction, thread, 1);
-        let name_index    = try!(instruction.arg(2));
-        let name          = try!(code.string(name_index));
+        let name_lock     = instruction_object!(instruction, thread, 2);
+
+        let name_obj = read_lock!(name_lock);
+
+        ensure_strings!(name_obj);
+
+        let name = name_obj.value.as_string();
 
         write_lock!(target_object)
             .add_attribute(name.clone(), source_object);
@@ -654,12 +659,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_attr(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_get_attr(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let target_index = try!(instruction.arg(0));
         let source       = instruction_object!(instruction, thread, 1);
-        let name_index   = try!(instruction.arg(2));
-        let name         = try!(code.string(name_index));
+        let name_lock    = instruction_object!(instruction, thread, 2);
+
+        let name_obj = read_lock!(name_lock);
+
+        ensure_strings!(name_obj);
+
+        let name = name_obj.value.as_string();
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)

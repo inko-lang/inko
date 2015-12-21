@@ -311,7 +311,7 @@ pub trait VirtualMachineMethods {
     ///    attribute.
     /// 2. The register slot containing the object to set as the attribute
     ///    value.
-    /// 3. A string literal index pointing to the name to use for the attribute.
+    /// 3. The register slot containing a String to use for the attribute name.
     ///
     /// # Examples
     ///
@@ -320,7 +320,8 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_object 1
-    ///     2: set_attr   1, 0, 0
+    ///     2: set_string 2, 0
+    ///     3: set_attr   3, 0, 2
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -331,7 +332,7 @@ pub trait VirtualMachineMethods {
     /// 1. The register slot to store the attribute's value in.
     /// 2. The register slot containing the object from which to retrieve the
     ///    attribute.
-    /// 3. A string literal index pointing to the attribute name.
+    /// 3. The register slot containing a String to use for the attribute name.
     ///
     /// # Examples
     ///
@@ -340,8 +341,9 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_object 1
-    ///     2: set_attr   1, 0, 0
-    ///     3: get_attr   2, 1, 0
+    ///     2: set_string 2, 0
+    ///     3: set_attr   0, 1, 2
+    ///     4: get_attr   3, 0, 2
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
