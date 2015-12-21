@@ -236,6 +236,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::DefMethod => {
                     run!(self, ins_def_method, thread, code, instruction);
                 },
+                InstructionType::DefLiteralMethod => {
+                    run!(self, ins_def_literal_method, thread, code,
+                         instruction);
+                },
                 InstructionType::RunCode => {
                     run!(self, ins_run_code, thread, code, instruction);
                 },
@@ -807,6 +811,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let cc   = cc_obj.value.as_compiled_code();
 
         let method = self.allocate(object_value::compiled_code(cc),
+                                   self.method_prototype());
+
+        receiver.add_method(name.clone(), method);
+
+        Ok(())
+    }
+
+    fn ins_def_literal_method(&self, thread: RcThread, code: RcCompiledCode,
+                              instruction: &Instruction) -> EmptyResult {
+        let receiver_lock = instruction_object!(instruction, thread, 0);
+        let name_index    = try!(instruction.arg(1));
+        let cc_index      = try!(instruction.arg(2));
+
+        let name = try!(code.string(name_index));
+        let cc   = try!(code.code_object(cc_index));
+
+        let mut receiver = write_lock!(receiver_lock);
+
+        let method = self.allocate(object_value::compiled_code(cc.clone()),
                                    self.method_prototype());
 
         receiver.add_method(name.clone(), method);

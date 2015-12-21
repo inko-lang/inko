@@ -466,6 +466,22 @@ pub trait VirtualMachineMethods {
     fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Defines a method for an object using literals.
+    ///
+    /// This instruction can be used to define a method when the name and the
+    /// compiled code object are defined as literals. This instruction is
+    /// primarily meant to define methods that are defined directly in the
+    /// source code. Methods defined during runtime should be created using the
+    /// `def_method` instruction instead.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register slot pointing to the object to define the method on.
+    /// 2. The string literal index to use for the method name.
+    /// 3. The code object index to use for the method's CompiledCode object.
+    fn ins_def_literal_method(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Runs a CompiledCode.
     ///
     /// This instruction takes at least 3 arguments:

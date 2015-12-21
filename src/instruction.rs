@@ -34,6 +34,7 @@ pub enum InstructionType {
     GotoIfTrue,
     Goto,
     DefMethod,
+    DefLiteralMethod,
     RunCode,
     GetToplevel,
     IsError,
