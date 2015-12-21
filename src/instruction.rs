@@ -29,6 +29,7 @@ pub enum InstructionType {
     GetConst,
     SetAttr,
     GetAttr,
+    SetCompiledCode,
     Send,
     Return,
     GotoIfFalse,

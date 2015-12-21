@@ -358,6 +358,22 @@ pub trait VirtualMachineMethods {
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sets a CompiledCode object in a register slot.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register slot to store the object in.
+    /// 2. The index of the compiled code object to store.
+    ///
+    /// # Examples:
+    ///
+    ///     code_objects:
+    ///       0: ...
+    ///
+    ///     0: set_compiled_code 0, 0
+    fn ins_set_compiled_code(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sends a message
     ///
     /// This instruction requires at least 4 arguments:

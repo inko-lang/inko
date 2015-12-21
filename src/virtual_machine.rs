@@ -224,6 +224,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetAttr => {
                     run!(self, ins_get_attr, thread, code, instruction);
                 },
+                InstructionType::SetCompiledCode => {
+                    run!(self, ins_set_compiled_code, thread, code,
+                         instruction);
+                },
                 InstructionType::Send => {
                     run!(self, ins_send, thread, code, instruction);
                 },
@@ -698,6 +702,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
         );
 
         thread.set_register(target_index, attr);
+
+        Ok(())
+    }
+
+    fn ins_set_compiled_code(&self, thread: RcThread, code: RcCompiledCode,
+                             instruction: &Instruction) -> EmptyResult {
+        let slot     = try!(instruction.arg(0));
+        let cc_index = try!(instruction.arg(1));
+
+        let cc = try!(code.code_object(cc_index));
+
+        let obj = self.allocate(object_value::compiled_code(cc.clone()),
+                                self.compiled_code_prototype());
+
+        thread.set_register(slot, obj);
 
         Ok(())
     }
