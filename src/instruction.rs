@@ -5,6 +5,7 @@
 
 /// Enum containing all possible instruction types.
 #[derive(Debug, Clone)]
+#[repr(u16)]
 pub enum InstructionType {
     SetInteger,
     SetFloat,
