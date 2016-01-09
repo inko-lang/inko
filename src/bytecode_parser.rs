@@ -1,9 +1,9 @@
-use std::io::Bytes;
 use std::io::prelude::*;
+use std::io::Bytes;
+use std::fs::File;
 use std::mem;
 use std::sync::Arc;
 
-use bytecode_file::BytecodeFile;
 use compiled_code::{MethodVisibility, CompiledCode, RcCompiledCode};
 use instruction::{InstructionType, Instruction};
 
@@ -85,12 +85,11 @@ macro_rules! read_code_vector {
 
 const SIGNATURE_BYTES : [u8; 4] = [97, 101, 111, 110]; // "aeon"
 
-const VERSION      : u8 = 1;
-const DEPENDENCIES : u8 = 0;
-const BODY         : u8 = 1;
+const VERSION: u8 = 1;
 
 #[derive(Debug)]
 pub enum ParserError {
+    InvalidFile,
     InvalidSignature,
     InvalidVersion,
     InvalidDependencies,
@@ -102,10 +101,16 @@ pub enum ParserError {
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
+pub type BytecodeResult  = ParserResult<RcCompiledCode>;
 
-pub fn parse<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<BytecodeFile> {
-    let mut dependencies = Vec::new();
+pub fn parse_file(path: &String) -> BytecodeResult {
+    match File::open(path) {
+        Ok(file) => parse(&mut file.bytes()),
+        Err(_)   => parser_error!(InvalidFile)
+    }
+}
 
+pub fn parse<T: Read>(mut bytes: &mut Bytes<T>) -> BytecodeResult {
     // Verify the bytecode signature.
     for expected in SIGNATURE_BYTES.iter() {
         let byte = try_byte!(bytes.next(), InvalidSignature);
@@ -120,27 +125,9 @@ pub fn parse<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<BytecodeFile> {
         parser_error!(InvalidVersion);
     }
 
-    // Parse the dependencies, if any.
-    let mut section = try_byte!(bytes.next(), MissingByte);
-
-    if section == DEPENDENCIES {
-        let dep_count = read_usize!(bytes);
-
-        for _ in 0..dep_count {
-            dependencies.push(read_string!(bytes));
-        }
-
-        section = try_byte!(bytes.next(), MissingByte);
-    }
-
-    if section != BODY {
-        parser_error!(MissingByte);
-    }
-
     let code = try!(read_compiled_code(&mut bytes));
-    let file = BytecodeFile::new(dependencies, code);
 
-    Ok(file)
+    Ok(code)
 }
 
 fn read_string<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<String> {

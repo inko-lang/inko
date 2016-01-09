@@ -10,6 +10,7 @@ use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
+use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use errors;
@@ -19,7 +20,7 @@ use object::RcObject;
 use object_value;
 use virtual_machine_methods::VirtualMachineMethods;
 use virtual_machine_result::*;
-use thread::{Thread, RcThread};
+use thread::{Thread, RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
 
 /// A reference counted VirtualMachine.
@@ -103,17 +104,30 @@ impl VirtualMachine {
     fn allocate_error(&self, name: &'static str) -> RcObject {
         write_lock!(self.memory_manager).allocate_error(name)
     }
+
+    fn allocate_thread(&self, code: RcCompiledCode,
+                       handle: Option<ThreadJoinHandle>,
+                       main_thread: bool) -> RcObject {
+        let vm_thread = Thread::from_code(code, handle);
+
+        if main_thread {
+            vm_thread.set_main();
+        }
+
+        let thread_obj = write_lock!(self.memory_manager)
+            .allocate_thread(vm_thread);
+
+        write_lock!(self.threads).add(thread_obj.clone());
+
+        thread_obj
+    }
 }
 
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        let thread_obj = self.run_thread(code, true);
-        let vm_thread  = write_lock!(thread_obj).value.as_thread();
-        let handle     = vm_thread.take_join_handle();
+        let thread_obj = self.allocate_thread(code.clone(), None, true);
 
-        if handle.is_some() {
-            handle.unwrap().join().unwrap();
-        }
+        self.run_thread(thread_obj, code.clone());
 
         *read_lock!(self.exit_status)
     }
@@ -416,6 +430,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::FileSeek => {
                     run!(self, ins_file_seek, thread, code, instruction);
+                },
+                InstructionType::RunFileFast => {
+                    run!(self, ins_run_file_fast, thread, code, instruction);
                 }
             };
         }
@@ -1261,7 +1278,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let code_index  = try!(instruction.arg(1));
         let thread_code = try!(code.code_object(code_index)).clone();
 
-        let thread_object = self.run_thread(thread_code, false);
+        let thread_object = self.start_thread(thread_code);
 
         thread.set_register(slot, thread_object);
 
@@ -1966,6 +1983,26 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    fn ins_run_file_fast(&self, thread: RcThread, code: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let slot  = try!(instruction.arg(0));
+        let index = try!(instruction.arg(1));
+        let path  = try!(code.string(index));
+
+        match bytecode_parser::parse_file(path) {
+            Ok(body) => {
+                let res = try!(self.run_code(thread.clone(), body, Vec::new()));
+
+                if res.is_some() {
+                    thread.set_register(slot, res.unwrap());
+                }
+
+                Ok(())
+            },
+            Err(err) => Err(format!("Failed to parse {}: {:?}", path, err))
+        }
+    }
+
     fn error(&self, thread: RcThread, message: String) {
         let mut stderr = io::stderr();
         let mut error  = message.to_string();
@@ -2020,7 +2057,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(args)
     }
 
-    fn run_thread(&self, code: RcCompiledCode, main_thread: bool) -> RcObject {
+    fn start_thread(&self, code: RcCompiledCode) -> RcObject {
         let self_clone = self.clone();
         let code_clone = code.clone();
 
@@ -2028,42 +2065,35 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let handle = thread::spawn(move || {
             let thread_obj: RcObject = chan_receiver.recv().unwrap();
-            let vm_thread = read_lock!(thread_obj).value.as_thread();
 
-            let result = self_clone.run(vm_thread.clone(), code_clone);
-
-            write_lock!(self_clone.threads).remove(thread_obj.clone());
-
-            // After this there's a chance thread_obj might be GC'd so we can't
-            // reliably use it any more.
-            write_lock!(thread_obj).unpin();
-
-            match result {
-                Ok(obj) => {
-                    vm_thread.set_value(obj);
-                },
-                Err(message) => {
-                    self_clone.error(vm_thread, message);
-
-                    write_lock!(self_clone.threads).stop();
-                }
-            };
+            self_clone.run_thread(thread_obj, code_clone);
         });
 
-        let vm_thread = Thread::from_code(code.clone(), Some(handle));
-
-        let thread_obj = write_lock!(self.memory_manager)
-            .allocate_thread(vm_thread.clone());
-
-        write_lock!(self.threads).add(thread_obj.clone());
-
-        if main_thread {
-            vm_thread.set_main();
-        }
+        let thread_obj = self.allocate_thread(code, Some(handle), false);
 
         chan_sender.send(thread_obj.clone()).unwrap();
 
         thread_obj
+    }
+
+    fn run_thread(&self, thread: RcObject, code: RcCompiledCode) {
+        let vm_thread = read_lock!(thread).value.as_thread();
+        let result    = self.run(vm_thread.clone(), code);
+
+        write_lock!(self.threads).remove(thread.clone());
+
+        write_lock!(thread).unpin();
+
+        match result {
+            Ok(obj) => {
+                vm_thread.set_value(obj);
+            },
+            Err(message) => {
+                self.error(vm_thread, message);
+
+                write_lock!(self.threads).stop();
+            }
+        };
     }
 }
 

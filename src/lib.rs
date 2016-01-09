@@ -1,4 +1,3 @@
-pub mod bytecode_file;
 pub mod bytecode_parser;
 pub mod call_frame;
 pub mod compiled_code;

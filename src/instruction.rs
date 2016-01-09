@@ -90,7 +90,8 @@ pub enum InstructionType {
     FileReadLine,
     FileFlush,
     FileSize,
-    FileSeek
+    FileSeek,
+    RunFileFast
 }
 
 /// Struct for storing information about a single instruction.

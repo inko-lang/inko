@@ -8,7 +8,7 @@ use virtual_machine_result::*;
 pub trait VirtualMachineMethods {
     /// Starts the main thread
     ///
-    /// This requires a CompiledCode to run. Calling this method will block
+    /// This requires a RcCompiledCode to run. Calling this method will block
     /// execution as the main thread is executed in the same OS thread as the
     /// caller of this function is operating in.
     fn start(&self, RcCompiledCode) -> Result<(), ()>;
@@ -1575,6 +1575,25 @@ pub trait VirtualMachineMethods {
     fn ins_file_seek(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Parses and runs a given bytecode file
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register slot to store the resulting object in.
+    /// 2. The string literal index containing the file path of the bytecode
+    ///    file.
+    ///
+    /// The result of this instruction is whatever the bytecode file returned.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "/tmp/test.abc"
+    ///
+    ///     0: run_file_fast 0, 0
+    fn ins_run_file_fast(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 
@@ -1587,5 +1606,8 @@ pub trait VirtualMachineMethods {
         -> ObjectVecResult;
 
     /// Runs a CompiledCode in a new thread.
-    fn run_thread(&self, RcCompiledCode, bool) -> RcObject;
+    fn start_thread(&self, RcCompiledCode) -> RcObject;
+
+    /// Runs a CompiledCode using an existing thread.
+    fn run_thread(&self, RcObject, RcCompiledCode);
 }
