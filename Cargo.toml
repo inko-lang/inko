@@ -11,3 +11,6 @@ doctest = false
 [[bin]]
 name = "aeon"
 test = false
+
+[dependencies]
+getopts = "0.2"
