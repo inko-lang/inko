@@ -1577,6 +1577,9 @@ pub trait VirtualMachineMethods {
 
     /// Parses and runs a given bytecode file
     ///
+    /// Files are executed only once. After a file has been executed any
+    /// following calls are basically no-ops.
+    ///
     /// This instruction requires 2 arguments:
     ///
     /// 1. The register slot to store the resulting object in.

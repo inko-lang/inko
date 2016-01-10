@@ -4,6 +4,7 @@
 //! threads and so on. VirtualMachine instances are fully self contained
 //! allowing multiple instances to run fully isolated in the same process.
 
+use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 use std::thread;
@@ -28,14 +29,17 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 
 /// Structure representing a single VM instance.
 pub struct VirtualMachine {
-    // All threads that are currently active.
+    /// All threads that are currently active.
     threads: RwLock<ThreadList>,
 
-    // The struct for allocating/managing memory.
+    /// The struct for allocating/managing memory.
     memory_manager: RcMemoryManager,
 
-    // The status of the VM when exiting.
-    exit_status: RwLock<Result<(), ()>>
+    /// The status of the VM when exiting.
+    exit_status: RwLock<Result<(), ()>>,
+
+    /// The files executed by the "run_file" instruction(s)
+    executed_files: RwLock<HashSet<String>>
 }
 
 impl VirtualMachine {
@@ -43,7 +47,8 @@ impl VirtualMachine {
         let vm = VirtualMachine {
             threads: RwLock::new(ThreadList::new()),
             memory_manager: MemoryManager::new(),
-            exit_status: RwLock::new(Ok(()))
+            exit_status: RwLock::new(Ok(())),
+            executed_files: RwLock::new(HashSet::new())
         };
 
         Arc::new(vm)
@@ -1988,6 +1993,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot  = try!(instruction.arg(0));
         let index = try!(instruction.arg(1));
         let path  = try!(code.string(index));
+
+        {
+            let mut executed = self.executed_files.write().unwrap();
+
+            if executed.contains(path) {
+                return Ok(());
+            }
+            else {
+                executed.insert(path.clone());
+            }
+        }
 
         match bytecode_parser::parse_file(path) {
             Ok(body) => {
