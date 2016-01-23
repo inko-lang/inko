@@ -5,6 +5,7 @@ pub mod constant_cache;
 pub mod errors;
 pub mod heap;
 pub mod instruction;
+pub mod lexer;
 pub mod macros;
 pub mod memory_manager;
 pub mod object;
