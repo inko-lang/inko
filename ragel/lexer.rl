@@ -21,12 +21,26 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
 }
 
 %%{
+    unicode    = any - ascii;
+    identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
+    constant   = upper identifier?;
+
     integer = digit+ ('_' digit+)*;
     float   = integer '.' integer;
+
+    squote  = "'";
+    dquote  = '"';
+    sstring = squote ( [^'\\] | /\\./ )* squote;
+    dstring = dquote ( [^"\\] | /\\./ )* dquote;
+    string  = sstring | dstring;
 
     main := |*
         integer => { emit!(Int, data, ts, te, callback); };
         float   => { emit!(Float, data, ts, te, callback); };
+        string  => { emit!(String, data, ts + 1, te - 1, callback); };
+
+        identifier => { emit!(Identifier, data, ts, te, callback); };
+        constant   => { emit!(Constant, data, ts, te, callback); };
 
         any;
     *|;
