@@ -10,5 +10,5 @@ fn main() {
         .status()
         .unwrap();
 
-    println!("cargo:rerun-if-changed=src/lexer.rl");
+    println!("cargo:rerun-if-changed=ragel/lexer.rl");
 }
