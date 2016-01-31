@@ -24,6 +24,7 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     unicode    = any - ascii;
     identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
     constant   = upper identifier?;
+    ivar       = '@' identifier;
 
     integer = digit+ ('_' digit+)*;
     float   = integer '.' integer;
@@ -40,6 +41,7 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         string  => { emit!(String, data, ts + 1, te - 1, callback); };
 
         identifier => { emit!(Identifier, data, ts, te, callback); };
+        ivar       => { emit!(InstanceVariable, data, ts + 1, te, callback); };
         constant   => { emit!(Constant, data, ts, te, callback); };
 
         any;

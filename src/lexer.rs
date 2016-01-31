@@ -35,7 +35,8 @@ pub enum Token {
     Float(String),
     String(String),
     Identifier(String),
-    Constant(String)
+    Constant(String),
+    InstanceVariable(String)
 }
 
 include!(concat!(env!("OUT_DIR"), "/lexer.rs"));
@@ -116,5 +117,17 @@ mod tests {
         assert_token!(tokens[2], Constant, "F한국어");
         assert_token!(tokens[3], Constant, "Foo123");
         assert_token!(tokens[4], Constant, "Foo_bar");
+    }
+
+    #[test]
+    fn test_ivars() {
+        let tokens = tokenize!("@foo @foö @한국어 @_foo @foo123 @foo_bar");
+
+        assert_token!(tokens[0], InstanceVariable, "foo");
+        assert_token!(tokens[1], InstanceVariable, "foö");
+        assert_token!(tokens[2], InstanceVariable, "한국어");
+        assert_token!(tokens[3], InstanceVariable, "_foo");
+        assert_token!(tokens[4], InstanceVariable, "foo123");
+        assert_token!(tokens[5], InstanceVariable, "foo_bar");
     }
 }
