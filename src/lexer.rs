@@ -93,7 +93,15 @@ mod tests {
         let tokens = tokenize!("'foo' 'foo\\'bar'");
 
         assert_token!(tokens[0], String, "foo");
-        assert_token!(tokens[1], String, "foo\\'bar");
+        assert_token!(tokens[1], String, "foo'bar");
+    }
+
+    #[test]
+    fn test_double_quote_strings() {
+        let tokens = tokenize!("\"hello\" \"hello\\\"world\"");
+
+        assert_token!(tokens[0], String, "hello");
+        assert_token!(tokens[1], String, "hello\"world");
     }
 
     #[test]

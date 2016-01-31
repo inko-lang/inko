@@ -33,12 +33,24 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     dquote  = '"';
     sstring = squote ( [^'\\] | /\\./ )* squote;
     dstring = dquote ( [^"\\] | /\\./ )* dquote;
-    string  = sstring | dstring;
 
     main := |*
         integer => { emit!(Int, data, ts, te, callback); };
         float   => { emit!(Float, data, ts, te, callback); };
-        string  => { emit!(String, data, ts + 1, te - 1, callback); };
+
+        dstring => {
+            let string = to_string!(data, ts + 1, te - 1).replace("\\\"", "\"");
+            let token  = Token::String(string);
+
+            callback(token);
+        };
+
+        sstring => {
+            let string = to_string!(data, ts + 1, te - 1).replace("\\'", "'");
+            let token  = Token::String(string);
+
+            callback(token);
+        };
 
         identifier => { emit!(Identifier, data, ts, te, callback); };
         ivar       => { emit!(InstanceVariable, data, ts + 1, te, callback); };
