@@ -21,6 +21,8 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
 }
 
 %%{
+    newline = '\r\n' | '\n';
+
     unicode    = any - ascii;
     identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
     constant   = upper identifier?;
@@ -34,9 +36,15 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     sstring = squote ( [^'\\] | /\\./ )* squote;
     dstring = dquote ( [^"\\] | /\\./ )* dquote;
 
+    comment   = '#' ^newline+;
+    docstring = '/*' any* :>> '*/';
+
     main := |*
-        integer => { emit!(Int, data, ts, te, callback); };
-        float   => { emit!(Float, data, ts, te, callback); };
+        comment;
+
+        docstring => { emit!(Docstring, data, ts + 2, te - 2, callback); };
+        integer   => { emit!(Int, data, ts, te, callback); };
+        float     => { emit!(Float, data, ts, te, callback); };
 
         dstring => {
             let string = to_string!(data, ts + 1, te - 1).replace("\\\"", "\"");

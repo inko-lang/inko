@@ -36,7 +36,8 @@ pub enum Token {
     String(String),
     Identifier(String),
     Constant(String),
-    InstanceVariable(String)
+    InstanceVariable(String),
+    Docstring(String)
 }
 
 include!(concat!(env!("OUT_DIR"), "/lexer.rs"));
@@ -137,5 +138,23 @@ mod tests {
         assert_token!(tokens[3], InstanceVariable, "_foo");
         assert_token!(tokens[4], InstanceVariable, "foo123");
         assert_token!(tokens[5], InstanceVariable, "foo_bar");
+    }
+
+    #[test]
+    fn test_single_line_comment() {
+        let tokens = tokenize!("# comment\nhello");
+
+        assert_token!(tokens[0], Identifier, "hello");
+    }
+
+    #[test]
+    fn test_docstring() {
+        let tokens = tokenize!("/**/ /* foo */\n/* bar */ /* / */ /* * */");
+
+        assert_token!(tokens[0], Docstring, "");
+        assert_token!(tokens[1], Docstring, " foo ");
+        assert_token!(tokens[2], Docstring, " bar ");
+        assert_token!(tokens[3], Docstring, " / ");
+        assert_token!(tokens[4], Docstring, " * ");
     }
 }
