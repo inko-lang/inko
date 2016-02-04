@@ -5,6 +5,9 @@
 pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     let data = input.as_bytes();
 
+    let mut line   = 1;
+    let mut column = 1;
+
     let mut ts  = 0;
     let mut te  = 0;
     let mut act = 0;
@@ -21,7 +24,16 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
 }
 
 %%{
-    newline = '\r\n' | '\n';
+    action advance_line {
+        line += 1;
+        column = 1;
+    }
+
+    action advance_column {
+        column += 1;
+    }
+
+    newline = ('\r\n' | '\n') @advance_line;
 
     unicode    = any - ascii;
     identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
@@ -40,31 +52,36 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     docstring = '/*' any* :>> '*/';
 
     main := |*
-        comment;
+        comment | newline;
 
-        docstring => { emit!(Docstring, data, ts + 2, te - 2, callback); };
-        integer   => { emit!(Int, data, ts, te, callback); };
-        float     => { emit!(Float, data, ts, te, callback); };
+        docstring => {
+            emit!(Docstring, data, ts + 2, te - 2, line, column, 4, callback);
+        };
+
+        integer => { emit!(Int, data, ts, te, line, column, 0, callback); };
+        float   => { emit!(Float, data, ts, te, line, column, 0, callback); };
 
         dstring => {
-            let string = to_string!(data, ts + 1, te - 1).replace("\\\"", "\"");
-            let token  = Token::String(string);
-
-            callback(token);
+            emit_string!(data, ts, te, line, column, "\\\"", "\"", callback);
         };
 
         sstring => {
-            let string = to_string!(data, ts + 1, te - 1).replace("\\'", "'");
-            let token  = Token::String(string);
-
-            callback(token);
+            emit_string!(data, ts, te, line, column, "\\'", "'", callback);
         };
 
-        identifier => { emit!(Identifier, data, ts, te, callback); };
-        ivar       => { emit!(InstanceVariable, data, ts + 1, te, callback); };
-        constant   => { emit!(Constant, data, ts, te, callback); };
+        ivar => {
+            emit!(InstanceVariable, data, ts + 1, te, line, column, 1, callback);
+        };
 
-        any;
+        identifier => {
+            emit!(Identifier, data, ts, te, line, column, 0, callback);
+        };
+
+        constant => {
+            emit!(Constant, data, ts, te, line, column, 0, callback);
+        };
+
+        any => advance_column;
     *|;
 }%%
 
