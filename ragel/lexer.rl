@@ -51,6 +51,25 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     comment   = '#' ^newline+;
     docstring = '/*' any* :>> '*/';
 
+    colon  = ':';
+    dcolon = colon colon;
+    lparen = '(';
+    rparen = ')';
+    lbrack = '[';
+    rbrack = ']';
+    lcurly = '{';
+    rcurly = '}';
+    eq     = '=';
+    comma  = ',';
+    dot    = '.';
+    arrow  = '->';
+    append = '+=';
+    lt     = '<';
+    gt     = '>';
+    pipe   = '|';
+
+    operator = '+' | '-' | '/' | '%' | '*';
+
     main := |*
         comment | newline;
 
@@ -80,6 +99,24 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         constant => {
             emit!(Constant, data, ts, te, line, column, 0, callback);
         };
+
+        pipe     => { emit!(Pipe, data, ts, te, line, column, 0, callback) };
+        dcolon   => { emit!(ColonColon, data, ts, te, line, column, 0, callback) };
+        arrow    => { emit!(Arrow, data, ts, te, line, column, 0, callback) };
+        colon    => { emit!(Colon, data, ts, te, line, column, 0, callback) };
+        lparen   => { emit!(ParenOpen, data, ts, te, line, column, 0, callback) };
+        rparen   => { emit!(ParenClose, data, ts, te, line, column, 0, callback) };
+        lbrack   => { emit!(BrackOpen, data, ts, te, line, column, 0, callback) };
+        rbrack   => { emit!(BrackClose, data, ts, te, line, column, 0, callback) };
+        lcurly   => { emit!(CurlyOpen, data, ts, te, line, column, 0, callback) };
+        rcurly   => { emit!(CurlyClose, data, ts, te, line, column, 0, callback) };
+        eq       => { emit!(Equal, data, ts, te, line, column, 0, callback) };
+        comma    => { emit!(Comma, data, ts, te, line, column, 0, callback) };
+        dot      => { emit!(Dot, data, ts, te, line, column, 0, callback) };
+        append   => { emit!(Append, data, ts, te, line, column, 0, callback) };
+        operator => { emit!(Operator, data, ts, te, line, column, 0, callback) };
+        lt       => { emit!(Lower, data, ts, te, line, column, 0, callback) };
+        gt       => { emit!(Greater, data, ts, te, line, column, 0, callback) };
 
         any => advance_column;
     *|;

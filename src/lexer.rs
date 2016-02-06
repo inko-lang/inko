@@ -53,13 +53,30 @@ macro_rules! emit_string {
 
 #[derive(Debug)]
 pub enum TokenType {
-    Int,
-    Float,
-    String,
-    Identifier,
+    Append,
+    Arrow,
+    BrackClose,
+    BrackOpen,
+    Colon,
+    ColonColon,
+    Comma,
     Constant,
+    CurlyClose,
+    CurlyOpen,
+    Docstring,
+    Dot,
+    Equal,
+    Float,
+    Greater,
+    Identifier,
     InstanceVariable,
-    Docstring
+    Int,
+    Lower,
+    Operator,
+    ParenClose,
+    ParenOpen,
+    Pipe,
+    String
 }
 
 #[derive(Debug)]
@@ -196,5 +213,32 @@ mod tests {
         assert_token!(tokens[2], Docstring, " bar ", 2, 1);
         assert_token!(tokens[3], Docstring, " / ", 2, 11);
         assert_token!(tokens[4], Docstring, " * ", 2, 19);
+    }
+
+    #[test]
+    fn test_sigils() {
+        let tokens = tokenize!("| :: -> : ( ) [ ] { } = , . += + * - % / < >");
+
+        assert_token!(tokens[0], Pipe, "|", 1, 1);
+        assert_token!(tokens[1], ColonColon, "::", 1, 3);
+        assert_token!(tokens[2], Arrow, "->", 1, 6);
+        assert_token!(tokens[3], Colon, ":", 1, 9);
+        assert_token!(tokens[4], ParenOpen, "(", 1, 11);
+        assert_token!(tokens[5], ParenClose, ")", 1, 13);
+        assert_token!(tokens[6], BrackOpen, "[", 1, 15);
+        assert_token!(tokens[7], BrackClose, "]", 1, 17);
+        assert_token!(tokens[8], CurlyOpen, "{", 1, 19);
+        assert_token!(tokens[9], CurlyClose, "}", 1, 21);
+        assert_token!(tokens[10], Equal, "=", 1, 23);
+        assert_token!(tokens[11], Comma, ",", 1, 25);
+        assert_token!(tokens[12], Dot, ".", 1, 27);
+        assert_token!(tokens[13], Append, "+=", 1, 29);
+        assert_token!(tokens[14], Operator, "+", 1, 32);
+        assert_token!(tokens[15], Operator, "*", 1, 34);
+        assert_token!(tokens[16], Operator, "-", 1, 36);
+        assert_token!(tokens[17], Operator, "%", 1, 38);
+        assert_token!(tokens[18], Operator, "/", 1, 40);
+        assert_token!(tokens[19], Lower, "<", 1, 42);
+        assert_token!(tokens[20], Greater, ">", 1, 44);
     }
 }
