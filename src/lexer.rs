@@ -76,7 +76,22 @@ pub enum TokenType {
     ParenClose,
     ParenOpen,
     Pipe,
-    String
+    String,
+    Trait,
+    Class,
+    Def,
+    Enum,
+    Use,
+    Import,
+    As,
+    Let,
+    Mutable,
+    Return,
+    Super,
+    Break,
+    Continue,
+    Public,
+    Dynamic
 }
 
 #[derive(Debug)]
@@ -240,5 +255,26 @@ mod tests {
         assert_token!(tokens[18], Operator, "/", 1, 40);
         assert_token!(tokens[19], Lower, "<", 1, 42);
         assert_token!(tokens[20], Greater, ">", 1, 44);
+    }
+
+    #[test]
+    fn test_keywords() {
+        let tokens = tokenize!("trait class def enum use import as let mut return super break continue pub dyn");
+
+        assert_token!(tokens[0], Trait, "trait", 1, 1);
+        assert_token!(tokens[1], Class, "class", 1, 7);
+        assert_token!(tokens[2], Def, "def", 1, 13);
+        assert_token!(tokens[3], Enum, "enum", 1, 17);
+        assert_token!(tokens[4], Use, "use", 1, 22);
+        assert_token!(tokens[5], Import, "import", 1, 26);
+        assert_token!(tokens[6], As, "as", 1, 33);
+        assert_token!(tokens[7], Let, "let", 1, 36);
+        assert_token!(tokens[8], Mutable, "mut", 1, 40);
+        assert_token!(tokens[9], Return, "return", 1, 44);
+        assert_token!(tokens[10], Super, "super", 1, 51);
+        assert_token!(tokens[11], Break, "break", 1, 57);
+        assert_token!(tokens[12], Continue, "continue", 1, 63);
+        assert_token!(tokens[13], Public, "pub", 1, 72);
+        assert_token!(tokens[14], Dynamic, "dyn", 1, 76);
     }
 }
