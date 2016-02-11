@@ -5,7 +5,7 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
     Command::new("ragel")
-        .args(&["-U", "ragel/lexer.rl", "-o"])
+        .args(&["-U", "ragel/lexer.rl", "-F1", "-o"])
         .arg(&format!("{}/lexer.rs", out_dir))
         .status()
         .unwrap();

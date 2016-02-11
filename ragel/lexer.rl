@@ -5,6 +5,11 @@
 pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     let data = input.as_bytes();
 
+    let mut emit_unindent_eol = false;
+    let mut emit_indent       = false;
+
+    let mut indent_stack: Vec<usize> = Vec::new();
+
     let mut line   = 1;
     let mut column = 1;
 
@@ -13,27 +18,47 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
     let mut act = 0;
     let eof     = input.len();
 
-    let mut p       = 0;
-    let mut pe      = input.len();
+    let mut p = 0;
+    let pe    = input.len();
+
     let mut cs: i32 = 0;
 
     %% write init;
     %% write exec;
+
+    if emit_unindent_eol {
+        emit_indent!(Unindent, line, column, callback);
+    }
+
+    while indent_stack.len() > 0 {
+        emit_indent!(Unindent, line, column, callback);
+
+        indent_stack.pop();
+    }
 
     Ok(())
 }
 
 %%{
     action advance_line {
-        line += 1;
+        if emit_unindent_eol {
+            emit_indent!(Unindent, line, column, callback);
+
+            emit_unindent_eol = false;
+        }
+
+        line  += 1;
         column = 1;
+
+        fnext line_start;
     }
 
     action advance_column {
         column += 1;
     }
 
-    newline = ('\r\n' | '\n') @advance_line;
+    whitespace = [ \t];
+    newline    = ('\r\n' | '\n');
 
     unicode    = any - ascii;
     identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
@@ -70,8 +95,63 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
 
     operator = '+' | '-' | '/' | '%' | '*';
 
+    # Machine used for processing the start of a line.
+    line_start := |*
+        # Start of a line with leading whitespace. The amount of spaces before
+        # the first non-space character is used to calculate/compare the
+        # indentation.
+        whitespace+ any => {
+            let indent = (te - ts) - 1;
+            let last   = indent_stack.last().cloned().unwrap_or(0);
+
+            // We only want to emit an indent when explicitly told. This allows
+            // for code such as:
+            //
+            //     foo
+            //       .bar
+            //       .baz
+            //
+            // Which will then be treated as:
+            //
+            //     foo.bar.baz
+            if emit_indent {
+                if indent > last {
+                    emit_indent!(Indent, line, column, callback);
+
+                    indent_stack.push(indent);
+                }
+
+                emit_indent = false;
+            }
+            else if indent < last {
+                emit_indent!(Unindent, line, column, callback);
+
+                indent_stack.pop();
+            }
+
+            column += indent;
+
+            fhold;
+            fnext main;
+        };
+
+        # Start of a new line without any leading characters.
+        any => {
+            let last = indent_stack.last().cloned().unwrap_or(0);
+
+            if column < last {
+                emit_indent!(Unindent, line, column, callback);
+
+                indent_stack.pop();
+            }
+
+            fhold;
+            fnext main;
+        };
+    *|;
+
     main := |*
-        comment | newline;
+        comment;
 
         'trait'    => { emit!(Trait, data, ts, te, line, column, 0, callback); };
         'class'    => { emit!(Class, data, ts, te, line, column, 0, callback); };
@@ -119,7 +199,6 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         pipe     => { emit!(Pipe, data, ts, te, line, column, 0, callback); };
         dcolon   => { emit!(ColonColon, data, ts, te, line, column, 0, callback); };
         arrow    => { emit!(Arrow, data, ts, te, line, column, 0, callback); };
-        colon    => { emit!(Colon, data, ts, te, line, column, 0, callback); };
         lparen   => { emit!(ParenOpen, data, ts, te, line, column, 0, callback); };
         rparen   => { emit!(ParenClose, data, ts, te, line, column, 0, callback); };
         lbrack   => { emit!(BrackOpen, data, ts, te, line, column, 0, callback); };
@@ -134,7 +213,29 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         lt       => { emit!(Lower, data, ts, te, line, column, 0, callback); };
         gt       => { emit!(Greater, data, ts, te, line, column, 0, callback); };
 
-        any => advance_column;
+        # foo: bar
+        colon whitespace* ^newline => {
+            emit_indent!(Indent, line, column, callback);
+
+            emit_unindent_eol = true;
+            column           += (te - ts) - 1;
+
+            fhold;
+        };
+
+        # foo:
+        # ...
+        colon whitespace* newline => {
+            line  += 1;
+            column = 1;
+
+            emit_indent = true;
+
+            fnext line_start;
+        };
+
+        newline => advance_line;
+        any     => advance_column;
     *|;
 }%%
 

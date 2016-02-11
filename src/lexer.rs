@@ -26,15 +26,22 @@ macro_rules! token {
     );
 }
 
+macro_rules! yield_token {
+    ($kind: ident, $value: expr, $line: expr, $col: expr, $length: expr, $callback: expr) => ({
+        let token = token!($kind, $value, $line, $col);
+
+        $callback(token);
+
+        $col += $length;
+    });
+}
+
 macro_rules! emit {
     ($kind: ident, $data: ident, $start: expr, $end: expr, $line: expr, $col: expr, $offset: expr, $callback: ident) => ({
         let value  = to_string!($data, $start, $end);
         let length = value.chars().count() + $offset;
-        let token  = token!($kind, value, $line, $col);
 
-        $col += length;
-
-        $callback(token);
+        yield_token!($kind, value, $line, $col, length, $callback);
     });
 }
 
@@ -43,12 +50,15 @@ macro_rules! emit_string {
         let slice  = to_str!($data[$start + 1 .. $stop - 1]);
         let length = slice.chars().count() + 2;
         let string = slice.replace($find, $replace);
-        let token  = token!(String, string, $line, $col);
 
-        $callback(token);
-
-        $col += length;
+        yield_token!(String, string, $line, $col, length, $callback);
     });
+}
+
+macro_rules! emit_indent {
+    ($kind: ident, $line: expr, $col: expr, $callback: expr) => (
+        yield_token!($kind, "".to_string(), $line, $col, 0, $callback);
+    );
 }
 
 #[derive(Debug)]
@@ -57,7 +67,6 @@ pub enum TokenType {
     Arrow,
     BrackClose,
     BrackOpen,
-    Colon,
     ColonColon,
     Comma,
     Constant,
@@ -91,7 +100,9 @@ pub enum TokenType {
     Break,
     Continue,
     Public,
-    Dynamic
+    Dynamic,
+    Indent,
+    Unindent
 }
 
 #[derive(Debug)]
@@ -232,29 +243,28 @@ mod tests {
 
     #[test]
     fn test_sigils() {
-        let tokens = tokenize!("| :: -> : ( ) [ ] { } = , . += + * - % / < >");
+        let tokens = tokenize!("| :: -> ( ) [ ] { } = , . += + * - % / < >");
 
         assert_token!(tokens[0], Pipe, "|", 1, 1);
         assert_token!(tokens[1], ColonColon, "::", 1, 3);
         assert_token!(tokens[2], Arrow, "->", 1, 6);
-        assert_token!(tokens[3], Colon, ":", 1, 9);
-        assert_token!(tokens[4], ParenOpen, "(", 1, 11);
-        assert_token!(tokens[5], ParenClose, ")", 1, 13);
-        assert_token!(tokens[6], BrackOpen, "[", 1, 15);
-        assert_token!(tokens[7], BrackClose, "]", 1, 17);
-        assert_token!(tokens[8], CurlyOpen, "{", 1, 19);
-        assert_token!(tokens[9], CurlyClose, "}", 1, 21);
-        assert_token!(tokens[10], Equal, "=", 1, 23);
-        assert_token!(tokens[11], Comma, ",", 1, 25);
-        assert_token!(tokens[12], Dot, ".", 1, 27);
-        assert_token!(tokens[13], Append, "+=", 1, 29);
-        assert_token!(tokens[14], Operator, "+", 1, 32);
-        assert_token!(tokens[15], Operator, "*", 1, 34);
-        assert_token!(tokens[16], Operator, "-", 1, 36);
-        assert_token!(tokens[17], Operator, "%", 1, 38);
-        assert_token!(tokens[18], Operator, "/", 1, 40);
-        assert_token!(tokens[19], Lower, "<", 1, 42);
-        assert_token!(tokens[20], Greater, ">", 1, 44);
+        assert_token!(tokens[3], ParenOpen, "(", 1, 9);
+        assert_token!(tokens[4], ParenClose, ")", 1, 11);
+        assert_token!(tokens[5], BrackOpen, "[", 1, 13);
+        assert_token!(tokens[6], BrackClose, "]", 1, 15);
+        assert_token!(tokens[7], CurlyOpen, "{", 1, 17);
+        assert_token!(tokens[8], CurlyClose, "}", 1, 19);
+        assert_token!(tokens[9], Equal, "=", 1, 21);
+        assert_token!(tokens[10], Comma, ",", 1, 23);
+        assert_token!(tokens[11], Dot, ".", 1, 25);
+        assert_token!(tokens[12], Append, "+=", 1, 27);
+        assert_token!(tokens[13], Operator, "+", 1, 30);
+        assert_token!(tokens[14], Operator, "*", 1, 32);
+        assert_token!(tokens[15], Operator, "-", 1, 34);
+        assert_token!(tokens[16], Operator, "%", 1, 36);
+        assert_token!(tokens[17], Operator, "/", 1, 38);
+        assert_token!(tokens[18], Lower, "<", 1, 40);
+        assert_token!(tokens[19], Greater, ">", 1, 42);
     }
 
     #[test]
@@ -276,5 +286,61 @@ mod tests {
         assert_token!(tokens[12], Continue, "continue", 1, 63);
         assert_token!(tokens[13], Public, "pub", 1, 72);
         assert_token!(tokens[14], Dynamic, "dyn", 1, 76);
+    }
+
+    #[test]
+    fn test_indent_without_colon() {
+        let tokens = tokenize!("foo\n  bar");
+
+        assert_token!(tokens[0], Identifier, "foo", 1, 1);
+        assert_token!(tokens[1], Identifier, "bar", 2, 3);
+    }
+
+    #[test]
+    fn test_indent_with_colon() {
+        let tokens = tokenize!("foo:\n  bar\nbaz");
+
+        assert_token!(tokens[0], Identifier, "foo", 1, 1);
+        assert_token!(tokens[1], Indent, "", 2, 1);
+        assert_token!(tokens[2], Identifier, "bar", 2, 3);
+        assert_token!(tokens[3], Unindent, "", 3, 1);
+        assert_token!(tokens[4], Identifier, "baz", 3, 1);
+    }
+
+    #[test]
+    fn test_multiple_indents_with_colon_eof() {
+        let tokens = tokenize!("a:\n  b:\n    c:\n      d");
+
+        assert_token!(tokens[0], Identifier, "a", 1, 1);
+        assert_token!(tokens[1], Indent, "", 2, 1);
+        assert_token!(tokens[2], Identifier, "b", 2, 3);
+        assert_token!(tokens[3], Indent, "", 3, 1);
+        assert_token!(tokens[4], Identifier, "c", 3, 5);
+        assert_token!(tokens[5], Indent, "", 4, 1);
+        assert_token!(tokens[6], Identifier, "d", 4, 7);
+        assert_token!(tokens[7], Unindent, "", 4, 8);
+        assert_token!(tokens[8], Unindent, "", 4, 8);
+        assert_token!(tokens[9], Unindent, "", 4, 8);
+    }
+
+    #[test]
+    fn test_multiple_indents_with_colon_explicit_unindent() {
+        let tokens = tokenize!("a:\n  b\nc");
+
+        assert_token!(tokens[0], Identifier, "a", 1, 1);
+        assert_token!(tokens[1], Indent, "", 2, 1);
+        assert_token!(tokens[2], Identifier, "b", 2, 3);
+        assert_token!(tokens[3], Unindent, "", 3, 1);
+        assert_token!(tokens[4], Identifier, "c", 3, 1);
+    }
+
+    #[test]
+    fn test_indent_with_colon_single_line() {
+        let tokens = tokenize!("foo: bar");
+
+        assert_token!(tokens[0], Identifier, "foo", 1, 1);
+        assert_token!(tokens[1], Indent, "", 1, 4);
+        assert_token!(tokens[2], Identifier, "bar", 1, 6);
+        assert_token!(tokens[3], Unindent, "", 1, 9);
     }
 }
