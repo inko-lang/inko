@@ -10,6 +10,8 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
 
     let mut indent_stack: Vec<usize> = Vec::new();
 
+    let mut curly_count: usize = 0;
+
     let mut line   = 1;
     let mut column = 1;
 
@@ -203,8 +205,6 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         rparen   => { emit!(ParenClose, data, ts, te, line, column, 0, callback); };
         lbrack   => { emit!(BrackOpen, data, ts, te, line, column, 0, callback); };
         rbrack   => { emit!(BrackClose, data, ts, te, line, column, 0, callback); };
-        lcurly   => { emit!(CurlyOpen, data, ts, te, line, column, 0, callback); };
-        rcurly   => { emit!(CurlyClose, data, ts, te, line, column, 0, callback); };
         eq       => { emit!(Equal, data, ts, te, line, column, 0, callback); };
         comma    => { emit!(Comma, data, ts, te, line, column, 0, callback); };
         dot      => { emit!(Dot, data, ts, te, line, column, 0, callback); };
@@ -213,12 +213,34 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         lt       => { emit!(Lower, data, ts, te, line, column, 0, callback); };
         gt       => { emit!(Greater, data, ts, te, line, column, 0, callback); };
 
+        lcurly => {
+            emit!(CurlyOpen, data, ts, te, line, column, 0, callback);
+
+            curly_count += 1;
+        };
+
+        rcurly => {
+            emit!(CurlyClose, data, ts, te, line, column, 0, callback);
+
+            curly_count -= 1;
+        };
+
         # foo: bar
         colon whitespace* ^newline => {
-            emit_indent!(Indent, line, column, callback);
+            if curly_count == 0 {
+                emit_indent!(Indent, line, column, callback);
 
-            emit_unindent_eol = true;
-            column           += (te - ts) - 1;
+                emit_unindent_eol = true;
+
+                column += (te - ts) - 1;
+            }
+            else {
+                emit!(Colon, data, ts, ts + 1, line, column, 0, callback);
+
+                // The above emit! already increments the column by 1, so we
+                // have to manually add one _less_.
+                column += (te - ts) - 2;
+            }
 
             fhold;
         };
@@ -226,12 +248,18 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         # foo:
         # ...
         colon whitespace* newline => {
+            if curly_count > 0 {
+                emit!(Colon, data, ts, ts + 1, line, column, 0, callback);
+            }
+
             line  += 1;
             column = 1;
 
-            emit_indent = true;
+            if curly_count == 0 {
+                emit_indent = true;
 
-            fnext line_start;
+                fnext line_start;
+            }
         };
 
         newline => advance_line;

@@ -67,6 +67,7 @@ pub enum TokenType {
     Arrow,
     BrackClose,
     BrackOpen,
+    Colon,
     ColonColon,
     Comma,
     Constant,
@@ -342,5 +343,27 @@ mod tests {
         assert_token!(tokens[1], Indent, "", 1, 4);
         assert_token!(tokens[2], Identifier, "bar", 1, 6);
         assert_token!(tokens[3], Unindent, "", 1, 9);
+    }
+
+    #[test]
+    fn test_hash_literal() {
+        let tokens = tokenize!("{a:b}");
+
+        assert_token!(tokens[0], CurlyOpen, "{", 1, 1);
+        assert_token!(tokens[1], Identifier, "a", 1, 2);
+        assert_token!(tokens[2], Colon, ":", 1, 3);
+        assert_token!(tokens[3], Identifier, "b", 1, 4);
+        assert_token!(tokens[4], CurlyClose, "}", 1, 5);
+    }
+
+    #[test]
+    fn test_multi_line_hash_literal() {
+        let tokens = tokenize!("{a:\nb}");
+
+        assert_token!(tokens[0], CurlyOpen, "{", 1, 1);
+        assert_token!(tokens[1], Identifier, "a", 1, 2);
+        assert_token!(tokens[2], Colon, ":", 1, 3);
+        assert_token!(tokens[3], Identifier, "b", 2, 1);
+        assert_token!(tokens[4], CurlyClose, "}", 2, 2);
     }
 }
