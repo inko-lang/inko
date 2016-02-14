@@ -2,61 +2,62 @@
 
 %% write data;
 
-pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
-    let data = input.as_bytes();
+impl<'l> Lexer<'l> {
+    pub fn lex(&mut self) -> Option<Token> {
+        let ref data = self.data;
 
-    let mut emit_unindent_eol = false;
-    let mut emit_indent       = false;
+        let mut token: Option<Token> = None;
 
-    let mut indent_stack: Vec<usize> = Vec::new();
+        %% write exec;
 
-    let mut curly_count: usize = 0;
+        if token.is_some() {
+            return token;
+        }
 
-    let mut line   = 1;
-    let mut column = 1;
+        if self.emit_unindent_eol {
+            self.emit_unindent_eol = false;
 
-    let mut ts  = 0;
-    let mut te  = 0;
-    let mut act = 0;
-    let eof     = input.len();
+            return indent_token!(Unindent, self);
+        }
 
-    let mut p = 0;
-    let pe    = input.len();
+        while self.indent_stack.len() > 0 {
+            self.indent_stack.pop();
 
-    let mut cs: i32 = 0;
+            return indent_token!(Unindent, self);
+        }
 
-    %% write init;
-    %% write exec;
-
-    if emit_unindent_eol {
-        emit_indent!(Unindent, line, column, callback);
+        None
     }
-
-    while indent_stack.len() > 0 {
-        emit_indent!(Unindent, line, column, callback);
-
-        indent_stack.pop();
-    }
-
-    Ok(())
 }
 
 %%{
-    action advance_line {
-        if emit_unindent_eol {
-            emit_indent!(Unindent, line, column, callback);
+    variable p   self.p;
+    variable pe  self.pe;
+    variable eof self.eof;
+    variable ts  self.ts;
+    variable te  self.te;
+    variable act self.act;
+    variable cs  self.cs;
 
-            emit_unindent_eol = false;
+    action advance_line {
+        if self.emit_unindent_eol {
+            self.emit_unindent_eol = false;
+
+            token = indent_token!(Unindent, self);
         }
 
-        line  += 1;
-        column = 1;
+        self.line  += 1;
+        self.column = 1;
 
         fnext line_start;
+
+        if token.is_some() {
+            fnbreak;
+        }
     }
 
     action advance_column {
-        column += 1;
+        self.column += 1;
     }
 
     whitespace = [ \t];
@@ -103,8 +104,8 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
         # the first non-space character is used to calculate/compare the
         # indentation.
         whitespace+ any => {
-            let indent = (te - ts) - 1;
-            let last   = indent_stack.last().cloned().unwrap_or(0);
+            let indent = (self.te - self.ts) - 1;
+            let last   = self.indent_stack.last().cloned().unwrap_or(0);
 
             // We only want to emit an indent when explicitly told. This allows
             // for code such as:
@@ -116,147 +117,290 @@ pub fn lex<F: FnMut(Token)>(input: &str, mut callback: F) -> Result<(), ()> {
             // Which will then be treated as:
             //
             //     foo.bar.baz
-            if emit_indent {
+            if self.emit_indent {
+                self.emit_indent = false;
+
                 if indent > last {
-                    emit_indent!(Indent, line, column, callback);
+                    token = indent_token!(Indent, self);
 
-                    indent_stack.push(indent);
+                    self.indent_stack.push(indent);
                 }
-
-                emit_indent = false;
             }
             else if indent < last {
-                emit_indent!(Unindent, line, column, callback);
+                token = indent_token!(Unindent, self);
 
-                indent_stack.pop();
+                self.indent_stack.pop();
             }
 
-            column += indent;
+            self.column += indent;
 
             fhold;
             fnext main;
+
+            if token.is_some() {
+                fnbreak;
+            }
         };
 
         # Start of a new line without any leading characters.
         any => {
-            let last = indent_stack.last().cloned().unwrap_or(0);
+            let last = self.indent_stack.last().cloned().unwrap_or(0);
 
-            if column < last {
-                emit_indent!(Unindent, line, column, callback);
+            if self.column < last {
+                token = indent_token!(Unindent, self);
 
-                indent_stack.pop();
+                self.indent_stack.pop();
             }
 
             fhold;
             fnext main;
+
+            if token.is_some() {
+                fnbreak;
+            }
         };
     *|;
 
     main := |*
         comment;
 
-        'trait'    => { emit!(Trait, data, ts, te, line, column, 0, callback); };
-        'class'    => { emit!(Class, data, ts, te, line, column, 0, callback); };
-        'def'      => { emit!(Def, data, ts, te, line, column, 0, callback); };
-        'enum'     => { emit!(Enum, data, ts, te, line, column, 0, callback); };
-        'use'      => { emit!(Use, data, ts, te, line, column, 0, callback); };
-        'import'   => { emit!(Import, data, ts, te, line, column, 0, callback); };
-        'as'       => { emit!(As, data, ts, te, line, column, 0, callback); };
-        'let'      => { emit!(Let, data, ts, te, line, column, 0, callback); };
-        'mut'      => { emit!(Mutable, data, ts, te, line, column, 0, callback); };
-        'return'   => { emit!(Return, data, ts, te, line, column, 0, callback); };
-        'super'    => { emit!(Super, data, ts, te, line, column, 0, callback); };
-        'break'    => { emit!(Break, data, ts, te, line, column, 0, callback); };
-        'continue' => { emit!(Continue, data, ts, te, line, column, 0, callback); };
-        'pub'      => { emit!(Public, data, ts, te, line, column, 0, callback); };
-        'dyn'      => { emit!(Dynamic, data, ts, te, line, column, 0, callback); };
-
-        docstring => {
-            emit!(Docstring, data, ts + 2, te - 2, line, column, 4, callback);
+        'trait' => {
+            token = token!(Trait, self);
+            fnbreak;
         };
 
-        integer => { emit!(Int, data, ts, te, line, column, 0, callback); };
-        float   => { emit!(Float, data, ts, te, line, column, 0, callback); };
+        'class' => {
+            token = token!(Class, self);
+            fnbreak;
+        };
+
+        'def' => {
+            token = token!(Def, self);
+            fnbreak;
+        };
+
+        'enum' => {
+            token = token!(Enum, self);
+            fnbreak;
+        };
+
+        'use' => {
+            token = token!(Use, self);
+            fnbreak;
+        };
+
+        'import' => {
+            token = token!(Import, self);
+            fnbreak;
+        };
+
+        'as' => {
+            token = token!(As, self);
+            fnbreak;
+        };
+
+        'let' => {
+            token = token!(Let, self);
+            fnbreak;
+        };
+
+        'mut' => {
+            token = token!(Mutable, self);
+            fnbreak;
+        };
+
+        'return' => {
+            token = token!(Return, self);
+            fnbreak;
+        };
+
+        'super' => {
+            token = token!(Super, self);
+            fnbreak;
+        };
+
+        'break' => {
+            token = token!(Break, self);
+            fnbreak;
+        };
+
+        'continue' => {
+            token = token!(Continue, self);
+            fnbreak;
+        };
+
+        'pub' => {
+            token = token!(Public, self);
+            fnbreak;
+        };
+
+        'dyn' => {
+            token = token!(Dynamic, self);
+            fnbreak;
+        };
+
+        docstring  => {
+            token = offset_token!(Docstring, self, self.ts + 2, self.te - 2, 4);
+            fnbreak;
+        };
+
+        integer => {
+            token = token!(Int, self);
+            fnbreak;
+        };
+
+        float => {
+            token = token!(Float, self);
+            fnbreak;
+        };
 
         dstring => {
-            emit_string!(data, ts, te, line, column, "\\\"", "\"", callback);
+            token = string_token!(self, "\\\"", "\"");
+            fnbreak;
         };
 
         sstring => {
-            emit_string!(data, ts, te, line, column, "\\'", "'", callback);
+            token = string_token!(self, "\\'", "'");
+            fnbreak;
         };
 
         ivar => {
-            emit!(InstanceVariable, data, ts + 1, te, line, column, 1, callback);
+            token = offset_token!(InstanceVariable, self, self.ts + 1, self.te, 1);
+            fnbreak;
         };
 
         identifier => {
-            emit!(Identifier, data, ts, te, line, column, 0, callback);
+            token = token!(Identifier, self);
+            fnbreak;
         };
 
         constant => {
-            emit!(Constant, data, ts, te, line, column, 0, callback);
+            token = token!(Constant, self);
+            fnbreak;
         };
 
-        pipe     => { emit!(Pipe, data, ts, te, line, column, 0, callback); };
-        dcolon   => { emit!(ColonColon, data, ts, te, line, column, 0, callback); };
-        arrow    => { emit!(Arrow, data, ts, te, line, column, 0, callback); };
-        lparen   => { emit!(ParenOpen, data, ts, te, line, column, 0, callback); };
-        rparen   => { emit!(ParenClose, data, ts, te, line, column, 0, callback); };
-        lbrack   => { emit!(BrackOpen, data, ts, te, line, column, 0, callback); };
-        rbrack   => { emit!(BrackClose, data, ts, te, line, column, 0, callback); };
-        eq       => { emit!(Equal, data, ts, te, line, column, 0, callback); };
-        comma    => { emit!(Comma, data, ts, te, line, column, 0, callback); };
-        dot      => { emit!(Dot, data, ts, te, line, column, 0, callback); };
-        append   => { emit!(Append, data, ts, te, line, column, 0, callback); };
-        operator => { emit!(Operator, data, ts, te, line, column, 0, callback); };
-        lt       => { emit!(Lower, data, ts, te, line, column, 0, callback); };
-        gt       => { emit!(Greater, data, ts, te, line, column, 0, callback); };
+        pipe => {
+            token = token!(Pipe, self);
+            fnbreak;
+        };
+
+        dcolon => {
+            token = token!(ColonColon, self);
+            fnbreak;
+        };
+
+        arrow => {
+            token = token!(Arrow, self);
+            fnbreak;
+        };
+
+        lparen => {
+            token = token!(ParenOpen, self);
+            fnbreak;
+        };
+
+        rparen => {
+            token = token!(ParenClose, self);
+            fnbreak;
+        };
+
+        lbrack => {
+            token = token!(BrackOpen, self);
+            fnbreak;
+        };
+
+        rbrack => {
+            token = token!(BrackClose, self);
+            fnbreak;
+        };
+
+        eq => {
+            token = token!(Equal, self);
+            fnbreak;
+        };
+
+        comma => {
+            token = token!(Comma, self);
+            fnbreak;
+        };
+
+        dot => {
+            token = token!(Dot, self);
+            fnbreak;
+        };
+
+        append => {
+            token = token!(Append, self);
+            fnbreak;
+        };
+
+        operator => {
+            token = token!(Operator, self);
+            fnbreak;
+        };
+
+        lt => {
+            token = token!(Lower, self);
+            fnbreak;
+        };
+
+        gt => {
+            token = token!(Greater, self);
+            fnbreak;
+        };
 
         lcurly => {
-            emit!(CurlyOpen, data, ts, te, line, column, 0, callback);
+            token = token!(CurlyOpen, self);
 
-            curly_count += 1;
+            self.curly_count += 1;
+
+            fnbreak;
         };
 
         rcurly => {
-            emit!(CurlyClose, data, ts, te, line, column, 0, callback);
+            token = token!(CurlyClose, self);
 
-            curly_count -= 1;
+            self.curly_count -= 1;
+
+            fnbreak;
         };
 
         # foo: bar
         colon whitespace* ^newline => {
-            if curly_count == 0 {
-                emit_indent!(Indent, line, column, callback);
+            if self.curly_count == 0 {
+                self.emit_unindent_eol = true;
 
-                emit_unindent_eol = true;
+                token = indent_token!(Indent, self);
 
-                column += (te - ts) - 1;
+                self.column += (self.te - self.ts) - 1;
             }
             else {
-                emit!(Colon, data, ts, ts + 1, line, column, 0, callback);
+                token = offset_token!(Colon, self, self.ts, self.ts + 1, 0);
 
-                // The above emit! already increments the column by 1, so we
-                // have to manually add one _less_.
-                column += (te - ts) - 2;
+                // The above return token already increments the column by 1,
+                // so we have to manually add one _less_.
+                self.column += (self.te - self.ts) - 2;
             }
 
             fhold;
+            fnbreak;
         };
 
         # foo:
         # ...
         colon whitespace* newline => {
-            if curly_count > 0 {
-                emit!(Colon, data, ts, ts + 1, line, column, 0, callback);
+            if self.curly_count > 0 {
+                token = offset_token!(Colon, self, self.ts, self.ts + 1, 0);
             }
 
-            line  += 1;
-            column = 1;
+            self.line  += 1;
+            self.column = 1;
 
-            if curly_count == 0 {
-                emit_indent = true;
+            if token.is_some() {
+                fnbreak;
+            }
+            else if self.curly_count == 0 {
+                self.emit_indent = true;
 
                 fnext line_start;
             }

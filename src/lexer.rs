@@ -9,56 +9,98 @@ macro_rules! to_str {
     ($bytes: expr) => (
         match str::from_utf8(&$bytes) {
             Ok(slice) => slice,
-            Err(_)    => return Err(())
+            Err(_)    => return None
         }
     );
 }
 
 macro_rules! to_string {
-    ($data: ident, $start: expr, $end: expr) => (
+    ($data: expr, $start: expr, $end: expr) => (
         to_str!($data[$start .. $end]).to_string();
     );
 }
 
-macro_rules! token {
-    ($kind: ident, $value: expr, $line: expr, $col: expr) => (
-        Token::new(TokenType::$kind, $value, $line, $col)
-    );
-}
+macro_rules! new_token {
+    ($kind: ident, $state: expr, $value: expr, $length: expr) => ({
+        let token =
+            Token::new(TokenType::$kind, $value, $state.line, $state.column);
 
-macro_rules! yield_token {
-    ($kind: ident, $value: expr, $line: expr, $col: expr, $length: expr, $callback: expr) => ({
-        let token = token!($kind, $value, $line, $col);
+        $state.column += $length;
 
-        $callback(token);
-
-        $col += $length;
+        token
     });
 }
 
-macro_rules! emit {
-    ($kind: ident, $data: ident, $start: expr, $end: expr, $line: expr, $col: expr, $offset: expr, $callback: ident) => ({
-        let value  = to_string!($data, $start, $end);
+macro_rules! token {
+    ($kind: ident, $state: expr) => ({
+        let value  = to_string!($state.data, $state.ts, $state.te);
+        let length = value.chars().count();
+
+        Some(new_token!($kind, $state, value, length))
+    });
+}
+
+macro_rules! offset_token {
+    ($kind: ident, $state: expr, $start: expr, $end: expr, $offset: expr) => ({
+        let value  = to_string!($state.data, $start, $end);
         let length = value.chars().count() + $offset;
 
-        yield_token!($kind, value, $line, $col, length, $callback);
+        Some(new_token!($kind, $state, value, length))
     });
 }
 
-macro_rules! emit_string {
-    ($data: expr, $start: expr, $stop: expr, $line: expr, $col: expr, $find: expr, $replace: expr, $callback: expr) => ({
-        let slice  = to_str!($data[$start + 1 .. $stop - 1]);
+macro_rules! string_token {
+    ($state: expr, $find: expr, $replace: expr) => ({
+        let slice  = to_str!($state.data[$state.ts + 1 .. $state.te - 1]);
         let length = slice.chars().count() + 2;
         let string = slice.replace($find, $replace);
 
-        yield_token!(String, string, $line, $col, length, $callback);
+        Some(new_token!(String, $state, string, length))
     });
 }
 
-macro_rules! emit_indent {
-    ($kind: ident, $line: expr, $col: expr, $callback: expr) => (
-        yield_token!($kind, "".to_string(), $line, $col, 0, $callback);
+macro_rules! indent_token {
+    ($kind: ident, $state: expr) => (
+        Some(new_token!($kind, $state, "".to_string(), 0))
     );
+}
+
+pub struct Lexer<'l> {
+    data: &'l[u8],
+    emit_unindent_eol: bool,
+    emit_indent: bool,
+    indent_stack: Vec<usize>,
+    curly_count: usize,
+    line: usize,
+    column: usize,
+    ts: usize,
+    te: usize,
+    act: usize,
+    eof: usize,
+    p: usize,
+    pe: usize,
+    cs: i32
+}
+
+impl<'l> Lexer<'l> {
+    pub fn new(input: &'l str) -> Lexer<'l> {
+        Lexer {
+            data: input.as_bytes(),
+            emit_unindent_eol: false,
+            emit_indent: false,
+            indent_stack: Vec::new(),
+            curly_count: 0,
+            line: 1,
+            column: 1,
+            ts: 0,
+            te: 0,
+            act: 0,
+            eof: input.len(),
+            p: 0,
+            pe: input.len(),
+            cs: aeon_lexer_start as i32
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -147,11 +189,14 @@ mod tests {
         ($input: expr) => ({
             let mut tokens: Vec<Token> = Vec::new();
 
-            let res = lex($input, |token| {
-                tokens.push(token);
-            });
+            let mut lexer = Lexer::new($input);
+            let mut token: Option<Token> = lexer.lex();
 
-            assert_ok!(res);
+            while token.is_some() {
+                tokens.push(token.unwrap());
+
+                token = lexer.lex();
+            }
 
             tokens
         });
@@ -184,6 +229,8 @@ mod tests {
     #[test]
     fn test_double_quote_strings() {
         let tokens = tokenize!("\"hello\" \"hello\\\"world\"");
+
+        println!("{:?}", tokens);
 
         assert_token!(tokens[0], String, "hello", 1, 1);
         assert_token!(tokens[1], String, "hello\"world", 1, 9);
@@ -234,6 +281,8 @@ mod tests {
     #[test]
     fn test_docstring() {
         let tokens = tokenize!("/**/ /* foo */\n/* bar */ /* / */ /* * */");
+
+        println!("{:?}", tokens);
 
         assert_token!(tokens[0], Docstring, "", 1, 1);
         assert_token!(tokens[1], Docstring, " foo ", 1, 6);
