@@ -122,7 +122,7 @@ pub enum TokenType {
     Greater,
     Identifier,
     InstanceVariable,
-    Int,
+    Integer,
     Lower,
     Operator,
     ParenClose,
@@ -206,8 +206,8 @@ mod tests {
     fn test_integers() {
         let tokens = tokenize!("10 10_5");
 
-        assert_token!(tokens[0], Int, "10", 1, 1);
-        assert_token!(tokens[1], Int, "10_5", 1, 4);
+        assert_token!(tokens[0], Integer, "10", 1, 1);
+        assert_token!(tokens[1], Integer, "10_5", 1, 4);
     }
 
     #[test]

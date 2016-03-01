@@ -245,7 +245,7 @@ impl<'l> Lexer<'l> {
         };
 
         integer => {
-            token = token!(Int, self);
+            token = token!(Integer, self);
             fnbreak;
         };
 
