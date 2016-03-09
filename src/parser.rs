@@ -1,16 +1,49 @@
 use lexer::{Lexer, Token, TokenType};
 
 macro_rules! next_token {
-    ($lexer: expr, $kind: ident) => ({
+    ($lexer: expr) => ({
         if let Some(token) = $lexer.lex() {
-            match token.kind {
-                TokenType::$kind => token,
-                _ => return Err(ParserError::InvalidToken)
-            }
+            token
         }
         else {
             return Err(ParserError::EndOfInput)
         }
+    });
+}
+
+macro_rules! next_token_of_type {
+    ($lexer: expr, $kind: ident) => ({
+        let token = next_token!($lexer);
+
+        match token.kind {
+            TokenType::$kind => token,
+            _                => return Err(ParserError::InvalidToken)
+        }
+    });
+}
+
+macro_rules! next_token_or_break {
+    ($lexer: expr, $break_on: ident) => ({
+        if let Some(token) = $lexer.lex() {
+            match token.kind {
+                TokenType::$break_on => break,
+                _                    => token
+            }
+        }
+        else {
+            return Err(ParserError::EndOfInput);
+        }
+    });
+}
+
+macro_rules! comma_or_break {
+    ($lexer: expr, $break_on: ident) => ({
+        let token = next_token_or_break!($lexer, $break_on);
+
+        match token.kind {
+            TokenType::Comma => {},
+            _                => return Err(ParserError::InvalidToken)
+        };
     });
 }
 
@@ -63,33 +96,25 @@ fn parse_expressions(lexer: &mut Lexer) -> ParserResult {
     let mut nodes = Vec::new();
 
     loop {
-        match parse_expression(lexer) {
-            Ok(node) => nodes.push(node),
-            Err(err) => {
-                match err {
-                    ParserError::EndOfInput => break,
-                    _                       => return Err(err)
-                }
-            }
-        };
+        if let Some(token) = lexer.lex() {
+            nodes.push(try!(parse_expression(token, lexer)));
+        }
+        else {
+            break;
+        }
     }
 
     Ok(Node::Expressions { children: nodes })
 }
 
-fn parse_expression(lexer: &mut Lexer) -> ParserResult {
-    if let Some(token) = lexer.lex() {
-        match token.kind {
-            TokenType::Integer   => parse_integer(token),
-            TokenType::Float     => parse_float(token),
-            TokenType::String    => parse_string(token),
-            TokenType::BrackOpen => parse_array(token, lexer),
-            TokenType::CurlyOpen => parse_hash(token, lexer),
-            _                    => Err(ParserError::InvalidToken)
-        }
-    }
-    else {
-        Err(ParserError::EndOfInput)
+fn parse_expression(token: Token, lexer: &mut Lexer) -> ParserResult {
+    match token.kind {
+        TokenType::Integer   => parse_integer(token),
+        TokenType::Float     => parse_float(token),
+        TokenType::String    => parse_string(token),
+        TokenType::BrackOpen => parse_array(token, lexer),
+        TokenType::CurlyOpen => parse_hash(token, lexer),
+        _                    => Err(ParserError::InvalidToken)
     }
 }
 
@@ -121,18 +146,11 @@ fn parse_array(token: Token, lexer: &mut Lexer) -> ParserResult {
     let mut values = Vec::new();
 
     loop {
-        values.push(try!(parse_expression(lexer)));
+        let start = next_token_or_break!(lexer, BrackClose);
 
-        if let Some(token) = lexer.lex() {
-            match token.kind {
-                TokenType::Comma      => {},
-                TokenType::BrackClose => break,
-                _                     => return Err(ParserError::InvalidToken)
-            };
-        }
-        else {
-            return Err(ParserError::EndOfInput);
-        }
+        values.push(try!(parse_expression(start, lexer)));
+
+        comma_or_break!(lexer, BrackClose);
     }
 
     Ok(Node::Array { values: values, line: token.line, column: token.column })
@@ -142,24 +160,17 @@ fn parse_hash(token: Token, lexer: &mut Lexer) -> ParserResult {
     let mut pairs = Vec::new();
 
     loop {
-        let key = try!(parse_expression(lexer));
+        let kstart = next_token_or_break!(lexer, CurlyClose);
+        let key    = try!(parse_expression(kstart, lexer));
 
-        next_token!(lexer, Colon);
+        next_token_of_type!(lexer, Colon);
 
-        let value = try!(parse_expression(lexer));
+        let vstart = next_token!(lexer);
+        let value  = try!(parse_expression(vstart, lexer));
 
         pairs.push((key, value));
 
-        if let Some(token) = lexer.lex() {
-            match token.kind {
-                TokenType::Comma      => {},
-                TokenType::CurlyClose => break,
-                _                     => return Err(ParserError::InvalidToken)
-            };
-        }
-        else {
-            return Err(ParserError::EndOfInput);
-        }
+        comma_or_break!(lexer, CurlyClose);
     }
 
     Ok(Node::Hash { pairs: pairs, line: token.line, column: token.column })
