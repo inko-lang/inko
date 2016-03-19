@@ -6,7 +6,7 @@ use compiled_code::RcCompiledCode;
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
     None,
-    Integer(isize),
+    Integer(i64),
     Float(f64),
     String(Box<String>),
     Array(Box<Vec<RcObject>>),
@@ -66,7 +66,7 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_integer(&self) -> isize {
+    pub fn as_integer(&self) -> i64 {
         match *self {
             ObjectValue::Integer(val) => val,
             _ => panic!("ObjectValue::as_integer() called on a non integer")
@@ -145,7 +145,7 @@ pub fn thread(value: RcThread) -> ObjectValue {
     ObjectValue::Thread(value)
 }
 
-pub fn integer(value: isize) -> ObjectValue {
+pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
 }
 

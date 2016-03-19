@@ -50,7 +50,7 @@ pub struct CompiledCode {
     pub instructions: Vec<Instruction>,
 
     /// Any literal integers appearing in the source code.
-    pub integer_literals: Vec<isize>,
+    pub integer_literals: Vec<i64>,
 
     /// Any literal floats appearing in the source code.
     pub float_literals: Vec<f64>,
@@ -105,7 +105,7 @@ impl CompiledCode {
     ///
     ///     code.add_integer_literal(10);
     ///
-    pub fn add_integer_literal(&mut self, value: isize) {
+    pub fn add_integer_literal(&mut self, value: i64) {
         self.integer_literals.push(value);
     }
 
@@ -146,7 +146,7 @@ impl CompiledCode {
         }
     }
 
-    pub fn integer(&self, index: usize) -> Result<&isize, String> {
+    pub fn integer(&self, index: usize) -> Result<&i64, String> {
         self.integer_literals
             .get(index)
             .ok_or(format!("undefined integer literal {}", index))

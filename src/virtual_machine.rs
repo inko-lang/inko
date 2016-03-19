@@ -1398,7 +1398,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_floats!(float);
 
-        let result = float.value.as_float() as isize;
+        let result = float.value.as_float() as i64;
         let obj    = self.allocate(object_value::integer(result),
                                    self.integer_prototype());
 
@@ -1566,7 +1566,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_arrays!(array);
 
         let vector = array.value.as_array();
-        let length = vector.len() as isize;
+        let length = vector.len() as i64;
 
         let obj = self.allocate(object_value::integer(length),
                                 self.integer_prototype());
@@ -1661,7 +1661,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let array_proto = self.array_prototype();
 
         let array = arg.value.as_string().as_bytes().iter().map(|&b| {
-            self.allocate(object_value::integer(b as isize), int_proto.clone())
+            self.allocate(object_value::integer(b as i64), int_proto.clone())
         }).collect::<Vec<_>>();
 
         let obj = self.allocate(object_value::array(array), array_proto);
@@ -1710,7 +1710,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let int_proto = self.integer_prototype();
 
-        let length = arg.value.as_string().chars().count() as isize;
+        let length = arg.value.as_string().chars().count() as i64;
         let obj    = self.allocate(object_value::integer(length), int_proto);
 
         thread.set_register(slot, obj);
@@ -1728,7 +1728,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let int_proto = self.integer_prototype();
 
-        let size = arg.value.as_string().len() as isize;
+        let size = arg.value.as_string().len() as i64;
         let obj  = self.allocate(object_value::integer(size), int_proto);
 
         thread.set_register(slot, obj);
@@ -1750,7 +1750,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let result = try_io!(stdout.write(arg.value.as_string().as_bytes()),
                              self, thread, slot);
 
-        let obj = self.allocate(object_value::integer(result as isize),
+        let obj = self.allocate(object_value::integer(result as i64),
                                 int_proto);
 
         thread.set_register(slot, obj);
@@ -1772,7 +1772,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
                              self, thread, slot);
 
-        let obj = self.allocate(object_value::integer(result as isize),
+        let obj = self.allocate(object_value::integer(result as i64),
                                 int_proto);
 
         thread.set_register(slot, obj);
@@ -1863,7 +1863,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = try_io!(file.write(bytes), self, thread, slot);
 
-        let obj = self.allocate(object_value::integer(result as isize),
+        let obj = self.allocate(object_value::integer(result as i64),
                                 int_proto);
 
         thread.set_register(slot, obj);
@@ -1950,7 +1950,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let file = file_obj.value.as_file();
         let meta = try_io!(file.metadata(), self, thread, slot);
 
-        let size   = meta.len() as isize;
+        let size   = meta.len() as i64;
         let proto  = self.integer_prototype();
         let result = self.allocate(object_value::integer(size), proto);
 
@@ -1980,7 +1980,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let new_offset = try_io!(file.seek(seek_from), self, thread, slot);
 
         let proto  = self.integer_prototype();
-        let result = self.allocate(object_value::integer(new_offset as isize),
+        let result = self.allocate(object_value::integer(new_offset as i64),
                                    proto);
 
         thread.set_register(slot, result);

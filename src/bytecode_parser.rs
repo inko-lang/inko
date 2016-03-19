@@ -57,9 +57,9 @@ macro_rules! read_usize_vector {
     );
 }
 
-macro_rules! read_isize_vector {
+macro_rules! read_i64_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<isize, $byte_type>(&mut $bytes, read_isize));
+        try!(read_vector::<i64, $byte_type>(&mut $bytes, read_i64));
     );
 }
 
@@ -145,6 +145,18 @@ fn read_string<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<String> {
     }
 }
 
+fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
+    let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+
+    for index in 0..8 {
+        buff[index] = try_byte!(bytes.next(), InvalidInteger);
+    }
+
+    let value: i64 = unsafe { mem::transmute(buff) };
+
+    Ok(i64::from_be(value))
+}
+
 #[cfg(all(target_pointer_width = "32"))]
 fn read_isize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<isize> {
     let mut buff: [u8; 4] = [0, 0, 0, 0];
@@ -160,15 +172,7 @@ fn read_isize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<isize> {
 
 #[cfg(all(target_pointer_width = "64"))]
 fn read_isize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<isize> {
-    let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-
-    for index in 0..8 {
-        buff[index] = try_byte!(bytes.next(), InvalidInteger);
-    }
-
-    let value: isize = unsafe { mem::transmute(buff) };
-
-    Ok(isize::from_be(value))
+    Ok(try!(read_i64(bytes)) as isize)
 }
 
 fn read_usize<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<usize> {
@@ -228,7 +232,7 @@ fn read_compiled_code<T: Read>(mut bytes: &mut Bytes<T>) -> ParserResult<RcCompi
 
     let locals         = read_string_vector!(T, bytes);
     let instructions   = read_instruction_vector!(T, bytes);
-    let int_literals   = read_isize_vector!(T, bytes);
+    let int_literals   = read_i64_vector!(T, bytes);
     let float_literals = read_f64_vector!(T, bytes);
     let str_literals   = read_string_vector!(T, bytes);
     let code_objects   = read_code_vector!(T, bytes);
