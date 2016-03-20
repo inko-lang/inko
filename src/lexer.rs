@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn test_identifiers() {
-        let tokens = tokenize!("foo foö 한국어 _foo foo123 foo_bar");
+        let tokens = tokenize!("foo foö 한국어 _foo foo123 foo_bar foo? foo!");
 
         assert_token!(tokens[0], Identifier, "foo", 1, 1);
         assert_token!(tokens[1], Identifier, "foö", 1, 5);
@@ -273,6 +273,8 @@ mod tests {
         assert_token!(tokens[3], Identifier, "_foo", 1, 13);
         assert_token!(tokens[4], Identifier, "foo123", 1, 18);
         assert_token!(tokens[5], Identifier, "foo_bar", 1, 25);
+        assert_token!(tokens[6], Identifier, "foo?", 1, 33);
+        assert_token!(tokens[7], Identifier, "foo!", 1, 38);
     }
 
     #[test]

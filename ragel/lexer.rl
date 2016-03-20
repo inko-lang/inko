@@ -64,7 +64,7 @@ impl<'l> Lexer<'l> {
     newline    = ('\r\n' | '\n');
 
     unicode    = any - ascii;
-    identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)*;
+    identifier = ([a-z_] | unicode) ([a-zA-Z0-9_] | unicode)* ('!' | '?')?;
     constant   = upper identifier?;
     ivar       = '@' identifier;
 
