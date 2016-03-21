@@ -70,7 +70,7 @@ pub struct Lexer<'l> {
     emit_unindent_eol: bool,
     emit_indent: bool,
     indent_stack: Vec<usize>,
-    balance_count: usize,
+    curly_count: usize,
     line: usize,
     column: usize,
     ts: usize,
@@ -79,8 +79,7 @@ pub struct Lexer<'l> {
     eof: usize,
     p: usize,
     pe: usize,
-    cs: i32,
-    token: Option<Token>
+    cs: i32
 }
 
 impl<'l> Lexer<'l> {
@@ -90,7 +89,7 @@ impl<'l> Lexer<'l> {
             emit_unindent_eol: false,
             emit_indent: false,
             indent_stack: Vec::new(),
-            balance_count: 0,
+            curly_count: 0,
             line: 1,
             column: 1,
             ts: 0,
@@ -99,8 +98,7 @@ impl<'l> Lexer<'l> {
             eof: input.len(),
             p: 0,
             pe: input.len(),
-            cs: aeon_lexer_start as i32,
-            token: None
+            cs: aeon_lexer_start as i32
         }
     }
 }
@@ -158,34 +156,9 @@ pub struct Token {
     pub column: usize
 }
 
-impl<'l> Lexer<'l> {
-    pub fn advance(&mut self) -> Option<Token> {
-        if self.token.is_some() {
-            return self.token.take();
-        }
-
-        self.lex()
-    }
-
-    pub fn peek(&mut self) -> Option<&Token> {
-        if self.token.is_none() {
-            self.token = self.lex();
-        }
-
-        self.token.as_ref()
-    }
-}
-
 impl Token {
     pub fn new(kind: TokenType, val: String, line: usize, col: usize) -> Token {
         Token { kind: kind, value: val, line: line, column: col }
-    }
-
-    pub fn is_send_start(&self) -> bool {
-        match self.kind {
-            TokenType::Dot | TokenType::ParenOpen | TokenType::Indent => true,
-            _ => false
-        }
     }
 }
 
@@ -443,30 +416,5 @@ mod tests {
         assert_token!(tokens[2], Colon, ":", 1, 3);
         assert_token!(tokens[3], Identifier, "b", 2, 1);
         assert_token!(tokens[4], CurlyClose, "}", 2, 2);
-    }
-
-    #[test]
-    fn test_let() {
-        let tokens = tokenize!("let x: y = 10");
-
-        assert_token!(tokens[0], Let, "let", 1, 1);
-        assert_token!(tokens[1], Identifier, "x", 1, 5);
-        assert_token!(tokens[2], Colon, ":", 1, 6);
-        assert_token!(tokens[3], Identifier, "y", 1, 8);
-        assert_token!(tokens[4], Equal, "=", 1, 10);
-        assert_token!(tokens[5], Integer, "10", 1, 12);
-    }
-
-    #[test]
-    fn test_def() {
-        let tokens = tokenize!("def foo(x: y)");
-
-        assert_token!(tokens[0], Def, "def", 1, 1);
-        assert_token!(tokens[1], Identifier, "foo", 1, 5);
-        assert_token!(tokens[2], ParenOpen, "(", 1, 8);
-        assert_token!(tokens[3], Identifier, "x", 1, 9);
-        assert_token!(tokens[4], Colon, ":", 1, 10);
-        assert_token!(tokens[5], Identifier, "y", 1, 12);
-        assert_token!(tokens[6], ParenClose, ")", 1, 13);
     }
 }

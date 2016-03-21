@@ -201,8 +201,6 @@ impl<'l> Lexer<'l> {
 
         'let' => {
             token = token!(Let, self);
-            self.balance_count += 1;
-
             fnbreak;
         };
 
@@ -298,15 +296,11 @@ impl<'l> Lexer<'l> {
 
         lparen => {
             token = token!(ParenOpen, self);
-            self.balance_count += 1;
-
             fnbreak;
         };
 
         rparen => {
             token = token!(ParenClose, self);
-            self.balance_count -= 1;
-
             fnbreak;
         };
 
@@ -322,11 +316,6 @@ impl<'l> Lexer<'l> {
 
         eq => {
             token = token!(Equal, self);
-
-            if self.balance_count >= 1 {
-                self.balance_count -= 1;
-            }
-
             fnbreak;
         };
 
@@ -363,7 +352,7 @@ impl<'l> Lexer<'l> {
         lcurly => {
             token = token!(CurlyOpen, self);
 
-            self.balance_count += 1;
+            self.curly_count += 1;
 
             fnbreak;
         };
@@ -371,14 +360,14 @@ impl<'l> Lexer<'l> {
         rcurly => {
             token = token!(CurlyClose, self);
 
-            self.balance_count -= 1;
+            self.curly_count -= 1;
 
             fnbreak;
         };
 
         # foo: bar
         colon whitespace* ^newline => {
-            if self.balance_count == 0 {
+            if self.curly_count == 0 {
                 self.emit_unindent_eol = true;
 
                 token = indent_token!(Indent, self);
@@ -400,7 +389,7 @@ impl<'l> Lexer<'l> {
         # foo:
         # ...
         colon whitespace* newline => {
-            if self.balance_count > 0 {
+            if self.curly_count > 0 {
                 token = offset_token!(Colon, self, self.ts, self.ts + 1, 0);
             }
 
@@ -410,7 +399,7 @@ impl<'l> Lexer<'l> {
             if token.is_some() {
                 fnbreak;
             }
-            else if self.balance_count == 0 {
+            else if self.curly_count == 0 {
                 self.emit_indent = true;
 
                 fnext line_start;
