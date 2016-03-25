@@ -11,7 +11,7 @@ use libaeon::virtual_machine::VirtualMachine;
 use libaeon::virtual_machine_methods::VirtualMachineMethods;
 
 fn print_usage(options: &getopts::Options) {
-    println!("{}", options.usage("Usage: aeon FILE [OPTIONS]"));
+    println!("{}", options.usage("Usage: aeonvm FILE [OPTIONS]"));
     process::exit(1);
 }
 
@@ -32,7 +32,7 @@ fn main() {
     }
 
     if matches.opt_present("v") {
-        println!("aeon {}", env!("CARGO_PKG_VERSION"));
+        println!("aeonvm {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 

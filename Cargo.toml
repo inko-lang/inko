@@ -9,7 +9,7 @@ name    = "libaeon"
 doctest = false
 
 [[bin]]
-name = "aeon"
+name = "aeonvm"
 test = false
 
 [dependencies]
