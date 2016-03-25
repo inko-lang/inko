@@ -101,19 +101,19 @@ pub struct Instruction {
     pub instruction_type: InstructionType,
 
     /// The arguments of the instruction.
-    pub arguments: Vec<usize>,
+    pub arguments: Vec<u32>,
 
     /// The line from which the instruction originated.
-    pub line: usize,
+    pub line: u32,
 
     /// The column from which the instruction originated.
-    pub column: usize
+    pub column: u32
 }
 
 impl Instruction {
     /// Returns a new Instruction.
-    pub fn new(ins_type: InstructionType, arguments: Vec<usize>, line: usize,
-               column: usize) -> Instruction {
+    pub fn new(ins_type: InstructionType, arguments: Vec<u32>, line: u32,
+               column: u32) -> Instruction {
         Instruction {
             instruction_type: ins_type,
             arguments: arguments,
@@ -127,5 +127,6 @@ impl Instruction {
             .get(index)
             .cloned()
             .ok_or(format!("undefined instruction argument {}", index))
+            .map(|num| num as usize)
     }
 }

@@ -35,10 +35,10 @@ pub struct CompiledCode {
     pub file: String,
 
     /// The starting line number.
-    pub line: usize,
+    pub line: u32,
 
     /// The amount of required arguments.
-    pub required_arguments: usize,
+    pub required_arguments: u32,
 
     /// The method visibility (public or private)
     pub visibility: MethodVisibility,
@@ -74,7 +74,7 @@ impl CompiledCode {
     ///
     ///     let code = CompiledCode::new("(main)", "test.aeon", 1, vec![...]);
     ///
-    pub fn new(name: String, file: String, line: usize,
+    pub fn new(name: String, file: String, line: u32,
                instructions: Vec<Instruction>) -> CompiledCode {
         CompiledCode {
             name: name,
@@ -92,7 +92,7 @@ impl CompiledCode {
     }
 
     /// Creates a new reference counted CompiledCode.
-    pub fn with_rc(name: String, file: String, line: usize,
+    pub fn with_rc(name: String, file: String, line: u32,
                instructions: Vec<Instruction>) -> RcCompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
     }

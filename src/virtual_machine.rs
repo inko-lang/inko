@@ -491,13 +491,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
                       instruction: &Instruction) -> EmptyResult {
         let slot = try!(instruction.arg(0));
 
-        let proto_index_opt = instruction.arguments.get(1);
+        let proto_index_res = instruction.arg(1);
 
         let obj = write_lock!(self.memory_manager)
             .new_object(object_value::none());
 
-        if proto_index_opt.is_some() {
-            let proto_index = *proto_index_opt.unwrap();
+        if proto_index_res.is_ok() {
+            let proto_index = proto_index_res.unwrap();
             let proto       = try!(thread.get_register(proto_index));
 
             write_lock!(obj).set_prototype(proto);
@@ -773,7 +773,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
 
-        if arguments.len() != method_code.required_arguments {
+        if arguments.len() != method_code.required_arguments as usize {
             return Err(format!(
                 "{} requires {} arguments, {} given",
                 name,
@@ -2064,7 +2064,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let mut args: Vec<RcObject> = Vec::new();
 
         for index in offset..(offset + amount) {
-            let arg_index = instruction.arguments[index];
+            let arg_index = try!(instruction.arg(index));
             let arg       = try!(thread.get_register(arg_index));
 
             args.push(arg)

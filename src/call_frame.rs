@@ -18,7 +18,7 @@ pub struct CallFrame {
     pub file: String,
 
     /// The line number being executed.
-    pub line: usize,
+    pub line: u32,
 
     /// An optional parent CallFrame.
     pub parent: Option<Box<CallFrame>>,
@@ -38,7 +38,7 @@ impl CallFrame {
     ///
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
-    pub fn new(name: String, file: String, line: usize) -> CallFrame {
+    pub fn new(name: String, file: String, line: u32) -> CallFrame {
         let frame = CallFrame {
             name: name,
             file: file,
