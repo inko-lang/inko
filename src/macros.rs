@@ -139,8 +139,8 @@ macro_rules! file_reading_buffer {
 
 /// Sets an error in a register slot and returns control to the caller.
 macro_rules! set_error {
-    ($name: expr, $vm: expr, $thread: expr, $slot: expr) => ({
-        $thread.set_register($slot, $vm.allocate_error($name));
+    ($code: expr, $vm: expr, $thread: expr, $slot: expr) => ({
+        $thread.set_register($slot, $vm.allocate_error($code));
 
         return Ok(());
     });
@@ -151,7 +151,7 @@ macro_rules! try_error {
     ($expr: expr, $vm: expr, $thread: expr, $slot: expr) => (
         match $expr {
             Ok(val)   => val,
-            Err(name) => set_error!(name, $vm, $thread, $slot)
+            Err(code) => set_error!(code, $vm, $thread, $slot)
         }
     );
 }

@@ -12,7 +12,7 @@ pub enum ObjectValue {
     Array(Box<Vec<RcObject>>),
     Thread(RcThread),
     File(Box<fs::File>),
-    Error(Box<String>),
+    Error(u16),
     CompiledCode(RcCompiledCode)
 }
 
@@ -122,9 +122,9 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_error(&self) -> &String {
+    pub fn as_error(&self) -> u16 {
         match *self {
-            ObjectValue::Error(ref val) => val,
+            ObjectValue::Error(val) => val,
             _ => panic!("ObjectValue::as_error() called non a non error")
         }
     }
@@ -165,8 +165,8 @@ pub fn file(value: fs::File) -> ObjectValue {
     ObjectValue::File(Box::new(value))
 }
 
-pub fn error(value: String) -> ObjectValue {
-    ObjectValue::Error(Box::new(value))
+pub fn error(value: u16) -> ObjectValue {
+    ObjectValue::Error(value)
 }
 
 pub fn compiled_code(value: RcCompiledCode) -> ObjectValue {

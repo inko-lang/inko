@@ -133,8 +133,8 @@ impl MemoryManager {
         thread_obj
     }
 
-    pub fn allocate_error(&mut self, name: &'static str) -> RcObject {
-        let obj = self.new_object(object_value::error(name.to_string()));
+    pub fn allocate_error(&mut self, code: u16) -> RcObject {
+        let obj = self.new_object(object_value::error(code));
 
         self.allocate_prepared(obj.clone());
 

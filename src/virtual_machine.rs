@@ -106,8 +106,8 @@ impl VirtualMachine {
         write_lock!(self.memory_manager).allocate(value, prototype)
     }
 
-    fn allocate_error(&self, name: &'static str) -> RcObject {
-        write_lock!(self.memory_manager).allocate_error(name)
+    fn allocate_error(&self, code: u16) -> RcObject {
+        write_lock!(self.memory_manager).allocate_error(code)
     }
 
     fn allocate_thread(&self, code: RcCompiledCode,
@@ -281,7 +281,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_is_error, thread, code, instruction);
                 },
                 InstructionType::ErrorToString => {
-                    run!(self, ins_error_to_string, thread, code, instruction);
+                    run!(self, ins_error_to_integer, thread, code, instruction);
                 },
                 InstructionType::IntegerAdd => {
                     run!(self, ins_integer_add, thread, code, instruction);
@@ -952,15 +952,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_error_to_string(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_error_to_integer(&self, thread: RcThread, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
         let slot       = try!(instruction.arg(0));
         let error_lock = instruction_object!(instruction, thread, 1);
         let error      = read_lock!(error_lock);
 
-        let proto  = self.string_prototype();
-        let string = error.value.as_error().clone();
-        let result = self.allocate(object_value::string(string), proto);
+        let proto   = self.integer_prototype();
+        let integer = error.value.as_error() as i64;
+        let result  = self.allocate(object_value::integer(integer), proto);
 
         thread.set_register(slot, result);
 

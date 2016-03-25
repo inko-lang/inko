@@ -547,20 +547,20 @@ pub trait VirtualMachineMethods {
     fn ins_is_error(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Converts an error object to a string.
+    /// Converts an error object to an integer.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the string in.
+    /// 1. The register slot to store the integer in.
     /// 2. The register slot containing the error.
     ///
     /// # Examples
     ///
-    ///     0: stdin_read      0
-    ///     1: is_error        1, 0
-    ///     2: goto_if_false   4, 1
-    ///     3: error_to_string 2, 0
-    fn ins_error_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: stdin_read       0
+    ///     1: is_error         1, 0
+    ///     2: goto_if_false    4, 1
+    ///     3: error_to_integer 2, 0
+    fn ins_error_to_integer(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Adds two integers
