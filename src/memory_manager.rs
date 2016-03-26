@@ -189,6 +189,10 @@ impl MemoryManager {
         self.false_object.clone()
     }
 
+    pub fn top_level_object(&self) -> RcObject {
+        self.top_level.clone()
+    }
+
     fn new_object_id(&mut self) -> usize {
         self.object_id += 1;
 

@@ -6,6 +6,7 @@
 //! call stack: simply remove the CallFrame and everything else is also removed.
 
 use compiled_code::RcCompiledCode;
+use object::RcObject;
 use register::Register;
 use variable_scope::VariableScope;
 
@@ -27,7 +28,10 @@ pub struct CallFrame {
     pub register: Register,
 
     /// Storage for local variables.
-    pub variables: VariableScope
+    pub variables: VariableScope,
+
+    /// The object "self" refers to in this call frame.
+    pub self_object: RcObject
 }
 
 impl CallFrame {
@@ -38,22 +42,23 @@ impl CallFrame {
     ///
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
-    pub fn new(name: String, file: String, line: u32) -> CallFrame {
+    pub fn new(name: String, file: String, line: u32, self_obj: RcObject) -> CallFrame {
         let frame = CallFrame {
             name: name,
             file: file,
             line: line,
             parent: None,
             register: Register::new(),
-            variables: VariableScope::new()
+            variables: VariableScope::new(),
+            self_object: self_obj
         };
 
         frame
     }
 
     /// Creates a new CallFrame from a CompiledCode
-    pub fn from_code(code: RcCompiledCode) -> CallFrame {
-        CallFrame::new(code.name.clone(), code.file.clone(), code.line)
+    pub fn from_code(code: RcCompiledCode, self_obj: RcObject) -> CallFrame {
+        CallFrame::new(code.name.clone(), code.file.clone(), code.line, self_obj)
     }
 
     /// Boxes and sets the current frame's parent.
@@ -89,11 +94,15 @@ impl CallFrame {
 mod tests {
     use super::*;
     use compiled_code::CompiledCode;
+    use object::Object;
+    use object_value;
 
     #[test]
     fn test_new() {
+        let obj = Object::new(0, object_value::none());
+
         let frame = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1);
+            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj);
 
         assert_eq!(frame.name, "foo".to_string());
         assert_eq!(frame.file, "test.aeon".to_string());
@@ -102,10 +111,12 @@ mod tests {
 
     #[test]
     fn test_from_code() {
+        let obj = Object::new(0, object_value::none());
+
         let code = CompiledCode
             ::with_rc("foo".to_string(), "test.aeon".to_string(), 1, vec![]);
 
-        let frame = CallFrame::from_code(code);
+        let frame = CallFrame::from_code(code, obj);
 
         assert_eq!(frame.name, "foo".to_string());
         assert_eq!(frame.file, "test.aeon".to_string());
@@ -114,11 +125,13 @@ mod tests {
 
     #[test]
     fn test_set_parent() {
+        let obj = Object::new(0, object_value::none());
+
         let frame1 = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1);
+            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());
 
         let mut frame2 = CallFrame
-            ::new("bar".to_string(), "baz.aeon".to_string(), 1);
+            ::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
 
         frame2.set_parent(frame1);
 
@@ -127,11 +140,13 @@ mod tests {
 
     #[test]
     fn test_each_frame() {
+        let obj = Object::new(0, object_value::none());
+
         let frame1 = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1);
+            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());
 
         let mut frame2 = CallFrame
-            ::new("bar".to_string(), "baz.aeon".to_string(), 1);
+            ::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
 
         let mut names: Vec<String> = vec![];
 

@@ -107,6 +107,10 @@ impl VirtualMachine {
         read_lock!(self.memory_manager).true_object()
     }
 
+    fn top_level_object(&self) -> RcObject {
+        read_lock!(self.memory_manager).top_level_object()
+    }
+
     fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
         write_lock!(self.memory_manager).allocate(value, prototype)
     }
@@ -118,7 +122,8 @@ impl VirtualMachine {
     fn allocate_thread(&self, code: RcCompiledCode,
                        handle: Option<ThreadJoinHandle>,
                        main_thread: bool) -> RcObject {
-        let vm_thread = Thread::from_code(code, handle);
+        let self_obj  = self.top_level_object();
+        let vm_thread = Thread::from_code(code, self_obj, handle);
 
         if main_thread {
             vm_thread.set_main();
@@ -890,7 +895,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 3, arg_count)
         );
 
-        let retval = try!(self.run_code(thread.clone(), code_obj, arguments));
+        let retval = try!(
+            self.run_code(thread.clone(), code_obj, cc_lock.clone(), arguments)
+        );
 
         if retval.is_some() {
             thread.set_register(slot, retval.unwrap());
@@ -903,9 +910,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         instruction: &Instruction) -> EmptyResult {
         let slot = try!(instruction.arg(0));
 
-        let top_level = read_lock!(self.memory_manager).top_level.clone();
-
-        thread.set_register(slot, top_level);
+        thread.set_register(slot, self.top_level_object());
 
         Ok(())
     }
@@ -2006,11 +2011,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn run_code(&self, thread: RcThread, code: RcCompiledCode,
-                args: Vec<RcObject>) -> OptionObjectResult {
+                self_obj: RcObject, args: Vec<RcObject>) -> OptionObjectResult {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            thread.push_call_frame(CallFrame::from_code(code.clone()));
+            let frame = CallFrame::from_code(code.clone(), self_obj);
+
+            thread.push_call_frame(frame);
 
             for arg in args.iter() {
                 thread.add_local(arg.clone());
@@ -2061,7 +2068,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
-                let res = try!(self.run_code(thread.clone(), body, Vec::new()));
+                let self_obj = self.top_level_object();
+                let args     = Vec::new();
+
+                let res = try!(self.run_code(thread.clone(), body, self_obj, args));
 
                 if res.is_some() {
                     thread.set_register(slot, res.unwrap());
@@ -2099,7 +2109,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             return Err(receiver.private_method_error(name));
         }
 
-        let mut arguments = try!(
+        let arguments = try!(
             self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
 
@@ -2112,11 +2122,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
             ));
         }
 
-        // Expose the receiver as "self" to the method
-        arguments.insert(0, receiver_lock.clone());
-
         let retval = try!(
-            self.run_code(thread.clone(), method_code, arguments)
+            self.run_code(thread.clone(), method_code, receiver_lock.clone(),
+                          arguments)
         );
 
         if retval.is_some() {

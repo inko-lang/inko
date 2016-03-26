@@ -1616,7 +1616,7 @@ pub trait VirtualMachineMethods {
     fn error(&self, RcThread, String);
 
     /// Runs a given CompiledCode with arguments.
-    fn run_code(&self, RcThread, RcCompiledCode, Vec<RcObject>)
+    fn run_code(&self, RcThread, RcCompiledCode, RcObject, Vec<RcObject>)
         -> OptionObjectResult;
 
     /// Runs a bytecode file.

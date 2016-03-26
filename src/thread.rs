@@ -44,8 +44,9 @@ impl Thread {
     }
 
     pub fn from_code(code: RcCompiledCode,
+                     self_obj: RcObject,
                      handle: Option<JoinHandle>) -> RcThread {
-        let frame = CallFrame::from_code(code);
+        let frame = CallFrame::from_code(code, self_obj);
 
         Thread::new(frame, handle)
     }
