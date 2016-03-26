@@ -290,6 +290,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetToplevel => {
                     run!(self, ins_get_toplevel, thread, code, instruction);
                 },
+                InstructionType::GetSelf => {
+                    run!(self, ins_get_self, thread, code, instruction);
+                },
                 InstructionType::IsError => {
                     run!(self, ins_is_error, thread, code, instruction);
                 },
@@ -911,6 +914,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let slot = try!(instruction.arg(0));
 
         thread.set_register(slot, self.top_level_object());
+
+        Ok(())
+    }
+
+    fn ins_get_self(&self, thread: RcThread, _: RcCompiledCode,
+                    instruction: &Instruction) -> EmptyResult {
+        let slot  = try!(instruction.arg(0));
+        let frame = read_lock!(thread.call_frame);
+
+        thread.set_register(slot, frame.self_object.clone());
 
         Ok(())
     }

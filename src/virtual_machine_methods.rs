@@ -540,6 +540,16 @@ pub trait VirtualMachineMethods {
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sets the object "self" refers to in a register slot.
+    ///
+    /// This instruction requires one argument: the slot to store the object in.
+    ///
+    /// # Examples
+    ///
+    ///     get_self 0
+    fn ins_get_self(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Checks if a given object is an error object.
     ///
     /// This instruction requires two arguments:
