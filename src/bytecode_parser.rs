@@ -85,7 +85,7 @@ pub enum ParserError {
 pub type ParserResult<T> = Result<T, ParserError>;
 pub type BytecodeResult  = ParserResult<RcCompiledCode>;
 
-pub fn parse_file(path: &String) -> BytecodeResult {
+pub fn parse_file(path: &str) -> BytecodeResult {
     match File::open(path) {
         Ok(file) => parse(&mut file.bytes()),
         Err(_)   => parser_error!(InvalidFile)

@@ -7,6 +7,7 @@
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
@@ -29,6 +30,9 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 
 /// Structure representing a single VM instance.
 pub struct VirtualMachine {
+    /// The directories to search for bytecode files.
+    directories: RwLock<Vec<Box<Path>>>,
+
     /// All threads that are currently active.
     threads: RwLock<ThreadList>,
 
@@ -45,6 +49,7 @@ pub struct VirtualMachine {
 impl VirtualMachine {
     pub fn new() -> RcVirtualMachine {
         let vm = VirtualMachine {
+            directories: RwLock::new(Vec::new()),
             threads: RwLock::new(ThreadList::new()),
             memory_manager: MemoryManager::new(),
             exit_status: RwLock::new(Ok(())),
@@ -2019,19 +2024,42 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(return_val)
     }
 
-    fn run_file(&self, path: &String, thread: RcThread, slot: usize) -> EmptyResult {
+    fn run_file(&self, path_str: &String, thread: RcThread, slot: usize) -> EmptyResult {
         {
             let mut executed = write_lock!(self.executed_files);
 
-            if executed.contains(path) {
+            if executed.contains(path_str) {
                 return Ok(());
             }
             else {
-                executed.insert(path.clone());
+                executed.insert(path_str.clone());
             }
         }
 
-        match bytecode_parser::parse_file(path) {
+        let mut input_path = PathBuf::from(path_str);
+
+        if input_path.is_relative() {
+            let mut found = false;
+
+            for directory in read_lock!(self.directories).iter() {
+                let full_path = directory.join(path_str);
+
+                if full_path.exists() {
+                    input_path = full_path;
+                    found = true;
+
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(format!("No file found for {}", path_str));
+            }
+        }
+
+        let input_path_str = input_path.to_str().unwrap();
+
+        match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
                 let res = try!(self.run_code(thread.clone(), body, Vec::new()));
 
@@ -2041,7 +2069,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
                 Ok(())
             },
-            Err(err) => Err(format!("Failed to parse {}: {:?}", path, err))
+            Err(err) => {
+                Err(format!("Failed to parse {}: {:?}", input_path_str, err))
+            }
         }
     }
 
