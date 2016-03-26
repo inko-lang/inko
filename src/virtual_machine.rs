@@ -439,8 +439,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::FileSeek => {
                     run!(self, ins_file_seek, thread, code, instruction);
                 },
-                InstructionType::RunFileFast => {
-                    run!(self, ins_run_file_fast, thread, code, instruction);
+                InstructionType::RunFile => {
+                    run!(self, ins_run_file, thread, code, instruction);
+                },
+                InstructionType::RunFileDynamic => {
+                    run!(self, ins_run_file_dynamic, thread, code, instruction);
                 }
             };
         }
@@ -756,9 +759,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_send_dynamic(&self, thread: RcThread, _: RcCompiledCode,
                 instruction: &Instruction) -> EmptyResult {
-        let name_index = try!(instruction.arg(2));
-        let lock       = instruction_object!(instruction, thread, name_index);
-
+        let lock   = instruction_object!(instruction, thread, 2);
         let string = read_lock!(lock);
 
         ensure_strings!(string);
@@ -1958,35 +1959,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_file_fast(&self, thread: RcThread, code: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_run_file(&self, thread: RcThread, code: RcCompiledCode,
+                    instruction: &Instruction) -> EmptyResult {
         let slot  = try!(instruction.arg(0));
         let index = try!(instruction.arg(1));
         let path  = try!(code.string(index));
 
-        {
-            let mut executed = self.executed_files.write().unwrap();
+        self.run_file(path, thread, slot)
+    }
 
-            if executed.contains(path) {
-                return Ok(());
-            }
-            else {
-                executed.insert(path.clone());
-            }
-        }
+    fn ins_run_file_dynamic(&self, thread: RcThread, _: RcCompiledCode,
+                            instruction: &Instruction) -> EmptyResult {
+        let slot   = try!(instruction.arg(0));
+        let lock   = instruction_object!(instruction, thread, 1);
+        let string = read_lock!(lock);
 
-        match bytecode_parser::parse_file(path) {
-            Ok(body) => {
-                let res = try!(self.run_code(thread.clone(), body, Vec::new()));
+        ensure_strings!(string);
 
-                if res.is_some() {
-                    thread.set_register(slot, res.unwrap());
-                }
-
-                Ok(())
-            },
-            Err(err) => Err(format!("Failed to parse {}: {:?}", path, err))
-        }
+        self.run_file(string.value.as_string(), thread, slot)
     }
 
     fn error(&self, thread: RcThread, message: String) {
@@ -2027,6 +2017,32 @@ impl VirtualMachineMethods for RcVirtualMachine {
         thread.pop_call_frame();
 
         Ok(return_val)
+    }
+
+    fn run_file(&self, path: &String, thread: RcThread, slot: usize) -> EmptyResult {
+        {
+            let mut executed = write_lock!(self.executed_files);
+
+            if executed.contains(path) {
+                return Ok(());
+            }
+            else {
+                executed.insert(path.clone());
+            }
+        }
+
+        match bytecode_parser::parse_file(path) {
+            Ok(body) => {
+                let res = try!(self.run_code(thread.clone(), body, Vec::new()));
+
+                if res.is_some() {
+                    thread.set_register(slot, res.unwrap());
+                }
+
+                Ok(())
+            },
+            Err(err) => Err(format!("Failed to parse {}: {:?}", path, err))
+        }
     }
 
     fn send_message(&self, name: &String, thread: RcThread,

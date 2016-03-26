@@ -91,8 +91,9 @@ pub enum InstructionType {
     FileFlush                = 81,
     FileSize                 = 82,
     FileSeek                 = 83,
-    RunFileFast              = 84,
-    SendDynamic              = 85,
+    RunFile                  = 84,
+    RunFileDynamic           = 85,
+    SendDynamic              = 86
 }
 
 /// Struct for storing information about a single instruction.

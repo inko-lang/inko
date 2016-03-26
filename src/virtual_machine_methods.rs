@@ -1582,7 +1582,7 @@ pub trait VirtualMachineMethods {
     fn ins_file_seek(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Parses and runs a given bytecode file
+    /// Parses and runs a given bytecode file using a string literal
     ///
     /// Files are executed only once. After a file has been executed any
     /// following calls are basically no-ops.
@@ -1601,7 +1601,15 @@ pub trait VirtualMachineMethods {
     ///       0: "/tmp/test.abc"
     ///
     ///     0: run_file_fast 0, 0
-    fn ins_run_file_fast(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_file(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Parses and runs a given bytecode file using a runtime allocated string
+    ///
+    /// This instruction takes the same arguments as the "run_file" instruction
+    /// except instead of using a string literal it uses a register slot
+    /// containing a runtime allocated string.
+    fn ins_run_file_dynamic(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
@@ -1610,6 +1618,9 @@ pub trait VirtualMachineMethods {
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcThread, RcCompiledCode, Vec<RcObject>)
         -> OptionObjectResult;
+
+    /// Runs a bytecode file.
+    fn run_file(&self, &String, RcThread, usize) -> EmptyResult;
 
     /// Sends a message to an object
     fn send_message(&self, &String, RcThread, &Instruction) -> EmptyResult;
