@@ -374,13 +374,13 @@ pub trait VirtualMachineMethods {
     fn ins_set_compiled_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sends a message
+    /// Sends a message using a string literal
     ///
     /// This instruction requires at least 4 arguments:
     ///
     /// 1. The slot index to store the result in.
     /// 2. The slot index of the receiver.
-    /// 3. The index of the string literals to use for the method name.
+    /// 3. The index of the string literal to use for the method name.
     /// 4. A boolean (1 or 0) indicating if private methods can be called.
     /// 5. The amount of arguments to pass (0 or more).
     ///
@@ -403,6 +403,13 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 1, 1              # 20
     ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
     fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
+
+    /// Sends a message using a runtime allocated string
+    ///
+    /// This instruction takes the same arguments as the "send" instruction
+    /// except instead of the 3rd argument pointing to a string literal it
+    /// should point to a register slot containing a string.
+    fn ins_send_dynamic(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Returns the value in the given register slot.
     ///
@@ -1603,6 +1610,9 @@ pub trait VirtualMachineMethods {
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcThread, RcCompiledCode, Vec<RcObject>)
         -> OptionObjectResult;
+
+    /// Sends a message to an object
+    fn send_message(&self, &String, RcThread, &Instruction) -> EmptyResult;
 
     /// Collects a set of arguments from an instruction.
     fn collect_arguments(&self, RcThread, &Instruction, usize, usize)

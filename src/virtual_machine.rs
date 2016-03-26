@@ -250,6 +250,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::Send => {
                     run!(self, ins_send, thread, code, instruction);
                 },
+                InstructionType::SendDynamic => {
+                    run!(self, ins_send_dynamic, thread, code, instruction);
+                },
                 InstructionType::Return => {
                     retval = run!(self, ins_return, thread, code, instruction);
                 },
@@ -745,55 +748,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_send(&self, thread: RcThread, code: RcCompiledCode,
                 instruction: &Instruction) -> EmptyResult {
-        let result_slot   = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let name_index    = try!(instruction.arg(2));
-        let allow_private = try!(instruction.arg(3));
-        let arg_count     = try!(instruction.arg(4));
-        let name          = try!(code.string(name_index));
+        let name_index = try!(instruction.arg(2));
+        let name       = try!(code.string(name_index));
 
-        let receiver = read_lock!(receiver_lock);
+        self.send_message(name, thread, instruction)
+    }
 
-        let method_lock = try!(
-            receiver.lookup_method(name)
-                .ok_or(receiver.undefined_method_error(name))
-        );
+    fn ins_send_dynamic(&self, thread: RcThread, _: RcCompiledCode,
+                instruction: &Instruction) -> EmptyResult {
+        let name_index = try!(instruction.arg(2));
+        let lock       = instruction_object!(instruction, thread, name_index);
 
-        let method_obj = read_lock!(method_lock);
+        let string = read_lock!(lock);
 
-        ensure_compiled_code!(method_obj);
+        ensure_strings!(string);
 
-        let method_code = method_obj.value.as_compiled_code();
-
-        if method_code.is_private() && allow_private == 0 {
-            return Err(receiver.private_method_error(name));
-        }
-
-        let mut arguments = try!(
-            self.collect_arguments(thread.clone(), instruction, 5, arg_count)
-        );
-
-        if arguments.len() != method_code.required_arguments as usize {
-            return Err(format!(
-                "{} requires {} arguments, {} given",
-                name,
-                method_code.required_arguments,
-                arguments.len()
-            ));
-        }
-
-        // Expose the receiver as "self" to the method
-        arguments.insert(0, receiver_lock.clone());
-
-        let retval = try!(
-            self.run_code(thread.clone(), method_code, arguments)
-        );
-
-        if retval.is_some() {
-            thread.set_register(result_slot, retval.unwrap());
-        }
-
-        Ok(())
+        self.send_message(string.value.as_string(), thread, instruction)
     }
 
     fn ins_return(&self, thread: RcThread, _: RcCompiledCode,
@@ -2057,6 +2027,57 @@ impl VirtualMachineMethods for RcVirtualMachine {
         thread.pop_call_frame();
 
         Ok(return_val)
+    }
+
+    fn send_message(&self, name: &String, thread: RcThread,
+                    instruction: &Instruction) -> EmptyResult {
+        let result_slot   = try!(instruction.arg(0));
+        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let allow_private = try!(instruction.arg(3));
+        let arg_count     = try!(instruction.arg(4));
+
+        let receiver = read_lock!(receiver_lock);
+
+        let method_lock = try!(
+            receiver.lookup_method(name)
+                .ok_or(receiver.undefined_method_error(name))
+        );
+
+        let method_obj = read_lock!(method_lock);
+
+        ensure_compiled_code!(method_obj);
+
+        let method_code = method_obj.value.as_compiled_code();
+
+        if method_code.is_private() && allow_private == 0 {
+            return Err(receiver.private_method_error(name));
+        }
+
+        let mut arguments = try!(
+            self.collect_arguments(thread.clone(), instruction, 5, arg_count)
+        );
+
+        if arguments.len() != method_code.required_arguments as usize {
+            return Err(format!(
+                "{} requires {} arguments, {} given",
+                name,
+                method_code.required_arguments,
+                arguments.len()
+            ));
+        }
+
+        // Expose the receiver as "self" to the method
+        arguments.insert(0, receiver_lock.clone());
+
+        let retval = try!(
+            self.run_code(thread.clone(), method_code, arguments)
+        );
+
+        if retval.is_some() {
+            thread.set_register(result_slot, retval.unwrap());
+        }
+
+        Ok(())
     }
 
     fn collect_arguments(&self, thread: RcThread, instruction: &Instruction,
