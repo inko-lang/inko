@@ -18,7 +18,7 @@ module Aeon
       @strings = Literals.new
       @code_objects = Literals.new
 
-      @register = 0
+      @register = -1
     end
 
     def next_register
