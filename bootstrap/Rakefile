@@ -1,0 +1,7 @@
+require 'rake/clean'
+
+CLEAN.include('lib/aeon/parser.rb', 'lib/aeon/lexer.rb')
+
+Dir['./task/*.rake'].each do |task|
+  import(task)
+end

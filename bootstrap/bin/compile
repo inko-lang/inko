@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+
+$:.unshift(File.expand_path('../../lib', __FILE__))
+
+require 'optparse'
+require 'aeon'
+
+parser = OptionParser.new do |o|
+  o.banner = 'compile [FILE] [OPTIONS]'
+
+  o.summary_indent = '  '
+
+  o.separator "\nOptions:\n"
+
+  o.on('-h', '--help', 'Shows this help message') do
+    puts parser
+    exit
+  end
+end
+
+parser.parse!
+
+file = ARGV[0]
+
+if !file or file.empty?
+  abort 'No file given'
+end
+
+unless File.file?(file)
+  abort "The file #{file} does not exist"
+end
+
+compiler = Aeon::Compiler.new(file)
+code     = compiler.compile
+gen      = Aeon::Generator.new
+bytecode = gen.generate(code)
+
+dir  = File.dirname(file)
+name = File.basename(file, File.extname(file))
+out  = File.join(dir, "#{name}.aeonc")
+
+File.open(out, 'wb') do |handle|
+  handle.write(bytecode)
+end
