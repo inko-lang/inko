@@ -2,7 +2,6 @@
 name    = "aeon"
 version = "0.0.1"
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
-build   = "build.rs"
 
 [lib]
 name    = "libaeon"
