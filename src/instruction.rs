@@ -98,7 +98,7 @@ pub enum InstructionType {
 }
 
 /// Struct for storing information about a single instruction.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Instruction {
     /// The type of instruction.
     pub instruction_type: InstructionType,
@@ -129,7 +129,7 @@ impl Instruction {
         self.arguments
             .get(index)
             .cloned()
-            .ok_or(format!("undefined instruction argument {}", index))
+            .ok_or(format!("undefined instruction argument {} for {:?}", index, self))
             .map(|num| num as usize)
     }
 }
