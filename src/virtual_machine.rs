@@ -670,8 +670,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_local(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let slot_index = try!(instruction.arg(0));
-        let object     = instruction_object!(instruction, thread, 1);
+        let slot_index  = try!(instruction.arg(0));
+        let local_index = try!(instruction.arg(1));
+
+        let object = try!(thread.get_local(local_index));
 
         thread.set_register(slot_index, object);
 
@@ -920,10 +922,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_get_self(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let slot  = try!(instruction.arg(0));
-        let frame = read_lock!(thread.call_frame);
+        let slot = try!(instruction.arg(0));
 
-        thread.set_register(slot, frame.self_object.clone());
+        let self_object = read_lock!(thread.call_frame).self_object.clone();
+
+        thread.set_register(slot, self_object);
 
         Ok(())
     }
