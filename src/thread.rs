@@ -87,24 +87,24 @@ impl Thread {
         *read_lock!(self.should_stop)
     }
 
-    pub fn get_register(&self, slot: usize) -> Result<RcObject, String> {
+    pub fn get_register(&self, register: usize) -> Result<RcObject, String> {
         let frame = read_lock!(self.call_frame);
 
         frame.register
-            .get(slot)
-            .ok_or(format!("undefined object in register {}", slot))
+            .get(register)
+            .ok_or(format!("undefined object in register {}", register))
     }
 
-    pub fn get_register_option(&self, slot: usize) -> Option<RcObject> {
+    pub fn get_register_option(&self, register: usize) -> Option<RcObject> {
         let frame = read_lock!(self.call_frame);
 
-        frame.register.get(slot)
+        frame.register.get(register)
     }
 
-    pub fn set_register(&self, slot: usize, value: RcObject) {
+    pub fn set_register(&self, register: usize, value: RcObject) {
         let mut frame = write_lock!(self.call_frame);
 
-        frame.register.set(slot, value);
+        frame.register.set(register, value);
     }
 
     pub fn set_local(&self, index: usize, value: RcObject) {

@@ -23,11 +23,11 @@ pub trait VirtualMachineMethods {
     /// "return" instruction.
     fn run(&self, RcThread, RcCompiledCode) -> OptionObjectResult;
 
-    /// Sets an integer in a register slot.
+    /// Sets an integer in a register.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The slot index to store the integer in.
+    /// 1. The register to store the integer in.
     /// 2. The index of the integer literals to use for the value.
     ///
     /// The integer literal is extracted from the given CompiledCode.
@@ -41,11 +41,11 @@ pub trait VirtualMachineMethods {
     fn ins_set_integer(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets a float in a register slot.
+    /// Sets a float in a register.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The slot index to store the float in.
+    /// 1. The register to store the float in.
     /// 2. The index of the float literals to use for the value.
     ///
     /// The float literal is extracted from the given CompiledCode.
@@ -59,11 +59,11 @@ pub trait VirtualMachineMethods {
     fn ins_set_float(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets a string in a register slot.
+    /// Sets a string in a register.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The slot index to store the float in.
+    /// 1. The register to store the float in.
     /// 2. The index of the string literal to use for the value.
     ///
     /// The string literal is extracted from the given CompiledCode.
@@ -77,11 +77,12 @@ pub trait VirtualMachineMethods {
     fn ins_set_string(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets an object in a register slot.
+    /// Sets an object in a register.
     ///
-    /// This instruction requires at least one argument: the slot to store the
-    /// object in. Optionally an extra argument can be provided, this argument
-    /// should be a slot index pointing to the object to use as the prototype.
+    /// This instruction requires at least one argument: the register to store
+    /// the object in. Optionally an extra argument can be provided, this
+    /// argument should be a register pointing to the object to use as the
+    /// prototype.
     ///
     /// # Examples
     ///
@@ -90,11 +91,11 @@ pub trait VirtualMachineMethods {
     fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets an array in a register slot.
+    /// Sets an array in a register.
     ///
     /// This instruction requires at least two arguments:
     ///
-    /// 1. The register slot to store the array in.
+    /// 1. The register to store the array in.
     /// 2. The amount of values to store in the array.
     ///
     /// If the 2nd argument is N where N > 0 then all N following arguments are
@@ -113,7 +114,7 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The slot index containing the object to name.
+    /// 1. The register containing the object to name.
     /// 2. The string literal index containing the name of the object.
     ///
     /// # Examples
@@ -128,7 +129,7 @@ pub trait VirtualMachineMethods {
 
     /// Returns the prototype to use for integer objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -139,7 +140,7 @@ pub trait VirtualMachineMethods {
 
     /// Returns the prototype to use for float objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -150,7 +151,7 @@ pub trait VirtualMachineMethods {
 
     /// Returns the prototype to use for string objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -161,7 +162,7 @@ pub trait VirtualMachineMethods {
 
     /// Returns the prototype to use for array objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -172,7 +173,7 @@ pub trait VirtualMachineMethods {
 
     /// Gets the prototype to use for thread objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -183,7 +184,7 @@ pub trait VirtualMachineMethods {
 
     /// Gets the prototype to use for true objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -194,7 +195,7 @@ pub trait VirtualMachineMethods {
 
     /// Gets the prototype to use for false objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -205,7 +206,7 @@ pub trait VirtualMachineMethods {
 
     /// Gets the prototype to use for method objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -216,7 +217,7 @@ pub trait VirtualMachineMethods {
 
     /// Gets the prototype to use for compiled code objects.
     ///
-    /// This instruction requires one argument: the register slot to store the
+    /// This instruction requires one argument: the register to store the
     /// prototype in.
     ///
     /// # Examples
@@ -225,9 +226,9 @@ pub trait VirtualMachineMethods {
     fn ins_get_compiled_code_prototype(&self, RcThread, RcCompiledCode,
                                        &Instruction) -> EmptyResult;
 
-    /// Sets a "true" value in a register slot.
+    /// Sets a "true" value in a register.
     ///
-    /// This instruction requires only one argument: the slot index to store the
+    /// This instruction requires only one argument: the register to store the
     /// object in.
     ///
     /// # Examples
@@ -236,9 +237,9 @@ pub trait VirtualMachineMethods {
     fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets a "false" value in a register slot.
+    /// Sets a "false" value in a register.
     ///
-    /// This instruction requires only one argument: the slot index to store the
+    /// This instruction requires only one argument: the register to store the
     /// object in.
     ///
     /// # Examples
@@ -247,12 +248,12 @@ pub trait VirtualMachineMethods {
     fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets a local variable to a given slot's value.
+    /// Sets a local variable to a given register's value.
     ///
     /// This instruction requires two arguments:
     ///
     /// 1. The local variable index to set.
-    /// 2. The slot index containing the object to store in the variable.
+    /// 2. The register containing the object to store in the variable.
     ///
     /// # Examples
     ///
@@ -261,11 +262,11 @@ pub trait VirtualMachineMethods {
     fn ins_set_local(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Gets a local variable and stores it in a register slot.
+    /// Gets a local variable and stores it in a register.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the local's value in.
+    /// 1. The register to store the local's value in.
     /// 2. The local variable index to get the value from.
     ///
     /// # Examples
@@ -280,8 +281,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The slot index pointing to the object to store the constant in.
-    /// 2. The slot index pointing to the object to store.
+    /// 1. The register pointing to the object to store the constant in.
+    /// 2. The register pointing to the object to store.
     /// 3. The string literal index to use for the constant name.
     ///
     /// # Examples
@@ -296,12 +297,12 @@ pub trait VirtualMachineMethods {
     fn ins_set_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Looks up a constant and stores it in a register slot.
+    /// Looks up a constant and stores it in a register.
     ///
     /// This instruction takes 3 arguments:
     ///
-    /// 1. The slot index to store the constant in.
-    /// 2. The slot index pointing to an object in which to look for the
+    /// 1. The register to store the constant in.
+    /// 2. The register pointing to an object in which to look for the
     ///    constant.
     /// 3. The string literal index containing the name of the constant.
     ///
@@ -318,11 +319,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot containing the object for which to set the
+    /// 1. The register containing the object for which to set the
     ///    attribute.
-    /// 2. The register slot containing the object to set as the attribute
+    /// 2. The register containing the object to set as the attribute
     ///    value.
-    /// 3. The register slot containing a String to use for the attribute name.
+    /// 3. The register containing a String to use for the attribute name.
     ///
     /// # Examples
     ///
@@ -336,14 +337,14 @@ pub trait VirtualMachineMethods {
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Gets an attribute from an object and stores it in a register slot.
+    /// Gets an attribute from an object and stores it in a register.
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the attribute's value in.
-    /// 2. The register slot containing the object from which to retrieve the
+    /// 1. The register to store the attribute's value in.
+    /// 2. The register containing the object from which to retrieve the
     ///    attribute.
-    /// 3. The register slot containing a String to use for the attribute name.
+    /// 3. The register containing a String to use for the attribute name.
     ///
     /// # Examples
     ///
@@ -358,11 +359,11 @@ pub trait VirtualMachineMethods {
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets a CompiledCode object in a register slot.
+    /// Sets a CompiledCode object in a register.
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the object in.
+    /// 1. The register to store the object in.
     /// 2. The index of the compiled code object to store.
     ///
     /// # Examples:
@@ -378,8 +379,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires at least 4 arguments:
     ///
-    /// 1. The slot index to store the result in.
-    /// 2. The slot index of the receiver.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
     /// 3. The index of the string literal to use for the method name.
     /// 4. A boolean (1 or 0) indicating if private methods can be called.
     /// 5. The amount of arguments to pass (0 or more).
@@ -408,15 +409,15 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction takes the same arguments as the "send" instruction
     /// except instead of the 3rd argument pointing to a string literal it
-    /// should point to a register slot containing a string.
+    /// should point to a register containing a string.
     fn ins_send_dynamic(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
-    /// Returns the value in the given register slot.
+    /// Returns the value in the given register.
     ///
-    /// As register slots can be left empty this method returns an Option
+    /// As registers can be left empty this method returns an Option
     /// instead of returning an Object directly.
     ///
-    /// This instruction takes a single argument: the slot index containing the
+    /// This instruction takes a single argument: the register containing the
     /// value to return.
     ///
     /// # Examples
@@ -429,12 +430,12 @@ pub trait VirtualMachineMethods {
     fn ins_return(&self, RcThread, RcCompiledCode, &Instruction)
         -> OptionObjectResult;
 
-    /// Jumps to an instruction if a slot is not set or set to false.
+    /// Jumps to an instruction if a register is not set or set to false.
     ///
     /// This instruction takes two arguments:
     ///
-    /// 1. The instruction index to jump to if a slot is not set.
-    /// 2. The slot index to check.
+    /// 1. The instruction index to jump to if a register is not set.
+    /// 2. The register to check.
     ///
     /// # Examples
     ///
@@ -446,16 +447,16 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer   0, 0
     ///     2: set_integer   0, 1
     ///
-    /// Here slot "0" would be set to "20".
+    /// Here register "0" would be set to "20".
     fn ins_goto_if_false(&self, RcThread, RcCompiledCode, &Instruction)
         -> OptionIntegerResult;
 
-    /// Jumps to an instruction if a slot is set.
+    /// Jumps to an instruction if a register is set.
     ///
     /// This instruction takes two arguments:
     ///
-    /// 1. The instruction index to jump to if a slot is set.
-    /// 2. The slot index to check.
+    /// 1. The instruction index to jump to if a register is set.
+    /// 2. The register to check.
     ///
     /// # Examples
     ///
@@ -467,7 +468,7 @@ pub trait VirtualMachineMethods {
     ///     1: goto_if_true 3, 0
     ///     2: set_integer  0, 1
     ///
-    /// Here slot "0" would be set to "10".
+    /// Here register "0" would be set to "10".
     fn ins_goto_if_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> OptionIntegerResult;
 
@@ -485,17 +486,17 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer 0, 0
     ///     2: set_integer 0, 1
     ///
-    /// Here slot 0 would be set to 20.
+    /// Here register 0 would be set to 20.
     fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction) -> IntegerResult;
 
     /// Defines a method for an object.
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot pointing to a specific object to define the method
+    /// 1. The register pointing to a specific object to define the method
     ///    on.
-    /// 2. The register slot containing a String to use as the method name.
-    /// 3. The register slot containing the CompiledCode object to use for the
+    /// 2. The register containing a String to use as the method name.
+    /// 3. The register containing the CompiledCode object to use for the
     ///    method.
     fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
@@ -510,7 +511,7 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot pointing to the object to define the method on.
+    /// 1. The register pointing to the object to define the method on.
     /// 2. The string literal index to use for the method name.
     /// 3. The code object index to use for the method's CompiledCode object.
     fn ins_def_literal_method(&self, RcThread, RcCompiledCode, &Instruction)
@@ -520,19 +521,20 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction takes at least 3 arguments:
     ///
-    /// 1. The register slot to store the return value in.
-    /// 2. The register slot containing the CompiledCode object to run.
-    /// 3. The register slot containing the amount of arguments to pass.
+    /// 1. The register to store the return value in.
+    /// 2. The register containing the CompiledCode object to run.
+    /// 3. The register containing the amount of arguments to pass.
     ///
     /// If the amount of arguments is greater than 0 any following arguments are
-    /// used as register slots for retrieving the arguments to pass to the
+    /// used as registers for retrieving the arguments to pass to the
     /// CompiledCode.
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the top-level object in a register slot.
+    /// Sets the top-level object in a register.
     ///
-    /// This instruction requires one argument: the slot to store the object in.
+    /// This instruction requires one argument: the register to store the object
+    /// in.
     ///
     /// # Examples
     ///
@@ -540,9 +542,10 @@ pub trait VirtualMachineMethods {
     fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the object "self" refers to in a register slot.
+    /// Sets the object "self" refers to in a register.
     ///
-    /// This instruction requires one argument: the slot to store the object in.
+    /// This instruction requires one argument: the register to store the object
+    /// in.
     ///
     /// # Examples
     ///
@@ -554,8 +557,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the boolean result in.
-    /// 2. The register slot of the object to check.
+    /// 1. The register to store the boolean result in.
+    /// 2. The register of the object to check.
     ///
     /// # Examples
     ///
@@ -568,8 +571,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the integer in.
-    /// 2. The register slot containing the error.
+    /// 1. The register to store the integer in.
+    /// 2. The register containing the error.
     ///
     /// # Examples
     ///
@@ -584,9 +587,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the left-hand side object.
-    /// 3. The register slot of the right-hand side object.
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     ///
     /// # Examples
     ///
@@ -604,9 +607,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the left-hand side object.
-    /// 3. The register slot of the right-hand side object.
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     ///
     /// # Examples
     ///
@@ -624,9 +627,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the left-hand side object.
-    /// 3. The register slot of the right-hand side object.
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     ///
     /// # Examples
     ///
@@ -644,9 +647,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the left-hand side object.
-    /// 3. The register slot of the right-hand side object.
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     ///
     /// # Examples
     ///
@@ -664,9 +667,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the left-hand side object.
-    /// 3. The register slot of the right-hand side object.
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     ///
     /// # Examples
     ///
@@ -684,8 +687,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to convert.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to convert.
     ///
     /// # Examples
     ///
@@ -701,8 +704,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to convert.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to convert.
     ///
     /// # Examples
     ///
@@ -718,9 +721,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to operate on.
-    /// 3. The register slot of the integer to use as the operand.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     ///
     /// # Examples
     ///
@@ -738,9 +741,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to operate on.
-    /// 3. The register slot of the integer to use as the operand.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     ///
     /// # Examples
     ///
@@ -758,9 +761,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to operate on.
-    /// 3. The register slot of the integer to use as the operand.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     ///
     /// # Examples
     ///
@@ -778,9 +781,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to operate on.
-    /// 3. The register slot of the integer to use as the operand.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     ///
     /// # Examples
     ///
@@ -798,9 +801,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the integer to operate on.
-    /// 3. The register slot of the integer to use as the operand.
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     ///
     /// # Examples
     ///
@@ -818,9 +821,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the integer to compare.
-    /// 3. The register slot containing the integer to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -840,9 +843,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the integer to compare.
-    /// 3. The register slot containing the integer to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -862,9 +865,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the integer to compare.
-    /// 3. The register slot containing the integer to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -884,7 +887,7 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the thread object in.
+    /// 1. The register to store the thread object in.
     /// 2. A code objects index pointing to the CompiledCode object to run.
     ///
     /// # Examples
@@ -901,9 +904,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the receiver.
-    /// 3. The register slot of the float to add.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to add.
     ///
     /// # Examples
     ///
@@ -921,9 +924,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the receiver.
-    /// 3. The register slot of the float to multiply with.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to multiply with.
     ///
     /// # Examples
     ///
@@ -941,9 +944,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the receiver.
-    /// 3. The register slot of the float to divide with.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to divide with.
     ///
     /// # Examples
     ///
@@ -961,9 +964,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the receiver.
-    /// 3. The register slot of the float to subtract.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to subtract.
     ///
     /// # Examples
     ///
@@ -981,9 +984,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the receiver.
-    /// 3. The register slot of the float argument.
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float argument.
     ///
     /// # Examples
     ///
@@ -1001,8 +1004,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the float to convert.
+    /// 1. The register to store the result in.
+    /// 2. The register of the float to convert.
     ///
     /// # Examples
     ///
@@ -1018,8 +1021,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the float to convert.
+    /// 1. The register to store the result in.
+    /// 2. The register of the float to convert.
     ///
     /// # Examples
     ///
@@ -1035,9 +1038,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the float to compare.
-    /// 3. The register slot containing the float to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -1057,9 +1060,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the float to compare.
-    /// 3. The register slot containing the float to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -1079,9 +1082,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the float to compare.
-    /// 3. The register slot containing the float to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
     ///
     /// The result of this instruction is either boolean true or false.
     ///
@@ -1101,9 +1104,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot containing the array to insert into.
+    /// 1. The register containing the array to insert into.
     /// 2. The index to insert the value at.
-    /// 3. The register slot containing the value to insert.
+    /// 3. The register containing the value to insert.
     ///
     /// An error is returned when the index is greater than the array length.
     ///
@@ -1122,8 +1125,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the value in.
-    /// 2. The register slot containing the array.
+    /// 1. The register to store the value in.
+    /// 2. The register containing the array.
     /// 3. The array index to get the value from.
     ///
     /// An error is returned when the index is greater than the array length.
@@ -1144,8 +1147,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the removed value in.
-    /// 2. The register slot containing the array to remove a value from.
+    /// 1. The register to store the removed value in.
+    /// 2. The register containing the array to remove a value from.
     /// 3. The index of the value to remove.
     ///
     /// An error is returned when the index is greater than the array length.
@@ -1166,8 +1169,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the length in.
-    /// 2. The register slot containing the array.
+    /// 1. The register to store the length in.
+    /// 2. The register containing the array.
     ///
     /// # Examples
     ///
@@ -1178,7 +1181,7 @@ pub trait VirtualMachineMethods {
 
     /// Removes all elements from an array.
     ///
-    /// This instruction requires 1 argument: the register slot of the array.
+    /// This instruction requires 1 argument: the register of the array.
     ///
     /// # Examples
     ///
@@ -1196,8 +1199,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the new string in.
-    /// 2. The register slot containing the input string.
+    /// 1. The register to store the new string in.
+    /// 2. The register containing the input string.
     ///
     /// # Examples
     ///
@@ -1213,8 +1216,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the new string in.
-    /// 2. The register slot containing the input string.
+    /// 1. The register to store the new string in.
+    /// 2. The register containing the input string.
     ///
     /// # Examples
     ///
@@ -1230,9 +1233,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the string to compare.
-    /// 3. The register slot of the string to compare with.
+    /// 1. The register to store the result in.
+    /// 2. The register of the string to compare.
+    /// 3. The register of the string to compare with.
     ///
     /// # Examples
     ///
@@ -1250,8 +1253,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the string to get the bytes from.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the string to get the bytes from.
     ///
     /// # Examples
     ///
@@ -1267,8 +1270,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot containing the array of bytes.
+    /// 1. The register to store the result in.
+    /// 2. The register containing the array of bytes.
     ///
     /// The result of this instruction is either a string based on the given
     /// bytes, or an error object.
@@ -1296,8 +1299,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the string.
+    /// 1. The register to store the result in.
+    /// 2. The register of the string.
     ///
     /// # Examples
     ///
@@ -1313,8 +1316,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. The register slot of the string.
+    /// 1. The register to store the result in.
+    /// 2. The register of the string.
     ///
     /// # Examples
     ///
@@ -1330,8 +1333,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the string to write.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the string to write.
     ///
     /// The result of this instruction is either an integer indicating the
     /// amount of bytes written, or an error object.
@@ -1350,8 +1353,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the string to write.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the string to write.
     ///
     /// The result of this instruction is either an integer indicating the
     /// amount of bytes written, or an error object.
@@ -1370,8 +1373,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the amount of bytes to read.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the amount of bytes to read.
     ///
     /// The result of this instruction is either a string containing the data
     /// read, or an error object.
@@ -1388,7 +1391,7 @@ pub trait VirtualMachineMethods {
 
     /// Reads an entire line from STDIN into a string.
     ///
-    /// This instruction requires 1 argument: the register slot to store the
+    /// This instruction requires 1 argument: the register to store the
     /// resulting object in.
     ///
     /// The result of this instruction is either a string containing the read
@@ -1404,9 +1407,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires X arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
+    /// 1. The register to store the resulting object in.
     /// 2. The path to the file to open.
-    /// 3. The register slot containing a string describing the mode to open the
+    /// 3. The register containing a string describing the mode to open the
     ///    file in.
     ///
     /// The result of this instruction is either a file object or an error
@@ -1441,9 +1444,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the amount of written bytes in.
-    /// 2. The register slot containing the file object to write to.
-    /// 3. The register slot containing the string to write.
+    /// 1. The register to store the amount of written bytes in.
+    /// 2. The register containing the file object to write to.
+    /// 3. The register containing the string to write.
     ///
     /// The result of this instruction is either the amount of written bytes or
     /// an error object.
@@ -1467,9 +1470,9 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction takes 3 arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the file to read from.
-    /// 3. The register slot containing the amount of bytes to read, if left out
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file to read from.
+    /// 3. The register containing the amount of bytes to read, if left out
     ///    all data is read instead.
     ///
     /// The result of this instruction is either a string containing the data
@@ -1496,8 +1499,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the file to read from.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file to read from.
     ///
     /// The result of this instruction is either a string containing the read
     /// line, or an error object.
@@ -1519,8 +1522,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the result in.
-    /// 2. the register slot containing the file to flush.
+    /// 1. The register to store the result in.
+    /// 2. the register containing the file to flush.
     ///
     /// The resulting object is either boolean true (upon success), or an error
     /// object.
@@ -1545,8 +1548,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires two arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the file.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file.
     ///
     /// The resulting object is either an integer representing the amount of
     /// bytes, or an error object.
@@ -1568,8 +1571,8 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
-    /// 2. The register slot containing the input file.
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the input file.
     /// 3. The offset to seek to as an integer.
     ///
     /// The resulting object is either an integer representing the new cursor
@@ -1599,7 +1602,7 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register slot to store the resulting object in.
+    /// 1. The register to store the resulting object in.
     /// 2. The string literal index containing the file path of the bytecode
     ///    file.
     ///
@@ -1617,7 +1620,7 @@ pub trait VirtualMachineMethods {
     /// Parses and runs a given bytecode file using a runtime allocated string
     ///
     /// This instruction takes the same arguments as the "run_file" instruction
-    /// except instead of using a string literal it uses a register slot
+    /// except instead of using a string literal it uses a register
     /// containing a runtime allocated string.
     fn ins_run_file_dynamic(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;

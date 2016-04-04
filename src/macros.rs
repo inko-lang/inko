@@ -137,30 +137,30 @@ macro_rules! file_reading_buffer {
     );
 }
 
-/// Sets an error in a register slot and returns control to the caller.
+/// Sets an error in a register and returns control to the caller.
 macro_rules! set_error {
-    ($code: expr, $vm: expr, $thread: expr, $slot: expr) => ({
-        $thread.set_register($slot, $vm.allocate_error($code));
+    ($code: expr, $vm: expr, $thread: expr, $register: expr) => ({
+        $thread.set_register($register, $vm.allocate_error($code));
 
         return Ok(());
     });
 }
 
-/// Returns a Result's OK value or stores the error in a register slot.
+/// Returns a Result's OK value or stores the error in a register.
 macro_rules! try_error {
-    ($expr: expr, $vm: expr, $thread: expr, $slot: expr) => (
+    ($expr: expr, $vm: expr, $thread: expr, $register: expr) => (
         match $expr {
             Ok(val)   => val,
-            Err(code) => set_error!(code, $vm, $thread, $slot)
+            Err(code) => set_error!(code, $vm, $thread, $register)
         }
     );
 }
 
-/// Returns a Result's OK value or stores an IO error in a register slot.
+/// Returns a Result's OK value or stores an IO error in a register.
 macro_rules! try_io {
-    ($expr: expr, $vm: expr, $thread: expr, $slot: expr) => (
+    ($expr: expr, $vm: expr, $thread: expr, $register: expr) => (
         try_error!($expr.map_err(|err| errors::from_io_error(err)),
-                   $vm, $thread, $slot)
+                   $vm, $thread, $register)
     );
 }
 
