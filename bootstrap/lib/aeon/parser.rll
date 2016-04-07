@@ -457,19 +457,48 @@ boolean
 def
   = def_start def_name type_args? def_args_start? return_type? def_body?
     {
-      name = val[1][1]
+      vis, vis_tok = val[0]
+      rec, name = val[1]
 
       if val[5]
-        s(:def, name, val[0], val[2], val[3], val[4], val[5], location: name)
+        s(:def, rec, name, vis, val[2], val[3], val[4], val[5], location: vis_tok)
       else
-        s(:rdef, name, val[0], val[2], val[3], val[4], location: name)
+        s(:rdef, rec, name, vis, val[2], val[3], val[4], location: vis_tok)
       end
     }
   ;
 
 def_name
-  = identifier_or_constant
+  = qname_or_self def_name_follow?
+    {
+      if val[1]
+        val
+      else
+        [nil, val[0].children[1]]
+      end
+    }
   | def_name_op { [nil, val[0]] }
+  ;
+
+qname_or_self
+  = qname
+  | self
+  ;
+
+def_name_follow
+  = Dot qname_or_def_name_op
+    {
+      if val[1].is_a?(Node)
+        val[1].children[1]
+      else
+        val[1]
+      end
+    }
+  ;
+
+qname_or_def_name_op
+  = qname
+  | def_name_op
   ;
 
 def_name_op
@@ -498,8 +527,8 @@ def_body
   ;
 
 def_start
-  = Public Def { :public }
-  | Def        { :private }
+  = Public Def { [:public, val[0]] }
+  | Def        { [:private, val[0]] }
   ;
 
 def_args_start
