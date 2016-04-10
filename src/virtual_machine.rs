@@ -2213,6 +2213,8 @@ mod tests {
     use call_frame::CallFrame;
     use compiled_code::CompiledCode;
     use instruction::{Instruction, InstructionType};
+    use object::Object;
+    use object_value;
     use thread::Thread;
 
     macro_rules! compiled_code {
@@ -2222,9 +2224,11 @@ mod tests {
     }
 
     macro_rules! call_frame {
-        () => (
-            CallFrame::new("foo".to_string(), "foo".to_string(), 1)
-        );
+        () => ({
+            let self_obj = Object::new(1, object_value::none());
+
+            CallFrame::new("foo".to_string(), "foo".to_string(), 1, self_obj)
+        });
     }
 
     macro_rules! instruction {
