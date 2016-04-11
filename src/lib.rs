@@ -1,7 +1,6 @@
 pub mod bytecode_parser;
 pub mod call_frame;
 pub mod compiled_code;
-pub mod constant_cache;
 pub mod errors;
 pub mod heap;
 pub mod instruction;
