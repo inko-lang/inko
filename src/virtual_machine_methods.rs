@@ -1,3 +1,4 @@
+use binding::RcBinding;
 use compiled_code::RcCompiledCode;
 use instruction::Instruction;
 use object::RcObject;
@@ -215,6 +216,17 @@ pub trait VirtualMachineMethods {
     fn ins_get_method_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the prototype to use for Binding objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
+    ///
+    /// # Examples
+    ///
+    ///     0: get_binding_prototype 0
+    fn ins_get_binding_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Gets the prototype to use for compiled code objects.
     ///
     /// This instruction requires one argument: the register to store the
@@ -246,6 +258,17 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_false 1
     fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Gets the Binding of the current scope and sets it in a register
+    ///
+    /// This instruction requires only one argument: the register to store the
+    /// object in.
+    ///
+    /// # Examples
+    ///
+    ///     0: get_binding 0
+    fn ins_get_binding(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a local variable to a given register's value.
@@ -519,15 +542,15 @@ pub trait VirtualMachineMethods {
 
     /// Runs a CompiledCode.
     ///
-    /// This instruction takes at least 3 arguments:
+    /// This instruction takes the following arguments:
     ///
     /// 1. The register to store the return value in.
     /// 2. The register containing the CompiledCode object to run.
     /// 3. The register containing the amount of arguments to pass.
-    ///
-    /// If the amount of arguments is greater than 0 any following arguments are
-    /// used as registers for retrieving the arguments to pass to the
-    /// CompiledCode.
+    /// 4. The arguments to pass when the argument count is greater than 0, each
+    ///    as a separate argument.
+    /// 5. The Binding to use, if any. Omitting this argument results in a
+    ///    Binding being created automatically.
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -1629,8 +1652,8 @@ pub trait VirtualMachineMethods {
     fn error(&self, RcThread, String);
 
     /// Runs a given CompiledCode with arguments.
-    fn run_code(&self, RcThread, RcCompiledCode, RcObject, Vec<RcObject>)
-        -> OptionObjectResult;
+    fn run_code(&self, RcThread, RcCompiledCode, RcObject, Vec<RcObject>,
+                Option<RcBinding>) -> OptionObjectResult;
 
     /// Runs a bytecode file.
     fn run_file(&self, &String, RcThread, usize) -> EmptyResult;

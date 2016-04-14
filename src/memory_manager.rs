@@ -40,6 +40,7 @@ pub struct MemoryManager {
     pub file_prototype: RcObject,
     pub method_prototype: RcObject,
     pub compiled_code_prototype: RcObject,
+    pub binding_prototype: RcObject,
 
     // These are not allocated on any specific heap as they'll never be garbage
     // collected. This also makes retrieving these objects trivial (instead of
@@ -70,9 +71,10 @@ impl MemoryManager {
         let file_proto    = empty_pinned_object(8);
         let method_proto  = empty_pinned_object(9);
         let cc_proto      = empty_pinned_object(10);
+        let binding_proto = empty_pinned_object(11);
 
-        let true_obj  = empty_pinned_object(11);
-        let false_obj = empty_pinned_object(12);
+        let true_obj  = empty_pinned_object(12);
+        let false_obj = empty_pinned_object(13);
 
         {
             let mut true_writer  = write_lock!(true_obj);
@@ -85,7 +87,7 @@ impl MemoryManager {
         }
 
         let manager = MemoryManager {
-            object_id: 11,
+            object_id: 13,
             top_level: top_level,
             young_heap: Heap::new(),
             mature_heap: Heap::new(),
@@ -99,6 +101,7 @@ impl MemoryManager {
             file_prototype: file_proto,
             method_prototype: method_proto,
             compiled_code_prototype: cc_proto,
+            binding_prototype: binding_proto,
             true_object: true_obj,
             false_object: false_obj
         };
@@ -179,6 +182,10 @@ impl MemoryManager {
 
     pub fn compiled_code_prototype(&self) -> RcObject {
         self.compiled_code_prototype.clone()
+    }
+
+    pub fn binding_prototype(&self) -> RcObject {
+        self.binding_prototype.clone()
     }
 
     pub fn true_object(&self) -> RcObject {

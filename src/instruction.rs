@@ -94,7 +94,9 @@ pub enum InstructionType {
     RunFile                  = 84,
     RunFileDynamic           = 85,
     SendDynamic              = 86,
-    GetSelf                  = 87
+    GetSelf                  = 87,
+    GetBindingPrototype      = 88,
+    GetBinding               = 89
 }
 
 /// Struct for storing information about a single instruction.

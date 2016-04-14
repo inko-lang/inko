@@ -12,6 +12,7 @@ use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
+use binding::RcBinding;
 use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
@@ -93,6 +94,10 @@ impl VirtualMachine {
 
     fn method_prototype(&self) -> RcObject {
         read_lock!(self.memory_manager).method_prototype()
+    }
+
+    fn binding_prototype(&self) -> RcObject {
+        read_lock!(self.memory_manager).binding_prototype()
     }
 
     fn compiled_code_prototype(&self) -> RcObject {
@@ -229,11 +234,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_get_compiled_code_prototype, thread, code,
                          instruction);
                 },
+                InstructionType::GetBindingPrototype => {
+                    run!(self, ins_get_binding_prototype, thread, code,
+                         instruction);
+                },
                 InstructionType::SetTrue => {
                     run!(self, ins_set_true, thread, code, instruction);
                 },
                 InstructionType::SetFalse => {
                     run!(self, ins_set_false, thread, code, instruction);
+                },
+                InstructionType::GetBinding => {
+                    run!(self, ins_get_binding, thread, code, instruction);
                 },
                 InstructionType::SetLocal => {
                     run!(self, ins_set_local, thread, code, instruction);
@@ -631,6 +643,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    fn ins_get_binding_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                                 instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+
+        thread.set_register(register, self.binding_prototype());
+
+        Ok(())
+    }
+
     fn ins_get_compiled_code_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
@@ -654,6 +675,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try!(instruction.arg(0));
 
         thread.set_register(register, self.false_object());
+
+        Ok(())
+    }
+
+    fn ins_get_binding(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let frame    = read_lock!(thread.call_frame);
+
+        let obj = self.allocate(object_value::binding(frame.binding.clone()),
+                                self.binding_prototype());
+
+        thread.set_register(register, obj);
 
         Ok(())
     }
@@ -900,8 +934,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 3, arg_count)
         );
 
+        let bidx = 3 + arg_count;
+
+        let binding = if let Some(obj) = thread.get_register_option(bidx) {
+            let lock = read_lock!(obj);
+
+            if !lock.value.is_binding() {
+                return Err(format!("Argument {} is not a valid Binding", bidx));
+            }
+
+            Some(lock.value.as_binding())
+        }
+        else {
+            None
+        };
+
         let retval = try!(
-            self.run_code(thread.clone(), code_obj, cc_lock.clone(), arguments)
+            self.run_code(thread.clone(), code_obj, cc_lock.clone(), arguments,
+                          binding)
         );
 
         if retval.is_some() {
@@ -2026,12 +2076,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
         stderr.flush().unwrap();
     }
 
-    fn run_code(&self, thread: RcThread, code: RcCompiledCode,
-                self_obj: RcObject, args: Vec<RcObject>) -> OptionObjectResult {
+    fn run_code(&self,
+                thread: RcThread,
+                code: RcCompiledCode,
+                self_obj: RcObject,
+                args: Vec<RcObject>,
+                binding: Option<RcBinding>) -> OptionObjectResult {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            let frame = CallFrame::from_code(code.clone(), self_obj);
+            let frame = if let Some(rc_bind) = binding {
+                CallFrame::from_code_with_binding(code.clone(), rc_bind)
+            }
+            else {
+                CallFrame::from_code(code.clone(), self_obj)
+            };
 
             thread.push_call_frame(frame);
 
@@ -2087,7 +2146,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 let self_obj = self.top_level_object();
                 let args     = Vec::new();
 
-                let res = try!(self.run_code(thread.clone(), body, self_obj, args));
+                let res = try!(
+                    self.run_code(thread.clone(), body, self_obj, args, None)
+                );
 
                 if res.is_some() {
                     thread.set_register(register, res.unwrap());
@@ -2140,7 +2201,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let retval = try!(
             self.run_code(thread.clone(), method_code, receiver_lock.clone(),
-                          arguments)
+                          arguments, None)
         );
 
         if retval.is_some() {

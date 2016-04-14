@@ -1,4 +1,6 @@
 use std::fs;
+
+use binding::RcBinding;
 use object::RcObject;
 use thread::RcThread;
 use compiled_code::RcCompiledCode;
@@ -13,7 +15,8 @@ pub enum ObjectValue {
     Thread(RcThread),
     File(Box<fs::File>),
     Error(u16),
-    CompiledCode(RcCompiledCode)
+    CompiledCode(RcCompiledCode),
+    Binding(RcBinding)
 }
 
 impl ObjectValue {
@@ -63,6 +66,13 @@ impl ObjectValue {
         match *self {
             ObjectValue::CompiledCode(_) => true,
             _                            => false
+        }
+    }
+
+    pub fn is_binding(&self) -> bool {
+        match *self {
+            ObjectValue::Binding(_) => true,
+            _                       => false
         }
     }
 
@@ -135,6 +145,13 @@ impl ObjectValue {
             _ => panic!("ObjectValue::as_compiled_code() called on a non compiled code object")
         }
     }
+
+    pub fn as_binding(&self) -> RcBinding {
+        match *self {
+            ObjectValue::Binding(ref val) => val.clone(),
+            _ => panic!("ObjectValue::as_binding() called non a non Binding")
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -171,4 +188,8 @@ pub fn error(value: u16) -> ObjectValue {
 
 pub fn compiled_code(value: RcCompiledCode) -> ObjectValue {
     ObjectValue::CompiledCode(value)
+}
+
+pub fn binding(value: RcBinding) -> ObjectValue {
+    ObjectValue::Binding(value)
 }

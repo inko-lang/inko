@@ -39,21 +39,30 @@ impl CallFrame {
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
     pub fn new(name: String, file: String, line: u32, self_obj: RcObject) -> CallFrame {
-        let frame = CallFrame {
+        CallFrame {
             name: name,
             file: file,
             line: line,
             parent: None,
             register: Register::new(),
             binding: Binding::new(self_obj)
-        };
-
-        frame
+        }
     }
 
     /// Creates a new CallFrame from a CompiledCode
     pub fn from_code(code: RcCompiledCode, self_obj: RcObject) -> CallFrame {
         CallFrame::new(code.name.clone(), code.file.clone(), code.line, self_obj)
+    }
+
+    pub fn from_code_with_binding(code: RcCompiledCode, binding: RcBinding) -> CallFrame {
+        CallFrame {
+            name: code.name.clone(),
+            file: code.file.clone(),
+            line: code.line,
+            parent: None,
+            register: Register::new(),
+            binding: binding
+        }
     }
 
     /// Boxes and sets the current frame's parent.
