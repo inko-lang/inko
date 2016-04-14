@@ -8,7 +8,6 @@
 use compiled_code::RcCompiledCode;
 use object::RcObject;
 use register::Register;
-use variable_scope::VariableScope;
 
 /// Structure for storing call frame data.
 pub struct CallFrame {
@@ -28,7 +27,7 @@ pub struct CallFrame {
     pub register: Register,
 
     /// Storage for local variables.
-    pub variables: VariableScope,
+    pub variables: Vec<RcObject>,
 
     /// The object "self" refers to in this call frame.
     pub self_object: RcObject
@@ -49,7 +48,7 @@ impl CallFrame {
             line: line,
             parent: None,
             register: Register::new(),
-            variables: VariableScope::new(),
+            variables: Vec::new(),
             self_object: self_obj
         };
 

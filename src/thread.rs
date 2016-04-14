@@ -116,7 +116,7 @@ impl Thread {
     pub fn add_local(&self, value: RcObject) {
         let mut frame = write_lock!(self.call_frame);
 
-        frame.variables.add(value);
+        frame.variables.push(value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<RcObject, String> {
@@ -124,6 +124,7 @@ impl Thread {
 
         frame.variables
             .get(index)
+            .cloned()
             .ok_or(format!("undefined local variable index {}", index))
     }
 }
