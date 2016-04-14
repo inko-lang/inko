@@ -245,8 +245,8 @@ pub trait VirtualMachineMethods {
     ///
     /// # Examples
     ///
-    ///     0: set_true 1
-    fn ins_set_true(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_true 1
+    fn ins_get_true(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a "false" value in a register.
@@ -256,8 +256,8 @@ pub trait VirtualMachineMethods {
     ///
     /// # Examples
     ///
-    ///     0: set_false 1
-    fn ins_set_false(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: get_false 1
+    fn ins_get_false(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the Binding of the current scope and sets it in a register

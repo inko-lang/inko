@@ -238,11 +238,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_get_binding_prototype, thread, code,
                          instruction);
                 },
-                InstructionType::SetTrue => {
-                    run!(self, ins_set_true, thread, code, instruction);
+                InstructionType::GetTrue => {
+                    run!(self, ins_get_true, thread, code, instruction);
                 },
-                InstructionType::SetFalse => {
-                    run!(self, ins_set_false, thread, code, instruction);
+                InstructionType::GetFalse => {
+                    run!(self, ins_get_false, thread, code, instruction);
                 },
                 InstructionType::GetBinding => {
                     run!(self, ins_get_binding, thread, code, instruction);
@@ -661,7 +661,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_true(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_true(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
@@ -670,7 +670,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_false(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_false(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
