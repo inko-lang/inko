@@ -108,21 +108,24 @@ impl Thread {
     }
 
     pub fn set_local(&self, index: usize, value: RcObject) {
-        let mut frame = write_lock!(self.call_frame);
+        let frame = write_lock!(self.call_frame);
+        let mut binding = write_lock!(frame.binding);
 
-        frame.variables.insert(index, value);
+        binding.variables.insert(index, value);
     }
 
     pub fn add_local(&self, value: RcObject) {
-        let mut frame = write_lock!(self.call_frame);
+        let frame = write_lock!(self.call_frame);
+        let mut binding = write_lock!(frame.binding);
 
-        frame.variables.push(value);
+        binding.variables.push(value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<RcObject, String> {
-        let frame = read_lock!(self.call_frame);
+        let frame   = read_lock!(self.call_frame);
+        let binding = read_lock!(frame.binding);
 
-        frame.variables
+        binding.variables
             .get(index)
             .cloned()
             .ok_or(format!("undefined local variable index {}", index))

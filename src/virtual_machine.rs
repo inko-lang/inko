@@ -924,7 +924,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        let self_object = read_lock!(thread.call_frame).self_object.clone();
+        let self_object = read_lock!(thread.call_frame).self_object();
 
         thread.set_register(register, self_object);
 

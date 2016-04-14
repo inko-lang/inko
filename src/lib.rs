@@ -1,10 +1,12 @@
+pub mod macros;
+
+pub mod binding;
 pub mod bytecode_parser;
 pub mod call_frame;
 pub mod compiled_code;
 pub mod errors;
 pub mod heap;
 pub mod instruction;
-pub mod macros;
 pub mod memory_manager;
 pub mod object;
 pub mod object_header;

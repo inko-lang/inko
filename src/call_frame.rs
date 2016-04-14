@@ -5,6 +5,7 @@
 //! scope. This makes it easy to remove those values again when unwinding the
 //! call stack: simply remove the CallFrame and everything else is also removed.
 
+use binding::{Binding, RcBinding};
 use compiled_code::RcCompiledCode;
 use object::RcObject;
 use register::Register;
@@ -26,11 +27,7 @@ pub struct CallFrame {
     /// Register for storing temporary values.
     pub register: Register,
 
-    /// Storage for local variables.
-    pub variables: Vec<RcObject>,
-
-    /// The object "self" refers to in this call frame.
-    pub self_object: RcObject
+    pub binding: RcBinding
 }
 
 impl CallFrame {
@@ -48,8 +45,7 @@ impl CallFrame {
             line: line,
             parent: None,
             register: Register::new(),
-            variables: Vec::new(),
-            self_object: self_obj
+            binding: Binding::new(self_obj)
         };
 
         frame
@@ -86,6 +82,10 @@ impl CallFrame {
 
             closure(frame);
         }
+    }
+
+    pub fn self_object(&self) -> RcObject {
+        read_lock!(self.binding).self_object.clone()
     }
 }
 
