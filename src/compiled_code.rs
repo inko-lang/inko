@@ -97,47 +97,6 @@ impl CompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
     }
 
-    /// Adds a new integer literal to the current CompiledCode.
-    ///
-    /// # Examples
-    ///
-    ///     let mut code = CompiledCode::new(...);
-    ///
-    ///     code.add_integer_literal(10);
-    ///
-    pub fn add_integer_literal(&mut self, value: i64) {
-        self.integer_literals.push(value);
-    }
-
-    /// Adds a new float literal to the current CompiledCode.
-    ///
-    /// # Examples
-    ///
-    ///     let mut code = CompiledCode::new(...);
-    ///
-    ///     code.add_float_literal(10.5);
-    ///
-    pub fn add_float_literal(&mut self, value: f64) {
-        self.float_literals.push(value);
-    }
-
-    /// Adds a new string literal to the current CompiledCode.
-    ///
-    /// # Examples
-    ///
-    ///     let mut code = CompiledCode::new(...);
-    ///
-    ///     code.add_string_literal("hello".to_string());
-    ///
-    pub fn add_string_literal(&mut self, value: String) {
-        self.string_literals.push(value);
-    }
-
-    /// Adds a new CompiledCode to the current CompiledCode
-    pub fn add_code_object(&mut self, value: RcCompiledCode) {
-        self.code_objects.push(value);
-    }
-
     /// Returns true for a private CompiledCode
     pub fn is_private(&self) -> bool {
         match self.visibility {
@@ -173,8 +132,6 @@ impl CompiledCode {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use instruction::{Instruction, InstructionType};
 
@@ -193,43 +150,6 @@ mod tests {
         assert_eq!(code.file, "bar.aeon".to_string());
         assert_eq!(code.line, 1);
         assert_eq!(code.instructions.len(), 1);
-    }
-
-    #[test]
-    fn test_add_integer_literal() {
-        let mut code = new_compiled_code();
-
-        code.add_integer_literal(10);
-
-        assert_eq!(code.integer_literals[0], 10);
-    }
-
-    #[test]
-    fn test_add_float_literal() {
-        let mut code = new_compiled_code();
-
-        code.add_float_literal(10.5);
-
-        assert_eq!(code.float_literals[0], 10.5);
-    }
-
-    #[test]
-    fn test_add_string_literal() {
-        let mut code = new_compiled_code();
-
-        code.add_string_literal("foo".to_string());
-
-        assert_eq!(code.string_literals[0], "foo".to_string());
-    }
-
-    #[test]
-    fn test_add_code_object() {
-        let mut code1 = new_compiled_code();
-        let code2     = new_compiled_code();
-
-        code1.add_code_object(Arc::new(code2));
-
-        assert_eq!(code1.code_objects.len(), 1);
     }
 
     #[test]

@@ -2354,7 +2354,7 @@ mod tests {
             vec![instruction!(InstructionType::SetInteger, vec![1, 0])]
         );
 
-        cc.add_integer_literal(10);
+        cc.integer_literals.push(10);
 
         let thread = Thread::new(call_frame!(), None);
         let result = run!(vm, thread, cc);
