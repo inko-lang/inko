@@ -21,7 +21,7 @@ use instruction::Instruction;
 pub type RcCompiledCode = Arc<CompiledCode>;
 
 /// Enum indicating the visibility of a method.
-pub enum MethodVisibility {
+pub enum Visibility {
     Public,
     Private
 }
@@ -40,8 +40,8 @@ pub struct CompiledCode {
     /// The amount of required arguments.
     pub required_arguments: u32,
 
-    /// The method visibility (public or private)
-    pub visibility: MethodVisibility,
+    /// The visibility (public or private)
+    pub visibility: Visibility,
 
     /// List of local variable names.
     pub locals: Vec<String>,
@@ -81,7 +81,7 @@ impl CompiledCode {
             file: file,
             line: line,
             required_arguments: 0,
-            visibility: MethodVisibility::Public,
+            visibility: Visibility::Public,
             locals: Vec::new(),
             instructions: instructions,
             integer_literals: Vec::new(),
@@ -100,7 +100,7 @@ impl CompiledCode {
     /// Returns true for a private CompiledCode
     pub fn is_private(&self) -> bool {
         match self.visibility {
-            MethodVisibility::Private => true,
+            Visibility::Private => true,
             _                         => false
         }
     }
@@ -158,7 +158,7 @@ mod tests {
 
         assert_eq!(code.is_private(), false);
 
-        code.visibility = MethodVisibility::Private;
+        code.visibility = Visibility::Private;
 
         assert!(code.is_private());
     }

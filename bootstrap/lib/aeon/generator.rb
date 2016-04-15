@@ -59,7 +59,7 @@ module Aeon
     end
 
     def compiled_code(code)
-      visibility = code.method_visibility == :public ? 0 : 1
+      visibility = code.visibility == :public ? 0 : 1
 
       string(code.name) +
         string(code.file) +

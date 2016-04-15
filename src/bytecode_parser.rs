@@ -18,7 +18,7 @@ use std::fs::File;
 use std::mem;
 use std::sync::Arc;
 
-use compiled_code::{MethodVisibility, CompiledCode, RcCompiledCode};
+use compiled_code::{Visibility, CompiledCode, RcCompiledCode};
 use instruction::{InstructionType, Instruction};
 
 macro_rules! parser_error {
@@ -247,7 +247,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
     let line     = try!(read_u32(bytes));
     let req_args = try!(read_u32(bytes));
 
-    let meth_vis: MethodVisibility = unsafe {
+    let vis: Visibility = unsafe {
         mem::transmute(try!(read_u8(bytes)))
     };
 
@@ -263,7 +263,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
         file: file,
         line: line,
         required_arguments: req_args,
-        visibility: meth_vis,
+        visibility: vis,
         locals: locals,
         instructions: instructions,
         integer_literals: int_literals,
@@ -277,7 +277,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
 
 #[cfg(test)]
 mod tests {
-    use compiled_code::MethodVisibility;
+    use compiled_code::Visibility;
     use instruction::InstructionType;
     use std::io::prelude::*;
     use std::mem;
@@ -659,8 +659,8 @@ mod tests {
         assert_eq!(object.required_arguments, 2);
 
         match object.visibility {
-            MethodVisibility::Public  => {},
-            MethodVisibility::Private => panic!("expected Public visibility")
+            Visibility::Public  => {},
+            Visibility::Private => panic!("expected Public visibility")
         };
 
         assert_eq!(object.locals.len(), 0);

@@ -1,15 +1,15 @@
 module Aeon
   class CompiledCode
-    attr_reader :name, :file, :line, :required_arguments, :method_visibility,
+    attr_reader :name, :file, :line, :required_arguments, :visibility,
       :integers, :floats, :strings, :code_objects, :register, :locals,
       :instructions
 
-    def initialize(name, file, line, required_arguments = 0, method_visibility = :private)
+    def initialize(name, file, line, required_arguments = 0, visibility = :private)
       @name = name
       @file = file
       @line = line
       @required_arguments = required_arguments
-      @method_visibility = method_visibility
+      @visibility = visibility
 
       @locals = []
       @instructions = []
