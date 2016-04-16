@@ -132,15 +132,11 @@ impl Object {
 
         let opt_header = self.header.as_ref();
 
-        if opt_header.is_none() {
-            return retval;
-        }
-
-        let header = opt_header.unwrap();
-
-        // Method defined directly on the object
-        if header.methods.contains_key(name) {
-            retval = header.methods.get(name).cloned();
+        if let Some(header) = opt_header {
+            // Method defined directly on the object
+            if header.methods.contains_key(name) {
+                retval = header.methods.get(name).cloned();
+            }
         }
 
         // Method defined somewhere in the object hierarchy
@@ -193,14 +189,10 @@ impl Object {
 
         let opt_header = self.header.as_ref();
 
-        if opt_header.is_none() {
-            return retval;
-        }
-
-        let header = opt_header.unwrap();
-
-        if header.constants.contains_key(name) {
-            retval = header.constants.get(name).cloned();
+        if let Some(header) = opt_header {
+            if header.constants.contains_key(name) {
+                retval = header.constants.get(name).cloned();
+            }
         }
 
         // Look up the constant in one of the parents.
