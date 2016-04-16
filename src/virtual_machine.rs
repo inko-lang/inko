@@ -265,6 +265,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetConst => {
                     run!(self, ins_get_const, thread, code, instruction);
                 },
+                InstructionType::LiteralConstExists => {
+                    run!(self, ins_literal_const_exists, thread, code, instruction);
+                },
                 InstructionType::SetLiteralAttr => {
                     run!(self, ins_set_literal_attr, thread, code, instruction);
                 },
@@ -790,6 +793,26 @@ impl VirtualMachineMethods for RcVirtualMachine {
         );
 
         thread.set_register(register, object);
+
+        Ok(())
+    }
+
+    fn ins_literal_const_exists(&self, thread: RcThread, code: RcCompiledCode,
+                                instruction: &Instruction) -> EmptyResult {
+        let register   = try!(instruction.arg(0));
+        let source     = instruction_object!(instruction, thread, 1);
+        let name_index = try!(instruction.arg(2));
+        let name       = try!(code.string(name_index));
+        let source_obj = read_lock!(source);
+
+        let constant = source_obj.lookup_constant(name);
+
+        if constant.is_some() {
+            thread.set_register(register, self.true_object());
+        }
+        else {
+            thread.set_register(register, self.false_object());
+        }
 
         Ok(())
     }

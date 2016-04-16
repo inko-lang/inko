@@ -354,6 +354,24 @@ pub trait VirtualMachineMethods {
     fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Returns true if a constant exists, false otherwise.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the resulting boolean in.
+    /// 2. The register containing the source object to check.
+    /// 3. The string literal index to use as the constant name.
+    ///
+    /// # Examples
+    ///
+    ///     string_literals:
+    ///       0: "Foo"
+    ///
+    ///     0: set_object           0
+    ///     1: literal_const_exists 1, 0, 0
+    fn ins_literal_const_exists(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets an attribute of an object.
     ///
     /// This instruction requires 3 arguments:
