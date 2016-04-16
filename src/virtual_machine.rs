@@ -253,6 +253,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetLocal => {
                     run!(self, ins_get_local, thread, code, instruction);
                 },
+                InstructionType::SetLiteralConst => {
+                    run!(self, ins_set_literal_const, thread, code, instruction);
+                },
                 InstructionType::SetConst => {
                     run!(self, ins_set_const, thread, code, instruction);
                 },
@@ -714,14 +717,31 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_const(&self, thread: RcThread, code: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_set_literal_const(&self, thread: RcThread, code: RcCompiledCode,
+                             instruction: &Instruction) -> EmptyResult {
         let name_index = try!(instruction.arg(2));
         let target     = instruction_object!(instruction, thread, 0);
         let source     = instruction_object!(instruction, thread, 1);
         let name       = try!(code.string(name_index));
 
         write_lock!(target).add_constant(name.clone(), source);
+
+        Ok(())
+    }
+
+    fn ins_set_const(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let target = instruction_object!(instruction, thread, 0);
+        let source = instruction_object!(instruction, thread, 1);
+        let name   = instruction_object!(instruction, thread, 2);
+
+        let name_obj = read_lock!(name);
+
+        ensure_strings!(name_obj);
+
+        let name_str = name_obj.value.as_string().clone();
+
+        write_lock!(target).add_constant(name_str, source);
 
         Ok(())
     }
