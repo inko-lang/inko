@@ -31,7 +31,7 @@ pub enum InstructionType {
     SetAttr                  = 21,
     GetAttr                  = 22,
     SetCompiledCode          = 23,
-    Send                     = 24,
+    SendLiteral              = 24,
     Return                   = 25,
     GotoIfFalse              = 26,
     GotoIfTrue               = 27,
@@ -93,7 +93,7 @@ pub enum InstructionType {
     FileSeek                 = 83,
     RunFile                  = 84,
     RunFileDynamic           = 85,
-    SendDynamic              = 86,
+    Send                     = 86,
     GetSelf                  = 87,
     GetBindingPrototype      = 88,
     GetBinding               = 89

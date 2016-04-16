@@ -269,11 +269,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_set_compiled_code, thread, code,
                          instruction);
                 },
+                InstructionType::SendLiteral => {
+                    run!(self, ins_send_literal, thread, code, instruction);
+                },
                 InstructionType::Send => {
                     run!(self, ins_send, thread, code, instruction);
-                },
-                InstructionType::SendDynamic => {
-                    run!(self, ins_send_dynamic, thread, code, instruction);
                 },
                 InstructionType::Return => {
                     retval = run!(self, ins_return, thread, code, instruction);
@@ -798,15 +798,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_send(&self, thread: RcThread, code: RcCompiledCode,
-                instruction: &Instruction) -> EmptyResult {
+    fn ins_send_literal(&self, thread: RcThread, code: RcCompiledCode,
+                        instruction: &Instruction) -> EmptyResult {
         let name_index = try!(instruction.arg(2));
         let name       = try!(code.string(name_index));
 
         self.send_message(name, thread, instruction)
     }
 
-    fn ins_send_dynamic(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_send(&self, thread: RcThread, _: RcCompiledCode,
                 instruction: &Instruction) -> EmptyResult {
         let lock   = instruction_object!(instruction, thread, 2);
         let string = read_lock!(lock);
@@ -1797,6 +1797,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let result = try_io!(stdout.write(arg.value.as_string().as_bytes()),
                              self, thread, register);
 
+        try_io!(stdout.flush(), self, thread, register);
+
         let obj = self.allocate(object_value::integer(result as i64),
                                 int_proto);
 
@@ -1818,6 +1820,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
                              self, thread, register);
+
+        try_io!(stderr.flush(), self, thread, register);
 
         let obj = self.allocate(object_value::integer(result as i64),
                                 int_proto);

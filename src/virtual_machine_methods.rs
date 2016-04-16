@@ -306,7 +306,7 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register pointing to the object to store the constant in.
     /// 2. The register pointing to the object to store.
-    /// 3. The string literal index to use for the constant name.
+    /// 3. The register containing .
     ///
     /// # Examples
     ///
@@ -426,14 +426,15 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0              # 10
     ///     1: set_integer 1, 1              # 20
     ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
-    fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
+    fn ins_send_literal(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
 
     /// Sends a message using a runtime allocated string
     ///
-    /// This instruction takes the same arguments as the "send" instruction
-    /// except instead of the 3rd argument pointing to a string literal it
-    /// should point to a register containing a string.
-    fn ins_send_dynamic(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
+    /// This instruction takes the same arguments as the "send_literal"
+    /// instruction except instead of the 3rd argument pointing to a string
+    /// literal it should point to a register containing a string.
+    fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Returns the value in the given register.
     ///
