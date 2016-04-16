@@ -354,7 +354,7 @@ pub trait VirtualMachineMethods {
     fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets an attribute value in a specific object.
+    /// Sets an attribute of an object.
     ///
     /// This instruction requires 3 arguments:
     ///
@@ -362,7 +362,7 @@ pub trait VirtualMachineMethods {
     ///    attribute.
     /// 2. The register containing the object to set as the attribute
     ///    value.
-    /// 3. The register containing a String to use for the attribute name.
+    /// 3. The string literal index to use for the name.
     ///
     /// # Examples
     ///
@@ -371,8 +371,15 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_object 1
-    ///     2: set_string 2, 0
-    ///     3: set_attr   3, 0, 2
+    ///     3: set_attr   3, 0, 0
+    fn ins_set_literal_attr(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Sets an attribute of an object using a runtime allocated string.
+    ///
+    /// This instruction takes the same arguments as the "set_literal_attr"
+    /// instruction except the last argument should point to a register
+    /// containing a String to use for the name.
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

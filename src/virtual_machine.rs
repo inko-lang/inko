@@ -265,6 +265,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetConst => {
                     run!(self, ins_get_const, thread, code, instruction);
                 },
+                InstructionType::SetLiteralAttr => {
+                    run!(self, ins_set_literal_attr, thread, code, instruction);
+                },
                 InstructionType::SetAttr => {
                     run!(self, ins_set_attr, thread, code, instruction);
                 },
@@ -784,6 +787,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         );
 
         thread.set_register(register, object);
+
+        Ok(())
+    }
+
+    fn ins_set_literal_attr(&self, thread: RcThread, code: RcCompiledCode,
+                            instruction: &Instruction) -> EmptyResult {
+        let target_object = instruction_object!(instruction, thread, 0);
+        let source_object = instruction_object!(instruction, thread, 1);
+        let name_index    = try!(instruction.arg(2));
+
+        let name = try!(code.string(name_index));
+
+        write_lock!(target_object)
+            .add_attribute(name.clone(), source_object);
 
         Ok(())
     }

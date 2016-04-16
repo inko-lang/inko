@@ -28,7 +28,7 @@ pub enum InstructionType {
     GetLocal                 = 18,
     SetLiteralConst          = 19,
     GetLiteralConst          = 20,
-    SetAttr                  = 21,
+    SetLiteralAttr           = 21,
     GetAttr                  = 22,
     SetCompiledCode          = 23,
     SendLiteral              = 24,
@@ -98,7 +98,8 @@ pub enum InstructionType {
     GetBindingPrototype      = 88,
     GetBinding               = 89,
     SetConst                 = 90,
-    GetConst                 = 91
+    GetConst                 = 91,
+    SetAttr                  = 92
 }
 
 /// Struct for storing information about a single instruction.
