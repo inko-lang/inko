@@ -369,9 +369,9 @@ pub trait VirtualMachineMethods {
     ///     string_literals
     ///       0: "foo"
     ///
-    ///     0: set_object 0
-    ///     1: set_object 1
-    ///     3: set_attr   3, 0, 0
+    ///     0: set_object       0
+    ///     1: set_object       1
+    ///     3: set_literal_attr 3, 0, 0
     fn ins_set_literal_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -390,18 +390,25 @@ pub trait VirtualMachineMethods {
     /// 1. The register to store the attribute's value in.
     /// 2. The register containing the object from which to retrieve the
     ///    attribute.
-    /// 3. The register containing a String to use for the attribute name.
+    /// 3. The string literal index to use for the name.
     ///
     /// # Examples
     ///
     ///     string_literals
     ///       0: "foo"
     ///
-    ///     0: set_object 0
-    ///     1: set_object 1
-    ///     2: set_string 2, 0
-    ///     3: set_attr   0, 1, 2
-    ///     4: get_attr   3, 0, 2
+    ///     0: set_object       0
+    ///     1: set_object       1
+    ///     3: set_literal_attr 0, 1, 0
+    ///     4: get_literal_attr 3, 0, 0
+    fn ins_get_literal_attr(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Gets an object attribute using a runtime allocated string.
+    ///
+    /// This instruction takes the same arguments as the "get_literal_attr"
+    /// instruction except the last argument should point to a register
+    /// containing a String to use for the name.
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
