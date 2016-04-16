@@ -343,6 +343,14 @@ pub trait VirtualMachineMethods {
     ///       0: "Object"
     ///
     ///     0: get_const 0, 0
+    fn ins_get_literal_const(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Looks up a constant using a runtime allocated string.
+    ///
+    /// This instruction requires the same arguments as the "get_literal_const"
+    /// instruction except the last argument should point to a register
+    /// containing a String to use for the name.
     fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

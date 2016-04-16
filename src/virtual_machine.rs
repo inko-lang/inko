@@ -259,6 +259,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::SetConst => {
                     run!(self, ins_set_const, thread, code, instruction);
                 },
+                InstructionType::GetLiteralConst => {
+                    run!(self, ins_get_literal_const, thread, code, instruction);
+                },
                 InstructionType::GetConst => {
                     run!(self, ins_get_const, thread, code, instruction);
                 },
@@ -746,8 +749,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_const(&self, thread: RcThread, code: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_get_literal_const(&self, thread: RcThread, code: RcCompiledCode,
+                             instruction: &Instruction) -> EmptyResult {
         let register   = try!(instruction.arg(0));
         let src        = instruction_object!(instruction, thread, 1);
         let name_index = try!(instruction.arg(2));
@@ -756,6 +759,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let object = try!(
             read_lock!(src).lookup_constant(name)
                 .ok_or(format!("Undefined constant {}", name))
+        );
+
+        thread.set_register(register, object);
+
+        Ok(())
+    }
+
+    fn ins_get_const(&self, thread: RcThread, _: RcCompiledCode,
+                     instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let src      = instruction_object!(instruction, thread, 1);
+        let name     = instruction_object!(instruction, thread, 2);
+
+        let name_obj = read_lock!(name);
+
+        ensure_strings!(name_obj);
+
+        let name_str = name_obj.value.as_string();
+
+        let object = try!(
+            read_lock!(src).lookup_constant(name_str)
+                .ok_or(format!("Undefined constant {}", name_str))
         );
 
         thread.set_register(register, object);
