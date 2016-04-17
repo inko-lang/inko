@@ -1,5 +1,7 @@
 module Aeon
   class Compiler
+    CLASS_PROTOTYPE = '__prototype'
+
     def initialize(source_file)
       @source_file = source_file
     end
@@ -12,6 +14,8 @@ module Aeon
 
       process(ast, code)
 
+      code.resolve_labels
+
       code
     end
 
@@ -23,10 +27,14 @@ module Aeon
       node.children.each do |child|
         process(child, current_cc)
       end
+
+      last_ins = current_cc.instructions.last
+
+      last_ins.arguments[0]
     end
 
     def on_def(node, current_cc)
-      name, vis, _, args, _, body = *node
+      rec, name, vis, _, args, _, body = *node
 
       unless current_cc.strings.include?(name)
         current_cc.strings.add(name)
@@ -39,39 +47,114 @@ module Aeon
       method = CompiledCode.new(name, @source_file, node.line, req_args, vis)
 
       args.children.each do |arg|
-        method.add_local(arg.children[0])
+        method.locals.add(arg.children[0])
       end
 
       process(body, method)
 
-      cc_idx   = current_cc.code_objects.add(method)
-      self_idx = current_cc.next_register
-      name_idx = current_cc.strings.get(name)
+      # Ensure a method always has a return instruction
+      last_ins = method.instructions.last
+
+      unless last_ins.name == :return
+        method
+          .ins_return([last_ins.arguments[0]], last_ins.line, last_ins.column)
+      end
 
       line = node.line
       col  = node.column
 
-      current_cc
-        .add_instruction(:get_self, [self_idx], line, col)
-        .add_instruction(:def_literal_method, [self_idx, name_idx, cc_idx], line, col)
+      # TODO: support explicit receivers properly
+      # TODO: support implicit receivers properly
+      if rec
+        rec_idx = process(rec, current_cc)
+      else
+        rec_idx = current_cc.next_register
+
+        case current_cc.type
+        when :class
+          self_idx  = current_cc.next_register
+          attr_name = current_cc.strings.add(CLASS_PROTOTYPE)
+
+          current_cc
+            .ins_get_self([self_idx], line, col)
+            .ins_get_literal_attr([rec_idx, self_idx, attr_name], line, col)
+        when :enum
+        when :trait
+        # Method defined at the top-level
+        else
+          current_cc.ins_get_self([rec_idx], line, col)
+        end
+      end
+
+      cc_idx   = current_cc.code_objects.add(method)
+      name_idx = current_cc.strings.get(name)
+
+      current_cc.ins_def_literal_method([rec_idx, name_idx, cc_idx], line, col)
 
       cc_idx
     end
 
-    def on_string(node, current_cc)
-      string = node.children[0]
+    def on_class(node, current_cc)
+      name, parent, body = *node
 
-      unless current_cc.strings.include?(string)
-        current_cc.strings.add(string)
+      if name.type == :type
+        name = name.children[0]
       end
 
-      idx = current_cc.strings.get(string)
-      target = current_cc.next_register
+      line = node.line
+      col  = node.column
+
+      if name.children[0]
+        name_source = process(name.children[0], current_cc)
+      else
+        name_source = current_cc.next_register
+
+        current_cc.ins_get_self([name_source], line, col)
+      end
+
+      # TODO: handle explicit/implicit parents
+      if parent
+
+      else
+
+      end
+
+      name_str       = name.children[1]
+      name_idx       = current_cc.strings.add(name_str)
+      proto_name_idx = current_cc.strings.add(CLASS_PROTOTYPE)
+
+      # Look up the constant used for the name.
+      exists_reg = current_cc.next_register
+      target_reg = current_cc.next_register
+      proto_reg  = current_cc.next_register
+
+      current_cc.ins_literal_const_exists([exists_reg, name_source, name_idx],
+                                          line, col)
+
+      jump_to = current_cc.label
 
       current_cc
-        .add_instruction(:set_string, [target, idx], node.line, node.column)
+        .ins_goto_if_true([jump_to, exists_reg], line, col)
+        .ins_set_object([target_reg], line, col)
+        .ins_set_object([proto_reg], line, col)
+        .ins_set_literal_attr([target_reg, proto_reg, proto_name_idx], line, col)
+        .ins_set_literal_const([name_source, target_reg, name_idx], line, col)
+        .ins_get_literal_const([target_reg, name_source, name_idx], line, col)
 
-      target
+      current_cc.mark_label(jump_to)
+
+      body_code = CompiledCode
+        .new(name_str, @source_file, line, 0, :public, :class)
+
+      process(body, body_code)
+
+      body_idx     = current_cc.code_objects.add(body_code)
+      body_ret_idx = current_cc.next_register
+
+      current_cc
+        .ins_run_literal_code([body_ret_idx, body_idx, target_reg], line, col)
+
+      target_reg
     end
 
     def on_send(node, current_cc)
@@ -96,14 +179,13 @@ module Aeon
       else
         rec_idx = current_cc.next_register
 
-        current_cc.add_instruction(:get_self, [rec_idx], node.line, node.column)
+        current_cc.ins_get_self([rec_idx], node.line, node.column)
       end
 
       target = current_cc.next_register
 
       # TODO: properly determine visibility
-      current_cc.add_instruction(
-        :send,
+      current_cc.ins_send_literal(
         [target, rec_idx, name_idx, 1, arg_indexes.length, *arg_indexes],
         node.line,
         node.column
@@ -117,9 +199,115 @@ module Aeon
 
       ins_name = name[2..-1].to_sym
 
-      ins_args = args.map { |node| node.children[0] }
+      ins_args = []
 
-      current_cc.add_instruction(ins_name, ins_args, node.line, node.column)
+      ins_args = args.map do |node|
+        if node.type == :integer
+          node.children[0]
+        elsif node.type == :sstring or node.type == :dstring
+          current_cc.strings.add(node.children[0])
+        elsif node.type == :ident and node.children[1] == '_'
+          current_cc.next_register
+        else
+          process(node, current_cc)
+        end
+      end
+
+      current_cc.instruction(ins_name, ins_args, node.line, node.column)
+
+      ins_args[0]
+    end
+
+    def on_return(node, current_cc)
+      ret_idx = process(node.children[0], current_cc)
+
+      current_cc.ins_return([ret_idx], node.line, node.column)
+
+      ret_idx
+    end
+
+    def on_let(node, current_cc)
+      var_node, _, val_node = *node
+
+      val_idx = process(val_node, current_cc)
+
+      line = node.line
+      col  = node.column
+
+      case var_node.type
+      when :ident
+        name     = var_node.children[1]
+        name_idx = current_cc.locals.add(name)
+
+        current_cc.ins_set_local([name_idx, val_idx], line, col)
+
+        name_idx
+      when :const
+        name     = var_node.children[1]
+        name_idx = current_cc.strings.add(name)
+        self_idx = current_cc.next_register
+
+        current_cc
+          .ins_get_self([self_idx], line, col)
+          .ins_set_literal_const([self_idx, val_idx, name_idx], line, col)
+
+        name_idx
+      when :ivar
+
+      end
+    end
+
+    def on_self(node, current_cc)
+      idx = current_cc.next_register
+
+      current_cc.ins_get_self([idx], node.line, node.column)
+
+      idx
+    end
+
+    def on_ident(node, current_cc)
+      # TODO: determine when to use a lvar and when to use a send
+      rec, name = *node
+
+      local_idx = current_cc.locals.get(name)
+      register  = current_cc.next_register
+
+      line = node.line
+      col  = node.column
+
+      current_cc.ins_get_local([register, local_idx], line, col)
+
+      register
+    end
+
+    def on_const(node, current_cc)
+      rec, name = *node
+
+      register = current_cc.next_register
+      name_idx = current_cc.strings.get(name)
+
+      line = node.line
+      col  = node.column
+
+      if rec
+        rec_idx = process(rec, current_cc)
+      else
+        rec_idx = current_cc.next_register
+
+        current_cc.ins_get_self([rec_idx], line, col)
+      end
+
+      current_cc.ins_get_literal_const([register, rec_idx, name_idx], line, col)
+
+      register
+    end
+
+    def on_sstring(node, current_cc)
+      string(node, current_cc)
+    end
+
+    def on_dstring(node, current_cc)
+      string(node, current_cc, true)
     end
 
     def on_integer(node, current_cc)
@@ -130,10 +318,47 @@ module Aeon
       end
 
       target = current_cc.next_register
-      idx = current_cc.integers.get(int)
+      idx    = current_cc.integers.get(int)
+
+      current_cc.ins_set_integer([target, idx], node.line, node.column)
+
+      target
+    end
+
+    def on_float(node, current_cc)
+      int = node.children[0]
+
+      unless current_cc.floats.include?(int)
+        current_cc.floats.add(int)
+      end
+
+      target = current_cc.next_register
+      idx    = current_cc.floats.get(int)
+
+      current_cc.ins_set_float([target, idx], node.line, node.column)
+
+      target
+    end
+
+    private
+
+    def string(node, current_cc, double_quote = false)
+      # TODO: is this the best way of supporting escape sequences?
+      string = node.children[0]
+
+      if double_quote
+        string.gsub!(/\\r|\\n|\\t/, '\n' => "\n", '\r' => "\r", '\t' => "\t")
+      end
+
+      unless current_cc.strings.include?(string)
+        current_cc.strings.add(string)
+      end
+
+      idx = current_cc.strings.get(string)
+      target = current_cc.next_register
 
       current_cc
-        .add_instruction(:set_integer, [target, idx], node.line, node.column)
+        .instruction(:set_string, [target, idx], node.line, node.column)
 
       target
     end

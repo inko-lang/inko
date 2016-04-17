@@ -5,7 +5,7 @@ module Aeon
     end
 
     def add(value)
-      @values[value] = @values.length
+      @values[value] ||= @values.length
     end
 
     def include?(value)

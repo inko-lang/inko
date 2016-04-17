@@ -66,7 +66,7 @@ module Aeon
         u32(code.line) +
         u32(code.required_arguments) +
         u8(visibility) +
-        array(code.locals, :string) +
+        array(code.locals.to_a, :string) +
         array(code.instructions, :instruction) +
         array(code.integers.to_a, :i64) +
         array(code.floats.to_a, :f64) +

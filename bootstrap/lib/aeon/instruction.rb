@@ -18,16 +18,16 @@ module Aeon
       get_false_prototype: 12,
       get_method_prototype: 13,
       get_compiled_code_prototype: 14,
-      set_true: 15,
-      set_false: 16,
+      get_true: 15,
+      get_false: 16,
       set_local: 17,
       get_local: 18,
-      set_const: 19,
-      get_const: 20,
-      set_attr: 21,
-      get_attr: 22,
+      set_literal_const: 19,
+      get_literal_const: 20,
+      set_literal_attr: 21,
+      get_literal_attr: 22,
       set_compiled_code: 23,
-      send: 24,
+      send_literal: 24,
       return: 25,
       goto_if_false: 26,
       goto_if_true: 27,
@@ -89,8 +89,16 @@ module Aeon
       file_seek: 83,
       run_file: 84,
       run_file_dynamic: 85,
-      send_dynamic: 86,
-      get_self: 87
+      send: 86,
+      get_self: 87,
+      get_binding_prototype: 88,
+      get_binding: 89,
+      set_const: 90,
+      get_const: 91,
+      set_attr: 92,
+      get_attr: 93,
+      literal_const_exists: 94,
+      run_literal_code: 95
     }
 
     def initialize(name, arguments, line, column)
@@ -98,10 +106,24 @@ module Aeon
       @arguments = arguments
       @line = line
       @column = column
+
+      if !line or !column
+        raise ArgumentError, 'A line and column number are required'
+      end
+
+      @arguments.each do |arg|
+        unless arg.is_a?(Fixnum)
+          raise TypeError, "arguments must be Fixnums, not a #{arg.class}"
+        end
+      end
     end
 
     def name_integer
-      NAME_MAPPING[name]
+      NAME_MAPPING.fetch(name)
+    end
+
+    def remap_arguments
+      @arguments.map! { |arg| yield arg }
     end
   end
 end

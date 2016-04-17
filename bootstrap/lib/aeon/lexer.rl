@@ -88,12 +88,12 @@ module Aeon
       new_token(type, value, length)
     end
 
-    def string_token(find, replace)
+    def string_token(find, replace, type)
       slice  = to_string(@ts + 1, @te - 1)
       length = slice.length + 2
       string = slice.gsub(find, replace)
 
-      new_token(:String, string, length)
+      new_token(type, string, length)
     end
 
     def indent_token(type)
@@ -283,6 +283,11 @@ module Aeon
           fbreak;
         };
 
+        'extends' => {
+          token = token(:Extends)
+          fbreak;
+        };
+
         'mod' => {
           token = token(:Module)
           fbreak;
@@ -395,12 +400,12 @@ module Aeon
         };
 
         dstring => {
-          token = string_token("\\\"", "\"")
+          token = string_token("\\\"", "\"", :DoubleString)
           fbreak;
         };
 
         sstring => {
-          token = string_token("\\'", "'")
+          token = string_token("\\'", "'", :SingleString)
           fbreak;
         };
 
