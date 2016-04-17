@@ -589,7 +589,7 @@ pub trait VirtualMachineMethods {
     fn ins_def_literal_method(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Runs a CompiledCode.
+    /// Runs a runtime allocated CompiledCode.
     ///
     /// This instruction takes the following arguments:
     ///
@@ -601,6 +601,21 @@ pub trait VirtualMachineMethods {
     /// 5. The Binding to use, if any. Omitting this argument results in a
     ///    Binding being created automatically.
     fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Runs a CompiledCode literal.
+    ///
+    /// This instruction is meant to execute simple CompiledCode objects,
+    /// usually the moment they're defined. For more complex use cases see the
+    /// "run_code" instruction.
+    ///
+    /// This instruction takes the following arguments:
+    ///
+    /// 1. The register to store the return value in.
+    /// 2. The index of the code object to run.
+    /// 3. The register containing the object to use as "self" when running the
+    ///    CompiledCode.
+    fn ins_run_literal_code(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the top-level object in a register.

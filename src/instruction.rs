@@ -101,7 +101,8 @@ pub enum InstructionType {
     GetConst                 = 91,
     SetAttr                  = 92,
     GetAttr                  = 93,
-    LiteralConstExists       = 94
+    LiteralConstExists       = 94,
+    RunLiteralCode           = 95
 }
 
 /// Struct for storing information about a single instruction.

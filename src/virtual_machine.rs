@@ -314,6 +314,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::RunCode => {
                     run!(self, ins_run_code, thread, code, instruction);
                 },
+                InstructionType::RunLiteralCode => {
+                    run!(self, ins_run_literal_code, thread, code, instruction);
+                },
                 InstructionType::GetToplevel => {
                     run!(self, ins_get_toplevel, thread, code, instruction);
                 },
@@ -896,7 +899,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let cc = try!(code.code_object(cc_index));
 
-        let obj = self.allocate(object_value::compiled_code(cc.clone()),
+        let obj = self.allocate(object_value::compiled_code(cc),
                                 self.compiled_code_prototype());
 
         thread.set_register(register, obj);
@@ -1013,7 +1016,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let mut receiver = write_lock!(receiver_lock);
 
-        let method = self.allocate(object_value::compiled_code(cc.clone()),
+        let method = self.allocate(object_value::compiled_code(cc),
                                    self.method_prototype());
 
         receiver.add_method(name.clone(), method);
@@ -1058,6 +1061,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let retval = try!(
             self.run_code(thread.clone(), code_obj, cc_lock.clone(), arguments,
                           binding)
+        );
+
+        if retval.is_some() {
+            thread.set_register(register, retval.unwrap());
+        }
+
+        Ok(())
+    }
+
+    fn ins_run_literal_code(&self, thread: RcThread, code: RcCompiledCode,
+                            instruction: &Instruction) -> EmptyResult {
+        let register   = try!(instruction.arg(0));
+        let code_index = try!(instruction.arg(1));
+        let receiver   = instruction_object!(instruction, thread, 2);
+        let code_obj   = try!(code.code_object(code_index));
+
+        let retval = try!(
+            self.run_code(thread.clone(), code_obj, receiver, Vec::new(), None)
         );
 
         if retval.is_some() {
@@ -1434,7 +1455,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         instruction: &Instruction) -> EmptyResult {
         let register    = try!(instruction.arg(0));
         let code_index  = try!(instruction.arg(1));
-        let thread_code = try!(code.code_object(code_index)).clone();
+        let thread_code = try!(code.code_object(code_index));
 
         let thread_object = self.start_thread(thread_code);
 

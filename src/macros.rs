@@ -26,7 +26,7 @@ macro_rules! ensure_integers {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_integer() {
-                return Err("all objects must be integers".to_string());
+                return Err("all arguments must be Integer objects".to_string());
             }
         )+
     );
@@ -37,7 +37,7 @@ macro_rules! ensure_floats {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_float() {
-                return Err("all objects must be floats".to_string());
+                return Err("all arguments must be Float objects".to_string());
             }
         )+
     );
@@ -48,7 +48,7 @@ macro_rules! ensure_arrays {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_array() {
-                return Err("all objects must be arrays".to_string());
+                return Err("all arguments must be Array objects".to_string());
             }
         )+
     );
@@ -59,7 +59,7 @@ macro_rules! ensure_strings {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_string() {
-                return Err("all objects must be strings".to_string());
+                return Err("all arguments must be String objects".to_string());
             }
         )+
     );
@@ -70,7 +70,7 @@ macro_rules! ensure_files {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_file() {
-                return Err("all objects must be files".to_string());
+                return Err("all arguments must be File objects".to_string());
             }
         )+
     );
@@ -81,7 +81,7 @@ macro_rules! ensure_compiled_code {
     ($($ident: ident),+) => (
         $(
             if !$ident.value.is_compiled_code() {
-                return Err("all objects must be compiled code objects".to_string());
+                return Err("all arguments must be CompiledCode objects".to_string());
             }
         )+
     );

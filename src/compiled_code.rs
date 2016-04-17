@@ -123,9 +123,10 @@ impl CompiledCode {
             .ok_or(format!("undefined string literal {}", index))
     }
 
-    pub fn code_object(&self, index: usize) -> Result<&RcCompiledCode, String> {
+    pub fn code_object(&self, index: usize) -> Result<RcCompiledCode, String> {
         self.code_objects
             .get(index)
+            .cloned()
             .ok_or(format!("undefined code object {}", index))
     }
 }
