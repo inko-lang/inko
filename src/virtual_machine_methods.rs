@@ -1717,15 +1717,15 @@ pub trait VirtualMachineMethods {
     ///       0: "/tmp/test.abc"
     ///
     ///     0: run_file_fast 0, 0
-    fn ins_run_file(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_literal_file(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Parses and runs a given bytecode file using a runtime allocated string
     ///
-    /// This instruction takes the same arguments as the "run_file" instruction
-    /// except instead of using a string literal it uses a register
+    /// This instruction takes the same arguments as the "run_literal_file"
+    /// instruction except instead of using a string literal it uses a register
     /// containing a runtime allocated string.
-    fn ins_run_file_dynamic(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_file(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.

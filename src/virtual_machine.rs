@@ -485,11 +485,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::FileSeek => {
                     run!(self, ins_file_seek, thread, code, instruction);
                 },
+                InstructionType::RunLiteralFile => {
+                    run!(self, ins_run_literal_file, thread, code, instruction);
+                },
                 InstructionType::RunFile => {
                     run!(self, ins_run_file, thread, code, instruction);
-                },
-                InstructionType::RunFileDynamic => {
-                    run!(self, ins_run_file_dynamic, thread, code, instruction);
                 }
             };
         }
@@ -2179,8 +2179,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_file(&self, thread: RcThread, code: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_run_literal_file(&self, thread: RcThread, code: RcCompiledCode,
+                            instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let index    = try!(instruction.arg(1));
         let path     = try!(code.string(index));
@@ -2188,8 +2188,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.run_file(path, thread, register)
     }
 
-    fn ins_run_file_dynamic(&self, thread: RcThread, _: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_run_file(&self, thread: RcThread, _: RcCompiledCode,
+                    instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let lock     = instruction_object!(instruction, thread, 1);
         let string   = read_lock!(lock);
