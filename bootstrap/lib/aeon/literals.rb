@@ -16,6 +16,10 @@ module Aeon
       @values.fetch(value)
     end
 
+    def get_or_set(value)
+      include?(value) ? get(value) : add(value)
+    end
+
     def to_a
       @values.keys
     end

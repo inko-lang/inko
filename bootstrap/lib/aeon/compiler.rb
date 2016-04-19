@@ -112,18 +112,37 @@ module Aeon
         current_cc.ins_get_self([name_source], line, col)
       end
 
-      # TODO: handle explicit/implicit parents
+      parent_reg       = current_cc.next_register
+      parent_class_reg = current_cc.next_register
+      proto_name_idx   = current_cc.strings.add(CLASS_PROTOTYPE)
+
       if parent
+        if parent.children[0]
+          psource = process(parent.children[0], current_cc)
+        else
+          psource = current_cc.next_register
 
+          current_cc.ins_get_self([psource], line, col)
+        end
+
+        parent_name = current_cc.strings.add(parent.children[1])
+
+        current_cc
+          .ins_get_literal_const([parent_class_reg, psource, parent_name], line, col)
+          .ins_get_literal_attr([parent_reg, parent_class_reg, proto_name_idx], line, col)
       else
+        idx = current_cc.next_register
+        parent_name = current_cc.strings.add('Object')
 
+        current_cc
+          .ins_get_self([idx], line, col)
+          .ins_get_literal_const([parent_class_reg, idx, parent_name], line, col)
+          .ins_get_literal_attr([parent_reg, parent_class_reg, proto_name_idx], line, col)
       end
 
-      name_str       = name.children[1]
-      name_idx       = current_cc.strings.add(name_str)
-      proto_name_idx = current_cc.strings.add(CLASS_PROTOTYPE)
+      name_str = name.children[1]
+      name_idx = current_cc.strings.add(name_str)
 
-      # Look up the constant used for the name.
       exists_reg = current_cc.next_register
       target_reg = current_cc.next_register
       proto_reg  = current_cc.next_register
@@ -137,6 +156,7 @@ module Aeon
         .ins_goto_if_true([jump_to, exists_reg], line, col)
         .ins_set_object([target_reg], line, col)
         .ins_set_object([proto_reg], line, col)
+        .ins_set_prototype([proto_reg, parent_reg], line, col)
         .ins_set_literal_attr([target_reg, proto_reg, proto_name_idx], line, col)
         .ins_set_literal_const([name_source, target_reg, name_idx], line, col)
         .ins_get_literal_const([target_reg, name_source, name_idx], line, col)
@@ -269,7 +289,7 @@ module Aeon
       # TODO: determine when to use a lvar and when to use a send
       rec, name = *node
 
-      local_idx = current_cc.locals.get(name)
+      local_idx = current_cc.locals.get_or_set(name)
       register  = current_cc.next_register
 
       line = node.line
@@ -284,7 +304,7 @@ module Aeon
       rec, name = *node
 
       register = current_cc.next_register
-      name_idx = current_cc.strings.get(name)
+      name_idx = current_cc.strings.get_or_set(name)
 
       line = node.line
       col  = node.column

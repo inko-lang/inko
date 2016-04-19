@@ -98,7 +98,8 @@ module Aeon
       set_attr: 92,
       get_attr: 93,
       literal_const_exists: 94,
-      run_literal_code: 95
+      run_literal_code: 95,
+      set_prototype: 96
     }
 
     def initialize(name, arguments, line, column)
