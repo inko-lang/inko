@@ -168,6 +168,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             if skip_until.is_some() {
                 if index < skip_until.unwrap() {
+                    index += 1;
+
                     continue;
                 }
                 else {
@@ -175,8 +177,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 }
             }
 
-            // Incremented _before_ the instructions so that the "goto"
-            // instruction can overwrite it.
             index += 1;
 
             match instruction.instruction_type {
@@ -191,6 +191,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::SetObject => {
                     run!(self, ins_set_object, thread, code, instruction);
+                },
+                InstructionType::SetPrototype => {
+                    run!(self, ins_set_prototype, thread, code, instruction);
                 },
                 InstructionType::SetArray => {
                     run!(self, ins_set_array, thread, code, instruction);
@@ -556,6 +559,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
             .allocate_prepared(obj.clone());
 
         thread.set_register(register, obj);
+
+        Ok(())
+    }
+
+    fn ins_set_prototype(&self, thread: RcThread, _: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let source = instruction_object!(instruction, thread, 0);
+        let proto  = instruction_object!(instruction, thread, 1);
+
+        write_lock!(source).set_prototype(proto);
 
         Ok(())
     }

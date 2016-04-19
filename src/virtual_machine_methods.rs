@@ -92,6 +92,22 @@ pub trait VirtualMachineMethods {
     fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sets the prototype of an object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register containing the object for which to set the prototype.
+    /// 2. The register containing the object to use as the prototype.
+    ///
+    /// # Examples
+    ///
+    ///     0: set_object    0
+    ///     1: set_object    1
+    ///     2: set_prototype 0, 1
+    ///
+    fn ins_set_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets an array in a register.
     ///
     /// This instruction requires at least two arguments:
