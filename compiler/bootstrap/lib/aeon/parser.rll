@@ -4,7 +4,7 @@
 %terminals CurlyClose CurlyOpen Docstring Dot Assign Float Greater Identifier;
 %terminals InstanceVariable Integer Lower ParenClose ParenOpen Pipe Equal;
 %terminals Trait Class Def Enum Use Import As Let Mutable Return Super;
-%terminals Break Continue Public Dynamic Indent Unindent True False Member;
+%terminals Break Next Public Dynamic Indent Unindent True False Member;
 %terminals Plus Minus Modulo Div Star And Or Ampersand LowerEqual GreaterEqual;
 %terminals Power PlusAssign MinAssign DivAssign ModAssign MulAssign;
 %terminals PipeAssign AmpersandAssign Compare Not NotEqual RangeInc RangeExcl;
@@ -444,9 +444,9 @@ control_flow
     {
       s(:break, location: val[0])
     }
-  | Continue
+  | Next
     {
-      s(:continue, location: val[0])
+      s(:next, location: val[0])
     }
   ;
 

@@ -349,8 +349,8 @@ module Aeon
           fbreak;
         };
 
-        'continue' => {
-          token = token(:Continue)
+        'next' => {
+          token = token(:Next)
           fbreak;
         };
 
