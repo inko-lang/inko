@@ -45,6 +45,10 @@ impl Object {
         self.prototype = Some(prototype);
     }
 
+    pub fn prototype(&self) -> Option<RcObject> {
+        self.prototype.clone()
+    }
+
     pub fn pin(&mut self) {
         self.allocate_header();
 

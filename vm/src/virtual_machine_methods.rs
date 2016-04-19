@@ -104,8 +104,18 @@ pub trait VirtualMachineMethods {
     ///     0: set_object    0
     ///     1: set_object    1
     ///     2: set_prototype 0, 1
-    ///
     fn ins_set_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Gets the prototype of an object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the prototype in.
+    /// 2. The register containing the object to get the prototype from.
+    ///
+    /// If an object does not have a prototype the target register is not set.
+    fn ins_get_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets an array in a register.
