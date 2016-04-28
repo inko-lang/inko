@@ -53,8 +53,11 @@ module Aeon
         parent_name = @code.strings.add(parent_ast.children[1])
 
         @code.instruct(line, column) do |ins|
+          # Get the parent class object
           ins.get_literal_const parent_class_reg, psource, parent_name
-          ins.get_literal_attr  parent_reg, parent_class_reg, proto_name_idx
+
+          # Get the parent's __prototype attribute
+          ins.get_literal_attr parent_reg, parent_class_reg, proto_name_idx
         end
 
         parent_reg
@@ -69,9 +72,12 @@ module Aeon
         parent_name = @code.strings.add('Object')
 
         @code.instruct(line, column) do |ins|
+          # Look up Object in the current scope.
           ins.get_self          self_idx
           ins.get_literal_const parent_class_reg, self_idx, parent_name
-          ins.get_literal_attr  parent_reg, parent_class_reg, proto_name_idx
+
+          # Grab the __prototype attribute from Object
+          ins.get_literal_attr parent_reg, parent_class_reg, proto_name_idx
         end
 
         parent_reg
@@ -83,20 +89,35 @@ module Aeon
 
         exists_reg = @code.next_register
         target_reg = @code.next_register
-        proto_reg  = @code.next_register
-
-        @code.literal_const_exists([exists_reg, name_source, name_idx],
-                                        line, column)
+        proto_reg = @code.next_register
 
         jump_to = @code.label
 
         @code.instruct(line, column) do |ins|
-          ins.goto_if_true      jump_to, exists_reg
-          ins.set_object        target_reg
-          ins.set_object        proto_reg
-          ins.set_prototype     proto_reg, parent_reg
-          ins.set_literal_attr  target_reg, proto_reg, proto_name_idx
+          # Checks if the constant already exists or not.
+          ins.literal_const_exists exists_reg, name_source, name_idx
+
+          # If the constant already exists we'll jump to the last instruction in
+          # this block.
+          ins.goto_if_true jump_to, exists_reg
+
+          # The object for the class itself (e.g. Foo).
+          ins.set_object target_reg
+
+          # The prototype for instances (Foo.__prototype).
+          ins.set_object proto_reg
+
+          # Set the above object's prototype to the parent class' __prototype
+          # attribute.
+          ins.set_prototype proto_reg, parent_reg
+
+          # Store the object in the class' __prototype attribute.
+          ins.set_literal_attr target_reg, proto_reg, proto_name_idx
+
+          # Store the class object as a constant.
           ins.set_literal_const name_source, target_reg, name_idx
+
+          # Get the class object, which at this point is guaranteed to exist.
           ins.get_literal_const target_reg, name_source, name_idx
         end
 
