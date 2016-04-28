@@ -23,7 +23,7 @@ module Aeon
       def identifier(val_idx)
         name_idx = @code.locals.add(variable_name)
 
-        @code.ins_set_local([name_idx, val_idx], line, column)
+        @code.set_local([name_idx, val_idx], line, column)
 
         name_idx
       end
@@ -32,9 +32,10 @@ module Aeon
         name_idx = @code.strings.add(variable_name)
         self_idx = @code.next_register
 
-        @code
-          .ins_get_self([self_idx], line, column)
-          .ins_set_literal_const([self_idx, val_idx, name_idx], line, column)
+        @code.instruct(line, column) do |ins|
+          ins.get_self          self_idx
+          ins.set_literal_const self_idx, val_idx, name_idx
+        end
 
         name_idx
       end

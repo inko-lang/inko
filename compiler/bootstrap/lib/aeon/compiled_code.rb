@@ -58,9 +58,15 @@ module Aeon
       @code_objects.to_a.each(&:resolve_labels)
     end
 
+    def instruct(line, column)
+      gen = InstructionGenerator.new(self, line, column)
+
+      yield gen
+    end
+
     Instruction::NAME_MAPPING.keys.each do |key|
       class_eval <<-EOF, __FILE__, __LINE__ + 1
-        def ins_#{key}(args, line, column)
+        def #{key}(args, line, column)
           instruction(:#{key}, args, line, column)
         end
       EOF

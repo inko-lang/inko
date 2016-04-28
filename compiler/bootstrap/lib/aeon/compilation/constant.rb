@@ -13,7 +13,7 @@ module Aeon
 
         rec_idx = receiver_ast ? explicit_receiver : implicit_receiver
 
-        @code.ins_get_literal_const([register, rec_idx, name_idx], line, column)
+        @code.get_literal_const([register, rec_idx, name_idx], line, column)
 
         register
       end
@@ -25,7 +25,7 @@ module Aeon
       def implicit_receiver
         index = @code.next_register
 
-        @code.ins_get_self([index], line, column)
+        @code.get_self([index], line, column)
 
         index
       end

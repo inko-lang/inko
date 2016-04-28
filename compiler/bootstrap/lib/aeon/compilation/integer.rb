@@ -10,7 +10,7 @@ module Aeon
         idx    = @code.integers.add(value)
         target = @code.next_register
 
-        @code.ins_set_integer([target, idx], line, column)
+        @code.set_integer([target, idx], line, column)
 
         target
       end

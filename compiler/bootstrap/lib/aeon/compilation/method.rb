@@ -54,7 +54,7 @@ module Aeon
             raise TypeError, "Can not add implicit return as #{ins.inspect} doesn't set a register"
           end
 
-          code.ins_return([arg], ins.line, ins.column)
+          code.return([arg], ins.line, ins.column)
         end
       end
 
@@ -74,15 +74,16 @@ module Aeon
           self_idx  = @code.next_register
           attr_name = @code.strings.add(Class::PROTO_ATTR)
 
-          @code
-            .ins_get_self([self_idx], line, column)
-            .ins_get_literal_attr([rec_idx, self_idx, attr_name], line, column)
+          @code.instruct(line, column) do |ins|
+            ins.get_self         self_idx
+            ins.get_literal_attr rec_idx, self_idx, attr_name
+          end
         # TODO: compiling methods in enums/traits
         when :enum
         when :trait
         # Method defined at the top-level
         else
-          @code.ins_get_self([rec_idx], line, column)
+          @code.get_self([rec_idx], line, column)
         end
 
         rec_idx
@@ -93,7 +94,7 @@ module Aeon
         code_idx = @code.code_objects.add(method_code)
         name_idx = @code.strings.get(name)
 
-        @code.ins_def_literal_method([rec_idx, name_idx, code_idx], line, column)
+        @code.def_literal_method([rec_idx, name_idx, code_idx], line, column)
 
         code_idx
       end

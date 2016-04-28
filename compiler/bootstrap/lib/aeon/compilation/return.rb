@@ -10,7 +10,7 @@ module Aeon
       def compile
         index = @compiler.process(expression, @code)
 
-        @code.ins_return([index], line, column)
+        @code.return([index], line, column)
 
         index
       end

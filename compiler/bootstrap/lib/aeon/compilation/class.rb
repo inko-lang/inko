@@ -32,7 +32,7 @@ module Aeon
       def implicit_name_source
         register = @code.next_register
 
-        @code.ins_get_self([register], line, column)
+        @code.get_self([register], line, column)
 
         register
       end
@@ -47,14 +47,15 @@ module Aeon
         else
           psource = @code.next_register
 
-          @code.ins_get_self([psource], line, column)
+          @code.get_self([psource], line, column)
         end
 
         parent_name = @code.strings.add(parent_ast.children[1])
 
-        @code
-          .ins_get_literal_const([parent_class_reg, psource, parent_name], line, column)
-          .ins_get_literal_attr([parent_reg, parent_class_reg, proto_name_idx], line, column)
+        @code.instruct(line, column) do |ins|
+          ins.get_literal_const parent_class_reg, psource, parent_name
+          ins.get_literal_attr  parent_reg, parent_class_reg, proto_name_idx
+        end
 
         parent_reg
       end
@@ -67,35 +68,37 @@ module Aeon
         self_idx = @code.next_register
         parent_name = @code.strings.add('Object')
 
-        @code
-          .ins_get_self([self_idx], line, column)
-          .ins_get_literal_const([parent_class_reg, self_idx, parent_name], line, column)
-          .ins_get_literal_attr([parent_reg, parent_class_reg, proto_name_idx], line, column)
+        @code.instruct(line, column) do |ins|
+          ins.get_self          self_idx
+          ins.get_literal_const parent_class_reg, self_idx, parent_name
+          ins.get_literal_attr  parent_reg, parent_class_reg, proto_name_idx
+        end
 
         parent_reg
       end
 
       def create_or_reopen(name_source, parent_reg)
         name_idx = @code.strings.add(class_name)
-        proto_name_idx = @code.strings.add('__prototype')
+        proto_name_idx = @code.strings.add(PROTO_ATTR)
 
         exists_reg = @code.next_register
         target_reg = @code.next_register
         proto_reg  = @code.next_register
 
-        @code.ins_literal_const_exists([exists_reg, name_source, name_idx],
+        @code.literal_const_exists([exists_reg, name_source, name_idx],
                                         line, column)
 
         jump_to = @code.label
 
-        @code
-          .ins_goto_if_true([jump_to, exists_reg], line, column)
-          .ins_set_object([target_reg], line, column)
-          .ins_set_object([proto_reg], line, column)
-          .ins_set_prototype([proto_reg, parent_reg], line, column)
-          .ins_set_literal_attr([target_reg, proto_reg, proto_name_idx], line, column)
-          .ins_set_literal_const([name_source, target_reg, name_idx], line, column)
-          .ins_get_literal_const([target_reg, name_source, name_idx], line, column)
+        @code.instruct(line, column) do |ins|
+          ins.goto_if_true      jump_to, exists_reg
+          ins.set_object        target_reg
+          ins.set_object        proto_reg
+          ins.set_prototype     proto_reg, parent_reg
+          ins.set_literal_attr  target_reg, proto_reg, proto_name_idx
+          ins.set_literal_const name_source, target_reg, name_idx
+          ins.get_literal_const target_reg, name_source, name_idx
+        end
 
         @code.mark_label(jump_to)
 
@@ -108,7 +111,7 @@ module Aeon
         body_idx = @code.code_objects.add(body_code)
         body_ret_idx = @code.next_register
 
-        @code.ins_run_literal_code([body_ret_idx, body_idx, class_idx], line,
+        @code.run_literal_code([body_ret_idx, body_idx, class_idx], line,
                                    column)
       end
 

@@ -11,7 +11,7 @@ module Aeon
         local_idx = @code.locals.add(name)
         register  = @code.next_register
 
-        @code.ins_get_local([register, local_idx], line, column)
+        @code.get_local([register, local_idx], line, column)
 
         register
       end

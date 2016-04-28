@@ -24,8 +24,8 @@ module Aeon
         vis = 1
 
         # TODO: properly determine visibility
-        @code.ins_send_literal([target, rec, name_idx, vis, args.length, *args],
-                               line, column)
+        @code.send_literal([target, rec, name_idx, vis, args.length, *args],
+                           line, column)
 
         target
       end
@@ -37,7 +37,7 @@ module Aeon
       def implicit_receiver
         index = @code.next_register
 
-        @code.ins_get_self([index], line, column)
+        @code.get_self([index], line, column)
 
         index
       end

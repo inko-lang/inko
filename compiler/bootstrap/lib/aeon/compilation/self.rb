@@ -9,7 +9,7 @@ module Aeon
       def compile
         index = @code.next_register
 
-        @code.ins_get_self([index], line, column)
+        @code.get_self([index], line, column)
 
         index
       end
