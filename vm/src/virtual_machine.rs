@@ -582,9 +582,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source     = instruction_object!(instruction, thread, 1);
         let source_obj = read_lock!(source);
 
-        if let Some(proto) = source_obj.prototype() {
-            thread.set_register(register, proto);
-        }
+        let proto = try!(source_obj.prototype().ok_or(format!(
+            "The object in register {} does not have a prototype",
+            instruction.arguments[1]
+        )));
+
+        thread.set_register(register, proto);
 
         Ok(())
     }

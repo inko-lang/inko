@@ -113,8 +113,6 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register to store the prototype in.
     /// 2. The register containing the object to get the prototype from.
-    ///
-    /// If an object does not have a prototype the target register is not set.
     fn ins_get_prototype(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
