@@ -73,12 +73,12 @@ impl Object {
         if let Some(header) = opt_header {
             // Method defined directly on the object
             if header.methods.contains_key(name) {
-                retval = header.methods.get(name).cloned();
+                return header.methods.get(name).cloned();
             }
         }
 
         // Method defined somewhere in the object hierarchy
-        else if self.prototype.is_some() {
+        if self.prototype.is_some() {
             let mut opt_parent = self.prototype.clone();
 
             while opt_parent.is_some() {
@@ -119,12 +119,12 @@ impl Object {
 
         if let Some(header) = opt_header {
             if header.constants.contains_key(name) {
-                retval = header.constants.get(name).cloned();
+                return header.constants.get(name).cloned();
             }
         }
 
         // Look up the constant in one of the parents.
-        else if self.prototype.is_some() {
+        if self.prototype.is_some() {
             let mut opt_parent = self.prototype.clone();
 
             while opt_parent.is_some() {
