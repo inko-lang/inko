@@ -104,7 +104,8 @@ pub enum InstructionType {
     RunLiteralCode           = 95,
     SetPrototype             = 96,
     GetPrototype             = 97,
-    LocalExists              = 98
+    LocalExists              = 98,
+    GetCaller                = 99
 }
 
 /// Struct for storing information about a single instruction.

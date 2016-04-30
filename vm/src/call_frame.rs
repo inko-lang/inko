@@ -70,6 +70,10 @@ impl CallFrame {
         self.parent = Some(Box::new(parent));
     }
 
+    pub fn parent(&self) -> Option<&Box<CallFrame>> {
+        self.parent.as_ref()
+    }
+
     /// Calls the supplied closure for the current and any parent frames.
     ///
     /// The closure takes a single argument: a reference to the CallFrame

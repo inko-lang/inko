@@ -1727,6 +1727,13 @@ pub trait VirtualMachineMethods {
     fn ins_run_file(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sets the caller of a method.
+    ///
+    /// This instruction requires one argument: the register to store the caller
+    /// in. If no caller is present "self" is set in the register instead.
+    fn ins_get_caller(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

@@ -493,7 +493,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::RunFile => {
                     run!(self, ins_run_file, thread, code, instruction);
-                }
+                },
+                InstructionType::GetCaller => {
+                    run!(self, ins_get_caller, thread, code, instruction);
+                },
             };
         }
 
@@ -2231,6 +2234,26 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(string);
 
         self.run_file(string.value.as_string(), thread, register)
+    }
+
+    fn ins_get_caller(&self, thread: RcThread, _: RcCompiledCode,
+                      instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+
+        let caller = {
+            let frame = read_lock!(thread.call_frame);
+
+            if let Some(parent) = frame.parent() {
+                parent.self_object()
+            }
+            else {
+                frame.self_object()
+            }
+        };
+
+        thread.set_register(register, caller);
+
+        Ok(())
     }
 
     fn error(&self, thread: RcThread, message: String) {
