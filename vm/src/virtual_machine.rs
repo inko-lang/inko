@@ -2370,7 +2370,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
 
-        if arguments.len() != method_code.required_arguments as usize {
+        if arguments.len() < method_code.required_arguments as usize {
             return Err(format!(
                 "{} requires {} arguments, {} given",
                 name,
