@@ -803,8 +803,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name       = try!(code.string(name_index));
 
         let object = try!(
-            read_lock!(src).lookup_constant(name)
-                .ok_or(format!("Undefined constant \"{}\"", name))
+            read_lock!(src).lookup_constant(name).ok_or(
+                format!(
+                    "The object in register {} does not define the constant \"{}\"",
+                    instruction.arguments[1],
+                    name
+                )
+            )
         );
 
         thread.set_register(register, object);
@@ -825,8 +830,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name_str = name_obj.value.as_string();
 
         let object = try!(
-            read_lock!(src).lookup_constant(name_str)
-                .ok_or(format!("Undefined constant \"{}\"", name_str))
+            read_lock!(src).lookup_constant(name_str).ok_or(
+                format!(
+                    "The object in register {} does not define the constant \"{}\"",
+                    instruction.arguments[1],
+                    name_str
+                )
+            )
         );
 
         thread.set_register(register, object);
