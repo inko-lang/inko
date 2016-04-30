@@ -130,4 +130,11 @@ impl Thread {
             .cloned()
             .ok_or(format!("undefined local variable index {}", index))
     }
+
+    pub fn local_exists(&self, index: usize) -> bool {
+        let frame   = read_lock!(self.call_frame);
+        let binding = read_lock!(frame.binding);
+
+        binding.variables.get(index).is_some()
+    }
 }

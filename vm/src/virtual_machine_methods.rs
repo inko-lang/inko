@@ -326,6 +326,15 @@ pub trait VirtualMachineMethods {
     fn ins_get_local(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Checks if a local variable exists.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in (true or false).
+    /// 2. The local variable index to check.
+    fn ins_local_exists(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets a constant in a given object.
     ///
     /// This instruction requires 3 arguments:

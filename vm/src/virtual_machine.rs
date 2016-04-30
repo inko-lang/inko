@@ -259,6 +259,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetLocal => {
                     run!(self, ins_get_local, thread, code, instruction);
                 },
+                InstructionType::LocalExists => {
+                    run!(self, ins_local_exists, thread, code, instruction);
+                },
                 InstructionType::SetLiteralConst => {
                     run!(self, ins_set_literal_const, thread, code, instruction);
                 },
@@ -757,6 +760,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let object = try!(thread.get_local(local_index));
 
         thread.set_register(register, object);
+
+        Ok(())
+    }
+
+    fn ins_local_exists(&self, thread: RcThread, _: RcCompiledCode,
+                        instruction: &Instruction) -> EmptyResult {
+        let register    = try!(instruction.arg(0));
+        let local_index = try!(instruction.arg(1));
+
+        let value = if thread.local_exists(local_index) {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(register, value);
 
         Ok(())
     }
