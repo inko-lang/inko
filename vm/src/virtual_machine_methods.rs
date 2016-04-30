@@ -137,23 +137,6 @@ pub trait VirtualMachineMethods {
     fn ins_set_array(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Sets the name of a given object.
-    ///
-    /// This instruction requires two arguments:
-    ///
-    /// 1. The register containing the object to name.
-    /// 2. The string literal index containing the name of the object.
-    ///
-    /// # Examples
-    ///
-    ///     string_literals
-    ///       0: "Foo"
-    ///
-    ///     0: set_object 0
-    ///     1: set_name   0, 0
-    fn ins_set_name(&self, RcThread, RcCompiledCode, &Instruction)
-        -> EmptyResult;
-
     /// Returns the prototype to use for integer objects.
     ///
     /// This instruction requires one argument: the register to store the
@@ -350,7 +333,6 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: get_toplevel 0
     ///     1: set_object   1
-    ///     2: set_name     1, 0
     ///     3: set_const    0, 1, 0
     fn ins_set_literal_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;

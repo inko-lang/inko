@@ -33,14 +33,6 @@ impl Object {
         Arc::new(RwLock::new(obj))
     }
 
-    pub fn set_name(&mut self, name: String) {
-        self.allocate_header();
-
-        let header_ref = self.header.as_mut().unwrap();
-
-        header_ref.name = Some(name);
-    }
-
     pub fn set_prototype(&mut self, prototype: RcObject) {
         self.prototype = Some(prototype);
     }
@@ -63,64 +55,6 @@ impl Object {
         let header_ref = self.header.as_mut().unwrap();
 
         header_ref.pinned = false;
-    }
-
-    /// Returns an error message for undefined method calls.
-    pub fn undefined_method_error(&self, name: &String) -> String {
-        let proto      = self.prototype.as_ref();
-        let opt_header = self.header.as_ref();
-
-        let obj_name = if opt_header.is_some() {
-            opt_header.unwrap().name.as_ref()
-        }
-        else {
-            None
-        };
-
-        if obj_name.is_some() {
-            format!(
-                "Undefined method \"{}\" called on a {}",
-                name,
-                obj_name.unwrap()
-            )
-        }
-        else if proto.is_some() {
-            let proto_unwrapped = read_lock!(proto.unwrap());
-
-            proto_unwrapped.undefined_method_error(name)
-        }
-        else {
-            format!("Undefined method \"{}\" called", name)
-        }
-    }
-
-    /// Returns an error message for private method calls.
-    pub fn private_method_error(&self, name: &String) -> String {
-        let proto      = self.prototype.as_ref();
-        let opt_header = self.header.as_ref();
-
-        let obj_name = if opt_header.is_some() {
-            opt_header.unwrap().name.as_ref()
-        }
-        else {
-            None
-        };
-
-        if obj_name.is_some() {
-            format!(
-                "Private method \"{}\" called on a {}",
-                name,
-                obj_name.unwrap()
-            )
-        }
-        else if proto.is_some() {
-            let proto_unwrapped = read_lock!(proto.unwrap());
-
-            proto_unwrapped.private_method_error(name)
-        }
-        else {
-            format!("Private method \"{}\" called", name)
-        }
     }
 
     pub fn add_method(&mut self, name: String, method: RcObject) {
@@ -176,16 +110,6 @@ impl Object {
         let mut header_ref = self.header.as_mut().unwrap();
 
         header_ref.constants.insert(name, value);
-    }
-
-    /// Adds a constant with the same name as the object.
-    pub fn add_named_constant(&mut self, value: RcObject) {
-        let value_ref  = read_lock!(value);
-        let header_ref = value_ref.header.as_ref().unwrap();
-
-        let name = header_ref.name.clone().unwrap();
-
-        self.add_constant(name, value.clone());
     }
 
     pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {

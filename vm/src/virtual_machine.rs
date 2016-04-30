@@ -201,9 +201,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::SetArray => {
                     run!(self, ins_set_array, thread, code, instruction);
                 },
-                InstructionType::SetName => {
-                    run!(self, ins_set_name, thread, code, instruction);
-                },
                 InstructionType::GetIntegerPrototype => {
                     run!(self, ins_get_integer_prototype, thread, code,
                          instruction);
@@ -609,18 +606,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_name(&self, thread: RcThread, code: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
-        let name_index = try!(instruction.arg(1));
-
-        let obj  = instruction_object!(instruction, thread, 0);
-        let name = try!(code.string(name_index));
-
-        write_lock!(obj).set_name(name.clone());
-
-        Ok(())
-    }
-
     fn ins_get_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
                                  instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
@@ -819,7 +804,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let object = try!(
             read_lock!(src).lookup_constant(name)
-                .ok_or(format!("Undefined constant {}", name))
+                .ok_or(format!("Undefined constant \"{}\"", name))
         );
 
         thread.set_register(register, object);
@@ -841,7 +826,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let object = try!(
             read_lock!(src).lookup_constant(name_str)
-                .ok_or(format!("Undefined constant {}", name_str))
+                .ok_or(format!("Undefined constant \"{}\"", name_str))
         );
 
         thread.set_register(register, object);
@@ -2353,7 +2338,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let method_lock = try!(
             receiver.lookup_method(name)
-                .ok_or(receiver.undefined_method_error(name))
+                .ok_or(format!("Undefined method \"{}\" called", name))
         );
 
         let method_obj = read_lock!(method_lock);
@@ -2363,7 +2348,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let method_code = method_obj.value.as_compiled_code();
 
         if method_code.is_private() && allow_private == 0 {
-            return Err(receiver.private_method_error(name));
+            return Err(format!("Private method \"{}\" called", name));
         }
 
         let arguments = try!(

@@ -9,9 +9,6 @@ use std::collections::HashMap;
 use object::RcObject;
 
 pub struct ObjectHeader {
-    /// The name of the object, used in error messages if present.
-    pub name: Option<String>,
-
     pub attributes: HashMap<String, RcObject>,
     pub constants: HashMap<String, RcObject>,
     pub methods: HashMap<String, RcObject>,
@@ -26,7 +23,6 @@ pub struct ObjectHeader {
 impl ObjectHeader {
     pub fn new() -> ObjectHeader {
         ObjectHeader {
-            name: None,
             attributes: HashMap::new(),
             constants: HashMap::new(),
             methods: HashMap::new(),

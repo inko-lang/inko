@@ -12,7 +12,6 @@ pub enum InstructionType {
     SetString                = 2,
     SetObject                = 3,
     SetArray                 = 4,
-    SetName                  = 5,
     GetIntegerPrototype      = 6,
     GetFloatPrototype        = 7,
     GetStringPrototype       = 8,
