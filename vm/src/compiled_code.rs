@@ -37,8 +37,14 @@ pub struct CompiledCode {
     /// The starting line number.
     pub line: u32,
 
+    /// The total number of arguments, excluding the rest argument.
+    pub arguments: u32,
+
     /// The amount of required arguments.
     pub required_arguments: u32,
+
+    /// Whether a rest argument is defined.
+    pub rest_argument: bool,
 
     /// The visibility (public or private)
     pub visibility: Visibility,
@@ -80,7 +86,9 @@ impl CompiledCode {
             name: name,
             file: file,
             line: line,
+            arguments: 0,
             required_arguments: 0,
+            rest_argument: false,
             visibility: Visibility::Public,
             locals: Vec::new(),
             instructions: instructions,

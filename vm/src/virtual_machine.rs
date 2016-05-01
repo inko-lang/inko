@@ -2387,17 +2387,51 @@ impl VirtualMachineMethods for RcVirtualMachine {
             return Err(format!("Private method \"{}\" called", name));
         }
 
-        let arguments = try!(
-            self.collect_arguments(thread.clone(), instruction, 5, arg_count)
-        );
+        let tot_args = method_code.arguments as usize;
+        let req_args = method_code.required_arguments as usize;
 
-        if arguments.len() < method_code.required_arguments as usize {
+        if arg_count > tot_args && !method_code.rest_argument {
             return Err(format!(
-                "{} requires {} arguments, {} given",
+                "{} accepts up to {} arguments, but {} arguments were given",
+                name,
+                method_code.arguments,
+                arg_count
+            ));
+        }
+
+        if arg_count < req_args {
+            return Err(format!(
+                "{} requires {} arguments, but {} arguments were given",
                 name,
                 method_code.required_arguments,
-                arguments.len()
+                arg_count
             ));
+        }
+
+        let mut collect_args = arg_count;
+        let mut rest_len = 0;
+
+        if collect_args > tot_args {
+            collect_args = tot_args;
+            rest_len = arg_count - collect_args;
+        }
+
+        let mut arguments = try!(
+            self.collect_arguments(thread.clone(), instruction, 5, collect_args)
+        );
+
+        // If a rest argument is defined we'll fill the last argument with an
+        // Array of remaining arguments.
+        if method_code.rest_argument {
+            let offset = 5 + collect_args;
+
+            let rest = try!(self.collect_arguments(thread.clone(), instruction,
+                                                   offset, rest_len));
+
+            let rest_array = self.allocate(object_value::array(rest),
+                                           self.array_prototype());
+
+            arguments.push(rest_array);
         }
 
         let retval = try!(

@@ -245,7 +245,9 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
     let name     = try!(read_string(bytes));
     let file     = try!(read_string(bytes));
     let line     = try!(read_u32(bytes));
+    let args     = try!(read_u32(bytes));
     let req_args = try!(read_u32(bytes));
+    let rest_arg = try!(read_u8(bytes)) == 1;
 
     let vis: Visibility = unsafe {
         mem::transmute(try!(read_u8(bytes)))
@@ -262,7 +264,9 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
         name: name,
         file: file,
         line: line,
+        arguments: args,
         required_arguments: req_args,
+        rest_argument: rest_arg,
         visibility: vis,
         locals: locals,
         instructions: instructions,
@@ -398,7 +402,9 @@ mod tests {
         pack_string!("main", buffer);
         pack_string!("test.aeon", buffer);
         pack_u32!(4, buffer); // line
+        pack_u32!(0, buffer); // arguments
         pack_u32!(0, buffer); // required arguments
+        pack_u8!(0, buffer); // rest argument
         pack_u8!(0, buffer); // visibility
         pack_u64!(0, buffer); // locals
         pack_u64!(0, buffer); // instructions
@@ -629,7 +635,9 @@ mod tests {
         pack_string!("main", buffer); // name
         pack_string!("test.aeon", buffer); // file
         pack_u32!(4, buffer); // line
+        pack_u32!(3, buffer); // arguments
         pack_u32!(2, buffer); // required args
+        pack_u8!(1, buffer); // rest argument
         pack_u8!(0, buffer); // visibility
         pack_u64!(0, buffer); // locals
 
@@ -656,7 +664,9 @@ mod tests {
         assert_eq!(object.name, "main".to_string());
         assert_eq!(object.file, "test.aeon".to_string());
         assert_eq!(object.line, 4);
+        assert_eq!(object.arguments, 3);
         assert_eq!(object.required_arguments, 2);
+        assert_eq!(object.rest_argument, true);
 
         match object.visibility {
             Visibility::Public  => {},

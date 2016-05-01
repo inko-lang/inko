@@ -99,7 +99,7 @@ macro_rules! instruction_object {
 /// Ensures the given index is within the bounds of the array.
 macro_rules! ensure_array_within_bounds {
     ($array: ident, $index: expr) => (
-        if $index > $array.len() {
+        if $index >= $array.len() {
             return Err(format!("index {} is out of bounds", $index));
         }
     );
