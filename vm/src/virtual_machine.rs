@@ -286,6 +286,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetAttr => {
                     run!(self, ins_get_attr, thread, code, instruction);
                 },
+                InstructionType::LiteralAttrExists => {
+                    run!(self, ins_literal_attr_exists, thread, code, instruction);
+                },
                 InstructionType::SetCompiledCode => {
                     run!(self, ins_set_compiled_code, thread, code,
                          instruction);
@@ -815,13 +818,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name       = try!(code.string(name_index));
 
         let object = try!(
-            read_lock!(src).lookup_constant(name).ok_or(
-                format!(
-                    "The object in register {} does not define the constant \"{}\"",
-                    instruction.arguments[1],
-                    name
-                )
-            )
+            read_lock!(src).lookup_constant(name)
+                .ok_or(constant_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, object);
@@ -842,13 +840,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name_str = name_obj.value.as_string();
 
         let object = try!(
-            read_lock!(src).lookup_constant(name_str).ok_or(
-                format!(
-                    "The object in register {} does not define the constant \"{}\"",
-                    instruction.arguments[1],
-                    name_str
-                )
-            )
+            read_lock!(src).lookup_constant(name_str)
+                .ok_or(constant_error!(instruction.arguments[1], name_str))
         );
 
         thread.set_register(register, object);
@@ -918,7 +911,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(format!("undefined attribute {}", name))
+                .ok_or(attribute_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, attr);
@@ -940,10 +933,29 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(format!("undefined attribute {}", name))
+                .ok_or(attribute_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, attr);
+
+        Ok(())
+    }
+
+    fn ins_literal_attr_exists(&self, thread: RcThread, code: RcCompiledCode,
+                               instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, thread, 1);
+        let name_index = try!(instruction.arg(2));
+        let name = try!(code.string(name_index));
+
+        let obj = if read_lock!(source).has_attribute(name) {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(register, obj);
 
         Ok(())
     }

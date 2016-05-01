@@ -441,6 +441,16 @@ pub trait VirtualMachineMethods {
     fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Checks if an attribute exists in an object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in (true or false).
+    /// 2. The register containing the object to check.
+    /// 3. The string literal index to use for the attribute name.
+    fn ins_literal_attr_exists(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Sets a CompiledCode object in a register.
     ///
     /// This instruction requires two arguments:

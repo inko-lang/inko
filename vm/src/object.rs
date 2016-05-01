@@ -69,6 +69,10 @@ impl Object {
         self.lookup_method(name).is_some()
     }
 
+    pub fn has_attribute(&self, name: &String) -> bool {
+        self.lookup_attribute(name).is_some()
+    }
+
     pub fn lookup_method(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 

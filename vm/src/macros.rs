@@ -170,3 +170,23 @@ macro_rules! try_from_utf8 {
         String::from_utf8($bytes).map_err(|_| errors::STRING_INVALID_UTF8 )
     );
 }
+
+macro_rules! constant_error {
+    ($reg: expr, $name: expr) => (
+        format!(
+            "The object in register {} does not define the constant \"{}\"",
+            $reg,
+            $name
+        )
+    )
+}
+
+macro_rules! attribute_error {
+    ($reg: expr, $name: expr) => (
+        format!(
+            "The object in register {} does not define the attribute \"{}\"",
+            $reg,
+            $name
+        );
+    )
+}
