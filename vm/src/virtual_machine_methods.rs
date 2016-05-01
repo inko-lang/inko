@@ -317,8 +317,8 @@ pub trait VirtualMachineMethods {
     /// This instruction requires 3 arguments:
     ///
     /// 1. The register pointing to the object to store the constant in.
-    /// 2. The register pointing to the object to store.
-    /// 3. The string literal index to use for the name.
+    /// 2. The string literal index to use for the name.
+    /// 3. The register pointing to the object to store.
     ///
     /// # Examples
     ///
@@ -327,14 +327,14 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: get_toplevel 0
     ///     1: set_object   1
-    ///     3: set_const    0, 1, 0
+    ///     3: set_const    0, 0, 1
     fn ins_set_literal_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a constant using a runtime allocated String.
     ///
     /// This instruction takes the same arguments as the "set_const" instruction
-    /// except the last argument should point to a register containing a String
+    /// except the 2nd argument should point to a register containing a String
     /// to use for the name.
     fn ins_set_const(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;

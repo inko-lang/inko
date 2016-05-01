@@ -114,7 +114,7 @@ module Aeon
             parent_reg
 
           # Define the class as a constant.
-          ins.set_literal_const name_source, send_reg, class_name_idx
+          ins.set_literal_const name_source, class_name_idx, send_reg
 
           ins.mark_label(jump_to)
 

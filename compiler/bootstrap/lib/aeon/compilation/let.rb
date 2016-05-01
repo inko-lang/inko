@@ -34,7 +34,7 @@ module Aeon
 
         @code.instruct(line, column) do |ins|
           ins.get_self          self_idx
-          ins.set_literal_const self_idx, val_idx, name_idx
+          ins.set_literal_const self_idx, name_idx, val_idx
         end
 
         name_idx
