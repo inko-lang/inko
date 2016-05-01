@@ -296,6 +296,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::Send => {
                     run!(self, ins_send, thread, code, instruction);
                 },
+                InstructionType::LiteralRespondsTo => {
+                    run!(self, ins_literal_responds_to, thread, code, instruction);
+                },
+                InstructionType::RespondsTo => {
+                    run!(self, ins_responds_to, thread, code, instruction);
+                },
                 InstructionType::Return => {
                     retval = run!(self, ins_return, thread, code, instruction);
                 },
@@ -973,6 +979,50 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(string);
 
         self.send_message(string.value.as_string(), thread, instruction)
+    }
+
+    fn ins_literal_responds_to(&self, thread: RcThread, code: RcCompiledCode,
+                               instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, thread, 1);
+        let name_index = try!(instruction.arg(2));
+        let name = try!(code.string(name_index));
+
+        let source_obj = read_lock!(source);
+
+        let result = if source_obj.responds_to(name) {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(register, result);
+
+        Ok(())
+    }
+
+    fn ins_responds_to(&self, thread: RcThread, _: RcCompiledCode,
+                       instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, thread, 1);
+        let name = instruction_object!(instruction, thread, 2);
+
+        let name_obj = read_lock!(name);
+        let source_obj = read_lock!(source);
+
+        ensure_strings!(name_obj);
+
+        let result = if source_obj.responds_to(name_obj.value.as_string()) {
+            self.true_object()
+        }
+        else {
+            self.false_object()
+        };
+
+        thread.set_register(register, result);
+
+        Ok(())
     }
 
     fn ins_return(&self, thread: RcThread, _: RcCompiledCode,

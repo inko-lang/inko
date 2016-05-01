@@ -65,6 +65,10 @@ impl Object {
         header_ref.methods.insert(name, method);
     }
 
+    pub fn responds_to(&self, name: &String) -> bool {
+        self.lookup_method(name).is_some()
+    }
+
     pub fn lookup_method(&self, name: &String) -> Option<RcObject> {
         let mut retval: Option<RcObject> = None;
 

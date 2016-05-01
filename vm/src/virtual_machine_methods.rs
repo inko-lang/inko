@@ -493,6 +493,25 @@ pub trait VirtualMachineMethods {
     /// literal it should point to a register containing a string.
     fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
 
+    /// Checks if an object responds to a message
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in (true or false)
+    /// 2. The register containing the object to check
+    /// 3. The string literal index to use as the method name
+    fn ins_literal_responds_to(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Checks if an object responds to a message using a runtime allocated
+    /// string.
+    ///
+    /// This instruction requires the same arguments as the
+    /// "literal_responds_to" instruction except the last argument should be a
+    /// register containing a string.
+    fn ins_responds_to(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Returns the value in the given register.
     ///
     /// As registers can be left empty this method returns an Option
