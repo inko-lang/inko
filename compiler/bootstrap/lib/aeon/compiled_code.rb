@@ -1,14 +1,17 @@
 module Aeon
   class CompiledCode
-    attr_reader :name, :file, :line, :required_arguments, :visibility,
-      :integers, :floats, :strings, :code_objects, :register, :locals,
-      :instructions, :register, :labels, :type
+    attr_reader :name, :file, :line, :arguments, :required_arguments,
+      :rest_argument, :visibility, :integers, :floats, :strings, :code_objects,
+      :register, :locals, :instructions, :register, :labels, :type
 
-    def initialize(name, file, line, required_arguments = 0, visibility = :private, type = nil)
+    def initialize(name, file, line, arguments = 0, required_arguments = 0,
+                   rest_argument: false, visibility: :private, type: nil)
       @name = name
       @file = file
       @line = line
+      @arguments = arguments
       @required_arguments = required_arguments
+      @rest_argument = rest_argument
       @visibility = visibility
 
       @locals = Literals.new
@@ -44,7 +47,7 @@ module Aeon
       if @instructions.empty?
         raise ArgumentError, "Can't mark label when there are no instructions"
       else
-        @labels[pos] = @instructions.length - 1
+        @labels[pos] = @instructions.length
       end
     end
 

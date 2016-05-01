@@ -141,6 +141,11 @@ module Aeon
       constant    = upper ident_chunk*;
       ivar        = '@' identifier;
 
+      action emit_identifier {
+        token = token(:Identifier)
+        fbreak;
+      }
+
       integer = ('+' | '-')? digit+ ('_' digit+)*;
       float   = integer '.' integer;
 
@@ -165,6 +170,21 @@ module Aeon
       comma  = ',';
       dot    = '.';
       arrow  = '->';
+
+      action emit_comma {
+        token = token(:Comma)
+        fbreak;
+      }
+
+      action emit_lparen {
+        token = token(:ParenOpen)
+        fbreak;
+      }
+
+      action emit_rparen {
+        token = token(:ParenClose)
+        fbreak;
+      }
 
       plus_assign = '+=';
       min_assign  = '-=';
@@ -270,8 +290,29 @@ module Aeon
         };
       *|;
 
+      compile_flag := |*
+        space;
+
+        identifier => emit_identifier;
+        lparen     => emit_lparen;
+        rparen     => emit_rparen;
+        comma      => emit_comma;
+
+        ']' => {
+          token = token(:CompileFlagClose)
+          fnext main;
+          fbreak;
+        };
+      *|;
+
       main := |*
         comment;
+
+        '![' => {
+          token = token(:CompileFlagOpen)
+          fnext compile_flag;
+          fbreak;
+        };
 
         'trait' => {
           token = token(:Trait)
@@ -414,10 +455,7 @@ module Aeon
           fbreak;
         };
 
-        identifier => {
-          token = token(:Identifier)
-          fbreak;
-        };
+        identifier => emit_identifier;
 
         constant => {
           token = token(:Constant)
@@ -434,17 +472,8 @@ module Aeon
           fbreak;
         };
 
-        lparen => {
-          token = token(:ParenOpen)
-
-          fbreak;
-        };
-
-        rparen => {
-          token = token(:ParenClose)
-
-          fbreak;
-        };
+        lparen => emit_lparen;
+        rparen => emit_rparen;
 
         lbrack => {
           token = token(:BrackOpen)
@@ -521,10 +550,7 @@ module Aeon
           fbreak;
         };
 
-        comma => {
-          token = token(:Comma)
-          fbreak;
-        };
+        comma => emit_comma;
 
         dot => {
           token = token(:Dot)

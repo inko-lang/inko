@@ -23,5 +23,9 @@ module Aeon
     def to_a
       @values.keys
     end
+
+    def inspect
+      "Literals(#{to_a.map(&:inspect).join(', ')})"
+    end
   end
 end

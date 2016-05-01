@@ -16,7 +16,7 @@ module Aeon
         when :const
           constant(val_idx)
         when :ivar
-          # TODO: instance variables
+          instance_variable(val_idx)
         end
       end
 
@@ -40,8 +40,20 @@ module Aeon
         name_idx
       end
 
+      def instance_variable(val_idx)
+        name_idx = @code.strings.add(variable_name)
+        self_idx = @code.next_register
+
+        @code.instruct(line, column) do |ins|
+          ins.get_self         self_idx
+          ins.set_literal_attr self_idx, val_idx, name_idx
+        end
+      end
+
       def variable_name
-        variable_ast.children[1]
+        idx = variable_ast.type == :ivar ? 0 : 1
+
+        variable_ast.children[idx]
       end
 
       def variable_ast

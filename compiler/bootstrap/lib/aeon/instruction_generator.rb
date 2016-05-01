@@ -6,6 +6,10 @@ module Aeon
       @column = column
     end
 
+    def mark_label(label)
+      @code.mark_label(label)
+    end
+
     Instruction::NAME_MAPPING.keys.each do |key|
       class_eval <<-EOF, __FILE__, __LINE__ + 1
         def #{key}(*args)

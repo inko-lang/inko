@@ -22,25 +22,68 @@ module Aeon
       end
 
       def compile_body
-        body = CompiledCode.new(name, @code.file, line, required_argument_count,
-                                visibility)
+        body = CompiledCode.new(name, @code.file, line, argument_count,
+                                required_argument_count,
+                                rest_argument: rest_argument?,
+                                visibility: visibility)
 
         add_arguments(body)
+
+        define_default_arguments(body)
 
         @compiler.process(body_ast, body)
 
         body
       end
 
+      def rest_argument
+        arguments_ast.children.find { |arg| arg.type == :restarg }
+      end
+
+      def rest_argument?
+        arguments_ast.children.any? { |arg| arg.type == :restarg }
+      end
+
+      def argument_count
+        arguments_ast.children.count { |arg| arg.type == :arg }
+      end
+
       def required_argument_count
         arguments_ast.children.count do |arg|
-          arg.children[2].nil?
+          arg.children[2].nil? && arg.type != :restarg
         end
       end
 
       def add_arguments(code)
         arguments_ast.children.each do |arg|
-          code.locals.add(arg.children[0])
+          name = arg.children[0]
+
+          if code.locals.include?(name)
+            raise CompileError, "The argument #{name.inspect} already exists"
+          else
+            code.locals.add(name)
+          end
+        end
+      end
+
+      def define_default_arguments(body)
+        arguments_ast.children.each do |arg|
+          default = arg.children[2]
+
+          next unless default
+
+          name = arg.children[0]
+          local_idx = body.locals.get(name)
+          exists_reg = body.next_register
+
+          jump_to = body.label
+
+          body.instruct(default.line, default.column) do |ins|
+            ins.local_exists exists_reg, local_idx
+            ins.goto_if_true jump_to, exists_reg
+            ins.set_local    local_idx, @compiler.process(default, body)
+            ins.mark_label   jump_to
+          end
         end
       end
 
@@ -72,7 +115,7 @@ module Aeon
         case @code.type
         when :class
           self_idx  = @code.next_register
-          attr_name = @code.strings.add(Class::PROTO_ATTR)
+          attr_name = @code.strings.add(Class::PROTOTYPE)
 
           @code.instruct(line, column) do |ins|
             ins.get_self         self_idx

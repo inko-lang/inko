@@ -32,7 +32,11 @@ module Aeon
 
       last_ins = current_cc.instructions.last
 
-      last_ins.arguments[0]
+      last_ins.arguments[0] if last_ins
+    end
+
+    def on_compile_flag(node, current_cc)
+      # TODO: implement compiler flags
     end
 
     def on_def(node, current_cc)
@@ -69,6 +73,10 @@ module Aeon
 
     def on_ident(node, current_cc)
       Compilation::Identifier.new(node, current_cc).compile
+    end
+
+    def on_ivar(node, current_cc)
+      Compilation::InstanceVariable.new(node, current_cc).compile
     end
 
     def on_const(node, current_cc)

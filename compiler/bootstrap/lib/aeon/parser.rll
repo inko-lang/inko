@@ -10,6 +10,7 @@
 %terminals PipeAssign AmpersandAssign Compare Not NotEqual RangeInc RangeExcl;
 %terminals BitwiseExclOr BitwiseExclOrAssign ShiftLeft ShiftRight Type;
 %terminals PlusPrefix MinPrefix Module Self SingleString DoubleString Extends;
+%terminals CompileFlagOpen CompileFlagClose;
 
 exprs
   = expr* { s(:exprs, *val[0]) }
@@ -157,8 +158,10 @@ pow_expr_follow
 expr_or_range
   = expr_body expr_or_range_follow?
     {
-      if val[1]
+      if val[1] and val[1][2]
         s(val[1][0], val[0], val[1][2], location: val[1][1])
+      elsif val[1]
+        s(val[1][0], val[0], location: val[1][1])
       else
         val[0]
       end
@@ -167,7 +170,14 @@ expr_or_range
 
 expr_or_range_follow
   = RangeInc expr  { [:irange, val[0], val[1]] }
-  | RangeExcl expr { [:erange, val[0], val[1]] }
+  | RangeExcl expr?
+    {
+      if val[1]
+        [:erange, val[0], val[1]]
+      else
+        [:rest, val[0]]
+      end
+    }
   ;
 
 expr_body
@@ -226,6 +236,7 @@ expr_member
   | type_def
   | module
   | self
+  | compile_flag
   ;
 
 integer
@@ -546,7 +557,7 @@ def_args_follow
   ;
 
 def_arg
-  = type_name def_arg_follow?
+  = type_name def_arg_follow? RangeExcl?
     {
       args = [val[0]] # name, type, default
 
@@ -557,11 +568,15 @@ def_arg
         end
 
         args[2] = val[1][1] if val[1][1] # default
-      else
+      end
+
+      if args[0].is_a?(Node)
         args[0] = args[0].children[1]
       end
 
-      s(:arg, *args)
+      type = val[2] ? :restarg : :arg
+
+      s(type, *args)
     }
   ;
 
@@ -575,7 +590,12 @@ arg_default
   ;
 
 return_type
-  = Arrow type_name { val[1] }
+  = Arrow type_name_or_self { val[1] }
+  ;
+
+type_name_or_self
+  = type_name
+  | self
   ;
 
 docstring
@@ -758,6 +778,24 @@ module
 
 self
   = Self { s(:self, location: val[0]) }
+  ;
+
+compile_flag
+  = CompileFlagOpen Identifier compile_flag_args? CompileFlagClose
+    {
+      s(:compile_flag, val[1], *val[2], location: val[0])
+    }
+  ;
+
+compile_flag_args
+  = ParenOpen Identifier compile_flag_args_follow* ParenClose
+    {
+      [val[1], *val[2]]
+    }
+  ;
+
+compile_flag_args_follow
+  = Comma Identifier { val[1] }
   ;
 
 %inner {

@@ -16,7 +16,7 @@ module Aeon
       end
 
       def value
-        @node.children[0]
+        @ast.children[0]
       end
 
       def line

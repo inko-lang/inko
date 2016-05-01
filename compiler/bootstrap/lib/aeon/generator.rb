@@ -44,6 +44,10 @@ module Aeon
       [num].pack('G')
     end
 
+    def boolean(val)
+      u8(val ? 1 : 0)
+    end
+
     def array(values, encoder)
       values = values.map { |value| send(encoder, value) }
       size   = u64(values.length)
@@ -64,7 +68,9 @@ module Aeon
       string(code.name) +
         string(code.file) +
         u32(code.line) +
+        i32(code.arguments) +
         u32(code.required_arguments) +
+        boolean(code.rest_argument) +
         u8(visibility) +
         array(code.locals.to_a, :string) +
         array(code.instructions, :instruction) +

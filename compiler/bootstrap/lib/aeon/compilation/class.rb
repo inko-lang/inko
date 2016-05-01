@@ -1,7 +1,7 @@
 module Aeon
   module Compilation
     class Class
-      PROTO_ATTR = '__prototype'
+      PROTOTYPE = '__iproto'
 
       def initialize(compiler, ast, code)
         @compiler = compiler
@@ -39,8 +39,6 @@ module Aeon
 
       def explicit_parent
         parent_reg = @code.next_register
-        parent_class_reg = @code.next_register
-        proto_name_idx = @code.strings.add(PROTO_ATTR)
 
         if parent_ast.children[0]
           psource = @compiler.process(parent_ast.children[0], @code)
@@ -54,76 +52,77 @@ module Aeon
 
         @code.instruct(line, column) do |ins|
           # Get the parent class object
-          ins.get_literal_const parent_class_reg, psource, parent_name
-
-          # Get the parent's __prototype attribute
-          ins.get_literal_attr parent_reg, parent_class_reg, proto_name_idx
+          ins.get_literal_const parent_reg, psource, parent_name
         end
 
         parent_reg
       end
 
       def implicit_parent
-        parent_reg = @code.next_register
-        parent_class_reg = @code.next_register
-        proto_name_idx = @code.strings.add(PROTO_ATTR)
+        core_name_idx = @code.strings.add('Core')
+        object_name_idx = @code.strings.add('Object')
 
+        core_mod_reg = @code.next_register
+        obj_mod_reg = @code.next_register
+        parent_reg = @code.next_register
         self_idx = @code.next_register
-        parent_name = @code.strings.add('Object')
 
         @code.instruct(line, column) do |ins|
-          # Look up Object in the current scope.
+          # Look up Core::Object::Object in the current scope.
           ins.get_self          self_idx
-          ins.get_literal_const parent_class_reg, self_idx, parent_name
-
-          # Grab the __prototype attribute from Object
-          ins.get_literal_attr parent_reg, parent_class_reg, proto_name_idx
+          ins.get_literal_const core_mod_reg, self_idx, core_name_idx
+          ins.get_literal_const obj_mod_reg, core_mod_reg, object_name_idx
+          ins.get_literal_const parent_reg, obj_mod_reg, object_name_idx
         end
 
         parent_reg
       end
 
       def create_or_reopen(name_source, parent_reg)
-        name_idx = @code.strings.add(class_name)
-        proto_name_idx = @code.strings.add(PROTO_ATTR)
+        class_name_idx = @code.strings.add(class_name)
+        core_mod_name_idx = @code.strings.add('Core')
+        class_mod_name_idx = @code.strings.add('Class')
+        new_name_idx = @code.strings.add('new')
+
+        core_mod_reg = @code.next_register
+        class_mod_reg = @code.next_register
+        class_class_reg = @code.next_register
 
         exists_reg = @code.next_register
-        target_reg = @code.next_register
-        proto_reg = @code.next_register
+        class_reg = @code.next_register
+        top_reg = @code.next_register
+        send_reg = @code.next_register
 
         jump_to = @code.label
 
         @code.instruct(line, column) do |ins|
           # Checks if the constant already exists or not.
-          ins.literal_const_exists exists_reg, name_source, name_idx
+          ins.literal_const_exists exists_reg, name_source, class_name_idx
 
           # If the constant already exists we'll jump to the last instruction in
           # this block.
           ins.goto_if_true jump_to, exists_reg
 
-          # The object for the class itself (e.g. Foo).
-          ins.set_object target_reg
+          # Look up Core::Class::Class
+          ins.get_toplevel      top_reg
+          ins.get_literal_const core_mod_reg, top_reg, core_mod_name_idx
+          ins.get_literal_const class_mod_reg, core_mod_reg, class_mod_name_idx
+          ins.get_literal_const class_class_reg, class_mod_reg, class_mod_name_idx
 
-          # The prototype for instances (Foo.__prototype).
-          ins.set_object proto_reg
+          # Core::Class::Class.new(parent_class)
+          ins.send_literal send_reg, class_class_reg, new_name_idx, 0, 1,
+            parent_reg
 
-          # Set the above object's prototype to the parent class' __prototype
-          # attribute.
-          ins.set_prototype proto_reg, parent_reg
+          # Define the class as a constant.
+          ins.set_literal_const name_source, send_reg, class_name_idx
 
-          # Store the object in the class' __prototype attribute.
-          ins.set_literal_attr target_reg, proto_reg, proto_name_idx
-
-          # Store the class object as a constant.
-          ins.set_literal_const name_source, target_reg, name_idx
+          ins.mark_label(jump_to)
 
           # Get the class object, which at this point is guaranteed to exist.
-          ins.get_literal_const target_reg, name_source, name_idx
+          ins.get_literal_const class_reg, name_source, class_name_idx
         end
 
-        @code.mark_label(jump_to)
-
-        target_reg
+        class_reg
       end
 
       def create_and_run_body(class_idx)
@@ -132,13 +131,12 @@ module Aeon
         body_idx = @code.code_objects.add(body_code)
         body_ret_idx = @code.next_register
 
-        @code.run_literal_code([body_ret_idx, body_idx, class_idx], line,
-                                   column)
+        @code.run_literal_code([body_ret_idx, body_idx, class_idx], line, column)
       end
 
       def create_body
         body_code = CompiledCode
-          .new(class_name, @code.file, line, 0, :public, :class)
+          .new(class_name, @code.file, line, visibility: :public, type: :class)
 
         @compiler.process(body_ast, body_code)
 

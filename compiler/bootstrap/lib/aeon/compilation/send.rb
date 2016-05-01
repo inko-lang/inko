@@ -24,7 +24,7 @@ module Aeon
         vis = 1
 
         # TODO: properly determine visibility
-        @code.send_literal([target, rec, name_idx, vis, args.length, *args],
+        @code.send_literal([target, rec, name_idx, vis, rest, *args],
                            line, column)
 
         target
@@ -58,8 +58,18 @@ module Aeon
         @code.strings.add(name)
       end
 
+      def rest
+        any = arguments.any? { |arg| arg.type == :rest }
+
+        any ? 1 : 0
+      end
+
       def process_arguments
-        arguments.map { |arg| @compiler.process(arg, @code) }
+        arguments.map do |arg|
+          arg = arg.children[0] if arg.type == :rest
+
+          @compiler.process(arg, @code)
+        end
       end
 
       def line

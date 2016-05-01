@@ -8,7 +8,6 @@ module Aeon
       set_string: 2,
       set_object: 3,
       set_array: 4,
-      set_name: 5,
       get_integer_prototype: 6,
       get_float_prototype: 7,
       get_string_prototype: 8,
@@ -99,7 +98,10 @@ module Aeon
       get_attr: 93,
       literal_const_exists: 94,
       run_literal_code: 95,
-      set_prototype: 96
+      set_prototype: 96,
+      get_prototype: 97,
+      local_exists: 98,
+      get_caller: 99
     }
 
     def initialize(name, arguments, line, column)
@@ -125,6 +127,10 @@ module Aeon
 
     def remap_arguments
       @arguments.map! { |arg| yield arg }
+    end
+
+    def inspect
+      "Instruction(#{name}, #{arguments.inspect}, line: #{line}, column: #{column})"
     end
   end
 end
