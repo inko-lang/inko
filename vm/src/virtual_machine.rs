@@ -598,10 +598,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_array(&self, thread: RcThread, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
         let register  = try!(instruction.arg(0));
-        let val_count = try!(instruction.arg(1));
+        let val_count = instruction.arguments.len() - 1;
 
         let values = try!(
-            self.collect_arguments(thread.clone(), instruction, 2, val_count)
+            self.collect_arguments(thread.clone(), instruction, 1, val_count)
         );
 
         let obj = self.allocate(object_value::array(values),
@@ -2423,6 +2423,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
             arguments.truncate(tot_args);
 
             let rest_array = self.allocate(object_value::array(rest),
+                                           self.array_prototype());
+
+            arguments.push(rest_array);
+        }
+        else if method_code.rest_argument && arguments.len() == 0 {
+            let rest_array = self.allocate(object_value::array(Vec::new()),
                                            self.array_prototype());
 
             arguments.push(rest_array);

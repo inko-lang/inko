@@ -118,20 +118,16 @@ pub trait VirtualMachineMethods {
 
     /// Sets an array in a register.
     ///
-    /// This instruction requires at least two arguments:
-    ///
-    /// 1. The register to store the array in.
-    /// 2. The amount of values to store in the array.
-    ///
-    /// If the 2nd argument is N where N > 0 then all N following arguments are
-    /// used as values for the array.
+    /// This instruction requires at least one argument: the register to store
+    /// the resulting array in. Any extra instruction arguments should point to
+    /// registers containing objects to store in the array.
     ///
     /// # Examples
     ///
     ///     0: set_object 0
     ///     2: set_object 1
     ///     3: set_object 2
-    ///     4: set_array  3, 2, 1, 2
+    ///     4: set_array  3, 1, 2
     fn ins_set_array(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
