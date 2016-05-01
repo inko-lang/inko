@@ -210,7 +210,15 @@ expr_send
   ;
 
 expr_send_chain
-  = Dot Identifier send_follow? { [val[1], val[2]] }
+  = Dot identifier_or_special send_follow? { [val[1], val[2]] }
+  ;
+
+identifier_or_special
+  = Identifier
+  | Class
+  | Trait
+  | Enum
+  | Module
   ;
 
 expr_member
@@ -489,7 +497,7 @@ def_name
         [nil, val[0].children[1]]
       end
     }
-  | def_name_op { [nil, val[0]] }
+  | def_special_name { [nil, val[0]] }
   ;
 
 qname_or_self
@@ -498,7 +506,7 @@ qname_or_self
   ;
 
 def_name_follow
-  = Dot qname_or_def_name_op
+  = Dot qname_or_def_special_name
     {
       if val[1].is_a?(Node)
         val[1].children[1]
@@ -508,12 +516,12 @@ def_name_follow
     }
   ;
 
-qname_or_def_name_op
+qname_or_def_special_name
   = qname
-  | def_name_op
+  | def_special_name
   ;
 
-def_name_op
+def_special_name
   = Star
   | Plus
   | Minus
@@ -532,6 +540,10 @@ def_name_op
   | Pipe
   | PlusPrefix
   | MinPrefix
+  | Class
+  | Trait
+  | Enum
+  | Module
   ;
 
 def_body
