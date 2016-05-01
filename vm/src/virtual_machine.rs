@@ -873,8 +873,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_literal_attr(&self, thread: RcThread, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
         let target_object = instruction_object!(instruction, thread, 0);
-        let source_object = instruction_object!(instruction, thread, 1);
-        let name_index    = try!(instruction.arg(2));
+        let name_index    = try!(instruction.arg(1));
+        let source_object = instruction_object!(instruction, thread, 2);
 
         let name = try!(code.string(name_index));
 
@@ -887,8 +887,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_attr(&self, thread: RcThread, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let target_object = instruction_object!(instruction, thread, 0);
-        let source_object = instruction_object!(instruction, thread, 1);
-        let name_lock     = instruction_object!(instruction, thread, 2);
+        let name_lock     = instruction_object!(instruction, thread, 1);
+        let source_object = instruction_object!(instruction, thread, 2);
 
         let name_obj = read_lock!(name_lock);
 

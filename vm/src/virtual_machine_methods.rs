@@ -389,9 +389,9 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register containing the object for which to set the
     ///    attribute.
-    /// 2. The register containing the object to set as the attribute
+    /// 2. The string literal index to use for the name.
+    /// 3. The register containing the object to set as the attribute
     ///    value.
-    /// 3. The string literal index to use for the name.
     ///
     /// # Examples
     ///
@@ -407,7 +407,7 @@ pub trait VirtualMachineMethods {
     /// Sets an attribute of an object using a runtime allocated string.
     ///
     /// This instruction takes the same arguments as the "set_literal_attr"
-    /// instruction except the last argument should point to a register
+    /// instruction except the 2nd argument should point to a register
     /// containing a String to use for the name.
     fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
