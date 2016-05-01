@@ -2420,10 +2420,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let allow_private = try!(instruction.arg(3));
         let rest_arg      = try!(instruction.arg(4)) == 1;
 
-        let receiver = read_lock!(receiver_lock);
-
         let method_lock = try!(
-            receiver.lookup_method(name)
+            read_lock!(receiver_lock).lookup_method(name)
                 .ok_or(format!("Undefined method \"{}\" called", name))
         );
 
