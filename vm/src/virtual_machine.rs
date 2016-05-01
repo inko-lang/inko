@@ -2462,10 +2462,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         if method_code.rest_argument && arguments.len() > tot_args {
             let rest_count = arguments.len() - tot_args;
             let mut rest = Vec::new();
-            let start = arguments.len() - 1;
 
-            for index in start..(start + rest_count) {
-                rest.push(arguments[index].clone());
+            for obj in arguments[arguments.len() - rest_count..].iter() {
+                rest.push(obj.clone());
             }
 
             arguments.truncate(tot_args);
