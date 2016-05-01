@@ -463,19 +463,17 @@ pub trait VirtualMachineMethods {
 
     /// Sends a message using a string literal
     ///
-    /// This instruction requires at least 4 arguments:
+    /// This instruction requires at least 5 arguments:
     ///
     /// 1. The register to store the result in.
     /// 2. The register of the receiver.
     /// 3. The index of the string literal to use for the method name.
     /// 4. A boolean (1 or 0) indicating if private methods can be called.
-    /// 5. The amount of arguments to pass (0 or more).
+    /// 5. A boolean (1 or 0) to indicate if the last argument is a rest
+    ///    argument. A rest argument will be unpacked into separate arguments.
     ///
-    /// If the argument amount is set to N where N > 0 then the N instruction
-    /// arguments following the 5th instruction argument are used as arguments
-    /// for sending the message.
-    ///
-    /// This instruction does not allocate a String for the method name.
+    /// Any extra instruction arguments will be passed as arguments to the
+    /// method.
     ///
     /// # Examples
     ///
@@ -486,9 +484,9 @@ pub trait VirtualMachineMethods {
     ///     string_literals
     ///       0: "+"
     ///
-    ///     0: set_integer 0, 0              # 10
-    ///     1: set_integer 1, 1              # 20
-    ///     2: send        2, 0, 0, 0, 1, 1  # 10.+(20)
+    ///     0: set_integer 0, 0             # 10
+    ///     1: set_integer 1, 1             # 20
+    ///     2: send        2, 0, 0, 0, 0, 1 # 10.+(20)
     fn ins_send_literal(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

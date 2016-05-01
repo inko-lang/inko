@@ -2368,7 +2368,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register      = try!(instruction.arg(0));
         let receiver_lock = instruction_object!(instruction, thread, 1);
         let allow_private = try!(instruction.arg(3));
-        let arg_count     = try!(instruction.arg(4));
+        let rest_arg      = try!(instruction.arg(4)) == 1;
 
         let receiver = read_lock!(receiver_lock);
 
@@ -2387,51 +2387,63 @@ impl VirtualMachineMethods for RcVirtualMachine {
             return Err(format!("Private method \"{}\" called", name));
         }
 
+        // Argument handling
+        let arg_count = instruction.arguments.len() - 5;
         let tot_args = method_code.arguments as usize;
         let req_args = method_code.required_arguments as usize;
 
-        if arg_count > tot_args && !method_code.rest_argument {
-            return Err(format!(
-                "{} accepts up to {} arguments, but {} arguments were given",
-                name,
-                method_code.arguments,
-                arg_count
-            ));
-        }
-
-        if arg_count < req_args {
-            return Err(format!(
-                "{} requires {} arguments, but {} arguments were given",
-                name,
-                method_code.required_arguments,
-                arg_count
-            ));
-        }
-
-        let mut collect_args = arg_count;
-        let mut rest_len = 0;
-
-        if collect_args > tot_args {
-            collect_args = tot_args;
-            rest_len = arg_count - collect_args;
-        }
-
         let mut arguments = try!(
-            self.collect_arguments(thread.clone(), instruction, 5, collect_args)
+            self.collect_arguments(thread.clone(), instruction, 5, arg_count)
         );
 
-        // If a rest argument is defined we'll fill the last argument with an
-        // Array of remaining arguments.
-        if method_code.rest_argument {
-            let offset = 5 + collect_args;
+        // Unpack the last argument if it's a rest argument
+        if rest_arg {
+            if let Some(last_arg) = arguments.pop() {
+                let array = read_lock!(last_arg);
 
-            let rest = try!(self.collect_arguments(thread.clone(), instruction,
-                                                   offset, rest_len));
+                ensure_arrays!(array);
+
+                for value in array.value.as_array() {
+                    arguments.push(value.clone());
+                }
+            }
+        }
+
+        // If the method defines a rest argument we'll pack any excessive
+        // arguments into a single array.
+        if method_code.rest_argument && arguments.len() > tot_args {
+            let rest_count = arguments.len() - tot_args;
+            let mut rest = Vec::new();
+            let start = arguments.len() - 1;
+
+            for index in start..(start + rest_count) {
+                rest.push(arguments[index].clone());
+            }
+
+            arguments.truncate(tot_args);
 
             let rest_array = self.allocate(object_value::array(rest),
                                            self.array_prototype());
 
             arguments.push(rest_array);
+        }
+
+        if arguments.len() > tot_args && !method_code.rest_argument {
+            return Err(format!(
+                "{} accepts up to {} arguments, but {} arguments were given",
+                name,
+                method_code.arguments,
+                arguments.len()
+            ));
+        }
+
+        if arguments.len() < req_args {
+            return Err(format!(
+                "{} requires {} arguments, but {} arguments were given",
+                name,
+                method_code.required_arguments,
+                arguments.len()
+            ));
         }
 
         let retval = try!(
