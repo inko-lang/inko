@@ -1,19 +1,23 @@
 module Aeon
   module Compilation
     class Identifier
-      def initialize(ast, code)
+      def initialize(compiler, ast, code)
+        @compiler = compiler
         @ast = ast
         @code = code
       end
 
       def compile
-        # TODO: determine when to use a lvar and when to use a send
-        local_idx = @code.locals.add(name)
-        register  = @code.next_register
+        if @code.locals.include?(name)
+          local_idx = @code.locals.get(name)
+          register  = @code.next_register
 
-        @code.get_local([register, local_idx], line, column)
+          @code.get_local([register, local_idx], line, column)
 
-        register
+          register
+        else
+          Compilation::Send.new(@compiler, @ast, @code).compile
+        end
       end
 
       def receiver_ast

@@ -59,9 +59,7 @@ module Aeon
       end
 
       def rest
-        any = arguments.any? { |arg| arg.type == :rest }
-
-        any ? 1 : 0
+        arguments.any? { |arg| arg.type == :rest } ? 1 : 0
       end
 
       def process_arguments

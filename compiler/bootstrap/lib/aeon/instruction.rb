@@ -101,7 +101,9 @@ module Aeon
       set_prototype: 96,
       get_prototype: 97,
       local_exists: 98,
-      get_caller: 99
+      get_caller: 99,
+      literal_responds_to: 100,
+      responds_to: 101
     }
 
     def initialize(name, arguments, line, column)

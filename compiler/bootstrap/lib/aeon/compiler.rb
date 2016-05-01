@@ -72,7 +72,7 @@ module Aeon
     end
 
     def on_ident(node, current_cc)
-      Compilation::Identifier.new(node, current_cc).compile
+      Compilation::Identifier.new(self, node, current_cc).compile
     end
 
     def on_ivar(node, current_cc)
