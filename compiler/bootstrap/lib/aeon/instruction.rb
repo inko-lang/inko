@@ -103,7 +103,8 @@ module Aeon
       local_exists: 98,
       get_caller: 99,
       literal_responds_to: 100,
-      responds_to: 101
+      responds_to: 101,
+      literal_attr_exists: 102
     }
 
     def initialize(name, arguments, line, column)
