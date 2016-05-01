@@ -116,9 +116,8 @@ module Aeon
           # Define the class as a constant.
           ins.set_literal_const name_source, class_name_idx, send_reg
 
-          ins.mark_label(jump_to)
-
           # Get the class object, which at this point is guaranteed to exist.
+          ins.mark_label        jump_to
           ins.get_literal_const class_reg, name_source, class_name_idx
         end
 
