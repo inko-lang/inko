@@ -11,9 +11,9 @@ module Aeon
         register = @code.next_register
         name_idx = @code.strings.add(name)
 
-        rec_idx = receiver_ast ? explicit_receiver : implicit_receiver
+        receiver_reg = receiver_ast ? explicit_receiver : implicit_receiver
 
-        @code.get_literal_const([register, rec_idx, name_idx], line, column)
+        @code.get_literal_const([register, receiver_reg, name_idx], line, column)
 
         register
       end
