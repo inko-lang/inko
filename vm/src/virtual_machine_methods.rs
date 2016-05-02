@@ -1757,6 +1757,15 @@ pub trait VirtualMachineMethods {
     fn ins_get_caller(&self, RcThread, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sets the outer scope of an object
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register containing the object for which to set the outer scope.
+    /// 2. The register containing the object to use as the outer scope.
+    fn ins_set_outer_scope(&self, RcThread, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcThread, String);
 

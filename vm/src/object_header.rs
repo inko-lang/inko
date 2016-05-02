@@ -18,6 +18,10 @@ pub struct ObjectHeader {
 
     /// Whether the object should be considered truthy (e.g. in conditionals)
     pub truthy: bool,
+
+    /// The object to use for constant lookups when a constant is not available
+    /// in the prototype hierarchy.
+    pub outer_scope: Option<RcObject>
 }
 
 impl ObjectHeader {
@@ -27,7 +31,8 @@ impl ObjectHeader {
             constants: HashMap::new(),
             methods: HashMap::new(),
             pinned: false,
-            truthy: true
+            truthy: true,
+            outer_scope: None
         }
     }
 

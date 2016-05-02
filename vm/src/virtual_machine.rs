@@ -506,6 +506,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::GetCaller => {
                     run!(self, ins_get_caller, thread, code, instruction);
                 },
+                InstructionType::SetOuterScope => {
+                    run!(self, ins_set_outer_scope, thread, code, instruction);
+                }
             };
         }
 
@@ -2314,6 +2317,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
         };
 
         thread.set_register(register, caller);
+
+        Ok(())
+    }
+
+    fn ins_set_outer_scope(&self, thread: RcThread, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
+        let source = instruction_object!(instruction, thread, 0);
+        let scope = instruction_object!(instruction, thread, 1);
+
+        write_lock!(source).set_outer_scope(scope);
 
         Ok(())
     }

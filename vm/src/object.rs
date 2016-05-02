@@ -57,6 +57,14 @@ impl Object {
         header_ref.pinned = false;
     }
 
+    pub fn set_outer_scope(&mut self, scope: RcObject) {
+        self.allocate_header();
+
+        let header_ref = self.header.as_mut().unwrap();
+
+        header_ref.outer_scope = Some(scope);
+    }
+
     pub fn add_method(&mut self, name: String, method: RcObject) {
         self.allocate_header();
 
@@ -132,26 +140,15 @@ impl Object {
         }
 
         // Look up the constant in one of the parents.
-        if self.prototype.is_some() {
-            let mut opt_parent = self.prototype.clone();
+        if let Some(proto) = self.prototype.as_ref() {
+            retval = read_lock!(proto).lookup_constant(name);
+        }
 
-            while opt_parent.is_some() {
-                let parent_ref = opt_parent.unwrap();
-                let parent     = read_lock!(parent_ref);
-
-                let opt_parent_header = parent.header.as_ref();
-
-                if opt_parent_header.is_some() {
-                    let parent_header = opt_parent_header.unwrap();
-
-                    if parent_header.constants.contains_key(name) {
-                        retval = parent_header.constants.get(name).cloned();
-
-                        break;
-                    }
+        if retval.is_none() {
+            if let Some(header) = opt_header {
+                if let Some(scope) = header.outer_scope.as_ref() {
+                    retval = read_lock!(scope).lookup_constant(name);
                 }
-
-                opt_parent = parent.prototype.clone();
             }
         }
 

@@ -108,7 +108,8 @@ pub enum InstructionType {
     GetCaller                = 99,
     LiteralRespondsTo        = 100,
     RespondsTo               = 101,
-    LiteralAttrExists        = 102
+    LiteralAttrExists        = 102,
+    SetOuterScope            = 103
 }
 
 /// Struct for storing information about a single instruction.
