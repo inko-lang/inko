@@ -597,7 +597,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source     = instruction_object!(instruction, thread, 1);
         let source_obj = read_lock!(source);
 
-        let proto = try!(source_obj.prototype().ok_or(format!(
+        let proto = try!(source_obj.prototype().ok_or_else(|| format!(
             "The object in register {} does not have a prototype",
             instruction.arguments[1]
         )));
@@ -822,7 +822,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let object = try!(
             read_lock!(src).lookup_constant(name)
-                .ok_or(constant_error!(instruction.arguments[1], name))
+                .ok_or_else(|| constant_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, object);
@@ -844,7 +844,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let object = try!(
             read_lock!(src).lookup_constant(name_str)
-                .ok_or(constant_error!(instruction.arguments[1], name_str))
+                .ok_or_else(|| constant_error!(instruction.arguments[1], name_str))
         );
 
         thread.set_register(register, object);
@@ -914,7 +914,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(attribute_error!(instruction.arguments[1], name))
+                .ok_or_else(|| attribute_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, attr);
@@ -936,7 +936,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let attr = try!(
             read_lock!(source).lookup_attribute(name)
-                .ok_or(attribute_error!(instruction.arguments[1], name))
+                .ok_or_else(|| attribute_error!(instruction.arguments[1], name))
         );
 
         thread.set_register(register, attr);
@@ -2447,7 +2447,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let method_lock = try!(
             read_lock!(receiver_lock).lookup_method(name)
-                .ok_or(format!("Undefined method \"{}\" called", name))
+                .ok_or_else(|| format!("Undefined method \"{}\" called", name))
         );
 
         let method_obj = read_lock!(method_lock);

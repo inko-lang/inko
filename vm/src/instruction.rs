@@ -144,7 +144,8 @@ impl Instruction {
         self.arguments
             .get(index)
             .cloned()
-            .ok_or(format!("undefined instruction argument {} for {:?}", index, self))
+            .ok_or_else(|| format!("Undefined instruction argument {} for {:?}",
+                                   index, self))
             .map(|num| num as usize)
     }
 }

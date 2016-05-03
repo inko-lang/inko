@@ -116,26 +116,26 @@ impl CompiledCode {
     pub fn integer(&self, index: usize) -> Result<&i64, String> {
         self.integer_literals
             .get(index)
-            .ok_or(format!("undefined integer literal {}", index))
+            .ok_or_else(|| format!("Undefined integer literal {}", index))
     }
 
     pub fn float(&self, index: usize) -> Result<&f64, String> {
         self.float_literals
             .get(index)
-            .ok_or(format!("undefined float literal {}", index))
+            .ok_or_else(|| format!("Undefined float literal {}", index))
     }
 
     pub fn string(&self, index: usize) -> Result<&String, String> {
         self.string_literals
             .get(index)
-            .ok_or(format!("undefined string literal {}", index))
+            .ok_or_else(|| format!("Undefined string literal {}", index))
     }
 
     pub fn code_object(&self, index: usize) -> Result<RcCompiledCode, String> {
         self.code_objects
             .get(index)
             .cloned()
-            .ok_or(format!("undefined code object {}", index))
+            .ok_or_else(|| format!("Undefined code object {}", index))
     }
 }
 

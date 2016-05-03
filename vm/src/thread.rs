@@ -92,7 +92,7 @@ impl Thread {
 
         frame.register
             .get(register)
-            .ok_or(format!("undefined object in register {}", register))
+            .ok_or_else(|| format!("Undefined object in register {}", register))
     }
 
     pub fn get_register_option(&self, register: usize) -> Option<RcObject> {
@@ -128,7 +128,7 @@ impl Thread {
         binding.variables
             .get(index)
             .cloned()
-            .ok_or(format!("undefined local variable index {}", index))
+            .ok_or_else(|| format!("Undefined local variable index {}", index))
     }
 
     pub fn local_exists(&self, index: usize) -> bool {
