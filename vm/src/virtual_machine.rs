@@ -2573,9 +2573,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         write_lock!(thread).unpin();
 
         match result {
-            Ok(obj) => {
-                vm_thread.set_value(obj);
-            },
+            Ok(_) => {},
             Err(message) => {
                 self.error(vm_thread, message);
 

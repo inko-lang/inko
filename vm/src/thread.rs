@@ -21,9 +21,6 @@ pub type JoinHandle = thread::JoinHandle<()>;
 /// Struct representing a VM thread.
 pub struct Thread {
     pub call_frame: RwLock<CallFrame>,
-
-    /// The return value of the thread, if any.
-    pub value: RwLock<Option<RcObject>>,
     pub should_stop: RwLock<bool>,
 
     join_handle: RwLock<Option<JoinHandle>>,
@@ -33,7 +30,6 @@ impl Thread {
     pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             call_frame: RwLock::new(call_frame),
-            value: RwLock::new(None),
             should_stop: RwLock::new(false),
             join_handle: RwLock::new(handle)
         };
@@ -63,10 +59,6 @@ impl Thread {
 
         // TODO: this might move the data from heap back to the stack?
         *target = *parent;
-    }
-
-    pub fn set_value(&self, value: Option<RcObject>) {
-        *write_lock!(self.value) = value;
     }
 
     pub fn stop(&self) {
