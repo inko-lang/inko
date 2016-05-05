@@ -125,14 +125,9 @@ impl VirtualMachine {
     }
 
     fn allocate_thread(&self, code: RcCompiledCode,
-                       handle: Option<ThreadJoinHandle>,
-                       main_thread: bool) -> RcObject {
+                       handle: Option<ThreadJoinHandle>) -> RcObject {
         let self_obj  = self.top_level_object();
         let vm_thread = Thread::from_code(code, self_obj, handle);
-
-        if main_thread {
-            vm_thread.set_main();
-        }
 
         let thread_obj = write_lock!(self.memory_manager)
             .allocate_thread(vm_thread);
@@ -145,7 +140,7 @@ impl VirtualMachine {
 
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        let thread_obj = self.allocate_thread(code.clone(), None, true);
+        let thread_obj = self.allocate_thread(code.clone(), None);
 
         self.run_thread(thread_obj, code.clone());
 
@@ -2562,7 +2557,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self_clone.run_thread(thread_obj, code_clone);
         });
 
-        let thread_obj = self.allocate_thread(code, Some(handle), false);
+        let thread_obj = self.allocate_thread(code, Some(handle));
 
         chan_sender.send(thread_obj.clone()).unwrap();
 

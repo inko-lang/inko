@@ -24,7 +24,6 @@ pub struct Thread {
 
     /// The return value of the thread, if any.
     pub value: RwLock<Option<RcObject>>,
-    pub main_thread: RwLock<bool>,
     pub should_stop: RwLock<bool>,
 
     join_handle: RwLock<Option<JoinHandle>>,
@@ -35,7 +34,6 @@ impl Thread {
         let thread = Thread {
             call_frame: RwLock::new(call_frame),
             value: RwLock::new(None),
-            main_thread: RwLock::new(false),
             should_stop: RwLock::new(false),
             join_handle: RwLock::new(handle)
         };
@@ -65,10 +63,6 @@ impl Thread {
 
         // TODO: this might move the data from heap back to the stack?
         *target = *parent;
-    }
-
-    pub fn set_main(&self) {
-        *write_lock!(self.main_thread) = true;
     }
 
     pub fn set_value(&self, value: Option<RcObject>) {
