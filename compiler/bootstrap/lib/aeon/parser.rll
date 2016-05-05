@@ -334,7 +334,15 @@ qname
   ;
 
 qname_follow
-  = ColonColon identifier_or_constant { val[1] }
+  = ColonColon qname_follow_member { val[1] }
+  ;
+
+qname_follow_member
+  = identifier_or_constant
+  | Class  { [:const, val[0]] }
+  | Trait  { [:const, val[0]] }
+  | Enum   { [:const, val[0]] }
+  | Module { [:const, val[0]] }
   ;
 
 send

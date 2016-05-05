@@ -7,7 +7,7 @@ module Aeon
         @code = code
       end
 
-      def compile
+      def compile(target = @code.next_register)
         add_name_literal
 
         name_idx = @code.strings.get(name)
@@ -20,7 +20,6 @@ module Aeon
           rec = implicit_receiver
         end
 
-        target = @code.next_register
         vis = 1
 
         # TODO: properly determine visibility
@@ -35,11 +34,11 @@ module Aeon
       end
 
       def implicit_receiver
-        index = @code.next_register
+        register = @code.next_register
 
-        @code.get_self([index], line, column)
+        @code.get_self([register], line, column)
 
-        index
+        register
       end
 
       def receiver_ast

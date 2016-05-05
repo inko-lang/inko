@@ -59,7 +59,8 @@ module Aeon
       end
 
       def implicit_parent
-        core_name_idx = @code.strings.add('Core')
+        core_mod_idx = @code.strings.add('core')
+        object_mod_idx = @code.strings.add('object')
         object_name_idx = @code.strings.add('Object')
 
         core_mod_reg = @code.next_register
@@ -68,10 +69,10 @@ module Aeon
         self_idx = @code.next_register
 
         @code.instruct(line, column) do |ins|
-          # Look up Core::Object::Object in the current scope.
+          # Look up core::object::Object in the current scope.
           ins.get_self          self_idx
-          ins.get_literal_const core_mod_reg, self_idx, core_name_idx
-          ins.get_literal_const obj_mod_reg, core_mod_reg, object_name_idx
+          ins.get_literal_const core_mod_reg, self_idx, core_mod_idx
+          ins.get_literal_const obj_mod_reg, core_mod_reg, object_mod_idx
           ins.get_literal_const parent_reg, obj_mod_reg, object_name_idx
         end
 
@@ -80,8 +81,9 @@ module Aeon
 
       def create_or_reopen(name_source, parent_reg)
         class_name_idx = @code.strings.add(class_name)
-        core_mod_name_idx = @code.strings.add('Core')
-        class_mod_name_idx = @code.strings.add('Class')
+        core_mod_name_idx = @code.strings.add('core')
+        class_mod_name_idx = @code.strings.add('class')
+        class_class_name_idx = @code.strings.add('Class')
         new_name_idx = @code.strings.add('new')
 
         core_mod_reg = @code.next_register
@@ -103,13 +105,13 @@ module Aeon
           # this block.
           ins.goto_if_true jump_to, exists_reg
 
-          # Look up Core::Class::Class
+          # Look up core::class::Class
           ins.get_toplevel      top_reg
           ins.get_literal_const core_mod_reg, top_reg, core_mod_name_idx
           ins.get_literal_const class_mod_reg, core_mod_reg, class_mod_name_idx
-          ins.get_literal_const class_class_reg, class_mod_reg, class_mod_name_idx
+          ins.get_literal_const class_class_reg, class_mod_reg, class_class_name_idx
 
-          # Core::Class::Class.new(parent_class)
+          # core::class::Class.new(parent_class)
           ins.send_literal send_reg, class_class_reg, new_name_idx, 0,
             parent_reg
 
