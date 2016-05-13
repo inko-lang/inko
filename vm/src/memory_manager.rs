@@ -26,10 +26,6 @@ pub struct MemoryManager {
     /// The young heap, most objects will be allocated here.
     pub young_heap: Heap,
 
-    /// The mature heap, used for big objects or those that have outlived
-    /// several GC cycles.
-    pub mature_heap: Heap,
-
     pub integer_prototype: RcObject,
     pub float_prototype: RcObject,
     pub string_prototype: RcObject,
@@ -90,7 +86,6 @@ impl MemoryManager {
             object_id: 13,
             top_level: top_level,
             young_heap: Heap::new(),
-            mature_heap: Heap::new(),
             integer_prototype: integer_proto,
             float_prototype: float_proto,
             string_prototype: string_proto,
