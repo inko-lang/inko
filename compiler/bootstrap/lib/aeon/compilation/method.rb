@@ -133,13 +133,15 @@ module Aeon
       end
 
       def add_method(method_code)
+        register = @code.next_register
         rec_idx = determine_receiver
         code_idx = @code.code_objects.add(method_code)
         name_idx = @code.strings.get(name)
 
-        @code.def_literal_method([rec_idx, name_idx, code_idx], line, column)
+        @code.def_literal_method([register, rec_idx, name_idx, code_idx],
+                                 line, column)
 
-        code_idx
+        register
       end
 
       def receiver_ast

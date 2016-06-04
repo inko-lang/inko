@@ -52,7 +52,7 @@ module Aeon
       integer_smaller: 47,
       integer_greater: 48,
       integer_equals: 49,
-      start_thread: 50,
+      spawn_literal_process: 50,
       float_add: 51,
       float_mul: 52,
       float_div: 53,
@@ -105,7 +105,8 @@ module Aeon
       literal_responds_to: 100,
       responds_to: 101,
       literal_attr_exists: 102,
-      set_outer_scope: 103
+      set_outer_scope: 103,
+      spawn_process: 104
     }
 
     def initialize(name, arguments, line, column)
