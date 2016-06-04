@@ -1,8 +1,4 @@
 //! Virtual Machine for running instructions
-//!
-//! A VirtualMachine manages threads, runs instructions, starts/terminates
-//! threads and so on. VirtualMachine instances are fully self contained
-//! allowing multiple instances to run fully isolated in the same process.
 
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
@@ -17,13 +13,15 @@ use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use errors;
+use heap::Heap;
 use instruction::{InstructionType, Instruction};
-use memory_manager::{MemoryManager, RcMemoryManager};
-use object::RcObject;
+use object_pointer::ObjectPointer;
 use object_value;
 use virtual_machine_methods::VirtualMachineMethods;
 use virtual_machine_result::*;
-use thread::{Thread, RcThread, JoinHandle as ThreadJoinHandle};
+use process::{RcProcess, Process};
+use process_list::ProcessList;
+use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
 
 /// A reference counted VirtualMachine.
@@ -33,122 +31,116 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 pub struct VirtualMachine {
     /// The directories to search for bytecode files.
     directories: RwLock<Vec<Box<Path>>>,
-
-    /// All threads that are currently active.
+    executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
-
-    /// The struct for allocating/managing memory.
-    memory_manager: RcMemoryManager,
-
-    /// The status of the VM when exiting.
+    processes: RwLock<ProcessList>,
     exit_status: RwLock<Result<(), ()>>,
 
-    /// The files executed by the "run_file" instruction(s)
-    executed_files: RwLock<HashSet<String>>
+    global_heap: Heap,
+    top_level: ObjectPointer,
+    integer_prototype: ObjectPointer,
+    float_prototype: ObjectPointer,
+    string_prototype: ObjectPointer,
+    array_prototype: ObjectPointer,
+    true_prototype: ObjectPointer,
+    false_prototype: ObjectPointer,
+    file_prototype: ObjectPointer,
+    method_prototype: ObjectPointer,
+    compiled_code_prototype: ObjectPointer,
+    binding_prototype: ObjectPointer,
+    true_object: ObjectPointer,
+    false_object: ObjectPointer
 }
 
 impl VirtualMachine {
     pub fn new() -> RcVirtualMachine {
+        let mut heap = Heap::new();
+
+        let top_level = heap.allocate_empty_global();
+        let integer_proto = heap.allocate_empty_global();
+        let float_proto = heap.allocate_empty_global();
+        let string_proto = heap.allocate_empty_global();
+        let array_proto = heap.allocate_empty_global();
+        let true_proto = heap.allocate_empty_global();
+        let false_proto = heap.allocate_empty_global();
+        let file_proto = heap.allocate_empty_global();
+        let method_proto = heap.allocate_empty_global();
+        let cc_proto = heap.allocate_empty_global();
+        let binding_proto = heap.allocate_empty_global();
+
+        let true_obj = heap.allocate_empty_global();
+        let false_obj = heap.allocate_empty_global();
+
+        {
+            let true_ref = true_obj.get_mut();
+            let false_ref = false_obj.get_mut();
+
+            true_ref.get_mut().set_prototype(true_proto.clone());
+
+            let false_ptr = false_ref.get_mut();
+
+            false_ptr.set_prototype(false_proto.clone());
+            false_ptr.set_falsy();
+        }
+
         let vm = VirtualMachine {
             directories: RwLock::new(Vec::new()),
+            executed_files: RwLock::new(HashSet::new()),
             threads: RwLock::new(ThreadList::new()),
-            memory_manager: MemoryManager::new(),
+            processes: RwLock::new(ProcessList::new()),
             exit_status: RwLock::new(Ok(())),
-            executed_files: RwLock::new(HashSet::new())
+            global_heap: heap,
+            top_level: top_level,
+            integer_prototype: integer_proto,
+            float_prototype: float_proto,
+            string_prototype: string_proto,
+            array_prototype: array_proto,
+            true_prototype: true_proto,
+            false_prototype: false_proto,
+            file_prototype: file_proto,
+            method_prototype: method_proto,
+            compiled_code_prototype: cc_proto,
+            binding_prototype: binding_proto,
+            true_object: true_obj,
+            false_object: false_obj
         };
 
         Arc::new(vm)
     }
 
-    fn integer_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).integer_prototype()
+    fn allocate_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
+        write_lock!(self.threads).add(handle)
     }
 
-    fn float_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).float_prototype()
+    fn allocate_isolated_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
+        write_lock!(self.threads).add_isolated(handle)
     }
 
-    fn string_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).string_prototype()
-    }
+    fn allocate_process(&self, code: RcCompiledCode, self_obj: ObjectPointer) -> (usize, RcProcess) {
+        let mut processes = write_lock!(self.processes);
+        let pid = processes.reserve_pid();
+        let process = Process::from_code(pid, code, self_obj);
 
-    fn array_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).array_prototype()
-    }
+        processes.add(pid, process.clone());
 
-    fn thread_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).thread_prototype()
-    }
-
-    fn true_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).true_prototype()
-    }
-
-    fn false_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).false_prototype()
-    }
-
-    fn file_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).file_prototype()
-    }
-
-    fn method_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).method_prototype()
-    }
-
-    fn binding_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).binding_prototype()
-    }
-
-    fn compiled_code_prototype(&self) -> RcObject {
-        read_lock!(self.memory_manager).compiled_code_prototype()
-    }
-
-    fn false_object(&self) -> RcObject {
-        read_lock!(self.memory_manager).false_object()
-    }
-
-    fn true_object(&self) -> RcObject {
-        read_lock!(self.memory_manager).true_object()
-    }
-
-    fn top_level_object(&self) -> RcObject {
-        read_lock!(self.memory_manager).top_level_object()
-    }
-
-    fn allocate(&self, value: object_value::ObjectValue, prototype: RcObject) -> RcObject {
-        write_lock!(self.memory_manager).allocate(value, prototype)
-    }
-
-    fn allocate_error(&self, code: u16) -> RcObject {
-        write_lock!(self.memory_manager).allocate_error(code)
-    }
-
-    fn allocate_thread(&self, code: RcCompiledCode,
-                       handle: Option<ThreadJoinHandle>) -> RcObject {
-        let self_obj  = self.top_level_object();
-        let vm_thread = Thread::from_code(code, self_obj, handle);
-
-        let thread_obj = write_lock!(self.memory_manager)
-            .allocate_thread(vm_thread);
-
-        write_lock!(self.threads).add(thread_obj.clone());
-
-        thread_obj
+        (pid, process)
     }
 }
 
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        let thread_obj = self.allocate_thread(code.clone(), None);
+        let thread = self.allocate_isolated_thread(None);
+        let (_, process) = self.allocate_process(code, self.top_level.clone());
 
-        self.run_thread(thread_obj, code.clone());
+        thread.schedule(process);
+
+        self.run_thread(thread);
 
         *read_lock!(self.exit_status)
     }
 
-    fn run(&self, thread: RcThread, code: RcCompiledCode) -> OptionObjectResult {
-        if thread.should_stop() {
+    fn run(&self, process: RcProcess, code: RcCompiledCode) -> OptionObjectResult {
+        if read_lock!(process).should_pause() {
             return Ok(None);
         }
 
@@ -176,333 +168,333 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
-                    run!(self, ins_set_integer, thread, code, instruction);
+                    run!(self, ins_set_integer, process, code, instruction);
                 },
                 InstructionType::SetFloat => {
-                    run!(self, ins_set_float, thread, code, instruction);
+                    run!(self, ins_set_float, process, code, instruction);
                 },
                 InstructionType::SetString => {
-                    run!(self, ins_set_string, thread, code, instruction);
+                    run!(self, ins_set_string, process, code, instruction);
                 },
                 InstructionType::SetObject => {
-                    run!(self, ins_set_object, thread, code, instruction);
+                    run!(self, ins_set_object, process, code, instruction);
                 },
                 InstructionType::SetPrototype => {
-                    run!(self, ins_set_prototype, thread, code, instruction);
+                    run!(self, ins_set_prototype, process, code, instruction);
                 },
                 InstructionType::GetPrototype => {
-                    run!(self, ins_get_prototype, thread, code, instruction);
+                    run!(self, ins_get_prototype, process, code, instruction);
                 },
                 InstructionType::SetArray => {
-                    run!(self, ins_set_array, thread, code, instruction);
+                    run!(self, ins_set_array, process, code, instruction);
                 },
                 InstructionType::GetIntegerPrototype => {
-                    run!(self, ins_get_integer_prototype, thread, code,
+                    run!(self, ins_get_integer_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetFloatPrototype => {
-                    run!(self, ins_get_float_prototype, thread, code,
+                    run!(self, ins_get_float_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetStringPrototype => {
-                    run!(self, ins_get_string_prototype, thread, code,
+                    run!(self, ins_get_string_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetArrayPrototype => {
-                    run!(self, ins_get_array_prototype, thread, code,
-                         instruction);
-                },
-                InstructionType::GetThreadPrototype => {
-                    run!(self, ins_get_thread_prototype, thread, code,
+                    run!(self, ins_get_array_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetTruePrototype => {
-                    run!(self, ins_get_true_prototype, thread, code,
+                    run!(self, ins_get_true_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetFalsePrototype => {
-                    run!(self, ins_get_false_prototype, thread, code,
+                    run!(self, ins_get_false_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetMethodPrototype => {
-                    run!(self, ins_get_method_prototype, thread, code,
+                    run!(self, ins_get_method_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetCompiledCodePrototype => {
-                    run!(self, ins_get_compiled_code_prototype, thread, code,
+                    run!(self, ins_get_compiled_code_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetBindingPrototype => {
-                    run!(self, ins_get_binding_prototype, thread, code,
+                    run!(self, ins_get_binding_prototype, process, code,
                          instruction);
                 },
                 InstructionType::GetTrue => {
-                    run!(self, ins_get_true, thread, code, instruction);
+                    run!(self, ins_get_true, process, code, instruction);
                 },
                 InstructionType::GetFalse => {
-                    run!(self, ins_get_false, thread, code, instruction);
+                    run!(self, ins_get_false, process, code, instruction);
                 },
                 InstructionType::GetBinding => {
-                    run!(self, ins_get_binding, thread, code, instruction);
+                    run!(self, ins_get_binding, process, code, instruction);
                 },
                 InstructionType::SetLocal => {
-                    run!(self, ins_set_local, thread, code, instruction);
+                    run!(self, ins_set_local, process, code, instruction);
                 },
                 InstructionType::GetLocal => {
-                    run!(self, ins_get_local, thread, code, instruction);
+                    run!(self, ins_get_local, process, code, instruction);
                 },
                 InstructionType::LocalExists => {
-                    run!(self, ins_local_exists, thread, code, instruction);
+                    run!(self, ins_local_exists, process, code, instruction);
                 },
                 InstructionType::SetLiteralConst => {
-                    run!(self, ins_set_literal_const, thread, code, instruction);
+                    run!(self, ins_set_literal_const, process, code, instruction);
                 },
                 InstructionType::SetConst => {
-                    run!(self, ins_set_const, thread, code, instruction);
+                    run!(self, ins_set_const, process, code, instruction);
                 },
                 InstructionType::GetLiteralConst => {
-                    run!(self, ins_get_literal_const, thread, code, instruction);
+                    run!(self, ins_get_literal_const, process, code, instruction);
                 },
                 InstructionType::GetConst => {
-                    run!(self, ins_get_const, thread, code, instruction);
+                    run!(self, ins_get_const, process, code, instruction);
                 },
                 InstructionType::LiteralConstExists => {
-                    run!(self, ins_literal_const_exists, thread, code, instruction);
+                    run!(self, ins_literal_const_exists, process, code, instruction);
                 },
                 InstructionType::SetLiteralAttr => {
-                    run!(self, ins_set_literal_attr, thread, code, instruction);
+                    run!(self, ins_set_literal_attr, process, code, instruction);
                 },
                 InstructionType::SetAttr => {
-                    run!(self, ins_set_attr, thread, code, instruction);
+                    run!(self, ins_set_attr, process, code, instruction);
                 },
                 InstructionType::GetLiteralAttr => {
-                    run!(self, ins_get_literal_attr, thread, code, instruction);
+                    run!(self, ins_get_literal_attr, process, code, instruction);
                 },
                 InstructionType::GetAttr => {
-                    run!(self, ins_get_attr, thread, code, instruction);
+                    run!(self, ins_get_attr, process, code, instruction);
                 },
                 InstructionType::LiteralAttrExists => {
-                    run!(self, ins_literal_attr_exists, thread, code, instruction);
+                    run!(self, ins_literal_attr_exists, process, code, instruction);
                 },
                 InstructionType::SetCompiledCode => {
-                    run!(self, ins_set_compiled_code, thread, code,
+                    run!(self, ins_set_compiled_code, process, code,
                          instruction);
                 },
                 InstructionType::SendLiteral => {
-                    run!(self, ins_send_literal, thread, code, instruction);
+                    run!(self, ins_send_literal, process, code, instruction);
                 },
                 InstructionType::Send => {
-                    run!(self, ins_send, thread, code, instruction);
+                    run!(self, ins_send, process, code, instruction);
                 },
                 InstructionType::LiteralRespondsTo => {
-                    run!(self, ins_literal_responds_to, thread, code, instruction);
+                    run!(self, ins_literal_responds_to, process, code, instruction);
                 },
                 InstructionType::RespondsTo => {
-                    run!(self, ins_responds_to, thread, code, instruction);
+                    run!(self, ins_responds_to, process, code, instruction);
                 },
                 InstructionType::Return => {
-                    retval = run!(self, ins_return, thread, code, instruction);
+                    retval = run!(self, ins_return, process, code, instruction);
                 },
                 InstructionType::GotoIfFalse => {
-                    skip_until = run!(self, ins_goto_if_false, thread, code,
+                    skip_until = run!(self, ins_goto_if_false, process, code,
                                       instruction);
                 },
                 InstructionType::GotoIfTrue => {
-                    skip_until = run!(self, ins_goto_if_true, thread, code,
+                    skip_until = run!(self, ins_goto_if_true, process, code,
                                       instruction);
                 },
                 InstructionType::Goto => {
-                    index = run!(self, ins_goto, thread, code, instruction);
+                    index = run!(self, ins_goto, process, code, instruction);
                 },
                 InstructionType::DefMethod => {
-                    run!(self, ins_def_method, thread, code, instruction);
+                    run!(self, ins_def_method, process, code, instruction);
                 },
                 InstructionType::DefLiteralMethod => {
-                    run!(self, ins_def_literal_method, thread, code,
+                    run!(self, ins_def_literal_method, process, code,
                          instruction);
                 },
                 InstructionType::RunCode => {
-                    run!(self, ins_run_code, thread, code, instruction);
+                    run!(self, ins_run_code, process, code, instruction);
                 },
                 InstructionType::RunLiteralCode => {
-                    run!(self, ins_run_literal_code, thread, code, instruction);
+                    run!(self, ins_run_literal_code, process, code, instruction);
                 },
                 InstructionType::GetToplevel => {
-                    run!(self, ins_get_toplevel, thread, code, instruction);
+                    run!(self, ins_get_toplevel, process, code, instruction);
                 },
                 InstructionType::GetSelf => {
-                    run!(self, ins_get_self, thread, code, instruction);
+                    run!(self, ins_get_self, process, code, instruction);
                 },
                 InstructionType::IsError => {
-                    run!(self, ins_is_error, thread, code, instruction);
+                    run!(self, ins_is_error, process, code, instruction);
                 },
                 InstructionType::ErrorToString => {
-                    run!(self, ins_error_to_integer, thread, code, instruction);
+                    run!(self, ins_error_to_integer, process, code, instruction);
                 },
                 InstructionType::IntegerAdd => {
-                    run!(self, ins_integer_add, thread, code, instruction);
+                    run!(self, ins_integer_add, process, code, instruction);
                 },
                 InstructionType::IntegerDiv => {
-                    run!(self, ins_integer_div, thread, code, instruction);
+                    run!(self, ins_integer_div, process, code, instruction);
                 },
                 InstructionType::IntegerMul => {
-                    run!(self, ins_integer_mul, thread, code, instruction);
+                    run!(self, ins_integer_mul, process, code, instruction);
                 },
                 InstructionType::IntegerSub => {
-                    run!(self, ins_integer_sub, thread, code, instruction);
+                    run!(self, ins_integer_sub, process, code, instruction);
                 },
                 InstructionType::IntegerMod => {
-                    run!(self, ins_integer_mod, thread, code, instruction);
+                    run!(self, ins_integer_mod, process, code, instruction);
                 },
                 InstructionType::IntegerToFloat => {
-                    run!(self, ins_integer_to_float, thread, code, instruction);
+                    run!(self, ins_integer_to_float, process, code, instruction);
                 },
                 InstructionType::IntegerToString => {
-                    run!(self, ins_integer_to_string, thread, code,
+                    run!(self, ins_integer_to_string, process, code,
                          instruction);
                 },
                 InstructionType::IntegerBitwiseAnd => {
-                    run!(self, ins_integer_bitwise_and, thread, code,
+                    run!(self, ins_integer_bitwise_and, process, code,
                          instruction);
                 },
                 InstructionType::IntegerBitwiseOr => {
-                    run!(self, ins_integer_bitwise_or, thread, code,
+                    run!(self, ins_integer_bitwise_or, process, code,
                          instruction);
                 },
                 InstructionType::IntegerBitwiseXor => {
-                    run!(self, ins_integer_bitwise_xor, thread, code,
+                    run!(self, ins_integer_bitwise_xor, process, code,
                          instruction);
                 },
                 InstructionType::IntegerShiftLeft => {
-                    run!(self, ins_integer_shift_left, thread, code,
+                    run!(self, ins_integer_shift_left, process, code,
                          instruction);
                 },
                 InstructionType::IntegerShiftRight => {
-                    run!(self, ins_integer_shift_right, thread, code,
+                    run!(self, ins_integer_shift_right, process, code,
                          instruction);
                 },
                 InstructionType::IntegerSmaller => {
-                    run!(self, ins_integer_smaller, thread, code, instruction);
+                    run!(self, ins_integer_smaller, process, code, instruction);
                 },
                 InstructionType::IntegerGreater => {
-                    run!(self, ins_integer_greater, thread, code, instruction);
+                    run!(self, ins_integer_greater, process, code, instruction);
                 },
                 InstructionType::IntegerEquals => {
-                    run!(self, ins_integer_equals, thread, code, instruction);
+                    run!(self, ins_integer_equals, process, code, instruction);
                 },
-                InstructionType::StartThread => {
-                    run!(self, ins_start_thread, thread, code, instruction);
+                InstructionType::SpawnLiteralProcess => {
+                    run!(self, ins_spawn_literal_process, process, code,
+                         instruction);
                 },
                 InstructionType::FloatAdd => {
-                    run!(self, ins_float_add, thread, code, instruction);
+                    run!(self, ins_float_add, process, code, instruction);
                 },
                 InstructionType::FloatMul => {
-                    run!(self, ins_float_mul, thread, code, instruction);
+                    run!(self, ins_float_mul, process, code, instruction);
                 },
                 InstructionType::FloatDiv => {
-                    run!(self, ins_float_div, thread, code, instruction);
+                    run!(self, ins_float_div, process, code, instruction);
                 },
                 InstructionType::FloatSub => {
-                    run!(self, ins_float_sub, thread, code, instruction);
+                    run!(self, ins_float_sub, process, code, instruction);
                 },
                 InstructionType::FloatMod => {
-                    run!(self, ins_float_mod, thread, code, instruction);
+                    run!(self, ins_float_mod, process, code, instruction);
                 },
                 InstructionType::FloatToInteger => {
-                    run!(self, ins_float_to_integer, thread, code, instruction);
+                    run!(self, ins_float_to_integer, process, code, instruction);
                 },
                 InstructionType::FloatToString => {
-                    run!(self, ins_float_to_string, thread, code, instruction);
+                    run!(self, ins_float_to_string, process, code, instruction);
                 },
                 InstructionType::FloatSmaller => {
-                    run!(self, ins_float_smaller, thread, code, instruction);
+                    run!(self, ins_float_smaller, process, code, instruction);
                 },
                 InstructionType::FloatGreater => {
-                    run!(self, ins_float_greater, thread, code, instruction);
+                    run!(self, ins_float_greater, process, code, instruction);
                 },
                 InstructionType::FloatEquals => {
-                    run!(self, ins_float_equals, thread, code, instruction);
+                    run!(self, ins_float_equals, process, code, instruction);
                 },
                 InstructionType::ArrayInsert => {
-                    run!(self, ins_array_insert, thread, code, instruction);
+                    run!(self, ins_array_insert, process, code, instruction);
                 },
                 InstructionType::ArrayAt => {
-                    run!(self, ins_array_at, thread, code, instruction);
+                    run!(self, ins_array_at, process, code, instruction);
                 },
                 InstructionType::ArrayRemove => {
-                    run!(self, ins_array_remove, thread, code, instruction);
+                    run!(self, ins_array_remove, process, code, instruction);
                 },
                 InstructionType::ArrayLength => {
-                    run!(self, ins_array_length, thread, code, instruction);
+                    run!(self, ins_array_length, process, code, instruction);
                 },
                 InstructionType::ArrayClear => {
-                    run!(self, ins_array_clear, thread, code, instruction);
+                    run!(self, ins_array_clear, process, code, instruction);
                 },
                 InstructionType::StringToLower => {
-                    run!(self, ins_string_to_lower, thread, code, instruction);
+                    run!(self, ins_string_to_lower, process, code, instruction);
                 },
                 InstructionType::StringToUpper => {
-                    run!(self, ins_string_to_upper, thread, code, instruction);
+                    run!(self, ins_string_to_upper, process, code, instruction);
                 },
                 InstructionType::StringEquals => {
-                    run!(self, ins_string_equals, thread, code, instruction);
+                    run!(self, ins_string_equals, process, code, instruction);
                 },
                 InstructionType::StringToBytes => {
-                    run!(self, ins_string_to_bytes, thread, code, instruction);
+                    run!(self, ins_string_to_bytes, process, code, instruction);
                 },
                 InstructionType::StringFromBytes => {
-                    run!(self, ins_string_from_bytes, thread, code, instruction);
+                    run!(self, ins_string_from_bytes, process, code, instruction);
                 },
                 InstructionType::StringLength => {
-                    run!(self, ins_string_length, thread, code, instruction);
+                    run!(self, ins_string_length, process, code, instruction);
                 },
                 InstructionType::StringSize => {
-                    run!(self, ins_string_size, thread, code, instruction);
+                    run!(self, ins_string_size, process, code, instruction);
                 },
                 InstructionType::StdoutWrite => {
-                    run!(self, ins_stdout_write, thread, code, instruction);
+                    run!(self, ins_stdout_write, process, code, instruction);
                 },
                 InstructionType::StderrWrite => {
-                    run!(self, ins_stderr_write, thread, code, instruction);
+                    run!(self, ins_stderr_write, process, code, instruction);
                 },
                 InstructionType::StdinRead => {
-                    run!(self, ins_stdin_read, thread, code, instruction);
+                    run!(self, ins_stdin_read, process, code, instruction);
                 },
                 InstructionType::StdinReadLine => {
-                    run!(self, ins_stdin_read_line, thread, code, instruction);
+                    run!(self, ins_stdin_read_line, process, code, instruction);
                 },
                 InstructionType::FileOpen => {
-                    run!(self, ins_file_open, thread, code, instruction);
+                    run!(self, ins_file_open, process, code, instruction);
                 },
                 InstructionType::FileWrite => {
-                    run!(self, ins_file_write, thread, code, instruction);
+                    run!(self, ins_file_write, process, code, instruction);
                 },
                 InstructionType::FileRead => {
-                    run!(self, ins_file_read, thread, code, instruction);
+                    run!(self, ins_file_read, process, code, instruction);
                 },
                 InstructionType::FileReadLine => {
-                    run!(self, ins_file_read_line, thread, code, instruction);
+                    run!(self, ins_file_read_line, process, code, instruction);
                 },
                 InstructionType::FileFlush => {
-                    run!(self, ins_file_flush, thread, code, instruction);
+                    run!(self, ins_file_flush, process, code, instruction);
                 },
                 InstructionType::FileSize => {
-                    run!(self, ins_file_size, thread, code, instruction);
+                    run!(self, ins_file_size, process, code, instruction);
                 },
                 InstructionType::FileSeek => {
-                    run!(self, ins_file_seek, thread, code, instruction);
+                    run!(self, ins_file_seek, process, code, instruction);
                 },
                 InstructionType::RunLiteralFile => {
-                    run!(self, ins_run_literal_file, thread, code, instruction);
+                    run!(self, ins_run_literal_file, process, code, instruction);
                 },
                 InstructionType::RunFile => {
-                    run!(self, ins_run_file, thread, code, instruction);
+                    run!(self, ins_run_file, process, code, instruction);
                 },
                 InstructionType::GetCaller => {
-                    run!(self, ins_get_caller, thread, code, instruction);
+                    run!(self, ins_get_caller, process, code, instruction);
                 },
                 InstructionType::SetOuterScope => {
-                    run!(self, ins_set_outer_scope, thread, code, instruction);
+                    run!(self, ins_set_outer_scope, process, code, instruction);
+                },
+                InstructionType::SpawnProcess => {
+                    run!(self, ins_spawn_process, process, code, instruction);
                 }
             };
         }
@@ -510,547 +502,570 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(retval)
     }
 
-    fn ins_set_integer(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_integer(&self, process: RcProcess, code: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let index    = try!(instruction.arg(1));
         let value    = *try!(code.integer(index));
 
-        let obj = self.allocate(object_value::integer(value),
-                                self.integer_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(value), self.integer_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_float(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_float(&self, process: RcProcess, code: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let index    = try!(instruction.arg(1));
-        let value    = *try!(code.float(index));
+        let index = try!(instruction.arg(1));
+        let value = *try!(code.float(index));
 
-        let obj = self.allocate(object_value::float(value),
-                                self.float_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::float(value), self.float_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_string(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_string(&self, process: RcProcess, code: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let index    = try!(instruction.arg(1));
-        let value    = try!(code.string(index));
+        let index = try!(instruction.arg(1));
+        let value = try!(code.string(index));
 
-        let obj = self.allocate(object_value::string(value.clone()),
-                                self.string_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::string(value.clone()),
+                      self.string_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_object(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_object(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
         let proto_index_res = instruction.arg(1);
 
-        let obj = write_lock!(self.memory_manager)
-            .new_object(object_value::none());
+        let obj = write_lock!(process).allocate_empty();
 
         if proto_index_res.is_ok() {
             let proto_index = proto_index_res.unwrap();
-            let proto       = try!(thread.get_register(proto_index));
+            let proto       = try!(read_lock!(process).get_register(proto_index));
 
-            write_lock!(obj).set_prototype(proto);
+            let obj_ref = obj.get_mut();
+
+            obj_ref.get_mut().set_prototype(proto);
         }
 
-        write_lock!(self.memory_manager)
-            .allocate_prepared(obj.clone());
-
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_prototype(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let source = instruction_object!(instruction, thread, 0);
-        let proto  = instruction_object!(instruction, thread, 1);
+        let source = instruction_object!(instruction, process, 0);
+        let proto = instruction_object!(instruction, process, 1);
 
-        write_lock!(source).set_prototype(proto);
+        let source_ref = source.get_mut();
+
+        source_ref.get_mut().set_prototype(proto);
 
         Ok(())
     }
 
-    fn ins_get_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_prototype(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let source     = instruction_object!(instruction, thread, 1);
-        let source_obj = read_lock!(source);
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, process, 1);
+
+        let source_ref = source.get();
+        let source_obj = source_ref.get();
 
         let proto = try!(source_obj.prototype().ok_or_else(|| format!(
             "The object in register {} does not have a prototype",
             instruction.arguments[1]
         )));
 
-        thread.set_register(register, proto);
+        write_lock!(process).set_register(register, proto);
 
         Ok(())
     }
 
-    fn ins_set_array(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_array(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register  = try!(instruction.arg(0));
+        let register = try!(instruction.arg(0));
         let val_count = instruction.arguments.len() - 1;
 
         let values = try!(
-            self.collect_arguments(thread.clone(), instruction, 1, val_count)
+            self.collect_arguments(process.clone(), instruction, 1, val_count)
         );
 
-        let obj = self.allocate(object_value::array(values),
-                                self.array_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::array(values), self.array_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_get_integer_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_integer_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                  instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.integer_prototype());
+        write_lock!(process).set_register(register, self.integer_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_float_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_float_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.float_prototype());
+        write_lock!(process).set_register(register, self.float_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_string_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_string_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                 instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.string_prototype());
+        write_lock!(process).set_register(register, self.string_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_array_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_array_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.array_prototype());
+        write_lock!(process).set_register(register, self.array_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_thread_prototype(&self, thread: RcThread, _: RcCompiledCode,
-                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-
-        thread.set_register(register, self.thread_prototype());
-
-        Ok(())
-    }
-
-    fn ins_get_true_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_true_prototype(&self, process: RcProcess, _: RcCompiledCode,
                               instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.true_prototype());
+        write_lock!(process).set_register(register, self.true_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_false_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_false_prototype(&self, process: RcProcess, _: RcCompiledCode,
                               instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.false_prototype());
+        write_lock!(process).set_register(register, self.false_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_method_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_method_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                 instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.method_prototype());
+        write_lock!(process).set_register(register, self.method_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_binding_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_binding_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                  instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.binding_prototype());
+        write_lock!(process).set_register(register, self.binding_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_compiled_code_prototype(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_compiled_code_prototype(&self, process: RcProcess, _: RcCompiledCode,
                                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.compiled_code_prototype());
+        write_lock!(process)
+            .set_register(register, self.compiled_code_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_true(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_true(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.true_object());
+        write_lock!(process).set_register(register, self.true_object.clone());
 
         Ok(())
     }
 
-    fn ins_get_false(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_false(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.false_object());
+        write_lock!(process).set_register(register, self.false_object.clone());
 
         Ok(())
     }
 
-    fn ins_get_binding(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_binding(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let frame    = read_lock!(thread.call_frame);
+        let ref frame = read_lock!(process).call_frame;
 
-        let obj = self.allocate(object_value::binding(frame.binding.clone()),
-                                self.binding_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::binding(frame.binding.clone()),
+                      self.binding_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_local(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_local(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
         let local_index = try!(instruction.arg(0));
-        let object      = instruction_object!(instruction, thread, 1);
+        let object = instruction_object!(instruction, process, 1);
 
-        thread.set_local(local_index, object);
+        write_lock!(process).set_local(local_index, object);
 
         Ok(())
     }
 
-    fn ins_get_local(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_local(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
+        let register = try!(instruction.arg(0));
         let local_index = try!(instruction.arg(1));
 
-        let object = try!(thread.get_local(local_index));
+        let object = try!(read_lock!(process).get_local(local_index));
 
-        thread.set_register(register, object);
+        write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_local_exists(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_local_exists(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
+        let register = try!(instruction.arg(0));
         let local_index = try!(instruction.arg(1));
 
-        let value = if thread.local_exists(local_index) {
-            self.true_object()
+        let value = if read_lock!(process).local_exists(local_index) {
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, value);
+        write_lock!(process).set_register(register, value);
 
         Ok(())
     }
 
-    fn ins_set_literal_const(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_literal_const(&self, process: RcProcess, code: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
-        let target     = instruction_object!(instruction, thread, 0);
+        let target = instruction_object!(instruction, process, 0);
         let name_index = try!(instruction.arg(1));
-        let source     = instruction_object!(instruction, thread, 2);
-        let name       = try!(code.string(name_index));
+        let source = instruction_object!(instruction, process, 2);
+        let name = try!(code.string(name_index));
 
-        write_lock!(target).add_constant(name.clone(), source);
+        let target_ref = target.get_mut();
+
+        target_ref.get_mut().add_constant(name.clone(), source);
 
         Ok(())
     }
 
-    fn ins_set_const(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_const(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let target = instruction_object!(instruction, thread, 0);
-        let name   = instruction_object!(instruction, thread, 1);
-        let source = instruction_object!(instruction, thread, 2);
+        let target = instruction_object!(instruction, process, 0);
+        let name = instruction_object!(instruction, process, 1);
+        let source = instruction_object!(instruction, process, 2);
 
-        let name_obj = read_lock!(name);
+        let name_ref = name.get();
+        let name_obj = name_ref.get();
+
+        let target_ref = target.get_mut();
+        let target_obj = target_ref.get_mut();
 
         ensure_strings!(name_obj);
 
         let name_str = name_obj.value.as_string().clone();
 
-        write_lock!(target).add_constant(name_str, source);
+        target_obj.add_constant(name_str, source);
 
         Ok(())
     }
 
-    fn ins_get_literal_const(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_get_literal_const(&self, process: RcProcess, code: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let src        = instruction_object!(instruction, thread, 1);
+        let register = try!(instruction.arg(0));
+        let src = instruction_object!(instruction, process, 1);
         let name_index = try!(instruction.arg(2));
-        let name       = try!(code.string(name_index));
+        let name = try!(code.string(name_index));
+
+        let src_ref = src.get();
 
         let object = try!(
-            read_lock!(src).lookup_constant(name)
+            src_ref.get().lookup_constant(name)
                 .ok_or_else(|| constant_error!(instruction.arguments[1], name))
         );
 
-        thread.set_register(register, object);
+        write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_get_const(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_const(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let src      = instruction_object!(instruction, thread, 1);
-        let name     = instruction_object!(instruction, thread, 2);
+        let src = instruction_object!(instruction, process, 1);
+        let name = instruction_object!(instruction, process, 2);
 
-        let name_obj = read_lock!(name);
+        let name_ref = name.get();
+        let name_obj = name_ref.get();
+        let src_ref = src.get();
 
         ensure_strings!(name_obj);
 
         let name_str = name_obj.value.as_string();
 
         let object = try!(
-            read_lock!(src).lookup_constant(name_str)
+            src_ref.get().lookup_constant(name_str)
                 .ok_or_else(|| constant_error!(instruction.arguments[1], name_str))
         );
 
-        thread.set_register(register, object);
+        write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_literal_const_exists(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_literal_const_exists(&self, process: RcProcess, code: RcCompiledCode,
                                 instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let source     = instruction_object!(instruction, thread, 1);
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, process, 1);
         let name_index = try!(instruction.arg(2));
-        let name       = try!(code.string(name_index));
-        let source_obj = read_lock!(source);
+        let name = try!(code.string(name_index));
 
-        let constant = source_obj.lookup_constant(name);
+        let source_ref = source.get();
+        let constant = source_ref.get().lookup_constant(name);
 
         if constant.is_some() {
-            thread.set_register(register, self.true_object());
+            write_lock!(process).set_register(register, self.true_object.clone());
         }
         else {
-            thread.set_register(register, self.false_object());
+            write_lock!(process).set_register(register, self.false_object.clone());
         }
 
         Ok(())
     }
 
-    fn ins_set_literal_attr(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_literal_attr(&self, process: RcProcess, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let target_object = instruction_object!(instruction, thread, 0);
-        let name_index    = try!(instruction.arg(1));
-        let source_object = instruction_object!(instruction, thread, 2);
+        let target = instruction_object!(instruction, process, 0);
+        let name_index = try!(instruction.arg(1));
+        let value = instruction_object!(instruction, process, 2);
 
         let name = try!(code.string(name_index));
 
-        write_lock!(target_object)
-            .add_attribute(name.clone(), source_object);
+        let target_ref = target.get_mut();
+
+        target_ref.get_mut().add_attribute(name.clone(), value);
 
         Ok(())
     }
 
-    fn ins_set_attr(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_attr(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let target_object = instruction_object!(instruction, thread, 0);
-        let name_lock     = instruction_object!(instruction, thread, 1);
-        let source_object = instruction_object!(instruction, thread, 2);
+        let target = instruction_object!(instruction, process, 0);
+        let name = instruction_object!(instruction, process, 1);
+        let value = instruction_object!(instruction, process, 2);
 
-        let name_obj = read_lock!(name_lock);
+        let name_ref = name.get();
+        let name_obj = name_ref.get();
+
+        let target_ref = target.get_mut();
 
         ensure_strings!(name_obj);
 
         let name = name_obj.value.as_string();
 
-        write_lock!(target_object)
-            .add_attribute(name.clone(), source_object);
+        target_ref.get_mut().add_attribute(name.clone(), value);
 
         Ok(())
     }
 
-    fn ins_get_literal_attr(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_get_literal_attr(&self, process: RcProcess, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let source     = instruction_object!(instruction, thread, 1);
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, process, 1);
         let name_index = try!(instruction.arg(2));
 
+        let source_ref = source.get();
         let name = try!(code.string(name_index));
 
         let attr = try!(
-            read_lock!(source).lookup_attribute(name)
+            source_ref.get().lookup_attribute(name)
                 .ok_or_else(|| attribute_error!(instruction.arguments[1], name))
         );
 
-        thread.set_register(register, attr);
+        write_lock!(process).set_register(register, attr);
 
         Ok(())
     }
 
-    fn ins_get_attr(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_attr(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let register  = try!(instruction.arg(0));
-        let source    = instruction_object!(instruction, thread, 1);
-        let name_lock = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, process, 1);
+        let name = instruction_object!(instruction, process, 2);
 
-        let name_obj = read_lock!(name_lock);
+        let name_ref = name.get();
+        let name_obj = name_ref.get();
+        let source_ref = source.get();
 
         ensure_strings!(name_obj);
 
         let name = name_obj.value.as_string();
 
         let attr = try!(
-            read_lock!(source).lookup_attribute(name)
+            source_ref.get().lookup_attribute(name)
                 .ok_or_else(|| attribute_error!(instruction.arguments[1], name))
         );
 
-        thread.set_register(register, attr);
+        write_lock!(process).set_register(register, attr);
 
         Ok(())
     }
 
-    fn ins_literal_attr_exists(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_literal_attr_exists(&self, process: RcProcess, code: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let source = instruction_object!(instruction, thread, 1);
+        let source_ptr = instruction_object!(instruction, process, 1);
         let name_index = try!(instruction.arg(2));
         let name = try!(code.string(name_index));
 
-        let obj = if read_lock!(source).has_attribute(name) {
-            self.true_object()
+        let source_ref = source_ptr.get();
+        let source = source_ref.get();
+
+        let obj = if source.has_attribute(name) {
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_compiled_code(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_set_compiled_code(&self, process: RcProcess, code: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let cc_index = try!(instruction.arg(1));
 
         let cc = try!(code.code_object(cc_index));
 
-        let obj = self.allocate(object_value::compiled_code(cc),
-                                self.compiled_code_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::compiled_code(cc),
+                      self.compiled_code_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_send_literal(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_send_literal(&self, process: RcProcess, code: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let name_index = try!(instruction.arg(2));
-        let name       = try!(code.string(name_index));
-
-        self.send_message(name, thread, instruction)
-    }
-
-    fn ins_send(&self, thread: RcThread, _: RcCompiledCode,
-                instruction: &Instruction) -> EmptyResult {
-        let lock   = instruction_object!(instruction, thread, 2);
-        let string = read_lock!(lock);
-
-        ensure_strings!(string);
-
-        self.send_message(string.value.as_string(), thread, instruction)
-    }
-
-    fn ins_literal_responds_to(&self, thread: RcThread, code: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let source = instruction_object!(instruction, thread, 1);
         let name_index = try!(instruction.arg(2));
         let name = try!(code.string(name_index));
 
-        let source_obj = read_lock!(source);
+        self.send_message(name, process, instruction)
+    }
+
+    fn ins_send(&self, process: RcProcess, _: RcCompiledCode,
+                instruction: &Instruction) -> EmptyResult {
+        let string = instruction_object!(instruction, process, 2);
+        let string_ref = string.get();
+        let string_obj = string_ref.get();
+
+        ensure_strings!(string_obj);
+
+        self.send_message(string_obj.value.as_string(), process, instruction)
+    }
+
+    fn ins_literal_responds_to(&self, process: RcProcess, code: RcCompiledCode,
+                               instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let source = instruction_object!(instruction, process, 1);
+        let name_index = try!(instruction.arg(2));
+        let name = try!(code.string(name_index));
+
+        let source_ref = source.get();
+        let source_obj = source_ref.get();
 
         let result = if source_obj.responds_to(name) {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, result);
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_responds_to(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_responds_to(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let source = instruction_object!(instruction, thread, 1);
-        let name = instruction_object!(instruction, thread, 2);
+        let source = instruction_object!(instruction, process, 1);
+        let name = instruction_object!(instruction, process, 2);
 
-        let name_obj = read_lock!(name);
-        let source_obj = read_lock!(source);
+        let name_ref = name.get();
+        let name_obj = name_ref.get();
+
+        let source_ref = source.get();
+        let source_obj = source_ref.get();
 
         ensure_strings!(name_obj);
 
         let result = if source_obj.responds_to(name_obj.value.as_string()) {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, result);
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_return(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_return(&self, process: RcProcess, _: RcCompiledCode,
                   instruction: &Instruction) -> OptionObjectResult {
         let register = try!(instruction.arg(0));
 
-        Ok(thread.get_register_option(register))
+        Ok(read_lock!(process).get_register_option(register))
     }
 
-    fn ins_goto_if_false(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_goto_if_false(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> OptionIntegerResult {
-        let go_to     = try!(instruction.arg(0));
+        let go_to = try!(instruction.arg(0));
         let value_reg = try!(instruction.arg(1));
-        let value     = thread.get_register_option(value_reg);
+        let value = read_lock!(process).get_register_option(value_reg);
 
         let matched = match value {
             Some(obj) => {
-                if read_lock!(obj).truthy() {
+                let obj_ref = obj.get();
+
+                if obj_ref.get().truthy() {
                     None
                 }
                 else {
@@ -1063,15 +1078,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(matched)
     }
 
-    fn ins_goto_if_true(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_goto_if_true(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> OptionIntegerResult {
-        let go_to     = try!(instruction.arg(0));
+        let go_to = try!(instruction.arg(0));
         let value_reg = try!(instruction.arg(1));
-        let value     = thread.get_register_option(value_reg);
+        let value = read_lock!(process).get_register_option(value_reg);
 
         let matched = match value {
             Some(obj) => {
-                if read_lock!(obj).truthy() {
+                let obj_ref = obj.get();
+
+                if obj_ref.get().truthy() {
                     Some(go_to)
                 }
                 else {
@@ -1084,22 +1101,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(matched)
     }
 
-    fn ins_goto(&self, _: RcThread, _: RcCompiledCode,
+    fn ins_goto(&self, _: RcProcess, _: RcCompiledCode,
                 instruction: &Instruction) -> IntegerResult {
         let go_to = try!(instruction.arg(0));
 
         Ok(go_to)
     }
 
-    fn ins_def_method(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_def_method(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let receiver_lock = instruction_object!(instruction, thread, 0);
-        let name_lock     = instruction_object!(instruction, thread, 1);
-        let cc_lock       = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let name_ptr = instruction_object!(instruction, process, 2);
+        let cc_ptr = instruction_object!(instruction, process, 3);
 
-        let mut receiver = write_lock!(receiver_lock);
-        let name_obj     = read_lock!(name_lock);
-        let cc_obj       = read_lock!(cc_lock);
+        let receiver_ref = receiver_ptr.get_mut();
+        let mut receiver = receiver_ref.get_mut();
+
+        let name_ref = name_ptr.get();
+        let name_obj = name_ref.get();
+
+        let cc_ref = cc_ptr.get();
+        let cc_obj = cc_ref.get();
 
         ensure_strings!(name_obj);
         ensure_compiled_code!(cc_obj);
@@ -1107,688 +1130,841 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name = name_obj.value.as_string();
         let cc   = cc_obj.value.as_compiled_code();
 
-        let method = self.allocate(object_value::compiled_code(cc),
-                                   self.method_prototype());
+        let mut proc_guard = write_lock!(process);
 
-        receiver.add_method(name.clone(), method);
+        let method = proc_guard.allocate(object_value::compiled_code(cc),
+                                         self.method_prototype.clone());
+
+        receiver.add_method(name.clone(), method.clone());
+
+        proc_guard.set_register(register, method);
 
         Ok(())
     }
 
-    fn ins_def_literal_method(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_def_literal_method(&self, process: RcProcess, code: RcCompiledCode,
                               instruction: &Instruction) -> EmptyResult {
-        let receiver_lock = instruction_object!(instruction, thread, 0);
-        let name_index    = try!(instruction.arg(1));
-        let cc_index      = try!(instruction.arg(2));
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let name_index = try!(instruction.arg(2));
+        let cc_index = try!(instruction.arg(3));
 
         let name = try!(code.string(name_index));
-        let cc   = try!(code.code_object(cc_index));
+        let cc = try!(code.code_object(cc_index));
 
-        let mut receiver = write_lock!(receiver_lock);
+        let receiver_ref = receiver_ptr.get_mut();
+        let mut receiver = receiver_ref.get_mut();
 
-        let method = self.allocate(object_value::compiled_code(cc),
-                                   self.method_prototype());
+        let mut proc_guard = write_lock!(process);
 
-        receiver.add_method(name.clone(), method);
+        let method = proc_guard.allocate(object_value::compiled_code(cc),
+                                         self.method_prototype.clone());
+
+        receiver.add_method(name.clone(), method.clone());
+
+        proc_guard.set_register(register, method);
 
         Ok(())
     }
 
-    fn ins_run_code(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_run_code(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let cc_lock  = instruction_object!(instruction, thread, 1);
-        let arg_lock = instruction_object!(instruction, thread, 2);
+        let cc_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let cc_obj  = read_lock!(cc_lock);
-        let arg_obj = read_lock!(arg_lock);
+        let code_obj = {
+            let cc_ref = cc_ptr.get();
+            let cc_obj = cc_ref.get();
 
-        ensure_compiled_code!(cc_obj);
+            ensure_compiled_code!(cc_obj);
+
+            cc_obj.value.as_compiled_code()
+        };
+
+        let arg_ref = arg_ptr.get();
+        let arg_obj = arg_ref.get();
+
         ensure_integers!(arg_obj);
 
         let arg_count = arg_obj.value.as_integer() as usize;
-        let code_obj  = cc_obj.value.as_compiled_code();
 
         let arguments = try!(
-            self.collect_arguments(thread.clone(), instruction, 3, arg_count)
+            self.collect_arguments(process.clone(), instruction, 3, arg_count)
         );
 
-        let bidx = 3 + arg_count;
+        let binding_idx = 3 + arg_count;
 
-        let binding = if let Some(obj) = thread.get_register_option(bidx) {
-            let lock = read_lock!(obj);
+        let binding = if let Ok(binding_reg) = instruction.arg(binding_idx) {
+            let obj_ptr = instruction_object!(instruction, process, binding_reg);
 
-            if !lock.value.is_binding() {
-                return Err(format!("Argument {} is not a valid Binding", bidx));
+            let obj_ref = obj_ptr.get();
+            let obj = obj_ref.get();
+
+            if !obj.value.is_binding() {
+                return Err(format!("Argument {} is not a valid Binding",
+                                   binding_idx));
             }
 
-            Some(lock.value.as_binding())
+            Some(obj.value.as_binding())
         }
         else {
             None
         };
 
         let retval = try!(
-            self.run_code(thread.clone(), code_obj, cc_lock.clone(), arguments,
-                          binding)
+            self.run_code(process.clone(), code_obj, cc_ptr, arguments, binding)
         );
 
         if retval.is_some() {
-            thread.set_register(register, retval.unwrap());
+            write_lock!(process).set_register(register, retval.unwrap());
         }
 
         Ok(())
     }
 
-    fn ins_run_literal_code(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_run_literal_code(&self, process: RcProcess, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
+        let register = try!(instruction.arg(0));
         let code_index = try!(instruction.arg(1));
-        let receiver   = instruction_object!(instruction, thread, 2);
-        let code_obj   = try!(code.code_object(code_index));
+        let receiver = instruction_object!(instruction, process, 2);
+        let code_obj = try!(code.code_object(code_index));
 
         let retval = try!(
-            self.run_code(thread.clone(), code_obj, receiver, Vec::new(), None)
+            self.run_code(process.clone(), code_obj, receiver, Vec::new(), None)
         );
 
         if retval.is_some() {
-            thread.set_register(register, retval.unwrap());
+            write_lock!(process).set_register(register, retval.unwrap());
         }
 
         Ok(())
     }
 
-    fn ins_get_toplevel(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_toplevel(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        thread.set_register(register, self.top_level_object());
+        write_lock!(process).set_register(register, self.top_level.clone());
 
         Ok(())
     }
 
-    fn ins_get_self(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_self(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
-        let self_object = read_lock!(thread.call_frame).self_object();
+        let self_object = read_lock!(process).call_frame.self_object();
 
-        thread.set_register(register, self_object);
+        write_lock!(process).set_register(register, self_object);
 
         Ok(())
     }
 
-    fn ins_is_error(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_is_error(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let obj_lock = instruction_object!(instruction, thread, 1);
-        let obj      = read_lock!(obj_lock);
+        let obj_ptr = instruction_object!(instruction, process, 1);
+
+        let obj_ref = obj_ptr.get();
+        let obj = obj_ref.get();
 
         let result = if obj.value.is_error() {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, result);
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_error_to_integer(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_error_to_integer(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let error_lock = instruction_object!(instruction, thread, 1);
-        let error      = read_lock!(error_lock);
+        let register = try!(instruction.arg(0));
+        let error_ptr = instruction_object!(instruction, process, 1);
 
-        let proto   = self.integer_prototype();
+        let error_ref = error_ptr.get();
+        let error = error_ref.get();
+
+        let proto = self.integer_prototype.clone();
         let integer = error.value.as_error() as i64;
-        let result  = self.allocate(object_value::integer(integer), proto);
 
-        thread.set_register(register, result);
+        let result = write_lock!(process)
+            .allocate(object_value::integer(integer), proto);
+
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_integer_add(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_add(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() + arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_div(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_div(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() / arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_mul(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_mul(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() * arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_sub(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_sub(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() - arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_mod(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_mod(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() % arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_to_float(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_to_float(&self, process: RcProcess, _: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let register     = try!(instruction.arg(0));
-        let integer_lock = instruction_object!(instruction, thread, 1);
-        let integer      = read_lock!(integer_lock);
+        let register = try!(instruction.arg(0));
+        let integer_ptr = instruction_object!(instruction, process, 1);
+
+        let integer_ref = integer_ptr.get();
+        let integer = integer_ref.get();
 
         ensure_integers!(integer);
 
         let result = integer.value.as_integer() as f64;
-        let obj    = self.allocate(object_value::float(result),
-                                   self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(result),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_to_string(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_to_string(&self, process: RcProcess, _: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
-        let register     = try!(instruction.arg(0));
-        let integer_lock = instruction_object!(instruction, thread, 1);
+        let register = try!(instruction.arg(0));
+        let integer_ptr = instruction_object!(instruction, process, 1);
 
-        let integer = read_lock!(integer_lock);
+        let integer_ref = integer_ptr.get();
+        let integer = integer_ref.get();
 
         ensure_integers!(integer);
 
         let result = integer.value.as_integer().to_string();
-        let obj    = self.allocate(object_value::string(result),
-                                   self.string_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(result),
+                      self.string_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_and(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_bitwise_and(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() & arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_or(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_bitwise_or(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() | arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_xor(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_bitwise_xor(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() ^ arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_shift_left(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_shift_left(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() << arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_shift_right(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_shift_right(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() >> arg.value.as_integer();
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_smaller(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_smaller(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() < arg.value.as_integer();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_integer_greater(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_greater(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() > arg.value.as_integer();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_integer_equals(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_integer_equals(&self, process: RcProcess, _: RcCompiledCode,
                           instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_integers!(receiver, arg);
 
         let result = receiver.value.as_integer() == arg.value.as_integer();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_start_thread(&self, thread: RcThread, code: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
-        let code_index  = try!(instruction.arg(1));
-        let thread_code = try!(code.code_object(code_index));
+    fn ins_spawn_literal_process(&self, process: RcProcess, code: RcCompiledCode,
+                                 instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let code_index = try!(instruction.arg(1));
+        let isolated = try!(instruction.arg(2)) == 1;
+        let code_obj = try!(code.code_object(code_index));
 
-        let thread_object = self.start_thread(thread_code);
-
-        thread.set_register(register, thread_object);
+        self.spawn_process(process, code_obj, register, isolated);
 
         Ok(())
     }
 
-    fn ins_float_add(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_spawn_process(&self, process: RcProcess, _: RcCompiledCode,
+                         instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let code_ptr = instruction_object!(instruction, process, 1);
+        let isolated = try!(instruction.arg(2)) == 1;
+
+        let code_ref = code_ptr.get();
+        let code = code_ref.get();
+
+        ensure_compiled_code!(code);
+
+        let code_obj = code.value.as_compiled_code();
+
+        self.spawn_process(process, code_obj, register, isolated);
+
+        Ok(())
+    }
+
+    fn ins_float_add(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let added = receiver.value.as_float() + arg.value.as_float();
-        let obj   = self.allocate(object_value::float(added),
-                                  self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(added),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_mul(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_mul(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() * arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result),
-                                   self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(result),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_div(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_div(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() / arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result),
-                                   self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(result),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_sub(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_sub(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() - arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result),
-                                   self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(result),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_mod(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_mod(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() % arg.value.as_float();
-        let obj    = self.allocate(object_value::float(result),
-                                   self.float_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::float(result),
+                      self.float_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_to_integer(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_to_integer(&self, process: RcProcess, _: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let float_lock = instruction_object!(instruction, thread, 1);
-        let float      = read_lock!(float_lock);
+        let register = try!(instruction.arg(0));
+        let float_ptr = instruction_object!(instruction, process, 1);
+
+        let float_ref = float_ptr.get();
+        let float = float_ref.get();
 
         ensure_floats!(float);
 
         let result = float.value.as_float() as i64;
-        let obj    = self.allocate(object_value::integer(result),
-                                   self.integer_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result),
+                      self.integer_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_to_string(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_to_string(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let float_lock = instruction_object!(instruction, thread, 1);
-        let float      = read_lock!(float_lock);
+        let register = try!(instruction.arg(0));
+        let float_ptr = instruction_object!(instruction, process, 1);
+
+        let float_ref = float_ptr.get();
+        let float = float_ref.get();
 
         ensure_floats!(float);
 
         let result = float.value.as_float().to_string();
-        let obj    = self.allocate(object_value::string(result),
-                                   self.string_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(result),
+                      self.string_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_smaller(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_smaller(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() < arg.value.as_float();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_float_greater(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_greater(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() > arg.value.as_float();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_float_equals(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_float_equals(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_floats!(receiver, arg);
 
         let result = receiver.value.as_float() == arg.value.as_float();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_array_insert(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_array_insert(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let array_lock = instruction_object!(instruction, thread, 0);
-        let index      = try!(instruction.arg(1));
-        let value_lock = instruction_object!(instruction, thread, 2);
-        let mut array  = write_lock!(array_lock);
+        let array_ptr = instruction_object!(instruction, process, 0);
+        let index = try!(instruction.arg(1));
+        let value_ptr = instruction_object!(instruction, process, 2);
+
+        let array_ref = array_ptr.get_mut();
+        let mut array = array_ref.get_mut();
 
         ensure_arrays!(array);
 
@@ -1796,17 +1972,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_array_within_bounds!(vector, index);
 
-        vector.insert(index, value_lock);
+        vector.insert(index, value_ptr);
 
         Ok(())
     }
 
-    fn ins_array_at(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_array_at(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let array_lock = instruction_object!(instruction, thread, 1);
-        let index      = try!(instruction.arg(2));
-        let array      = read_lock!(array_lock);
+        let register = try!(instruction.arg(0));
+        let array_ptr = instruction_object!(instruction, process, 1);
+        let index = try!(instruction.arg(2));
+
+        let array_ref = array_ptr.get();
+        let array = array_ref.get();
 
         ensure_arrays!(array);
 
@@ -1816,17 +1994,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let value = vector[index].clone();
 
-        thread.set_register(register, value);
+        write_lock!(process).set_register(register, value);
 
         Ok(())
     }
 
-    fn ins_array_remove(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_array_remove(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let array_lock = instruction_object!(instruction, thread, 1);
-        let index      = try!(instruction.arg(1));
-        let mut array  = write_lock!(array_lock);
+        let register = try!(instruction.arg(0));
+        let array_ptr = instruction_object!(instruction, process, 1);
+        let index = try!(instruction.arg(1));
+
+        let array_ref = array_ptr.get_mut();
+        let mut array = array_ref.get_mut();
 
         ensure_arrays!(array);
 
@@ -1836,34 +2016,39 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let value = vector.remove(index);
 
-        thread.set_register(register, value);
+        write_lock!(process).set_register(register, value);
 
         Ok(())
     }
 
-    fn ins_array_length(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_array_length(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let register   = try!(instruction.arg(0));
-        let array_lock = instruction_object!(instruction, thread, 1);
-        let array      = read_lock!(array_lock);
+        let register = try!(instruction.arg(0));
+        let array_ptr = instruction_object!(instruction, process, 1);
+
+        let array_ref = array_ptr.get();
+        let array = array_ref.get();
 
         ensure_arrays!(array);
 
         let vector = array.value.as_array();
         let length = vector.len() as i64;
 
-        let obj = self.allocate(object_value::integer(length),
-                                self.integer_prototype());
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(length),
+                      self.integer_prototype.clone());
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_array_clear(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_array_clear(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let array_lock = instruction_object!(instruction, thread, 0);
-        let mut array  = write_lock!(array_lock);
+        let array_ptr = instruction_object!(instruction, process, 0);
+
+        let array_ref = array_ptr.get_mut();
+        let mut array = array_ref.get_mut();
 
         ensure_arrays!(array);
 
@@ -1874,245 +2059,282 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_to_lower(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_to_lower(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
-        let source_lock = instruction_object!(instruction, thread, 1);
-        let source      = read_lock!(source_lock);
+        let register = try!(instruction.arg(0));
+        let source_ptr = instruction_object!(instruction, process, 1);
+
+        let source_ref = source_ptr.get();
+        let source = source_ref.get();
 
         ensure_strings!(source);
 
         let lower = source.value.as_string().to_lowercase();
-        let obj   = self.allocate(object_value::string(lower),
-                                  self.string_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(lower),
+                      self.string_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_to_upper(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_to_upper(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
-        let source_lock = instruction_object!(instruction, thread, 1);
-        let source      = read_lock!(source_lock);
+        let register = try!(instruction.arg(0));
+        let source_ptr = instruction_object!(instruction, process, 1);
+
+        let source_ref = source_ptr.get();
+        let source = source_ref.get();
 
         ensure_strings!(source);
 
         let upper = source.value.as_string().to_uppercase();
-        let obj   = self.allocate(object_value::string(upper),
-                                  self.string_prototype());
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(upper),
+                      self.string_prototype.clone());
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_equals(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_equals(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
-        let arg_lock      = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
+        let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver = read_lock!(receiver_lock);
-        let arg      = read_lock!(arg_lock);
+        let receiver_ref = receiver_ptr.get();
+        let receiver = receiver_ref.get();
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(receiver, arg);
 
         let result = receiver.value.as_string() == arg.value.as_string();
 
         let boolean = if result {
-            self.true_object()
+            self.true_object.clone()
         }
         else {
-            self.false_object()
+            self.false_object.clone()
         };
 
-        thread.set_register(register, boolean);
+        write_lock!(process).set_register(register, boolean);
 
         Ok(())
     }
 
-    fn ins_string_to_bytes(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_to_bytes(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(arg);
 
-        let int_proto   = self.integer_prototype();
-        let array_proto = self.array_prototype();
+        let int_proto   = self.integer_prototype.clone();
+        let array_proto = self.array_prototype.clone();
 
         let array = arg.value.as_string().as_bytes().iter().map(|&b| {
-            self.allocate(object_value::integer(b as i64), int_proto.clone())
+            write_lock!(process)
+                .allocate(object_value::integer(b as i64), int_proto.clone())
         }).collect::<Vec<_>>();
 
-        let obj = self.allocate(object_value::array(array), array_proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::array(array), array_proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_from_bytes(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_from_bytes(&self, process: RcProcess, _: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_arrays!(arg);
 
-        let string_proto = self.string_prototype();
+        let string_proto = self.string_prototype.clone();
         let array        = arg.value.as_array();
 
-        for int_lock in array.iter() {
-            let int = read_lock!(int_lock);
+        for int_ptr in array.iter() {
+            let int_ref = int_ptr.get();
+            let int = int_ref.get();
 
             ensure_integers!(int);
         }
 
-        let bytes = arg.value.as_array().iter().map(|ref int_lock| {
-            read_lock!(int_lock).value.as_integer() as u8
+        let bytes = arg.value.as_array().iter().map(|ref int_ptr| {
+            let int_ref = int_ptr.get();
+
+            int_ref.get().value.as_integer() as u8
         }).collect::<Vec<_>>();
 
-        let string = try_error!(try_from_utf8!(bytes), self, thread, register);
-        let obj    = self.allocate(object_value::string(string), string_proto);
+        let string = try_error!(try_from_utf8!(bytes), process, register);
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(string), string_proto);
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_length(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_length(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(arg);
 
-        let int_proto = self.integer_prototype();
-
+        let int_proto = self.integer_prototype.clone();
         let length = arg.value.as_string().chars().count() as i64;
-        let obj    = self.allocate(object_value::integer(length), int_proto);
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(length), int_proto);
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_size(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_string_size(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(arg);
 
-        let int_proto = self.integer_prototype();
-
+        let int_proto = self.integer_prototype.clone();
         let size = arg.value.as_string().len() as i64;
-        let obj  = self.allocate(object_value::integer(size), int_proto);
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(size), int_proto);
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_stdout_write(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_stdout_write(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(arg);
 
-        let int_proto  = self.integer_prototype();
+        let int_proto = self.integer_prototype.clone();
         let mut stdout = io::stdout();
 
         let result = try_io!(stdout.write(arg.value.as_string().as_bytes()),
-                             self, thread, register);
+                             process, register);
 
-        try_io!(stdout.flush(), self, thread, register);
+        try_io!(stdout.flush(), process, register);
 
-        let obj = self.allocate(object_value::integer(result as i64),
-                                int_proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result as i64), int_proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_stderr_write(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_stderr_write(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let arg_lock = instruction_object!(instruction, thread, 1);
-        let arg      = read_lock!(arg_lock);
+        let arg_ptr = instruction_object!(instruction, process, 1);
+
+        let arg_ref = arg_ptr.get();
+        let arg = arg_ref.get();
 
         ensure_strings!(arg);
 
-        let int_proto  = self.integer_prototype();
+        let int_proto = self.integer_prototype.clone();
         let mut stderr = io::stderr();
 
         let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
-                             self, thread, register);
+                             process, register);
 
-        try_io!(stderr.flush(), self, thread, register);
+        try_io!(stderr.flush(), process, register);
 
-        let obj = self.allocate(object_value::integer(result as i64),
-                                int_proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result as i64), int_proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_stdin_read(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_stdin_read(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let proto    = self.string_prototype();
+        let proto = self.string_prototype.clone();
 
-        let mut buffer = file_reading_buffer!(instruction, thread, 1);
+        let mut buffer = file_reading_buffer!(instruction, process, 1);
 
-        try_io!(io::stdin().read_to_string(&mut buffer), self, thread, register);
+        try_io!(io::stdin().read_to_string(&mut buffer), process, register);
 
-        let obj = self.allocate(object_value::string(buffer), proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(buffer), proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_stdin_read_line(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_stdin_read_line(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let proto    = self.string_prototype();
+        let proto = self.string_prototype.clone();
 
         let mut buffer = String::new();
 
-        try_io!(io::stdin().read_line(&mut buffer), self, thread, register);
+        try_io!(io::stdin().read_line(&mut buffer), process, register);
 
-        let obj = self.allocate(object_value::string(buffer), proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(buffer), proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_file_open(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_open(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register  = try!(instruction.arg(0));
-        let path_lock = instruction_object!(instruction, thread, 1);
-        let mode_lock = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let path_ptr = instruction_object!(instruction, process, 1);
+        let mode_ptr = instruction_object!(instruction, process, 2);
 
-        let file_proto = self.file_prototype();
+        let file_proto = self.file_prototype.clone();
 
-        let path = read_lock!(path_lock);
-        let mode = read_lock!(mode_lock);
+        let path_ref = path_ptr.get();
+        let path = path_ref.get();
 
-        let path_string   = path.value.as_string();
-        let mode_string   = mode.value.as_string().as_ref();
+        let mode_ref = mode_ptr.get();
+        let mode = mode_ref.get();
+
+        let path_string = path.value.as_string();
+        let mode_string = mode.value.as_string().as_ref();
         let mut open_opts = OpenOptions::new();
 
         match mode_string {
@@ -2122,78 +2344,88 @@ impl VirtualMachineMethods for RcVirtualMachine {
             "w+" => open_opts.read(true).write(true).truncate(true).create(true),
             "a"  => open_opts.append(true).create(true),
             "a+" => open_opts.read(true).append(true).create(true),
-            _    => set_error!(errors::IO_INVALID_OPEN_MODE, self, thread, register)
+            _    => set_error!(errors::IO_INVALID_OPEN_MODE, process, register)
         };
 
-        let file = try_io!(open_opts.open(path_string), self, thread, register);
-        let obj  = self.allocate(object_value::file(file), file_proto);
+        let file = try_io!(open_opts.open(path_string), process, register);
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::file(file), file_proto);
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_file_write(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_write(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
-        let file_lock   = instruction_object!(instruction, thread, 1);
-        let string_lock = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+        let string_ptr = instruction_object!(instruction, process, 2);
 
-        let mut file = write_lock!(file_lock);
-        let string   = read_lock!(string_lock);
+        let file_ref = file_ptr.get_mut();
+        let mut file = file_ref.get_mut();
+
+        let string_ref = string_ptr.get();
+        let string = string_ref.get();
 
         ensure_files!(file);
         ensure_strings!(string);
 
-        let int_proto = self.integer_prototype();
-        let mut file  = file.value.as_file_mut();
-        let bytes     = string.value.as_string().as_bytes();
+        let int_proto = self.integer_prototype.clone();
+        let mut file = file.value.as_file_mut();
+        let bytes = string.value.as_string().as_bytes();
 
-        let result = try_io!(file.write(bytes), self, thread, register);
+        let result = try_io!(file.write(bytes), process, register);
 
-        let obj = self.allocate(object_value::integer(result as i64),
-                                int_proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::integer(result as i64), int_proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_file_read(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_read(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register     = try!(instruction.arg(0));
-        let file_lock    = instruction_object!(instruction, thread, 1);
-        let mut file_obj = write_lock!(file_lock);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+
+        let file_ref = file_ptr.get_mut();
+        let mut file_obj = file_ref.get_mut();
 
         ensure_files!(file_obj);
 
-        let mut buffer = file_reading_buffer!(instruction, thread, 2);
-        let int_proto  = self.integer_prototype();
-        let mut file   = file_obj.value.as_file_mut();
+        let mut buffer = file_reading_buffer!(instruction, process, 2);
+        let int_proto = self.integer_prototype.clone();
+        let mut file = file_obj.value.as_file_mut();
 
-        try_io!(file.read_to_string(&mut buffer), self, thread, register);
+        try_io!(file.read_to_string(&mut buffer), process, register);
 
-        let obj = self.allocate(object_value::string(buffer), int_proto);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(buffer), int_proto);
 
-        thread.set_register(register, obj);
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_file_read_line(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_read_line(&self, process: RcProcess, _: RcCompiledCode,
                           instruction: &Instruction) -> EmptyResult {
-        let register     = try!(instruction.arg(0));
-        let file_lock    = instruction_object!(instruction, thread, 1);
-        let mut file_obj = write_lock!(file_lock);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+
+        let file_ref = file_ptr.get_mut();
+        let mut file_obj = file_ref.get_mut();
 
         ensure_files!(file_obj);
 
-        let proto     = self.string_prototype();
-        let mut file  = file_obj.value.as_file_mut();
+        let proto = self.string_prototype.clone();
+        let mut file = file_obj.value.as_file_mut();
         let mut bytes = Vec::new();
 
         for result in file.bytes() {
-            let byte = try_io!(result, self, thread, register);
+            let byte = try_io!(result, process, register);
 
             bytes.push(byte);
 
@@ -2202,106 +2434,120 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
         }
 
-        let string = try_error!(try_from_utf8!(bytes), self, thread, register);
-        let obj    = self.allocate(object_value::string(string), proto);
+        let string = try_error!(try_from_utf8!(bytes), process, register);
 
-        thread.set_register(register, obj);
+        let obj = write_lock!(process)
+            .allocate(object_value::string(string), proto);
+
+        write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_file_flush(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_flush(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
-        let register     = try!(instruction.arg(0));
-        let file_lock    = instruction_object!(instruction, thread, 1);
-        let mut file_obj = write_lock!(file_lock);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+
+        let file_ref = file_ptr.get_mut();
+        let mut file_obj = file_ref.get_mut();
 
         ensure_files!(file_obj);
 
         let mut file = file_obj.value.as_file_mut();
 
-        try_io!(file.flush(), self, thread, register);
+        try_io!(file.flush(), process, register);
 
-        thread.set_register(register, self.true_object());
+        write_lock!(process).set_register(register, self.true_object.clone());
 
         Ok(())
     }
 
-    fn ins_file_size(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_size(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register  = try!(instruction.arg(0));
-        let file_lock = instruction_object!(instruction, thread, 1);
-        let file_obj  = read_lock!(file_lock);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+
+        let file_ref = file_ptr.get();
+        let file_obj = file_ref.get();
 
         ensure_files!(file_obj);
 
         let file = file_obj.value.as_file();
-        let meta = try_io!(file.metadata(), self, thread, register);
+        let meta = try_io!(file.metadata(), process, register);
 
-        let size   = meta.len() as i64;
-        let proto  = self.integer_prototype();
-        let result = self.allocate(object_value::integer(size), proto);
+        let size = meta.len() as i64;
+        let proto = self.integer_prototype.clone();
 
-        thread.set_register(register, result);
+        let result = write_lock!(process)
+            .allocate(object_value::integer(size), proto);
+
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_file_seek(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_file_seek(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register    = try!(instruction.arg(0));
-        let file_lock   = instruction_object!(instruction, thread, 1);
-        let offset_lock = instruction_object!(instruction, thread, 2);
+        let register = try!(instruction.arg(0));
+        let file_ptr = instruction_object!(instruction, process, 1);
+        let offset_ptr = instruction_object!(instruction, process, 2);
 
-        let mut file_obj = write_lock!(file_lock);
-        let offset_obj   = read_lock!(offset_lock);
+        let file_ref = file_ptr.get_mut();
+        let mut file_obj = file_ref.get_mut();
+
+        let offset_ref = offset_ptr.get();
+        let offset_obj = offset_ref.get();
 
         ensure_files!(file_obj);
         ensure_integers!(offset_obj);
 
         let mut file = file_obj.value.as_file_mut();
-        let offset   = offset_obj.value.as_integer();
+        let offset = offset_obj.value.as_integer();
 
         ensure_positive_read_size!(offset);
 
-        let seek_from  = SeekFrom::Start(offset as u64);
-        let new_offset = try_io!(file.seek(seek_from), self, thread, register);
+        let seek_from = SeekFrom::Start(offset as u64);
+        let new_offset = try_io!(file.seek(seek_from), process, register);
 
-        let proto  = self.integer_prototype();
-        let result = self.allocate(object_value::integer(new_offset as i64),
-                                   proto);
+        let proto = self.integer_prototype.clone();
 
-        thread.set_register(register, result);
+        let result = write_lock!(process)
+            .allocate(object_value::integer(new_offset as i64), proto);
+
+        write_lock!(process).set_register(register, result);
 
         Ok(())
     }
 
-    fn ins_run_literal_file(&self, thread: RcThread, code: RcCompiledCode,
+    fn ins_run_literal_file(&self, process: RcProcess, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let index    = try!(instruction.arg(1));
-        let path     = try!(code.string(index));
+        let index = try!(instruction.arg(1));
+        let path = try!(code.string(index));
 
-        self.run_file(path, thread, register)
+        self.run_file(path, process, register)
     }
 
-    fn ins_run_file(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_run_file(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let lock     = instruction_object!(instruction, thread, 1);
-        let string   = read_lock!(lock);
+        let path_ptr = instruction_object!(instruction, process, 1);
 
-        ensure_strings!(string);
+        let path_ref = path_ptr.get();
+        let path = path_ref.get();
 
-        self.run_file(string.value.as_string(), thread, register)
+        ensure_strings!(path);
+
+        self.run_file(path.value.as_string(), process, register)
     }
 
-    fn ins_get_caller(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_get_caller(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
 
         let caller = {
-            let frame = read_lock!(thread.call_frame);
+            let ref frame = read_lock!(process).call_frame;
 
             if let Some(parent) = frame.parent() {
                 parent.self_object()
@@ -2311,25 +2557,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
         };
 
-        thread.set_register(register, caller);
+        write_lock!(process).set_register(register, caller);
 
         Ok(())
     }
 
-    fn ins_set_outer_scope(&self, thread: RcThread, _: RcCompiledCode,
+    fn ins_set_outer_scope(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let source = instruction_object!(instruction, thread, 0);
-        let scope = instruction_object!(instruction, thread, 1);
+        let source_ptr = instruction_object!(instruction, process, 0);
+        let scope = instruction_object!(instruction, process, 1);
 
-        write_lock!(source).set_outer_scope(scope);
+        let source_ref = source_ptr.get_mut();
+        let mut source = source_ref.get_mut();
+
+        source.set_outer_scope(scope);
 
         Ok(())
     }
 
-    fn error(&self, thread: RcThread, message: String) {
+    fn error(&self, process: RcProcess, message: String) {
         let mut stderr = io::stderr();
-        let mut error  = message.to_string();
-        let frame      = read_lock!(thread.call_frame);
+        let mut error = message.to_string();
+        let ref frame = read_lock!(process).call_frame;
 
         *write_lock!(self.exit_status) = Err(());
 
@@ -2348,10 +2597,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn run_code(&self,
-                thread: RcThread,
+                process: RcProcess,
                 code: RcCompiledCode,
-                self_obj: RcObject,
-                args: Vec<RcObject>,
+                self_obj: ObjectPointer,
+                args: Vec<ObjectPointer>,
                 binding: Option<RcBinding>) -> OptionObjectResult {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
@@ -2363,21 +2612,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 CallFrame::from_code(code.clone(), self_obj)
             };
 
-            thread.push_call_frame(frame);
+            let mut plock = write_lock!(process);
+
+            plock.push_call_frame(frame);
 
             for arg in args.iter() {
-                thread.add_local(arg.clone());
+                plock.add_local(arg.clone());
             }
         }
 
-        let return_val = try!(self.run(thread.clone(), code));
+        let return_val = try!(self.run(process.clone(), code));
 
-        thread.pop_call_frame();
+        write_lock!(process).pop_call_frame();
 
         Ok(return_val)
     }
 
-    fn run_file(&self, path_str: &String, thread: RcThread, register: usize) -> EmptyResult {
+    fn run_file(&self, path_str: &String, process: RcProcess, register: usize) -> EmptyResult {
         {
             let mut executed = write_lock!(self.executed_files);
 
@@ -2414,15 +2665,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
-                let self_obj = self.top_level_object();
-                let args     = Vec::new();
+                let self_obj = self.top_level.clone();
+                let args = Vec::new();
 
                 let res = try!(
-                    self.run_code(thread.clone(), body, self_obj, args, None)
+                    self.run_code(process.clone(), body, self_obj, args, None)
                 );
 
                 if res.is_some() {
-                    thread.set_register(register, res.unwrap());
+                    write_lock!(process).set_register(register, res.unwrap());
                 }
 
                 Ok(())
@@ -2433,19 +2684,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
     }
 
-    fn send_message(&self, name: &String, thread: RcThread,
+    fn send_message(&self, name: &String, process: RcProcess,
                     instruction: &Instruction) -> EmptyResult {
-        let register      = try!(instruction.arg(0));
-        let receiver_lock = instruction_object!(instruction, thread, 1);
+        let register = try!(instruction.arg(0));
+        let receiver_ptr = instruction_object!(instruction, process, 1);
         let allow_private = try!(instruction.arg(3));
-        let rest_arg      = try!(instruction.arg(4)) == 1;
+        let rest_arg = try!(instruction.arg(4)) == 1;
 
-        let method_lock = try!(
-            read_lock!(receiver_lock).lookup_method(name)
-                .ok_or_else(|| format!("Undefined method \"{}\" called", name))
-        );
+        let method_ptr = {
+            let receiver_ref = receiver_ptr.get();
 
-        let method_obj = read_lock!(method_lock);
+            try!(
+                receiver_ref.get().lookup_method(name)
+                    .ok_or_else(|| format!("Undefined method \"{}\" called", name))
+            )
+        };
+
+        let method_ref = method_ptr.get();
+        let method_obj = method_ref.get();
 
         ensure_compiled_code!(method_obj);
 
@@ -2461,13 +2717,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let req_args = method_code.required_arguments as usize;
 
         let mut arguments = try!(
-            self.collect_arguments(thread.clone(), instruction, 5, arg_count)
+            self.collect_arguments(process.clone(), instruction, 5, arg_count)
         );
 
         // Unpack the last argument if it's a rest argument
         if rest_arg {
             if let Some(last_arg) = arguments.pop() {
-                let array = read_lock!(last_arg);
+                let array_ref = last_arg.get();
+                let array = array_ref.get();
 
                 ensure_arrays!(array);
 
@@ -2489,14 +2746,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             arguments.truncate(tot_args);
 
-            let rest_array = self.allocate(object_value::array(rest),
-                                           self.array_prototype());
+            let rest_array = write_lock!(process)
+                .allocate(object_value::array(rest),
+                          self.array_prototype.clone());
 
             arguments.push(rest_array);
         }
         else if method_code.rest_argument && arguments.len() == 0 {
-            let rest_array = self.allocate(object_value::array(Vec::new()),
-                                           self.array_prototype());
+            let rest_array = write_lock!(process)
+                .allocate(object_value::array(Vec::new()),
+                          self.array_prototype.clone());
 
             arguments.push(rest_array);
         }
@@ -2520,24 +2779,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
 
         let retval = try!(
-            self.run_code(thread.clone(), method_code, receiver_lock.clone(),
+            self.run_code(process.clone(), method_code, receiver_ptr.clone(),
                           arguments, None)
         );
 
         if retval.is_some() {
-            thread.set_register(register, retval.unwrap());
+            write_lock!(process).set_register(register, retval.unwrap());
         }
 
         Ok(())
     }
 
-    fn collect_arguments(&self, thread: RcThread, instruction: &Instruction,
+    fn collect_arguments(&self, process: RcProcess, instruction: &Instruction,
                          offset: usize, amount: usize) -> ObjectVecResult {
-        let mut args: Vec<RcObject> = Vec::new();
+        let mut args: Vec<ObjectPointer> = Vec::new();
 
         for index in offset..(offset + amount) {
             let arg_index = try!(instruction.arg(index));
-            let arg       = try!(thread.get_register(arg_index));
+            let arg = try!(read_lock!(process).get_register(arg_index));
 
             args.push(arg)
         }
@@ -2545,143 +2804,78 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(args)
     }
 
-    fn start_thread(&self, code: RcCompiledCode) -> RcObject {
+    fn start_thread(&self, isolated: bool) -> RcThread {
         let self_clone = self.clone();
-        let code_clone = code.clone();
 
-        let (chan_sender, chan_receiver) = channel();
+        let (sender, receiver) = channel();
 
         let handle = thread::spawn(move || {
-            let thread_obj: RcObject = chan_receiver.recv().unwrap();
+            let thread = receiver.recv().unwrap();
 
-            self_clone.run_thread(thread_obj, code_clone);
+            self_clone.run_thread(thread);
         });
 
-        let thread_obj = self.allocate_thread(code, Some(handle));
+        let thread = if isolated {
+            self.allocate_isolated_thread(Some(handle))
+        }
+        else {
+            self.allocate_thread(Some(handle))
+        };
 
-        chan_sender.send(thread_obj.clone()).unwrap();
+        sender.send(thread.clone()).unwrap();
 
-        thread_obj
+        thread
     }
 
-    fn run_thread(&self, thread: RcObject, code: RcCompiledCode) {
-        let vm_thread = read_lock!(thread).value.as_thread();
-        let result    = self.run(vm_thread.clone(), code);
+    fn spawn_process(&self, process: RcProcess, code: RcCompiledCode, register: usize, isolated: bool) {
+        let (pid, new_proc) = self.allocate_process(code,
+                                                    self.top_level.clone());
+
+        if isolated {
+            let thread = self.start_thread(true);
+
+            thread.schedule(new_proc);
+        }
+        else {
+            write_lock!(self.threads).schedule(new_proc);
+        }
+
+        let mut proc_guard = write_lock!(process);
+
+        let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
+                                          self.integer_prototype.clone());
+
+        proc_guard.set_register(register, pid_obj);
+    }
+
+    fn run_thread(&self, thread: RcThread) {
+        loop {
+            if thread.should_stop() {
+                break;
+            }
+
+            thread.wait_until_process_available();
+
+            let process = thread.pop_process();
+            let code = read_lock!(process).compiled_code.clone();
+
+            // TODO: process supervision
+            match self.run(process.clone(), code) {
+                Ok(_) => {
+                    write_lock!(self.processes).remove(process);
+
+                    if thread.is_isolated() {
+                        break;
+                    }
+                },
+                Err(message) => {
+                    self.error(process, message);
+
+                    write_lock!(self.threads).stop();
+                }
+            }
+        }
 
         write_lock!(self.threads).remove(thread.clone());
-
-        write_lock!(thread).unpin();
-
-        match result {
-            Ok(_) => {},
-            Err(message) => {
-                self.error(vm_thread, message);
-
-                write_lock!(self.threads).stop();
-            }
-        };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-    use virtual_machine_methods::*;
-    use call_frame::CallFrame;
-    use compiled_code::CompiledCode;
-    use instruction::{Instruction, InstructionType};
-    use object::Object;
-    use object_value;
-    use thread::Thread;
-
-    macro_rules! compiled_code {
-        ($ins: expr) => (
-            CompiledCode::new("test".to_string(), "test".to_string(), 1, $ins)
-        );
-    }
-
-    macro_rules! call_frame {
-        () => ({
-            let self_obj = Object::new(1, object_value::none());
-
-            CallFrame::new("foo".to_string(), "foo".to_string(), 1, self_obj)
-        });
-    }
-
-    macro_rules! instruction {
-        ($ins_type: expr, $args: expr) => (
-            Instruction::new($ins_type, $args, 1, 1)
-        );
-    }
-
-    macro_rules! run {
-        ($vm: ident, $thread: expr, $cc: expr) => (
-            $vm.run($thread.clone(), Arc::new($cc))
-        );
-    }
-
-    // TODO: test for start()
-    // TODO: test for run()
-
-    #[test]
-    fn test_ins_set_integer_without_arguments() {
-        let vm = VirtualMachine::new();
-        let cc = compiled_code!(
-            vec![instruction!(InstructionType::SetInteger, Vec::new())]
-        );
-
-        let thread = Thread::new(call_frame!(), None);
-        let result = run!(vm, thread, cc);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_ins_set_integer_without_literal_index() {
-        let vm = VirtualMachine::new();
-        let cc = compiled_code!(
-            vec![instruction!(InstructionType::SetInteger, vec![0])]
-        );
-
-        let thread = Thread::new(call_frame!(), None);
-        let result = run!(vm, thread, cc);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_ins_set_integer_with_undefined_literal() {
-        let vm = VirtualMachine::new();
-        let cc = compiled_code!(
-            vec![instruction!(InstructionType::SetInteger, vec![0, 0])]
-        );
-
-        let thread = Thread::new(call_frame!(), None);
-        let result = run!(vm, thread, cc);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_ins_set_integer_with_valid_arguments() {
-        let vm = VirtualMachine::new();
-
-        let mut cc = compiled_code!(
-            vec![instruction!(InstructionType::SetInteger, vec![1, 0])]
-        );
-
-        cc.integer_literals.push(10);
-
-        let thread = Thread::new(call_frame!(), None);
-        let result = run!(vm, thread, cc);
-
-        let int_obj = thread.get_register(1).unwrap();
-        let value   = read_lock!(int_obj).value.as_integer();
-
-        assert!(result.is_ok());
-
-        assert_eq!(value, 10);
     }
 }

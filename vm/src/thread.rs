@@ -1,126 +1,94 @@
 //! Virtual Machine Threads
-//!
-//! This module can be used to create the required structures used to map a Rust
-//! thread with a virtual machine thread (and thus a thread in the language
-//! itself).
 
-use std::mem;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
 
-use call_frame::CallFrame;
-use compiled_code::RcCompiledCode;
-use object::RcObject;
+use process::RcProcess;
 
-/// A mutable, reference counted Thread.
 pub type RcThread = Arc<Thread>;
-
-/// The type of JoinHandle for threads.
 pub type JoinHandle = thread::JoinHandle<()>;
 
-/// Struct representing a VM thread.
 pub struct Thread {
-    pub call_frame: RwLock<CallFrame>,
-    pub should_stop: RwLock<bool>,
-
-    join_handle: RwLock<Option<JoinHandle>>,
+    pub process_queue: Mutex<Vec<RcProcess>>,
+    pub queue_added: Mutex<bool>,
+    pub queue_signaler: Condvar,
+    pub should_stop: Mutex<bool>,
+    pub join_handle: Mutex<Option<JoinHandle>>,
+    pub isolated: Mutex<bool>
 }
 
 impl Thread {
-    pub fn new(call_frame: CallFrame, handle: Option<JoinHandle>) -> RcThread {
+    pub fn new(handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
-            call_frame: RwLock::new(call_frame),
-            should_stop: RwLock::new(false),
-            join_handle: RwLock::new(handle)
+            process_queue: Mutex::new(Vec::new()),
+            queue_added: Mutex::new(false),
+            queue_signaler: Condvar::new(),
+            should_stop: Mutex::new(false),
+            join_handle: Mutex::new(handle),
+            isolated: Mutex::new(false)
         };
 
         Arc::new(thread)
     }
 
-    pub fn from_code(code: RcCompiledCode,
-                     self_obj: RcObject,
-                     handle: Option<JoinHandle>) -> RcThread {
-        let frame = CallFrame::from_code(code, self_obj);
+    pub fn isolated(handle: Option<JoinHandle>) -> RcThread {
+        let thread = Thread::new(handle);
 
-        Thread::new(frame, handle)
-    }
+        *thread.isolated.lock().unwrap() = true;
 
-    pub fn push_call_frame(&self, mut frame: CallFrame) {
-        let mut target = write_lock!(self.call_frame);
-
-        mem::swap(&mut *target, &mut frame);
-
-        target.set_parent(frame);
-    }
-
-    pub fn pop_call_frame(&self) {
-        let mut target = write_lock!(self.call_frame);
-        let parent     = target.parent.take().unwrap();
-
-        // TODO: this might move the data from heap back to the stack?
-        *target = *parent;
+        thread
     }
 
     pub fn stop(&self) {
-        *write_lock!(self.should_stop) = true;
+        let mut guard = self.should_stop.lock().unwrap();
+
+        *guard = true
     }
 
     pub fn take_join_handle(&self) -> Option<JoinHandle> {
-        write_lock!(self.join_handle).take()
+        self.join_handle.lock().unwrap().take()
     }
 
     pub fn should_stop(&self) -> bool {
-        *read_lock!(self.should_stop)
+        *self.should_stop.lock().unwrap()
     }
 
-    pub fn get_register(&self, register: usize) -> Result<RcObject, String> {
-        let frame = read_lock!(self.call_frame);
-
-        frame.register
-            .get(register)
-            .ok_or_else(|| format!("Undefined object in register {}", register))
+    pub fn is_isolated(&self) -> bool {
+        *self.isolated.lock().unwrap()
     }
 
-    pub fn get_register_option(&self, register: usize) -> Option<RcObject> {
-        let frame = read_lock!(self.call_frame);
-
-        frame.register.get(register)
+    pub fn process_queue_size(&self) -> usize {
+        self.process_queue.lock().unwrap().len()
     }
 
-    pub fn set_register(&self, register: usize, value: RcObject) {
-        let mut frame = write_lock!(self.call_frame);
+    pub fn schedule(&self, task: RcProcess) {
+        let mut queue = self.process_queue.lock().unwrap();
+        let mut added = self.queue_added.lock().unwrap();
 
-        frame.register.set(register, value);
+        queue.push(task);
+        *added = true;
+
+        self.queue_signaler.notify_all();
     }
 
-    pub fn set_local(&self, index: usize, value: RcObject) {
-        let frame = write_lock!(self.call_frame);
-        let mut binding = write_lock!(frame.binding);
+    pub fn wait_until_process_available(&self) {
+        let empty = self.process_queue_size() == 0;
 
-        binding.variables.insert(index, value);
+        if empty {
+            let mut added = self.queue_added.lock().unwrap();
+
+            while !*added {
+                added = self.queue_signaler.wait(added).unwrap();
+            }
+        }
     }
 
-    pub fn add_local(&self, value: RcObject) {
-        let frame = write_lock!(self.call_frame);
-        let mut binding = write_lock!(frame.binding);
+    pub fn pop_process(&self) -> RcProcess {
+        let mut queue = self.process_queue.lock().unwrap();
+        let mut added = self.queue_added.lock().unwrap();
 
-        binding.variables.push(value);
-    }
+        *added = false;
 
-    pub fn get_local(&self, index: usize) -> Result<RcObject, String> {
-        let frame   = read_lock!(self.call_frame);
-        let binding = read_lock!(frame.binding);
-
-        binding.variables
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined local variable index {}", index))
-    }
-
-    pub fn local_exists(&self, index: usize) -> bool {
-        let frame   = read_lock!(self.call_frame);
-        let binding = read_lock!(frame.binding);
-
-        binding.variables.get(index).is_some()
+        queue.pop().unwrap()
     }
 }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use instruction::Instruction;
 
-/// A mutable, reference counted CompiledCode.
+/// An immutable, reference counted CompiledCode.
 pub type RcCompiledCode = Arc<CompiledCode>;
 
 /// Enum indicating the visibility of a method.

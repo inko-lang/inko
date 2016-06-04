@@ -6,12 +6,12 @@
 
 use std::collections::HashMap;
 
-use object::RcObject;
+use object_pointer::ObjectPointer;
 
 pub struct ObjectHeader {
-    pub attributes: HashMap<String, RcObject>,
-    pub constants: HashMap<String, RcObject>,
-    pub methods: HashMap<String, RcObject>,
+    pub attributes: HashMap<String, ObjectPointer>,
+    pub constants: HashMap<String, ObjectPointer>,
+    pub methods: HashMap<String, ObjectPointer>,
 
     /// When set to "true" this object won't be GC'd.
     pub pinned: bool,
@@ -21,7 +21,7 @@ pub struct ObjectHeader {
 
     /// The object to use for constant lookups when a constant is not available
     /// in the prototype hierarchy.
-    pub outer_scope: Option<RcObject>
+    pub outer_scope: Option<ObjectPointer>
 }
 
 impl ObjectHeader {

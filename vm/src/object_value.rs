@@ -1,8 +1,7 @@
 use std::fs;
 
 use binding::RcBinding;
-use object::RcObject;
-use thread::RcThread;
+use object_pointer::ObjectPointer;
 use compiled_code::RcCompiledCode;
 
 /// Enum for storing different values in an Object.
@@ -11,8 +10,7 @@ pub enum ObjectValue {
     Integer(i64),
     Float(f64),
     String(Box<String>),
-    Array(Box<Vec<RcObject>>),
-    Thread(RcThread),
+    Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
     Error(u16),
     CompiledCode(RcCompiledCode),
@@ -90,14 +88,14 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_array(&self) -> &Vec<RcObject> {
+    pub fn as_array(&self) -> &Vec<ObjectPointer> {
         match *self {
             ObjectValue::Array(ref val) => val,
             _ => panic!("ObjectValue::as_Array() called on a non array")
         }
     }
 
-    pub fn as_array_mut(&mut self) -> &mut Vec<RcObject> {
+    pub fn as_array_mut(&mut self) -> &mut Vec<ObjectPointer> {
         match *self {
             ObjectValue::Array(ref mut val) => val,
             _ => panic!("ObjectValue::as_array_mut() called on a non array")
@@ -108,13 +106,6 @@ impl ObjectValue {
         match *self {
             ObjectValue::String(ref val) => val,
             _ => panic!("ObjectValue::as_string() called on a non string")
-        }
-    }
-
-    pub fn as_thread(&self) -> RcThread {
-        match *self {
-            ObjectValue::Thread(ref val) => val.clone(),
-            _ => panic!("ObjectValue::as_thread() called on a non thread")
         }
     }
 
@@ -158,10 +149,6 @@ pub fn none() -> ObjectValue {
     ObjectValue::None
 }
 
-pub fn thread(value: RcThread) -> ObjectValue {
-    ObjectValue::Thread(value)
-}
-
 pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
 }
@@ -174,7 +161,7 @@ pub fn string(value: String) -> ObjectValue {
     ObjectValue::String(Box::new(value))
 }
 
-pub fn array(value: Vec<RcObject>) -> ObjectValue {
+pub fn array(value: Vec<ObjectPointer>) -> ObjectValue {
     ObjectValue::Array(Box::new(value))
 }
 

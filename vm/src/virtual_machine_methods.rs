@@ -1,9 +1,10 @@
 use binding::RcBinding;
 use compiled_code::RcCompiledCode;
 use instruction::Instruction;
-use object::RcObject;
-use thread::RcThread;
+use object_pointer::ObjectPointer;
+use process::RcProcess;
 use virtual_machine_result::*;
+use thread::RcThread;
 
 /// Trait defining all methods that should be available for a RcVirtualMachine.
 pub trait VirtualMachineMethods {
@@ -22,7 +23,7 @@ pub trait VirtualMachineMethods {
     /// The return value is whatever the last CompiledCode returned (if
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
-    fn run(&self, RcThread, RcCompiledCode) -> OptionObjectResult;
+    fn run(&self, RcProcess, RcCompiledCode) -> OptionObjectResult;
 
     /// Sets an integer in a register.
     ///
@@ -39,7 +40,7 @@ pub trait VirtualMachineMethods {
     ///       0: 10
     ///
     ///     0: set_integer 0, 0
-    fn ins_set_integer(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_integer(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a float in a register.
@@ -57,7 +58,7 @@ pub trait VirtualMachineMethods {
     ///       0: 10.5
     ///
     ///     0: set_float 0, 0
-    fn ins_set_float(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_float(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a string in a register.
@@ -75,7 +76,7 @@ pub trait VirtualMachineMethods {
     ///       0: "foo"
     ///
     ///     set_string 0, 0
-    fn ins_set_string(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_string(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets an object in a register.
@@ -89,7 +90,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_object 1, 0
-    fn ins_set_object(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_object(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the prototype of an object.
@@ -104,7 +105,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_object    0
     ///     1: set_object    1
     ///     2: set_prototype 0, 1
-    fn ins_set_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype of an object.
@@ -113,7 +114,7 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register to store the prototype in.
     /// 2. The register containing the object to get the prototype from.
-    fn ins_get_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets an array in a register.
@@ -128,7 +129,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_object 1
     ///     3: set_object 2
     ///     4: set_array  3, 1, 2
-    fn ins_set_array(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_array(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the prototype to use for integer objects.
@@ -139,7 +140,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_integer_prototype 0
-    fn ins_get_integer_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_integer_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the prototype to use for float objects.
@@ -150,7 +151,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_float_prototype 0
-    fn ins_get_float_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_float_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the prototype to use for string objects.
@@ -161,7 +162,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_string_prototype 0
-    fn ins_get_string_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_string_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the prototype to use for array objects.
@@ -172,18 +173,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_array_prototype 0
-    fn ins_get_array_prototype(&self, RcThread, RcCompiledCode, &Instruction)
-        -> EmptyResult;
-
-    /// Gets the prototype to use for thread objects.
-    ///
-    /// This instruction requires one argument: the register to store the
-    /// prototype in.
-    ///
-    /// # Examples
-    ///
-    ///     0: get_thread_prototype 0
-    fn ins_get_thread_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_array_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype to use for true objects.
@@ -194,7 +184,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_true_prototype 0
-    fn ins_get_true_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_true_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype to use for false objects.
@@ -205,7 +195,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_false_prototype 0
-    fn ins_get_false_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_false_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype to use for method objects.
@@ -216,7 +206,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_method_prototype 0
-    fn ins_get_method_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_method_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype to use for Binding objects.
@@ -227,7 +217,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_binding_prototype 0
-    fn ins_get_binding_prototype(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_binding_prototype(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the prototype to use for compiled code objects.
@@ -238,7 +228,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_compiled_code_prototype 0
-    fn ins_get_compiled_code_prototype(&self, RcThread, RcCompiledCode,
+    fn ins_get_compiled_code_prototype(&self, RcProcess, RcCompiledCode,
                                        &Instruction) -> EmptyResult;
 
     /// Sets a "true" value in a register.
@@ -249,7 +239,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_true 1
-    fn ins_get_true(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_true(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a "false" value in a register.
@@ -260,7 +250,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_false 1
-    fn ins_get_false(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_false(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the Binding of the current scope and sets it in a register
@@ -271,7 +261,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: get_binding 0
-    fn ins_get_binding(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_binding(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a local variable to a given register's value.
@@ -285,7 +275,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object 0
     ///     1: set_local  0, 0
-    fn ins_set_local(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_local(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets a local variable and stores it in a register.
@@ -300,7 +290,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_object 0
     ///     1: set_local  0, 0
     ///     2: get_local  1, 0
-    fn ins_get_local(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_local(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if a local variable exists.
@@ -309,7 +299,7 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register to store the result in (true or false).
     /// 2. The local variable index to check.
-    fn ins_local_exists(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_local_exists(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a constant in a given object.
@@ -328,7 +318,7 @@ pub trait VirtualMachineMethods {
     ///     0: get_toplevel 0
     ///     1: set_object   1
     ///     3: set_const    0, 0, 1
-    fn ins_set_literal_const(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_literal_const(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a constant using a runtime allocated String.
@@ -336,7 +326,7 @@ pub trait VirtualMachineMethods {
     /// This instruction takes the same arguments as the "set_const" instruction
     /// except the 2nd argument should point to a register containing a String
     /// to use for the name.
-    fn ins_set_const(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_const(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Looks up a constant and stores it in a register.
@@ -354,7 +344,7 @@ pub trait VirtualMachineMethods {
     ///       0: "Object"
     ///
     ///     0: get_const 0, 0
-    fn ins_get_literal_const(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_literal_const(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Looks up a constant using a runtime allocated string.
@@ -362,7 +352,7 @@ pub trait VirtualMachineMethods {
     /// This instruction requires the same arguments as the "get_literal_const"
     /// instruction except the last argument should point to a register
     /// containing a String to use for the name.
-    fn ins_get_const(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_const(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns true if a constant exists, false otherwise.
@@ -380,7 +370,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_object           0
     ///     1: literal_const_exists 1, 0, 0
-    fn ins_literal_const_exists(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_literal_const_exists(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets an attribute of an object.
@@ -401,7 +391,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_object       0
     ///     1: set_object       1
     ///     3: set_literal_attr 3, 0, 0
-    fn ins_set_literal_attr(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_literal_attr(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets an attribute of an object using a runtime allocated string.
@@ -409,7 +399,7 @@ pub trait VirtualMachineMethods {
     /// This instruction takes the same arguments as the "set_literal_attr"
     /// instruction except the 2nd argument should point to a register
     /// containing a String to use for the name.
-    fn ins_set_attr(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_attr(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets an attribute from an object and stores it in a register.
@@ -430,7 +420,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_object       1
     ///     3: set_literal_attr 0, 1, 0
     ///     4: get_literal_attr 3, 0, 0
-    fn ins_get_literal_attr(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_literal_attr(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets an object attribute using a runtime allocated string.
@@ -438,7 +428,7 @@ pub trait VirtualMachineMethods {
     /// This instruction takes the same arguments as the "get_literal_attr"
     /// instruction except the last argument should point to a register
     /// containing a String to use for the name.
-    fn ins_get_attr(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_attr(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if an attribute exists in an object.
@@ -448,7 +438,7 @@ pub trait VirtualMachineMethods {
     /// 1. The register to store the result in (true or false).
     /// 2. The register containing the object to check.
     /// 3. The string literal index to use for the attribute name.
-    fn ins_literal_attr_exists(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_literal_attr_exists(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a CompiledCode object in a register.
@@ -464,7 +454,7 @@ pub trait VirtualMachineMethods {
     ///       0: ...
     ///
     ///     0: set_compiled_code 0, 0
-    fn ins_set_compiled_code(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_compiled_code(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sends a message using a string literal
@@ -493,7 +483,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0             # 10
     ///     1: set_integer 1, 1             # 20
     ///     2: send        2, 0, 0, 0, 0, 1 # 10.+(20)
-    fn ins_send_literal(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_send_literal(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sends a message using a runtime allocated string
@@ -501,7 +491,7 @@ pub trait VirtualMachineMethods {
     /// This instruction takes the same arguments as the "send_literal"
     /// instruction except instead of the 3rd argument pointing to a string
     /// literal it should point to a register containing a string.
-    fn ins_send(&self, RcThread, RcCompiledCode, &Instruction) -> EmptyResult;
+    fn ins_send(&self, RcProcess, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Checks if an object responds to a message
     ///
@@ -510,7 +500,7 @@ pub trait VirtualMachineMethods {
     /// 1. The register to store the result in (true or false)
     /// 2. The register containing the object to check
     /// 3. The string literal index to use as the method name
-    fn ins_literal_responds_to(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_literal_responds_to(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if an object responds to a message using a runtime allocated
@@ -519,7 +509,7 @@ pub trait VirtualMachineMethods {
     /// This instruction requires the same arguments as the
     /// "literal_responds_to" instruction except the last argument should be a
     /// register containing a string.
-    fn ins_responds_to(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_responds_to(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the value in the given register.
@@ -537,7 +527,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer 0, 0
     ///     1: return      0
-    fn ins_return(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_return(&self, RcProcess, RcCompiledCode, &Instruction)
         -> OptionObjectResult;
 
     /// Jumps to an instruction if a register is not set or set to false.
@@ -558,7 +548,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer   0, 1
     ///
     /// Here register "0" would be set to "20".
-    fn ins_goto_if_false(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_goto_if_false(&self, RcProcess, RcCompiledCode, &Instruction)
         -> OptionIntegerResult;
 
     /// Jumps to an instruction if a register is set.
@@ -579,7 +569,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer  0, 1
     ///
     /// Here register "0" would be set to "10".
-    fn ins_goto_if_true(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_goto_if_true(&self, RcProcess, RcCompiledCode, &Instruction)
         -> OptionIntegerResult;
 
     /// Jumps to a specific instruction.
@@ -597,18 +587,19 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer 0, 1
     ///
     /// Here register 0 would be set to 20.
-    fn ins_goto(&self, RcThread, RcCompiledCode, &Instruction) -> IntegerResult;
+    fn ins_goto(&self, RcProcess, RcCompiledCode, &Instruction) -> IntegerResult;
 
     /// Defines a method for an object.
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register pointing to a specific object to define the method
+    /// 1. The register to store the method object in.
+    /// 2. The register pointing to a specific object to define the method
     ///    on.
-    /// 2. The register containing a String to use as the method name.
-    /// 3. The register containing the CompiledCode object to use for the
+    /// 3. The register containing a String to use as the method name.
+    /// 4. The register containing the CompiledCode object to use for the
     ///    method.
-    fn ins_def_method(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_def_method(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Defines a method for an object using literals.
@@ -621,10 +612,11 @@ pub trait VirtualMachineMethods {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The register pointing to the object to define the method on.
-    /// 2. The string literal index to use for the method name.
-    /// 3. The code object index to use for the method's CompiledCode object.
-    fn ins_def_literal_method(&self, RcThread, RcCompiledCode, &Instruction)
+    /// 1. The register to store the method object in.
+    /// 2. The register pointing to the object to define the method on.
+    /// 3. The string literal index to use for the method name.
+    /// 4. The code object index to use for the method's CompiledCode object.
+    fn ins_def_literal_method(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Runs a runtime allocated CompiledCode.
@@ -638,7 +630,7 @@ pub trait VirtualMachineMethods {
     ///    as a separate argument.
     /// 5. The Binding to use, if any. Omitting this argument results in a
     ///    Binding being created automatically.
-    fn ins_run_code(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_code(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Runs a CompiledCode literal.
@@ -653,7 +645,7 @@ pub trait VirtualMachineMethods {
     /// 2. The index of the code object to run.
     /// 3. The register containing the object to use as "self" when running the
     ///    CompiledCode.
-    fn ins_run_literal_code(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_literal_code(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the top-level object in a register.
@@ -664,7 +656,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     get_toplevel 0
-    fn ins_get_toplevel(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_toplevel(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the object "self" refers to in a register.
@@ -675,7 +667,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     get_self 0
-    fn ins_get_self(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_self(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if a given object is an error object.
@@ -689,7 +681,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: stdin_read 0
     ///     1: is_error   1, 0
-    fn ins_is_error(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_is_error(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Converts an error object to an integer.
@@ -705,7 +697,7 @@ pub trait VirtualMachineMethods {
     ///     1: is_error         1, 0
     ///     2: goto_if_false    4, 1
     ///     3: error_to_integer 2, 0
-    fn ins_error_to_integer(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_error_to_integer(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Adds two integers
@@ -725,7 +717,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_add 2, 0, 1
-    fn ins_integer_add(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_add(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Divides an integer
@@ -745,7 +737,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_div 2, 0, 1
-    fn ins_integer_div(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_div(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Multiplies an integer
@@ -765,7 +757,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_mul 2, 0, 1
-    fn ins_integer_mul(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_mul(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Subtracts an integer
@@ -785,7 +777,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_sub 2, 0, 1
-    fn ins_integer_sub(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_sub(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the modulo of an integer
@@ -805,7 +797,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: set_integer 1, 1
     ///     2: integer_mod 2, 0, 1
-    fn ins_integer_mod(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_mod(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Converts an integer to a float
@@ -822,7 +814,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer      0, 0
     ///     1: integer_to_float 1, 0
-    fn ins_integer_to_float(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_to_float(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Converts an integer to a string
@@ -839,7 +831,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer       0, 0
     ///     1: integer_to_string 1, 0
-    fn ins_integer_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_to_string(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Performs an integer bitwise AND.
@@ -859,7 +851,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer         0, 0
     ///     1: set_integer         1, 1
     ///     1: integer_bitwise_and 2, 0, 1
-    fn ins_integer_bitwise_and(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_bitwise_and(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Performs an integer bitwise OR.
@@ -879,7 +871,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer        0, 0
     ///     1: set_integer        1, 1
     ///     1: integer_bitwise_or 2, 0, 1
-    fn ins_integer_bitwise_or(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_bitwise_or(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Performs an integer bitwise XOR.
@@ -899,7 +891,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer         0, 0
     ///     1: set_integer         1, 1
     ///     1: integer_bitwise_xor 2, 0, 1
-    fn ins_integer_bitwise_xor(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_bitwise_xor(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Shifts an integer to the left.
@@ -919,7 +911,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer        0, 0
     ///     1: set_integer        1, 1
     ///     1: integer_shift_left 2, 0, 1
-    fn ins_integer_shift_left(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_shift_left(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Shifts an integer to the right.
@@ -939,7 +931,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer         0, 0
     ///     1: set_integer         1, 1
     ///     1: integer_shift_right 2, 0, 1
-    fn ins_integer_shift_right(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_shift_right(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if one integer is smaller than the other.
@@ -961,7 +953,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer     0, 0
     ///     1: set_integer     1, 1
     ///     2: integer_smaller 2, 0, 1
-    fn ins_integer_smaller(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_smaller(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if one integer is greater than the other.
@@ -983,7 +975,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer     0, 0
     ///     1: set_integer     1, 1
     ///     2: integer_greater 2, 0, 1
-    fn ins_integer_greater(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_greater(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if two integers are equal.
@@ -1005,24 +997,37 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer    0, 0
     ///     1: set_integer    1, 1
     ///     2: integer_equals 2, 0, 1
-    fn ins_integer_equals(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_integer_equals(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
-    /// Runs a CompiledCode in a new thread.
+    /// Runs a CompiledCode in a new process.
     ///
     /// This instruction requires 2 arguments:
     ///
-    /// 1. The register to store the thread object in.
+    /// 1. The register to store the PID in.
     /// 2. A code objects index pointing to the CompiledCode object to run.
+    /// 3. A boolean (0 or 1) that indicates if the process should be an
+    ///    isolated process.
+    ///
+    /// Isolating a process results in it being executed in its own thread and
+    /// said thread will not run any other processes.
     ///
     /// # Examples
     ///
     ///     code_objects
     ///       0: CompiledCode(name="foo")
     ///
-    ///     0: set_object   0
-    ///     2. start_thread 1, 0
-    fn ins_start_thread(&self, RcThread, RcCompiledCode, &Instruction)
+    ///     0: spawn_literal_process 0, 0
+    fn ins_spawn_literal_process(&self, RcProcess, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Runs a CompiledCode in a new process using a runtime allocated
+    /// CompiledCode.
+    ///
+    /// This instruction takes the same arguments as the "spawn_literal_process"
+    /// instruction except instead of a code object index the 2nd argument
+    /// should point to a register containing a CompiledCode object.
+    fn ins_spawn_process(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Adds two floats
@@ -1042,7 +1047,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///     1: set_float 1, 1
     ///     2: float_add 2, 0, 1
-    fn ins_float_add(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_add(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Multiplies two floats
@@ -1062,7 +1067,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///     1: set_float 1, 1
     ///     3: float_mul 2, 0, 1
-    fn ins_float_mul(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_mul(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Divides two floats
@@ -1082,7 +1087,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///     1: set_float 1, 1
     ///     2: float_div 2, 0, 1
-    fn ins_float_div(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_div(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Subtracts two floats
@@ -1102,7 +1107,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///     1: set_float 1, 1
     ///     2: float_sub 2, 0, 1
-    fn ins_float_sub(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_sub(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the modulo of a float
@@ -1122,7 +1127,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float 0, 0
     ///     1: set_float 1, 1
     ///     2: float_mod 2, 0, 1
-    fn ins_float_mod(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_mod(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Converts a float to an integer
@@ -1139,7 +1144,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_float        0, 0
     ///     1: float_to_integer 1, 0
-    fn ins_float_to_integer(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_to_integer(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Converts a float to a string
@@ -1156,7 +1161,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_float       0, 0
     ///     1: float_to_string 1, 0
-    fn ins_float_to_string(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_to_string(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if one float is smaller than the other.
@@ -1178,7 +1183,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float     0, 0
     ///     1: set_float     1, 1
     ///     2: float_smaller 2, 0, 1
-    fn ins_float_smaller(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_smaller(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if one float is greater than the other.
@@ -1200,7 +1205,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float     0, 0
     ///     1: set_float     1, 1
     ///     2: float_greater 2, 0, 1
-    fn ins_float_greater(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_greater(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if two floats are equal.
@@ -1222,7 +1227,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_float    0, 0
     ///     1: set_float    1, 1
     ///     2: float_equals 2, 0, 1
-    fn ins_float_equals(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_float_equals(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Inserts a value in an array.
@@ -1243,7 +1248,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_array    0
     ///     1: set_integer  0, 0
     ///     2: array_insert 0, 0, 0
-    fn ins_array_insert(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_array_insert(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the value of an array index.
@@ -1265,7 +1270,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer  1, 0
     ///     2: array_insert 0, 0, 1
     ///     3: array_at     2, 0, 0
-    fn ins_array_at(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_array_at(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Removes a value from an array.
@@ -1287,7 +1292,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_integer  1, 0
     ///     3: array_insert 0, 0, 1
     ///     4: array_remove 2, 0, 0
-    fn ins_array_remove(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_array_remove(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Gets the amount of elements in an array.
@@ -1301,7 +1306,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_array    0
     ///     1: array_length 1, 0
-    fn ins_array_length(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_array_length(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Removes all elements from an array.
@@ -1317,7 +1322,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_array    1
     ///     2: array_insert 1, 0, 0
     ///     3: array_clear  1
-    fn ins_array_clear(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_array_clear(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the lowercase equivalent of a string.
@@ -1334,7 +1339,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string      0, 0
     ///     1: string_to_lower 1, 0
-    fn ins_string_to_lower(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_to_lower(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the uppercase equivalent of a string.
@@ -1351,7 +1356,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string      0, 0
     ///     1: string_to_upper 1, 0
-    fn ins_string_to_upper(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_to_upper(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Checks if two strings are equal.
@@ -1371,7 +1376,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_string    0, 0
     ///     1: set_string    1, 1
     ///     2: string_equals 2, 0, 1
-    fn ins_string_equals(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_equals(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns an array containing the bytes of a string.
@@ -1388,7 +1393,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string      0, 0
     ///     1: string_to_bytes 1, 0
-    fn ins_string_to_bytes(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_to_bytes(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Creates a string from an array of bytes
@@ -1417,7 +1422,7 @@ pub trait VirtualMachineMethods {
     ///     4: set_integer       4, 4
     ///     5: set_array         5, 5, 0, 1, 2, 3, 4
     ///     6: string_from_bytes 6, 5
-    fn ins_string_from_bytes(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_from_bytes(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the amount of characters in a string.
@@ -1434,7 +1439,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string    0, 0
     ///     1: string_length 1, 0
-    fn ins_string_length(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_length(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the amount of bytes in a string.
@@ -1451,7 +1456,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string  0, 0
     ///     1: string_size 1, 0
-    fn ins_string_size(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_string_size(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Writes a string to STDOUT and returns the amount of written bytes.
@@ -1471,7 +1476,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string   0, 0
     ///     1: stdout_write 1, 0
-    fn ins_stdout_write(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_stdout_write(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Writes a string to STDERR and returns the amount of written bytes.
@@ -1491,7 +1496,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_string   0, 0
     ///     1: stderr_write 1, 0
-    fn ins_stderr_write(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_stderr_write(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Reads the given amount of bytes into a string.
@@ -1511,7 +1516,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer 0, 0
     ///     1: stdin_read  1, 0
-    fn ins_stdin_read(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_stdin_read(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Reads an entire line from STDIN into a string.
@@ -1525,7 +1530,7 @@ pub trait VirtualMachineMethods {
     /// # Examples
     ///
     ///     0: stdin_read_line 0
-    fn ins_stdin_read_line(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_stdin_read_line(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Opens a file handle in a particular mode (read-only, write-only, etc).
@@ -1562,7 +1567,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_string 0, 0
     ///     1: set_string 1, 1
     ///     2: file_open  2, 0, 1
-    fn ins_file_open(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_open(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Writes a string to a file.
@@ -1588,7 +1593,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_string 2, 1
     ///     2: file_open  3, 0, 1
     ///     3: file_write 4, 3, 2
-    fn ins_file_write(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_write(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Reads a number of bytes from a file.
@@ -1617,7 +1622,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer 2, 0
     ///     3: file_open   3, 0, 1
     ///     4: file_read   4, 3, 2
-    fn ins_file_read(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_read(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Reads an entire line from a file.
@@ -1640,7 +1645,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_string     1, 1
     ///     2: file_open      2, 0, 1
     ///     3: file_read_line 3, 2
-    fn ins_file_read_line(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_read_line(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Flushes a file.
@@ -1666,7 +1671,7 @@ pub trait VirtualMachineMethods {
     ///     3: file_open  3, 0, 1
     ///     4: file_write 4, 3, 2
     ///     5: file_flush 5, 3
-    fn ins_file_flush(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_flush(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Returns the size of a file in bytes.
@@ -1689,7 +1694,7 @@ pub trait VirtualMachineMethods {
     ///     1: set_string 1, 1
     ///     2: file_open  2, 0, 1
     ///     3: file_size  3, 2
-    fn ins_file_size(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_size(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets a file cursor to the given offset in bytes.
@@ -1717,7 +1722,7 @@ pub trait VirtualMachineMethods {
     ///     2: set_integer 2, 0
     ///     3: file_open   3, 0, 1
     ///     4: file_seek   4, 3, 2
-    fn ins_file_seek(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_file_seek(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Parses and runs a given bytecode file using a string literal
@@ -1739,7 +1744,7 @@ pub trait VirtualMachineMethods {
     ///       0: "/tmp/test.abc"
     ///
     ///     0: run_file_fast 0, 0
-    fn ins_run_literal_file(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_literal_file(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Parses and runs a given bytecode file using a runtime allocated string
@@ -1747,14 +1752,14 @@ pub trait VirtualMachineMethods {
     /// This instruction takes the same arguments as the "run_literal_file"
     /// instruction except instead of using a string literal it uses a register
     /// containing a runtime allocated string.
-    fn ins_run_file(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_run_file(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the caller of a method.
     ///
     /// This instruction requires one argument: the register to store the caller
     /// in. If no caller is present "self" is set in the register instead.
-    fn ins_get_caller(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_get_caller(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Sets the outer scope of an object
@@ -1763,29 +1768,28 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register containing the object for which to set the outer scope.
     /// 2. The register containing the object to use as the outer scope.
-    fn ins_set_outer_scope(&self, RcThread, RcCompiledCode, &Instruction)
+    fn ins_set_outer_scope(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
-    fn error(&self, RcThread, String);
+    fn error(&self, RcProcess, String);
 
     /// Runs a given CompiledCode with arguments.
-    fn run_code(&self, RcThread, RcCompiledCode, RcObject, Vec<RcObject>,
+    fn run_code(&self, RcProcess, RcCompiledCode, ObjectPointer, Vec<ObjectPointer>,
                 Option<RcBinding>) -> OptionObjectResult;
 
     /// Runs a bytecode file.
-    fn run_file(&self, &String, RcThread, usize) -> EmptyResult;
+    fn run_file(&self, &String, RcProcess, usize) -> EmptyResult;
 
     /// Sends a message to an object
-    fn send_message(&self, &String, RcThread, &Instruction) -> EmptyResult;
+    fn send_message(&self, &String, RcProcess, &Instruction) -> EmptyResult;
 
     /// Collects a set of arguments from an instruction.
-    fn collect_arguments(&self, RcThread, &Instruction, usize, usize)
+    fn collect_arguments(&self, RcProcess, &Instruction, usize, usize)
         -> ObjectVecResult;
 
-    /// Runs a CompiledCode in a new thread.
-    fn start_thread(&self, RcCompiledCode) -> RcObject;
+    fn start_thread(&self, bool) -> RcThread;
+    fn spawn_process(&self, RcProcess, RcCompiledCode, usize, bool);
 
-    /// Runs a CompiledCode using an existing thread.
-    fn run_thread(&self, RcObject, RcCompiledCode);
+    fn run_thread(&self, RcThread);
 }

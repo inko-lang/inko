@@ -10,11 +10,11 @@
 
 use std::collections::HashMap;
 
-use object::RcObject;
+use object_pointer::ObjectPointer;
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
-    values: HashMap<usize, RcObject>
+    values: HashMap<usize, ObjectPointer>
 }
 
 impl Register {
@@ -24,15 +24,7 @@ impl Register {
     }
 
     /// Sets the value of the given register.
-    ///
-    /// # Examples
-    ///
-    ///     let mut register = Register::new();
-    ///     let obj          = Object::new(ObjectValue::Integer(10));
-    ///
-    ///     register.set(0, obj);
-    ///
-    pub fn set(&mut self, register: usize, value: RcObject) {
+    pub fn set(&mut self, register: usize, value: ObjectPointer) {
         self.values.insert(register, value);
     }
 
@@ -40,17 +32,7 @@ impl Register {
     ///
     /// Register values are optional to allow for instructions such as
     /// "goto_if_undef", as such this method returns an Option.
-    ///
-    /// # Examples
-    ///
-    ///     let mut register = Register::new();
-    ///     let obj          = Object::new(ObjectValue::Integer(10));
-    ///
-    ///     register.set(0, obj);
-    ///
-    ///     register.get(0) // => Option<...>
-    ///
-    pub fn get(&self, register: usize) -> Option<RcObject> {
+    pub fn get(&self, register: usize) -> Option<ObjectPointer> {
         match self.values.get(&register) {
             Some(object) => { Some(object.clone()) },
             None         => { None }

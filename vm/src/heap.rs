@@ -4,47 +4,121 @@
 //! a program. These objects are garbage collected whenever they are no longer
 //! in use.
 
-use object::RcObject;
+use object::Object;
+use object_value;
+use object_pointer::{RawObjectPointer, ObjectPointer};
 
-pub const DEFAULT_CAPACITY: usize = 1024;
+const PAGE_SLOTS: usize = 512;
+const PAGE_COUNT: usize = 4;
 
-/// Struct for storing heap objects.
+pub struct HeapPage {
+    slots: Vec<Option<Object>>
+}
+
 pub struct Heap {
-    pub objects: Vec<RcObject>
+    pub pages: Vec<HeapPage>
+}
+
+impl HeapPage {
+    pub fn new() -> HeapPage {
+        HeapPage { slots: Vec::with_capacity(PAGE_SLOTS) }
+    }
+
+    /// Returns true if the current page has space at the end for more objects.
+    pub fn has_space(&self) -> bool {
+        let last_is_none = if let Some(last_val) = self.slots.last() {
+            last_val.is_none()
+        }
+        else {
+            true
+        };
+
+        self.slots.len() < self.slots.capacity() && last_is_none
+    }
+
+    pub fn allocate(&mut self, object: Object) -> RawObjectPointer {
+        self.slots.push(Some(object));
+
+        let index = self.slots.len() - 1;
+
+        self.slots[index].as_mut().unwrap() as RawObjectPointer
+    }
 }
 
 impl Heap {
     pub fn new() -> Heap {
-        Heap {
-            objects: Vec::with_capacity(DEFAULT_CAPACITY)
+        Heap::with_pages(PAGE_COUNT)
+    }
+
+    /// Allocates a heap with `count` pre-allocated pages.
+    pub fn with_pages(count: usize) -> Heap {
+        let mut heap = Heap { pages: Vec::with_capacity(count) };
+
+        for _ in 0..PAGE_COUNT {
+            heap.add_page();
+        }
+
+        heap
+    }
+
+    /// Allocates the object on a page.
+    ///
+    /// This method always allocates the object in the last available page. If
+    /// no page is available a new one is allocated.
+    pub fn allocate(&mut self, object: Object) -> RawObjectPointer {
+        self.ensure_page_exists();
+        self.ensure_last_page_has_space();
+
+        let mut last_page = self.pages.last_mut().unwrap();
+
+        last_page.allocate(object)
+    }
+
+    pub fn allocate_global(&mut self, object: Object) -> ObjectPointer {
+        let ptr = self.allocate(object);
+
+        unsafe { &mut *ptr }.pin();
+
+        ObjectPointer::global(ptr)
+    }
+
+    pub fn allocate_local(&mut self, object: Object) -> ObjectPointer {
+        let ptr = self.allocate(object);
+
+        ObjectPointer::local(ptr)
+    }
+
+    pub fn allocate_empty_global(&mut self) -> ObjectPointer {
+        let obj = Object::new(object_value::none());
+
+        self.allocate_global(obj)
+    }
+
+    pub fn add_page(&mut self) {
+        self.pages.push(HeapPage::new());
+    }
+
+    fn ensure_page_exists(&mut self) {
+        if self.pages.len() == 0 {
+            self.add_page();
         }
     }
 
-    pub fn store(&mut self, object: RcObject) {
-        self.objects.push(object);
-    }
-}
+    /// Ensure the last page always has a slot available for the object.
+    fn ensure_last_page_has_space(&mut self) {
+        let mut add_page = false;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use object::Object;
-    use object_value;
+        if let Some(last_page) = self.pages.last() {
+            if !last_page.has_space() {
+                add_page = true;
+            }
+        }
+        else {
+            add_page = true;
+        }
 
-    #[test]
-    fn test_new() {
-        let heap = Heap::new();
-
-        assert_eq!(heap.objects.capacity(), DEFAULT_CAPACITY);
-    }
-
-    #[test]
-    fn test_store() {
-        let object   = Object::new(1, object_value::none());
-        let mut heap = Heap::new();
-
-        heap.store(object);
-
-        assert_eq!(heap.objects.len(), 1);
+        if add_page {
+            self.add_page();
+        }
     }
 }

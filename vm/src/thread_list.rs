@@ -1,10 +1,12 @@
 //! A list of threads managed by the VM.
 
-use object::RcObject;
+use thread::{RcThread, Thread};
+use thread::JoinHandle;
+use process::RcProcess;
 
 /// Struct for storing VM threads.
 pub struct ThreadList {
-    pub threads: Vec<RcObject>
+    pub threads: Vec<RcThread>
 }
 
 impl ThreadList {
@@ -14,19 +16,35 @@ impl ThreadList {
         }
     }
 
-    pub fn add(&mut self, thread: RcObject) {
-        self.threads.push(thread);
+    pub fn add(&mut self, handle: Option<JoinHandle>) -> RcThread {
+        let thread = Thread::new(handle);
+
+        self.threads.push(thread.clone());
+
+        thread
     }
 
-    pub fn remove(&mut self, thread: RcObject) {
-        let thread_id = read_lock!(thread).id;
+    pub fn add_isolated(&mut self, handle: Option<JoinHandle>) -> RcThread {
+        let thread = Thread::isolated(handle);
 
-        // TODO: Replace with some stdlib method
+        self.threads.push(thread.clone());
+
+        thread
+    }
+
+    pub fn remove(&mut self, thread: RcThread) {
+        let search_ptr = &*thread as *const _;
+
         let mut found: Option<usize> = None;
 
-        for (index, thread) in self.threads.iter().enumerate() {
-            if read_lock!(thread).id == thread_id {
+        // Threads are wrapped in an Arc so we can just compare raw pointers
+        // instead of implementing Eq & friends.
+        for (index, thread_lock) in self.threads.iter().enumerate() {
+            let current_ptr = &**thread_lock as *const _;
+
+            if current_ptr == search_ptr {
                 found = Some(index);
+                break;
             }
         }
 
@@ -35,24 +53,43 @@ impl ThreadList {
         }
     }
 
-    /// Sets the prototype of all threads
-    pub fn set_prototype(&mut self, proto: RcObject) {
-        for thread in self.threads.iter() {
-            write_lock!(thread).set_prototype(proto.clone());
-        }
-    }
-
     pub fn stop(&mut self) {
         for thread in self.threads.iter() {
-            let vm_thread = read_lock!(thread).value.as_thread();
+            thread.stop();
 
-            vm_thread.stop();
-
-            let join_handle = vm_thread.take_join_handle();
+            let join_handle = thread.take_join_handle();
 
             if join_handle.is_some() {
                 join_handle.unwrap().join().unwrap();
             }
         }
+    }
+
+    pub fn schedule(&mut self, process: RcProcess) {
+        let mut thread_idx = 0;
+        let mut queue_size = None;
+
+        // Schedule the process in the thread with the least amount of processes
+        // queued up.
+        for (index, thread) in self.threads.iter().enumerate() {
+            if thread.is_isolated() {
+                continue;
+            }
+
+            if queue_size.is_some() {
+                let current_size = thread.process_queue_size();
+
+                if current_size < queue_size.unwrap() {
+                    thread_idx = index;
+                    queue_size = Some(current_size);
+                }
+            }
+            else {
+                thread_idx = index;
+                queue_size = Some(thread.process_queue_size());
+            }
+        }
+
+        self.threads[thread_idx].schedule(process);
     }
 }

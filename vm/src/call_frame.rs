@@ -7,7 +7,7 @@
 
 use binding::{Binding, RcBinding};
 use compiled_code::RcCompiledCode;
-use object::RcObject;
+use object_pointer::ObjectPointer;
 use register::Register;
 
 /// Structure for storing call frame data.
@@ -38,7 +38,7 @@ impl CallFrame {
     ///
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
-    pub fn new(name: String, file: String, line: u32, self_obj: RcObject) -> CallFrame {
+    pub fn new(name: String, file: String, line: u32, self_obj: ObjectPointer) -> CallFrame {
         CallFrame {
             name: name,
             file: file,
@@ -50,7 +50,7 @@ impl CallFrame {
     }
 
     /// Creates a new CallFrame from a CompiledCode
-    pub fn from_code(code: RcCompiledCode, self_obj: RcObject) -> CallFrame {
+    pub fn from_code(code: RcCompiledCode, self_obj: ObjectPointer) -> CallFrame {
         CallFrame::new(code.name.clone(), code.file.clone(), code.line, self_obj)
     }
 
@@ -97,7 +97,7 @@ impl CallFrame {
         }
     }
 
-    pub fn self_object(&self) -> RcObject {
+    pub fn self_object(&self) -> ObjectPointer {
         read_lock!(self.binding).self_object.clone()
     }
 }
@@ -106,12 +106,12 @@ impl CallFrame {
 mod tests {
     use super::*;
     use compiled_code::CompiledCode;
-    use object::Object;
-    use object_value;
+    use heap::Heap;
 
     #[test]
     fn test_new() {
-        let obj = Object::new(0, object_value::none());
+        let mut heap = Heap::new();
+        let obj = heap.allocate_empty_global();
 
         let frame = CallFrame
             ::new("foo".to_string(), "test.aeon".to_string(), 1, obj);
@@ -123,7 +123,8 @@ mod tests {
 
     #[test]
     fn test_from_code() {
-        let obj = Object::new(0, object_value::none());
+        let mut heap = Heap::new();
+        let obj = heap.allocate_empty_global();
 
         let code = CompiledCode
             ::with_rc("foo".to_string(), "test.aeon".to_string(), 1, vec![]);
@@ -137,7 +138,8 @@ mod tests {
 
     #[test]
     fn test_set_parent() {
-        let obj = Object::new(0, object_value::none());
+        let mut heap = Heap::new();
+        let obj = heap.allocate_empty_global();
 
         let frame1 = CallFrame
             ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());
@@ -152,7 +154,8 @@ mod tests {
 
     #[test]
     fn test_each_frame() {
-        let obj = Object::new(0, object_value::none());
+        let mut heap = Heap::new();
+        let obj = heap.allocate_empty_global();
 
         let frame1 = CallFrame
             ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());

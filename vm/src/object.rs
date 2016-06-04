@@ -4,40 +4,38 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
 
-use std::sync::{Arc, RwLock};
-
 use object_header::ObjectHeader;
+use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
 
-/// A mutable, reference counted Object.
-pub type RcObject = Arc<RwLock<Object>>;
-
-/// Structure for storing information about a single Object.
 pub struct Object {
-    /// A unique ID associated with the object.
-    pub id: usize,
-    pub prototype: Option<RcObject>,
+    pub prototype: Option<ObjectPointer>,
     pub header: Option<Box<ObjectHeader>>,
     pub value: ObjectValue
 }
 
 impl Object {
-    pub fn new(id: usize, value: ObjectValue) -> RcObject {
-        let obj = Object {
-            id: id,
+    pub fn new(value: ObjectValue) -> Object {
+        Object {
             prototype: None,
             header: None,
             value: value,
-        };
-
-        Arc::new(RwLock::new(obj))
+        }
     }
 
-    pub fn set_prototype(&mut self, prototype: RcObject) {
+    pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
+        Object {
+            prototype: Some(proto),
+            header: None,
+            value: value
+        }
+    }
+
+    pub fn set_prototype(&mut self, prototype: ObjectPointer) {
         self.prototype = Some(prototype);
     }
 
-    pub fn prototype(&self) -> Option<RcObject> {
+    pub fn prototype(&self) -> Option<ObjectPointer> {
         self.prototype.clone()
     }
 
@@ -49,15 +47,7 @@ impl Object {
         header_ref.pinned = true;
     }
 
-    pub fn unpin(&mut self) {
-        self.allocate_header();
-
-        let header_ref = self.header.as_mut().unwrap();
-
-        header_ref.pinned = false;
-    }
-
-    pub fn set_outer_scope(&mut self, scope: RcObject) {
+    pub fn set_outer_scope(&mut self, scope: ObjectPointer) {
         self.allocate_header();
 
         let header_ref = self.header.as_mut().unwrap();
@@ -65,7 +55,7 @@ impl Object {
         header_ref.outer_scope = Some(scope);
     }
 
-    pub fn add_method(&mut self, name: String, method: RcObject) {
+    pub fn add_method(&mut self, name: String, method: ObjectPointer) {
         self.allocate_header();
 
         let mut header_ref = self.header.as_mut().unwrap();
@@ -81,8 +71,8 @@ impl Object {
         self.lookup_attribute(name).is_some()
     }
 
-    pub fn lookup_method(&self, name: &String) -> Option<RcObject> {
-        let mut retval: Option<RcObject> = None;
+    pub fn lookup_method(&self, name: &String) -> Option<ObjectPointer> {
+        let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header.as_ref();
 
@@ -98,8 +88,9 @@ impl Object {
             let mut opt_parent = self.prototype.clone();
 
             while opt_parent.is_some() {
-                let parent_ref = opt_parent.unwrap();
-                let parent     = read_lock!(parent_ref);
+                let parent_ptr = opt_parent.unwrap();
+                let parent_ref = parent_ptr.get();
+                let parent     = parent_ref.get();
 
                 let opt_parent_header = parent.header.as_ref();
 
@@ -120,7 +111,7 @@ impl Object {
         retval
     }
 
-    pub fn add_constant(&mut self, name: String, value: RcObject) {
+    pub fn add_constant(&mut self, name: String, value: ObjectPointer) {
         self.allocate_header();
 
         let mut header_ref = self.header.as_mut().unwrap();
@@ -128,8 +119,8 @@ impl Object {
         header_ref.constants.insert(name, value);
     }
 
-    pub fn lookup_constant(&self, name: &String) -> Option<RcObject> {
-        let mut retval: Option<RcObject> = None;
+    pub fn lookup_constant(&self, name: &String) -> Option<ObjectPointer> {
+        let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header.as_ref();
 
@@ -141,13 +132,17 @@ impl Object {
 
         // Look up the constant in one of the parents.
         if let Some(proto) = self.prototype.as_ref() {
-            retval = read_lock!(proto).lookup_constant(name);
+            let proto_ref = proto.get();
+
+            retval = proto_ref.get().lookup_constant(name);
         }
 
         if retval.is_none() {
             if let Some(header) = opt_header {
                 if let Some(scope) = header.outer_scope.as_ref() {
-                    retval = read_lock!(scope).lookup_constant(name);
+                    let scope_ref = scope.get();
+
+                    retval = scope_ref.get().lookup_constant(name);
                 }
             }
         }
@@ -155,7 +150,7 @@ impl Object {
         retval
     }
 
-    pub fn add_attribute(&mut self, name: String, object: RcObject) {
+    pub fn add_attribute(&mut self, name: String, object: ObjectPointer) {
         self.allocate_header();
 
         let header = self.header.as_mut().unwrap();
@@ -163,8 +158,8 @@ impl Object {
         header.attributes.insert(name, object.clone());
     }
 
-    pub fn lookup_attribute(&self, name: &String) -> Option<RcObject> {
-        let mut retval: Option<RcObject> = None;
+    pub fn lookup_attribute(&self, name: &String) -> Option<ObjectPointer> {
+        let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header.as_ref();
 

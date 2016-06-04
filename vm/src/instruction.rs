@@ -16,7 +16,6 @@ pub enum InstructionType {
     GetFloatPrototype        = 7,
     GetStringPrototype       = 8,
     GetArrayPrototype        = 9,
-    GetThreadPrototype       = 10,
     GetTruePrototype         = 11,
     GetFalsePrototype        = 12,
     GetMethodPrototype       = 13,
@@ -56,7 +55,7 @@ pub enum InstructionType {
     IntegerSmaller           = 47,
     IntegerGreater           = 48,
     IntegerEquals            = 49,
-    StartThread              = 50,
+    SpawnLiteralProcess      = 50,
     FloatAdd                 = 51,
     FloatMul                 = 52,
     FloatDiv                 = 53,
@@ -109,7 +108,8 @@ pub enum InstructionType {
     LiteralRespondsTo        = 100,
     RespondsTo               = 101,
     LiteralAttrExists        = 102,
-    SetOuterScope            = 103
+    SetOuterScope            = 103,
+    SpawnProcess             = 104
 }
 
 /// Struct for storing information about a single instruction.

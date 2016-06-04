@@ -16,8 +16,8 @@ macro_rules! write_lock {
 
 /// Calls an instruction method on a given receiver.
 macro_rules! run {
-    ($rec: expr, $name: ident, $thread: ident, $code: ident, $ins: ident) => (
-        try!($rec.$name($thread.clone(), $code.clone(), &$ins));
+    ($rec: expr, $name: ident, $process: ident, $code: ident, $ins: ident) => (
+        try!($rec.$name($process.clone(), $code.clone(), &$ins));
     );
 }
 
@@ -89,10 +89,11 @@ macro_rules! ensure_compiled_code {
 
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
-    ($ins: ident, $thread: ident, $index: expr) => ({
+    ($ins: ident, $process: ident, $index: expr) => ({
         let index = try!($ins.arg($index));
+        let lock = read_lock!($process);
 
-        try!($thread.get_register(index))
+        try!(lock.get_register(index))
     });
 }
 
@@ -116,12 +117,13 @@ macro_rules! ensure_positive_read_size {
 
 /// Returns a string to use for reading from a file, optionally with a max size.
 macro_rules! file_reading_buffer {
-    ($instruction: ident, $thread: ident, $size_idx: expr) => (
+    ($instruction: ident, $process: ident, $size_idx: expr) => (
         if $instruction.arguments.get($size_idx).is_some() {
-            let size_lock = instruction_object!($instruction, $thread,
-                                                $size_idx);
+            let size_ptr = instruction_object!($instruction, $process,
+                                               $size_idx);
 
-            let size_obj = read_lock!(size_lock);
+            let size_ref = size_ptr.get();
+            let size_obj = size_ref.get();
 
             ensure_integers!(size_obj);
 
@@ -139,8 +141,11 @@ macro_rules! file_reading_buffer {
 
 /// Sets an error in a register and returns control to the caller.
 macro_rules! set_error {
-    ($code: expr, $vm: expr, $thread: expr, $register: expr) => ({
-        $thread.set_register($register, $vm.allocate_error($code));
+    ($code: expr, $process: expr, $register: expr) => ({
+        let mut lock = write_lock!($process);
+        let obj = lock.allocate_without_prototype(object_value::error($code));
+
+        lock.set_register($register, obj);
 
         return Ok(());
     });
@@ -148,19 +153,19 @@ macro_rules! set_error {
 
 /// Returns a Result's OK value or stores the error in a register.
 macro_rules! try_error {
-    ($expr: expr, $vm: expr, $thread: expr, $register: expr) => (
+    ($expr: expr, $process: expr, $register: expr) => (
         match $expr {
             Ok(val)   => val,
-            Err(code) => set_error!(code, $vm, $thread, $register)
+            Err(code) => set_error!(code, $process, $register)
         }
     );
 }
 
 /// Returns a Result's OK value or stores an IO error in a register.
 macro_rules! try_io {
-    ($expr: expr, $vm: expr, $thread: expr, $register: expr) => (
-        try_error!($expr.map_err(|err| errors::from_io_error(err)),
-                   $vm, $thread, $register)
+    ($expr: expr, $process: expr, $register: expr) => (
+        try_error!($expr.map_err(|err| errors::from_io_error(err)), $process,
+                   $register)
     );
 }
 
