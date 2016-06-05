@@ -8,8 +8,8 @@ use object::Object;
 use object_value;
 use object_pointer::{RawObjectPointer, ObjectPointer};
 
-const PAGE_SLOTS: usize = 512;
-const PAGE_COUNT: usize = 4;
+const PAGE_SLOTS: usize = 128;
+const PAGE_COUNT: usize = 1;
 
 pub struct HeapPage {
     slots: Vec<Option<Object>>
@@ -26,14 +26,12 @@ impl HeapPage {
 
     /// Returns true if the current page has space at the end for more objects.
     pub fn has_space(&self) -> bool {
-        let last_is_none = if let Some(last_val) = self.slots.last() {
-            last_val.is_none()
+        if self.slots.len() < self.slots.capacity() {
+            true
         }
         else {
-            true
-        };
-
-        self.slots.len() < self.slots.capacity() && last_is_none
+            self.slots.last().is_none()
+        }
     }
 
     pub fn allocate(&mut self, object: Object) -> RawObjectPointer {
