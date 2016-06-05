@@ -13,9 +13,6 @@ pub struct ObjectHeader {
     pub constants: HashMap<String, ObjectPointer>,
     pub methods: HashMap<String, ObjectPointer>,
 
-    /// Whether the object should be considered truthy (e.g. in conditionals)
-    pub truthy: bool,
-
     /// The object to use for constant lookups when a constant is not available
     /// in the prototype hierarchy.
     pub outer_scope: Option<ObjectPointer>
@@ -27,12 +24,7 @@ impl ObjectHeader {
             attributes: HashMap::new(),
             constants: HashMap::new(),
             methods: HashMap::new(),
-            truthy: true,
             outer_scope: None
         }
-    }
-
-    pub fn set_falsy(&mut self) {
-        self.truthy = false;
     }
 }

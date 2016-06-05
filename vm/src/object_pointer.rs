@@ -32,6 +32,10 @@ pub enum ObjectRef<'a> {
 }
 
 impl<'a> ObjectRef<'a> {
+    pub fn as_const_pointer(&self) -> *const Object {
+        **self as *const Object
+    }
+
     /// Dereferences an ObjectRef into an &Object
     pub fn get(&self) -> &Object {
         unsafe { & *(**self as *const Object) }
@@ -89,5 +93,11 @@ impl ObjectPointer {
             },
             ObjectPointer::Local(ptr) => ObjectRef::Local(ptr)
         }
+    }
+}
+
+impl PartialEq for ObjectPointer {
+    fn eq(&self, other: &ObjectPointer) -> bool {
+        self.get().as_const_pointer() == other.get().as_const_pointer()
     }
 }

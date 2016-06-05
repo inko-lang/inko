@@ -77,11 +77,7 @@ impl VirtualMachine {
             let false_ref = false_obj.get_mut();
 
             true_ref.get_mut().set_prototype(true_proto.clone());
-
-            let false_ptr = false_ref.get_mut();
-
-            false_ptr.set_prototype(false_proto.clone());
-            false_ptr.set_falsy();
+            false_ref.get_mut().set_prototype(false_proto.clone());
         }
 
         let vm = VirtualMachine {
@@ -1076,13 +1072,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let matched = match value {
             Some(obj) => {
-                let obj_ref = obj.get();
-
-                if obj_ref.get().truthy() {
-                    None
+                if obj == self.false_object.clone() {
+                    Some(go_to)
                 }
                 else {
-                    Some(go_to)
+                    None
                 }
             },
             None => { Some(go_to) }
@@ -1099,13 +1093,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let matched = match value {
             Some(obj) => {
-                let obj_ref = obj.get();
-
-                if obj_ref.get().truthy() {
-                    Some(go_to)
+                if obj == self.false_object.clone() {
+                    None
                 }
                 else {
-                    None
+                    Some(go_to)
                 }
             },
             None => { None }
@@ -1713,12 +1705,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try!(instruction.arg(0));
         let code_ptr = instruction_object!(instruction, process, 1);
 
-        let isolated = if let Ok(reg) = instruction.arg(2) {
-            let isolated_ptr = instruction_object!(instruction, process, reg);
-            let isolated_ref = isolated_ptr.get();
-            let isolated_obj = isolated_ref.get();
+        let isolated = if instruction.arg(2).is_ok() {
+            let isolated_ptr = instruction_object!(instruction, process, 2);
 
-            isolated_obj.truthy()
+            isolated_ptr != self.false_object.clone()
         }
         else {
             false
