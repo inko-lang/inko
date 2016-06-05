@@ -98,5 +98,13 @@ module Aeon
     def on_float(node, current_cc)
       Compilation::Float.new(node, current_cc).compile
     end
+
+    def on_true(node, current_cc)
+      Compilation::True.new(node, current_cc).compile
+    end
+
+    def on_false(node, current_cc)
+      Compilation::False.new(node, current_cc).compile
+    end
   end
 end
