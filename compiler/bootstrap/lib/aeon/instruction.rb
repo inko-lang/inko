@@ -106,7 +106,9 @@ module Aeon
       responds_to: 101,
       literal_attr_exists: 102,
       set_outer_scope: 103,
-      spawn_process: 104
+      spawn_process: 104,
+      send_process_message: 105,
+      receive_process_message: 106
     }
 
     def initialize(name, arguments, line, column)

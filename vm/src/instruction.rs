@@ -109,7 +109,9 @@ pub enum InstructionType {
     RespondsTo               = 101,
     LiteralAttrExists        = 102,
     SetOuterScope            = 103,
-    SpawnProcess             = 104
+    SpawnProcess             = 104,
+    SendProcessMessage       = 105,
+    ReceiveProcessMessage    = 106
 }
 
 /// Struct for storing information about a single instruction.

@@ -1030,6 +1030,27 @@ pub trait VirtualMachineMethods {
     fn ins_spawn_process(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Sends a message to a process.
+    ///
+    /// This instruction takes 3 arguments:
+    ///
+    /// 1. The register to store the message in.
+    /// 2. The register containing the PID to send the message to.
+    /// 3. The register containing the message (an object) to send to the
+    ///    process.
+    fn ins_send_process_message(&self, RcProcess, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
+    /// Receives a message for the current process.
+    ///
+    /// This instruction takes 1 argument: the register to store the resulting
+    /// message in.
+    ///
+    /// If no messages are available this instruction will block until a message
+    /// is available.
+    fn ins_receive_process_message(&self, RcProcess, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Adds two floats
     ///
     /// This instruction requires 3 arguments:

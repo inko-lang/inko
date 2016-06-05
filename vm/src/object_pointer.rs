@@ -64,6 +64,13 @@ impl ObjectPointer {
         ObjectPointer::Local(pointer)
     }
 
+    pub fn is_local(&self) -> bool {
+        match *self {
+            ObjectPointer::Local(_) => true,
+            _ => false
+        }
+    }
+
     /// Returns an ObjectReference containing an immutable pointer.
     pub fn get(&self) -> ObjectRef {
         match *self {

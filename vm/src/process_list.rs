@@ -35,7 +35,7 @@ impl ProcessList {
         self.indexes.push(index);
     }
 
-    pub fn get(&mut self, index: usize) -> Option<RcProcess> {
+    pub fn get(&self, index: usize) -> Option<RcProcess> {
         let found = self.processes.get(index);
 
         if found.is_some() {

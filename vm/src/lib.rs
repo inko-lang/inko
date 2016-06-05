@@ -6,6 +6,7 @@ pub mod call_frame;
 pub mod compiled_code;
 pub mod errors;
 pub mod heap;
+pub mod inbox;
 pub mod instruction;
 pub mod object;
 pub mod object_header;

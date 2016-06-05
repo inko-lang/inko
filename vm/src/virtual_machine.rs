@@ -495,6 +495,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 },
                 InstructionType::SpawnProcess => {
                     run!(self, ins_spawn_process, process, code, instruction);
+                },
+                InstructionType::SendProcessMessage => {
+                    run!(self, ins_send_process_message, process, code,
+                         instruction);
+                },
+                InstructionType::ReceiveProcessMessage => {
+                    run!(self, ins_receive_process_message, process, code,
+                         instruction);
                 }
             };
         }
@@ -555,7 +563,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         if proto_index_res.is_ok() {
             let proto_index = proto_index_res.unwrap();
-            let proto       = try!(read_lock!(process).get_register(proto_index));
+            let proto = try!(read_lock!(process).get_register(proto_index));
 
             let obj_ref = obj.get_mut();
 
@@ -1680,7 +1688,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                  instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let code_index = try!(instruction.arg(1));
-        let isolated = try!(instruction.arg(2)) == 1;
+
+        let isolated = if let Ok(num) = instruction.arg(2) {
+            num == 1
+        }
+        else {
+            false
+        };
+
         let code_obj = try!(code.code_object(code_index));
 
         self.spawn_process(process, code_obj, register, isolated);
@@ -1692,7 +1707,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
                          instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let code_ptr = instruction_object!(instruction, process, 1);
-        let isolated = try!(instruction.arg(2)) == 1;
+
+        let isolated = if let Ok(reg) = instruction.arg(2) {
+            let isolated_ptr = instruction_object!(instruction, process, reg);
+            let isolated_ref = isolated_ptr.get();
+            let isolated_obj = isolated_ref.get();
+
+            isolated_obj.truthy()
+        }
+        else {
+            false
+        };
 
         let code_ref = code_ptr.get();
         let code = code_ref.get();
@@ -1702,6 +1727,51 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let code_obj = code.value.as_compiled_code();
 
         self.spawn_process(process, code_obj, register, isolated);
+
+        Ok(())
+    }
+
+    fn ins_send_process_message(&self, process: RcProcess, _: RcCompiledCode,
+                                instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let pid_ptr = instruction_object!(instruction, process, 1);
+        let msg_ptr = instruction_object!(instruction, process, 2);
+
+        let pid = {
+            let pid_ref = pid_ptr.get();
+            let pid_obj = pid_ref.get();
+
+            ensure_integers!(pid_obj);
+
+            pid_obj.value.as_integer() as usize
+        };
+
+        if let Some(receiver) = read_lock!(self.processes).get(pid) {
+            let inbox = read_lock!(receiver).inbox();
+            let mut to_send = msg_ptr.clone();
+
+            // Local objects need to be deep copied.
+            if msg_ptr.is_local() {
+                to_send = write_lock!(receiver).copy_object(to_send);
+            }
+
+            inbox.send(to_send);
+
+            write_lock!(process).set_register(register, msg_ptr);
+        }
+
+        Ok(())
+    }
+
+    fn ins_receive_process_message(&self, process: RcProcess, _: RcCompiledCode,
+                                   instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let pid = read_lock!(process).pid;
+        let source = read_lock!(self.processes).get(pid).unwrap();
+        let inbox = read_lock!(source).inbox();
+        let msg_ptr = inbox.receive();
+
+        write_lock!(process).set_register(register, msg_ptr);
 
         Ok(())
     }
@@ -2854,6 +2924,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 break;
             }
 
+            // TODO: when shutting down this will block a shutdown
             thread.wait_until_process_available();
 
             let process = thread.pop_process();
