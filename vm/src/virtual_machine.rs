@@ -2929,8 +2929,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 break;
             }
 
-            // TODO: when shutting down this will block a shutdown
-            thread.wait_until_process_available();
+            thread.wait_for_work();
 
             let process = thread.pop_process();
             let code = read_lock!(process).compiled_code.clone();

@@ -10,8 +10,8 @@ pub type JoinHandle = thread::JoinHandle<()>;
 
 pub struct Thread {
     pub process_queue: Mutex<Vec<RcProcess>>,
-    pub queue_added: Mutex<bool>,
-    pub queue_signaler: Condvar,
+    pub wake_up: Mutex<bool>,
+    pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
     pub isolated: Mutex<bool>
@@ -21,8 +21,8 @@ impl Thread {
     pub fn new(handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             process_queue: Mutex::new(Vec::new()),
-            queue_added: Mutex::new(false),
-            queue_signaler: Condvar::new(),
+            wake_up: Mutex::new(false),
+            wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
             isolated: Mutex::new(false)
@@ -40,9 +40,13 @@ impl Thread {
     }
 
     pub fn stop(&self) {
-        let mut guard = self.should_stop.lock().unwrap();
+        let mut stop = self.should_stop.lock().unwrap();
+        let mut wake_up = self.wake_up.lock().unwrap();
 
-        *guard = true
+        *stop = true;
+        *wake_up = true;
+
+        self.wakeup_signaler.notify_all();
     }
 
     pub fn take_join_handle(&self) -> Option<JoinHandle> {
@@ -63,31 +67,35 @@ impl Thread {
 
     pub fn schedule(&self, task: RcProcess) {
         let mut queue = self.process_queue.lock().unwrap();
-        let mut added = self.queue_added.lock().unwrap();
+        let mut wake_up = self.wake_up.lock().unwrap();
 
         queue.push(task);
-        *added = true;
+        *wake_up = true;
 
-        self.queue_signaler.notify_all();
+        self.wakeup_signaler.notify_all();
     }
 
-    pub fn wait_until_process_available(&self) {
+    pub fn wait_for_work(&self) {
+        if self.should_stop() {
+            return;
+        }
+
         let empty = self.process_queue_size() == 0;
 
         if empty {
-            let mut added = self.queue_added.lock().unwrap();
+            let mut wake_up = self.wake_up.lock().unwrap();
 
-            while !*added {
-                added = self.queue_signaler.wait(added).unwrap();
+            while !*wake_up {
+                wake_up = self.wakeup_signaler.wait(wake_up).unwrap();
             }
         }
     }
 
     pub fn pop_process(&self) -> RcProcess {
         let mut queue = self.process_queue.lock().unwrap();
-        let mut added = self.queue_added.lock().unwrap();
+        let mut wake_up = self.wake_up.lock().unwrap();
 
-        *added = false;
+        *wake_up = false;
 
         queue.pop().unwrap()
     }
