@@ -111,7 +111,8 @@ pub enum InstructionType {
     SetOuterScope            = 103,
     SpawnProcess             = 104,
     SendProcessMessage       = 105,
-    ReceiveProcessMessage    = 106
+    ReceiveProcessMessage    = 106,
+    GetCurrentProcessPid     = 107
 }
 
 /// Struct for storing information about a single instruction.

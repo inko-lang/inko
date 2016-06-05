@@ -504,7 +504,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 InstructionType::ReceiveProcessMessage => {
                     run!(self, ins_receive_process_message, process, code,
                          instruction);
-                }
+                },
+                InstructionType::GetCurrentProcessPid => {
+                    run!(self, ins_get_current_process_pid, process, code,
+                         instruction);
+                },
             };
         }
 
@@ -1767,6 +1771,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let msg_ptr = inbox.receive();
 
         write_lock!(process).set_register(register, msg_ptr);
+
+        Ok(())
+    }
+
+    fn ins_get_current_process_pid(&self, process: RcProcess, _: RcCompiledCode,
+                                   instruction: &Instruction) -> EmptyResult {
+        let register = try!(instruction.arg(0));
+        let pid = read_lock!(process).pid;
+
+        let mut proc_guard = write_lock!(process);
+        let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
+                                          self.integer_prototype.clone());
+
+        proc_guard.set_register(register, pid_obj);
 
         Ok(())
     }

@@ -1051,6 +1051,13 @@ pub trait VirtualMachineMethods {
     fn ins_receive_process_message(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
+    /// Gets the PID of the currently running process.
+    ///
+    /// This instruction requires one argument: the register to store the PID
+    /// in (as an integer).
+    fn ins_get_current_process_pid(&self, RcProcess, RcCompiledCode, &Instruction)
+        -> EmptyResult;
+
     /// Adds two floats
     ///
     /// This instruction requires 3 arguments:
