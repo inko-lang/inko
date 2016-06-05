@@ -1,4 +1,5 @@
 //! Virtual Machine for running instructions
+extern crate num_cpus;
 
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
@@ -129,6 +130,10 @@ impl VirtualMachine {
 
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
+        for _ in 0..num_cpus::get() {
+            self.start_thread(false);
+        }
+
         let thread = self.allocate_isolated_thread(None);
         let (_, process) = self.allocate_process(code, self.top_level.clone());
 
