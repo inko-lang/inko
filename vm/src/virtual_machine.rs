@@ -37,7 +37,7 @@ pub struct VirtualMachine {
     processes: RwLock<ProcessList>,
     exit_status: RwLock<Result<(), ()>>,
 
-    global_heap: Heap,
+    global_heap: RwLock<Heap>,
     top_level: ObjectPointer,
     integer_prototype: ObjectPointer,
     float_prototype: ObjectPointer,
@@ -55,22 +55,22 @@ pub struct VirtualMachine {
 
 impl VirtualMachine {
     pub fn new() -> RcVirtualMachine {
-        let mut heap = Heap::new();
+        let mut heap = Heap::global();
 
-        let top_level = heap.allocate_empty_global();
-        let integer_proto = heap.allocate_empty_global();
-        let float_proto = heap.allocate_empty_global();
-        let string_proto = heap.allocate_empty_global();
-        let array_proto = heap.allocate_empty_global();
-        let true_proto = heap.allocate_empty_global();
-        let false_proto = heap.allocate_empty_global();
-        let file_proto = heap.allocate_empty_global();
-        let method_proto = heap.allocate_empty_global();
-        let cc_proto = heap.allocate_empty_global();
-        let binding_proto = heap.allocate_empty_global();
+        let top_level = heap.allocate_empty();
+        let integer_proto = heap.allocate_empty();
+        let float_proto = heap.allocate_empty();
+        let string_proto = heap.allocate_empty();
+        let array_proto = heap.allocate_empty();
+        let true_proto = heap.allocate_empty();
+        let false_proto = heap.allocate_empty();
+        let file_proto = heap.allocate_empty();
+        let method_proto = heap.allocate_empty();
+        let cc_proto = heap.allocate_empty();
+        let binding_proto = heap.allocate_empty();
 
-        let true_obj = heap.allocate_empty_global();
-        let false_obj = heap.allocate_empty_global();
+        let true_obj = heap.allocate_empty();
+        let false_obj = heap.allocate_empty();
 
         {
             let true_ref = true_obj.get_mut();
@@ -86,7 +86,7 @@ impl VirtualMachine {
             threads: RwLock::new(ThreadList::new()),
             processes: RwLock::new(ProcessList::new()),
             exit_status: RwLock::new(Ok(())),
-            global_heap: heap,
+            global_heap: RwLock::new(heap),
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -561,13 +561,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_object(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
+        let is_global = try!(instruction.arg(1)) == 1;
 
-        let proto_index_res = instruction.arg(1);
+        let obj = if is_global {
+            write_lock!(self.global_heap).allocate_empty()
+        }
+        else {
+            write_lock!(process).allocate_empty()
+        };
 
-        let obj = write_lock!(process).allocate_empty();
-
-        if proto_index_res.is_ok() {
-            let proto_index = proto_index_res.unwrap();
+        if let Ok(proto_index) = instruction.arg(2) {
             let proto = try!(read_lock!(process).get_register(proto_index));
 
             let obj_ref = obj.get_mut();
@@ -782,12 +785,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_literal_const(&self, process: RcProcess, code: RcCompiledCode,
                              instruction: &Instruction) -> EmptyResult {
-        let target = instruction_object!(instruction, process, 0);
+        let target_ptr = instruction_object!(instruction, process, 0);
         let name_index = try!(instruction.arg(1));
         let source = instruction_object!(instruction, process, 2);
         let name = try!(code.string(name_index));
 
-        let target_ref = target.get_mut();
+        let target_ref = target_ptr.get_mut();
 
         target_ref.get_mut().add_constant(name.clone(), source);
 

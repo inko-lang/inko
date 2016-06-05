@@ -81,15 +81,12 @@ pub trait VirtualMachineMethods {
 
     /// Sets an object in a register.
     ///
-    /// This instruction requires at least one argument: the register to store
-    /// the object in. Optionally an extra argument can be provided, this
-    /// argument should be a register pointing to the object to use as the
-    /// prototype.
+    /// This instruction takes 3 arguments:
     ///
-    /// # Examples
-    ///
-    ///     0: set_object 0
-    ///     1: set_object 1, 0
+    /// 1. The register to store the object in.
+    /// 2. A boolean (1 or 0) to indicate if the object is a global object or
+    ///    not (1 indicates it's a global object).
+    /// 3. An optional register containing the prototype for the object.
     fn ins_set_object(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 

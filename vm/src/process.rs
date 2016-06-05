@@ -6,7 +6,6 @@ use heap::Heap;
 use inbox::{Inbox, RcInbox};
 use object::Object;
 use object_pointer::ObjectPointer;
-use object_value::ObjectValue;
 use object_value;
 use std::sync::{Arc, RwLock};
 
@@ -38,9 +37,9 @@ impl Process {
     pub fn new(pid: usize, call_frame: CallFrame, code: RcCompiledCode) -> RcProcess {
         let task = Process {
             pid: pid,
-            eden_heap: Heap::new(),
-            young_heap: Heap::new(),
-            mature_heap: Heap::new(),
+            eden_heap: Heap::local(),
+            young_heap: Heap::local(),
+            mature_heap: Heap::local(),
             status: ProcessStatus::Scheduled,
             compiled_code: code,
             call_frame: call_frame,
@@ -117,66 +116,22 @@ impl Process {
     }
 
     pub fn allocate_empty(&mut self) -> ObjectPointer {
-        let obj = Object::new(object_value::none());
-
-        self.eden_heap.allocate_local(obj)
+        self.eden_heap.allocate_empty()
     }
 
     pub fn allocate(&mut self, value: object_value::ObjectValue,
                     proto: ObjectPointer) -> ObjectPointer {
         let obj = Object::with_prototype(value, proto);
 
-        self.eden_heap.allocate_local(obj)
+        self.eden_heap.allocate(obj)
     }
 
     pub fn allocate_without_prototype(&mut self, value: object_value::ObjectValue) -> ObjectPointer {
-        let obj = Object::new(value);
-
-        self.eden_heap.allocate_local(obj)
+        self.eden_heap.allocate(Object::new(value))
     }
 
-    /// Performs a deep copy of `object_ptr`
-    ///
-    /// The copy of the input object is allocated on the current process' heap.
-    /// Values such as Arrays are recursively copied.
     pub fn copy_object(&mut self, object_ptr: ObjectPointer) -> ObjectPointer {
-        let object_ref = object_ptr.get();
-        let object = object_ref.get();
-
-        let value_copy = match object.value {
-            ObjectValue::None => {
-                panic!("Regular objects currently can't be cloned");
-            },
-            ObjectValue::Integer(num) => object_value::integer(num),
-            ObjectValue::Float(num) => object_value::float(num),
-            ObjectValue::String(ref string) => {
-                object_value::string(*string.clone())
-            },
-            ObjectValue::Array(ref raw_vec) => {
-                let new_map = raw_vec.iter().map(|val_ptr| {
-                    self.copy_object(val_ptr.clone())
-                });
-
-                object_value::array(new_map.collect::<Vec<_>>())
-            },
-            ObjectValue::File(_) => {
-                panic!("ObjectValue::File can not be cloned");
-            },
-            ObjectValue::Error(num) => object_value::error(num),
-            ObjectValue::CompiledCode(ref code) => {
-                object_value::compiled_code(code.clone())
-            },
-            ObjectValue::Binding(_) => {
-                panic!("ObjectValue::Binding can not be cloned");
-            }
-        };
-
-        if let Some(proto) = object.prototype() {
-            self.allocate(value_copy, proto)
-        }
-        else {
-            self.allocate_without_prototype(value_copy)
-        }
+        self.eden_heap.copy_object(object_ptr)
     }
 
     pub fn inbox(&self) -> RcInbox {

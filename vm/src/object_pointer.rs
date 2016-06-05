@@ -68,6 +68,13 @@ impl ObjectPointer {
         ObjectPointer::Local(pointer)
     }
 
+    pub fn is_global(&self) -> bool {
+        match *self {
+            ObjectPointer::Global(_) => true,
+            _ => false
+        }
+    }
+
     pub fn is_local(&self) -> bool {
         match *self {
             ObjectPointer::Local(_) => true,
