@@ -97,6 +97,18 @@ macro_rules! instruction_object {
     });
 }
 
+/// Returns a vector index for an i64
+macro_rules! int_to_vector_index {
+    ($vec: expr, $index: expr) => ({
+        if $index >= 0 as i64 {
+            $index as usize
+        }
+        else {
+            ($vec.len() as i64 - $index) as usize
+        }
+    });
+}
+
 /// Ensures the given index is within the bounds of the array.
 macro_rules! ensure_array_within_bounds {
     ($array: ident, $index: expr) => (

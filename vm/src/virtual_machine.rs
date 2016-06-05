@@ -2034,20 +2034,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_array_insert(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let array_ptr = instruction_object!(instruction, process, 0);
-        let index = try!(instruction.arg(1));
-        let value_ptr = instruction_object!(instruction, process, 2);
+        let register = try!(instruction.arg(0));
+        let array_ptr = instruction_object!(instruction, process, 1);
+        let index_ptr = instruction_object!(instruction, process, 2);
+        let value_ptr = instruction_object!(instruction, process, 3);
 
         let array_ref = array_ptr.get_mut();
         let mut array = array_ref.get_mut();
 
+        let index_ref = index_ptr.get();
+        let index_obj = index_ref.get();
+
         ensure_arrays!(array);
+        ensure_integers!(index_obj);
 
         let mut vector = array.value.as_array_mut();
+        let index = int_to_vector_index!(vector, index_obj.value.as_integer());
 
         ensure_array_within_bounds!(vector, index);
 
-        vector.insert(index, value_ptr);
+        vector.insert(index, value_ptr.clone());
+
+        write_lock!(process).set_register(register, value_ptr);
 
         Ok(())
     }
@@ -2056,14 +2064,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let array_ptr = instruction_object!(instruction, process, 1);
-        let index = try!(instruction.arg(2));
+        let index_ptr = instruction_object!(instruction, process, 2);
 
         let array_ref = array_ptr.get();
         let array = array_ref.get();
 
+        let index_ref = index_ptr.get();
+        let index_obj = index_ref.get();
+
         ensure_arrays!(array);
+        ensure_integers!(index_obj);
 
         let vector = array.value.as_array();
+        let index = int_to_vector_index!(vector, index_obj.value.as_integer());
 
         ensure_array_within_bounds!(vector, index);
 
@@ -2078,14 +2091,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let array_ptr = instruction_object!(instruction, process, 1);
-        let index = try!(instruction.arg(1));
+        let index_ptr = instruction_object!(instruction, process, 2);
 
         let array_ref = array_ptr.get_mut();
         let mut array = array_ref.get_mut();
 
+        let index_ref = index_ptr.get();
+        let index_obj = index_ref.get();
+
         ensure_arrays!(array);
+        ensure_integers!(index_obj);
 
         let mut vector = array.value.as_array_mut();
+        let index = int_to_vector_index!(vector, index_obj.value.as_integer());
 
         ensure_array_within_bounds!(vector, index);
 

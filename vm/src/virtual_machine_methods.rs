@@ -1253,22 +1253,16 @@ pub trait VirtualMachineMethods {
 
     /// Inserts a value in an array.
     ///
-    /// This instruction requires 3 arguments:
+    /// This instruction requires 4 arguments:
     ///
-    /// 1. The register containing the array to insert into.
-    /// 2. The index to insert the value at.
-    /// 3. The register containing the value to insert.
+    /// 1. The register to store the result (the inserted value) in.
+    /// 2. The register containing the array to insert into.
+    /// 3. The register containing the index (as an integer) to insert at.
+    /// 4. The register containing the value to insert.
     ///
-    /// An error is returned when the index is greater than the array length.
-    ///
-    /// # Examples
-    ///
-    ///     integer_literals:
-    ///       0: 10
-    ///
-    ///     0: set_array    0
-    ///     1: set_integer  0, 0
-    ///     2: array_insert 0, 0, 0
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_insert(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -1278,19 +1272,11 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register to store the value in.
     /// 2. The register containing the array.
-    /// 3. The array index to get the value from.
+    /// 3. The register containing the index.
     ///
-    /// An error is returned when the index is greater than the array length.
-    ///
-    /// # Examples
-    ///
-    ///     integer_literals:
-    ///       0: 10
-    ///
-    ///     0: set_array    0
-    ///     1: set_integer  1, 0
-    ///     2: array_insert 0, 0, 1
-    ///     3: array_at     2, 0, 0
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_at(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
@@ -1300,19 +1286,11 @@ pub trait VirtualMachineMethods {
     ///
     /// 1. The register to store the removed value in.
     /// 2. The register containing the array to remove a value from.
-    /// 3. The index of the value to remove.
+    /// 3. The register containing the index.
     ///
-    /// An error is returned when the index is greater than the array length.
-    ///
-    /// # Examples
-    ///
-    ///     integer_literals:
-    ///       0: 10
-    ///
-    ///     0: set_array    0
-    ///     1: set_integer  1, 0
-    ///     3: array_insert 0, 0, 1
-    ///     4: array_remove 2, 0, 0
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_remove(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;
 
