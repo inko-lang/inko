@@ -39,14 +39,6 @@ impl Object {
         self.prototype.clone()
     }
 
-    pub fn pin(&mut self) {
-        self.allocate_header();
-
-        let header_ref = self.header.as_mut().unwrap();
-
-        header_ref.pinned = true;
-    }
-
     pub fn set_outer_scope(&mut self, scope: ObjectPointer) {
         self.allocate_header();
 

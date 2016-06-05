@@ -75,8 +75,6 @@ impl Heap {
     pub fn allocate_global(&mut self, object: Object) -> ObjectPointer {
         let ptr = self.allocate(object);
 
-        unsafe { &mut *ptr }.pin();
-
         ObjectPointer::global(ptr)
     }
 

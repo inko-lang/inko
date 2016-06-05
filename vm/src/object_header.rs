@@ -13,9 +13,6 @@ pub struct ObjectHeader {
     pub constants: HashMap<String, ObjectPointer>,
     pub methods: HashMap<String, ObjectPointer>,
 
-    /// When set to "true" this object won't be GC'd.
-    pub pinned: bool,
-
     /// Whether the object should be considered truthy (e.g. in conditionals)
     pub truthy: bool,
 
@@ -30,7 +27,6 @@ impl ObjectHeader {
             attributes: HashMap::new(),
             constants: HashMap::new(),
             methods: HashMap::new(),
-            pinned: false,
             truthy: true,
             outer_scope: None
         }
