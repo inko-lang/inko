@@ -155,7 +155,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn run(&self, process: RcProcess, code: RcCompiledCode) -> OptionObjectResult {
-        if read_lock!(process).should_pause() {
+        if read_lock!(process).reductions_exhausted() {
             return Ok(None);
         }
 
@@ -2988,16 +2988,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
             let process = thread.pop_process();
             let code = read_lock!(process).compiled_code.clone();
 
-            // TODO: process supervision
             match self.run(process.clone(), code) {
                 Ok(_) => {
-                    write_lock!(self.processes).remove(process);
+                    // A suspended process should simply be re-scheduled.
+                    let reschedule = read_lock!(process).suspended();
 
-                    if thread.is_isolated() {
-                        write_lock!(self.threads).remove(thread);
-                        break;
+                    if reschedule {
+                        thread.schedule(process);
+                    }
+                    else {
+                        write_lock!(self.processes).remove(process);
+
+                        if thread.is_isolated() {
+                            write_lock!(self.threads).remove(thread);
+                            break;
+                        }
                     }
                 },
+                // TODO: process supervision
                 Err(message) => {
                     self.error(process, message);
 

@@ -9,16 +9,15 @@ use object_pointer::ObjectPointer;
 use object_value;
 use std::sync::{Arc, RwLock};
 
-const TICK_COUNT: usize = 2000;
+const REDUCTION_COUNT: usize = 2000;
 
 pub type RcProcess = Arc<RwLock<Process>>;
 
 pub enum ProcessStatus {
-    Scheduled = 1,
-    Running = 2,
-    Paused = 3,
-    Errored = 4,
-    Finished = 5
+    Scheduled,
+    Running,
+    Suspended,
+    Failed
 }
 
 pub struct Process {
@@ -29,7 +28,7 @@ pub struct Process {
     pub status: ProcessStatus,
     pub compiled_code: RcCompiledCode,
     pub call_frame: CallFrame,
-    pub ticks: usize,
+    pub reductions: usize,
     pub inbox: RcInbox
 }
 
@@ -43,7 +42,7 @@ impl Process {
             status: ProcessStatus::Scheduled,
             compiled_code: code,
             call_frame: call_frame,
-            ticks: TICK_COUNT,
+            reductions: REDUCTION_COUNT,
             inbox: Inbox::new()
         };
 
@@ -111,8 +110,8 @@ impl Process {
         binding.variables.get(index).is_some()
     }
 
-    pub fn should_pause(&self) -> bool {
-        self.ticks == 0
+    pub fn reductions_exhausted(&self) -> bool {
+        self.reductions == 0
     }
 
     pub fn allocate_empty(&mut self) -> ObjectPointer {
@@ -134,5 +133,12 @@ impl Process {
 
     pub fn inbox(&self) -> RcInbox {
         self.inbox.clone()
+    }
+
+    pub fn suspended(&self) -> bool {
+        match self.status {
+            ProcessStatus::Suspended => true,
+            _ => false
+        }
     }
 }
