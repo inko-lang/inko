@@ -109,7 +109,7 @@ module Aeon
       spawn_process: 104,
       send_process_message: 105,
       receive_process_message: 106,
-      get_current_process_pid: 107
+      get_current_pid: 107
     }
 
     def initialize(name, arguments, line, column)

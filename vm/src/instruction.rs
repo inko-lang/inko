@@ -112,7 +112,7 @@ pub enum InstructionType {
     SpawnProcess             = 104,
     SendProcessMessage       = 105,
     ReceiveProcessMessage    = 106,
-    GetCurrentProcessPid     = 107
+    GetCurrentPid            = 107
 }
 
 /// Struct for storing information about a single instruction.

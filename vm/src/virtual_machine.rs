@@ -521,9 +521,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     run!(self, ins_receive_process_message, process, code,
                          instruction);
                 },
-                InstructionType::GetCurrentProcessPid => {
-                    run!(self, ins_get_current_process_pid, process, code,
-                         instruction);
+                InstructionType::GetCurrentPid => {
+                    run!(self, ins_get_current_pid, process, code, instruction);
                 },
             };
         }
@@ -1555,8 +1554,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_current_process_pid(&self, process: RcProcess, _: RcCompiledCode,
-                                   instruction: &Instruction) -> EmptyResult {
+    fn ins_get_current_pid(&self, process: RcProcess, _: RcCompiledCode,
+                           instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
         let pid = read_lock!(process).pid;
 
