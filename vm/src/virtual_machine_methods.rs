@@ -84,8 +84,8 @@ pub trait VirtualMachineMethods {
     /// This instruction takes 3 arguments:
     ///
     /// 1. The register to store the object in.
-    /// 2. A boolean (1 or 0) to indicate if the object is a global object or
-    ///    not (1 indicates it's a global object).
+    /// 2. A register containing a truthy/falsy object. When the register
+    ///    contains a truthy object the new object will be a global object.
     /// 3. An optional register containing the prototype for the object.
     fn ins_set_object(&self, RcProcess, RcCompiledCode, &Instruction)
         -> EmptyResult;

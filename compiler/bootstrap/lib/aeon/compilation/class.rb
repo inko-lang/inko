@@ -94,6 +94,7 @@ module Aeon
         class_reg = @code.next_register
         top_reg = @code.next_register
         send_reg = @code.next_register
+        true_reg = @code.next_register
 
         jump_to = @code.label
 
@@ -112,8 +113,9 @@ module Aeon
           ins.get_literal_const class_class_reg, class_mod_reg, class_class_name_idx
 
           # core::class::Class.new(parent_class, true)
+          ins.get_true     true_reg
           ins.send_literal send_reg, class_class_reg, new_name_idx, 0, 0,
-            parent_reg
+            parent_reg, true_reg
 
           # Define the class as a constant.
           ins.set_literal_const name_source, class_name_idx, send_reg

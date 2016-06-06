@@ -575,7 +575,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn ins_set_object(&self, process: RcProcess, _: RcCompiledCode,
                       instruction: &Instruction) -> EmptyResult {
         let register = try!(instruction.arg(0));
-        let is_global = try!(instruction.arg(1)) == 1;
+        let is_global_ptr = instruction_object!(instruction, process, 1);
+        let is_global = is_global_ptr != self.false_object.clone();
 
         let obj = if is_global {
             write_lock!(self.global_heap).allocate_empty()
