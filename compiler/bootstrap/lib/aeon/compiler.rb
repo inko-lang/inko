@@ -106,5 +106,9 @@ module Aeon
     def on_false(node, current_cc)
       Compilation::False.new(node, current_cc).compile
     end
+
+    def on_closure(node, current_cc)
+      Compilation::Closure.new(self, node, current_cc).compile
+    end
   end
 end

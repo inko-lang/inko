@@ -393,7 +393,7 @@ send_args_follow
   ;
 
 closure
-  = Arrow def_args_start? return_type? Indent exprs Unindent
+  = Arrow def_args_start return_type? Indent exprs Unindent
     {
       s(:closure, val[1], val[2], val[4], location: val[0])
     }
@@ -403,7 +403,7 @@ send_closure
   = closure
   | Indent exprs Unindent
     {
-      s(:closure, nil, nil, val[1], location: val[0])
+      s(:closure, s(:args), nil, val[1], location: val[0])
     }
   ;
 
