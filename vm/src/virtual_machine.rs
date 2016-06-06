@@ -4,7 +4,7 @@ use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::thread;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use std::sync::mpsc::channel;
 
 use binding::RcBinding;
@@ -101,6 +101,10 @@ impl VirtualMachine {
         };
 
         Arc::new(vm)
+    }
+
+    pub fn config<'a>(&'a self) -> RwLockWriteGuard<'a, Config> {
+        write_lock!(self.config)
     }
 
     fn allocate_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {

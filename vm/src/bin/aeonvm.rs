@@ -22,6 +22,16 @@ fn main() {
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
 
+    options.optmulti("I",
+                     "include",
+                     "A directory to search for bytecode files",
+                     "DIR");
+
+    options.optopt("",
+                   "pthreads",
+                   "The number of threads to use for running processes",
+                   "INT");
+
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(error)  => panic!(error.to_string())
@@ -40,7 +50,20 @@ fn main() {
         print_usage(&options);
     }
     else {
+        let vm = VirtualMachine::new();
         let ref path = matches.free[0];
+
+        if let Some(pthreads) = matches.opt_str("pthreads") {
+            vm.config().set_process_threads(pthreads.parse::<usize>().unwrap());
+        }
+
+        if matches.opt_present("I") {
+            let mut config = vm.config();
+
+            for dir in matches.opt_strs("I") {
+                config.add_directory(dir);
+            }
+        }
 
         match File::open(path) {
             Ok(file) => {
@@ -48,7 +71,6 @@ fn main() {
 
                 match bytecode_parser::parse(&mut bytes) {
                     Ok(code) => {
-                        let vm     = VirtualMachine::new();
                         let status = vm.start(code);
 
                         if status.is_err() {
