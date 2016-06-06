@@ -9,10 +9,42 @@ use std::collections::HashMap;
 use heap::Heap;
 use object_pointer::ObjectPointer;
 
+macro_rules! has_map_key {
+    ($collection: expr, $key: expr) => ({
+        if $collection.is_none() {
+            return false;
+        }
+
+        $collection.as_ref().unwrap().contains_key($key)
+    });
+}
+
+macro_rules! get_map_key {
+    ($collection: expr, $key: expr) => ({
+        if $collection.is_none() {
+            return None;
+        }
+
+        $collection.as_ref().unwrap().get($key).cloned()
+    });
+}
+
+macro_rules! add_map_key {
+    ($collection: expr, $key: expr, $value: expr) => ({
+        if $collection.is_none() {
+            $collection = Some(Box::new(HashMap::new()));
+        }
+
+        $collection.as_mut().unwrap().insert($key, $value);
+    });
+}
+
+pub type LazyObjectMap = Option<Box<HashMap<String, ObjectPointer>>>;
+
 pub struct ObjectHeader {
-    pub attributes: HashMap<String, ObjectPointer>,
-    pub constants: HashMap<String, ObjectPointer>,
-    pub methods: HashMap<String, ObjectPointer>,
+    pub attributes: LazyObjectMap,
+    pub constants: LazyObjectMap,
+    pub methods: LazyObjectMap,
 
     /// The object to use for constant lookups when a constant is not available
     /// in the prototype hierarchy.
@@ -22,9 +54,9 @@ pub struct ObjectHeader {
 impl ObjectHeader {
     pub fn new() -> ObjectHeader {
         ObjectHeader {
-            attributes: HashMap::new(),
-            constants: HashMap::new(),
-            methods: HashMap::new(),
+            attributes: None,
+            constants: None,
+            methods: None,
             outer_scope: None
         }
     }
@@ -32,16 +64,25 @@ impl ObjectHeader {
     pub fn copy_to(&self, heap: &mut Heap) -> ObjectHeader {
         let mut copy = ObjectHeader::new();
 
-        for (key, value) in self.attributes.iter() {
-            copy.attributes.insert(key.clone(), heap.copy_object(value.clone()));
+        if let Some(map) = self.attributes.as_ref() {
+            for (key, value) in map.iter() {
+                copy.add_attribute(key.clone(),
+                                   heap.copy_object(value.clone()));
+            }
         }
 
-        for (key, value) in self.constants.iter() {
-            copy.constants.insert(key.clone(), heap.copy_object(value.clone()));
+        if let Some(map) = self.constants.as_ref() {
+            for (key, value) in map.iter() {
+                copy.add_constant(key.clone(),
+                                  heap.copy_object(value.clone()));
+            }
         }
 
-        for (key, value) in self.methods.iter() {
-            copy.methods.insert(key.clone(), heap.copy_object(value.clone()));
+        if let Some(map) = self.methods.as_ref() {
+            for (key, value) in map.iter() {
+                copy.add_method(key.clone(),
+                                heap.copy_object(value.clone()));
+            }
         }
 
         if let Some(scope) = self.outer_scope.as_ref() {
@@ -49,5 +90,41 @@ impl ObjectHeader {
         }
 
         copy
+    }
+
+    pub fn add_method(&mut self, key: String, value: ObjectPointer) {
+        add_map_key!(self.methods, key, value);
+    }
+
+    pub fn add_attribute(&mut self, key: String, value: ObjectPointer) {
+        add_map_key!(self.attributes, key, value);
+    }
+
+    pub fn add_constant(&mut self, key: String, value: ObjectPointer) {
+        add_map_key!(self.constants, key, value);
+    }
+
+    pub fn get_method(&self, key: &str) -> Option<ObjectPointer> {
+        get_map_key!(self.methods, key)
+    }
+
+    pub fn get_attribute(&self, key: &str) -> Option<ObjectPointer> {
+        get_map_key!(self.attributes, key)
+    }
+
+    pub fn get_constant(&self, key: &str) -> Option<ObjectPointer> {
+        get_map_key!(self.constants, key)
+    }
+
+    pub fn has_method(&self, key: &str) -> bool {
+        has_map_key!(self.methods, key)
+    }
+
+    pub fn has_constant(&self, key: &str) -> bool {
+        has_map_key!(self.constants, key)
+    }
+
+    pub fn has_attribute(&self, key: &str) -> bool {
+        has_map_key!(self.attributes, key)
     }
 }

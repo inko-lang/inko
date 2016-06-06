@@ -52,7 +52,7 @@ impl Object {
 
         let mut header_ref = self.header.as_mut().unwrap();
 
-        header_ref.methods.insert(name, method);
+        header_ref.add_method(name, method);
     }
 
     pub fn responds_to(&self, name: &String) -> bool {
@@ -70,8 +70,8 @@ impl Object {
 
         if let Some(header) = opt_header {
             // Method defined directly on the object
-            if header.methods.contains_key(name) {
-                return header.methods.get(name).cloned();
+            if header.has_method(name) {
+                return header.get_method(name);
             }
         }
 
@@ -89,8 +89,8 @@ impl Object {
                 if opt_parent_header.is_some() {
                     let parent_header = opt_parent_header.unwrap();
 
-                    if parent_header.methods.contains_key(name) {
-                        retval = parent_header.methods.get(name).cloned();
+                    if parent_header.has_method(name) {
+                        retval = parent_header.get_method(name);
 
                         break;
                     }
@@ -108,7 +108,7 @@ impl Object {
 
         let mut header_ref = self.header.as_mut().unwrap();
 
-        header_ref.constants.insert(name, value);
+        header_ref.add_constant(name, value);
     }
 
     pub fn lookup_constant(&self, name: &String) -> Option<ObjectPointer> {
@@ -117,8 +117,8 @@ impl Object {
         let opt_header = self.header.as_ref();
 
         if let Some(header) = opt_header {
-            if header.constants.contains_key(name) {
-                return header.constants.get(name).cloned();
+            if header.has_constant(name) {
+                return header.get_constant(name);
             }
         }
 
@@ -147,7 +147,7 @@ impl Object {
 
         let header = self.header.as_mut().unwrap();
 
-        header.attributes.insert(name, object.clone());
+        header.add_attribute(name, object.clone());
     }
 
     pub fn lookup_attribute(&self, name: &String) -> Option<ObjectPointer> {
@@ -161,8 +161,8 @@ impl Object {
 
         let header = opt_header.unwrap();
 
-        if header.attributes.contains_key(name) {
-            retval = header.attributes.get(name).cloned();
+        if header.has_attribute(name) {
+            retval = header.get_attribute(name);
         }
 
         retval
