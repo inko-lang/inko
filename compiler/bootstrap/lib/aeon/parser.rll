@@ -156,7 +156,7 @@ pow_expr_follow
   ;
 
 expr_or_range
-  = expr_body expr_or_range_follow?
+  = expr_or_aset expr_or_range_follow?
     {
       if val[1] and val[1][2]
         s(val[1][0], val[0], val[1][2], location: val[1][1])
@@ -178,6 +178,38 @@ expr_or_range_follow
         [:rest, val[0]]
       end
     }
+  ;
+
+expr_or_aset
+  = expr_body expr_or_aset_follow?
+    {
+      node = val[0]
+
+      if val[1]
+        array = val[1][0]
+        args = val[1][1]
+        name = val[1][2]
+
+        node = s(:send, node, name, *args, location: array)
+      end
+
+      node
+    }
+  ;
+
+expr_or_aset_follow
+  = array expr_or_aset_assign?
+    {
+      if val[1]
+        [val[0], val[0].children.dup << val[1], '[]=']
+      else
+        [val[0], val[0].children, '[]']
+      end
+    }
+  ;
+
+expr_or_aset_assign
+  = Assign expr { val[1] }
   ;
 
 expr_body
@@ -552,6 +584,7 @@ def_special_name
   | Trait
   | Enum
   | Module
+  | BrackOpen BrackClose Assign? { val[2] ? '[]=' : '[]' }
   ;
 
 def_body
