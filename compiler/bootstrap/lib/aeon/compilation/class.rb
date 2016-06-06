@@ -111,8 +111,8 @@ module Aeon
           ins.get_literal_const class_mod_reg, core_mod_reg, class_mod_name_idx
           ins.get_literal_const class_class_reg, class_mod_reg, class_class_name_idx
 
-          # core::class::Class.new(parent_class)
-          ins.send_literal send_reg, class_class_reg, new_name_idx, 0,
+          # core::class::Class.new(parent_class, true)
+          ins.send_literal send_reg, class_class_reg, new_name_idx, 0, 0,
             parent_reg
 
           # Define the class as a constant.
