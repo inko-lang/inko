@@ -65,6 +65,10 @@ impl Thread {
         self.process_queue.lock().unwrap().len()
     }
 
+    pub fn process_queue_empty(&self) -> bool {
+        self.process_queue_size() == 0
+    }
+
     pub fn schedule(&self, task: RcProcess) {
         let mut queue = self.process_queue.lock().unwrap();
         let mut wake_up = self.wake_up.lock().unwrap();
@@ -76,26 +80,19 @@ impl Thread {
     }
 
     pub fn wait_for_work(&self) {
-        if self.should_stop() {
-            return;
-        }
-
-        let empty = self.process_queue_size() == 0;
-
-        if empty {
+        if self.process_queue_empty() {
             let mut wake_up = self.wake_up.lock().unwrap();
 
             while !*wake_up {
                 wake_up = self.wakeup_signaler.wait(wake_up).unwrap();
             }
+
+            *wake_up = false;
         }
     }
 
     pub fn pop_process(&self) -> RcProcess {
         let mut queue = self.process_queue.lock().unwrap();
-        let mut wake_up = self.wake_up.lock().unwrap();
-
-        *wake_up = false;
 
         queue.pop().unwrap()
     }

@@ -2975,12 +2975,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn run_thread(&self, thread: RcThread) {
-        loop {
-            if thread.should_stop() {
+        while !thread.should_stop() {
+            thread.wait_for_work();
+
+            // A thread may be woken up (e.g. due to a VM error) without there
+            // being work available.
+            if thread.process_queue_empty() {
                 break;
             }
-
-            thread.wait_for_work();
 
             let process = thread.pop_process();
             let code = read_lock!(process).compiled_code.clone();
@@ -2991,6 +2993,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     write_lock!(self.processes).remove(process);
 
                     if thread.is_isolated() {
+                        write_lock!(self.threads).remove(thread);
                         break;
                     }
                 },
@@ -3001,7 +3004,5 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 }
             }
         }
-
-        write_lock!(self.threads).remove(thread.clone());
     }
 }
