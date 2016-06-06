@@ -83,10 +83,21 @@ impl Heap {
         }
     }
 
-    pub fn allocate_empty(&mut self) -> ObjectPointer {
-        let obj = Object::new(object_value::none());
+    pub fn allocate_value(&mut self, value: ObjectValue) -> ObjectPointer {
+        let obj = Object::new(value);
 
         self.allocate(obj)
+    }
+
+    pub fn allocate_value_with_prototype(&mut self, value: ObjectValue,
+                                         proto: ObjectPointer) -> ObjectPointer {
+        let obj = Object::with_prototype(value, proto);
+
+        self.allocate(obj)
+    }
+
+    pub fn allocate_empty(&mut self) -> ObjectPointer {
+        self.allocate_value(object_value::none())
     }
 
     pub fn add_page(&mut self) {
@@ -97,14 +108,17 @@ impl Heap {
     ///
     /// The copy of the input object is allocated on the current process' heap.
     /// Values such as Arrays are recursively copied.
-    pub fn copy_object(&mut self, object_ptr: ObjectPointer) -> ObjectPointer {
-        let object_ref = object_ptr.get();
-        let object = object_ref.get();
+    pub fn copy_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
+        if to_copy_ptr.is_global() {
+            return to_copy_ptr;
+        }
 
-        let value_copy = match object.value {
-            ObjectValue::None => {
-                panic!("Regular objects currently can't be cloned");
-            },
+        let to_copy_ref = to_copy_ptr.get();
+        let to_copy = to_copy_ref.get();
+
+        // Copy over the object value
+        let value_copy = match to_copy.value {
+            ObjectValue::None => object_value::none(),
             ObjectValue::Integer(num) => object_value::integer(num),
             ObjectValue::Float(num) => object_value::float(num),
             ObjectValue::String(ref string) => {
@@ -129,14 +143,18 @@ impl Heap {
             }
         };
 
-        let obj = if let Some(proto) = object.prototype() {
-            Object::with_prototype(value_copy, proto)
+        let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
+            Object::with_prototype(value_copy, self.copy_object(proto_ptr))
         }
         else {
             Object::new(value_copy)
         };
 
-        self.allocate(obj)
+        if let Some(header) = to_copy.header() {
+            copy.set_header(header.copy_to(self));
+        }
+
+        self.allocate(copy)
     }
 
     fn ensure_page_exists(&mut self) {

@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use heap::Heap;
 use object_pointer::ObjectPointer;
 
 pub struct ObjectHeader {
@@ -26,5 +27,27 @@ impl ObjectHeader {
             methods: HashMap::new(),
             outer_scope: None
         }
+    }
+
+    pub fn copy_to(&self, heap: &mut Heap) -> ObjectHeader {
+        let mut copy = ObjectHeader::new();
+
+        for (key, value) in self.attributes.iter() {
+            copy.attributes.insert(key.clone(), heap.copy_object(value.clone()));
+        }
+
+        for (key, value) in self.constants.iter() {
+            copy.constants.insert(key.clone(), heap.copy_object(value.clone()));
+        }
+
+        for (key, value) in self.methods.iter() {
+            copy.methods.insert(key.clone(), heap.copy_object(value.clone()));
+        }
+
+        if let Some(scope) = self.outer_scope.as_ref() {
+            copy.outer_scope = Some(heap.copy_object(scope.clone()));
+        }
+
+        copy
     }
 }

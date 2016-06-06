@@ -121,9 +121,7 @@ impl Process {
 
     pub fn allocate(&mut self, value: object_value::ObjectValue,
                     proto: ObjectPointer) -> ObjectPointer {
-        let obj = Object::with_prototype(value, proto);
-
-        self.eden_heap.allocate(obj)
+        self.eden_heap.allocate_value_with_prototype(value, proto)
     }
 
     pub fn allocate_without_prototype(&mut self, value: object_value::ObjectValue) -> ObjectPointer {

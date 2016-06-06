@@ -168,6 +168,14 @@ impl Object {
         retval
     }
 
+    pub fn header(&self) -> Option<&Box<ObjectHeader>> {
+        self.header.as_ref()
+    }
+
+    pub fn set_header(&mut self, header: ObjectHeader) {
+        self.header = Some(Box::new(header));
+    }
+
     fn allocate_header(&mut self) {
         if self.header.is_none() {
             self.header = Some(Box::new(ObjectHeader::new()));

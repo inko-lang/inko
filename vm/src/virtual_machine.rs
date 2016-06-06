@@ -122,6 +122,20 @@ impl VirtualMachine {
 
         (pid, process)
     }
+
+    fn allocate_method(&self, process: &RcProcess, receiver: &ObjectPointer,
+                       code: RcCompiledCode) -> ObjectPointer {
+        let value = object_value::compiled_code(code);
+        let proto = self.method_prototype.clone();
+
+        if receiver.is_global() {
+            write_lock!(self.global_heap)
+                .allocate_value_with_prototype(value, proto)
+        }
+        else {
+            write_lock!(process).allocate(value, proto)
+        }
+    }
 }
 
 impl VirtualMachineMethods for RcVirtualMachine {
@@ -571,7 +585,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         };
 
         if let Ok(proto_index) = instruction.arg(2) {
-            let proto = try!(read_lock!(process).get_register(proto_index));
+            let mut proto = try!(read_lock!(process).get_register(proto_index));
+
+            if is_global && proto.is_local() {
+                proto = write_lock!(self.global_heap).copy_object(proto);
+            }
 
             let obj_ref = obj.get_mut();
 
@@ -787,9 +805,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                              instruction: &Instruction) -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let name_index = try!(instruction.arg(1));
-        let source = instruction_object!(instruction, process, 2);
+        let source_ptr = instruction_object!(instruction, process, 2);
         let name = try!(code.string(name_index));
 
+        let source = copy_if_global!(self.global_heap, source_ptr, target_ptr);
         let target_ref = target_ptr.get_mut();
 
         target_ref.get_mut().add_constant(name.clone(), source);
@@ -799,21 +818,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_const(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let target = instruction_object!(instruction, process, 0);
+        let target_ptr = instruction_object!(instruction, process, 0);
         let name = instruction_object!(instruction, process, 1);
-        let source = instruction_object!(instruction, process, 2);
+        let source_ptr = instruction_object!(instruction, process, 2);
 
         let name_ref = name.get();
         let name_obj = name_ref.get();
 
-        let target_ref = target.get_mut();
-        let target_obj = target_ref.get_mut();
-
         ensure_strings!(name_obj);
 
         let name_str = name_obj.value.as_string().clone();
+        let source = copy_if_global!(self.global_heap, source_ptr, target_ptr);
 
-        target_obj.add_constant(name_str, source);
+        let target_ref = target_ptr.get_mut();
+        let target = target_ref.get_mut();
+
+        target.add_constant(name_str, source);
 
         Ok(())
     }
@@ -883,13 +903,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_literal_attr(&self, process: RcProcess, code: RcCompiledCode,
                             instruction: &Instruction) -> EmptyResult {
-        let target = instruction_object!(instruction, process, 0);
+        let target_ptr = instruction_object!(instruction, process, 0);
         let name_index = try!(instruction.arg(1));
-        let value = instruction_object!(instruction, process, 2);
+        let value_ptr = instruction_object!(instruction, process, 2);
 
         let name = try!(code.string(name_index));
+        let value = copy_if_global!(self.global_heap, value_ptr, target_ptr);
 
-        let target_ref = target.get_mut();
+        let target_ref = target_ptr.get_mut();
 
         target_ref.get_mut().add_attribute(name.clone(), value);
 
@@ -898,18 +919,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_attr(&self, process: RcProcess, _: RcCompiledCode,
                     instruction: &Instruction) -> EmptyResult {
-        let target = instruction_object!(instruction, process, 0);
-        let name = instruction_object!(instruction, process, 1);
-        let value = instruction_object!(instruction, process, 2);
+        let target_ptr = instruction_object!(instruction, process, 0);
+        let name_ptr = instruction_object!(instruction, process, 1);
+        let value_ptr = instruction_object!(instruction, process, 2);
 
-        let name_ref = name.get();
+        let name_ref = name_ptr.get();
         let name_obj = name_ref.get();
-
-        let target_ref = target.get_mut();
 
         ensure_strings!(name_obj);
 
         let name = name_obj.value.as_string();
+        let value = copy_if_global!(self.global_heap, value_ptr, target_ptr);
+
+        let target_ref = target_ptr.get_mut();
 
         target_ref.get_mut().add_attribute(name.clone(), value);
 
@@ -1133,23 +1155,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let name_ref = name_ptr.get();
         let name_obj = name_ref.get();
 
+        ensure_strings!(name_obj);
+
         let cc_ref = cc_ptr.get();
         let cc_obj = cc_ref.get();
 
-        ensure_strings!(name_obj);
         ensure_compiled_code!(cc_obj);
 
         let name = name_obj.value.as_string();
-        let cc   = cc_obj.value.as_compiled_code();
+        let cc = cc_obj.value.as_compiled_code();
 
-        let mut proc_guard = write_lock!(process);
-
-        let method = proc_guard.allocate(object_value::compiled_code(cc),
-                                         self.method_prototype.clone());
+        let method = self.allocate_method(&process, &receiver_ptr, cc);
 
         receiver.add_method(name.clone(), method.clone());
 
-        proc_guard.set_register(register, method);
+        write_lock!(process).set_register(register, method);
 
         Ok(())
     }
@@ -1167,14 +1187,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let receiver_ref = receiver_ptr.get_mut();
         let mut receiver = receiver_ref.get_mut();
 
-        let mut proc_guard = write_lock!(process);
-
-        let method = proc_guard.allocate(object_value::compiled_code(cc),
-                                         self.method_prototype.clone());
+        let method = self.allocate_method(&process, &receiver_ptr, cc);
 
         receiver.add_method(name.clone(), method.clone());
 
-        proc_guard.set_register(register, method);
+        write_lock!(process).set_register(register, method);
 
         Ok(())
     }
@@ -2053,10 +2070,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let array_ref = array_ptr.get_mut();
         let mut array = array_ref.get_mut();
 
+        ensure_arrays!(array);
+
         let index_ref = index_ptr.get();
         let index_obj = index_ref.get();
 
-        ensure_arrays!(array);
         ensure_integers!(index_obj);
 
         let mut vector = array.value.as_array_mut();
@@ -2064,9 +2082,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_array_within_bounds!(vector, index);
 
-        vector.insert(index, value_ptr.clone());
+        let value = copy_if_global!(self.global_heap, value_ptr, array_ptr);
 
-        write_lock!(process).set_register(register, value_ptr);
+        vector.insert(index, value.clone());
+
+        write_lock!(process).set_register(register, value);
 
         Ok(())
     }
@@ -2668,13 +2688,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_set_outer_scope(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let source_ptr = instruction_object!(instruction, process, 0);
-        let scope = instruction_object!(instruction, process, 1);
+        let target_ptr = instruction_object!(instruction, process, 0);
+        let scope_ptr = instruction_object!(instruction, process, 1);
 
-        let source_ref = source_ptr.get_mut();
-        let mut source = source_ref.get_mut();
+        let target_ref = target_ptr.get_mut();
+        let mut target = target_ref.get_mut();
 
-        source.set_outer_scope(scope);
+        let scope = copy_if_global!(self.global_heap, scope_ptr, target_ptr);
+
+        target.set_outer_scope(scope);
 
         Ok(())
     }
