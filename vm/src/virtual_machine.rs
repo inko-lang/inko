@@ -1,10 +1,8 @@
 //! Virtual Machine for running instructions
-extern crate num_cpus;
-
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
@@ -13,6 +11,7 @@ use binding::RcBinding;
 use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
+use config::Config;
 use errors;
 use heap::Heap;
 use instruction::{InstructionType, Instruction};
@@ -30,8 +29,7 @@ pub type RcVirtualMachine = Arc<VirtualMachine>;
 
 /// Structure representing a single VM instance.
 pub struct VirtualMachine {
-    /// The directories to search for bytecode files.
-    directories: RwLock<Vec<Box<Path>>>,
+    config: RwLock<Config>,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
     processes: RwLock<ProcessList>,
@@ -81,7 +79,7 @@ impl VirtualMachine {
         }
 
         let vm = VirtualMachine {
-            directories: RwLock::new(Vec::new()),
+            config: RwLock::new(Config::new()),
             executed_files: RwLock::new(HashSet::new()),
             threads: RwLock::new(ThreadList::new()),
             processes: RwLock::new(ProcessList::new()),
@@ -140,7 +138,7 @@ impl VirtualMachine {
 
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        for _ in 0..num_cpus::get() {
+        for _ in 0..read_lock!(self.config).process_threads {
             self.start_thread(false);
         }
 
@@ -2376,7 +2374,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in read_lock!(self.directories).iter() {
+            for directory in read_lock!(self.config).directories.iter() {
                 let full_path = directory.join(path_str);
 
                 if full_path.exists() {
