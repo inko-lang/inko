@@ -1332,125 +1332,35 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_add(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() + arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, +);
 
         Ok(())
     }
 
     fn ins_integer_div(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() / arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, /);
 
         Ok(())
     }
 
     fn ins_integer_mul(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() * arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, *);
 
         Ok(())
     }
 
     fn ins_integer_sub(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() - arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, -);
 
         Ok(())
     }
 
     fn ins_integer_mod(&self, process: RcProcess, _: RcCompiledCode,
                        instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() % arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, %);
 
         Ok(())
     }
@@ -1499,209 +1409,56 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_integer_bitwise_and(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() & arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, &);
 
         Ok(())
     }
 
     fn ins_integer_bitwise_or(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() | arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, |);
 
         Ok(())
     }
 
     fn ins_integer_bitwise_xor(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() ^ arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, ^);
 
         Ok(())
     }
 
     fn ins_integer_shift_left(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() << arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, <<);
 
         Ok(())
     }
 
     fn ins_integer_shift_right(&self, process: RcProcess, _: RcCompiledCode,
                                instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() >> arg.value.as_integer();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        integer_op!(self, process, instruction, >>);
 
         Ok(())
     }
 
     fn ins_integer_smaller(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() < arg.value.as_integer();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        integer_bool_op!(self, process, instruction, <);
 
         Ok(())
     }
 
     fn ins_integer_greater(&self, process: RcProcess, _: RcCompiledCode,
                            instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() > arg.value.as_integer();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        integer_bool_op!(self, process, instruction, >);
 
         Ok(())
     }
 
     fn ins_integer_equals(&self, process: RcProcess, _: RcCompiledCode,
                           instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_integers!(receiver, arg);
-
-        let result = receiver.value.as_integer() == arg.value.as_integer();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        integer_bool_op!(self, process, instruction, ==);
 
         Ok(())
     }
@@ -1812,125 +1569,35 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_add(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let added = receiver.value.as_float() + arg.value.as_float();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::float(added),
-                      self.float_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        float_op!(self, process, instruction, +);
 
         Ok(())
     }
 
     fn ins_float_mul(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() * arg.value.as_float();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::float(result),
-                      self.float_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        float_op!(self, process, instruction, *);
 
         Ok(())
     }
 
     fn ins_float_div(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() / arg.value.as_float();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::float(result),
-                      self.float_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        float_op!(self, process, instruction, /);
 
         Ok(())
     }
 
     fn ins_float_sub(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() - arg.value.as_float();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::float(result),
-                      self.float_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        float_op!(self, process, instruction, -);
 
         Ok(())
     }
 
     fn ins_float_mod(&self, process: RcProcess, _: RcCompiledCode,
                      instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() % arg.value.as_float();
-
-        let obj = write_lock!(process)
-            .allocate(object_value::float(result),
-                      self.float_prototype.clone());
-
-        write_lock!(process).set_register(register, obj);
+        float_op!(self, process, instruction, %);
 
         Ok(())
     }
@@ -1979,84 +1646,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn ins_float_smaller(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() < arg.value.as_float();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        float_bool_op!(self, process, instruction, <);
 
         Ok(())
     }
 
     fn ins_float_greater(&self, process: RcProcess, _: RcCompiledCode,
                          instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() > arg.value.as_float();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        float_bool_op!(self, process, instruction, >);
 
         Ok(())
     }
 
     fn ins_float_equals(&self, process: RcProcess, _: RcCompiledCode,
                         instruction: &Instruction) -> EmptyResult {
-        let register = try!(instruction.arg(0));
-        let receiver_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
-
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
-
-        ensure_floats!(receiver, arg);
-
-        let result = receiver.value.as_float() == arg.value.as_float();
-
-        let boolean = if result {
-            self.true_object.clone()
-        }
-        else {
-            self.false_object.clone()
-        };
-
-        write_lock!(process).set_register(register, boolean);
+        float_bool_op!(self, process, instruction, ==);
 
         Ok(())
     }
