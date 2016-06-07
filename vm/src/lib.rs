@@ -1,3 +1,6 @@
+#![feature(alloc_system)]
+extern crate alloc_system;
+
 pub mod macros;
 
 pub mod binding;

@@ -23,13 +23,13 @@ pub enum ProcessStatus {
 pub struct Process {
     pub pid: usize,
     pub eden_heap: Heap,
-    pub young_heap: Heap,
-    pub mature_heap: Heap,
+    pub young_heap: Option<Box<Heap>>,
+    pub mature_heap: Option<Box<Heap>>,
     pub status: ProcessStatus,
     pub compiled_code: RcCompiledCode,
     pub call_frame: CallFrame,
     pub reductions: usize,
-    pub inbox: RcInbox
+    pub inbox: Option<RcInbox>
 }
 
 impl Process {
@@ -37,13 +37,13 @@ impl Process {
         let task = Process {
             pid: pid,
             eden_heap: Heap::local(),
-            young_heap: Heap::local(),
-            mature_heap: Heap::local(),
+            young_heap: None,
+            mature_heap: None,
             status: ProcessStatus::Scheduled,
             compiled_code: code,
             call_frame: call_frame,
             reductions: REDUCTION_COUNT,
-            inbox: Inbox::new()
+            inbox: None
         };
 
         Arc::new(RwLock::new(task))
@@ -131,8 +131,19 @@ impl Process {
         self.eden_heap.copy_object(object_ptr)
     }
 
-    pub fn inbox(&self) -> RcInbox {
-        self.inbox.clone()
+    pub fn inbox(&mut self) -> RcInbox {
+        let allocate = if self.inbox.is_none() {
+            true
+        }
+        else {
+            false
+        };
+
+        if allocate {
+            self.inbox = Some(Inbox::new());
+        }
+
+        self.inbox.as_ref().cloned().unwrap()
     }
 
     pub fn suspended(&self) -> bool {

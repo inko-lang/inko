@@ -1525,7 +1525,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         };
 
         if let Some(receiver) = read_lock!(self.processes).get(pid) {
-            let inbox = read_lock!(receiver).inbox();
+            let inbox = write_lock!(receiver).inbox();
             let mut to_send = msg_ptr.clone();
 
             // Local objects need to be deep copied.
@@ -1546,7 +1546,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try!(instruction.arg(0));
         let pid = read_lock!(process).pid;
         let source = read_lock!(self.processes).get(pid).unwrap();
-        let inbox = read_lock!(source).inbox();
+        let inbox = write_lock!(source).inbox();
         let msg_ptr = inbox.receive();
 
         write_lock!(process).set_register(register, msg_ptr);
