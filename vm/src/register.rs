@@ -14,7 +14,7 @@ use object_pointer::ObjectPointer;
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
-    values: HashMap<usize, ObjectPointer>
+    values: HashMap<usize, ObjectPointer>,
 }
 
 impl Register {
@@ -34,8 +34,8 @@ impl Register {
     /// "goto_if_undef", as such this method returns an Option.
     pub fn get(&self, register: usize) -> Option<ObjectPointer> {
         match self.values.get(&register) {
-            Some(object) => { Some(object.clone()) },
-            None         => { None }
+            Some(object) => Some(object.clone()),
+            None => None,
         }
     }
 }

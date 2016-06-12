@@ -17,7 +17,7 @@ pub enum ProcessStatus {
     Scheduled,
     Running,
     Suspended,
-    Failed
+    Failed,
 }
 
 pub struct Process {
@@ -29,11 +29,14 @@ pub struct Process {
     pub compiled_code: RcCompiledCode,
     pub call_frame: CallFrame,
     pub reductions: usize,
-    pub inbox: Option<RcInbox>
+    pub inbox: Option<RcInbox>,
 }
 
 impl Process {
-    pub fn new(pid: usize, call_frame: CallFrame, code: RcCompiledCode) -> RcProcess {
+    pub fn new(pid: usize,
+               call_frame: CallFrame,
+               code: RcCompiledCode)
+               -> RcProcess {
         let task = Process {
             pid: pid,
             eden_heap: Heap::local(),
@@ -43,13 +46,16 @@ impl Process {
             compiled_code: code,
             call_frame: call_frame,
             reductions: REDUCTION_COUNT,
-            inbox: None
+            inbox: None,
         };
 
         Arc::new(RwLock::new(task))
     }
 
-    pub fn from_code(pid: usize, code: RcCompiledCode, self_obj: ObjectPointer) -> RcProcess {
+    pub fn from_code(pid: usize,
+                     code: RcCompiledCode,
+                     self_obj: ObjectPointer)
+                     -> RcProcess {
         let frame = CallFrame::from_code(code.clone(), self_obj);
 
         Process::new(pid, frame, code)
@@ -70,7 +76,8 @@ impl Process {
     }
 
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
-        self.call_frame.register
+        self.call_frame
+            .register
             .get(register)
             .ok_or_else(|| format!("Undefined object in register {}", register))
     }
@@ -118,12 +125,16 @@ impl Process {
         self.eden_heap.allocate_empty()
     }
 
-    pub fn allocate(&mut self, value: object_value::ObjectValue,
-                    proto: ObjectPointer) -> ObjectPointer {
+    pub fn allocate(&mut self,
+                    value: object_value::ObjectValue,
+                    proto: ObjectPointer)
+                    -> ObjectPointer {
         self.eden_heap.allocate_value_with_prototype(value, proto)
     }
 
-    pub fn allocate_without_prototype(&mut self, value: object_value::ObjectValue) -> ObjectPointer {
+    pub fn allocate_without_prototype(&mut self,
+                                      value: object_value::ObjectValue)
+                                      -> ObjectPointer {
         self.eden_heap.allocate(Object::new(value))
     }
 
@@ -134,8 +145,7 @@ impl Process {
     pub fn inbox(&mut self) -> RcInbox {
         let allocate = if self.inbox.is_none() {
             true
-        }
-        else {
+        } else {
             false
         };
 
@@ -149,7 +159,7 @@ impl Process {
     pub fn suspended(&self) -> bool {
         match self.status {
             ProcessStatus::Suspended => true,
-            _ => false
+            _ => false,
         }
     }
 }

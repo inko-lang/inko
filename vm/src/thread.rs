@@ -14,7 +14,7 @@ pub struct Thread {
     pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
-    pub isolated: Mutex<bool>
+    pub isolated: Mutex<bool>,
 }
 
 impl Thread {
@@ -25,7 +25,7 @@ impl Thread {
             wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
-            isolated: Mutex::new(false)
+            isolated: Mutex::new(false),
         };
 
         Arc::new(thread)

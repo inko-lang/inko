@@ -5,7 +5,8 @@ macro_rules! to_expr {
 }
 
 macro_rules! num_op {
-    ($vm: expr, $process: expr, $ins: expr, $op: tt, $tname: ident, $as_name: ident, $ensure: ident, $proto: ident) => ({
+    ($vm: expr, $process: expr, $ins: expr, $op: tt, $tname: ident,
+     $as_name: ident, $ensure: ident, $proto: ident) => ({
         let register = try_vm_error!($ins.arg(0), $ins);
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);
@@ -28,7 +29,8 @@ macro_rules! num_op {
 }
 
 macro_rules! num_bool_op {
-    ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident, $ensure: ident) => ({
+    ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident,
+     $ensure: ident) => ({
         let register = try_vm_error!($ins.arg(0), $ins);
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);

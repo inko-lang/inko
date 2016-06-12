@@ -48,7 +48,7 @@ pub struct ObjectHeader {
 
     /// The object to use for constant lookups when a constant is not available
     /// in the prototype hierarchy.
-    pub outer_scope: Option<ObjectPointer>
+    pub outer_scope: Option<ObjectPointer>,
 }
 
 impl ObjectHeader {
@@ -57,7 +57,7 @@ impl ObjectHeader {
             attributes: None,
             constants: None,
             methods: None,
-            outer_scope: None
+            outer_scope: None,
         }
     }
 
@@ -66,22 +66,19 @@ impl ObjectHeader {
 
         if let Some(map) = self.attributes.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_attribute(key.clone(),
-                                   heap.copy_object(value.clone()));
+                copy.add_attribute(key.clone(), heap.copy_object(value.clone()));
             }
         }
 
         if let Some(map) = self.constants.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_constant(key.clone(),
-                                  heap.copy_object(value.clone()));
+                copy.add_constant(key.clone(), heap.copy_object(value.clone()));
             }
         }
 
         if let Some(map) = self.methods.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_method(key.clone(),
-                                heap.copy_object(value.clone()));
+                copy.add_method(key.clone(), heap.copy_object(value.clone()));
             }
         }
 

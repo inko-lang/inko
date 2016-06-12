@@ -27,7 +27,7 @@ pub struct CallFrame {
     /// Register for storing temporary values.
     pub register: Register,
 
-    pub binding: RcBinding
+    pub binding: RcBinding,
 }
 
 impl CallFrame {
@@ -38,14 +38,18 @@ impl CallFrame {
     ///
     ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
     ///
-    pub fn new(name: String, file: String, line: u32, self_obj: ObjectPointer) -> CallFrame {
+    pub fn new(name: String,
+               file: String,
+               line: u32,
+               self_obj: ObjectPointer)
+               -> CallFrame {
         CallFrame {
             name: name,
             file: file,
             line: line,
             parent: None,
             register: Register::new(),
-            binding: Binding::new(self_obj)
+            binding: Binding::new(self_obj),
         }
     }
 
@@ -54,14 +58,16 @@ impl CallFrame {
         CallFrame::new(code.name.clone(), code.file.clone(), code.line, self_obj)
     }
 
-    pub fn from_code_with_binding(code: RcCompiledCode, binding: RcBinding) -> CallFrame {
+    pub fn from_code_with_binding(code: RcCompiledCode,
+                                  binding: RcBinding)
+                                  -> CallFrame {
         CallFrame {
             name: code.name.clone(),
             file: code.file.clone(),
             line: code.line,
             parent: None,
             register: Register::new(),
-            binding: binding
+            binding: binding,
         }
     }
 
@@ -85,7 +91,9 @@ impl CallFrame {
     ///         println!("Frame: {}", frame.name);
     ///     });
     ///
-    pub fn each_frame<F>(&self, mut closure: F) where F : FnMut(&CallFrame) {
+    pub fn each_frame<F>(&self, mut closure: F)
+        where F: FnMut(&CallFrame)
+    {
         let mut frame = self;
 
         closure(frame);
@@ -113,8 +121,8 @@ mod tests {
         let mut heap = Heap::new();
         let obj = heap.allocate_empty_global();
 
-        let frame = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj);
+        let frame =
+            CallFrame::new("foo".to_string(), "test.aeon".to_string(), 1, obj);
 
         assert_eq!(frame.name, "foo".to_string());
         assert_eq!(frame.file, "test.aeon".to_string());
@@ -126,8 +134,10 @@ mod tests {
         let mut heap = Heap::new();
         let obj = heap.allocate_empty_global();
 
-        let code = CompiledCode
-            ::with_rc("foo".to_string(), "test.aeon".to_string(), 1, vec![]);
+        let code = CompiledCode::with_rc("foo".to_string(),
+                                         "test.aeon".to_string(),
+                                         1,
+                                         vec![]);
 
         let frame = CallFrame::from_code(code, obj);
 
@@ -141,11 +151,13 @@ mod tests {
         let mut heap = Heap::new();
         let obj = heap.allocate_empty_global();
 
-        let frame1 = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());
+        let frame1 = CallFrame::new("foo".to_string(),
+                                    "test.aeon".to_string(),
+                                    1,
+                                    obj.clone());
 
-        let mut frame2 = CallFrame
-            ::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
+        let mut frame2 =
+            CallFrame::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
 
         frame2.set_parent(frame1);
 
@@ -157,11 +169,13 @@ mod tests {
         let mut heap = Heap::new();
         let obj = heap.allocate_empty_global();
 
-        let frame1 = CallFrame
-            ::new("foo".to_string(), "test.aeon".to_string(), 1, obj.clone());
+        let frame1 = CallFrame::new("foo".to_string(),
+                                    "test.aeon".to_string(),
+                                    1,
+                                    obj.clone());
 
-        let mut frame2 = CallFrame
-            ::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
+        let mut frame2 =
+            CallFrame::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
 
         let mut names: Vec<String> = vec![];
 

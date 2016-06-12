@@ -17,7 +17,7 @@ fn print_usage(options: &getopts::Options) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut options       = getopts::Options::new();
+    let mut options = getopts::Options::new();
 
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
@@ -34,7 +34,7 @@ fn main() {
 
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
-        Err(error)  => panic!(error.to_string())
+        Err(error) => panic!(error.to_string()),
     };
 
     if matches.opt_present("h") {
@@ -48,8 +48,7 @@ fn main() {
 
     if matches.free.is_empty() {
         print_usage(&options);
-    }
-    else {
+    } else {
         let vm = VirtualMachine::new();
         let ref path = matches.free[0];
 
@@ -76,13 +75,13 @@ fn main() {
                         if status.is_err() {
                             process::exit(1);
                         }
-                    },
+                    }
                     Err(error) => {
                         println!("Failed to parse file {}: {:?}", path, error);
                         process::exit(1);
                     }
                 }
-            },
+            }
             Err(error) => {
                 println!("Failed to execute {}: {}", path, error.to_string());
                 process::exit(1);

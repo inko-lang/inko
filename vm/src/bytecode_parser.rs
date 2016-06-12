@@ -79,7 +79,7 @@ macro_rules! read_code_vector {
     );
 }
 
-const SIGNATURE_BYTES : [u8; 4] = [97, 101, 111, 110]; // "aeon"
+const SIGNATURE_BYTES: [u8; 4] = [97, 101, 111, 110]; // "aeon"
 
 const VERSION: u8 = 1;
 
@@ -91,11 +91,11 @@ pub enum ParserError {
     InvalidString,
     InvalidInteger,
     InvalidFloat,
-    MissingByte
+    MissingByte,
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
-pub type BytecodeResult  = ParserResult<RcCompiledCode>;
+pub type BytecodeResult = ParserResult<RcCompiledCode>;
 
 /// Parses a file
 ///
@@ -105,7 +105,7 @@ pub type BytecodeResult  = ParserResult<RcCompiledCode>;
 pub fn parse_file(path: &str) -> BytecodeResult {
     match File::open(path) {
         Ok(file) => parse(&mut file.bytes()),
-        Err(_)   => parser_error!(InvalidFile)
+        Err(_) => parser_error!(InvalidFile),
     }
 }
 
@@ -146,7 +146,7 @@ fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
 
     match String::from_utf8(buff) {
         Ok(string) => Ok(string),
-        Err(_)     => parser_error!(InvalidString)
+        Err(_) => parser_error!(InvalidString),
     }
 }
 
@@ -209,14 +209,15 @@ fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
         buff[index] = try_byte!(bytes.next(), InvalidFloat);
     }
 
-    let int: u64   = u64::from_be(unsafe { mem::transmute(buff) });
+    let int: u64 = u64::from_be(unsafe { mem::transmute(buff) });
     let float: f64 = unsafe { mem::transmute(int) };
 
     Ok(float)
 }
 
 fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
-                           reader: fn(&mut Bytes<T>) -> ParserResult<V>) -> ParserResult<Vec<V>> {
+                           reader: fn(&mut Bytes<T>) -> ParserResult<V>)
+                           -> ParserResult<Vec<V>> {
     let amount = try!(read_u64(bytes));
 
     let mut buff: Vec<V> = Vec::new();
@@ -229,36 +230,34 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
 }
 
 fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> {
-    let ins_type: InstructionType = unsafe {
-        mem::transmute(try!(read_u16(bytes)))
-    };
+    let ins_type: InstructionType =
+        unsafe { mem::transmute(try!(read_u16(bytes))) };
 
-    let args   = read_u32_vector!(T, bytes);
-    let line   = try!(read_u32(bytes));
+    let args = read_u32_vector!(T, bytes);
+    let line = try!(read_u32(bytes));
     let column = try!(read_u32(bytes));
-    let ins    = Instruction::new(ins_type, args, line, column);
+    let ins = Instruction::new(ins_type, args, line, column);
 
     Ok(ins)
 }
 
-fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledCode> {
-    let name     = try!(read_string(bytes));
-    let file     = try!(read_string(bytes));
-    let line     = try!(read_u32(bytes));
-    let args     = try!(read_u32(bytes));
+fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
+                               -> ParserResult<RcCompiledCode> {
+    let name = try!(read_string(bytes));
+    let file = try!(read_string(bytes));
+    let line = try!(read_u32(bytes));
+    let args = try!(read_u32(bytes));
     let req_args = try!(read_u32(bytes));
     let rest_arg = try!(read_u8(bytes)) == 1;
 
-    let vis: Visibility = unsafe {
-        mem::transmute(try!(read_u8(bytes)))
-    };
+    let vis: Visibility = unsafe { mem::transmute(try!(read_u8(bytes))) };
 
-    let locals         = read_string_vector!(T, bytes);
-    let instructions   = read_instruction_vector!(T, bytes);
-    let int_literals   = read_i64_vector!(T, bytes);
+    let locals = read_string_vector!(T, bytes);
+    let instructions = read_instruction_vector!(T, bytes);
+    let int_literals = read_i64_vector!(T, bytes);
     let float_literals = read_f64_vector!(T, bytes);
-    let str_literals   = read_string_vector!(T, bytes);
-    let code_objects   = read_code_vector!(T, bytes);
+    let str_literals = read_string_vector!(T, bytes);
+    let code_objects = read_code_vector!(T, bytes);
 
     let code_obj = CompiledCode {
         name: name,
@@ -273,7 +272,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<RcCompiledC
         integer_literals: int_literals,
         float_literals: float_literals,
         string_literals: str_literals,
-        code_objects: code_objects
+        code_objects: code_objects,
     };
 
     Ok(Arc::new(code_obj))
@@ -437,7 +436,7 @@ mod tests {
 
         pack_u64!(2, buffer);
 
-        buffer.extend_from_slice(& "aeon".as_bytes());
+        buffer.extend_from_slice(&"aeon".as_bytes());
 
         let output = unwrap!(read!(read_string, buffer));
 
@@ -585,12 +584,9 @@ mod tests {
         pack_string!("hello", buffer);
         pack_string!("world", buffer);
 
-        let output = unwrap!(
-            super::read_vector::<String, &[u8]>(
-                &mut buffer.bytes(),
-                super::read_string
-            )
-        );
+        let output = unwrap!(super::read_vector::<String,
+                                                  &[u8]>(&mut buffer.bytes(),
+                                                         super::read_string));
 
         assert_eq!(output.len(), 2);
         assert_eq!(output[0], "hello".to_string());
@@ -619,8 +615,8 @@ mod tests {
         let ins = unwrap!(super::read_instruction(&mut buffer.bytes()));
 
         match ins.instruction_type {
-            InstructionType::SetInteger => {},
-            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type)
+            InstructionType::SetInteger => {}
+            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type),
         };
 
         assert_eq!(ins.arguments[0], 6);
@@ -669,8 +665,8 @@ mod tests {
         assert_eq!(object.rest_argument, true);
 
         match object.visibility {
-            Visibility::Public  => {},
-            Visibility::Private => panic!("expected Public visibility")
+            Visibility::Public => {}
+            Visibility::Private => panic!("expected Public visibility"),
         };
 
         assert_eq!(object.locals.len(), 0);
@@ -680,8 +676,8 @@ mod tests {
         let ref ins = object.instructions[0];
 
         match ins.instruction_type {
-            InstructionType::SetInteger => {},
-            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type)
+            InstructionType::SetInteger => {}
+            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type),
         };
 
         assert_eq!(ins.arguments[0], 6);

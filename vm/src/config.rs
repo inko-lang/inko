@@ -4,14 +4,14 @@ use std::path::PathBuf;
 
 pub struct Config {
     pub directories: Vec<PathBuf>,
-    pub process_threads: usize
+    pub process_threads: usize,
 }
 
 impl Config {
     pub fn new() -> Config {
         Config {
             directories: Vec::new(),
-            process_threads: num_cpus::get()
+            process_threads: num_cpus::get(),
         }
     }
 

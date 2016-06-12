@@ -6,14 +6,12 @@ use process::RcProcess;
 
 /// Struct for storing VM threads.
 pub struct ThreadList {
-    pub threads: Vec<RcThread>
+    pub threads: Vec<RcThread>,
 }
 
 impl ThreadList {
     pub fn new() -> ThreadList {
-        ThreadList {
-            threads: Vec::new()
-        }
+        ThreadList { threads: Vec::new() }
     }
 
     pub fn add(&mut self, handle: Option<JoinHandle>) -> RcThread {
@@ -83,8 +81,7 @@ impl ThreadList {
                     thread_idx = index;
                     queue_size = Some(current_size);
                 }
-            }
-            else {
+            } else {
                 thread_idx = index;
                 queue_size = Some(thread.process_queue_size());
             }

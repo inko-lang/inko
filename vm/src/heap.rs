@@ -12,12 +12,12 @@ use object_pointer::{RawObjectPointer, ObjectPointer};
 const PAGE_SLOTS: usize = 128;
 
 pub struct HeapPage {
-    slots: Vec<Option<Object>>
+    slots: Vec<Option<Object>>,
 }
 
 pub struct Heap {
     pub pages: Vec<HeapPage>,
-    pub global: bool
+    pub global: bool,
 }
 
 impl HeapPage {
@@ -29,8 +29,7 @@ impl HeapPage {
     pub fn has_space(&self) -> bool {
         if self.slots.len() < self.slots.capacity() {
             true
-        }
-        else {
+        } else {
             self.slots.last().is_none()
         }
     }
@@ -48,7 +47,7 @@ impl Heap {
     pub fn new(global: bool) -> Heap {
         let mut heap = Heap {
             pages: Vec::with_capacity(1),
-            global: global
+            global: global,
         };
 
         heap.add_page();
@@ -77,8 +76,7 @@ impl Heap {
 
         if self.global {
             ObjectPointer::global(raw_ptr)
-        }
-        else {
+        } else {
             ObjectPointer::local(raw_ptr)
         }
     }
@@ -89,8 +87,10 @@ impl Heap {
         self.allocate(obj)
     }
 
-    pub fn allocate_value_with_prototype(&mut self, value: ObjectValue,
-                                         proto: ObjectPointer) -> ObjectPointer {
+    pub fn allocate_value_with_prototype(&mut self,
+                                         value: ObjectValue,
+                                         proto: ObjectPointer)
+                                         -> ObjectPointer {
         let obj = Object::with_prototype(value, proto);
 
         self.allocate(obj)
@@ -123,21 +123,20 @@ impl Heap {
             ObjectValue::Float(num) => object_value::float(num),
             ObjectValue::String(ref string) => {
                 object_value::string(*string.clone())
-            },
+            }
             ObjectValue::Array(ref raw_vec) => {
-                let new_map = raw_vec.iter().map(|val_ptr| {
-                    self.copy_object(val_ptr.clone())
-                });
+                let new_map = raw_vec.iter()
+                    .map(|val_ptr| self.copy_object(val_ptr.clone()));
 
                 object_value::array(new_map.collect::<Vec<_>>())
-            },
+            }
             ObjectValue::File(_) => {
                 panic!("ObjectValue::File can not be cloned");
-            },
+            }
             ObjectValue::Error(num) => object_value::error(num),
             ObjectValue::CompiledCode(ref code) => {
                 object_value::compiled_code(code.clone())
-            },
+            }
             ObjectValue::Binding(_) => {
                 panic!("ObjectValue::Binding can not be cloned");
             }
@@ -145,8 +144,7 @@ impl Heap {
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
             Object::with_prototype(value_copy, self.copy_object(proto_ptr))
-        }
-        else {
+        } else {
             Object::new(value_copy)
         };
 
@@ -171,8 +169,7 @@ impl Heap {
             if !last_page.has_space() {
                 add_page = true;
             }
-        }
-        else {
+        } else {
             add_page = true;
         }
 

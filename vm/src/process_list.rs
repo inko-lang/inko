@@ -2,19 +2,21 @@ use process::RcProcess;
 
 pub struct ProcessList {
     processes: Vec<Option<RcProcess>>,
-    indexes: Vec<usize>
+    indexes: Vec<usize>,
 }
 
 impl ProcessList {
     pub fn new() -> ProcessList {
-        ProcessList { processes: Vec::new(), indexes: Vec::new() }
+        ProcessList {
+            processes: Vec::new(),
+            indexes: Vec::new(),
+        }
     }
 
     pub fn reserve_pid(&mut self) -> usize {
         if self.indexes.len() == 0 {
             self.processes.len()
-        }
-        else {
+        } else {
             self.indexes.pop().unwrap()
         }
     }
@@ -22,8 +24,7 @@ impl ProcessList {
     pub fn add(&mut self, index: usize, process: RcProcess) {
         if index >= self.processes.len() {
             self.processes.insert(index, Some(process));
-        }
-        else {
+        } else {
             self.processes[index] = Some(process);
         }
     }
@@ -40,8 +41,7 @@ impl ProcessList {
 
         if found.is_some() {
             found.unwrap().clone()
-        }
-        else {
+        } else {
             None
         }
     }

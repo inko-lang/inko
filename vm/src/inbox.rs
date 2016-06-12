@@ -4,7 +4,7 @@ use object_pointer::ObjectPointer;
 pub struct Inbox {
     messages: Mutex<Vec<ObjectPointer>>,
     received: Mutex<bool>,
-    signaler: Condvar
+    signaler: Condvar,
 }
 
 pub type RcInbox = Arc<Inbox>;
@@ -14,7 +14,7 @@ impl Inbox {
         let inbox = Inbox {
             messages: Mutex::new(Vec::new()),
             received: Mutex::new(false),
-            signaler: Condvar::new()
+            signaler: Condvar::new(),
         };
 
         Arc::new(inbox)

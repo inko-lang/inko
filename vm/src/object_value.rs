@@ -14,133 +14,136 @@ pub enum ObjectValue {
     File(Box<fs::File>),
     Error(u16),
     CompiledCode(RcCompiledCode),
-    Binding(RcBinding)
+    Binding(RcBinding),
 }
 
 impl ObjectValue {
     pub fn is_integer(&self) -> bool {
         match *self {
             ObjectValue::Integer(_) => true,
-            _                       => false
+            _ => false,
         }
     }
 
     pub fn is_float(&self) -> bool {
         match *self {
             ObjectValue::Float(_) => true,
-            _                     => false
+            _ => false,
         }
     }
 
     pub fn is_array(&self) -> bool {
         match *self {
             ObjectValue::Array(_) => true,
-            _                     => false
+            _ => false,
         }
     }
 
     pub fn is_string(&self) -> bool {
         match *self {
             ObjectValue::String(_) => true,
-            _                      => false
+            _ => false,
         }
     }
 
     pub fn is_file(&self) -> bool {
         match *self {
             ObjectValue::File(_) => true,
-            _                    => false
+            _ => false,
         }
     }
 
     pub fn is_error(&self) -> bool {
         match *self {
             ObjectValue::Error(_) => true,
-            _                     => false
+            _ => false,
         }
     }
 
     pub fn is_compiled_code(&self) -> bool {
         match *self {
             ObjectValue::CompiledCode(_) => true,
-            _                            => false
+            _ => false,
         }
     }
 
     pub fn is_binding(&self) -> bool {
         match *self {
             ObjectValue::Binding(_) => true,
-            _                       => false
+            _ => false,
         }
     }
 
     pub fn as_integer(&self) -> i64 {
         match *self {
             ObjectValue::Integer(val) => val,
-            _ => panic!("ObjectValue::as_integer() called on a non integer")
+            _ => panic!("ObjectValue::as_integer() called on a non integer"),
         }
     }
 
     pub fn as_float(&self) -> f64 {
         match *self {
             ObjectValue::Float(val) => val,
-            _ => panic!("ObjectValue::as_float() called on a non float")
+            _ => panic!("ObjectValue::as_float() called on a non float"),
         }
     }
 
     pub fn as_array(&self) -> &Vec<ObjectPointer> {
         match *self {
             ObjectValue::Array(ref val) => val,
-            _ => panic!("ObjectValue::as_Array() called on a non array")
+            _ => panic!("ObjectValue::as_Array() called on a non array"),
         }
     }
 
     pub fn as_array_mut(&mut self) -> &mut Vec<ObjectPointer> {
         match *self {
             ObjectValue::Array(ref mut val) => val,
-            _ => panic!("ObjectValue::as_array_mut() called on a non array")
+            _ => panic!("ObjectValue::as_array_mut() called on a non array"),
         }
     }
 
     pub fn as_string(&self) -> &String {
         match *self {
             ObjectValue::String(ref val) => val,
-            _ => panic!("ObjectValue::as_string() called on a non string")
+            _ => panic!("ObjectValue::as_string() called on a non string"),
         }
     }
 
     pub fn as_file(&self) -> &fs::File {
         match *self {
             ObjectValue::File(ref val) => val,
-            _ => panic!("ObjectValue::as_file() called on a non file")
+            _ => panic!("ObjectValue::as_file() called on a non file"),
         }
     }
 
     pub fn as_file_mut(&mut self) -> &mut fs::File {
         match *self {
             ObjectValue::File(ref mut val) => val,
-            _ => panic!("ObjectValue::as_file_mut() called on a non file")
+            _ => panic!("ObjectValue::as_file_mut() called on a non file"),
         }
     }
 
     pub fn as_error(&self) -> u16 {
         match *self {
             ObjectValue::Error(val) => val,
-            _ => panic!("ObjectValue::as_error() called non a non error")
+            _ => panic!("ObjectValue::as_error() called non a non error"),
         }
     }
 
     pub fn as_compiled_code(&self) -> RcCompiledCode {
         match *self {
             ObjectValue::CompiledCode(ref val) => val.clone(),
-            _ => panic!("ObjectValue::as_compiled_code() called on a non compiled code object")
+            _ => {
+                panic!("ObjectValue::as_compiled_code() called on a non \
+                        compiled code object")
+            }
         }
     }
 
     pub fn as_binding(&self) -> RcBinding {
         match *self {
             ObjectValue::Binding(ref val) => val.clone(),
-            _ => panic!("ObjectValue::as_binding() called non a non Binding")
+            _ => panic!("ObjectValue::as_binding() called non a non Binding"),
         }
     }
 }

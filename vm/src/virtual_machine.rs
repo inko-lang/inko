@@ -49,7 +49,7 @@ pub struct VirtualMachine {
     compiled_code_prototype: ObjectPointer,
     binding_prototype: ObjectPointer,
     true_object: ObjectPointer,
-    false_object: ObjectPointer
+    false_object: ObjectPointer,
 }
 
 impl VirtualMachine {
@@ -98,7 +98,7 @@ impl VirtualMachine {
             compiled_code_prototype: cc_proto,
             binding_prototype: binding_proto,
             true_object: true_obj,
-            false_object: false_obj
+            false_object: false_obj,
         };
 
         Arc::new(vm)
@@ -112,11 +112,16 @@ impl VirtualMachine {
         write_lock!(self.threads).add(handle)
     }
 
-    fn allocate_isolated_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
+    fn allocate_isolated_thread(&self,
+                                handle: Option<ThreadJoinHandle>)
+                                -> RcThread {
         write_lock!(self.threads).add_isolated(handle)
     }
 
-    fn allocate_process(&self, code: RcCompiledCode, self_obj: ObjectPointer) -> (usize, RcProcess) {
+    fn allocate_process(&self,
+                        code: RcCompiledCode,
+                        self_obj: ObjectPointer)
+                        -> (usize, RcProcess) {
         let mut processes = write_lock!(self.processes);
         let pid = processes.reserve_pid();
         let process = Process::from_code(pid, code, self_obj);
@@ -126,16 +131,18 @@ impl VirtualMachine {
         (pid, process)
     }
 
-    fn allocate_method(&self, process: &RcProcess, receiver: &ObjectPointer,
-                       code: RcCompiledCode) -> ObjectPointer {
+    fn allocate_method(&self,
+                       process: &RcProcess,
+                       receiver: &ObjectPointer,
+                       code: RcCompiledCode)
+                       -> ObjectPointer {
         let value = object_value::compiled_code(code);
         let proto = self.method_prototype.clone();
 
         if receiver.is_global() {
             write_lock!(self.global_heap)
                 .allocate_value_with_prototype(value, proto)
-        }
-        else {
+        } else {
             write_lock!(process).allocate(value, proto)
         }
     }
@@ -176,8 +183,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     index += 1;
 
                     continue;
-                }
-                else {
+                } else {
                     skip_until = None;
                 }
             }
@@ -187,367 +193,437 @@ impl VirtualMachineMethods for RcVirtualMachine {
             match instruction.instruction_type {
                 InstructionType::SetInteger => {
                     run!(self, ins_set_integer, process, code, instruction);
-                },
+                }
                 InstructionType::SetFloat => {
                     run!(self, ins_set_float, process, code, instruction);
-                },
+                }
                 InstructionType::SetString => {
                     run!(self, ins_set_string, process, code, instruction);
-                },
+                }
                 InstructionType::SetObject => {
                     run!(self, ins_set_object, process, code, instruction);
-                },
+                }
                 InstructionType::SetPrototype => {
                     run!(self, ins_set_prototype, process, code, instruction);
-                },
+                }
                 InstructionType::GetPrototype => {
                     run!(self, ins_get_prototype, process, code, instruction);
-                },
+                }
                 InstructionType::SetArray => {
                     run!(self, ins_set_array, process, code, instruction);
-                },
+                }
                 InstructionType::GetIntegerPrototype => {
-                    run!(self, ins_get_integer_prototype, process, code,
+                    run!(self,
+                         ins_get_integer_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetFloatPrototype => {
-                    run!(self, ins_get_float_prototype, process, code,
+                    run!(self,
+                         ins_get_float_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetStringPrototype => {
-                    run!(self, ins_get_string_prototype, process, code,
+                    run!(self,
+                         ins_get_string_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetArrayPrototype => {
-                    run!(self, ins_get_array_prototype, process, code,
+                    run!(self,
+                         ins_get_array_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetTruePrototype => {
-                    run!(self, ins_get_true_prototype, process, code,
+                    run!(self,
+                         ins_get_true_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetFalsePrototype => {
-                    run!(self, ins_get_false_prototype, process, code,
+                    run!(self,
+                         ins_get_false_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetMethodPrototype => {
-                    run!(self, ins_get_method_prototype, process, code,
+                    run!(self,
+                         ins_get_method_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetCompiledCodePrototype => {
-                    run!(self, ins_get_compiled_code_prototype, process, code,
+                    run!(self,
+                         ins_get_compiled_code_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetBindingPrototype => {
-                    run!(self, ins_get_binding_prototype, process, code,
+                    run!(self,
+                         ins_get_binding_prototype,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetTrue => {
                     run!(self, ins_get_true, process, code, instruction);
-                },
+                }
                 InstructionType::GetFalse => {
                     run!(self, ins_get_false, process, code, instruction);
-                },
+                }
                 InstructionType::GetBinding => {
                     run!(self, ins_get_binding, process, code, instruction);
-                },
+                }
                 InstructionType::SetLocal => {
                     run!(self, ins_set_local, process, code, instruction);
-                },
+                }
                 InstructionType::GetLocal => {
                     run!(self, ins_get_local, process, code, instruction);
-                },
+                }
                 InstructionType::LocalExists => {
                     run!(self, ins_local_exists, process, code, instruction);
-                },
+                }
                 InstructionType::SetLiteralConst => {
                     run!(self, ins_set_literal_const, process, code, instruction);
-                },
+                }
                 InstructionType::SetConst => {
                     run!(self, ins_set_const, process, code, instruction);
-                },
+                }
                 InstructionType::GetLiteralConst => {
                     run!(self, ins_get_literal_const, process, code, instruction);
-                },
+                }
                 InstructionType::GetConst => {
                     run!(self, ins_get_const, process, code, instruction);
-                },
+                }
                 InstructionType::LiteralConstExists => {
-                    run!(self, ins_literal_const_exists, process, code, instruction);
-                },
+                    run!(self,
+                         ins_literal_const_exists,
+                         process,
+                         code,
+                         instruction);
+                }
                 InstructionType::SetLiteralAttr => {
                     run!(self, ins_set_literal_attr, process, code, instruction);
-                },
+                }
                 InstructionType::SetAttr => {
                     run!(self, ins_set_attr, process, code, instruction);
-                },
+                }
                 InstructionType::GetLiteralAttr => {
                     run!(self, ins_get_literal_attr, process, code, instruction);
-                },
+                }
                 InstructionType::GetAttr => {
                     run!(self, ins_get_attr, process, code, instruction);
-                },
+                }
                 InstructionType::LiteralAttrExists => {
-                    run!(self, ins_literal_attr_exists, process, code, instruction);
-                },
-                InstructionType::SetCompiledCode => {
-                    run!(self, ins_set_compiled_code, process, code,
+                    run!(self,
+                         ins_literal_attr_exists,
+                         process,
+                         code,
                          instruction);
-                },
+                }
+                InstructionType::SetCompiledCode => {
+                    run!(self, ins_set_compiled_code, process, code, instruction);
+                }
                 InstructionType::SendLiteral => {
                     run!(self, ins_send_literal, process, code, instruction);
-                },
+                }
                 InstructionType::Send => {
                     run!(self, ins_send, process, code, instruction);
-                },
+                }
                 InstructionType::LiteralRespondsTo => {
-                    run!(self, ins_literal_responds_to, process, code, instruction);
-                },
+                    run!(self,
+                         ins_literal_responds_to,
+                         process,
+                         code,
+                         instruction);
+                }
                 InstructionType::RespondsTo => {
                     run!(self, ins_responds_to, process, code, instruction);
-                },
+                }
                 InstructionType::Return => {
                     retval = run!(self, ins_return, process, code, instruction);
-                },
+                }
                 InstructionType::GotoIfFalse => {
-                    skip_until = run!(self, ins_goto_if_false, process, code,
-                                      instruction);
-                },
+                    skip_until =
+                        run!(self, ins_goto_if_false, process, code, instruction);
+                }
                 InstructionType::GotoIfTrue => {
-                    skip_until = run!(self, ins_goto_if_true, process, code,
-                                      instruction);
-                },
+                    skip_until =
+                        run!(self, ins_goto_if_true, process, code, instruction);
+                }
                 InstructionType::Goto => {
                     index = run!(self, ins_goto, process, code, instruction)
                         .unwrap();
-                },
+                }
                 InstructionType::DefMethod => {
                     run!(self, ins_def_method, process, code, instruction);
-                },
+                }
                 InstructionType::DefLiteralMethod => {
-                    run!(self, ins_def_literal_method, process, code,
+                    run!(self,
+                         ins_def_literal_method,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::RunCode => {
                     run!(self, ins_run_code, process, code, instruction);
-                },
+                }
                 InstructionType::RunLiteralCode => {
                     run!(self, ins_run_literal_code, process, code, instruction);
-                },
+                }
                 InstructionType::GetToplevel => {
                     run!(self, ins_get_toplevel, process, code, instruction);
-                },
+                }
                 InstructionType::GetSelf => {
                     run!(self, ins_get_self, process, code, instruction);
-                },
+                }
                 InstructionType::IsError => {
                     run!(self, ins_is_error, process, code, instruction);
-                },
+                }
                 InstructionType::ErrorToString => {
                     run!(self, ins_error_to_integer, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerAdd => {
                     run!(self, ins_integer_add, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerDiv => {
                     run!(self, ins_integer_div, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerMul => {
                     run!(self, ins_integer_mul, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerSub => {
                     run!(self, ins_integer_sub, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerMod => {
                     run!(self, ins_integer_mod, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerToFloat => {
                     run!(self, ins_integer_to_float, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerToString => {
-                    run!(self, ins_integer_to_string, process, code,
-                         instruction);
-                },
+                    run!(self, ins_integer_to_string, process, code, instruction);
+                }
                 InstructionType::IntegerBitwiseAnd => {
-                    run!(self, ins_integer_bitwise_and, process, code,
+                    run!(self,
+                         ins_integer_bitwise_and,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::IntegerBitwiseOr => {
-                    run!(self, ins_integer_bitwise_or, process, code,
+                    run!(self,
+                         ins_integer_bitwise_or,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::IntegerBitwiseXor => {
-                    run!(self, ins_integer_bitwise_xor, process, code,
+                    run!(self,
+                         ins_integer_bitwise_xor,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::IntegerShiftLeft => {
-                    run!(self, ins_integer_shift_left, process, code,
+                    run!(self,
+                         ins_integer_shift_left,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::IntegerShiftRight => {
-                    run!(self, ins_integer_shift_right, process, code,
+                    run!(self,
+                         ins_integer_shift_right,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::IntegerSmaller => {
                     run!(self, ins_integer_smaller, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerGreater => {
                     run!(self, ins_integer_greater, process, code, instruction);
-                },
+                }
                 InstructionType::IntegerEquals => {
                     run!(self, ins_integer_equals, process, code, instruction);
-                },
+                }
                 InstructionType::SpawnLiteralProcess => {
-                    run!(self, ins_spawn_literal_process, process, code,
+                    run!(self,
+                         ins_spawn_literal_process,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::FloatAdd => {
                     run!(self, ins_float_add, process, code, instruction);
-                },
+                }
                 InstructionType::FloatMul => {
                     run!(self, ins_float_mul, process, code, instruction);
-                },
+                }
                 InstructionType::FloatDiv => {
                     run!(self, ins_float_div, process, code, instruction);
-                },
+                }
                 InstructionType::FloatSub => {
                     run!(self, ins_float_sub, process, code, instruction);
-                },
+                }
                 InstructionType::FloatMod => {
                     run!(self, ins_float_mod, process, code, instruction);
-                },
+                }
                 InstructionType::FloatToInteger => {
                     run!(self, ins_float_to_integer, process, code, instruction);
-                },
+                }
                 InstructionType::FloatToString => {
                     run!(self, ins_float_to_string, process, code, instruction);
-                },
+                }
                 InstructionType::FloatSmaller => {
                     run!(self, ins_float_smaller, process, code, instruction);
-                },
+                }
                 InstructionType::FloatGreater => {
                     run!(self, ins_float_greater, process, code, instruction);
-                },
+                }
                 InstructionType::FloatEquals => {
                     run!(self, ins_float_equals, process, code, instruction);
-                },
+                }
                 InstructionType::ArrayInsert => {
                     run!(self, ins_array_insert, process, code, instruction);
-                },
+                }
                 InstructionType::ArrayAt => {
                     run!(self, ins_array_at, process, code, instruction);
-                },
+                }
                 InstructionType::ArrayRemove => {
                     run!(self, ins_array_remove, process, code, instruction);
-                },
+                }
                 InstructionType::ArrayLength => {
                     run!(self, ins_array_length, process, code, instruction);
-                },
+                }
                 InstructionType::ArrayClear => {
                     run!(self, ins_array_clear, process, code, instruction);
-                },
+                }
                 InstructionType::StringToLower => {
                     run!(self, ins_string_to_lower, process, code, instruction);
-                },
+                }
                 InstructionType::StringToUpper => {
                     run!(self, ins_string_to_upper, process, code, instruction);
-                },
+                }
                 InstructionType::StringEquals => {
                     run!(self, ins_string_equals, process, code, instruction);
-                },
+                }
                 InstructionType::StringToBytes => {
                     run!(self, ins_string_to_bytes, process, code, instruction);
-                },
+                }
                 InstructionType::StringFromBytes => {
                     run!(self, ins_string_from_bytes, process, code, instruction);
-                },
+                }
                 InstructionType::StringLength => {
                     run!(self, ins_string_length, process, code, instruction);
-                },
+                }
                 InstructionType::StringSize => {
                     run!(self, ins_string_size, process, code, instruction);
-                },
+                }
                 InstructionType::StdoutWrite => {
                     run!(self, ins_stdout_write, process, code, instruction);
-                },
+                }
                 InstructionType::StderrWrite => {
                     run!(self, ins_stderr_write, process, code, instruction);
-                },
+                }
                 InstructionType::StdinRead => {
                     run!(self, ins_stdin_read, process, code, instruction);
-                },
+                }
                 InstructionType::StdinReadLine => {
                     run!(self, ins_stdin_read_line, process, code, instruction);
-                },
+                }
                 InstructionType::FileOpen => {
                     run!(self, ins_file_open, process, code, instruction);
-                },
+                }
                 InstructionType::FileWrite => {
                     run!(self, ins_file_write, process, code, instruction);
-                },
+                }
                 InstructionType::FileRead => {
                     run!(self, ins_file_read, process, code, instruction);
-                },
+                }
                 InstructionType::FileReadLine => {
                     run!(self, ins_file_read_line, process, code, instruction);
-                },
+                }
                 InstructionType::FileFlush => {
                     run!(self, ins_file_flush, process, code, instruction);
-                },
+                }
                 InstructionType::FileSize => {
                     run!(self, ins_file_size, process, code, instruction);
-                },
+                }
                 InstructionType::FileSeek => {
                     run!(self, ins_file_seek, process, code, instruction);
-                },
+                }
                 InstructionType::RunLiteralFile => {
                     run!(self, ins_run_literal_file, process, code, instruction);
-                },
+                }
                 InstructionType::RunFile => {
                     run!(self, ins_run_file, process, code, instruction);
-                },
+                }
                 InstructionType::GetCaller => {
                     run!(self, ins_get_caller, process, code, instruction);
-                },
+                }
                 InstructionType::SetOuterScope => {
                     run!(self, ins_set_outer_scope, process, code, instruction);
-                },
+                }
                 InstructionType::SpawnProcess => {
                     run!(self, ins_spawn_process, process, code, instruction);
-                },
+                }
                 InstructionType::SendProcessMessage => {
-                    run!(self, ins_send_process_message, process, code,
+                    run!(self,
+                         ins_send_process_message,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::ReceiveProcessMessage => {
-                    run!(self, ins_receive_process_message, process, code,
+                    run!(self,
+                         ins_receive_process_message,
+                         process,
+                         code,
                          instruction);
-                },
+                }
                 InstructionType::GetCurrentPid => {
                     run!(self, ins_get_current_pid, process, code, instruction);
-                },
+                }
             };
         }
 
         Ok(retval)
     }
 
-    fn ins_set_integer(&self, process: RcProcess, code: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_set_integer(&self,
+                       process: RcProcess,
+                       code: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.integer(index), instruction);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(value), self.integer_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::integer(value),
+                                                self.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_set_float(&self, process: RcProcess, code: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_set_float(&self,
+                     process: RcProcess,
+                     code: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.float(index), instruction);
@@ -560,8 +636,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_string(&self, process: RcProcess, code: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_set_string(&self,
+                      process: RcProcess,
+                      code: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = try_vm_error!(code.string(index), instruction);
@@ -575,24 +654,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_object(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_set_object(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let is_global_ptr = instruction_object!(instruction, process, 1);
         let is_global = is_global_ptr != self.false_object.clone();
 
         let obj = if is_global {
             write_lock!(self.global_heap).allocate_empty()
-        }
-        else {
+        } else {
             write_lock!(process).allocate_empty()
         };
 
         if let Ok(proto_index) = instruction.arg(2) {
-            let mut proto = try_vm_error!(
-                read_lock!(process).get_register(proto_index),
-                instruction
-            );
+            let mut proto = try_vm_error!(read_lock!(process)
+                                              .get_register(proto_index),
+                                          instruction);
 
             if is_global && proto.is_local() {
                 proto = write_lock!(self.global_heap).copy_object(proto);
@@ -608,8 +688,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_set_prototype(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         let source = instruction_object!(instruction, process, 0);
         let proto = instruction_object!(instruction, process, 1);
 
@@ -620,37 +703,39 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_get_prototype(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
 
         let source_ref = source.get();
         let source_obj = source_ref.get();
 
-        let proto = try_vm_error!(
-            source_obj.prototype().ok_or_else(|| {
-                format!(
-                    "The object in register {} does not have a prototype",
-                    instruction.arguments[1]
-                )
-            }),
-            instruction
-        );
+        let proto = try_vm_error!(source_obj.prototype().ok_or_else(|| {
+                                      format!("The object in register {} does \
+                                               not have a prototype",
+                                              instruction.arguments[1])
+                                  }),
+                                  instruction);
 
         write_lock!(process).set_register(register, proto);
 
         Ok(())
     }
 
-    fn ins_set_array(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_set_array(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let val_count = instruction.arguments.len() - 1;
 
-        let values = try!(
-            self.collect_arguments(process.clone(), instruction, 1, val_count)
-        );
+        let values = try!(self.collect_arguments(process.clone(), instruction,
+                                                 1, val_count));
 
         let obj = write_lock!(process)
             .allocate(object_value::array(values), self.array_prototype.clone());
@@ -660,8 +745,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_integer_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                                 instruction: &Instruction) -> EmptyResult {
+    fn ins_get_integer_prototype(&self,
+                                 process: RcProcess,
+                                 _: RcCompiledCode,
+                                 instruction: &Instruction)
+                                 -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
@@ -670,27 +758,36 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_float_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_get_float_prototype(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
+        let register = try_vm_error!(instruction.arg(0), instruction);
+
+        write_lock!(process).set_register(register, self.float_prototype.clone());
+
+        Ok(())
+    }
+
+    fn ins_get_string_prototype(&self,
+                                process: RcProcess,
+                                _: RcCompiledCode,
+                                instruction: &Instruction)
+                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.float_prototype.clone());
+            .set_register(register, self.string_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_string_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                                instruction: &Instruction) -> EmptyResult {
-        let register = try_vm_error!(instruction.arg(0), instruction);
-
-        write_lock!(process).set_register(register, self.string_prototype.clone());
-
-        Ok(())
-    }
-
-    fn ins_get_array_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_get_array_prototype(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.array_prototype.clone());
@@ -698,8 +795,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_true_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                              instruction: &Instruction) -> EmptyResult {
+    fn ins_get_true_prototype(&self,
+                              process: RcProcess,
+                              _: RcCompiledCode,
+                              instruction: &Instruction)
+                              -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.true_prototype.clone());
@@ -707,8 +807,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_false_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                              instruction: &Instruction) -> EmptyResult {
+    fn ins_get_false_prototype(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.false_prototype.clone());
@@ -716,26 +819,37 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_method_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                                instruction: &Instruction) -> EmptyResult {
+    fn ins_get_method_prototype(&self,
+                                process: RcProcess,
+                                _: RcCompiledCode,
+                                instruction: &Instruction)
+                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.method_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.method_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_binding_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                                 instruction: &Instruction) -> EmptyResult {
+    fn ins_get_binding_prototype(&self,
+                                 process: RcProcess,
+                                 _: RcCompiledCode,
+                                 instruction: &Instruction)
+                                 -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.binding_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.binding_prototype.clone());
 
         Ok(())
     }
 
-    fn ins_get_compiled_code_prototype(&self, process: RcProcess, _: RcCompiledCode,
-                                       instruction: &Instruction) -> EmptyResult {
+    fn ins_get_compiled_code_prototype(&self,
+                                       process: RcProcess,
+                                       _: RcCompiledCode,
+                                       instruction: &Instruction)
+                                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
@@ -744,8 +858,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_true(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_get_true(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.true_object.clone());
@@ -753,8 +870,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_false(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_get_false(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.false_object.clone());
@@ -762,8 +882,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_binding(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_get_binding(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let ref frame = read_lock!(process).call_frame;
 
@@ -776,8 +899,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_local(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_set_local(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let local_index = try_vm_error!(instruction.arg(0), instruction);
         let object = instruction_object!(instruction, process, 1);
 
@@ -786,30 +912,33 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_local(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_get_local(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let local_index = try_vm_error!(instruction.arg(1), instruction);
 
-        let object = try_vm_error!(
-            read_lock!(process).get_local(local_index),
-            instruction
-        );
+        let object = try_vm_error!(read_lock!(process).get_local(local_index),
+                                   instruction);
 
         write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_local_exists(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_local_exists(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let local_index = try_vm_error!(instruction.arg(1), instruction);
 
         let value = if read_lock!(process).local_exists(local_index) {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -818,8 +947,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_literal_const(&self, process: RcProcess, code: RcCompiledCode,
-                             instruction: &Instruction) -> EmptyResult {
+    fn ins_set_literal_const(&self,
+                             process: RcProcess,
+                             code: RcCompiledCode,
+                             instruction: &Instruction)
+                             -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let name_index = try_vm_error!(instruction.arg(1), instruction);
         let source_ptr = instruction_object!(instruction, process, 2);
@@ -833,8 +965,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_const(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_set_const(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let name = instruction_object!(instruction, process, 1);
         let source_ptr = instruction_object!(instruction, process, 2);
@@ -855,8 +990,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_literal_const(&self, process: RcProcess, code: RcCompiledCode,
-                             instruction: &Instruction) -> EmptyResult {
+    fn ins_get_literal_const(&self,
+                             process: RcProcess,
+                             code: RcCompiledCode,
+                             instruction: &Instruction)
+                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let src = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -864,20 +1002,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let src_ref = src.get();
 
-        let object = try_vm_error!(
-            src_ref.get()
-                .lookup_constant(name)
-                .ok_or_else(|| constant_error!(instruction.arguments[1], name)),
-            instruction
-        );
+        let object = try_vm_error!(src_ref.get()
+                              .lookup_constant(name)
+                              .ok_or_else(|| {
+                                  constant_error!(instruction.arguments[1],
+                                                  name)
+                              }),
+                          instruction);
 
         write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_get_const(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_get_const(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let src = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
@@ -890,20 +1032,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let name_str = name_obj.value.as_string();
 
-        let object = try_vm_error!(
-            src_ref.get()
-                .lookup_constant(name_str)
-                .ok_or_else(|| constant_error!(instruction.arguments[1], name_str)),
-            instruction
-        );
+        let object = try_vm_error!(src_ref.get()
+                              .lookup_constant(name_str)
+                              .ok_or_else(|| {
+                                  constant_error!(instruction.arguments[1],
+                                                  name_str)
+                              }),
+                          instruction);
 
         write_lock!(process).set_register(register, object);
 
         Ok(())
     }
 
-    fn ins_literal_const_exists(&self, process: RcProcess, code: RcCompiledCode,
-                                instruction: &Instruction) -> EmptyResult {
+    fn ins_literal_const_exists(&self,
+                                process: RcProcess,
+                                code: RcCompiledCode,
+                                instruction: &Instruction)
+                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -914,16 +1060,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         if constant.is_some() {
             write_lock!(process).set_register(register, self.true_object.clone());
-        }
-        else {
-            write_lock!(process).set_register(register, self.false_object.clone());
+        } else {
+            write_lock!(process)
+                .set_register(register, self.false_object.clone());
         }
 
         Ok(())
     }
 
-    fn ins_set_literal_attr(&self, process: RcProcess, code: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_set_literal_attr(&self,
+                            process: RcProcess,
+                            code: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let name_index = try_vm_error!(instruction.arg(1), instruction);
         let value_ptr = instruction_object!(instruction, process, 2);
@@ -938,8 +1087,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_attr(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_set_attr(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let name_ptr = instruction_object!(instruction, process, 1);
         let value_ptr = instruction_object!(instruction, process, 2);
@@ -959,8 +1111,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_literal_attr(&self, process: RcProcess, code: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_get_literal_attr(&self,
+                            process: RcProcess,
+                            code: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -968,20 +1123,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source_ref = source.get();
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let attr = try_vm_error!(
-            source_ref.get()
-                .lookup_attribute(name)
-                .ok_or_else(|| attribute_error!(instruction.arguments[1], name)),
-            instruction
-        );
+        let attr = try_vm_error!(source_ref.get()
+                              .lookup_attribute(name)
+                              .ok_or_else(|| {
+                                  attribute_error!(instruction.arguments[1],
+                                                   name)
+                              }),
+                          instruction);
 
         write_lock!(process).set_register(register, attr);
 
         Ok(())
     }
 
-    fn ins_get_attr(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_get_attr(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
@@ -994,20 +1153,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let name = name_obj.value.as_string();
 
-        let attr = try_vm_error!(
-            source_ref.get()
-                .lookup_attribute(name)
-                .ok_or_else(|| attribute_error!(instruction.arguments[1], name)),
-            instruction
-        );
+        let attr = try_vm_error!(source_ref.get()
+                              .lookup_attribute(name)
+                              .ok_or_else(|| {
+                                  attribute_error!(instruction.arguments[1],
+                                                   name)
+                              }),
+                          instruction);
 
         write_lock!(process).set_register(register, attr);
 
         Ok(())
     }
 
-    fn ins_literal_attr_exists(&self, process: RcProcess, code: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_literal_attr_exists(&self,
+                               process: RcProcess,
+                               code: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source_ptr = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -1018,8 +1181,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let obj = if source.has_attribute(name) {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -1028,32 +1190,41 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_compiled_code(&self, process: RcProcess, code: RcCompiledCode,
-                             instruction: &Instruction) -> EmptyResult {
+    fn ins_set_compiled_code(&self,
+                             process: RcProcess,
+                             code: RcCompiledCode,
+                             instruction: &Instruction)
+                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let cc_index = try_vm_error!(instruction.arg(1), instruction);
 
         let cc = try_vm_error!(code.code_object(cc_index), instruction);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::compiled_code(cc),
-                      self.compiled_code_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::compiled_code(cc),
+                                                self.compiled_code_prototype
+                                                    .clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_send_literal(&self, process: RcProcess, code: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_send_literal(&self,
+                        process: RcProcess,
+                        code: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let name_index = try_vm_error!(instruction.arg(2), instruction);
         let name = try_vm_error!(code.string(name_index), instruction);
 
         self.send_message(name, process, instruction)
     }
 
-    fn ins_send(&self, process: RcProcess, _: RcCompiledCode,
-                instruction: &Instruction) -> EmptyResult {
+    fn ins_send(&self,
+                process: RcProcess,
+                _: RcCompiledCode,
+                instruction: &Instruction)
+                -> EmptyResult {
         let string = instruction_object!(instruction, process, 2);
         let string_ref = string.get();
         let string_obj = string_ref.get();
@@ -1063,8 +1234,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.send_message(string_obj.value.as_string(), process, instruction)
     }
 
-    fn ins_literal_responds_to(&self, process: RcProcess, code: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_literal_responds_to(&self,
+                               process: RcProcess,
+                               code: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -1075,8 +1249,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = if source_obj.responds_to(name) {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -1085,8 +1258,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_responds_to(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_responds_to(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
@@ -1101,8 +1277,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = if source_obj.responds_to(name_obj.value.as_string()) {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -1111,15 +1286,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_return(&self, process: RcProcess, _: RcCompiledCode,
-                  instruction: &Instruction) -> ObjectResult {
+    fn ins_return(&self,
+                  process: RcProcess,
+                  _: RcCompiledCode,
+                  instruction: &Instruction)
+                  -> ObjectResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         Ok(read_lock!(process).get_register_option(register))
     }
 
-    fn ins_goto_if_false(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> IntegerResult {
+    fn ins_goto_if_false(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
         let value = read_lock!(process).get_register_option(value_reg);
@@ -1128,19 +1309,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
             Some(obj) => {
                 if obj == self.false_object.clone() {
                     Some(go_to)
-                }
-                else {
+                } else {
                     None
                 }
-            },
-            None => { Some(go_to) }
+            }
+            None => Some(go_to),
         };
 
         Ok(matched)
     }
 
-    fn ins_goto_if_true(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> IntegerResult {
+    fn ins_goto_if_true(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
         let value = read_lock!(process).get_register_option(value_reg);
@@ -1149,26 +1332,31 @@ impl VirtualMachineMethods for RcVirtualMachine {
             Some(obj) => {
                 if obj == self.false_object.clone() {
                     None
-                }
-                else {
+                } else {
                     Some(go_to)
                 }
-            },
-            None => { None }
+            }
+            None => None,
         };
 
         Ok(matched)
     }
 
-    fn ins_goto(&self, _: RcProcess, _: RcCompiledCode,
-                instruction: &Instruction) -> IntegerResult {
+    fn ins_goto(&self,
+                _: RcProcess,
+                _: RcCompiledCode,
+                instruction: &Instruction)
+                -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
 
         Ok(Some(go_to))
     }
 
-    fn ins_def_method(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_def_method(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let name_ptr = instruction_object!(instruction, process, 2);
@@ -1199,8 +1387,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_def_literal_method(&self, process: RcProcess, code: RcCompiledCode,
-                              instruction: &Instruction) -> EmptyResult {
+    fn ins_def_literal_method(&self,
+                              process: RcProcess,
+                              code: RcCompiledCode,
+                              instruction: &Instruction)
+                              -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
@@ -1221,8 +1412,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_code(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_run_code(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let cc_ptr = instruction_object!(instruction, process, 1);
         let arg_ptr = instruction_object!(instruction, process, 2);
@@ -1243,9 +1437,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let arg_count = arg_obj.value.as_integer() as usize;
 
-        let arguments = try!(
-            self.collect_arguments(process.clone(), instruction, 3, arg_count)
-        );
+        let arguments = try!(self.collect_arguments(process.clone(),
+                                                    instruction, 3, arg_count));
 
         let binding_idx = 3 + arg_count;
 
@@ -1256,21 +1449,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
             let obj = obj_ref.get();
 
             if !obj.value.is_binding() {
-                return_vm_error!(
-                    format!("Argument {} is not a valid Binding", binding_idx),
-                    instruction.line
-                );
+                return_vm_error!(format!("Argument {} is not a valid Binding",
+                                         binding_idx),
+                                 instruction.line);
             }
 
             Some(obj.value.as_binding())
-        }
-        else {
+        } else {
             None
         };
 
-        let retval = try!(
-            self.run_code(process.clone(), code_obj, cc_ptr, arguments, binding)
-        );
+        let retval = try!(self.run_code(process.clone(), code_obj, cc_ptr,
+                                        arguments, binding));
 
         if retval.is_some() {
             write_lock!(process).set_register(register, retval.unwrap());
@@ -1279,16 +1469,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_literal_code(&self, process: RcProcess, code: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_run_literal_code(&self,
+                            process: RcProcess,
+                            code: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_index = try_vm_error!(instruction.arg(1), instruction);
         let receiver = instruction_object!(instruction, process, 2);
         let code_obj = try_vm_error!(code.code_object(code_index), instruction);
 
-        let retval = try!(
-            self.run_code(process.clone(), code_obj, receiver, Vec::new(), None)
-        );
+        let retval = try!(self.run_code(process.clone(), code_obj, receiver,
+                                        Vec::new(), None));
 
         if retval.is_some() {
             write_lock!(process).set_register(register, retval.unwrap());
@@ -1297,8 +1489,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_toplevel(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_get_toplevel(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process).set_register(register, self.top_level.clone());
@@ -1306,8 +1501,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_self(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_get_self(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         let self_object = read_lock!(process).call_frame.self_object();
@@ -1317,8 +1515,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_is_error(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_is_error(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let obj_ptr = instruction_object!(instruction, process, 1);
 
@@ -1327,8 +1528,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = if obj.value.is_error() {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -1337,8 +1537,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_error_to_integer(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_error_to_integer(&self,
+                            process: RcProcess,
+                            _: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let error_ptr = instruction_object!(instruction, process, 1);
 
@@ -1356,43 +1559,61 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_integer_add(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_add(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         integer_op!(self, process, instruction, +);
 
         Ok(())
     }
 
-    fn ins_integer_div(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_div(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         integer_op!(self, process, instruction, /);
 
         Ok(())
     }
 
-    fn ins_integer_mul(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_mul(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         integer_op!(self, process, instruction, *);
 
         Ok(())
     }
 
-    fn ins_integer_sub(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_sub(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         integer_op!(self, process, instruction, -);
 
         Ok(())
     }
 
-    fn ins_integer_mod(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_mod(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         integer_op!(self, process, instruction, %);
 
         Ok(())
     }
 
-    fn ins_integer_to_float(&self, process: RcProcess, _: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_to_float(&self,
+                            process: RcProcess,
+                            _: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let integer_ptr = instruction_object!(instruction, process, 1);
 
@@ -1404,16 +1625,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let result = integer.value.as_integer() as f64;
 
         let obj = write_lock!(process)
-            .allocate(object_value::float(result),
-                      self.float_prototype.clone());
+            .allocate(object_value::float(result), self.float_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_to_string(&self, process: RcProcess, _: RcCompiledCode,
-                             instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_to_string(&self,
+                             process: RcProcess,
+                             _: RcCompiledCode,
+                             instruction: &Instruction)
+                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let integer_ptr = instruction_object!(instruction, process, 1);
 
@@ -1424,80 +1647,105 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = integer.value.as_integer().to_string();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(result),
-                      self.string_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::string(result),
+                                                self.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_and(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_bitwise_and(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         integer_op!(self, process, instruction, &);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_or(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_bitwise_or(&self,
+                              process: RcProcess,
+                              _: RcCompiledCode,
+                              instruction: &Instruction)
+                              -> EmptyResult {
         integer_op!(self, process, instruction, |);
 
         Ok(())
     }
 
-    fn ins_integer_bitwise_xor(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_bitwise_xor(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         integer_op!(self, process, instruction, ^);
 
         Ok(())
     }
 
-    fn ins_integer_shift_left(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_shift_left(&self,
+                              process: RcProcess,
+                              _: RcCompiledCode,
+                              instruction: &Instruction)
+                              -> EmptyResult {
         integer_op!(self, process, instruction, <<);
 
         Ok(())
     }
 
-    fn ins_integer_shift_right(&self, process: RcProcess, _: RcCompiledCode,
-                               instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_shift_right(&self,
+                               process: RcProcess,
+                               _: RcCompiledCode,
+                               instruction: &Instruction)
+                               -> EmptyResult {
         integer_op!(self, process, instruction, >>);
 
         Ok(())
     }
 
-    fn ins_integer_smaller(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_smaller(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         integer_bool_op!(self, process, instruction, <);
 
         Ok(())
     }
 
-    fn ins_integer_greater(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_greater(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         integer_bool_op!(self, process, instruction, >);
 
         Ok(())
     }
 
-    fn ins_integer_equals(&self, process: RcProcess, _: RcCompiledCode,
-                          instruction: &Instruction) -> EmptyResult {
+    fn ins_integer_equals(&self,
+                          process: RcProcess,
+                          _: RcCompiledCode,
+                          instruction: &Instruction)
+                          -> EmptyResult {
         integer_bool_op!(self, process, instruction, ==);
 
         Ok(())
     }
 
-    fn ins_spawn_literal_process(&self, process: RcProcess, code: RcCompiledCode,
-                                 instruction: &Instruction) -> EmptyResult {
+    fn ins_spawn_literal_process(&self,
+                                 process: RcProcess,
+                                 code: RcCompiledCode,
+                                 instruction: &Instruction)
+                                 -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_index = try_vm_error!(instruction.arg(1), instruction);
 
         let isolated = if let Ok(num) = instruction.arg(2) {
             num == 1
-        }
-        else {
+        } else {
             false
         };
 
@@ -1508,8 +1756,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_spawn_process(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_spawn_process(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_ptr = instruction_object!(instruction, process, 1);
 
@@ -1517,8 +1768,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             let isolated_ptr = instruction_object!(instruction, process, 2);
 
             isolated_ptr != self.false_object.clone()
-        }
-        else {
+        } else {
             false
         };
 
@@ -1534,8 +1784,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_send_process_message(&self, process: RcProcess, _: RcCompiledCode,
-                                instruction: &Instruction) -> EmptyResult {
+    fn ins_send_process_message(&self,
+                                process: RcProcess,
+                                _: RcCompiledCode,
+                                instruction: &Instruction)
+                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let pid_ptr = instruction_object!(instruction, process, 1);
         let msg_ptr = instruction_object!(instruction, process, 2);
@@ -1566,8 +1819,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_receive_process_message(&self, process: RcProcess, _: RcCompiledCode,
-                                   instruction: &Instruction) -> EmptyResult {
+    fn ins_receive_process_message(&self,
+                                   process: RcProcess,
+                                   _: RcCompiledCode,
+                                   instruction: &Instruction)
+                                   -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let pid = read_lock!(process).pid;
         let source = read_lock!(self.processes).get(pid).unwrap();
@@ -1579,8 +1835,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_get_current_pid(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_get_current_pid(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let pid = read_lock!(process).pid;
 
@@ -1593,43 +1852,61 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_float_add(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_float_add(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         float_op!(self, process, instruction, +);
 
         Ok(())
     }
 
-    fn ins_float_mul(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_float_mul(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         float_op!(self, process, instruction, *);
 
         Ok(())
     }
 
-    fn ins_float_div(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_float_div(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         float_op!(self, process, instruction, /);
 
         Ok(())
     }
 
-    fn ins_float_sub(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_float_sub(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         float_op!(self, process, instruction, -);
 
         Ok(())
     }
 
-    fn ins_float_mod(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_float_mod(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         float_op!(self, process, instruction, %);
 
         Ok(())
     }
 
-    fn ins_float_to_integer(&self, process: RcProcess, _: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_float_to_integer(&self,
+                            process: RcProcess,
+                            _: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let float_ptr = instruction_object!(instruction, process, 1);
 
@@ -1640,17 +1917,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = float.value.as_float() as i64;
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result),
-                      self.integer_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::integer(result),
+                                                self.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_to_string(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_float_to_string(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let float_ptr = instruction_object!(instruction, process, 1);
 
@@ -1661,38 +1940,49 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = float.value.as_float().to_string();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(result),
-                      self.string_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::string(result),
+                                                self.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_float_smaller(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_float_smaller(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         float_bool_op!(self, process, instruction, <);
 
         Ok(())
     }
 
-    fn ins_float_greater(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_float_greater(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         float_bool_op!(self, process, instruction, >);
 
         Ok(())
     }
 
-    fn ins_float_equals(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_float_equals(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         float_bool_op!(self, process, instruction, ==);
 
         Ok(())
     }
 
-    fn ins_array_insert(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_array_insert(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
         let index_ptr = instruction_object!(instruction, process, 2);
@@ -1722,8 +2012,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_array_at(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_array_at(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
         let index_ptr = instruction_object!(instruction, process, 2);
@@ -1749,8 +2042,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_array_remove(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_array_remove(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
         let index_ptr = instruction_object!(instruction, process, 2);
@@ -1776,8 +2072,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_array_length(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_array_length(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
 
@@ -1789,17 +2088,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let vector = array.value.as_array();
         let length = vector.len() as i64;
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(length),
-                      self.integer_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::integer(length),
+                                                self.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_array_clear(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_array_clear(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         let array_ptr = instruction_object!(instruction, process, 0);
 
         let array_ref = array_ptr.get_mut();
@@ -1814,8 +2115,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_to_lower(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_string_to_lower(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source_ptr = instruction_object!(instruction, process, 1);
 
@@ -1827,16 +2131,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let lower = source.value.as_string().to_lowercase();
 
         let obj = write_lock!(process)
-            .allocate(object_value::string(lower),
-                      self.string_prototype.clone());
+            .allocate(object_value::string(lower), self.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_to_upper(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_string_to_upper(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source_ptr = instruction_object!(instruction, process, 1);
 
@@ -1848,16 +2154,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let upper = source.value.as_string().to_uppercase();
 
         let obj = write_lock!(process)
-            .allocate(object_value::string(upper),
-                      self.string_prototype.clone());
+            .allocate(object_value::string(upper), self.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
-    fn ins_string_equals(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_string_equals(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let arg_ptr = instruction_object!(instruction, process, 2);
@@ -1874,8 +2182,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let boolean = if result {
             self.true_object.clone()
-        }
-        else {
+        } else {
             self.false_object.clone()
         };
 
@@ -1884,8 +2191,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_to_bytes(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_string_to_bytes(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -1894,13 +2204,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto   = self.integer_prototype.clone();
+        let int_proto = self.integer_prototype.clone();
         let array_proto = self.array_prototype.clone();
 
-        let array = arg.value.as_string().as_bytes().iter().map(|&b| {
-            write_lock!(process)
-                .allocate(object_value::integer(b as i64), int_proto.clone())
-        }).collect::<Vec<_>>();
+        let array = arg.value
+            .as_string()
+            .as_bytes()
+            .iter()
+            .map(|&b| {
+                write_lock!(process)
+                    .allocate(object_value::integer(b as i64), int_proto.clone())
+            })
+            .collect::<Vec<_>>();
 
         let obj = write_lock!(process)
             .allocate(object_value::array(array), array_proto);
@@ -1910,8 +2225,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_from_bytes(&self, process: RcProcess, _: RcCompiledCode,
-                             instruction: &Instruction) -> EmptyResult {
+    fn ins_string_from_bytes(&self,
+                             process: RcProcess,
+                             _: RcCompiledCode,
+                             instruction: &Instruction)
+                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -1921,7 +2239,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_arrays!(instruction, arg);
 
         let string_proto = self.string_prototype.clone();
-        let array        = arg.value.as_array();
+        let array = arg.value.as_array();
 
         for int_ptr in array.iter() {
             let int_ref = int_ptr.get();
@@ -1930,11 +2248,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
             ensure_integers!(instruction, int);
         }
 
-        let bytes = arg.value.as_array().iter().map(|ref int_ptr| {
-            let int_ref = int_ptr.get();
+        let bytes = arg.value
+            .as_array()
+            .iter()
+            .map(|ref int_ptr| {
+                let int_ref = int_ptr.get();
 
-            int_ref.get().value.as_integer() as u8
-        }).collect::<Vec<_>>();
+                int_ref.get().value.as_integer() as u8
+            })
+            .collect::<Vec<_>>();
 
         let string = try_error!(try_from_utf8!(bytes), process, register);
 
@@ -1946,8 +2268,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_length(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> EmptyResult {
+    fn ins_string_length(&self,
+                         process: RcProcess,
+                         _: RcCompiledCode,
+                         instruction: &Instruction)
+                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -1967,8 +2292,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_string_size(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> EmptyResult {
+    fn ins_string_size(&self,
+                       process: RcProcess,
+                       _: RcCompiledCode,
+                       instruction: &Instruction)
+                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -1988,8 +2316,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_stdout_write(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_stdout_write(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -2014,8 +2345,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_stderr_write(&self, process: RcProcess, _: RcCompiledCode,
-                        instruction: &Instruction) -> EmptyResult {
+    fn ins_stderr_write(&self,
+                        process: RcProcess,
+                        _: RcCompiledCode,
+                        instruction: &Instruction)
+                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
@@ -2040,8 +2374,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_stdin_read(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_stdin_read(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let proto = self.string_prototype.clone();
 
@@ -2057,8 +2394,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_stdin_read_line(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_stdin_read_line(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let proto = self.string_prototype.clone();
 
@@ -2074,8 +2414,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_open(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_file_open(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let path_ptr = instruction_object!(instruction, process, 1);
         let mode_ptr = instruction_object!(instruction, process, 2);
@@ -2093,13 +2436,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let mut open_opts = OpenOptions::new();
 
         match mode_string {
-            "r"  => open_opts.read(true),
+            "r" => open_opts.read(true),
             "r+" => open_opts.read(true).write(true).truncate(true).create(true),
-            "w"  => open_opts.write(true).truncate(true).create(true),
+            "w" => open_opts.write(true).truncate(true).create(true),
             "w+" => open_opts.read(true).write(true).truncate(true).create(true),
-            "a"  => open_opts.append(true).create(true),
+            "a" => open_opts.append(true).create(true),
             "a+" => open_opts.read(true).append(true).create(true),
-            _    => set_error!(errors::IO_INVALID_OPEN_MODE, process, register)
+            _ => set_error!(errors::IO_INVALID_OPEN_MODE, process, register),
         };
 
         let file = try_io!(open_opts.open(path_string), process, register);
@@ -2112,8 +2455,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_write(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_file_write(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
         let string_ptr = instruction_object!(instruction, process, 2);
@@ -2141,8 +2487,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_read(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_file_read(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
@@ -2165,8 +2514,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_read_line(&self, process: RcProcess, _: RcCompiledCode,
-                          instruction: &Instruction) -> EmptyResult {
+    fn ins_file_read_line(&self,
+                          process: RcProcess,
+                          _: RcCompiledCode,
+                          instruction: &Instruction)
+                          -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
@@ -2199,8 +2551,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_flush(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_file_flush(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
@@ -2218,8 +2573,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_size(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_file_size(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
@@ -2242,8 +2600,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_file_seek(&self, process: RcProcess, _: RcCompiledCode,
-                     instruction: &Instruction) -> EmptyResult {
+    fn ins_file_seek(&self,
+                     process: RcProcess,
+                     _: RcCompiledCode,
+                     instruction: &Instruction)
+                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
         let offset_ptr = instruction_object!(instruction, process, 2);
@@ -2275,8 +2636,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_run_literal_file(&self, process: RcProcess, code: RcCompiledCode,
-                            instruction: &Instruction) -> EmptyResult {
+    fn ins_run_literal_file(&self,
+                            process: RcProcess,
+                            code: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let index = try_vm_error!(instruction.arg(1), instruction);
         let path = try_vm_error!(code.string(index), instruction);
@@ -2284,8 +2648,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.run_file(path, process, instruction, register)
     }
 
-    fn ins_run_file(&self, process: RcProcess, _: RcCompiledCode,
-                    instruction: &Instruction) -> EmptyResult {
+    fn ins_run_file(&self,
+                    process: RcProcess,
+                    _: RcCompiledCode,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let path_ptr = instruction_object!(instruction, process, 1);
 
@@ -2297,8 +2664,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.run_file(path.value.as_string(), process, instruction, register)
     }
 
-    fn ins_get_caller(&self, process: RcProcess, _: RcCompiledCode,
-                      instruction: &Instruction) -> EmptyResult {
+    fn ins_get_caller(&self,
+                      process: RcProcess,
+                      _: RcCompiledCode,
+                      instruction: &Instruction)
+                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         let caller = {
@@ -2306,8 +2676,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             if let Some(parent) = frame.parent() {
                 parent.self_object()
-            }
-            else {
+            } else {
                 frame.self_object()
             }
         };
@@ -2317,8 +2686,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn ins_set_outer_scope(&self, process: RcProcess, _: RcCompiledCode,
-                           instruction: &Instruction) -> EmptyResult {
+    fn ins_set_outer_scope(&self,
+                           process: RcProcess,
+                           _: RcCompiledCode,
+                           instruction: &Instruction)
+                           -> EmptyResult {
         let target_ptr = instruction_object!(instruction, process, 0);
         let scope_ptr = instruction_object!(instruction, process, 1);
 
@@ -2335,16 +2707,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn error(&self, process: RcProcess, error: VirtualMachineError) {
         let mut stderr = io::stderr();
         let ref frame = read_lock!(process).call_frame;
-        let mut message = format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
+        let mut message =
+            format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
 
-        message.push_str(
-            &format!(
-                "{} line {} in <{}>\n",
-                frame.file,
-                error.line,
-                frame.name
-            )
-        );
+        message.push_str(&format!("{} line {} in <{}>\n", frame.file,
+                                  error.line, frame.name));
 
         *write_lock!(self.exit_status) = Err(());
 
@@ -2367,14 +2734,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 code: RcCompiledCode,
                 self_obj: ObjectPointer,
                 args: Vec<ObjectPointer>,
-                binding: Option<RcBinding>) -> ObjectResult {
+                binding: Option<RcBinding>)
+                -> ObjectResult {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
             let frame = if let Some(rc_bind) = binding {
                 CallFrame::from_code_with_binding(code.clone(), rc_bind)
-            }
-            else {
+            } else {
                 CallFrame::from_code(code.clone(), self_obj)
             };
 
@@ -2394,16 +2761,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(return_val)
     }
 
-    fn run_file(&self, path_str: &String, process: RcProcess,
+    fn run_file(&self,
+                path_str: &String,
+                process: RcProcess,
                 instruction: &Instruction,
-                register: usize) -> EmptyResult {
+                register: usize)
+                -> EmptyResult {
         {
             let mut executed = write_lock!(self.executed_files);
 
             if executed.contains(path_str) {
                 return Ok(());
-            }
-            else {
+            } else {
                 executed.insert(path_str.clone());
             }
         }
@@ -2425,10 +2794,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
 
             if !found {
-                return_vm_error!(
-                    format!("No file found for {}", path_str),
-                    instruction.line
-                );
+                return_vm_error!(format!("No file found for {}", path_str),
+                                 instruction.line);
             }
         }
 
@@ -2448,7 +2815,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 }
 
                 Ok(())
-            },
+            }
             Err(err) => {
                 return_vm_error!(
                     format!("Failed to parse {}: {:?}", input_path_str, err),
@@ -2458,8 +2825,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
     }
 
-    fn send_message(&self, name: &String, process: RcProcess,
-                    instruction: &Instruction) -> EmptyResult {
+    fn send_message(&self,
+                    name: &String,
+                    process: RcProcess,
+                    instruction: &Instruction)
+                    -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let allow_private = try_vm_error!(instruction.arg(3), instruction);
@@ -2471,7 +2841,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
             try_vm_error!(
                 receiver_ref.get()
                     .lookup_method(name)
-                    .ok_or_else(|| format!("undefined method \"{}\" called", name)),
+                    .ok_or_else(|| {
+                        format!("undefined method \"{}\" called", name)
+                    }),
                 instruction
             )
         };
@@ -2484,10 +2856,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let method_code = method_obj.value.as_compiled_code();
 
         if method_code.is_private() && allow_private == 0 {
-            return_vm_error!(
-                format!("private method \"{}\" called", name),
-                instruction.line
-            );
+            return_vm_error!(format!("private method \"{}\" called", name),
+                             instruction.line);
         }
 
         // Argument handling
@@ -2530,8 +2900,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                           self.array_prototype.clone());
 
             arguments.push(rest_array);
-        }
-        else if method_code.rest_argument && arguments.len() == 0 {
+        } else if method_code.rest_argument && arguments.len() == 0 {
             let rest_array = write_lock!(process)
                 .allocate(object_value::array(Vec::new()),
                           self.array_prototype.clone());
@@ -2575,8 +2944,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
-    fn collect_arguments(&self, process: RcProcess, instruction: &Instruction,
-                         offset: usize, amount: usize) -> ObjectVecResult {
+    fn collect_arguments(&self,
+                         process: RcProcess,
+                         instruction: &Instruction,
+                         offset: usize,
+                         amount: usize)
+                         -> ObjectVecResult {
         let mut args: Vec<ObjectPointer> = Vec::new();
 
         for index in offset..(offset + amount) {
@@ -2606,8 +2979,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let thread = if isolated {
             self.allocate_isolated_thread(Some(handle))
-        }
-        else {
+        } else {
             self.allocate_thread(Some(handle))
         };
 
@@ -2616,16 +2988,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         thread
     }
 
-    fn spawn_process(&self, process: RcProcess, code: RcCompiledCode, register: usize, isolated: bool) {
-        let (pid, new_proc) = self.allocate_process(code,
-                                                    self.top_level.clone());
+    fn spawn_process(&self,
+                     process: RcProcess,
+                     code: RcCompiledCode,
+                     register: usize,
+                     isolated: bool) {
+        let (pid, new_proc) = self.allocate_process(code, self.top_level.clone());
 
         if isolated {
             let thread = self.start_thread(true);
 
             thread.schedule(new_proc);
-        }
-        else {
+        } else {
             write_lock!(self.threads).schedule(new_proc);
         }
 
@@ -2657,8 +3031,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
                     if reschedule {
                         thread.schedule(process);
-                    }
-                    else {
+                    } else {
                         write_lock!(self.processes).remove(process);
 
                         if thread.is_isolated() {
@@ -2666,7 +3039,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                             break;
                         }
                     }
-                },
+                }
                 // TODO: process supervision
                 Err(message) => {
                     self.error(process, message);

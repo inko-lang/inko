@@ -11,7 +11,7 @@ use object_value::ObjectValue;
 pub struct Object {
     pub prototype: Option<ObjectPointer>,
     pub header: Option<Box<ObjectHeader>>,
-    pub value: ObjectValue
+    pub value: ObjectValue,
 }
 
 impl Object {
@@ -27,7 +27,7 @@ impl Object {
         Object {
             prototype: Some(proto),
             header: None,
-            value: value
+            value: value,
         }
     }
 
@@ -82,7 +82,7 @@ impl Object {
             while opt_parent.is_some() {
                 let parent_ptr = opt_parent.unwrap();
                 let parent_ref = parent_ptr.get();
-                let parent     = parent_ref.get();
+                let parent = parent_ref.get();
 
                 let opt_parent_header = parent.header.as_ref();
 

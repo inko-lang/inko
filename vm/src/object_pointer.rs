@@ -11,7 +11,7 @@ pub type RcRawObjectPointer = Arc<RwLock<RawObjectPointer>>;
 #[derive(Clone)]
 pub enum ObjectPointer {
     Global(RcRawObjectPointer),
-    Local(RawObjectPointer)
+    Local(RawObjectPointer),
 }
 
 unsafe impl Send for ObjectPointer {}
@@ -38,7 +38,7 @@ impl<'a> ObjectRef<'a> {
 
     /// Dereferences an ObjectRef into an &Object
     pub fn get(&self) -> &Object {
-        unsafe { & *(**self as *const Object) }
+        unsafe { &*(**self as *const Object) }
     }
 
     /// Dereferences an ObjectRef into an &mut Object
@@ -52,9 +52,9 @@ impl<'a> Deref for ObjectRef<'a> {
 
     fn deref(&self) -> &RawObjectPointer {
         match *self {
-            ObjectRef::Global(ref ptr)    => ptr,
+            ObjectRef::Global(ref ptr) => ptr,
             ObjectRef::GlobalMut(ref ptr) => ptr,
-            ObjectRef::Local(ref ptr)     => ptr
+            ObjectRef::Local(ref ptr) => ptr,
         }
     }
 }
@@ -71,14 +71,14 @@ impl ObjectPointer {
     pub fn is_global(&self) -> bool {
         match *self {
             ObjectPointer::Global(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_local(&self) -> bool {
         match *self {
             ObjectPointer::Local(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -87,8 +87,8 @@ impl ObjectPointer {
         match *self {
             ObjectPointer::Global(ref arc) => {
                 ObjectRef::Global(arc.read().unwrap())
-            },
-            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr)
+            }
+            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr),
         }
     }
 
@@ -97,8 +97,8 @@ impl ObjectPointer {
         match *self {
             ObjectPointer::Global(ref arc) => {
                 ObjectRef::GlobalMut(arc.write().unwrap())
-            },
-            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr)
+            }
+            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr),
         }
     }
 }

@@ -23,7 +23,7 @@ pub type RcCompiledCode = Arc<CompiledCode>;
 /// Enum indicating the visibility of a method.
 pub enum Visibility {
     Public,
-    Private
+    Private,
 }
 
 /// Structure for storing compiled code information.
@@ -67,7 +67,7 @@ pub struct CompiledCode {
     /// Extra CompiledCode objects to associate with the current one. This can
     /// be used to store CompiledCode objects for every method in a class in the
     /// CompiledCode object of said class.
-    pub code_objects: Vec<RcCompiledCode>
+    pub code_objects: Vec<RcCompiledCode>,
 }
 
 unsafe impl Sync for CompiledCode {}
@@ -80,8 +80,11 @@ impl CompiledCode {
     ///
     ///     let code = CompiledCode::new("(main)", "test.aeon", 1, vec![...]);
     ///
-    pub fn new(name: String, file: String, line: u32,
-               instructions: Vec<Instruction>) -> CompiledCode {
+    pub fn new(name: String,
+               file: String,
+               line: u32,
+               instructions: Vec<Instruction>)
+               -> CompiledCode {
         CompiledCode {
             name: name,
             file: file,
@@ -95,13 +98,16 @@ impl CompiledCode {
             integer_literals: Vec::new(),
             float_literals: Vec::new(),
             string_literals: Vec::new(),
-            code_objects: Vec::new()
+            code_objects: Vec::new(),
         }
     }
 
     /// Creates a new reference counted CompiledCode.
-    pub fn with_rc(name: String, file: String, line: u32,
-               instructions: Vec<Instruction>) -> RcCompiledCode {
+    pub fn with_rc(name: String,
+                   file: String,
+                   line: u32,
+                   instructions: Vec<Instruction>)
+                   -> RcCompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
     }
 
@@ -109,7 +115,7 @@ impl CompiledCode {
     pub fn is_private(&self) -> bool {
         match self.visibility {
             Visibility::Private => true,
-            _                         => false
+            _ => false,
         }
     }
 
@@ -147,8 +153,7 @@ mod tests {
     fn new_compiled_code() -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1, 1);
 
-        CompiledCode
-            ::new("foo".to_string(), "bar.aeon".to_string(), 1, vec![ins])
+        CompiledCode::new("foo".to_string(), "bar.aeon".to_string(), 1, vec![ins])
     }
 
     #[test]
