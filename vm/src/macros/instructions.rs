@@ -10,9 +10,9 @@ macro_rules! run {
 /// Returns an RcObject from a thread using an instruction argument.
 macro_rules! instruction_object {
     ($ins: expr, $process: expr, $index: expr) => ({
-        let index = try!($ins.arg($index));
+        let index = try_vm_error!($ins.arg($index), $ins);
         let lock = read_lock!($process);
 
-        try!(lock.get_register(index))
+        try_vm_error!(lock.get_register(index), $ins)
     });
 }

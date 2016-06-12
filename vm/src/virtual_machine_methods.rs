@@ -3,6 +3,7 @@ use compiled_code::RcCompiledCode;
 use instruction::Instruction;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
+use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
 use thread::RcThread;
 
@@ -1775,14 +1776,14 @@ pub trait VirtualMachineMethods {
         -> EmptyResult;
 
     /// Prints a VM backtrace of a given thread with a message.
-    fn error(&self, RcProcess, String);
+    fn error(&self, RcProcess, VirtualMachineError);
 
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcProcess, RcCompiledCode, ObjectPointer, Vec<ObjectPointer>,
                 Option<RcBinding>) -> OptionObjectResult;
 
     /// Runs a bytecode file.
-    fn run_file(&self, &String, RcProcess, usize) -> EmptyResult;
+    fn run_file(&self, &String, RcProcess, &Instruction, usize) -> EmptyResult;
 
     /// Sends a message to an object
     fn send_message(&self, &String, RcProcess, &Instruction) -> EmptyResult;

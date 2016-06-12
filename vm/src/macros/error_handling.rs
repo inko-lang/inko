@@ -12,6 +12,18 @@ macro_rules! set_error {
     });
 }
 
+macro_rules! return_vm_error {
+    ($message: expr, $line: expr) => (
+        return Err(VirtualMachineError::new($message, $line))
+    )
+}
+
+macro_rules! try_vm_error {
+    ($expr: expr, $ins: expr) => (
+        try!($expr.map_err(|err| VirtualMachineError::new(err, $ins.line)));
+    );
+}
+
 /// Returns a Result's OK value or stores the error in a register.
 macro_rules! try_error {
     ($expr: expr, $process: expr, $register: expr) => (
@@ -40,7 +52,7 @@ macro_rules! try_from_utf8 {
 macro_rules! constant_error {
     ($reg: expr, $name: expr) => (
         format!(
-            "The object in register {} does not define the constant \"{}\"",
+            "the object in register {} does not define the constant \"{}\"",
             $reg,
             $name
         )
@@ -50,7 +62,7 @@ macro_rules! constant_error {
 macro_rules! attribute_error {
     ($reg: expr, $name: expr) => (
         format!(
-            "The object in register {} does not define the attribute \"{}\"",
+            "the object in register {} does not define the attribute \"{}\"",
             $reg,
             $name
         );

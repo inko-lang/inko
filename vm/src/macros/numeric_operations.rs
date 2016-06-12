@@ -6,7 +6,7 @@ macro_rules! to_expr {
 
 macro_rules! num_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt, $tname: ident, $as_name: ident, $ensure: ident, $proto: ident) => ({
-        let register = try!($ins.arg(0));
+        let register = try_vm_error!($ins.arg(0), $ins);
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);
 
@@ -16,7 +16,7 @@ macro_rules! num_op {
         let arg_ref = arg_ptr.get();
         let arg = arg_ref.get();
 
-        $ensure!(receiver, arg);
+        $ensure!($ins, receiver, arg);
 
         let result = to_expr!(receiver.value.$as_name() $op arg.value.$as_name());
 
@@ -29,7 +29,7 @@ macro_rules! num_op {
 
 macro_rules! num_bool_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident, $ensure: ident) => ({
-        let register = try!($ins.arg(0));
+        let register = try_vm_error!($ins.arg(0), $ins);
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);
 
@@ -39,7 +39,7 @@ macro_rules! num_bool_op {
         let arg_ref = arg_ptr.get();
         let arg = arg_ref.get();
 
-        $ensure!(receiver, arg);
+        $ensure!($ins, receiver, arg);
 
         let result = to_expr!(receiver.value.$as_name() $op arg.value.$as_name());
 

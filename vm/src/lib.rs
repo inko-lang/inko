@@ -1,6 +1,3 @@
-#![feature(alloc_system)]
-extern crate alloc_system;
-
 pub mod macros;
 
 pub mod binding;
@@ -22,5 +19,6 @@ pub mod process_list;
 pub mod thread;
 pub mod thread_list;
 pub mod virtual_machine;
+pub mod virtual_machine_error;
 pub mod virtual_machine_methods;
 pub mod virtual_machine_result;
