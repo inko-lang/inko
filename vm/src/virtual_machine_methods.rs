@@ -24,7 +24,7 @@ pub trait VirtualMachineMethods {
     /// The return value is whatever the last CompiledCode returned (if
     /// anything). Values are only returned when a CompiledCode ends with a
     /// "return" instruction.
-    fn run(&self, RcProcess, RcCompiledCode) -> OptionObjectResult;
+    fn run(&self, RcProcess, RcCompiledCode) -> ObjectResult;
 
     /// Sets an integer in a register.
     ///
@@ -526,7 +526,7 @@ pub trait VirtualMachineMethods {
     ///     0: set_integer 0, 0
     ///     1: return      0
     fn ins_return(&self, RcProcess, RcCompiledCode, &Instruction)
-        -> OptionObjectResult;
+        -> ObjectResult;
 
     /// Jumps to an instruction if a register is not set or set to false.
     ///
@@ -547,7 +547,7 @@ pub trait VirtualMachineMethods {
     ///
     /// Here register "0" would be set to "20".
     fn ins_goto_if_false(&self, RcProcess, RcCompiledCode, &Instruction)
-        -> OptionIntegerResult;
+        -> IntegerResult;
 
     /// Jumps to an instruction if a register is set.
     ///
@@ -568,7 +568,7 @@ pub trait VirtualMachineMethods {
     ///
     /// Here register "0" would be set to "10".
     fn ins_goto_if_true(&self, RcProcess, RcCompiledCode, &Instruction)
-        -> OptionIntegerResult;
+        -> IntegerResult;
 
     /// Jumps to a specific instruction.
     ///
@@ -1780,7 +1780,7 @@ pub trait VirtualMachineMethods {
 
     /// Runs a given CompiledCode with arguments.
     fn run_code(&self, RcProcess, RcCompiledCode, ObjectPointer, Vec<ObjectPointer>,
-                Option<RcBinding>) -> OptionObjectResult;
+                Option<RcBinding>) -> ObjectResult;
 
     /// Runs a bytecode file.
     fn run_file(&self, &String, RcProcess, &Instruction, usize) -> EmptyResult;

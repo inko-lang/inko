@@ -157,7 +157,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         *read_lock!(self.exit_status)
     }
 
-    fn run(&self, process: RcProcess, code: RcCompiledCode) -> OptionObjectResult {
+    fn run(&self, process: RcProcess, code: RcCompiledCode) -> ObjectResult {
         if read_lock!(process).reductions_exhausted() {
             return Ok(None);
         }
@@ -318,7 +318,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                       instruction);
                 },
                 InstructionType::Goto => {
-                    index = run!(self, ins_goto, process, code, instruction);
+                    index = run!(self, ins_goto, process, code, instruction)
+                        .unwrap();
                 },
                 InstructionType::DefMethod => {
                     run!(self, ins_def_method, process, code, instruction);
@@ -1111,14 +1112,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn ins_return(&self, process: RcProcess, _: RcCompiledCode,
-                  instruction: &Instruction) -> OptionObjectResult {
+                  instruction: &Instruction) -> ObjectResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         Ok(read_lock!(process).get_register_option(register))
     }
 
     fn ins_goto_if_false(&self, process: RcProcess, _: RcCompiledCode,
-                         instruction: &Instruction) -> OptionIntegerResult {
+                         instruction: &Instruction) -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
         let value = read_lock!(process).get_register_option(value_reg);
@@ -1139,7 +1140,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
     }
 
     fn ins_goto_if_true(&self, process: RcProcess, _: RcCompiledCode,
-                       instruction: &Instruction) -> OptionIntegerResult {
+                       instruction: &Instruction) -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
         let value = read_lock!(process).get_register_option(value_reg);
@@ -1163,7 +1164,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 instruction: &Instruction) -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
 
-        Ok(go_to)
+        Ok(Some(go_to))
     }
 
     fn ins_def_method(&self, process: RcProcess, _: RcCompiledCode,
@@ -2366,7 +2367,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 code: RcCompiledCode,
                 self_obj: ObjectPointer,
                 args: Vec<ObjectPointer>,
-                binding: Option<RcBinding>) -> OptionObjectResult {
+                binding: Option<RcBinding>) -> ObjectResult {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
