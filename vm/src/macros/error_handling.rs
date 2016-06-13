@@ -52,7 +52,7 @@ macro_rules! try_from_utf8 {
 macro_rules! constant_error {
     ($reg: expr, $name: expr) => (
         format!(
-            "the object in register {} does not define the constant \"{}\"",
+            "The object in register {} does not define the constant \"{}\"",
             $reg,
             $name
         )
@@ -62,7 +62,7 @@ macro_rules! constant_error {
 macro_rules! attribute_error {
     ($reg: expr, $name: expr) => (
         format!(
-            "the object in register {} does not define the attribute \"{}\"",
+            "The object in register {} does not define the attribute \"{}\"",
             $reg,
             $name
         );

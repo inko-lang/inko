@@ -2856,7 +2856,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let method_code = method_obj.value.as_compiled_code();
 
         if method_code.is_private() && allow_private == 0 {
-            return_vm_error!(format!("private method \"{}\" called", name),
+            return_vm_error!(format!("Private method \"{}\" called", name),
                              instruction.line);
         }
 
