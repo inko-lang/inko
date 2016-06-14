@@ -3040,7 +3040,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
 
             let process = thread.pop_process();
-            let code = read_lock!(process).compiled_code.clone();
+            let code = read_lock!(process).compiled_code();
 
             match self.run(process.clone(), code) {
                 Ok(_) => {

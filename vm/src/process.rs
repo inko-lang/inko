@@ -28,7 +28,6 @@ pub struct Process {
     pub young_heap: Option<Box<Heap>>,
     pub mature_heap: Option<Box<Heap>>,
     pub status: ProcessStatus,
-    pub compiled_code: RcCompiledCode,
     pub call_frame: CallFrame,
     pub scope: Scope,
     pub reductions: usize,
@@ -36,18 +35,13 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn new(pid: usize,
-               call_frame: CallFrame,
-               scope: Scope,
-               code: RcCompiledCode)
-               -> RcProcess {
+    pub fn new(pid: usize, call_frame: CallFrame, scope: Scope) -> RcProcess {
         let task = Process {
             pid: pid,
             eden_heap: Heap::local(),
             young_heap: None,
             mature_heap: None,
             status: ProcessStatus::Scheduled,
-            compiled_code: code,
             call_frame: call_frame,
             scope: scope,
             reductions: REDUCTION_COUNT,
@@ -64,7 +58,7 @@ impl Process {
         let frame = CallFrame::from_code(code.clone());
         let scope = Scope::with_object(self_obj);
 
-        Process::new(pid, frame, scope, code)
+        Process::new(pid, frame, scope)
     }
 
     pub fn push_call_frame(&mut self, mut frame: CallFrame) {
@@ -197,5 +191,9 @@ impl Process {
 
     pub fn self_object(&self) -> ObjectPointer {
         self.scope.self_object()
+    }
+
+    pub fn compiled_code(&self) -> RcCompiledCode {
+        self.call_frame.code.clone()
     }
 }
