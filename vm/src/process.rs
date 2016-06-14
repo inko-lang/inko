@@ -1,5 +1,7 @@
 use std::mem;
+use std::sync::{Arc, RwLock};
 
+use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use heap::Heap;
@@ -7,7 +9,7 @@ use inbox::{Inbox, RcInbox};
 use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
-use std::sync::{Arc, RwLock};
+use scope::Scope;
 
 const REDUCTION_COUNT: usize = 2000;
 
@@ -28,6 +30,7 @@ pub struct Process {
     pub status: ProcessStatus,
     pub compiled_code: RcCompiledCode,
     pub call_frame: CallFrame,
+    pub scope: Scope,
     pub reductions: usize,
     pub inbox: Option<RcInbox>,
 }
@@ -35,6 +38,7 @@ pub struct Process {
 impl Process {
     pub fn new(pid: usize,
                call_frame: CallFrame,
+               scope: Scope,
                code: RcCompiledCode)
                -> RcProcess {
         let task = Process {
@@ -45,6 +49,7 @@ impl Process {
             status: ProcessStatus::Scheduled,
             compiled_code: code,
             call_frame: call_frame,
+            scope: scope,
             reductions: REDUCTION_COUNT,
             inbox: None,
         };
@@ -56,9 +61,10 @@ impl Process {
                      code: RcCompiledCode,
                      self_obj: ObjectPointer)
                      -> RcProcess {
-        let frame = CallFrame::from_code(code.clone(), self_obj);
+        let frame = CallFrame::from_code(code.clone());
+        let scope = Scope::with_object(self_obj);
 
-        Process::new(pid, frame, code)
+        Process::new(pid, frame, scope, code)
     }
 
     pub fn push_call_frame(&mut self, mut frame: CallFrame) {
@@ -75,35 +81,57 @@ impl Process {
         self.call_frame = *parent;
     }
 
+    /// Pushes a new scope and call frame onto the process.
+    pub fn push_scope(&mut self, frame: CallFrame, mut scope: Scope) {
+        {
+            let ref mut target = self.scope;
+
+            mem::swap(target, &mut scope);
+
+            target.set_parent(scope);
+        }
+
+        self.push_call_frame(frame);
+    }
+
+    /// Pops a scope and call frame from the current process.
+    pub fn pop_scope(&mut self) {
+        let parent = self.scope.parent.take().unwrap();
+
+        self.scope = *parent;
+
+        self.pop_call_frame();
+    }
+
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
-        self.call_frame
+        self.scope
             .register
             .get(register)
             .ok_or_else(|| format!("Undefined object in register {}", register))
     }
 
     pub fn get_register_option(&self, register: usize) -> Option<ObjectPointer> {
-        self.call_frame.register.get(register)
+        self.scope.register.get(register)
     }
 
     pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
-        self.call_frame.register.set(register, value);
+        self.scope.register.set(register, value);
     }
 
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        let mut binding = write_lock!(self.call_frame.binding);
+        let mut binding = write_lock!(self.scope.binding);
 
         binding.variables.insert(index, value);
     }
 
     pub fn add_local(&self, value: ObjectPointer) {
-        let mut binding = write_lock!(self.call_frame.binding);
+        let mut binding = write_lock!(self.scope.binding);
 
         binding.variables.push(value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
-        let binding = read_lock!(self.call_frame.binding);
+        let binding = read_lock!(self.scope.binding);
 
         binding.variables
             .get(index)
@@ -112,7 +140,7 @@ impl Process {
     }
 
     pub fn local_exists(&self, index: usize) -> bool {
-        let binding = read_lock!(self.call_frame.binding);
+        let binding = read_lock!(self.scope.binding);
 
         binding.variables.get(index).is_some()
     }
@@ -161,5 +189,13 @@ impl Process {
             ProcessStatus::Suspended => true,
             _ => false,
         }
+    }
+
+    pub fn binding(&self) -> RcBinding {
+        self.scope.binding.clone()
+    }
+
+    pub fn self_object(&self) -> ObjectPointer {
+        self.scope.self_object()
     }
 }

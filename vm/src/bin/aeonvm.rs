@@ -63,6 +63,8 @@ fn main() {
         println!("Process: {} bytes",
                  mem::size_of::<libaeon::process::Process>());
 
+        println!("Scope: {} bytes", mem::size_of::<libaeon::scope::Scope>());
+
         println!("Thread: {} bytes",
                  mem::size_of::<libaeon::thread::Thread>());
 

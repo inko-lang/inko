@@ -22,6 +22,7 @@ use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
 use process::{RcProcess, Process};
 use process_list::ProcessList;
+use scope::Scope;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
 
@@ -888,11 +889,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                        instruction: &Instruction)
                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let ref frame = read_lock!(process).call_frame;
+        let binding = read_lock!(process).binding();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::binding(frame.binding.clone()),
-                      self.binding_prototype.clone());
+        let obj = write_lock!(process).allocate(object_value::binding(binding),
+                                                self.binding_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
@@ -1508,7 +1508,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        let self_object = read_lock!(process).call_frame.self_object();
+        let self_object = read_lock!(process).self_object();
 
         write_lock!(process).set_register(register, self_object);
 
@@ -2672,12 +2672,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         let caller = {
-            let ref frame = read_lock!(process).call_frame;
+            let ref scope = read_lock!(process).scope;
 
-            if let Some(parent) = frame.parent() {
+            if let Some(parent) = scope.parent() {
                 parent.self_object()
             } else {
-                frame.self_object()
+                scope.self_object()
             }
         };
 
@@ -2739,15 +2739,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            let frame = if let Some(rc_bind) = binding {
-                CallFrame::from_code_with_binding(code.clone(), rc_bind)
+            let frame = CallFrame::from_code(code.clone());
+
+            let scope = if let Some(rc_bind) = binding {
+                Scope::new(rc_bind)
             } else {
-                CallFrame::from_code(code.clone(), self_obj)
+                Scope::with_object(self_obj)
             };
 
             let mut plock = write_lock!(process);
 
-            plock.push_call_frame(frame);
+            plock.push_scope(frame, scope);
 
             for arg in args.iter() {
                 plock.add_local(arg.clone());
@@ -2756,7 +2758,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let return_val = try!(self.run(process.clone(), code));
 
-        write_lock!(process).pop_call_frame();
+        write_lock!(process).pop_scope();
 
         Ok(return_val)
     }

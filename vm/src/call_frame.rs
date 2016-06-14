@@ -5,10 +5,7 @@
 //! scope. This makes it easy to remove those values again when unwinding the
 //! call stack: simply remove the CallFrame and everything else is also removed.
 
-use binding::{Binding, RcBinding};
 use compiled_code::RcCompiledCode;
-use object_pointer::ObjectPointer;
-use register::Register;
 
 /// Structure for storing call frame data.
 pub struct CallFrame {
@@ -20,44 +17,21 @@ pub struct CallFrame {
 
     /// An optional parent CallFrame.
     pub parent: Option<Box<CallFrame>>,
-
-    /// Register for storing temporary values.
-    pub register: Register,
-
-    pub binding: RcBinding,
 }
 
 impl CallFrame {
     /// Creates a new CallFrame.
-    pub fn new(code: RcCompiledCode,
-               line: u32,
-               self_obj: ObjectPointer)
-               -> CallFrame {
+    pub fn new(code: RcCompiledCode, line: u32) -> CallFrame {
         CallFrame {
             code: code,
             line: line,
             parent: None,
-            register: Register::new(),
-            binding: Binding::new(self_obj),
         }
     }
 
     /// Creates a new CallFrame from a CompiledCode
-    pub fn from_code(code: RcCompiledCode, self_obj: ObjectPointer) -> CallFrame {
-        CallFrame::new(code.clone(), code.line, self_obj)
-    }
-
-    /// Creates a new CallFrame from a CompiledCode and a Binding.
-    pub fn from_code_with_binding(code: RcCompiledCode,
-                                  binding: RcBinding)
-                                  -> CallFrame {
-        CallFrame {
-            code: code.clone(),
-            line: code.line,
-            parent: None,
-            register: Register::new(),
-            binding: binding,
-        }
+    pub fn from_code(code: RcCompiledCode) -> CallFrame {
+        CallFrame::new(code.clone(), code.line)
     }
 
     pub fn name(&self) -> &String {
@@ -101,18 +75,12 @@ impl CallFrame {
             closure(frame);
         }
     }
-
-    pub fn self_object(&self) -> ObjectPointer {
-        read_lock!(self.binding).self_object.clone()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
     use compiled_code::{CompiledCode, RcCompiledCode};
-    use heap::Heap;
 
     fn compiled_code() -> RcCompiledCode {
         CompiledCode::with_rc("foo".to_string(),
@@ -123,11 +91,8 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let mut heap = Heap::local();
-        let obj = heap.allocate_empty();
-
         let code = compiled_code();
-        let frame = CallFrame::new(code, 1, obj);
+        let frame = CallFrame::new(code, 1);
 
         assert_eq!(frame.name(), &"foo".to_string());
         assert_eq!(frame.file(), &"test.aeon".to_string());
@@ -136,25 +101,8 @@ mod tests {
 
     #[test]
     fn test_from_code() {
-        let mut heap = Heap::local();
-        let obj = heap.allocate_empty();
-
         let code = compiled_code();
-        let frame = CallFrame::from_code(code, obj);
-
-        assert_eq!(frame.name(), &"foo".to_string());
-        assert_eq!(frame.file(), &"test.aeon".to_string());
-        assert_eq!(frame.line, 1);
-    }
-
-    #[test]
-    fn test_from_code_with_binding() {
-        let mut heap = Heap::local();
-        let obj = heap.allocate_empty();
-
-        let binding = Binding::new(obj);
-        let code = compiled_code();
-        let frame = CallFrame::from_code_with_binding(code, binding);
+        let frame = CallFrame::from_code(code);
 
         assert_eq!(frame.name(), &"foo".to_string());
         assert_eq!(frame.file(), &"test.aeon".to_string());
@@ -163,12 +111,9 @@ mod tests {
 
     #[test]
     fn test_set_parent() {
-        let mut heap = Heap::local();
-        let obj = heap.allocate_empty();
-
         let code = compiled_code();
-        let frame1 = CallFrame::new(code.clone(), 1, obj.clone());
-        let mut frame2 = CallFrame::new(code, 1, obj);
+        let frame1 = CallFrame::new(code.clone(), 1);
+        let mut frame2 = CallFrame::new(code, 1);
 
         frame2.set_parent(frame1);
 
@@ -177,12 +122,9 @@ mod tests {
 
     #[test]
     fn test_each_frame() {
-        let mut heap = Heap::local();
-        let obj = heap.allocate_empty();
-
         let code = compiled_code();
-        let frame1 = CallFrame::new(code.clone(), 1, obj.clone());
-        let mut frame2 = CallFrame::new(code, 1, obj);
+        let frame1 = CallFrame::new(code.clone(), 1);
+        let mut frame2 = CallFrame::new(code, 1);
 
         let mut names: Vec<String> = vec![];
 
