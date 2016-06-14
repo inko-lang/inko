@@ -81,26 +81,18 @@ impl Process {
         self.call_frame = *parent;
     }
 
-    /// Pushes a new scope and call frame onto the process.
-    pub fn push_scope(&mut self, frame: CallFrame, mut scope: Scope) {
-        {
-            let ref mut target = self.scope;
+    pub fn push_scope(&mut self, mut scope: Scope) {
+        let ref mut target = self.scope;
 
-            mem::swap(target, &mut scope);
+        mem::swap(target, &mut scope);
 
-            target.set_parent(scope);
-        }
-
-        self.push_call_frame(frame);
+        target.set_parent(scope);
     }
 
-    /// Pops a scope and call frame from the current process.
     pub fn pop_scope(&mut self) {
         let parent = self.scope.parent.take().unwrap();
 
         self.scope = *parent;
-
-        self.pop_call_frame();
     }
 
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
@@ -189,6 +181,14 @@ impl Process {
             ProcessStatus::Suspended => true,
             _ => false,
         }
+    }
+
+    /// Adds a new call frame pointing to the given line number.
+    pub fn advance_line(&mut self, line: u32) {
+        let code = self.call_frame.code.clone();
+        let frame = CallFrame::new(code, line);
+
+        self.push_call_frame(frame);
     }
 
     pub fn binding(&self) -> RcBinding {

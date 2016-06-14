@@ -9,7 +9,6 @@ use std::sync::mpsc::channel;
 
 use binding::RcBinding;
 use bytecode_parser;
-use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use errors;
@@ -1417,6 +1416,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     _: RcCompiledCode,
                     instruction: &Instruction)
                     -> EmptyResult {
+        write_lock!(process).advance_line(instruction.line);
+
         let register = try_vm_error!(instruction.arg(0), instruction);
         let cc_ptr = instruction_object!(instruction, process, 1);
         let arg_ptr = instruction_object!(instruction, process, 2);
@@ -1466,6 +1467,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
             write_lock!(process).set_register(register, retval.unwrap());
         }
 
+        write_lock!(process).pop_call_frame();
+
         Ok(())
     }
 
@@ -1474,6 +1477,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                             code: RcCompiledCode,
                             instruction: &Instruction)
                             -> EmptyResult {
+        write_lock!(process).advance_line(instruction.line);
+
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_index = try_vm_error!(instruction.arg(1), instruction);
         let receiver = instruction_object!(instruction, process, 2);
@@ -1485,6 +1490,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         if retval.is_some() {
             write_lock!(process).set_register(register, retval.unwrap());
         }
+
+        write_lock!(process).pop_call_frame();
 
         Ok(())
     }
@@ -2739,8 +2746,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         // Scoped so the the RwLock is local to the block, allowing recursive
         // calling of the "run" method.
         {
-            let frame = CallFrame::from_code(code.clone());
-
             let scope = if let Some(rc_bind) = binding {
                 Scope::new(rc_bind)
             } else {
@@ -2749,7 +2754,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             let mut plock = write_lock!(process);
 
-            plock.push_scope(frame, scope);
+            plock.push_scope(scope);
 
             for arg in args.iter() {
                 plock.add_local(arg.clone());
@@ -2769,6 +2774,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 instruction: &Instruction,
                 register: usize)
                 -> EmptyResult {
+        write_lock!(process).advance_line(instruction.line);
+
         {
             let mut executed = write_lock!(self.executed_files);
 
@@ -2816,6 +2823,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     write_lock!(process).set_register(register, res.unwrap());
                 }
 
+                write_lock!(process).pop_call_frame();
+
                 Ok(())
             }
             Err(err) => {
@@ -2832,6 +2841,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     process: RcProcess,
                     instruction: &Instruction)
                     -> EmptyResult {
+        // Advance the line number so error messages contain the correct frame
+        // pointing to the call site.
+        write_lock!(process).advance_line(instruction.line);
+
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let allow_private = try_vm_error!(instruction.arg(3), instruction);
@@ -2942,6 +2955,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         if retval.is_some() {
             write_lock!(process).set_register(register, retval.unwrap());
         }
+
+        // Pop the frame added at the very start
+        write_lock!(process).pop_call_frame();
 
         Ok(())
     }
