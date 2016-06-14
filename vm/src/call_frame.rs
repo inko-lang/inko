@@ -12,11 +12,8 @@ use register::Register;
 
 /// Structure for storing call frame data.
 pub struct CallFrame {
-    /// The name of the CallFrame, usually the same as the method name.
-    pub name: String,
-
-    /// The full path to the file being executed.
-    pub file: String,
+    /// The CompiledCode this frame belongs to.
+    pub code: RcCompiledCode,
 
     /// The line number being executed.
     pub line: u32,
@@ -31,21 +28,13 @@ pub struct CallFrame {
 }
 
 impl CallFrame {
-    /// Creates a basic CallFrame with only details such as the name, file and
-    /// line number set.
-    ///
-    /// # Examples
-    ///
-    ///     let frame = CallFrame::new("(main)", "main.aeon", 1);
-    ///
-    pub fn new(name: String,
-               file: String,
+    /// Creates a new CallFrame.
+    pub fn new(code: RcCompiledCode,
                line: u32,
                self_obj: ObjectPointer)
                -> CallFrame {
         CallFrame {
-            name: name,
-            file: file,
+            code: code,
             line: line,
             parent: None,
             register: Register::new(),
@@ -55,20 +44,28 @@ impl CallFrame {
 
     /// Creates a new CallFrame from a CompiledCode
     pub fn from_code(code: RcCompiledCode, self_obj: ObjectPointer) -> CallFrame {
-        CallFrame::new(code.name.clone(), code.file.clone(), code.line, self_obj)
+        CallFrame::new(code.clone(), code.line, self_obj)
     }
 
+    /// Creates a new CallFrame from a CompiledCode and a Binding.
     pub fn from_code_with_binding(code: RcCompiledCode,
                                   binding: RcBinding)
                                   -> CallFrame {
         CallFrame {
-            name: code.name.clone(),
-            file: code.file.clone(),
+            code: code.clone(),
             line: code.line,
             parent: None,
             register: Register::new(),
             binding: binding,
         }
+    }
+
+    pub fn name(&self) -> &String {
+        &self.code.name
+    }
+
+    pub fn file(&self) -> &String {
+        &self.code.file
     }
 
     /// Boxes and sets the current frame's parent.
@@ -113,51 +110,65 @@ impl CallFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiled_code::CompiledCode;
+    use binding::Binding;
+    use compiled_code::{CompiledCode, RcCompiledCode};
     use heap::Heap;
+
+    fn compiled_code() -> RcCompiledCode {
+        CompiledCode::with_rc("foo".to_string(),
+                              "test.aeon".to_string(),
+                              1,
+                              vec![])
+    }
 
     #[test]
     fn test_new() {
-        let mut heap = Heap::new();
-        let obj = heap.allocate_empty_global();
+        let mut heap = Heap::local();
+        let obj = heap.allocate_empty();
 
-        let frame =
-            CallFrame::new("foo".to_string(), "test.aeon".to_string(), 1, obj);
+        let code = compiled_code();
+        let frame = CallFrame::new(code, 1, obj);
 
-        assert_eq!(frame.name, "foo".to_string());
-        assert_eq!(frame.file, "test.aeon".to_string());
+        assert_eq!(frame.name(), &"foo".to_string());
+        assert_eq!(frame.file(), &"test.aeon".to_string());
         assert_eq!(frame.line, 1);
     }
 
     #[test]
     fn test_from_code() {
-        let mut heap = Heap::new();
-        let obj = heap.allocate_empty_global();
+        let mut heap = Heap::local();
+        let obj = heap.allocate_empty();
 
-        let code = CompiledCode::with_rc("foo".to_string(),
-                                         "test.aeon".to_string(),
-                                         1,
-                                         vec![]);
-
+        let code = compiled_code();
         let frame = CallFrame::from_code(code, obj);
 
-        assert_eq!(frame.name, "foo".to_string());
-        assert_eq!(frame.file, "test.aeon".to_string());
+        assert_eq!(frame.name(), &"foo".to_string());
+        assert_eq!(frame.file(), &"test.aeon".to_string());
+        assert_eq!(frame.line, 1);
+    }
+
+    #[test]
+    fn test_from_code_with_binding() {
+        let mut heap = Heap::local();
+        let obj = heap.allocate_empty();
+
+        let binding = Binding::new(obj);
+        let code = compiled_code();
+        let frame = CallFrame::from_code_with_binding(code, binding);
+
+        assert_eq!(frame.name(), &"foo".to_string());
+        assert_eq!(frame.file(), &"test.aeon".to_string());
         assert_eq!(frame.line, 1);
     }
 
     #[test]
     fn test_set_parent() {
-        let mut heap = Heap::new();
-        let obj = heap.allocate_empty_global();
+        let mut heap = Heap::local();
+        let obj = heap.allocate_empty();
 
-        let frame1 = CallFrame::new("foo".to_string(),
-                                    "test.aeon".to_string(),
-                                    1,
-                                    obj.clone());
-
-        let mut frame2 =
-            CallFrame::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
+        let code = compiled_code();
+        let frame1 = CallFrame::new(code.clone(), 1, obj.clone());
+        let mut frame2 = CallFrame::new(code, 1, obj);
 
         frame2.set_parent(frame1);
 
@@ -166,26 +177,20 @@ mod tests {
 
     #[test]
     fn test_each_frame() {
-        let mut heap = Heap::new();
-        let obj = heap.allocate_empty_global();
+        let mut heap = Heap::local();
+        let obj = heap.allocate_empty();
 
-        let frame1 = CallFrame::new("foo".to_string(),
-                                    "test.aeon".to_string(),
-                                    1,
-                                    obj.clone());
-
-        let mut frame2 =
-            CallFrame::new("bar".to_string(), "baz.aeon".to_string(), 1, obj);
+        let code = compiled_code();
+        let frame1 = CallFrame::new(code.clone(), 1, obj.clone());
+        let mut frame2 = CallFrame::new(code, 1, obj);
 
         let mut names: Vec<String> = vec![];
 
         frame2.set_parent(frame1);
 
-        frame2.each_frame(|frame| {
-            names.push(frame.name.clone());
-        });
+        frame2.each_frame(|frame| names.push(frame.name().clone()));
 
-        assert_eq!(names[0], "bar".to_string());
+        assert_eq!(names[0], "foo".to_string());
         assert_eq!(names[1], "foo".to_string());
     }
 }
