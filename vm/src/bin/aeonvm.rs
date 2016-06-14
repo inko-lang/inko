@@ -5,12 +5,13 @@ use std::io::prelude::*;
 use std::env;
 use std::fs::File;
 use std::process;
+use std::mem;
 
 use libaeon::bytecode_parser;
 use libaeon::virtual_machine::VirtualMachine;
 use libaeon::virtual_machine_methods::VirtualMachineMethods;
 
-fn print_usage(options: &getopts::Options) {
+fn print_usage(options: &getopts::Options) -> ! {
     println!("{}", options.usage("Usage: aeonvm FILE [OPTIONS]"));
     process::exit(1);
 }
@@ -32,9 +33,14 @@ fn main() {
                    "The number of threads to use for running processes",
                    "INT");
 
+    options.optflag("", "type-sizes", "Prints the size of various VM types");
+
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
-        Err(error) => panic!(error.to_string()),
+        Err(error) => {
+            println!("{}", error.to_string());
+            print_usage(&options);
+        }
     };
 
     if matches.opt_present("h") {
@@ -43,6 +49,23 @@ fn main() {
 
     if matches.opt_present("v") {
         println!("aeonvm {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
+    if matches.opt_present("type-sizes") {
+        println!("CallFrame: {} bytes",
+                 mem::size_of::<libaeon::call_frame::CallFrame>());
+
+        println!("Heap: {} bytes", mem::size_of::<libaeon::heap::Heap>());
+
+        println!("Inbox: {} bytes", mem::size_of::<libaeon::inbox::Inbox>());
+
+        println!("Process: {} bytes",
+                 mem::size_of::<libaeon::process::Process>());
+
+        println!("Thread: {} bytes",
+                 mem::size_of::<libaeon::thread::Thread>());
+
         return;
     }
 
