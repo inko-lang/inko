@@ -171,23 +171,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         write_lock!(process).mark_running();
 
         'exec_loop: loop {
-            let mut skip_until: Option<usize> = None;
+            let mut goto_index = None;
             let code = read_lock!(process).compiled_code();
             let mut index = read_lock!(process).instruction_index();
             let count = code.instructions.len();
 
             while index < count {
                 let ref instruction = code.instructions[index];
-
-                if skip_until.is_some() {
-                    if index < skip_until.unwrap() {
-                        index += 1;
-
-                        continue;
-                    } else {
-                        skip_until = None;
-                    }
-                }
 
                 index += 1;
 
@@ -385,14 +375,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         break;
                     }
                     InstructionType::GotoIfFalse => {
-                        skip_until = run!(self,
+                        goto_index = run!(self,
                                           ins_goto_if_false,
                                           process,
                                           code,
                                           instruction);
                     }
                     InstructionType::GotoIfTrue => {
-                        skip_until = run!(self,
+                        goto_index = run!(self,
                                           ins_goto_if_true,
                                           process,
                                           code,
@@ -722,6 +712,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                              instruction);
                     }
                 };
+
+                if let Some(idx) = goto_index {
+                    index = idx;
+                    goto_index = None;
+                }
             } // while
 
             // Once we're at the top-level _and_ we have no more instructions to
