@@ -16,15 +16,8 @@ pub trait VirtualMachineMethods {
     /// caller of this function is operating in.
     fn start(&self, RcCompiledCode) -> Result<(), ()>;
 
-    /// Runs a CompiledCode for a specific Thread.
-    ///
-    /// This iterates over all instructions in the CompiledCode, executing them
-    /// one by one (except when certain instructions dictate otherwise).
-    ///
-    /// The return value is whatever the last CompiledCode returned (if
-    /// anything). Values are only returned when a CompiledCode ends with a
-    /// "return" instruction.
-    fn run(&self, RcProcess, RcCompiledCode) -> ObjectResult;
+    /// Starts running the code of a process.
+    fn run(&self, RcProcess) -> EmptyResult;
 
     /// Sets an integer in a register.
     ///
@@ -633,11 +626,7 @@ pub trait VirtualMachineMethods {
     ///
     ///     0: set_integer 0, 0
     ///     1: return      0
-    fn ins_return(&self,
-                  RcProcess,
-                  RcCompiledCode,
-                  &Instruction)
-                  -> ObjectResult;
+    fn ins_return(&self, RcProcess, RcCompiledCode, &Instruction) -> EmptyResult;
 
     /// Jumps to an instruction if a register is not set or set to false.
     ///
@@ -1186,15 +1175,10 @@ pub trait VirtualMachineMethods {
 
     /// Runs a CompiledCode in a new process.
     ///
-    /// This instruction requires 2 arguments:
+    /// This instruction takes 2 arguments:
     ///
     /// 1. The register to store the PID in.
     /// 2. A code objects index pointing to the CompiledCode object to run.
-    /// 3. A boolean (0 or 1) that indicates if the process should be an
-    ///    isolated process.
-    ///
-    /// Isolating a process results in it being executed in its own thread and
-    /// said thread will not run any other processes.
     ///
     /// # Examples
     ///
@@ -2090,14 +2074,13 @@ pub trait VirtualMachineMethods {
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, RcProcess, VirtualMachineError);
 
-    /// Runs a given CompiledCode with arguments.
-    fn run_code(&self,
-                RcProcess,
-                RcCompiledCode,
-                ObjectPointer,
-                Vec<ObjectPointer>,
-                Option<RcBinding>)
-                -> ObjectResult;
+    fn schedule_code(&self,
+                     RcProcess,
+                     RcCompiledCode,
+                     ObjectPointer,
+                     Vec<ObjectPointer>,
+                     Option<RcBinding>,
+                     usize);
 
     /// Runs a bytecode file.
     fn run_file(&self, &String, RcProcess, &Instruction, usize) -> EmptyResult;
@@ -2113,8 +2096,8 @@ pub trait VirtualMachineMethods {
                          usize)
                          -> ObjectVecResult;
 
-    fn start_thread(&self, bool) -> RcThread;
-    fn spawn_process(&self, RcProcess, RcCompiledCode, usize, bool);
+    fn start_thread(&self) -> RcThread;
+    fn spawn_process(&self, RcProcess, RcCompiledCode, usize);
 
     fn run_thread(&self, RcThread);
 }

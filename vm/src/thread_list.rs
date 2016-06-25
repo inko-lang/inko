@@ -15,15 +15,15 @@ impl ThreadList {
     }
 
     pub fn add(&mut self, handle: Option<JoinHandle>) -> RcThread {
-        let thread = Thread::new(handle);
+        let thread = Thread::new(false, handle);
 
         self.threads.push(thread.clone());
 
         thread
     }
 
-    pub fn add_isolated(&mut self, handle: Option<JoinHandle>) -> RcThread {
-        let thread = Thread::isolated(handle);
+    pub fn add_main_thread(&mut self) -> RcThread {
+        let thread = Thread::new(true, None);
 
         self.threads.push(thread.clone());
 
@@ -70,10 +70,6 @@ impl ThreadList {
         // Schedule the process in the thread with the least amount of processes
         // queued up.
         for (index, thread) in self.threads.iter().enumerate() {
-            if thread.is_isolated() {
-                continue;
-            }
-
             if queue_size.is_some() {
                 let current_size = thread.process_queue_size();
 

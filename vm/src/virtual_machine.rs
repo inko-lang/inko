@@ -9,6 +9,7 @@ use std::sync::mpsc::channel;
 
 use binding::RcBinding;
 use bytecode_parser;
+use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use errors;
@@ -21,9 +22,11 @@ use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
 use process::{RcProcess, Process};
 use process_list::ProcessList;
-use scope::Scope;
+use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
+
+const REDUCTION_COUNT: usize = 4;
 
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
@@ -112,10 +115,8 @@ impl VirtualMachine {
         write_lock!(self.threads).add(handle)
     }
 
-    fn allocate_isolated_thread(&self,
-                                handle: Option<ThreadJoinHandle>)
-                                -> RcThread {
-        write_lock!(self.threads).add_isolated(handle)
+    fn allocate_main_thread(&self) -> RcThread {
+        write_lock!(self.threads).add_main_thread()
     }
 
     fn allocate_process(&self,
@@ -151,10 +152,10 @@ impl VirtualMachine {
 impl VirtualMachineMethods for RcVirtualMachine {
     fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         for _ in 0..read_lock!(self.config).process_threads {
-            self.start_thread(false);
+            self.start_thread();
         }
 
-        let thread = self.allocate_isolated_thread(None);
+        let thread = self.allocate_main_thread();
         let (_, process) = self.allocate_process(code, self.top_level.clone());
 
         thread.schedule(process);
@@ -164,442 +165,591 @@ impl VirtualMachineMethods for RcVirtualMachine {
         *read_lock!(self.exit_status)
     }
 
-    fn run(&self, process: RcProcess, code: RcCompiledCode) -> ObjectResult {
-        if read_lock!(process).reductions_exhausted() {
-            return Ok(None);
-        }
+    fn run(&self, process: RcProcess) -> EmptyResult {
+        let mut reductions = REDUCTION_COUNT;
 
-        let mut skip_until: Option<usize> = None;
-        let mut retval = None;
+        write_lock!(process).mark_running();
 
-        let mut index = 0;
-        let count = code.instructions.len();
+        'exec_loop: loop {
+            let mut skip_until: Option<usize> = None;
+            let code = read_lock!(process).compiled_code();
+            let mut index = read_lock!(process).instruction_index();
+            let count = code.instructions.len();
 
-        while index < count {
-            let ref instruction = code.instructions[index];
+            while index < count {
+                let ref instruction = code.instructions[index];
 
-            if skip_until.is_some() {
-                if index < skip_until.unwrap() {
-                    index += 1;
+                if skip_until.is_some() {
+                    if index < skip_until.unwrap() {
+                        index += 1;
 
-                    continue;
-                } else {
-                    skip_until = None;
+                        continue;
+                    } else {
+                        skip_until = None;
+                    }
                 }
+
+                index += 1;
+
+                match instruction.instruction_type {
+                    InstructionType::SetInteger => {
+                        run!(self, ins_set_integer, process, code, instruction);
+                    }
+                    InstructionType::SetFloat => {
+                        run!(self, ins_set_float, process, code, instruction);
+                    }
+                    InstructionType::SetString => {
+                        run!(self, ins_set_string, process, code, instruction);
+                    }
+                    InstructionType::SetObject => {
+                        run!(self, ins_set_object, process, code, instruction);
+                    }
+                    InstructionType::SetPrototype => {
+                        run!(self, ins_set_prototype, process, code, instruction);
+                    }
+                    InstructionType::GetPrototype => {
+                        run!(self, ins_get_prototype, process, code, instruction);
+                    }
+                    InstructionType::SetArray => {
+                        run!(self, ins_set_array, process, code, instruction);
+                    }
+                    InstructionType::GetIntegerPrototype => {
+                        run!(self,
+                             ins_get_integer_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetFloatPrototype => {
+                        run!(self,
+                             ins_get_float_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetStringPrototype => {
+                        run!(self,
+                             ins_get_string_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetArrayPrototype => {
+                        run!(self,
+                             ins_get_array_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetTruePrototype => {
+                        run!(self,
+                             ins_get_true_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetFalsePrototype => {
+                        run!(self,
+                             ins_get_false_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetMethodPrototype => {
+                        run!(self,
+                             ins_get_method_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetCompiledCodePrototype => {
+                        run!(self,
+                             ins_get_compiled_code_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetBindingPrototype => {
+                        run!(self,
+                             ins_get_binding_prototype,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetTrue => {
+                        run!(self, ins_get_true, process, code, instruction);
+                    }
+                    InstructionType::GetFalse => {
+                        run!(self, ins_get_false, process, code, instruction);
+                    }
+                    InstructionType::GetBinding => {
+                        run!(self, ins_get_binding, process, code, instruction);
+                    }
+                    InstructionType::SetLocal => {
+                        run!(self, ins_set_local, process, code, instruction);
+                    }
+                    InstructionType::GetLocal => {
+                        run!(self, ins_get_local, process, code, instruction);
+                    }
+                    InstructionType::LocalExists => {
+                        run!(self, ins_local_exists, process, code, instruction);
+                    }
+                    InstructionType::SetLiteralConst => {
+                        run!(self,
+                             ins_set_literal_const,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SetConst => {
+                        run!(self, ins_set_const, process, code, instruction);
+                    }
+                    InstructionType::GetLiteralConst => {
+                        run!(self,
+                             ins_get_literal_const,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetConst => {
+                        run!(self, ins_get_const, process, code, instruction);
+                    }
+                    InstructionType::LiteralConstExists => {
+                        run!(self,
+                             ins_literal_const_exists,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SetLiteralAttr => {
+                        run!(self,
+                             ins_set_literal_attr,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SetAttr => {
+                        run!(self, ins_set_attr, process, code, instruction);
+                    }
+                    InstructionType::GetLiteralAttr => {
+                        run!(self,
+                             ins_get_literal_attr,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetAttr => {
+                        run!(self, ins_get_attr, process, code, instruction);
+                    }
+                    InstructionType::LiteralAttrExists => {
+                        run!(self,
+                             ins_literal_attr_exists,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SetCompiledCode => {
+                        run!(self,
+                             ins_set_compiled_code,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SendLiteral => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self, ins_send_literal, process, code, instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::Send => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self, ins_send, process, code, instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::LiteralRespondsTo => {
+                        run!(self,
+                             ins_literal_responds_to,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::RespondsTo => {
+                        run!(self, ins_responds_to, process, code, instruction);
+                    }
+                    InstructionType::Return => {
+                        run!(self, ins_return, process, code, instruction);
+
+                        break;
+                    }
+                    InstructionType::GotoIfFalse => {
+                        skip_until = run!(self,
+                                          ins_goto_if_false,
+                                          process,
+                                          code,
+                                          instruction);
+                    }
+                    InstructionType::GotoIfTrue => {
+                        skip_until = run!(self,
+                                          ins_goto_if_true,
+                                          process,
+                                          code,
+                                          instruction);
+                    }
+                    InstructionType::Goto => {
+                        index = run!(self, ins_goto, process, code, instruction)
+                            .unwrap();
+                    }
+                    InstructionType::DefMethod => {
+                        run!(self, ins_def_method, process, code, instruction);
+                    }
+                    InstructionType::DefLiteralMethod => {
+                        run!(self,
+                             ins_def_literal_method,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::RunCode => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self, ins_run_code, process, code, instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::RunLiteralCode => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self,
+                             ins_run_literal_code,
+                             process,
+                             code,
+                             instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::GetToplevel => {
+                        run!(self, ins_get_toplevel, process, code, instruction);
+                    }
+                    InstructionType::GetSelf => {
+                        run!(self, ins_get_self, process, code, instruction);
+                    }
+                    InstructionType::IsError => {
+                        run!(self, ins_is_error, process, code, instruction);
+                    }
+                    InstructionType::ErrorToString => {
+                        run!(self,
+                             ins_error_to_integer,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerAdd => {
+                        run!(self, ins_integer_add, process, code, instruction);
+                    }
+                    InstructionType::IntegerDiv => {
+                        run!(self, ins_integer_div, process, code, instruction);
+                    }
+                    InstructionType::IntegerMul => {
+                        run!(self, ins_integer_mul, process, code, instruction);
+                    }
+                    InstructionType::IntegerSub => {
+                        run!(self, ins_integer_sub, process, code, instruction);
+                    }
+                    InstructionType::IntegerMod => {
+                        run!(self, ins_integer_mod, process, code, instruction);
+                    }
+                    InstructionType::IntegerToFloat => {
+                        run!(self,
+                             ins_integer_to_float,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerToString => {
+                        run!(self,
+                             ins_integer_to_string,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerBitwiseAnd => {
+                        run!(self,
+                             ins_integer_bitwise_and,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerBitwiseOr => {
+                        run!(self,
+                             ins_integer_bitwise_or,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerBitwiseXor => {
+                        run!(self,
+                             ins_integer_bitwise_xor,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerShiftLeft => {
+                        run!(self,
+                             ins_integer_shift_left,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerShiftRight => {
+                        run!(self,
+                             ins_integer_shift_right,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerSmaller => {
+                        run!(self,
+                             ins_integer_smaller,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerGreater => {
+                        run!(self,
+                             ins_integer_greater,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::IntegerEquals => {
+                        run!(self,
+                             ins_integer_equals,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SpawnLiteralProcess => {
+                        run!(self,
+                             ins_spawn_literal_process,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::FloatAdd => {
+                        run!(self, ins_float_add, process, code, instruction);
+                    }
+                    InstructionType::FloatMul => {
+                        run!(self, ins_float_mul, process, code, instruction);
+                    }
+                    InstructionType::FloatDiv => {
+                        run!(self, ins_float_div, process, code, instruction);
+                    }
+                    InstructionType::FloatSub => {
+                        run!(self, ins_float_sub, process, code, instruction);
+                    }
+                    InstructionType::FloatMod => {
+                        run!(self, ins_float_mod, process, code, instruction);
+                    }
+                    InstructionType::FloatToInteger => {
+                        run!(self,
+                             ins_float_to_integer,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::FloatToString => {
+                        run!(self,
+                             ins_float_to_string,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::FloatSmaller => {
+                        run!(self, ins_float_smaller, process, code, instruction);
+                    }
+                    InstructionType::FloatGreater => {
+                        run!(self, ins_float_greater, process, code, instruction);
+                    }
+                    InstructionType::FloatEquals => {
+                        run!(self, ins_float_equals, process, code, instruction);
+                    }
+                    InstructionType::ArrayInsert => {
+                        run!(self, ins_array_insert, process, code, instruction);
+                    }
+                    InstructionType::ArrayAt => {
+                        run!(self, ins_array_at, process, code, instruction);
+                    }
+                    InstructionType::ArrayRemove => {
+                        run!(self, ins_array_remove, process, code, instruction);
+                    }
+                    InstructionType::ArrayLength => {
+                        run!(self, ins_array_length, process, code, instruction);
+                    }
+                    InstructionType::ArrayClear => {
+                        run!(self, ins_array_clear, process, code, instruction);
+                    }
+                    InstructionType::StringToLower => {
+                        run!(self,
+                             ins_string_to_lower,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::StringToUpper => {
+                        run!(self,
+                             ins_string_to_upper,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::StringEquals => {
+                        run!(self, ins_string_equals, process, code, instruction);
+                    }
+                    InstructionType::StringToBytes => {
+                        run!(self,
+                             ins_string_to_bytes,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::StringFromBytes => {
+                        run!(self,
+                             ins_string_from_bytes,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::StringLength => {
+                        run!(self, ins_string_length, process, code, instruction);
+                    }
+                    InstructionType::StringSize => {
+                        run!(self, ins_string_size, process, code, instruction);
+                    }
+                    InstructionType::StdoutWrite => {
+                        run!(self, ins_stdout_write, process, code, instruction);
+                    }
+                    InstructionType::StderrWrite => {
+                        run!(self, ins_stderr_write, process, code, instruction);
+                    }
+                    InstructionType::StdinRead => {
+                        run!(self, ins_stdin_read, process, code, instruction);
+                    }
+                    InstructionType::StdinReadLine => {
+                        run!(self,
+                             ins_stdin_read_line,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::FileOpen => {
+                        run!(self, ins_file_open, process, code, instruction);
+                    }
+                    InstructionType::FileWrite => {
+                        run!(self, ins_file_write, process, code, instruction);
+                    }
+                    InstructionType::FileRead => {
+                        run!(self, ins_file_read, process, code, instruction);
+                    }
+                    InstructionType::FileReadLine => {
+                        run!(self,
+                             ins_file_read_line,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::FileFlush => {
+                        run!(self, ins_file_flush, process, code, instruction);
+                    }
+                    InstructionType::FileSize => {
+                        run!(self, ins_file_size, process, code, instruction);
+                    }
+                    InstructionType::FileSeek => {
+                        run!(self, ins_file_seek, process, code, instruction);
+                    }
+                    InstructionType::RunLiteralFile => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self,
+                             ins_run_literal_file,
+                             process,
+                             code,
+                             instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::RunFile => {
+                        write_lock!(process).set_instruction_index(index);
+
+                        run!(self, ins_run_file, process, code, instruction);
+
+                        continue 'exec_loop;
+                    }
+                    InstructionType::GetCaller => {
+                        run!(self, ins_get_caller, process, code, instruction);
+                    }
+                    InstructionType::SetOuterScope => {
+                        run!(self,
+                             ins_set_outer_scope,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::SpawnProcess => {
+                        run!(self, ins_spawn_process, process, code, instruction);
+                    }
+                    InstructionType::SendProcessMessage => {
+                        run!(self,
+                             ins_send_process_message,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::ReceiveProcessMessage => {
+                        run!(self,
+                             ins_receive_process_message,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetCurrentPid => {
+                        run!(self,
+                             ins_get_current_pid,
+                             process,
+                             code,
+                             instruction);
+                    }
+                };
+            } // while
+
+            // Once we're at the top-level _and_ we have no more instructions to
+            // process we'll bail out of the main execution loop.
+            if read_lock!(process).at_top_level() {
+                break;
             }
 
-            index += 1;
+            // We're not yet at the top level but we did finish running an
+            // entire execution context.
+            {
+                let mut lock = write_lock!(process);
 
-            match instruction.instruction_type {
-                InstructionType::SetInteger => {
-                    run!(self, ins_set_integer, process, code, instruction);
-                }
-                InstructionType::SetFloat => {
-                    run!(self, ins_set_float, process, code, instruction);
-                }
-                InstructionType::SetString => {
-                    run!(self, ins_set_string, process, code, instruction);
-                }
-                InstructionType::SetObject => {
-                    run!(self, ins_set_object, process, code, instruction);
-                }
-                InstructionType::SetPrototype => {
-                    run!(self, ins_set_prototype, process, code, instruction);
-                }
-                InstructionType::GetPrototype => {
-                    run!(self, ins_get_prototype, process, code, instruction);
-                }
-                InstructionType::SetArray => {
-                    run!(self, ins_set_array, process, code, instruction);
-                }
-                InstructionType::GetIntegerPrototype => {
-                    run!(self,
-                         ins_get_integer_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetFloatPrototype => {
-                    run!(self,
-                         ins_get_float_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetStringPrototype => {
-                    run!(self,
-                         ins_get_string_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetArrayPrototype => {
-                    run!(self,
-                         ins_get_array_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetTruePrototype => {
-                    run!(self,
-                         ins_get_true_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetFalsePrototype => {
-                    run!(self,
-                         ins_get_false_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetMethodPrototype => {
-                    run!(self,
-                         ins_get_method_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetCompiledCodePrototype => {
-                    run!(self,
-                         ins_get_compiled_code_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetBindingPrototype => {
-                    run!(self,
-                         ins_get_binding_prototype,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetTrue => {
-                    run!(self, ins_get_true, process, code, instruction);
-                }
-                InstructionType::GetFalse => {
-                    run!(self, ins_get_false, process, code, instruction);
-                }
-                InstructionType::GetBinding => {
-                    run!(self, ins_get_binding, process, code, instruction);
-                }
-                InstructionType::SetLocal => {
-                    run!(self, ins_set_local, process, code, instruction);
-                }
-                InstructionType::GetLocal => {
-                    run!(self, ins_get_local, process, code, instruction);
-                }
-                InstructionType::LocalExists => {
-                    run!(self, ins_local_exists, process, code, instruction);
-                }
-                InstructionType::SetLiteralConst => {
-                    run!(self, ins_set_literal_const, process, code, instruction);
-                }
-                InstructionType::SetConst => {
-                    run!(self, ins_set_const, process, code, instruction);
-                }
-                InstructionType::GetLiteralConst => {
-                    run!(self, ins_get_literal_const, process, code, instruction);
-                }
-                InstructionType::GetConst => {
-                    run!(self, ins_get_const, process, code, instruction);
-                }
-                InstructionType::LiteralConstExists => {
-                    run!(self,
-                         ins_literal_const_exists,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::SetLiteralAttr => {
-                    run!(self, ins_set_literal_attr, process, code, instruction);
-                }
-                InstructionType::SetAttr => {
-                    run!(self, ins_set_attr, process, code, instruction);
-                }
-                InstructionType::GetLiteralAttr => {
-                    run!(self, ins_get_literal_attr, process, code, instruction);
-                }
-                InstructionType::GetAttr => {
-                    run!(self, ins_get_attr, process, code, instruction);
-                }
-                InstructionType::LiteralAttrExists => {
-                    run!(self,
-                         ins_literal_attr_exists,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::SetCompiledCode => {
-                    run!(self, ins_set_compiled_code, process, code, instruction);
-                }
-                InstructionType::SendLiteral => {
-                    run!(self, ins_send_literal, process, code, instruction);
-                }
-                InstructionType::Send => {
-                    run!(self, ins_send, process, code, instruction);
-                }
-                InstructionType::LiteralRespondsTo => {
-                    run!(self,
-                         ins_literal_responds_to,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::RespondsTo => {
-                    run!(self, ins_responds_to, process, code, instruction);
-                }
-                InstructionType::Return => {
-                    retval = run!(self, ins_return, process, code, instruction);
-                }
-                InstructionType::GotoIfFalse => {
-                    skip_until =
-                        run!(self, ins_goto_if_false, process, code, instruction);
-                }
-                InstructionType::GotoIfTrue => {
-                    skip_until =
-                        run!(self, ins_goto_if_true, process, code, instruction);
-                }
-                InstructionType::Goto => {
-                    index = run!(self, ins_goto, process, code, instruction)
-                        .unwrap();
-                }
-                InstructionType::DefMethod => {
-                    run!(self, ins_def_method, process, code, instruction);
-                }
-                InstructionType::DefLiteralMethod => {
-                    run!(self,
-                         ins_def_literal_method,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::RunCode => {
-                    run!(self, ins_run_code, process, code, instruction);
-                }
-                InstructionType::RunLiteralCode => {
-                    run!(self, ins_run_literal_code, process, code, instruction);
-                }
-                InstructionType::GetToplevel => {
-                    run!(self, ins_get_toplevel, process, code, instruction);
-                }
-                InstructionType::GetSelf => {
-                    run!(self, ins_get_self, process, code, instruction);
-                }
-                InstructionType::IsError => {
-                    run!(self, ins_is_error, process, code, instruction);
-                }
-                InstructionType::ErrorToString => {
-                    run!(self, ins_error_to_integer, process, code, instruction);
-                }
-                InstructionType::IntegerAdd => {
-                    run!(self, ins_integer_add, process, code, instruction);
-                }
-                InstructionType::IntegerDiv => {
-                    run!(self, ins_integer_div, process, code, instruction);
-                }
-                InstructionType::IntegerMul => {
-                    run!(self, ins_integer_mul, process, code, instruction);
-                }
-                InstructionType::IntegerSub => {
-                    run!(self, ins_integer_sub, process, code, instruction);
-                }
-                InstructionType::IntegerMod => {
-                    run!(self, ins_integer_mod, process, code, instruction);
-                }
-                InstructionType::IntegerToFloat => {
-                    run!(self, ins_integer_to_float, process, code, instruction);
-                }
-                InstructionType::IntegerToString => {
-                    run!(self, ins_integer_to_string, process, code, instruction);
-                }
-                InstructionType::IntegerBitwiseAnd => {
-                    run!(self,
-                         ins_integer_bitwise_and,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::IntegerBitwiseOr => {
-                    run!(self,
-                         ins_integer_bitwise_or,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::IntegerBitwiseXor => {
-                    run!(self,
-                         ins_integer_bitwise_xor,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::IntegerShiftLeft => {
-                    run!(self,
-                         ins_integer_shift_left,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::IntegerShiftRight => {
-                    run!(self,
-                         ins_integer_shift_right,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::IntegerSmaller => {
-                    run!(self, ins_integer_smaller, process, code, instruction);
-                }
-                InstructionType::IntegerGreater => {
-                    run!(self, ins_integer_greater, process, code, instruction);
-                }
-                InstructionType::IntegerEquals => {
-                    run!(self, ins_integer_equals, process, code, instruction);
-                }
-                InstructionType::SpawnLiteralProcess => {
-                    run!(self,
-                         ins_spawn_literal_process,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::FloatAdd => {
-                    run!(self, ins_float_add, process, code, instruction);
-                }
-                InstructionType::FloatMul => {
-                    run!(self, ins_float_mul, process, code, instruction);
-                }
-                InstructionType::FloatDiv => {
-                    run!(self, ins_float_div, process, code, instruction);
-                }
-                InstructionType::FloatSub => {
-                    run!(self, ins_float_sub, process, code, instruction);
-                }
-                InstructionType::FloatMod => {
-                    run!(self, ins_float_mod, process, code, instruction);
-                }
-                InstructionType::FloatToInteger => {
-                    run!(self, ins_float_to_integer, process, code, instruction);
-                }
-                InstructionType::FloatToString => {
-                    run!(self, ins_float_to_string, process, code, instruction);
-                }
-                InstructionType::FloatSmaller => {
-                    run!(self, ins_float_smaller, process, code, instruction);
-                }
-                InstructionType::FloatGreater => {
-                    run!(self, ins_float_greater, process, code, instruction);
-                }
-                InstructionType::FloatEquals => {
-                    run!(self, ins_float_equals, process, code, instruction);
-                }
-                InstructionType::ArrayInsert => {
-                    run!(self, ins_array_insert, process, code, instruction);
-                }
-                InstructionType::ArrayAt => {
-                    run!(self, ins_array_at, process, code, instruction);
-                }
-                InstructionType::ArrayRemove => {
-                    run!(self, ins_array_remove, process, code, instruction);
-                }
-                InstructionType::ArrayLength => {
-                    run!(self, ins_array_length, process, code, instruction);
-                }
-                InstructionType::ArrayClear => {
-                    run!(self, ins_array_clear, process, code, instruction);
-                }
-                InstructionType::StringToLower => {
-                    run!(self, ins_string_to_lower, process, code, instruction);
-                }
-                InstructionType::StringToUpper => {
-                    run!(self, ins_string_to_upper, process, code, instruction);
-                }
-                InstructionType::StringEquals => {
-                    run!(self, ins_string_equals, process, code, instruction);
-                }
-                InstructionType::StringToBytes => {
-                    run!(self, ins_string_to_bytes, process, code, instruction);
-                }
-                InstructionType::StringFromBytes => {
-                    run!(self, ins_string_from_bytes, process, code, instruction);
-                }
-                InstructionType::StringLength => {
-                    run!(self, ins_string_length, process, code, instruction);
-                }
-                InstructionType::StringSize => {
-                    run!(self, ins_string_size, process, code, instruction);
-                }
-                InstructionType::StdoutWrite => {
-                    run!(self, ins_stdout_write, process, code, instruction);
-                }
-                InstructionType::StderrWrite => {
-                    run!(self, ins_stderr_write, process, code, instruction);
-                }
-                InstructionType::StdinRead => {
-                    run!(self, ins_stdin_read, process, code, instruction);
-                }
-                InstructionType::StdinReadLine => {
-                    run!(self, ins_stdin_read_line, process, code, instruction);
-                }
-                InstructionType::FileOpen => {
-                    run!(self, ins_file_open, process, code, instruction);
-                }
-                InstructionType::FileWrite => {
-                    run!(self, ins_file_write, process, code, instruction);
-                }
-                InstructionType::FileRead => {
-                    run!(self, ins_file_read, process, code, instruction);
-                }
-                InstructionType::FileReadLine => {
-                    run!(self, ins_file_read_line, process, code, instruction);
-                }
-                InstructionType::FileFlush => {
-                    run!(self, ins_file_flush, process, code, instruction);
-                }
-                InstructionType::FileSize => {
-                    run!(self, ins_file_size, process, code, instruction);
-                }
-                InstructionType::FileSeek => {
-                    run!(self, ins_file_seek, process, code, instruction);
-                }
-                InstructionType::RunLiteralFile => {
-                    run!(self, ins_run_literal_file, process, code, instruction);
-                }
-                InstructionType::RunFile => {
-                    run!(self, ins_run_file, process, code, instruction);
-                }
-                InstructionType::GetCaller => {
-                    run!(self, ins_get_caller, process, code, instruction);
-                }
-                InstructionType::SetOuterScope => {
-                    run!(self, ins_set_outer_scope, process, code, instruction);
-                }
-                InstructionType::SpawnProcess => {
-                    run!(self, ins_spawn_process, process, code, instruction);
-                }
-                InstructionType::SendProcessMessage => {
-                    run!(self,
-                         ins_send_process_message,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::ReceiveProcessMessage => {
-                    run!(self,
-                         ins_receive_process_message,
-                         process,
-                         code,
-                         instruction);
-                }
-                InstructionType::GetCurrentPid => {
-                    run!(self, ins_get_current_pid, process, code, instruction);
-                }
-            };
+                lock.pop_context();
+                lock.pop_call_frame();
+            }
+
+            // Reduce once we've exhausted all the instructions in a context.
+            if reductions > 0 {
+                reductions -= 1;
+            } else {
+                write_lock!(process).suspend();
+
+                return Ok(());
+            }
         }
 
-        Ok(retval)
+        Ok(())
     }
 
     fn ins_set_integer(&self,
@@ -1289,10 +1439,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
                   process: RcProcess,
                   _: RcCompiledCode,
                   instruction: &Instruction)
-                  -> ObjectResult {
-        let register = try_vm_error!(instruction.arg(0), instruction);
+                  -> EmptyResult {
+        let object = instruction_object!(instruction, process, 0);
+        let mut lock = write_lock!(process);
+        let current_context = lock.context_mut();
 
-        Ok(read_lock!(process).get_register_option(register))
+        if let Some(register) = current_context.return_register {
+            if let Some(parent_context) = current_context.parent_mut() {
+                parent_context.set_register(register, object);
+            }
+        }
+
+        Ok(())
     }
 
     fn ins_goto_if_false(&self,
@@ -1460,12 +1618,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
             None
         };
 
-        let retval = try!(self.run_code(process.clone(), code_obj, cc_ptr,
-                                        arguments, binding));
-
-        if retval.is_some() {
-            write_lock!(process).set_register(register, retval.unwrap());
-        }
+        self.schedule_code(process.clone(),
+                           code_obj,
+                           cc_ptr,
+                           arguments,
+                           binding,
+                           register);
 
         write_lock!(process).pop_call_frame();
 
@@ -1484,12 +1642,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let receiver = instruction_object!(instruction, process, 2);
         let code_obj = try_vm_error!(code.code_object(code_index), instruction);
 
-        let retval = try!(self.run_code(process.clone(), code_obj, receiver,
-                                        Vec::new(), None));
-
-        if retval.is_some() {
-            write_lock!(process).set_register(register, retval.unwrap());
-        }
+        self.schedule_code(process.clone(),
+                           code_obj,
+                           receiver,
+                           Vec::new(),
+                           None,
+                           register);
 
         write_lock!(process).pop_call_frame();
 
@@ -1749,16 +1907,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                  -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_index = try_vm_error!(instruction.arg(1), instruction);
-
-        let isolated = if let Ok(num) = instruction.arg(2) {
-            num == 1
-        } else {
-            false
-        };
-
         let code_obj = try_vm_error!(code.code_object(code_index), instruction);
 
-        self.spawn_process(process, code_obj, register, isolated);
+        self.spawn_process(process, code_obj, register);
 
         Ok(())
     }
@@ -1771,14 +1922,6 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_ptr = instruction_object!(instruction, process, 1);
 
-        let isolated = if instruction.arg(2).is_ok() {
-            let isolated_ptr = instruction_object!(instruction, process, 2);
-
-            isolated_ptr != self.false_object.clone()
-        } else {
-            false
-        };
-
         let code_ref = code_ptr.get();
         let code = code_ref.get();
 
@@ -1786,7 +1929,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let code_obj = code.value.as_compiled_code();
 
-        self.spawn_process(process, code_obj, register, isolated);
+        self.spawn_process(process, code_obj, register);
 
         Ok(())
     }
@@ -2679,12 +2822,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         let caller = {
-            let ref scope = read_lock!(process).scope;
+            let lock = read_lock!(process);
+            let context = lock.context();
 
-            if let Some(parent) = scope.parent() {
+            if let Some(parent) = context.parent() {
                 parent.self_object()
             } else {
-                scope.self_object()
+                context.self_object()
             }
         };
 
@@ -2736,36 +2880,28 @@ impl VirtualMachineMethods for RcVirtualMachine {
         stderr.flush().unwrap();
     }
 
-    fn run_code(&self,
-                process: RcProcess,
-                code: RcCompiledCode,
-                self_obj: ObjectPointer,
-                args: Vec<ObjectPointer>,
-                binding: Option<RcBinding>)
-                -> ObjectResult {
-        // Scoped so the the RwLock is local to the block, allowing recursive
-        // calling of the "run" method.
-        {
-            let scope = if let Some(rc_bind) = binding {
-                Scope::new(rc_bind)
-            } else {
-                Scope::with_object(self_obj)
-            };
+    fn schedule_code(&self,
+                     process: RcProcess,
+                     code: RcCompiledCode,
+                     self_obj: ObjectPointer,
+                     args: Vec<ObjectPointer>,
+                     binding: Option<RcBinding>,
+                     register: usize) {
+        let context = if let Some(rc_bind) = binding {
+            ExecutionContext::new(rc_bind, code.clone(), Some(register))
+        } else {
+            ExecutionContext::with_object(self_obj, code.clone(), Some(register))
+        };
 
-            let mut plock = write_lock!(process);
+        let frame = CallFrame::from_code(code);
+        let mut plock = write_lock!(process);
 
-            plock.push_scope(scope);
+        plock.push_context(context);
+        plock.push_call_frame(frame);
 
-            for arg in args.iter() {
-                plock.add_local(arg.clone());
-            }
+        for arg in args.iter() {
+            plock.add_local(arg.clone());
         }
-
-        let return_val = try!(self.run(process.clone(), code));
-
-        write_lock!(process).pop_scope();
-
-        Ok(return_val)
     }
 
     fn run_file(&self,
@@ -2815,13 +2951,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
                 let self_obj = self.top_level.clone();
                 let args = Vec::new();
 
-                let res = try!(
-                    self.run_code(process.clone(), body, self_obj, args, None)
-                );
-
-                if res.is_some() {
-                    write_lock!(process).set_register(register, res.unwrap());
-                }
+                self.schedule_code(process.clone(),
+                                   body,
+                                   self_obj,
+                                   args,
+                                   None,
+                                   register);
 
                 write_lock!(process).pop_call_frame();
 
@@ -2947,16 +3082,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
             );
         }
 
-        let retval = try!(
-            self.run_code(process.clone(), method_code, receiver_ptr.clone(),
-                          arguments, None)
-        );
+        self.schedule_code(process.clone(),
+                           method_code,
+                           receiver_ptr.clone(),
+                           arguments,
+                           None,
+                           register);
 
-        if retval.is_some() {
-            write_lock!(process).set_register(register, retval.unwrap());
-        }
-
-        // Pop the frame added at the very start
         write_lock!(process).pop_call_frame();
 
         Ok(())
@@ -2984,7 +3116,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(args)
     }
 
-    fn start_thread(&self, isolated: bool) -> RcThread {
+    fn start_thread(&self) -> RcThread {
         let self_clone = self.clone();
 
         let (sender, receiver) = channel();
@@ -2995,11 +3127,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             self_clone.run_thread(thread);
         });
 
-        let thread = if isolated {
-            self.allocate_isolated_thread(Some(handle))
-        } else {
-            self.allocate_thread(Some(handle))
-        };
+        let thread = self.allocate_thread(Some(handle));
 
         sender.send(thread.clone()).unwrap();
 
@@ -3009,17 +3137,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
     fn spawn_process(&self,
                      process: RcProcess,
                      code: RcCompiledCode,
-                     register: usize,
-                     isolated: bool) {
+                     register: usize) {
         let (pid, new_proc) = self.allocate_process(code, self.top_level.clone());
 
-        if isolated {
-            let thread = self.start_thread(true);
-
-            thread.schedule(new_proc);
-        } else {
-            write_lock!(self.threads).schedule(new_proc);
-        }
+        write_lock!(self.threads).schedule(new_proc);
 
         let mut proc_guard = write_lock!(process);
 
@@ -3031,6 +3152,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn run_thread(&self, thread: RcThread) {
         while !thread.should_stop() {
+            if thread.main_thread && thread.process_queue_empty() {
+                break;
+            }
+
             thread.wait_for_work();
 
             // A thread may be woken up (e.g. due to a VM error) without there
@@ -3040,27 +3165,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
             }
 
             let process = thread.pop_process();
-            let code = read_lock!(process).compiled_code();
 
-            match self.run(process.clone(), code) {
+            match self.run(process.clone()) {
                 Ok(_) => {
-                    // A suspended process should simply be re-scheduled.
-                    let reschedule = read_lock!(process).suspended();
+                    let reschedule = read_lock!(process).is_suspended();
 
+                    // Process exhausted reductions, re-schedule it.
                     if reschedule {
                         thread.schedule(process);
                     } else {
                         write_lock!(self.processes).remove(process);
-
-                        if thread.is_isolated() {
-                            write_lock!(self.threads).remove(thread);
-                            break;
-                        }
                     }
                 }
                 // TODO: process supervision
-                Err(message) => {
-                    self.error(process, message);
+                Err(err) => {
+                    self.error(process, err);
 
                     write_lock!(self.threads).stop();
                 }

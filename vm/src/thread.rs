@@ -14,29 +14,21 @@ pub struct Thread {
     pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
-    pub isolated: Mutex<bool>,
+    pub main_thread: bool,
 }
 
 impl Thread {
-    pub fn new(handle: Option<JoinHandle>) -> RcThread {
+    pub fn new(main_thread: bool, handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             process_queue: Mutex::new(Vec::new()),
             wake_up: Mutex::new(false),
             wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
-            isolated: Mutex::new(false),
+            main_thread: main_thread,
         };
 
         Arc::new(thread)
-    }
-
-    pub fn isolated(handle: Option<JoinHandle>) -> RcThread {
-        let thread = Thread::new(handle);
-
-        *thread.isolated.lock().unwrap() = true;
-
-        thread
     }
 
     pub fn stop(&self) {
@@ -55,10 +47,6 @@ impl Thread {
 
     pub fn should_stop(&self) -> bool {
         *self.should_stop.lock().unwrap()
-    }
-
-    pub fn is_isolated(&self) -> bool {
-        *self.isolated.lock().unwrap()
     }
 
     pub fn process_queue_size(&self) -> usize {

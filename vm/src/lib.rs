@@ -16,7 +16,7 @@ pub mod object_value;
 pub mod register;
 pub mod process;
 pub mod process_list;
-pub mod scope;
+pub mod execution_context;
 pub mod thread;
 pub mod thread_list;
 pub mod virtual_machine;

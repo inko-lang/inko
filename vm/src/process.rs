@@ -9,9 +9,7 @@ use inbox::{Inbox, RcInbox};
 use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
-use scope::Scope;
-
-const REDUCTION_COUNT: usize = 2000;
+use execution_context::ExecutionContext;
 
 pub type RcProcess = Arc<RwLock<Process>>;
 
@@ -29,13 +27,15 @@ pub struct Process {
     pub mature_heap: Option<Box<Heap>>,
     pub status: ProcessStatus,
     pub call_frame: CallFrame,
-    pub scope: Scope,
-    pub reductions: usize,
+    pub context: ExecutionContext,
     pub inbox: Option<RcInbox>,
 }
 
 impl Process {
-    pub fn new(pid: usize, call_frame: CallFrame, scope: Scope) -> RcProcess {
+    pub fn new(pid: usize,
+               call_frame: CallFrame,
+               context: ExecutionContext)
+               -> RcProcess {
         let task = Process {
             pid: pid,
             eden_heap: Heap::local(),
@@ -43,8 +43,7 @@ impl Process {
             mature_heap: None,
             status: ProcessStatus::Scheduled,
             call_frame: call_frame,
-            scope: scope,
-            reductions: REDUCTION_COUNT,
+            context: context,
             inbox: None,
         };
 
@@ -56,9 +55,9 @@ impl Process {
                      self_obj: ObjectPointer)
                      -> RcProcess {
         let frame = CallFrame::from_code(code.clone());
-        let scope = Scope::with_object(self_obj);
+        let context = ExecutionContext::with_object(self_obj, code, None);
 
-        Process::new(pid, frame, scope)
+        Process::new(pid, frame, context)
     }
 
     pub fn push_call_frame(&mut self, mut frame: CallFrame) {
@@ -70,54 +69,61 @@ impl Process {
     }
 
     pub fn pop_call_frame(&mut self) {
+        if self.call_frame.parent.is_none() {
+            return;
+        }
+
         let parent = self.call_frame.parent.take().unwrap();
 
         self.call_frame = *parent;
     }
 
-    pub fn push_scope(&mut self, mut scope: Scope) {
-        let ref mut target = self.scope;
+    pub fn push_context(&mut self, mut context: ExecutionContext) {
+        let ref mut target = self.context;
 
-        mem::swap(target, &mut scope);
+        mem::swap(target, &mut context);
 
-        target.set_parent(scope);
+        target.set_parent(context);
     }
 
-    pub fn pop_scope(&mut self) {
-        let parent = self.scope.parent.take().unwrap();
+    pub fn pop_context(&mut self) {
+        if self.context.parent.is_none() {
+            return;
+        }
 
-        self.scope = *parent;
+        let parent = self.context.parent.take().unwrap();
+
+        self.context = *parent;
     }
 
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
-        self.scope
-            .register
-            .get(register)
+        self.context
+            .get_register(register)
             .ok_or_else(|| format!("Undefined object in register {}", register))
     }
 
     pub fn get_register_option(&self, register: usize) -> Option<ObjectPointer> {
-        self.scope.register.get(register)
+        self.context.get_register(register)
     }
 
     pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
-        self.scope.register.set(register, value);
+        self.context.set_register(register, value);
     }
 
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        let mut binding = write_lock!(self.scope.binding);
+        let mut binding = write_lock!(self.context.binding);
 
         binding.variables.insert(index, value);
     }
 
     pub fn add_local(&self, value: ObjectPointer) {
-        let mut binding = write_lock!(self.scope.binding);
+        let mut binding = write_lock!(self.context.binding);
 
         binding.variables.push(value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
-        let binding = read_lock!(self.scope.binding);
+        let binding = read_lock!(self.context.binding);
 
         binding.variables
             .get(index)
@@ -126,13 +132,9 @@ impl Process {
     }
 
     pub fn local_exists(&self, index: usize) -> bool {
-        let binding = read_lock!(self.scope.binding);
+        let binding = read_lock!(self.context.binding);
 
         binding.variables.get(index).is_some()
-    }
-
-    pub fn reductions_exhausted(&self) -> bool {
-        self.reductions == 0
     }
 
     pub fn allocate_empty(&mut self) -> ObjectPointer {
@@ -170,7 +172,7 @@ impl Process {
         self.inbox.as_ref().cloned().unwrap()
     }
 
-    pub fn suspended(&self) -> bool {
+    pub fn is_suspended(&self) -> bool {
         match self.status {
             ProcessStatus::Suspended => true,
             _ => false,
@@ -179,21 +181,48 @@ impl Process {
 
     /// Adds a new call frame pointing to the given line number.
     pub fn advance_line(&mut self, line: u32) {
-        let code = self.call_frame.code.clone();
-        let frame = CallFrame::new(code, line);
+        let frame = CallFrame::new(self.compiled_code(), line);
 
         self.push_call_frame(frame);
     }
 
     pub fn binding(&self) -> RcBinding {
-        self.scope.binding.clone()
+        self.context.binding.clone()
     }
 
     pub fn self_object(&self) -> ObjectPointer {
-        self.scope.self_object()
+        self.context.self_object()
+    }
+
+    pub fn context(&self) -> &ExecutionContext {
+        &self.context
+    }
+
+    pub fn context_mut(&mut self) -> &mut ExecutionContext {
+        &mut self.context
+    }
+
+    pub fn at_top_level(&self) -> bool {
+        self.context.parent.is_none()
     }
 
     pub fn compiled_code(&self) -> RcCompiledCode {
-        self.call_frame.code.clone()
+        self.context.code.clone()
+    }
+
+    pub fn instruction_index(&self) -> usize {
+        self.context.instruction_index
+    }
+
+    pub fn set_instruction_index(&mut self, index: usize) {
+        self.context.instruction_index = index;
+    }
+
+    pub fn mark_running(&mut self) {
+        self.status = ProcessStatus::Running;
+    }
+
+    pub fn suspend(&mut self) {
+        self.status = ProcessStatus::Suspended;
     }
 }
