@@ -3164,7 +3164,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn run_thread(&self, thread: RcThread) {
         while !thread.should_stop() {
+            // Bail out if any of the other threads errored.
+            if read_lock!(self.exit_status).is_err() {
+                break;
+            }
+
+            // Terminate gracefully once the main thread has processed its
+            // process queue.
             if thread.main_thread && thread.process_queue_empty() {
+                write_lock!(self.threads).stop();
                 break;
             }
 
