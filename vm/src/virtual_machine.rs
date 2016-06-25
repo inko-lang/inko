@@ -167,6 +167,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
     fn run(&self, process: RcProcess) -> EmptyResult {
         let mut reductions = REDUCTION_COUNT;
+        let mut suspend_retry = false;
 
         write_lock!(process).mark_running();
 
@@ -698,11 +699,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
                              instruction);
                     }
                     InstructionType::ReceiveProcessMessage => {
-                        run!(self,
-                             ins_receive_process_message,
-                             process,
-                             code,
-                             instruction);
+                        suspend_retry = run!(self,
+                                             ins_receive_process_message,
+                                             process,
+                                             code,
+                                             instruction);
                     }
                     InstructionType::GetCurrentPid => {
                         run!(self,
@@ -712,6 +713,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
                              instruction);
                     }
                 };
+
+                // Suspend at the current instruction and retry it once the
+                // process is resumed again.
+                if suspend_retry {
+                    let mut lock = write_lock!(process);
+
+                    lock.set_instruction_index(index - 1);
+                    lock.suspend();
+
+                    return Ok(());
+                }
 
                 if let Some(idx) = goto_index {
                     index = idx;
@@ -1968,16 +1980,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                    process: RcProcess,
                                    _: RcCompiledCode,
                                    instruction: &Instruction)
-                                   -> EmptyResult {
+                                   -> BooleanResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let pid = read_lock!(process).pid;
         let source = read_lock!(self.processes).get(pid).unwrap();
         let inbox = write_lock!(source).inbox();
-        let msg_ptr = inbox.receive();
 
-        write_lock!(process).set_register(register, msg_ptr);
+        if inbox.empty() {
+            Ok(true)
+        } else {
+            let msg_ptr = inbox.receive();
 
-        Ok(())
+            write_lock!(process).set_register(register, msg_ptr);
+
+            Ok(false)
+        }
     }
 
     fn ins_get_current_pid(&self,

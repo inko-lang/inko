@@ -1229,7 +1229,7 @@ pub trait VirtualMachineMethods {
                                    RcProcess,
                                    RcCompiledCode,
                                    &Instruction)
-                                   -> EmptyResult;
+                                   -> BooleanResult;
 
     /// Gets the PID of the currently running process.
     ///
