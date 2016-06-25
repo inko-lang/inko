@@ -26,7 +26,7 @@ use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
 
-const REDUCTION_COUNT: usize = 4;
+const REDUCTION_COUNT: usize = 1000;
 
 /// A reference counted VirtualMachine.
 pub type RcVirtualMachine = Arc<VirtualMachine>;
