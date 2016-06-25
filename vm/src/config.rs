@@ -20,6 +20,10 @@ impl Config {
     }
 
     pub fn set_process_threads(&mut self, threads: usize) {
-        self.process_threads = threads;
+        if threads == 0 {
+            self.process_threads = 1;
+        } else {
+            self.process_threads = threads;
+        }
     }
 }
