@@ -17,7 +17,6 @@ use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
 use object_value;
-use virtual_machine_methods::VirtualMachineMethods;
 use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
 use process::{RcProcess, Process};
@@ -28,11 +27,9 @@ use thread_list::ThreadList;
 
 const REDUCTION_COUNT: usize = 1000;
 
-/// A reference counted VirtualMachine.
-pub type RcVirtualMachine = Arc<VirtualMachine>;
+pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
-/// Structure representing a single VM instance.
-pub struct VirtualMachine {
+pub struct VirtualMachineState {
     config: RwLock<Config>,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
@@ -55,8 +52,12 @@ pub struct VirtualMachine {
     false_object: ObjectPointer,
 }
 
-impl VirtualMachine {
-    pub fn new() -> RcVirtualMachine {
+pub struct VirtualMachine {
+    pub state: RcVirtualMachineState,
+}
+
+impl VirtualMachineState {
+    pub fn new() -> RcVirtualMachineState {
         let mut heap = Heap::global();
 
         let top_level = heap.allocate_empty();
@@ -82,7 +83,7 @@ impl VirtualMachine {
             false_ref.get_mut().set_prototype(false_proto.clone());
         }
 
-        let vm = VirtualMachine {
+        let state = VirtualMachineState {
             config: RwLock::new(Config::new()),
             executed_files: RwLock::new(HashSet::new()),
             threads: RwLock::new(ThreadList::new()),
@@ -104,26 +105,58 @@ impl VirtualMachine {
             false_object: false_obj,
         };
 
-        Arc::new(vm)
+        Arc::new(state)
     }
 
     pub fn config<'a>(&'a self) -> RwLockWriteGuard<'a, Config> {
         write_lock!(self.config)
     }
+}
+
+impl VirtualMachine {
+    pub fn new(state: RcVirtualMachineState) -> VirtualMachine {
+        VirtualMachine { state: state }
+    }
+
+    pub fn config<'a>(&'a self) -> RwLockWriteGuard<'a, Config> {
+        self.state.config()
+    }
+
+    /// Starts the main thread
+    ///
+    /// This requires a RcCompiledCode to run. Calling this method will block
+    /// execution as the main thread is executed in the same OS thread as the
+    /// caller of this function is operating in.
+    pub fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
+        for _ in 0..read_lock!(self.state.config).process_threads {
+            self.start_thread();
+        }
+
+        let thread = self.allocate_main_thread();
+        let (_, process) =
+            self.allocate_process(code, self.state.top_level.clone());
+
+        thread.schedule(process);
+
+        self.run_thread(thread);
+
+        *read_lock!(self.state.exit_status)
+    }
 
     fn allocate_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
-        write_lock!(self.threads).add(handle)
+        write_lock!(self.state.threads).add(handle)
     }
 
     fn allocate_main_thread(&self) -> RcThread {
-        write_lock!(self.threads).add_main_thread()
+        write_lock!(self.state.threads).add_main_thread()
     }
 
+    /// Allocates a new process and returns the PID and Process structure.
     fn allocate_process(&self,
                         code: RcCompiledCode,
                         self_obj: ObjectPointer)
                         -> (usize, RcProcess) {
-        let mut processes = write_lock!(self.processes);
+        let mut processes = write_lock!(self.state.processes);
         let pid = processes.reserve_pid();
         let process = Process::from_code(pid, code, self_obj);
 
@@ -138,33 +171,17 @@ impl VirtualMachine {
                        code: RcCompiledCode)
                        -> ObjectPointer {
         let value = object_value::compiled_code(code);
-        let proto = self.method_prototype.clone();
+        let proto = self.state.method_prototype.clone();
 
         if receiver.is_global() {
-            write_lock!(self.global_heap)
+            write_lock!(self.state.global_heap)
                 .allocate_value_with_prototype(value, proto)
         } else {
             write_lock!(process).allocate(value, proto)
         }
     }
-}
 
-impl VirtualMachineMethods for RcVirtualMachine {
-    fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        for _ in 0..read_lock!(self.config).process_threads {
-            self.start_thread();
-        }
-
-        let thread = self.allocate_main_thread();
-        let (_, process) = self.allocate_process(code, self.top_level.clone());
-
-        thread.schedule(process);
-
-        self.run_thread(thread);
-
-        *read_lock!(self.exit_status)
-    }
-
+    /// Runs a single Process.
     fn run(&self, process: RcProcess) -> EmptyResult {
         let mut reductions = REDUCTION_COUNT;
         let mut suspend_retry = false;
@@ -759,6 +776,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets an integer in a register.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the integer in.
+    /// 2. The index of the integer literals to use for the value.
+    ///
+    /// The integer literal is extracted from the given CompiledCode.
     fn ins_set_integer(&self,
                        process: RcProcess,
                        code: RcCompiledCode,
@@ -768,14 +793,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.integer(index), instruction);
 
-        let obj = write_lock!(process).allocate(object_value::integer(value),
-                                                self.integer_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::integer(value),
+                                          self.state.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Sets a float in a register.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the float in.
+    /// 2. The index of the float literals to use for the value.
+    ///
+    /// The float literal is extracted from the given CompiledCode.
     fn ins_set_float(&self,
                      process: RcProcess,
                      code: RcCompiledCode,
@@ -785,14 +819,23 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.float(index), instruction);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::float(value), self.float_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::float(value),
+                                          self.state.float_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Sets a string in a register.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the float in.
+    /// 2. The index of the string literal to use for the value.
+    ///
+    /// The string literal is extracted from the given CompiledCode.
     fn ins_set_string(&self,
                       process: RcProcess,
                       code: RcCompiledCode,
@@ -804,13 +847,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let obj = write_lock!(process)
             .allocate(object_value::string(value.clone()),
-                      self.string_prototype.clone());
+                      self.state.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Sets an object in a register.
+    ///
+    /// This instruction takes 3 arguments:
+    ///
+    /// 1. The register to store the object in.
+    /// 2. A register containing a truthy/falsy object. When the register
+    ///    contains a truthy object the new object will be a global object.
+    /// 3. An optional register containing the prototype for the object.
     fn ins_set_object(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
@@ -818,10 +869,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let is_global_ptr = instruction_object!(instruction, process, 1);
-        let is_global = is_global_ptr != self.false_object.clone();
+        let is_global = is_global_ptr != self.state.false_object.clone();
 
         let obj = if is_global {
-            write_lock!(self.global_heap).allocate_empty()
+            write_lock!(self.state.global_heap).allocate_empty()
         } else {
             write_lock!(process).allocate_empty()
         };
@@ -832,7 +883,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                           instruction);
 
             if is_global && proto.is_local() {
-                proto = write_lock!(self.global_heap).copy_object(proto);
+                proto = write_lock!(self.state.global_heap).copy_object(proto);
             }
 
             let obj_ref = obj.get_mut();
@@ -845,6 +896,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets the prototype of an object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register containing the object for which to set the prototype.
+    /// 2. The register containing the object to use as the prototype.
     fn ins_set_prototype(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -860,6 +917,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets the prototype of an object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the prototype in.
+    /// 2. The register containing the object to get the prototype from.
     fn ins_get_prototype(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -883,6 +946,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets an array in a register.
+    ///
+    /// This instruction requires at least one argument: the register to store
+    /// the resulting array in. Any extra instruction arguments should point to
+    /// registers containing objects to store in the array.
     fn ins_set_array(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -894,14 +962,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let values = try!(self.collect_arguments(process.clone(), instruction,
                                                  1, val_count));
 
-        let obj = write_lock!(process)
-            .allocate(object_value::array(values), self.array_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::array(values),
+                                          self.state.array_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Returns the prototype to use for integer objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_integer_prototype(&self,
                                  process: RcProcess,
                                  _: RcCompiledCode,
@@ -910,11 +983,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.integer_prototype.clone());
+            .set_register(register, self.state.integer_prototype.clone());
 
         Ok(())
     }
 
+    /// Returns the prototype to use for float objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_float_prototype(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -922,11 +999,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.float_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.state.float_prototype.clone());
 
         Ok(())
     }
 
+    /// Returns the prototype to use for string objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_string_prototype(&self,
                                 process: RcProcess,
                                 _: RcCompiledCode,
@@ -935,11 +1017,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.string_prototype.clone());
+            .set_register(register, self.state.string_prototype.clone());
 
         Ok(())
     }
 
+    /// Returns the prototype to use for array objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_array_prototype(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -947,11 +1033,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.array_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.state.array_prototype.clone());
 
         Ok(())
     }
 
+    /// Gets the prototype to use for true objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_true_prototype(&self,
                               process: RcProcess,
                               _: RcCompiledCode,
@@ -959,11 +1050,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.true_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.state.true_prototype.clone());
 
         Ok(())
     }
 
+    /// Gets the prototype to use for false objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_false_prototype(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -971,11 +1067,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.false_prototype.clone());
+        write_lock!(process)
+            .set_register(register, self.state.false_prototype.clone());
 
         Ok(())
     }
 
+    /// Gets the prototype to use for method objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_method_prototype(&self,
                                 process: RcProcess,
                                 _: RcCompiledCode,
@@ -984,11 +1085,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.method_prototype.clone());
+            .set_register(register, self.state.method_prototype.clone());
 
         Ok(())
     }
 
+    /// Gets the prototype to use for Binding objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_binding_prototype(&self,
                                  process: RcProcess,
                                  _: RcCompiledCode,
@@ -997,11 +1102,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.binding_prototype.clone());
+            .set_register(register, self.state.binding_prototype.clone());
 
         Ok(())
     }
 
+    /// Gets the prototype to use for compiled code objects.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// prototype in.
     fn ins_get_compiled_code_prototype(&self,
                                        process: RcProcess,
                                        _: RcCompiledCode,
@@ -1010,11 +1119,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         write_lock!(process)
-            .set_register(register, self.compiled_code_prototype.clone());
+            .set_register(register, self.state.compiled_code_prototype.clone());
 
         Ok(())
     }
 
+    /// Sets a "true" value in a register.
+    ///
+    /// This instruction requires only one argument: the register to store the
+    /// object in.
     fn ins_get_true(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1022,11 +1135,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.true_object.clone());
+        write_lock!(process)
+            .set_register(register, self.state.true_object.clone());
 
         Ok(())
     }
 
+    /// Sets a "false" value in a register.
+    ///
+    /// This instruction requires only one argument: the register to store the
+    /// object in.
     fn ins_get_false(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -1034,11 +1152,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.false_object.clone());
+        write_lock!(process)
+            .set_register(register, self.state.false_object.clone());
 
         Ok(())
     }
 
+    /// Gets the Binding of the current scope and sets it in a register
+    ///
+    /// This instruction requires only one argument: the register to store the
+    /// object in.
     fn ins_get_binding(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1047,14 +1170,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let binding = read_lock!(process).binding();
 
-        let obj = write_lock!(process).allocate(object_value::binding(binding),
-                                                self.binding_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::binding(binding),
+                                          self.state.binding_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Sets a local variable to a given register's value.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The local variable index to set.
+    /// 2. The register containing the object to store in the variable.
     fn ins_set_local(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -1068,6 +1198,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets a local variable and stores it in a register.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the local's value in.
+    /// 2. The local variable index to get the value from.
     fn ins_get_local(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -1084,6 +1220,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if a local variable exists.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in (true or false).
+    /// 2. The local variable index to check.
     fn ins_local_exists(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -1093,9 +1235,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let local_index = try_vm_error!(instruction.arg(1), instruction);
 
         let value = if read_lock!(process).local_exists(local_index) {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, value);
@@ -1103,6 +1245,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets a constant in a given object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register pointing to the object to store the constant in.
+    /// 2. The string literal index to use for the name.
+    /// 3. The register pointing to the object to store.
     fn ins_set_literal_const(&self,
                              process: RcProcess,
                              code: RcCompiledCode,
@@ -1113,7 +1262,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source_ptr = instruction_object!(instruction, process, 2);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let source = copy_if_global!(self.global_heap, source_ptr, target_ptr);
+        let source =
+            copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
         let target_ref = target_ptr.get_mut();
 
         target_ref.get_mut().add_constant(name.clone(), source);
@@ -1121,6 +1271,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets a constant using a runtime allocated String.
+    ///
+    /// This instruction takes the same arguments as the "set_const" instruction
+    /// except the 2nd argument should point to a register containing a String
+    /// to use for the name.
     fn ins_set_const(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -1136,7 +1291,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(instruction, name_obj);
 
         let name_str = name_obj.value.as_string().clone();
-        let source = copy_if_global!(self.global_heap, source_ptr, target_ptr);
+        let source =
+            copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
 
         let target_ref = target_ptr.get_mut();
         let target = target_ref.get_mut();
@@ -1146,6 +1302,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Looks up a constant and stores it in a register.
+    ///
+    /// This instruction takes 3 arguments:
+    ///
+    /// 1. The register to store the constant in.
+    /// 2. The register pointing to an object in which to look for the
+    ///    constant.
+    /// 3. The string literal index containing the name of the constant.
     fn ins_get_literal_const(&self,
                              process: RcProcess,
                              code: RcCompiledCode,
@@ -1171,6 +1335,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Looks up a constant using a runtime allocated string.
+    ///
+    /// This instruction requires the same arguments as the "get_literal_const"
+    /// instruction except the last argument should point to a register
+    /// containing a String to use for the name.
     fn ins_get_const(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -1201,6 +1370,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns true if a constant exists, false otherwise.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the resulting boolean in.
+    /// 2. The register containing the source object to check.
+    /// 3. The string literal index to use as the constant name.
     fn ins_literal_const_exists(&self,
                                 process: RcProcess,
                                 code: RcCompiledCode,
@@ -1215,15 +1391,25 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let constant = source_ref.get().lookup_constant(name);
 
         if constant.is_some() {
-            write_lock!(process).set_register(register, self.true_object.clone());
+            write_lock!(process)
+                .set_register(register, self.state.true_object.clone());
         } else {
             write_lock!(process)
-                .set_register(register, self.false_object.clone());
+                .set_register(register, self.state.false_object.clone());
         }
 
         Ok(())
     }
 
+    /// Sets an attribute of an object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register containing the object for which to set the
+    ///    attribute.
+    /// 2. The string literal index to use for the name.
+    /// 3. The register containing the object to set as the attribute
+    ///    value.
     fn ins_set_literal_attr(&self,
                             process: RcProcess,
                             code: RcCompiledCode,
@@ -1234,7 +1420,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let value_ptr = instruction_object!(instruction, process, 2);
 
         let name = try_vm_error!(code.string(name_index), instruction);
-        let value = copy_if_global!(self.global_heap, value_ptr, target_ptr);
+        let value =
+            copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
 
         let target_ref = target_ptr.get_mut();
 
@@ -1243,6 +1430,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets an attribute of an object using a runtime allocated string.
+    ///
+    /// This instruction takes the same arguments as the "set_literal_attr"
+    /// instruction except the 2nd argument should point to a register
+    /// containing a String to use for the name.
     fn ins_set_attr(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1258,7 +1450,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(instruction, name_obj);
 
         let name = name_obj.value.as_string();
-        let value = copy_if_global!(self.global_heap, value_ptr, target_ptr);
+        let value =
+            copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
 
         let target_ref = target_ptr.get_mut();
 
@@ -1267,6 +1460,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets an attribute from an object and stores it in a register.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the attribute's value in.
+    /// 2. The register containing the object from which to retrieve the
+    ///    attribute.
+    /// 3. The string literal index to use for the name.
     fn ins_get_literal_attr(&self,
                             process: RcProcess,
                             code: RcCompiledCode,
@@ -1292,6 +1493,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets an object attribute using a runtime allocated string.
+    ///
+    /// This instruction takes the same arguments as the "get_literal_attr"
+    /// instruction except the last argument should point to a register
+    /// containing a String to use for the name.
     fn ins_get_attr(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1322,6 +1528,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if an attribute exists in an object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in (true or false).
+    /// 2. The register containing the object to check.
+    /// 3. The string literal index to use for the attribute name.
     fn ins_literal_attr_exists(&self,
                                process: RcProcess,
                                code: RcCompiledCode,
@@ -1336,9 +1549,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source = source_ref.get();
 
         let obj = if source.has_attribute(name) {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, obj);
@@ -1346,6 +1559,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets a CompiledCode object in a register.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the object in.
+    /// 2. The index of the compiled code object to store.
     fn ins_set_compiled_code(&self,
                              process: RcProcess,
                              code: RcCompiledCode,
@@ -1357,7 +1576,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let cc = try_vm_error!(code.code_object(cc_index), instruction);
 
         let obj = write_lock!(process).allocate(object_value::compiled_code(cc),
-                                                self.compiled_code_prototype
+                                                self.state
+                                                    .compiled_code_prototype
                                                     .clone());
 
         write_lock!(process).set_register(register, obj);
@@ -1365,6 +1585,19 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sends a message using a string literal
+    ///
+    /// This instruction requires at least 5 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The index of the string literal to use for the method name.
+    /// 4. A boolean (1 or 0) indicating if private methods can be called.
+    /// 5. A boolean (1 or 0) to indicate if the last argument is a rest
+    ///    argument. A rest argument will be unpacked into separate arguments.
+    ///
+    /// Any extra instruction arguments will be passed as arguments to the
+    /// method.
     fn ins_send_literal(&self,
                         process: RcProcess,
                         code: RcCompiledCode,
@@ -1376,6 +1609,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.send_message(name, process, instruction)
     }
 
+    /// Sends a message using a runtime allocated string
+    ///
+    /// This instruction takes the same arguments as the "send_literal"
+    /// instruction except instead of the 3rd argument pointing to a string
+    /// literal it should point to a register containing a string.
     fn ins_send(&self,
                 process: RcProcess,
                 _: RcCompiledCode,
@@ -1390,6 +1628,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.send_message(string_obj.value.as_string(), process, instruction)
     }
 
+    /// Checks if an object responds to a message
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in (true or false)
+    /// 2. The register containing the object to check
+    /// 3. The string literal index to use as the method name
     fn ins_literal_responds_to(&self,
                                process: RcProcess,
                                code: RcCompiledCode,
@@ -1404,9 +1649,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let source_obj = source_ref.get();
 
         let result = if source_obj.responds_to(name) {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, result);
@@ -1414,6 +1659,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if an object responds to a message using a runtime allocated
+    /// string.
+    ///
+    /// This instruction requires the same arguments as the
+    /// "literal_responds_to" instruction except the last argument should be a
+    /// register containing a string.
     fn ins_responds_to(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1432,9 +1683,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_strings!(instruction, name_obj);
 
         let result = if source_obj.responds_to(name_obj.value.as_string()) {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, result);
@@ -1442,6 +1693,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns the value in the given register.
+    ///
+    /// As registers can be left empty this method returns an Option
+    /// instead of returning an Object directly.
+    ///
+    /// This instruction takes a single argument: the register containing the
+    /// value to return.
     fn ins_return(&self,
                   process: RcProcess,
                   _: RcCompiledCode,
@@ -1460,6 +1718,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Jumps to an instruction if a register is not set or set to false.
+    ///
+    /// This instruction takes two arguments:
+    ///
+    /// 1. The instruction index to jump to if a register is not set.
+    /// 2. The register to check.
     fn ins_goto_if_false(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -1471,7 +1735,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let matched = match value {
             Some(obj) => {
-                if obj == self.false_object.clone() {
+                if obj == self.state.false_object.clone() {
                     Some(go_to)
                 } else {
                     None
@@ -1483,6 +1747,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(matched)
     }
 
+    /// Jumps to an instruction if a register is set.
+    ///
+    /// This instruction takes two arguments:
+    ///
+    /// 1. The instruction index to jump to if a register is set.
+    /// 2. The register to check.
     fn ins_goto_if_true(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -1494,7 +1764,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let matched = match value {
             Some(obj) => {
-                if obj == self.false_object.clone() {
+                if obj == self.state.false_object.clone() {
                     None
                 } else {
                     Some(go_to)
@@ -1506,6 +1776,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(matched)
     }
 
+    /// Jumps to a specific instruction.
+    ///
+    /// This instruction takes one argument: the instruction index to jump to.
     fn ins_goto(&self,
                 _: RcProcess,
                 _: RcCompiledCode,
@@ -1516,6 +1789,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(Some(go_to))
     }
 
+    /// Defines a method for an object.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the method object in.
+    /// 2. The register pointing to a specific object to define the method
+    ///    on.
+    /// 3. The register containing a String to use as the method name.
+    /// 4. The register containing the CompiledCode object to use for the
+    ///    method.
     fn ins_def_method(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
@@ -1551,6 +1834,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Defines a method for an object using literals.
+    ///
+    /// This instruction can be used to define a method when the name and the
+    /// compiled code object are defined as literals. This instruction is
+    /// primarily meant to define methods that are defined directly in the
+    /// source code. Methods defined during runtime should be created using the
+    /// `def_method` instruction instead.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the method object in.
+    /// 2. The register pointing to the object to define the method on.
+    /// 3. The string literal index to use for the method name.
+    /// 4. The code object index to use for the method's CompiledCode object.
     fn ins_def_literal_method(&self,
                               process: RcProcess,
                               code: RcCompiledCode,
@@ -1576,6 +1873,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Runs a runtime allocated CompiledCode.
+    ///
+    /// This instruction takes the following arguments:
+    ///
+    /// 1. The register to store the return value in.
+    /// 2. The register containing the CompiledCode object to run.
+    /// 3. The register containing the amount of arguments to pass.
+    /// 4. The arguments to pass when the argument count is greater than 0, each
+    ///    as a separate argument.
+    /// 5. The Binding to use, if any. Omitting this argument results in a
+    ///    Binding being created automatically.
     fn ins_run_code(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1637,6 +1945,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Runs a CompiledCode literal.
+    ///
+    /// This instruction is meant to execute simple CompiledCode objects,
+    /// usually the moment they're defined. For more complex use cases see the
+    /// "run_code" instruction.
+    ///
+    /// This instruction takes the following arguments:
+    ///
+    /// 1. The register to store the return value in.
+    /// 2. The index of the code object to run.
+    /// 3. The register containing the object to use as "self" when running the
+    ///    CompiledCode.
     fn ins_run_literal_code(&self,
                             process: RcProcess,
                             code: RcCompiledCode,
@@ -1661,6 +1981,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets the top-level object in a register.
+    ///
+    /// This instruction requires one argument: the register to store the object
+    /// in.
     fn ins_get_toplevel(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -1668,11 +1992,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.top_level.clone());
+        write_lock!(process).set_register(register, self.state.top_level.clone());
 
         Ok(())
     }
 
+    /// Sets the object "self" refers to in a register.
+    ///
+    /// This instruction requires one argument: the register to store the object
+    /// in.
     fn ins_get_self(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1687,6 +2015,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if a given object is an error object.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the boolean result in.
+    /// 2. The register of the object to check.
     fn ins_is_error(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -1699,9 +2033,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let obj = obj_ref.get();
 
         let result = if obj.value.is_error() {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, result);
@@ -1709,6 +2043,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Converts an error object to an integer.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the integer in.
+    /// 2. The register containing the error.
     fn ins_error_to_integer(&self,
                             process: RcProcess,
                             _: RcCompiledCode,
@@ -1720,7 +2060,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let error_ref = error_ptr.get();
         let error = error_ref.get();
 
-        let proto = self.integer_prototype.clone();
+        let proto = self.state.integer_prototype.clone();
         let integer = error.value.as_error() as i64;
 
         let result = write_lock!(process)
@@ -1731,6 +2071,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Adds two integers
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     fn ins_integer_add(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1741,6 +2088,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Divides an integer
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     fn ins_integer_div(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1751,6 +2105,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Multiplies an integer
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     fn ins_integer_mul(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1761,6 +2122,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Subtracts an integer
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     fn ins_integer_sub(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1771,6 +2139,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets the modulo of an integer
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the left-hand side object.
+    /// 3. The register of the right-hand side object.
     fn ins_integer_mod(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -1781,6 +2156,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Converts an integer to a float
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to convert.
     fn ins_integer_to_float(&self,
                             process: RcProcess,
                             _: RcCompiledCode,
@@ -1796,14 +2177,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = integer.value.as_integer() as f64;
 
-        let obj = write_lock!(process)
-            .allocate(object_value::float(result), self.float_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::float(result),
+                                          self.state.float_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Converts an integer to a string
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to convert.
     fn ins_integer_to_string(&self,
                              process: RcProcess,
                              _: RcCompiledCode,
@@ -1819,14 +2207,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = integer.value.as_integer().to_string();
 
-        let obj = write_lock!(process).allocate(object_value::string(result),
-                                                self.string_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::string(result),
+                                          self.state.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Performs an integer bitwise AND.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     fn ins_integer_bitwise_and(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -1837,6 +2233,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Performs an integer bitwise OR.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     fn ins_integer_bitwise_or(&self,
                               process: RcProcess,
                               _: RcCompiledCode,
@@ -1847,6 +2250,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Performs an integer bitwise XOR.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     fn ins_integer_bitwise_xor(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -1857,6 +2267,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Shifts an integer to the left.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     fn ins_integer_shift_left(&self,
                               process: RcProcess,
                               _: RcCompiledCode,
@@ -1867,6 +2284,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Shifts an integer to the right.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the integer to operate on.
+    /// 3. The register of the integer to use as the operand.
     fn ins_integer_shift_right(&self,
                                process: RcProcess,
                                _: RcCompiledCode,
@@ -1877,6 +2301,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if one integer is smaller than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_integer_smaller(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -1887,6 +2320,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if one integer is greater than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_integer_greater(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -1897,6 +2339,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if two integers are equal.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the integer to compare.
+    /// 3. The register containing the integer to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_integer_equals(&self,
                           process: RcProcess,
                           _: RcCompiledCode,
@@ -1907,6 +2358,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Runs a CompiledCode in a new process.
+    ///
+    /// This instruction takes 2 arguments:
+    ///
+    /// 1. The register to store the PID in.
+    /// 2. A code objects index pointing to the CompiledCode object to run.
     fn ins_spawn_literal_process(&self,
                                  process: RcProcess,
                                  code: RcCompiledCode,
@@ -1921,6 +2378,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Runs a CompiledCode in a new process using a runtime allocated
+    /// CompiledCode.
+    ///
+    /// This instruction takes the same arguments as the "spawn_literal_process"
+    /// instruction except instead of a code object index the 2nd argument
+    /// should point to a register containing a CompiledCode object.
     fn ins_spawn_process(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -1941,6 +2404,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sends a message to a process.
+    ///
+    /// This instruction takes 3 arguments:
+    ///
+    /// 1. The register to store the message in.
+    /// 2. The register containing the PID to send the message to.
+    /// 3. The register containing the message (an object) to send to the
+    ///    process.
     fn ins_send_process_message(&self,
                                 process: RcProcess,
                                 _: RcCompiledCode,
@@ -1959,7 +2430,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
             pid_obj.value.as_integer() as usize
         };
 
-        if let Some(receiver) = read_lock!(self.processes).get(pid) {
+        if let Some(receiver) = read_lock!(self.state.processes).get(pid) {
             let inbox = write_lock!(receiver).inbox();
             let mut to_send = msg_ptr.clone();
 
@@ -1976,6 +2447,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Receives a message for the current process.
+    ///
+    /// This instruction takes 1 argument: the register to store the resulting
+    /// message in.
+    ///
+    /// If no messages are available this instruction will block until a message
+    /// is available.
     fn ins_receive_process_message(&self,
                                    process: RcProcess,
                                    _: RcCompiledCode,
@@ -1983,7 +2461,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
                                    -> BooleanResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let pid = read_lock!(process).pid;
-        let source = read_lock!(self.processes).get(pid).unwrap();
+        let source = read_lock!(self.state.processes).get(pid).unwrap();
         let inbox = write_lock!(source).inbox();
 
         if inbox.empty() {
@@ -1997,6 +2475,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
     }
 
+    /// Gets the PID of the currently running process.
+    ///
+    /// This instruction requires one argument: the register to store the PID
+    /// in (as an integer).
     fn ins_get_current_pid(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2007,13 +2489,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let mut proc_guard = write_lock!(process);
         let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
-                                          self.integer_prototype.clone());
+                                          self.state.integer_prototype.clone());
 
         proc_guard.set_register(register, pid_obj);
 
         Ok(())
     }
 
+    /// Adds two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to add.
     fn ins_float_add(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2024,6 +2513,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Multiplies two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to multiply with.
     fn ins_float_mul(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2034,6 +2530,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Divides two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to divide with.
     fn ins_float_div(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2044,6 +2547,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Subtracts two floats
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float to subtract.
     fn ins_float_sub(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2054,6 +2564,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets the modulo of a float
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the receiver.
+    /// 3. The register of the float argument.
     fn ins_float_mod(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2064,6 +2581,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Converts a float to an integer
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the float to convert.
     fn ins_float_to_integer(&self,
                             process: RcProcess,
                             _: RcCompiledCode,
@@ -2079,14 +2602,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = float.value.as_float() as i64;
 
-        let obj = write_lock!(process).allocate(object_value::integer(result),
-                                                self.integer_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::integer(result),
+                                          self.state.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Converts a float to a string
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the float to convert.
     fn ins_float_to_string(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2102,14 +2632,24 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let result = float.value.as_float().to_string();
 
-        let obj = write_lock!(process).allocate(object_value::string(result),
-                                                self.string_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::string(result),
+                                          self.state.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Checks if one float is smaller than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_float_smaller(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -2120,6 +2660,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if one float is greater than the other.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_float_greater(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -2130,6 +2679,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Checks if two floats are equal.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the float to compare.
+    /// 3. The register containing the float to compare with.
+    ///
+    /// The result of this instruction is either boolean true or false.
     fn ins_float_equals(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2140,6 +2698,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Inserts a value in an array.
+    ///
+    /// This instruction requires 4 arguments:
+    ///
+    /// 1. The register to store the result (the inserted value) in.
+    /// 2. The register containing the array to insert into.
+    /// 3. The register containing the index (as an integer) to insert at.
+    /// 4. The register containing the value to insert.
+    ///
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_insert(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2165,7 +2735,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_array_within_bounds!(instruction, vector, index);
 
-        let value = copy_if_global!(self.global_heap, value_ptr, array_ptr);
+        let value = copy_if_global!(self.state.global_heap, value_ptr, array_ptr);
 
         vector.insert(index, value.clone());
 
@@ -2174,6 +2744,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets the value of an array index.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the value in.
+    /// 2. The register containing the array.
+    /// 3. The register containing the index.
+    ///
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_at(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -2204,6 +2785,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Removes a value from an array.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the removed value in.
+    /// 2. The register containing the array to remove a value from.
+    /// 3. The register containing the index.
+    ///
+    /// An error is returned when the index is greater than the array length. A
+    /// negative index can be used to indicate a position from the end of the
+    /// array.
     fn ins_array_remove(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2234,6 +2826,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Gets the amount of elements in an array.
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the length in.
+    /// 2. The register containing the array.
     fn ins_array_length(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2250,14 +2848,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let vector = array.value.as_array();
         let length = vector.len() as i64;
 
-        let obj = write_lock!(process).allocate(object_value::integer(length),
-                                                self.integer_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::integer(length),
+                                          self.state.integer_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Removes all elements from an array.
+    ///
+    /// This instruction requires 1 argument: the register of the array.
     fn ins_array_clear(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -2277,6 +2879,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns the lowercase equivalent of a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the new string in.
+    /// 2. The register containing the input string.
     fn ins_string_to_lower(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2292,14 +2900,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let lower = source.value.as_string().to_lowercase();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(lower), self.string_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::string(lower),
+                                          self.state.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Returns the uppercase equivalent of a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the new string in.
+    /// 2. The register containing the input string.
     fn ins_string_to_upper(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2315,14 +2930,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         let upper = source.value.as_string().to_uppercase();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(upper), self.string_prototype.clone());
+        let obj =
+            write_lock!(process).allocate(object_value::string(upper),
+                                          self.state.string_prototype.clone());
 
         write_lock!(process).set_register(register, obj);
 
         Ok(())
     }
 
+    /// Checks if two strings are equal.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the string to compare.
+    /// 3. The register of the string to compare with.
     fn ins_string_equals(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -2343,9 +2966,9 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let result = receiver.value.as_string() == arg.value.as_string();
 
         let boolean = if result {
-            self.true_object.clone()
+            self.state.true_object.clone()
         } else {
-            self.false_object.clone()
+            self.state.false_object.clone()
         };
 
         write_lock!(process).set_register(register, boolean);
@@ -2353,6 +2976,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns an array containing the bytes of a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the string to get the bytes from.
     fn ins_string_to_bytes(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2366,8 +2995,8 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto = self.integer_prototype.clone();
-        let array_proto = self.array_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
+        let array_proto = self.state.array_prototype.clone();
 
         let array = arg.value
             .as_string()
@@ -2387,6 +3016,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Creates a string from an array of bytes
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register containing the array of bytes.
+    ///
+    /// The result of this instruction is either a string based on the given
+    /// bytes, or an error object.
     fn ins_string_from_bytes(&self,
                              process: RcProcess,
                              _: RcCompiledCode,
@@ -2400,7 +3038,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_arrays!(instruction, arg);
 
-        let string_proto = self.string_prototype.clone();
+        let string_proto = self.state.string_prototype.clone();
         let array = arg.value.as_array();
 
         for int_ptr in array.iter() {
@@ -2430,6 +3068,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns the amount of characters in a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the string.
     fn ins_string_length(&self,
                          process: RcProcess,
                          _: RcCompiledCode,
@@ -2443,7 +3087,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let length = arg.value.as_string().chars().count() as i64;
 
         let obj = write_lock!(process)
@@ -2454,6 +3098,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Returns the amount of bytes in a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. The register of the string.
     fn ins_string_size(&self,
                        process: RcProcess,
                        _: RcCompiledCode,
@@ -2467,7 +3117,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let size = arg.value.as_string().len() as i64;
 
         let obj = write_lock!(process)
@@ -2478,6 +3128,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Writes a string to STDOUT and returns the amount of written bytes.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the string to write.
+    ///
+    /// The result of this instruction is either an integer indicating the
+    /// amount of bytes written, or an error object.
     fn ins_stdout_write(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2491,7 +3150,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let mut stdout = io::stdout();
 
         let result = try_io!(stdout.write(arg.value.as_string().as_bytes()),
@@ -2507,6 +3166,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Writes a string to STDERR and returns the amount of written bytes.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the string to write.
+    ///
+    /// The result of this instruction is either an integer indicating the
+    /// amount of bytes written, or an error object.
     fn ins_stderr_write(&self,
                         process: RcProcess,
                         _: RcCompiledCode,
@@ -2520,7 +3188,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_strings!(instruction, arg);
 
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let mut stderr = io::stderr();
 
         let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
@@ -2536,13 +3204,22 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Reads the given amount of bytes into a string.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the amount of bytes to read.
+    ///
+    /// The result of this instruction is either a string containing the data
+    /// read, or an error object.
     fn ins_stdin_read(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
                       instruction: &Instruction)
                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let proto = self.string_prototype.clone();
+        let proto = self.state.string_prototype.clone();
 
         let mut buffer = file_reading_buffer!(instruction, process, 1);
 
@@ -2556,13 +3233,20 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Reads an entire line from STDIN into a string.
+    ///
+    /// This instruction requires 1 argument: the register to store the
+    /// resulting object in.
+    ///
+    /// The result of this instruction is either a string containing the read
+    /// data, or an error object.
     fn ins_stdin_read_line(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
                            instruction: &Instruction)
                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let proto = self.string_prototype.clone();
+        let proto = self.state.string_prototype.clone();
 
         let mut buffer = String::new();
 
@@ -2576,6 +3260,30 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Opens a file handle in a particular mode (read-only, write-only, etc).
+    ///
+    /// This instruction requires X arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The path to the file to open.
+    /// 3. The register containing a string describing the mode to open the
+    ///    file in.
+    ///
+    /// The result of this instruction is either a file object or an error
+    /// object.
+    ///
+    /// The available file modes supported are the same as those supported by
+    /// the `fopen()` system call, thus:
+    ///
+    /// * r: opens a file for reading only
+    /// * r+: opens a file for reading and writing
+    /// * w: opens a file for writing only, truncating it if it exists, creating
+    ///   it otherwise
+    /// * w+: opens a file for reading and writing, truncating it if it exists,
+    ///   creating it if it doesn't exist
+    /// * a: opens a file for appending, creating it if it doesn't exist
+    /// * a+: opens a file for reading and appending, creating it if it doesn't
+    ///   exist
     fn ins_file_open(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2585,7 +3293,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let path_ptr = instruction_object!(instruction, process, 1);
         let mode_ptr = instruction_object!(instruction, process, 2);
 
-        let file_proto = self.file_prototype.clone();
+        let file_proto = self.state.file_prototype.clone();
 
         let path_ref = path_ptr.get();
         let path = path_ref.get();
@@ -2617,6 +3325,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Writes a string to a file.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the amount of written bytes in.
+    /// 2. The register containing the file object to write to.
+    /// 3. The register containing the string to write.
+    ///
+    /// The result of this instruction is either the amount of written bytes or
+    /// an error object.
     fn ins_file_write(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
@@ -2635,7 +3353,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_files!(instruction, file);
         ensure_strings!(instruction, string);
 
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let mut file = file.value.as_file_mut();
         let bytes = string.value.as_string().as_bytes();
 
@@ -2649,6 +3367,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Reads a number of bytes from a file.
+    ///
+    /// This instruction takes 3 arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file to read from.
+    /// 3. The register containing the amount of bytes to read, if left out
+    ///    all data is read instead.
+    ///
+    /// The result of this instruction is either a string containing the data
+    /// read, or an error object.
     fn ins_file_read(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2663,7 +3392,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         ensure_files!(instruction, file_obj);
 
         let mut buffer = file_reading_buffer!(instruction, process, 2);
-        let int_proto = self.integer_prototype.clone();
+        let int_proto = self.state.integer_prototype.clone();
         let mut file = file_obj.value.as_file_mut();
 
         try_io!(file.read_to_string(&mut buffer), process, register);
@@ -2676,6 +3405,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Reads an entire line from a file.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file to read from.
+    ///
+    /// The result of this instruction is either a string containing the read
+    /// line, or an error object.
     fn ins_file_read_line(&self,
                           process: RcProcess,
                           _: RcCompiledCode,
@@ -2689,7 +3427,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         ensure_files!(instruction, file_obj);
 
-        let proto = self.string_prototype.clone();
+        let proto = self.state.string_prototype.clone();
         let mut file = file_obj.value.as_file_mut();
         let mut bytes = Vec::new();
 
@@ -2713,6 +3451,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Flushes a file.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the result in.
+    /// 2. the register containing the file to flush.
+    ///
+    /// The resulting object is either boolean true (upon success), or an error
+    /// object.
     fn ins_file_flush(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
@@ -2730,11 +3477,21 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         try_io!(file.flush(), process, register);
 
-        write_lock!(process).set_register(register, self.true_object.clone());
+        write_lock!(process)
+            .set_register(register, self.state.true_object.clone());
 
         Ok(())
     }
 
+    /// Returns the size of a file in bytes.
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the file.
+    ///
+    /// The resulting object is either an integer representing the amount of
+    /// bytes, or an error object.
     fn ins_file_size(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2752,7 +3509,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let meta = try_io!(file.metadata(), process, register);
 
         let size = meta.len() as i64;
-        let proto = self.integer_prototype.clone();
+        let proto = self.state.integer_prototype.clone();
 
         let result = write_lock!(process)
             .allocate(object_value::integer(size), proto);
@@ -2762,6 +3519,16 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets a file cursor to the given offset in bytes.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The register containing the input file.
+    /// 3. The offset to seek to as an integer.
+    ///
+    /// The resulting object is either an integer representing the new cursor
+    /// position, or an error object.
     fn ins_file_seek(&self,
                      process: RcProcess,
                      _: RcCompiledCode,
@@ -2788,7 +3555,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let seek_from = SeekFrom::Start(offset as u64);
         let new_offset = try_io!(file.seek(seek_from), process, register);
 
-        let proto = self.integer_prototype.clone();
+        let proto = self.state.integer_prototype.clone();
 
         let result = write_lock!(process)
             .allocate(object_value::integer(new_offset as i64), proto);
@@ -2798,6 +3565,18 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Parses and runs a given bytecode file using a string literal
+    ///
+    /// Files are executed only once. After a file has been executed any
+    /// following calls are basically no-ops.
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The register to store the resulting object in.
+    /// 2. The string literal index containing the file path of the bytecode
+    ///    file.
+    ///
+    /// The result of this instruction is whatever the bytecode file returned.
     fn ins_run_literal_file(&self,
                             process: RcProcess,
                             code: RcCompiledCode,
@@ -2810,6 +3589,11 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.run_file(path, process, instruction, register)
     }
 
+    /// Parses and runs a given bytecode file using a runtime allocated string
+    ///
+    /// This instruction takes the same arguments as the "run_literal_file"
+    /// instruction except instead of using a string literal it uses a register
+    /// containing a runtime allocated string.
     fn ins_run_file(&self,
                     process: RcProcess,
                     _: RcCompiledCode,
@@ -2826,6 +3610,10 @@ impl VirtualMachineMethods for RcVirtualMachine {
         self.run_file(path.value.as_string(), process, instruction, register)
     }
 
+    /// Sets the caller of a method.
+    ///
+    /// This instruction requires one argument: the register to store the caller
+    /// in. If no caller is present "self" is set in the register instead.
     fn ins_get_caller(&self,
                       process: RcProcess,
                       _: RcCompiledCode,
@@ -2849,6 +3637,12 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Sets the outer scope of an object
+    ///
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register containing the object for which to set the outer scope.
+    /// 2. The register containing the object to use as the outer scope.
     fn ins_set_outer_scope(&self,
                            process: RcProcess,
                            _: RcCompiledCode,
@@ -2860,13 +3654,15 @@ impl VirtualMachineMethods for RcVirtualMachine {
         let target_ref = target_ptr.get_mut();
         let mut target = target_ref.get_mut();
 
-        let scope = copy_if_global!(self.global_heap, scope_ptr, target_ptr);
+        let scope =
+            copy_if_global!(self.state.global_heap, scope_ptr, target_ptr);
 
         target.set_outer_scope(scope);
 
         Ok(())
     }
 
+    /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, process: RcProcess, error: VirtualMachineError) {
         let mut stderr = io::stderr();
         let ref frame = read_lock!(process).call_frame;
@@ -2876,7 +3672,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         message.push_str(&format!("{} line {} in <{}>\n", frame.file(),
                                   error.line, frame.name()));
 
-        *write_lock!(self.exit_status) = Err(());
+        *write_lock!(self.state.exit_status) = Err(());
 
         frame.each_frame(|frame| {
             message.push_str(&format!(
@@ -2892,6 +3688,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         stderr.flush().unwrap();
     }
 
+    /// Schedules the execution of a new CompiledCode.
     fn schedule_code(&self,
                      process: RcProcess,
                      code: RcCompiledCode,
@@ -2916,6 +3713,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
     }
 
+    /// Runs a bytecode file.
     fn run_file(&self,
                 path_str: &String,
                 process: RcProcess,
@@ -2925,7 +3723,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         write_lock!(process).advance_line(instruction.line);
 
         {
-            let mut executed = write_lock!(self.executed_files);
+            let mut executed = write_lock!(self.state.executed_files);
 
             if executed.contains(path_str) {
                 return Ok(());
@@ -2939,7 +3737,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in read_lock!(self.config).directories.iter() {
+            for directory in read_lock!(self.state.config).directories.iter() {
                 let full_path = directory.join(path_str);
 
                 if full_path.exists() {
@@ -2960,7 +3758,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
         match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
-                let self_obj = self.top_level.clone();
+                let self_obj = self.state.top_level.clone();
                 let args = Vec::new();
 
                 self.schedule_code(process.clone(),
@@ -2983,6 +3781,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         }
     }
 
+    /// Sends a message to an object.
     fn send_message(&self,
                     name: &String,
                     process: RcProcess,
@@ -3059,13 +3858,13 @@ impl VirtualMachineMethods for RcVirtualMachine {
 
             let rest_array = write_lock!(process)
                 .allocate(object_value::array(rest),
-                          self.array_prototype.clone());
+                          self.state.array_prototype.clone());
 
             arguments.push(rest_array);
         } else if method_code.rest_argument && arguments.len() == 0 {
             let rest_array = write_lock!(process)
                 .allocate(object_value::array(Vec::new()),
-                          self.array_prototype.clone());
+                          self.state.array_prototype.clone());
 
             arguments.push(rest_array);
         }
@@ -3106,6 +3905,7 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(())
     }
 
+    /// Collects a set of arguments from an instruction.
     fn collect_arguments(&self,
                          process: RcProcess,
                          instruction: &Instruction,
@@ -3128,15 +3928,17 @@ impl VirtualMachineMethods for RcVirtualMachine {
         Ok(args)
     }
 
+    /// Starts a new thread.
     fn start_thread(&self) -> RcThread {
-        let self_clone = self.clone();
+        let state_clone = self.state.clone();
 
         let (sender, receiver) = channel();
 
         let handle = thread::spawn(move || {
             let thread = receiver.recv().unwrap();
+            let vm = VirtualMachine::new(state_clone);
 
-            self_clone.run_thread(thread);
+            vm.run_thread(thread);
         });
 
         let thread = self.allocate_thread(Some(handle));
@@ -3146,33 +3948,36 @@ impl VirtualMachineMethods for RcVirtualMachine {
         thread
     }
 
+    /// Spawns a new process.
     fn spawn_process(&self,
                      process: RcProcess,
                      code: RcCompiledCode,
                      register: usize) {
-        let (pid, new_proc) = self.allocate_process(code, self.top_level.clone());
+        let (pid, new_proc) =
+            self.allocate_process(code, self.state.top_level.clone());
 
-        write_lock!(self.threads).schedule(new_proc);
+        write_lock!(self.state.threads).schedule(new_proc);
 
         let mut proc_guard = write_lock!(process);
 
         let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
-                                          self.integer_prototype.clone());
+                                          self.state.integer_prototype.clone());
 
         proc_guard.set_register(register, pid_obj);
     }
 
+    /// Start a thread's execution loop.
     fn run_thread(&self, thread: RcThread) {
         while !thread.should_stop() {
             // Bail out if any of the other threads errored.
-            if read_lock!(self.exit_status).is_err() {
+            if read_lock!(self.state.exit_status).is_err() {
                 break;
             }
 
             // Terminate gracefully once the main thread has processed its
             // process queue.
             if thread.main_thread && thread.process_queue_empty() {
-                write_lock!(self.threads).stop();
+                write_lock!(self.state.threads).stop();
                 break;
             }
 
@@ -3194,14 +3999,14 @@ impl VirtualMachineMethods for RcVirtualMachine {
                     if reschedule {
                         thread.schedule(process);
                     } else {
-                        write_lock!(self.processes).remove(process);
+                        write_lock!(self.state.processes).remove(process);
                     }
                 }
                 // TODO: process supervision
                 Err(err) => {
                     self.error(process, err);
 
-                    write_lock!(self.threads).stop();
+                    write_lock!(self.state.threads).stop();
                 }
             }
         }
