@@ -25,8 +25,6 @@ use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
 
-const REDUCTION_COUNT: usize = 1000;
-
 pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
 pub struct VirtualMachineState {
@@ -183,7 +181,7 @@ impl VirtualMachine {
 
     /// Runs a single Process.
     fn run(&self, process: RcProcess) -> EmptyResult {
-        let mut reductions = REDUCTION_COUNT;
+        let mut reductions = self.state.config().reductions;
         let mut suspend_retry = false;
 
         write_lock!(process).mark_running();

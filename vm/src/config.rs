@@ -5,6 +5,7 @@ use std::path::PathBuf;
 pub struct Config {
     pub directories: Vec<PathBuf>,
     pub process_threads: usize,
+    pub reductions: usize,
 }
 
 impl Config {
@@ -12,6 +13,7 @@ impl Config {
         Config {
             directories: Vec::new(),
             process_threads: num_cpus::get(),
+            reductions: 1000,
         }
     }
 
@@ -24,6 +26,12 @@ impl Config {
             self.process_threads = 1;
         } else {
             self.process_threads = threads;
+        }
+    }
+
+    pub fn set_reductions(&mut self, reductions: usize) {
+        if reductions > 0 {
+            self.reductions = reductions;
         }
     }
 }

@@ -32,6 +32,11 @@ fn main() {
                    "The number of threads to use for running processes",
                    "INT");
 
+    options.optopt("",
+                   "reductions",
+                   "The number of reductions that can take place",
+                   "INT");
+
     options.optflag("", "type-sizes", "Prints the size of various VM types");
 
     let matches = match options.parse(&args[1..]) {
@@ -80,6 +85,11 @@ fn main() {
         if let Some(pthreads) = matches.opt_str("pthreads") {
             state.config()
                 .set_process_threads(pthreads.parse::<usize>().unwrap());
+        }
+
+        if let Some(reductions) = matches.opt_str("reductions") {
+            state.config()
+                .set_reductions(reductions.parse::<usize>().unwrap());
         }
 
         if matches.opt_present("I") {
