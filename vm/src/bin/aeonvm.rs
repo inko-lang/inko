@@ -8,6 +8,7 @@ use std::process;
 use std::mem;
 
 use libaeon::bytecode_parser;
+use libaeon::config::Config;
 use libaeon::virtual_machine::{VirtualMachine, VirtualMachineState};
 
 fn print_usage(options: &getopts::Options) -> ! {
@@ -79,22 +80,18 @@ fn main() {
     if matches.free.is_empty() {
         print_usage(&options);
     } else {
-        let state = VirtualMachineState::new();
+        let mut config = Config::new();
         let ref path = matches.free[0];
 
         if let Some(pthreads) = matches.opt_str("pthreads") {
-            state.config()
-                .set_process_threads(pthreads.parse::<usize>().unwrap());
+            config.set_process_threads(pthreads.parse::<usize>().unwrap());
         }
 
         if let Some(reductions) = matches.opt_str("reductions") {
-            state.config()
-                .set_reductions(reductions.parse::<usize>().unwrap());
+            config.set_reductions(reductions.parse::<usize>().unwrap());
         }
 
         if matches.opt_present("I") {
-            let mut config = state.config();
-
             for dir in matches.opt_strs("I") {
                 config.add_directory(dir);
             }
@@ -106,6 +103,7 @@ fn main() {
 
                 match bytecode_parser::parse(&mut bytes) {
                     Ok(code) => {
+                        let state = VirtualMachineState::new(config);
                         let vm = VirtualMachine::new(state);
                         let status = vm.start(code);
 

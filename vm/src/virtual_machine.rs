@@ -4,7 +4,7 @@ use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::thread;
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use binding::RcBinding;
@@ -28,7 +28,7 @@ use thread_list::ThreadList;
 pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
 pub struct VirtualMachineState {
-    config: RwLock<Config>,
+    config: Config,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
     processes: RwLock<ProcessList>,
@@ -55,7 +55,7 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachineState {
-    pub fn new() -> RcVirtualMachineState {
+    pub fn new(config: Config) -> RcVirtualMachineState {
         let mut heap = Heap::global();
 
         let top_level = heap.allocate_empty();
@@ -82,7 +82,7 @@ impl VirtualMachineState {
         }
 
         let state = VirtualMachineState {
-            config: RwLock::new(Config::new()),
+            config: config,
             executed_files: RwLock::new(HashSet::new()),
             threads: RwLock::new(ThreadList::new()),
             processes: RwLock::new(ProcessList::new()),
@@ -105,10 +105,6 @@ impl VirtualMachineState {
 
         Arc::new(state)
     }
-
-    pub fn config<'a>(&'a self) -> RwLockWriteGuard<'a, Config> {
-        write_lock!(self.config)
-    }
 }
 
 impl VirtualMachine {
@@ -116,8 +112,8 @@ impl VirtualMachine {
         VirtualMachine { state: state }
     }
 
-    pub fn config<'a>(&'a self) -> RwLockWriteGuard<'a, Config> {
-        self.state.config()
+    pub fn config(&self) -> &Config {
+        &self.state.config
     }
 
     /// Starts the main thread
@@ -126,7 +122,7 @@ impl VirtualMachine {
     /// execution as the main thread is executed in the same OS thread as the
     /// caller of this function is operating in.
     pub fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        for _ in 0..read_lock!(self.state.config).process_threads {
+        for _ in 0..self.config().process_threads {
             self.start_thread();
         }
 
@@ -181,7 +177,7 @@ impl VirtualMachine {
 
     /// Runs a single Process.
     fn run(&self, process: RcProcess) -> EmptyResult {
-        let mut reductions = self.state.config().reductions;
+        let mut reductions = self.config().reductions;
         let mut suspend_retry = false;
 
         write_lock!(process).mark_running();
@@ -3735,7 +3731,7 @@ impl VirtualMachine {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in read_lock!(self.state.config).directories.iter() {
+            for directory in self.config().directories.iter() {
                 let full_path = directory.join(path_str);
 
                 if full_path.exists() {
