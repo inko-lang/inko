@@ -2399,9 +2399,9 @@ impl VirtualMachine {
 
         if let Some(receiver) = read_lock!(self.state.processes).get(pid) {
             receiver.send_message(msg_ptr.clone());
-
-            process.set_register(register, msg_ptr);
         }
+
+        process.set_register(register, msg_ptr);
 
         Ok(())
     }
