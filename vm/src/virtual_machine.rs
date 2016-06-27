@@ -171,7 +171,7 @@ impl VirtualMachine {
             write_lock!(self.state.global_heap)
                 .allocate_value_with_prototype(value, proto)
         } else {
-            write_lock!(process).allocate(value, proto)
+            process.allocate(value, proto)
         }
     }
 
@@ -180,12 +180,12 @@ impl VirtualMachine {
         let mut reductions = self.config().reductions;
         let mut suspend_retry = false;
 
-        write_lock!(process).mark_running();
+        process.mark_running();
 
         'exec_loop: loop {
             let mut goto_index = None;
-            let code = read_lock!(process).compiled_code();
-            let mut index = read_lock!(process).instruction_index();
+            let code = process.compiled_code();
+            let mut index = process.instruction_index();
             let count = code.instructions.len();
 
             while index < count {
@@ -358,14 +358,14 @@ impl VirtualMachine {
                              instruction);
                     }
                     InstructionType::SendLiteral => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self, ins_send_literal, process, code, instruction);
 
                         continue 'exec_loop;
                     }
                     InstructionType::Send => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self, ins_send, process, code, instruction);
 
@@ -415,14 +415,14 @@ impl VirtualMachine {
                              instruction);
                     }
                     InstructionType::RunCode => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self, ins_run_code, process, code, instruction);
 
                         continue 'exec_loop;
                     }
                     InstructionType::RunLiteralCode => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self,
                              ins_run_literal_code,
@@ -672,7 +672,7 @@ impl VirtualMachine {
                         run!(self, ins_file_seek, process, code, instruction);
                     }
                     InstructionType::RunLiteralFile => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self,
                              ins_run_literal_file,
@@ -683,7 +683,7 @@ impl VirtualMachine {
                         continue 'exec_loop;
                     }
                     InstructionType::RunFile => {
-                        write_lock!(process).set_instruction_index(index);
+                        process.set_instruction_index(index);
 
                         run!(self, ins_run_file, process, code, instruction);
 
@@ -728,10 +728,8 @@ impl VirtualMachine {
                 // Suspend at the current instruction and retry it once the
                 // process is resumed again.
                 if suspend_retry {
-                    let mut lock = write_lock!(process);
-
-                    lock.set_instruction_index(index - 1);
-                    lock.suspend();
+                    process.set_instruction_index(index - 1);
+                    process.suspend();
 
                     return Ok(());
                 }
@@ -744,24 +742,22 @@ impl VirtualMachine {
 
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
-            if read_lock!(process).at_top_level() {
+            if process.at_top_level() {
                 break;
             }
 
             // We're not yet at the top level but we did finish running an
             // entire execution context.
             {
-                let mut lock = write_lock!(process);
-
-                lock.pop_context();
-                lock.pop_call_frame();
+                process.pop_context();
+                process.pop_call_frame();
             }
 
             // Reduce once we've exhausted all the instructions in a context.
             if reductions > 0 {
                 reductions -= 1;
             } else {
-                write_lock!(process).suspend();
+                process.suspend();
 
                 return Ok(());
             }
@@ -787,11 +783,10 @@ impl VirtualMachine {
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.integer(index), instruction);
 
-        let obj =
-            write_lock!(process).allocate(object_value::integer(value),
-                                          self.state.integer_prototype.clone());
+        let obj = process.allocate(object_value::integer(value),
+                                   self.state.integer_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -813,11 +808,10 @@ impl VirtualMachine {
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = *try_vm_error!(code.float(index), instruction);
 
-        let obj =
-            write_lock!(process).allocate(object_value::float(value),
-                                          self.state.float_prototype.clone());
+        let obj = process.allocate(object_value::float(value),
+                                   self.state.float_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -839,11 +833,10 @@ impl VirtualMachine {
         let index = try_vm_error!(instruction.arg(1), instruction);
         let value = try_vm_error!(code.string(index), instruction);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(value.clone()),
-                      self.state.string_prototype.clone());
+        let obj = process.allocate(object_value::string(value.clone()),
+                                   self.state.string_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -868,12 +861,11 @@ impl VirtualMachine {
         let obj = if is_global {
             write_lock!(self.state.global_heap).allocate_empty()
         } else {
-            write_lock!(process).allocate_empty()
+            process.allocate_empty()
         };
 
         if let Ok(proto_index) = instruction.arg(2) {
-            let mut proto = try_vm_error!(read_lock!(process)
-                                              .get_register(proto_index),
+            let mut proto = try_vm_error!(process.get_register(proto_index),
                                           instruction);
 
             if is_global && proto.is_local() {
@@ -885,7 +877,7 @@ impl VirtualMachine {
             obj_ref.get_mut().set_prototype(proto);
         }
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -935,7 +927,7 @@ impl VirtualMachine {
                                   }),
                                   instruction);
 
-        write_lock!(process).set_register(register, proto);
+        process.set_register(register, proto);
 
         Ok(())
     }
@@ -956,11 +948,10 @@ impl VirtualMachine {
         let values = try!(self.collect_arguments(process.clone(), instruction,
                                                  1, val_count));
 
-        let obj =
-            write_lock!(process).allocate(object_value::array(values),
-                                          self.state.array_prototype.clone());
+        let obj = process.allocate(object_value::array(values),
+                                   self.state.array_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -976,8 +967,7 @@ impl VirtualMachine {
                                  -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.integer_prototype.clone());
+        process.set_register(register, self.state.integer_prototype.clone());
 
         Ok(())
     }
@@ -993,8 +983,7 @@ impl VirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.float_prototype.clone());
+        process.set_register(register, self.state.float_prototype.clone());
 
         Ok(())
     }
@@ -1010,8 +999,7 @@ impl VirtualMachine {
                                 -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.string_prototype.clone());
+        process.set_register(register, self.state.string_prototype.clone());
 
         Ok(())
     }
@@ -1027,8 +1015,7 @@ impl VirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.array_prototype.clone());
+        process.set_register(register, self.state.array_prototype.clone());
 
         Ok(())
     }
@@ -1044,8 +1031,7 @@ impl VirtualMachine {
                               -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.true_prototype.clone());
+        process.set_register(register, self.state.true_prototype.clone());
 
         Ok(())
     }
@@ -1061,8 +1047,7 @@ impl VirtualMachine {
                                -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.false_prototype.clone());
+        process.set_register(register, self.state.false_prototype.clone());
 
         Ok(())
     }
@@ -1078,8 +1063,7 @@ impl VirtualMachine {
                                 -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.method_prototype.clone());
+        process.set_register(register, self.state.method_prototype.clone());
 
         Ok(())
     }
@@ -1095,8 +1079,7 @@ impl VirtualMachine {
                                  -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.binding_prototype.clone());
+        process.set_register(register, self.state.binding_prototype.clone());
 
         Ok(())
     }
@@ -1112,7 +1095,7 @@ impl VirtualMachine {
                                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
+        process
             .set_register(register, self.state.compiled_code_prototype.clone());
 
         Ok(())
@@ -1129,8 +1112,7 @@ impl VirtualMachine {
                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.true_object.clone());
+        process.set_register(register, self.state.true_object.clone());
 
         Ok(())
     }
@@ -1146,8 +1128,7 @@ impl VirtualMachine {
                      -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process)
-            .set_register(register, self.state.false_object.clone());
+        process.set_register(register, self.state.false_object.clone());
 
         Ok(())
     }
@@ -1162,13 +1143,12 @@ impl VirtualMachine {
                        instruction: &Instruction)
                        -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let binding = read_lock!(process).binding();
+        let binding = process.binding();
 
-        let obj =
-            write_lock!(process).allocate(object_value::binding(binding),
-                                          self.state.binding_prototype.clone());
+        let obj = process.allocate(object_value::binding(binding),
+                                   self.state.binding_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -1187,7 +1167,7 @@ impl VirtualMachine {
         let local_index = try_vm_error!(instruction.arg(0), instruction);
         let object = instruction_object!(instruction, process, 1);
 
-        write_lock!(process).set_local(local_index, object);
+        process.set_local(local_index, object);
 
         Ok(())
     }
@@ -1206,10 +1186,9 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let local_index = try_vm_error!(instruction.arg(1), instruction);
 
-        let object = try_vm_error!(read_lock!(process).get_local(local_index),
-                                   instruction);
+        let object = try_vm_error!(process.get_local(local_index), instruction);
 
-        write_lock!(process).set_register(register, object);
+        process.set_register(register, object);
 
         Ok(())
     }
@@ -1228,13 +1207,13 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let local_index = try_vm_error!(instruction.arg(1), instruction);
 
-        let value = if read_lock!(process).local_exists(local_index) {
+        let value = if process.local_exists(local_index) {
             self.state.true_object.clone()
         } else {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, value);
+        process.set_register(register, value);
 
         Ok(())
     }
@@ -1324,7 +1303,7 @@ impl VirtualMachine {
                               }),
                           instruction);
 
-        write_lock!(process).set_register(register, object);
+        process.set_register(register, object);
 
         Ok(())
     }
@@ -1359,7 +1338,7 @@ impl VirtualMachine {
                               }),
                           instruction);
 
-        write_lock!(process).set_register(register, object);
+        process.set_register(register, object);
 
         Ok(())
     }
@@ -1385,11 +1364,9 @@ impl VirtualMachine {
         let constant = source_ref.get().lookup_constant(name);
 
         if constant.is_some() {
-            write_lock!(process)
-                .set_register(register, self.state.true_object.clone());
+            process.set_register(register, self.state.true_object.clone());
         } else {
-            write_lock!(process)
-                .set_register(register, self.state.false_object.clone());
+            process.set_register(register, self.state.false_object.clone());
         }
 
         Ok(())
@@ -1482,7 +1459,7 @@ impl VirtualMachine {
                               }),
                           instruction);
 
-        write_lock!(process).set_register(register, attr);
+        process.set_register(register, attr);
 
         Ok(())
     }
@@ -1517,7 +1494,7 @@ impl VirtualMachine {
                               }),
                           instruction);
 
-        write_lock!(process).set_register(register, attr);
+        process.set_register(register, attr);
 
         Ok(())
     }
@@ -1548,7 +1525,7 @@ impl VirtualMachine {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -1569,12 +1546,12 @@ impl VirtualMachine {
 
         let cc = try_vm_error!(code.code_object(cc_index), instruction);
 
-        let obj = write_lock!(process).allocate(object_value::compiled_code(cc),
-                                                self.state
-                                                    .compiled_code_prototype
-                                                    .clone());
+        let obj = process.allocate(object_value::compiled_code(cc),
+                                   self.state
+                                       .compiled_code_prototype
+                                       .clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -1648,7 +1625,7 @@ impl VirtualMachine {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -1682,7 +1659,7 @@ impl VirtualMachine {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -1700,8 +1677,7 @@ impl VirtualMachine {
                   instruction: &Instruction)
                   -> EmptyResult {
         let object = instruction_object!(instruction, process, 0);
-        let mut lock = write_lock!(process);
-        let current_context = lock.context_mut();
+        let current_context = process.context_mut();
 
         if let Some(register) = current_context.return_register {
             if let Some(parent_context) = current_context.parent_mut() {
@@ -1725,7 +1701,7 @@ impl VirtualMachine {
                          -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
-        let value = read_lock!(process).get_register_option(value_reg);
+        let value = process.get_register_option(value_reg);
 
         let matched = match value {
             Some(obj) => {
@@ -1754,7 +1730,7 @@ impl VirtualMachine {
                         -> IntegerResult {
         let go_to = try_vm_error!(instruction.arg(0), instruction);
         let value_reg = try_vm_error!(instruction.arg(1), instruction);
-        let value = read_lock!(process).get_register_option(value_reg);
+        let value = process.get_register_option(value_reg);
 
         let matched = match value {
             Some(obj) => {
@@ -1823,7 +1799,7 @@ impl VirtualMachine {
 
         receiver.add_method(name.clone(), method.clone());
 
-        write_lock!(process).set_register(register, method);
+        process.set_register(register, method);
 
         Ok(())
     }
@@ -1862,7 +1838,7 @@ impl VirtualMachine {
 
         receiver.add_method(name.clone(), method.clone());
 
-        write_lock!(process).set_register(register, method);
+        process.set_register(register, method);
 
         Ok(())
     }
@@ -1883,7 +1859,7 @@ impl VirtualMachine {
                     _: RcCompiledCode,
                     instruction: &Instruction)
                     -> EmptyResult {
-        write_lock!(process).advance_line(instruction.line);
+        process.advance_line(instruction.line);
 
         let register = try_vm_error!(instruction.arg(0), instruction);
         let cc_ptr = instruction_object!(instruction, process, 1);
@@ -1934,7 +1910,7 @@ impl VirtualMachine {
                            binding,
                            register);
 
-        write_lock!(process).pop_call_frame();
+        process.pop_call_frame();
 
         Ok(())
     }
@@ -1956,7 +1932,7 @@ impl VirtualMachine {
                             code: RcCompiledCode,
                             instruction: &Instruction)
                             -> EmptyResult {
-        write_lock!(process).advance_line(instruction.line);
+        process.advance_line(instruction.line);
 
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_index = try_vm_error!(instruction.arg(1), instruction);
@@ -1970,7 +1946,7 @@ impl VirtualMachine {
                            None,
                            register);
 
-        write_lock!(process).pop_call_frame();
+        process.pop_call_frame();
 
         Ok(())
     }
@@ -1986,7 +1962,7 @@ impl VirtualMachine {
                         -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        write_lock!(process).set_register(register, self.state.top_level.clone());
+        process.set_register(register, self.state.top_level.clone());
 
         Ok(())
     }
@@ -2002,9 +1978,9 @@ impl VirtualMachine {
                     -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
-        let self_object = read_lock!(process).self_object();
+        let self_object = process.self_object();
 
-        write_lock!(process).set_register(register, self_object);
+        process.set_register(register, self_object);
 
         Ok(())
     }
@@ -2032,7 +2008,7 @@ impl VirtualMachine {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -2057,10 +2033,9 @@ impl VirtualMachine {
         let proto = self.state.integer_prototype.clone();
         let integer = error.value.as_error() as i64;
 
-        let result = write_lock!(process)
-            .allocate(object_value::integer(integer), proto);
+        let result = process.allocate(object_value::integer(integer), proto);
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -2171,11 +2146,10 @@ impl VirtualMachine {
 
         let result = integer.value.as_integer() as f64;
 
-        let obj =
-            write_lock!(process).allocate(object_value::float(result),
-                                          self.state.float_prototype.clone());
+        let obj = process.allocate(object_value::float(result),
+                                   self.state.float_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2201,11 +2175,10 @@ impl VirtualMachine {
 
         let result = integer.value.as_integer().to_string();
 
-        let obj =
-            write_lock!(process).allocate(object_value::string(result),
-                                          self.state.string_prototype.clone());
+        let obj = process.allocate(object_value::string(result),
+                                   self.state.string_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2425,17 +2398,9 @@ impl VirtualMachine {
         };
 
         if let Some(receiver) = read_lock!(self.state.processes).get(pid) {
-            let inbox = write_lock!(receiver).inbox();
-            let mut to_send = msg_ptr.clone();
+            receiver.send_message(msg_ptr.clone());
 
-            // Local objects need to be deep copied.
-            if msg_ptr.is_local() {
-                to_send = write_lock!(receiver).copy_object(to_send);
-            }
-
-            inbox.send(to_send);
-
-            write_lock!(process).set_register(register, msg_ptr);
+            process.set_register(register, msg_ptr);
         }
 
         Ok(())
@@ -2454,18 +2419,15 @@ impl VirtualMachine {
                                    instruction: &Instruction)
                                    -> BooleanResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let pid = read_lock!(process).pid;
+        let pid = process.pid;
         let source = read_lock!(self.state.processes).get(pid).unwrap();
-        let inbox = write_lock!(source).inbox();
 
-        if inbox.empty() {
-            Ok(true)
-        } else {
-            let msg_ptr = inbox.receive();
-
-            write_lock!(process).set_register(register, msg_ptr);
+        if let Some(msg_ptr) = source.receive_message() {
+            process.set_register(register, msg_ptr);
 
             Ok(false)
+        } else {
+            Ok(true)
         }
     }
 
@@ -2479,13 +2441,12 @@ impl VirtualMachine {
                            instruction: &Instruction)
                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let pid = read_lock!(process).pid;
+        let pid = process.pid;
 
-        let mut proc_guard = write_lock!(process);
-        let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
-                                          self.state.integer_prototype.clone());
+        let pid_obj = process.allocate(object_value::integer(pid as i64),
+                                       self.state.integer_prototype.clone());
 
-        proc_guard.set_register(register, pid_obj);
+        process.set_register(register, pid_obj);
 
         Ok(())
     }
@@ -2596,11 +2557,10 @@ impl VirtualMachine {
 
         let result = float.value.as_float() as i64;
 
-        let obj =
-            write_lock!(process).allocate(object_value::integer(result),
-                                          self.state.integer_prototype.clone());
+        let obj = process.allocate(object_value::integer(result),
+                                   self.state.integer_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2626,11 +2586,10 @@ impl VirtualMachine {
 
         let result = float.value.as_float().to_string();
 
-        let obj =
-            write_lock!(process).allocate(object_value::string(result),
-                                          self.state.string_prototype.clone());
+        let obj = process.allocate(object_value::string(result),
+                                   self.state.string_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2733,7 +2692,7 @@ impl VirtualMachine {
 
         vector.insert(index, value.clone());
 
-        write_lock!(process).set_register(register, value);
+        process.set_register(register, value);
 
         Ok(())
     }
@@ -2774,7 +2733,7 @@ impl VirtualMachine {
 
         let value = vector[index].clone();
 
-        write_lock!(process).set_register(register, value);
+        process.set_register(register, value);
 
         Ok(())
     }
@@ -2815,7 +2774,7 @@ impl VirtualMachine {
 
         let value = vector.remove(index);
 
-        write_lock!(process).set_register(register, value);
+        process.set_register(register, value);
 
         Ok(())
     }
@@ -2842,11 +2801,10 @@ impl VirtualMachine {
         let vector = array.value.as_array();
         let length = vector.len() as i64;
 
-        let obj =
-            write_lock!(process).allocate(object_value::integer(length),
-                                          self.state.integer_prototype.clone());
+        let obj = process.allocate(object_value::integer(length),
+                                   self.state.integer_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2894,11 +2852,10 @@ impl VirtualMachine {
 
         let lower = source.value.as_string().to_lowercase();
 
-        let obj =
-            write_lock!(process).allocate(object_value::string(lower),
-                                          self.state.string_prototype.clone());
+        let obj = process.allocate(object_value::string(lower),
+                                   self.state.string_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2924,11 +2881,10 @@ impl VirtualMachine {
 
         let upper = source.value.as_string().to_uppercase();
 
-        let obj =
-            write_lock!(process).allocate(object_value::string(upper),
-                                          self.state.string_prototype.clone());
+        let obj = process.allocate(object_value::string(upper),
+                                   self.state.string_prototype.clone());
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -2965,7 +2921,7 @@ impl VirtualMachine {
             self.state.false_object.clone()
         };
 
-        write_lock!(process).set_register(register, boolean);
+        process.set_register(register, boolean);
 
         Ok(())
     }
@@ -2997,15 +2953,14 @@ impl VirtualMachine {
             .as_bytes()
             .iter()
             .map(|&b| {
-                write_lock!(process)
+                process
                     .allocate(object_value::integer(b as i64), int_proto.clone())
             })
             .collect::<Vec<_>>();
 
-        let obj = write_lock!(process)
-            .allocate(object_value::array(array), array_proto);
+        let obj = process.allocate(object_value::array(array), array_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3054,10 +3009,9 @@ impl VirtualMachine {
 
         let string = try_error!(try_from_utf8!(bytes), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(string), string_proto);
+        let obj = process.allocate(object_value::string(string), string_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3084,10 +3038,9 @@ impl VirtualMachine {
         let int_proto = self.state.integer_prototype.clone();
         let length = arg.value.as_string().chars().count() as i64;
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(length), int_proto);
+        let obj = process.allocate(object_value::integer(length), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3114,10 +3067,9 @@ impl VirtualMachine {
         let int_proto = self.state.integer_prototype.clone();
         let size = arg.value.as_string().len() as i64;
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(size), int_proto);
+        let obj = process.allocate(object_value::integer(size), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3152,10 +3104,10 @@ impl VirtualMachine {
 
         try_io!(stdout.flush(), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result as i64), int_proto);
+        let obj =
+            process.allocate(object_value::integer(result as i64), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3190,10 +3142,10 @@ impl VirtualMachine {
 
         try_io!(stderr.flush(), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result as i64), int_proto);
+        let obj =
+            process.allocate(object_value::integer(result as i64), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3219,10 +3171,9 @@ impl VirtualMachine {
 
         try_io!(io::stdin().read_to_string(&mut buffer), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(buffer), proto);
+        let obj = process.allocate(object_value::string(buffer), proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3246,10 +3197,9 @@ impl VirtualMachine {
 
         try_io!(io::stdin().read_line(&mut buffer), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(buffer), proto);
+        let obj = process.allocate(object_value::string(buffer), proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3311,10 +3261,9 @@ impl VirtualMachine {
 
         let file = try_io!(open_opts.open(path_string), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::file(file), file_proto);
+        let obj = process.allocate(object_value::file(file), file_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3353,10 +3302,10 @@ impl VirtualMachine {
 
         let result = try_io!(file.write(bytes), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::integer(result as i64), int_proto);
+        let obj =
+            process.allocate(object_value::integer(result as i64), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3391,10 +3340,9 @@ impl VirtualMachine {
 
         try_io!(file.read_to_string(&mut buffer), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(buffer), int_proto);
+        let obj = process.allocate(object_value::string(buffer), int_proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3437,10 +3385,9 @@ impl VirtualMachine {
 
         let string = try_error!(try_from_utf8!(bytes), process, register);
 
-        let obj = write_lock!(process)
-            .allocate(object_value::string(string), proto);
+        let obj = process.allocate(object_value::string(string), proto);
 
-        write_lock!(process).set_register(register, obj);
+        process.set_register(register, obj);
 
         Ok(())
     }
@@ -3471,8 +3418,7 @@ impl VirtualMachine {
 
         try_io!(file.flush(), process, register);
 
-        write_lock!(process)
-            .set_register(register, self.state.true_object.clone());
+        process.set_register(register, self.state.true_object.clone());
 
         Ok(())
     }
@@ -3505,10 +3451,9 @@ impl VirtualMachine {
         let size = meta.len() as i64;
         let proto = self.state.integer_prototype.clone();
 
-        let result = write_lock!(process)
-            .allocate(object_value::integer(size), proto);
+        let result = process.allocate(object_value::integer(size), proto);
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -3551,10 +3496,10 @@ impl VirtualMachine {
 
         let proto = self.state.integer_prototype.clone();
 
-        let result = write_lock!(process)
-            .allocate(object_value::integer(new_offset as i64), proto);
+        let result =
+            process.allocate(object_value::integer(new_offset as i64), proto);
 
-        write_lock!(process).set_register(register, result);
+        process.set_register(register, result);
 
         Ok(())
     }
@@ -3616,8 +3561,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
 
         let caller = {
-            let lock = read_lock!(process);
-            let context = lock.context();
+            let context = process.context();
 
             if let Some(parent) = context.parent() {
                 parent.self_object()
@@ -3626,7 +3570,7 @@ impl VirtualMachine {
             }
         };
 
-        write_lock!(process).set_register(register, caller);
+        process.set_register(register, caller);
 
         Ok(())
     }
@@ -3659,7 +3603,7 @@ impl VirtualMachine {
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, process: RcProcess, error: VirtualMachineError) {
         let mut stderr = io::stderr();
-        let ref frame = read_lock!(process).call_frame;
+        let ref frame = process.call_frame();
         let mut message =
             format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
 
@@ -3697,13 +3641,12 @@ impl VirtualMachine {
         };
 
         let frame = CallFrame::from_code(code);
-        let mut plock = write_lock!(process);
 
-        plock.push_context(context);
-        plock.push_call_frame(frame);
+        process.push_context(context);
+        process.push_call_frame(frame);
 
         for arg in args.iter() {
-            plock.add_local(arg.clone());
+            process.add_local(arg.clone());
         }
     }
 
@@ -3714,7 +3657,7 @@ impl VirtualMachine {
                 instruction: &Instruction,
                 register: usize)
                 -> EmptyResult {
-        write_lock!(process).advance_line(instruction.line);
+        process.advance_line(instruction.line);
 
         {
             let mut executed = write_lock!(self.state.executed_files);
@@ -3762,7 +3705,7 @@ impl VirtualMachine {
                                    None,
                                    register);
 
-                write_lock!(process).pop_call_frame();
+                process.pop_call_frame();
 
                 Ok(())
             }
@@ -3783,7 +3726,7 @@ impl VirtualMachine {
                     -> EmptyResult {
         // Advance the line number so error messages contain the correct frame
         // pointing to the call site.
-        write_lock!(process).advance_line(instruction.line);
+        process.advance_line(instruction.line);
 
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
@@ -3850,15 +3793,13 @@ impl VirtualMachine {
 
             arguments.truncate(tot_args);
 
-            let rest_array = write_lock!(process)
-                .allocate(object_value::array(rest),
-                          self.state.array_prototype.clone());
+            let rest_array = process.allocate(object_value::array(rest),
+                                              self.state.array_prototype.clone());
 
             arguments.push(rest_array);
         } else if method_code.rest_argument && arguments.len() == 0 {
-            let rest_array = write_lock!(process)
-                .allocate(object_value::array(Vec::new()),
-                          self.state.array_prototype.clone());
+            let rest_array = process.allocate(object_value::array(Vec::new()),
+                                              self.state.array_prototype.clone());
 
             arguments.push(rest_array);
         }
@@ -3894,7 +3835,7 @@ impl VirtualMachine {
                            None,
                            register);
 
-        write_lock!(process).pop_call_frame();
+        process.pop_call_frame();
 
         Ok(())
     }
@@ -3912,7 +3853,7 @@ impl VirtualMachine {
             let arg_index = try_vm_error!(instruction.arg(index), instruction);
 
             let arg = try_vm_error!(
-                read_lock!(process).get_register(arg_index),
+                process.get_register(arg_index),
                 instruction
             );
 
@@ -3952,12 +3893,10 @@ impl VirtualMachine {
 
         write_lock!(self.state.threads).schedule(new_proc);
 
-        let mut proc_guard = write_lock!(process);
+        let pid_obj = process.allocate(object_value::integer(pid as i64),
+                                       self.state.integer_prototype.clone());
 
-        let pid_obj = proc_guard.allocate(object_value::integer(pid as i64),
-                                          self.state.integer_prototype.clone());
-
-        proc_guard.set_register(register, pid_obj);
+        process.set_register(register, pid_obj);
     }
 
     /// Start a thread's execution loop.
@@ -3987,7 +3926,7 @@ impl VirtualMachine {
 
             match self.run(process.clone()) {
                 Ok(_) => {
-                    let reschedule = read_lock!(process).is_suspended();
+                    let reschedule = process.is_suspended();
 
                     // Process exhausted reductions, re-schedule it.
                     if reschedule {

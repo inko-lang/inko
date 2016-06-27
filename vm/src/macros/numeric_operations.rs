@@ -21,10 +21,10 @@ macro_rules! num_op {
 
         let result = to_expr!(receiver.value.$as_name() $op arg.value.$as_name());
 
-        let obj = write_lock!($process)
+        let obj = $process
             .allocate(object_value::$tname(result), $vm.state.$proto.clone());
 
-        write_lock!($process).set_register(register, obj);
+        $process.set_register(register, obj);
     });
 }
 
@@ -52,7 +52,7 @@ macro_rules! num_bool_op {
             $vm.state.false_object.clone()
         };
 
-        write_lock!($process).set_register(register, boolean);
+        $process.set_register(register, boolean);
     });
 }
 

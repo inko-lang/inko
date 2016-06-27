@@ -11,8 +11,7 @@ macro_rules! run {
 macro_rules! instruction_object {
     ($ins: expr, $process: expr, $index: expr) => ({
         let index = try_vm_error!($ins.arg($index), $ins);
-        let lock = read_lock!($process);
 
-        try_vm_error!(lock.get_register(index), $ins)
+        try_vm_error!($process.get_register(index), $ins)
     });
 }

@@ -30,7 +30,7 @@ impl ProcessList {
     }
 
     pub fn remove(&mut self, process: RcProcess) {
-        let index = read_lock!(process).pid;
+        let index = process.pid;
 
         self.processes[index] = None;
         self.indexes.push(index);

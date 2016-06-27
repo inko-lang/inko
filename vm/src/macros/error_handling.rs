@@ -3,10 +3,10 @@
 /// Sets an error in a register and returns control to the caller.
 macro_rules! set_error {
     ($code: expr, $process: expr, $register: expr) => ({
-        let mut lock = write_lock!($process);
-        let obj = lock.allocate_without_prototype(object_value::error($code));
+        let obj =
+            $process.allocate_without_prototype(object_value::error($code));
 
-        lock.set_register($register, obj);
+        $process.set_register($register, obj);
 
         return Ok(());
     });

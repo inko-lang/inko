@@ -74,6 +74,9 @@ fn main() {
         println!("Thread: {} bytes",
                  mem::size_of::<libaeon::thread::Thread>());
 
+        println!("Register: {} bytes",
+                 mem::size_of::<libaeon::register::Register>());
+
         return;
     }
 
