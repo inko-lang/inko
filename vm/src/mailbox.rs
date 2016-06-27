@@ -3,14 +3,14 @@ use std::collections::VecDeque;
 use heap::Heap;
 use object_pointer::ObjectPointer;
 
-pub struct Inbox {
+pub struct Mailbox {
     messages: VecDeque<ObjectPointer>,
     heap: Heap,
 }
 
-impl Inbox {
-    pub fn new() -> Inbox {
-        Inbox {
+impl Mailbox {
+    pub fn new() -> Mailbox {
+        Mailbox {
             messages: VecDeque::new(),
             heap: Heap::local(),
         }

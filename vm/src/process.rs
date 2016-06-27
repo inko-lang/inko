@@ -6,7 +6,7 @@ use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use heap::Heap;
-use inbox::Inbox;
+use mailbox::Mailbox;
 use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -32,7 +32,7 @@ pub struct LocalData {
 
 pub struct Process {
     pub pid: usize,
-    pub inbox: Mutex<Option<Box<Inbox>>>,
+    pub mailbox: Mutex<Option<Box<Mailbox>>>,
     pub local_data: UnsafeCell<LocalData>,
 }
 
@@ -56,7 +56,7 @@ impl Process {
         let process = Process {
             pid: pid,
             local_data: UnsafeCell::new(local_data),
-            inbox: Mutex::new(None),
+            mailbox: Mutex::new(None),
         };
 
         Arc::new(process)
@@ -190,31 +190,31 @@ impl Process {
     }
 
     pub fn send_message(&self, message: ObjectPointer) {
-        let mut inbox = self.inbox();
+        let mut mailbox = self.mailbox();
 
-        inbox.as_mut().unwrap().send(message);
+        mailbox.as_mut().unwrap().send(message);
     }
 
     pub fn receive_message(&self) -> Option<ObjectPointer> {
-        let mut inbox = self.inbox();
+        let mut mailbox = self.mailbox();
 
-        inbox.as_mut().unwrap().receive()
+        mailbox.as_mut().unwrap().receive()
     }
 
-    pub fn inbox<'a>(&'a self) -> MutexGuard<'a, Option<Box<Inbox>>> {
-        let mut inbox = unlock!(self.inbox);
+    pub fn mailbox<'a>(&'a self) -> MutexGuard<'a, Option<Box<Mailbox>>> {
+        let mut mailbox = unlock!(self.mailbox);
 
-        let allocate = if inbox.is_none() {
+        let allocate = if mailbox.is_none() {
             true
         } else {
             false
         };
 
         if allocate {
-            *inbox = Some(Box::new(Inbox::new()));
+            *mailbox = Some(Box::new(Mailbox::new()));
         }
 
-        inbox
+        mailbox
     }
 
     pub fn is_suspended(&self) -> bool {

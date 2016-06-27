@@ -63,7 +63,8 @@ fn main() {
 
         println!("Heap: {} bytes", mem::size_of::<libaeon::heap::Heap>());
 
-        println!("Inbox: {} bytes", mem::size_of::<libaeon::inbox::Inbox>());
+        println!("Mailbox: {} bytes",
+                 mem::size_of::<libaeon::mailbox::Mailbox>());
 
         println!("Process: {} bytes",
                  mem::size_of::<libaeon::process::Process>());
