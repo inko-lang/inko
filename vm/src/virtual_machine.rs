@@ -3607,14 +3607,14 @@ impl VirtualMachine {
         let mut message =
             format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
 
-        message.push_str(&format!("{} line {} in <{}>\n", frame.file(),
+        message.push_str(&format!("{} line {} in {}\n", frame.file(),
                                   error.line, frame.name()));
 
         *write_lock!(self.state.exit_status) = Err(());
 
         frame.each_frame(|frame| {
             message.push_str(&format!(
-                "{} line {} in <{}>\n",
+                "{} line {} in {}\n",
                 frame.file(),
                 frame.line,
                 frame.name()
