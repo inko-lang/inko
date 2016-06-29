@@ -1886,8 +1886,8 @@ impl VirtualMachine {
 
         let binding_idx = 3 + arg_count;
 
-        let binding = if let Ok(binding_reg) = instruction.arg(binding_idx) {
-            let obj_ptr = instruction_object!(instruction, process, binding_reg);
+        let binding = if instruction.arg(binding_idx).is_ok() {
+            let obj_ptr = instruction_object!(instruction, process, binding_idx);
 
             let obj_ref = obj_ptr.get();
             let obj = obj_ref.get();
