@@ -22,10 +22,7 @@ module Aeon
       end
 
       def compile_body
-        body = CompiledCode.new(name, @code.file, line, argument_count,
-                                required_argument_count,
-                                rest_argument: rest_argument?,
-                                visibility: visibility)
+        body = code_for_body
 
         add_arguments(body)
 
@@ -34,6 +31,14 @@ module Aeon
         @compiler.process(body_ast, body)
 
         body
+      end
+
+      def code_for_body
+        CompiledCode.new(name, @code.file, line, argument_count,
+                         required_argument_count,
+                         rest_argument: rest_argument?,
+                         visibility: visibility,
+                         type: type)
       end
 
       def rest_argument
@@ -170,6 +175,10 @@ module Aeon
 
       def column
         @ast.column
+      end
+
+      def type
+        :method
       end
     end
   end

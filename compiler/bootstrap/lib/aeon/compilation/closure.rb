@@ -23,12 +23,22 @@ module Aeon
         register
       end
 
+      def code_for_body
+        code = super
+        code.outer_scope = @code
+        code
+      end
+
       def name
         '<closure>'
       end
 
       def visibility
         :public
+      end
+
+      def type
+        :closure
       end
 
       def body_ast

@@ -12,7 +12,7 @@ module Aeon
       content = File.read(@source_file)
       ast     = Parser.new(content).parse
 
-      code = CompiledCode.new('main', @source_file, 1)
+      code = CompiledCode.new('<main>', @source_file, 1)
 
       process(ast, code)
 

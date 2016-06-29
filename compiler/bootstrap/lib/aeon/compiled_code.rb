@@ -4,6 +4,8 @@ module Aeon
       :rest_argument, :visibility, :integers, :floats, :strings, :code_objects,
       :register, :locals, :instructions, :register, :labels, :type
 
+    attr_accessor :outer_scope
+
     def initialize(name, file, line, arguments = 0, required_arguments = 0,
                    rest_argument: false, visibility: :private, type: nil)
       @name = name
@@ -27,6 +29,22 @@ module Aeon
       @register = -1
 
       @type = type
+    end
+
+    def closure?
+      type == :closure
+    end
+
+    def local_defined?(name)
+      @locals.include?(name) || closure? && outer_scope.local_defined?(name)
+    end
+
+    def resolve_local(name)
+      if !@locals.include?(name) && closure?
+        outer_scope.resolve_local(name)
+      else
+        @locals.get(name)
+      end
     end
 
     def next_register

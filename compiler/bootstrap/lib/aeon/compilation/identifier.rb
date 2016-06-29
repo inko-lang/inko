@@ -8,8 +8,8 @@ module Aeon
       end
 
       def compile
-        if @code.locals.include?(name)
-          local_idx = @code.locals.get(name)
+        if @code.local_defined?(name)
+          local_idx = @code.resolve_local(name)
           register  = @code.next_register
 
           @code.get_local([register, local_idx], line, column)
