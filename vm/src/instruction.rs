@@ -113,6 +113,8 @@ pub enum InstructionType {
     SendProcessMessage = 105,
     ReceiveProcessMessage = 106,
     GetCurrentPid = 107,
+    SetParentLocal = 108,
+    GetParentLocal = 109,
 }
 
 /// Struct for storing information about a single instruction.

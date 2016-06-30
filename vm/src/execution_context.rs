@@ -34,6 +34,16 @@ impl ExecutionContext {
         ExecutionContext::new(Binding::new(object), code, return_register)
     }
 
+    pub fn with_binding(parent_binding: RcBinding,
+                        code: RcCompiledCode,
+                        return_register: Option<usize>)
+                        -> ExecutionContext {
+        let object = parent_binding.self_object();
+        let binding = Binding::with_parent(object, parent_binding);
+
+        ExecutionContext::new(binding, code, return_register)
+    }
+
     pub fn set_parent(&mut self, parent: ExecutionContext) {
         self.parent = Some(Box::new(parent));
     }
@@ -47,7 +57,7 @@ impl ExecutionContext {
     }
 
     pub fn self_object(&self) -> ObjectPointer {
-        read_lock!(self.binding).self_object.clone()
+        self.binding.self_object.clone()
     }
 
     pub fn get_register(&self, register: usize) -> Option<ObjectPointer> {

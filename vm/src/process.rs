@@ -139,33 +139,20 @@ impl Process {
 
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
         let local_data = self.local_data();
-        let mut binding = write_lock!(local_data.context.binding);
 
-        binding.variables.insert(index, value);
-    }
-
-    pub fn add_local(&self, value: ObjectPointer) {
-        let local_data = self.local_data();
-        let mut binding = write_lock!(local_data.context.binding);
-
-        binding.variables.push(value);
+        local_data.context.binding.set_local(index, value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
         let local_data = self.local_data();
-        let binding = read_lock!(local_data.context.binding);
 
-        binding.variables
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined local variable index {}", index))
+        local_data.context.binding.get_local(index)
     }
 
     pub fn local_exists(&self, index: usize) -> bool {
         let local_data = self.local_data();
-        let binding = read_lock!(local_data.context.binding);
 
-        binding.variables.get(index).is_some()
+        local_data.context.binding.local_exists(index)
     }
 
     pub fn allocate_empty(&self) -> ObjectPointer {

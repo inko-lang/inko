@@ -146,6 +146,20 @@ impl ObjectValue {
             _ => panic!("ObjectValue::as_binding() called non a non Binding"),
         }
     }
+
+    pub fn type_name(&self) -> &str {
+        match *self {
+            ObjectValue::None => "Object",
+            ObjectValue::Integer(_) => "Integer",
+            ObjectValue::Float(_) => "Float",
+            ObjectValue::String(_) => "String",
+            ObjectValue::Array(_) => "Array",
+            ObjectValue::File(_) => "File",
+            ObjectValue::Error(_) => "Error",
+            ObjectValue::CompiledCode(_) => "CompiledCode",
+            ObjectValue::Binding(_) => "Binding",
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {

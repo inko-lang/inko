@@ -723,6 +723,20 @@ impl VirtualMachine {
                              code,
                              instruction);
                     }
+                    InstructionType::SetParentLocal => {
+                        run!(self,
+                             ins_set_parent_local,
+                             process,
+                             code,
+                             instruction);
+                    }
+                    InstructionType::GetParentLocal => {
+                        run!(self,
+                             ins_get_parent_local,
+                             process,
+                             code,
+                             instruction);
+                    }
                 };
 
                 // Suspend at the current instruction and retry it once the
@@ -1214,6 +1228,62 @@ impl VirtualMachine {
         };
 
         process.set_register(register, value);
+
+        Ok(())
+    }
+
+    /// Sets a local variable in one of the parent bindings.
+    ///
+    /// This instruction requires 3 arguments:
+    ///
+    /// 1. The number of parent bindings to traverse in order to find the
+    ///    binding to set the variable in.
+    /// 2. The local variable index to set.
+    /// 3. The register containing the value to set.
+    fn ins_set_parent_local(&self,
+                            process: RcProcess,
+                            _: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
+        let depth = try_vm_error!(instruction.arg(0), instruction);
+        let index = try_vm_error!(instruction.arg(1), instruction);
+        let value = instruction_object!(instruction, process, 2);
+
+        if let Some(binding) = process.binding().find_parent(depth) {
+            binding.set_local(index, value);
+        } else {
+            return_vm_error!(format!("No binding for depth {}", depth),
+                             instruction.line);
+        }
+
+        Ok(())
+    }
+
+    /// Gets a local variable in one of the parent bindings.
+    ///
+    /// This instruction requires 2 arguments:
+    ///
+    /// 1. The number of parent bindings to traverse in order to find the
+    ///    binding to get the variable from.
+    /// 2. The register to store the local variable in.
+    /// 3. The local variable index to get.
+    fn ins_get_parent_local(&self,
+                            process: RcProcess,
+                            _: RcCompiledCode,
+                            instruction: &Instruction)
+                            -> EmptyResult {
+        let depth = try_vm_error!(instruction.arg(0), instruction);
+        let reg = try_vm_error!(instruction.arg(1), instruction);
+        let index = try_vm_error!(instruction.arg(2), instruction);
+
+        if let Some(binding) = process.binding().find_parent(depth) {
+            let object = try_vm_error!(binding.get_local(index), instruction);
+
+            process.set_register(reg, object);
+        } else {
+            return_vm_error!(format!("No binding for depth {}", depth),
+                             instruction.line);
+        }
 
         Ok(())
     }
@@ -3635,7 +3705,7 @@ impl VirtualMachine {
                      binding: Option<RcBinding>,
                      register: usize) {
         let context = if let Some(rc_bind) = binding {
-            ExecutionContext::new(rc_bind, code.clone(), Some(register))
+            ExecutionContext::with_binding(rc_bind, code.clone(), Some(register))
         } else {
             ExecutionContext::with_object(self_obj, code.clone(), Some(register))
         };
@@ -3645,8 +3715,8 @@ impl VirtualMachine {
         process.push_context(context);
         process.push_call_frame(frame);
 
-        for arg in args.iter() {
-            process.add_local(arg.clone());
+        for (index, arg) in args.iter().enumerate() {
+            process.set_local(index, arg.clone());
         }
     }
 
@@ -3735,13 +3805,16 @@ impl VirtualMachine {
 
         let method_ptr = {
             let receiver_ref = receiver_ptr.get();
+            let receiver_ptr = receiver_ref.get();
 
             try_vm_error!(
-                receiver_ref.get()
-                    .lookup_method(name)
-                    .ok_or_else(|| {
-                        format!("undefined method \"{}\" called", name)
-                    }),
+                receiver_ptr.lookup_method(name).ok_or_else(|| {
+                    format!(
+                        "undefined method \"{}\" called on an object of type {}",
+                        name,
+                        receiver_ptr.value.type_name()
+                    )
+                }),
                 instruction
             )
         };
