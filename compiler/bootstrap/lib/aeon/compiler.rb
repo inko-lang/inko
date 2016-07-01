@@ -67,6 +67,12 @@ module Aeon
       Compilation::Let.new(self, node, current_cc).compile
     end
 
+    alias_method :on_letm, :on_let
+
+    def on_assign(node, current_cc)
+      Compilation::Assign.new(self, node, current_cc).compile
+    end
+
     def on_self(node, current_cc)
       Compilation::Self.new(node, current_cc).compile
     end

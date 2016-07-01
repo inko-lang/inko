@@ -390,9 +390,9 @@ send
 
           s(:send, receiver, name, *expr, location: val[0])
         when :assign
-          s(:assign, val[0], expr, location: val[0])
+          s(:assign, val[0], val[1][2], location: val[0])
         else
-          s(:assign, val[0], s(:send, val[0], type, expr, location: val[0]))
+          s(:assign, val[0], s(:send, val[0], type, val[1][2], location: val[0]), location: val[0])
         end
       else
         val[0]
@@ -568,6 +568,8 @@ def_special_name
   | Div
   | Modulo
   | Ampersand
+  | Lower
+  | Greater
   | LowerEqual
   | GreaterEqual
   | Equal
