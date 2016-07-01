@@ -41,9 +41,27 @@ module Aeon
 
     def resolve_local(name)
       if !@locals.include?(name) && closure?
-        outer_scope.resolve_local(name)
+        depth = 1
+        current = outer_scope
+        local = nil
+
+        while current
+          if current.locals.include?(name)
+            local = current.locals.get(name)
+            break
+          end
+
+          depth += 1
+          current = current.outer_scope
+        end
+
+        unless local
+          raise ArgumentError, "Local variable #{name.inspect} not found"
+        end
+
+        [depth, local]
       else
-        @locals.get(name)
+        [0, @locals.get(name)]
       end
     end
 

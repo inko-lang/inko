@@ -13,7 +13,11 @@ module Aeon
     end
 
     def get(value)
-      @values.fetch(value)
+      unless found = @values[value]
+        raise ArgumentError, "Undefined literal #{value.inspect}"
+      end
+
+      found
     end
 
     def get_or_set(value)

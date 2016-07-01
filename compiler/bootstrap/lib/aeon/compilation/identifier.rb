@@ -9,10 +9,14 @@ module Aeon
 
       def compile
         if @code.local_defined?(name)
-          local_idx = @code.resolve_local(name)
-          register  = @code.next_register
+          depth, local_idx = @code.resolve_local(name)
+          register = @code.next_register
 
-          @code.get_local([register, local_idx], line, column)
+          if depth > 0
+            @code.get_parent_local([depth, register, local_idx], line, column)
+          else
+            @code.get_local([register, local_idx], line, column)
+          end
 
           register
 
