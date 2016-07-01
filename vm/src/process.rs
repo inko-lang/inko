@@ -219,7 +219,7 @@ impl Process {
     }
 
     pub fn binding(&self) -> RcBinding {
-        self.context().binding.clone()
+        self.context().binding()
     }
 
     pub fn self_object(&self) -> ObjectPointer {

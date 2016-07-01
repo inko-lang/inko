@@ -287,6 +287,13 @@ impl VirtualMachine {
                     InstructionType::GetBinding => {
                         run!(self, ins_get_binding, process, code, instruction);
                     }
+                    InstructionType::GetBindingOfCaller => {
+                        run!(self,
+                             ins_get_binding_of_caller,
+                             process,
+                             code,
+                             instruction);
+                    }
                     InstructionType::SetLocal => {
                         run!(self, ins_set_local, process, code, instruction);
                     }
@@ -1167,6 +1174,37 @@ impl VirtualMachine {
         Ok(())
     }
 
+    /// Gets the binding of the calling scope.
+    ///
+    /// If no binding could be found the current binding is returned instead.
+    ///
+    /// This instruction requires one argument: the register to store the
+    /// binding object in.
+    fn ins_get_binding_of_caller(&self,
+                                 process: RcProcess,
+                                 _: RcCompiledCode,
+                                 instruction: &Instruction)
+                                 -> EmptyResult {
+        let register = try_vm_error!(instruction.arg(0), instruction);
+
+        let binding = {
+            let context = process.context();
+
+            if let Some(parent) = context.parent() {
+                parent.binding()
+            } else {
+                context.binding()
+            }
+        };
+
+        let obj = process.allocate(object_value::binding(binding),
+                                   self.state.binding_prototype.clone());
+
+        process.set_register(register, obj);
+
+        Ok(())
+    }
+
     /// Sets a local variable to a given register's value.
     ///
     /// This instruction requires two arguments:
@@ -1919,10 +1957,8 @@ impl VirtualMachine {
     ///
     /// 1. The register to store the return value in.
     /// 2. The register containing the CompiledCode object to run.
-    /// 3. The register containing the amount of arguments to pass.
-    /// 4. The arguments to pass when the argument count is greater than 0, each
-    ///    as a separate argument.
-    /// 5. The Binding to use, if any. Omitting this argument results in a
+    /// 3. The register containing an array of arguments to pass.
+    /// 4. The Binding to use, if any. Omitting this argument results in a
     ///    Binding being created automatically.
     fn ins_run_code(&self,
                     process: RcProcess,
@@ -1933,7 +1969,7 @@ impl VirtualMachine {
 
         let register = try_vm_error!(instruction.arg(0), instruction);
         let cc_ptr = instruction_object!(instruction, process, 1);
-        let arg_ptr = instruction_object!(instruction, process, 2);
+        let args_ptr = instruction_object!(instruction, process, 2);
 
         let code_obj = {
             let cc_ref = cc_ptr.get();
@@ -1944,15 +1980,13 @@ impl VirtualMachine {
             cc_obj.value.as_compiled_code()
         };
 
-        let arg_ref = arg_ptr.get();
-        let arg_obj = arg_ref.get();
+        let args_ref = args_ptr.get();
+        let args_obj = args_ref.get();
 
-        ensure_integers!(instruction, arg_obj);
+        ensure_arrays!(instruction, args_obj);
 
-        let arg_count = arg_obj.value.as_integer() as usize;
-
-        let arguments = try!(self.collect_arguments(process.clone(),
-                                                    instruction, 3, arg_count));
+        let arguments = args_obj.value.as_array();
+        let arg_count = arguments.len();
 
         let binding_idx = 3 + arg_count;
 
@@ -2012,7 +2046,7 @@ impl VirtualMachine {
         self.schedule_code(process.clone(),
                            code_obj,
                            receiver,
-                           Vec::new(),
+                           &Vec::new(),
                            None,
                            register);
 
@@ -3701,7 +3735,7 @@ impl VirtualMachine {
                      process: RcProcess,
                      code: RcCompiledCode,
                      self_obj: ObjectPointer,
-                     args: Vec<ObjectPointer>,
+                     args: &Vec<ObjectPointer>,
                      binding: Option<RcBinding>,
                      register: usize) {
         let context = if let Some(rc_bind) = binding {
@@ -3766,12 +3800,11 @@ impl VirtualMachine {
         match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
                 let self_obj = self.state.top_level.clone();
-                let args = Vec::new();
 
                 self.schedule_code(process.clone(),
                                    body,
                                    self_obj,
-                                   args,
+                                   &Vec::new(),
                                    None,
                                    register);
 
@@ -3904,7 +3937,7 @@ impl VirtualMachine {
         self.schedule_code(process.clone(),
                            method_code,
                            receiver_ptr.clone(),
-                           arguments,
+                           &arguments,
                            None,
                            register);
 

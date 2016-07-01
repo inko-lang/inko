@@ -111,7 +111,8 @@ module Aeon
       receive_process_message: 106,
       get_current_pid: 107,
       set_parent_local: 108,
-      get_parent_local: 109
+      get_parent_local: 109,
+      get_binding_of_caller: 110
     }
 
     def initialize(name, arguments, line, column)

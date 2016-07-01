@@ -67,4 +67,8 @@ impl ExecutionContext {
     pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
         self.register.set(register, value);
     }
+
+    pub fn binding(&self) -> RcBinding {
+        self.binding.clone()
+    }
 }

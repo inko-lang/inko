@@ -115,6 +115,7 @@ pub enum InstructionType {
     GetCurrentPid = 107,
     SetParentLocal = 108,
     GetParentLocal = 109,
+    GetBindingOfCaller = 110,
 }
 
 /// Struct for storing information about a single instruction.
