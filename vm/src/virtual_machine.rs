@@ -1174,27 +1174,27 @@ impl VirtualMachine {
         Ok(())
     }
 
-    /// Gets the binding of the calling scope.
+    /// Gets the binding of a caller.
     ///
     /// If no binding could be found the current binding is returned instead.
     ///
-    /// This instruction requires one argument: the register to store the
-    /// binding object in.
+    /// This instruction requires two arguments:
+    ///
+    /// 1. The register to store the binding object in.
+    /// 2. An integer indicating the amount of parents to walk upwards.
     fn ins_get_binding_of_caller(&self,
                                  process: RcProcess,
                                  _: RcCompiledCode,
                                  instruction: &Instruction)
                                  -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
+        let depth = try_vm_error!(instruction.arg(1), instruction);
+        let start_context = process.context();
 
-        let binding = {
-            let context = process.context();
-
-            if let Some(parent) = context.parent() {
-                parent.binding()
-            } else {
-                context.binding()
-            }
+        let binding = if let Some(context) = start_context.find_parent(depth) {
+            context.binding()
+        } else {
+            start_context.binding()
         };
 
         let obj = process.allocate(object_value::binding(binding),

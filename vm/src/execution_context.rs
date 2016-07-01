@@ -71,4 +71,18 @@ impl ExecutionContext {
     pub fn binding(&self) -> RcBinding {
         self.binding.clone()
     }
+
+    pub fn find_parent(&self, depth: usize) -> Option<&Box<ExecutionContext>> {
+        let mut found = self.parent();
+
+        for _ in 0..(depth - 1) {
+            if let Some(unwrapped) = found {
+                found = unwrapped.parent();
+            } else {
+                return None;
+            }
+        }
+
+        found
+    }
 }
