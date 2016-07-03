@@ -78,6 +78,9 @@ fn main() {
         println!("Register: {} bytes",
                  mem::size_of::<libaeon::register::Register>());
 
+        println!("Object: {} bytes",
+                 mem::size_of::<libaeon::object::Object>());
+
         return;
     }
 
