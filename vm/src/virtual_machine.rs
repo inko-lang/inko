@@ -74,11 +74,8 @@ impl VirtualMachineState {
         let false_obj = heap.allocate_empty();
 
         {
-            let true_ref = true_obj.get_mut();
-            let false_ref = false_obj.get_mut();
-
-            true_ref.get_mut().set_prototype(true_proto.clone());
-            false_ref.get_mut().set_prototype(false_proto.clone());
+            true_obj.get_mut().set_prototype(true_proto.clone());
+            false_obj.get_mut().set_prototype(false_proto.clone());
         }
 
         let state = VirtualMachineState {
@@ -893,9 +890,7 @@ impl VirtualMachine {
                 proto = write_lock!(self.state.global_heap).copy_object(proto);
             }
 
-            let obj_ref = obj.get_mut();
-
-            obj_ref.get_mut().set_prototype(proto);
+            obj.get_mut().set_prototype(proto);
         }
 
         process.set_register(register, obj);
@@ -917,9 +912,7 @@ impl VirtualMachine {
         let source = instruction_object!(instruction, process, 0);
         let proto = instruction_object!(instruction, process, 1);
 
-        let source_ref = source.get_mut();
-
-        source_ref.get_mut().set_prototype(proto);
+        source.get_mut().set_prototype(proto);
 
         Ok(())
     }
@@ -938,8 +931,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source = instruction_object!(instruction, process, 1);
 
-        let source_ref = source.get();
-        let source_obj = source_ref.get();
+        let source_obj = source.get();
 
         let proto = try_vm_error!(source_obj.prototype().ok_or_else(|| {
                                       format!("The object in register {} does \
@@ -1345,9 +1337,8 @@ impl VirtualMachine {
 
         let source =
             copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
-        let target_ref = target_ptr.get_mut();
 
-        target_ref.get_mut().add_constant(name.clone(), source);
+        target_ptr.get_mut().add_constant(name.clone(), source);
 
         Ok(())
     }
@@ -1366,17 +1357,16 @@ impl VirtualMachine {
         let name = instruction_object!(instruction, process, 1);
         let source_ptr = instruction_object!(instruction, process, 2);
 
-        let name_ref = name.get();
-        let name_obj = name_ref.get();
+        let name_obj = name.get();
 
         ensure_strings!(instruction, name_obj);
 
         let name_str = name_obj.value.as_string().clone();
+
         let source =
             copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
 
-        let target_ref = target_ptr.get_mut();
-        let target = target_ref.get_mut();
+        let target = target_ptr.get_mut();
 
         target.add_constant(name_str, source);
 
@@ -1401,9 +1391,7 @@ impl VirtualMachine {
         let name_index = try_vm_error!(instruction.arg(2), instruction);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let src_ref = src.get();
-
-        let object = try_vm_error!(src_ref.get()
+        let object = try_vm_error!(src.get()
                               .lookup_constant(name)
                               .ok_or_else(|| {
                                   constant_error!(instruction.arguments[1],
@@ -1430,15 +1418,13 @@ impl VirtualMachine {
         let src = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
 
-        let name_ref = name.get();
-        let name_obj = name_ref.get();
-        let src_ref = src.get();
+        let name_obj = name.get();
 
         ensure_strings!(instruction, name_obj);
 
         let name_str = name_obj.value.as_string();
 
-        let object = try_vm_error!(src_ref.get()
+        let object = try_vm_error!(src.get()
                               .lookup_constant(name_str)
                               .ok_or_else(|| {
                                   constant_error!(instruction.arguments[1],
@@ -1468,8 +1454,7 @@ impl VirtualMachine {
         let name_index = try_vm_error!(instruction.arg(2), instruction);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let source_ref = source.get();
-        let constant = source_ref.get().lookup_constant(name);
+        let constant = source.get().lookup_constant(name);
 
         if constant.is_some() {
             process.set_register(register, self.state.true_object.clone());
@@ -1502,9 +1487,7 @@ impl VirtualMachine {
         let value =
             copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
 
-        let target_ref = target_ptr.get_mut();
-
-        target_ref.get_mut().add_attribute(name.clone(), value);
+        target_ptr.get_mut().add_attribute(name.clone(), value);
 
         Ok(())
     }
@@ -1523,18 +1506,16 @@ impl VirtualMachine {
         let name_ptr = instruction_object!(instruction, process, 1);
         let value_ptr = instruction_object!(instruction, process, 2);
 
-        let name_ref = name_ptr.get();
-        let name_obj = name_ref.get();
+        let name_obj = name_ptr.get();
 
         ensure_strings!(instruction, name_obj);
 
         let name = name_obj.value.as_string();
+
         let value =
             copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
 
-        let target_ref = target_ptr.get_mut();
-
-        target_ref.get_mut().add_attribute(name.clone(), value);
+        target_ptr.get_mut().add_attribute(name.clone(), value);
 
         Ok(())
     }
@@ -1556,10 +1537,9 @@ impl VirtualMachine {
         let source = instruction_object!(instruction, process, 1);
         let name_index = try_vm_error!(instruction.arg(2), instruction);
 
-        let source_ref = source.get();
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let attr = try_vm_error!(source_ref.get()
+        let attr = try_vm_error!(source.get()
                               .lookup_attribute(name)
                               .ok_or_else(|| {
                                   attribute_error!(instruction.arguments[1],
@@ -1586,15 +1566,13 @@ impl VirtualMachine {
         let source = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
 
-        let name_ref = name.get();
-        let name_obj = name_ref.get();
-        let source_ref = source.get();
+        let name_obj = name.get();
 
         ensure_strings!(instruction, name_obj);
 
         let name = name_obj.value.as_string();
 
-        let attr = try_vm_error!(source_ref.get()
+        let attr = try_vm_error!(source.get()
                               .lookup_attribute(name)
                               .ok_or_else(|| {
                                   attribute_error!(instruction.arguments[1],
@@ -1624,8 +1602,7 @@ impl VirtualMachine {
         let name_index = try_vm_error!(instruction.arg(2), instruction);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let source_ref = source_ptr.get();
-        let source = source_ref.get();
+        let source = source_ptr.get();
 
         let obj = if source.has_attribute(name) {
             self.state.true_object.clone()
@@ -1699,8 +1676,7 @@ impl VirtualMachine {
                 instruction: &Instruction)
                 -> EmptyResult {
         let string = instruction_object!(instruction, process, 2);
-        let string_ref = string.get();
-        let string_obj = string_ref.get();
+        let string_obj = string.get();
 
         ensure_strings!(instruction, string_obj);
 
@@ -1724,8 +1700,7 @@ impl VirtualMachine {
         let name_index = try_vm_error!(instruction.arg(2), instruction);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let source_ref = source.get();
-        let source_obj = source_ref.get();
+        let source_obj = source.get();
 
         let result = if source_obj.responds_to(name) {
             self.state.true_object.clone()
@@ -1753,11 +1728,8 @@ impl VirtualMachine {
         let source = instruction_object!(instruction, process, 1);
         let name = instruction_object!(instruction, process, 2);
 
-        let name_ref = name.get();
-        let name_obj = name_ref.get();
-
-        let source_ref = source.get();
-        let source_obj = source_ref.get();
+        let name_obj = name.get();
+        let source_obj = source.get();
 
         ensure_strings!(instruction, name_obj);
 
@@ -1887,16 +1859,13 @@ impl VirtualMachine {
         let name_ptr = instruction_object!(instruction, process, 2);
         let cc_ptr = instruction_object!(instruction, process, 3);
 
-        let receiver_ref = receiver_ptr.get_mut();
-        let mut receiver = receiver_ref.get_mut();
+        let mut receiver = receiver_ptr.get_mut();
 
-        let name_ref = name_ptr.get();
-        let name_obj = name_ref.get();
+        let name_obj = name_ptr.get();
 
         ensure_strings!(instruction, name_obj);
 
-        let cc_ref = cc_ptr.get();
-        let cc_obj = cc_ref.get();
+        let cc_obj = cc_ptr.get();
 
         ensure_compiled_code!(instruction, cc_obj);
 
@@ -1939,8 +1908,7 @@ impl VirtualMachine {
         let name = try_vm_error!(code.string(name_index), instruction);
         let cc = try_vm_error!(code.code_object(cc_index), instruction);
 
-        let receiver_ref = receiver_ptr.get_mut();
-        let mut receiver = receiver_ref.get_mut();
+        let mut receiver = receiver_ptr.get_mut();
 
         let method = self.allocate_method(&process, &receiver_ptr, cc);
 
@@ -1972,16 +1940,14 @@ impl VirtualMachine {
         let args_ptr = instruction_object!(instruction, process, 2);
 
         let code_obj = {
-            let cc_ref = cc_ptr.get();
-            let cc_obj = cc_ref.get();
+            let cc_obj = cc_ptr.get();
 
             ensure_compiled_code!(instruction, cc_obj);
 
             cc_obj.value.as_compiled_code()
         };
 
-        let args_ref = args_ptr.get();
-        let args_obj = args_ref.get();
+        let args_obj = args_ptr.get();
 
         ensure_arrays!(instruction, args_obj);
 
@@ -1992,9 +1958,7 @@ impl VirtualMachine {
 
         let binding = if instruction.arg(binding_idx).is_ok() {
             let obj_ptr = instruction_object!(instruction, process, binding_idx);
-
-            let obj_ref = obj_ptr.get();
-            let obj = obj_ref.get();
+            let obj = obj_ptr.get();
 
             if !obj.value.is_binding() {
                 return_vm_error!(format!("Argument {} is not a valid Binding",
@@ -2103,8 +2067,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let obj_ptr = instruction_object!(instruction, process, 1);
 
-        let obj_ref = obj_ptr.get();
-        let obj = obj_ref.get();
+        let obj = obj_ptr.get();
 
         let result = if obj.value.is_error() {
             self.state.true_object.clone()
@@ -2130,9 +2093,7 @@ impl VirtualMachine {
                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let error_ptr = instruction_object!(instruction, process, 1);
-
-        let error_ref = error_ptr.get();
-        let error = error_ref.get();
+        let error = error_ptr.get();
 
         let proto = self.state.integer_prototype.clone();
         let integer = error.value.as_error() as i64;
@@ -2242,9 +2203,7 @@ impl VirtualMachine {
                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let integer_ptr = instruction_object!(instruction, process, 1);
-
-        let integer_ref = integer_ptr.get();
-        let integer = integer_ref.get();
+        let integer = integer_ptr.get();
 
         ensure_integers!(instruction, integer);
 
@@ -2271,9 +2230,7 @@ impl VirtualMachine {
                              -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let integer_ptr = instruction_object!(instruction, process, 1);
-
-        let integer_ref = integer_ptr.get();
-        let integer = integer_ref.get();
+        let integer = integer_ptr.get();
 
         ensure_integers!(instruction, integer);
 
@@ -2462,9 +2419,7 @@ impl VirtualMachine {
                          -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let code_ptr = instruction_object!(instruction, process, 1);
-
-        let code_ref = code_ptr.get();
-        let code = code_ref.get();
+        let code = code_ptr.get();
 
         ensure_compiled_code!(instruction, code);
 
@@ -2493,8 +2448,7 @@ impl VirtualMachine {
         let msg_ptr = instruction_object!(instruction, process, 2);
 
         let pid = {
-            let pid_ref = pid_ptr.get();
-            let pid_obj = pid_ref.get();
+            let pid_obj = pid_ptr.get();
 
             ensure_integers!(instruction, pid_obj);
 
@@ -2653,9 +2607,7 @@ impl VirtualMachine {
                             -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let float_ptr = instruction_object!(instruction, process, 1);
-
-        let float_ref = float_ptr.get();
-        let float = float_ref.get();
+        let float = float_ptr.get();
 
         ensure_floats!(instruction, float);
 
@@ -2682,9 +2634,7 @@ impl VirtualMachine {
                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let float_ptr = instruction_object!(instruction, process, 1);
-
-        let float_ref = float_ptr.get();
-        let float = float_ref.get();
+        let float = float_ptr.get();
 
         ensure_floats!(instruction, float);
 
@@ -2777,13 +2727,11 @@ impl VirtualMachine {
         let index_ptr = instruction_object!(instruction, process, 2);
         let value_ptr = instruction_object!(instruction, process, 3);
 
-        let array_ref = array_ptr.get_mut();
-        let mut array = array_ref.get_mut();
+        let mut array = array_ptr.get_mut();
 
         ensure_arrays!(instruction, array);
 
-        let index_ref = index_ptr.get();
-        let index_obj = index_ref.get();
+        let index_obj = index_ptr.get();
 
         ensure_integers!(instruction, index_obj);
 
@@ -2820,12 +2768,9 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
         let index_ptr = instruction_object!(instruction, process, 2);
+        let array = array_ptr.get();
 
-        let array_ref = array_ptr.get();
-        let array = array_ref.get();
-
-        let index_ref = index_ptr.get();
-        let index_obj = index_ref.get();
+        let index_obj = index_ptr.get();
 
         ensure_arrays!(instruction, array);
         ensure_integers!(instruction, index_obj);
@@ -2862,11 +2807,8 @@ impl VirtualMachine {
         let array_ptr = instruction_object!(instruction, process, 1);
         let index_ptr = instruction_object!(instruction, process, 2);
 
-        let array_ref = array_ptr.get_mut();
-        let mut array = array_ref.get_mut();
-
-        let index_ref = index_ptr.get();
-        let index_obj = index_ref.get();
+        let mut array = array_ptr.get_mut();
+        let index_obj = index_ptr.get();
 
         ensure_arrays!(instruction, array);
         ensure_integers!(instruction, index_obj);
@@ -2897,8 +2839,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let array_ptr = instruction_object!(instruction, process, 1);
 
-        let array_ref = array_ptr.get();
-        let array = array_ref.get();
+        let array = array_ptr.get();
 
         ensure_arrays!(instruction, array);
 
@@ -2923,8 +2864,7 @@ impl VirtualMachine {
                        -> EmptyResult {
         let array_ptr = instruction_object!(instruction, process, 0);
 
-        let array_ref = array_ptr.get_mut();
-        let mut array = array_ref.get_mut();
+        let mut array = array_ptr.get_mut();
 
         ensure_arrays!(instruction, array);
 
@@ -2948,9 +2888,7 @@ impl VirtualMachine {
                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source_ptr = instruction_object!(instruction, process, 1);
-
-        let source_ref = source_ptr.get();
-        let source = source_ref.get();
+        let source = source_ptr.get();
 
         ensure_strings!(instruction, source);
 
@@ -2977,9 +2915,7 @@ impl VirtualMachine {
                            -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let source_ptr = instruction_object!(instruction, process, 1);
-
-        let source_ref = source_ptr.get();
-        let source = source_ref.get();
+        let source = source_ptr.get();
 
         ensure_strings!(instruction, source);
 
@@ -3009,11 +2945,8 @@ impl VirtualMachine {
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let arg_ptr = instruction_object!(instruction, process, 2);
 
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let receiver = receiver_ptr.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, receiver, arg);
 
@@ -3044,8 +2977,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, arg);
 
@@ -3086,8 +3018,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_arrays!(instruction, arg);
 
@@ -3095,20 +3026,15 @@ impl VirtualMachine {
         let array = arg.value.as_array();
 
         for int_ptr in array.iter() {
-            let int_ref = int_ptr.get();
-            let int = int_ref.get();
+            let int_obj = int_ptr.get();
 
-            ensure_integers!(instruction, int);
+            ensure_integers!(instruction, int_obj);
         }
 
         let bytes = arg.value
             .as_array()
             .iter()
-            .map(|ref int_ptr| {
-                let int_ref = int_ptr.get();
-
-                int_ref.get().value.as_integer() as u8
-            })
+            .map(|ref int_ptr| int_ptr.get().value.as_integer() as u8)
             .collect::<Vec<_>>();
 
         let string = try_error!(try_from_utf8!(bytes), process, register);
@@ -3134,8 +3060,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, arg);
 
@@ -3163,8 +3088,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, arg);
 
@@ -3195,8 +3119,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, arg);
 
@@ -3233,8 +3156,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let arg_ptr = instruction_object!(instruction, process, 1);
 
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let arg = arg_ptr.get();
 
         ensure_strings!(instruction, arg);
 
@@ -3343,11 +3265,8 @@ impl VirtualMachine {
 
         let file_proto = self.state.file_prototype.clone();
 
-        let path_ref = path_ptr.get();
-        let path = path_ref.get();
-
-        let mode_ref = mode_ptr.get();
-        let mode = mode_ref.get();
+        let path = path_ptr.get();
+        let mode = mode_ptr.get();
 
         let path_string = path.value.as_string();
         let mode_string = mode.value.as_string().as_ref();
@@ -3391,11 +3310,8 @@ impl VirtualMachine {
         let file_ptr = instruction_object!(instruction, process, 1);
         let string_ptr = instruction_object!(instruction, process, 2);
 
-        let file_ref = file_ptr.get_mut();
-        let mut file = file_ref.get_mut();
-
-        let string_ref = string_ptr.get();
-        let string = string_ref.get();
+        let mut file = file_ptr.get_mut();
+        let string = string_ptr.get();
 
         ensure_files!(instruction, file);
         ensure_strings!(instruction, string);
@@ -3433,8 +3349,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
-        let file_ref = file_ptr.get_mut();
-        let mut file_obj = file_ref.get_mut();
+        let mut file_obj = file_ptr.get_mut();
 
         ensure_files!(instruction, file_obj);
 
@@ -3468,8 +3383,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
-        let file_ref = file_ptr.get_mut();
-        let mut file_obj = file_ref.get_mut();
+        let mut file_obj = file_ptr.get_mut();
 
         ensure_files!(instruction, file_obj);
 
@@ -3513,8 +3427,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
-        let file_ref = file_ptr.get_mut();
-        let mut file_obj = file_ref.get_mut();
+        let mut file_obj = file_ptr.get_mut();
 
         ensure_files!(instruction, file_obj);
 
@@ -3544,8 +3457,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let file_ptr = instruction_object!(instruction, process, 1);
 
-        let file_ref = file_ptr.get();
-        let file_obj = file_ref.get();
+        let file_obj = file_ptr.get();
 
         ensure_files!(instruction, file_obj);
 
@@ -3581,11 +3493,8 @@ impl VirtualMachine {
         let file_ptr = instruction_object!(instruction, process, 1);
         let offset_ptr = instruction_object!(instruction, process, 2);
 
-        let file_ref = file_ptr.get_mut();
-        let mut file_obj = file_ref.get_mut();
-
-        let offset_ref = offset_ptr.get();
-        let offset_obj = offset_ref.get();
+        let mut file_obj = file_ptr.get_mut();
+        let offset_obj = offset_ptr.get();
 
         ensure_files!(instruction, file_obj);
         ensure_integers!(instruction, offset_obj);
@@ -3645,8 +3554,7 @@ impl VirtualMachine {
         let register = try_vm_error!(instruction.arg(0), instruction);
         let path_ptr = instruction_object!(instruction, process, 1);
 
-        let path_ref = path_ptr.get();
-        let path = path_ref.get();
+        let path = path_ptr.get();
 
         ensure_strings!(instruction, path);
 
@@ -3693,8 +3601,7 @@ impl VirtualMachine {
         let target_ptr = instruction_object!(instruction, process, 0);
         let scope_ptr = instruction_object!(instruction, process, 1);
 
-        let target_ref = target_ptr.get_mut();
-        let mut target = target_ref.get_mut();
+        let mut target = target_ptr.get_mut();
 
         let scope =
             copy_if_global!(self.state.global_heap, scope_ptr, target_ptr);
@@ -3837,8 +3744,7 @@ impl VirtualMachine {
         let rest_arg = try_vm_error!(instruction.arg(4), instruction) == 1;
 
         let method_ptr = {
-            let receiver_ref = receiver_ptr.get();
-            let receiver_ptr = receiver_ref.get();
+            let receiver_ptr = receiver_ptr.get();
 
             try_vm_error!(
                 receiver_ptr.lookup_method(name).ok_or_else(|| {
@@ -3852,8 +3758,7 @@ impl VirtualMachine {
             )
         };
 
-        let method_ref = method_ptr.get();
-        let method_obj = method_ref.get();
+        let method_obj = method_ptr.get();
 
         ensure_compiled_code!(instruction, method_obj);
 
@@ -3876,8 +3781,7 @@ impl VirtualMachine {
         // Unpack the last argument if it's a rest argument
         if rest_arg {
             if let Some(last_arg) = arguments.pop() {
-                let array_ref = last_arg.get();
-                let array = array_ref.get();
+                let array = last_arg.get();
 
                 ensure_arrays!(instruction, array);
 

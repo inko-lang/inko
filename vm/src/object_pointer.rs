@@ -1,110 +1,104 @@
-/// A wrapper type for global and thread-local objects.
-
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::ops::Deref;
+use std::mem::transmute;
 use object::Object;
 
 pub type RawObjectPointer = *mut Object;
-pub type RcRawObjectPointer = Arc<RwLock<RawObjectPointer>>;
 
-/// A wrapper around either a thread-local or global object.
-#[derive(Clone)]
-pub enum ObjectPointer {
-    Global(RcRawObjectPointer),
-    Local(RawObjectPointer),
+/// A pointer to an object managed by the GC.
+#[derive(Clone, Copy)]
+pub struct ObjectPointer {
+    pub ptr: RawObjectPointer,
 }
 
 unsafe impl Send for ObjectPointer {}
 unsafe impl Sync for ObjectPointer {}
 
-/// A wrapper for objects that dereferences into a RawObjectPointer
-///
-/// Access to global objects is synchronized automatically, local objects are
-/// not synchronized.
-///
-/// Values of this type can be dereferenced into a RawObjectPointer (for both
-/// global and local objects) which can then be turned into mutable/immutable
-/// Object references.
-pub enum ObjectRef<'a> {
-    Global(RwLockReadGuard<'a, RawObjectPointer>),
-    GlobalMut(RwLockWriteGuard<'a, RawObjectPointer>),
-    Local(RawObjectPointer),
+/// The type of object pointer
+pub enum ObjectPointerType {
+    Local,
+    Global,
 }
 
-impl<'a> ObjectRef<'a> {
-    pub fn as_const_pointer(&self) -> *const Object {
-        **self as *const Object
-    }
+/// Tags the given bit in a pointer.
+fn tag_pointer(pointer: RawObjectPointer, bit: usize) -> RawObjectPointer {
+    unsafe {
+        let num: usize = transmute(pointer);
 
-    /// Dereferences an ObjectRef into an &Object
-    pub fn get(&self) -> &Object {
-        unsafe { &*(**self as *const Object) }
-    }
-
-    /// Dereferences an ObjectRef into an &mut Object
-    pub fn get_mut(&self) -> &mut Object {
-        unsafe { &mut ***self }
+        transmute(num | 1 << bit)
     }
 }
 
-impl<'a> Deref for ObjectRef<'a> {
-    type Target = RawObjectPointer;
+/// Returns an ObjectPointer without the given tagged bit.
+fn untag_pointer(pointer: RawObjectPointer, bit: usize) -> RawObjectPointer {
+    unsafe {
+        let num: usize = transmute(pointer);
 
-    fn deref(&self) -> &RawObjectPointer {
-        match *self {
-            ObjectRef::Global(ref ptr) => ptr,
-            ObjectRef::GlobalMut(ref ptr) => ptr,
-            ObjectRef::Local(ref ptr) => ptr,
-        }
+        transmute(num & !(1 << bit))
     }
+}
+
+/// Returns true if the given bit is set.
+fn bit_is_tagged(pointer: RawObjectPointer, bit: usize) -> bool {
+    let num: usize = unsafe { transmute(pointer) };
+    let shifted = 1 << bit;
+
+    (num & shifted) == shifted
 }
 
 impl ObjectPointer {
+    pub fn new(pointer: RawObjectPointer) -> ObjectPointer {
+        ObjectPointer { ptr: pointer }
+    }
+
+    /// Creates a global ObjectPointer
     pub fn global(pointer: RawObjectPointer) -> ObjectPointer {
-        ObjectPointer::Global(Arc::new(RwLock::new(pointer)))
+        let tagged = tag_pointer(pointer, 0);
+
+        ObjectPointer::new(tagged)
     }
 
-    pub fn local(pointer: RawObjectPointer) -> ObjectPointer {
-        ObjectPointer::Local(pointer)
+    /// Returns an immutable reference to the Object.
+    pub fn get(&self) -> &Object {
+        unsafe { self.untagged_pointer().as_ref().unwrap() }
     }
 
+    /// Returns a mutable reference to the Object.
+    pub fn get_mut(&self) -> &mut Object {
+        unsafe { self.untagged_pointer().as_mut().unwrap() }
+    }
+
+    /// Returns an untagged version of the raw pointer.
+    pub fn untagged_pointer(&self) -> RawObjectPointer {
+        match self.pointer_type() {
+            ObjectPointerType::Global => untag_pointer(self.ptr, 0),
+            ObjectPointerType::Local => self.ptr,
+        }
+    }
+
+    /// Returns the type of the current pointer.
+    pub fn pointer_type(&self) -> ObjectPointerType {
+        if bit_is_tagged(self.ptr, 0) {
+            ObjectPointerType::Global
+        } else {
+            ObjectPointerType::Local
+        }
+    }
+
+    /// Returns true if the current pointer is a local pointer.
     pub fn is_global(&self) -> bool {
-        match *self {
-            ObjectPointer::Global(_) => true,
+        match self.pointer_type() {
+            ObjectPointerType::Global => true,
             _ => false,
         }
     }
 
+    /// Returns the type of pointer we're dealing with.
     pub fn is_local(&self) -> bool {
-        match *self {
-            ObjectPointer::Local(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Returns an ObjectReference containing an immutable pointer.
-    pub fn get(&self) -> ObjectRef {
-        match *self {
-            ObjectPointer::Global(ref arc) => {
-                ObjectRef::Global(arc.read().unwrap())
-            }
-            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr),
-        }
-    }
-
-    /// Returns an ObjectReference containing a mutable pointer.
-    pub fn get_mut(&self) -> ObjectRef {
-        match *self {
-            ObjectPointer::Global(ref arc) => {
-                ObjectRef::GlobalMut(arc.write().unwrap())
-            }
-            ObjectPointer::Local(ptr) => ObjectRef::Local(ptr),
-        }
+        !self.is_global()
     }
 }
 
 impl PartialEq for ObjectPointer {
     fn eq(&self, other: &ObjectPointer) -> bool {
-        self.get().as_const_pointer() == other.get().as_const_pointer()
+        self.ptr == other.ptr
     }
 }

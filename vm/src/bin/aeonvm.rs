@@ -81,6 +81,12 @@ fn main() {
         println!("Object: {} bytes",
                  mem::size_of::<libaeon::object::Object>());
 
+        println!("ObjectValue: {} bytes",
+                 mem::size_of::<libaeon::object_value::ObjectValue>());
+
+        println!("ObjectPointer: {} bytes",
+                 mem::size_of::<libaeon::object_pointer::ObjectPointer>());
+
         return;
     }
 

@@ -4,20 +4,26 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
 
+use std::ptr;
+use std::mem;
+
 use object_header::ObjectHeader;
 use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
 
 pub struct Object {
-    pub prototype: Option<ObjectPointer>,
+    pub prototype: *const ObjectPointer,
     pub header: Option<Box<ObjectHeader>>,
     pub value: ObjectValue,
 }
 
+unsafe impl Sync for Object {}
+unsafe impl Send for Object {}
+
 impl Object {
     pub fn new(value: ObjectValue) -> Object {
         Object {
-            prototype: None,
+            prototype: ptr::null(),
             header: None,
             value: value,
         }
@@ -25,18 +31,26 @@ impl Object {
 
     pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
         Object {
-            prototype: Some(proto),
+            prototype: unsafe { mem::transmute(proto) },
             header: None,
             value: value,
         }
     }
 
     pub fn set_prototype(&mut self, prototype: ObjectPointer) {
-        self.prototype = Some(prototype);
+        self.prototype = unsafe { mem::transmute(prototype) };
     }
 
     pub fn prototype(&self) -> Option<ObjectPointer> {
-        self.prototype.clone()
+        if self.prototype.is_null() {
+            None
+        } else {
+            unsafe {
+                let ptr: ObjectPointer = mem::transmute(self.prototype);
+
+                Some(ptr)
+            }
+        }
     }
 
     pub fn set_outer_scope(&mut self, scope: ObjectPointer) {
@@ -76,13 +90,12 @@ impl Object {
         }
 
         // Method defined somewhere in the object hierarchy
-        if self.prototype.is_some() {
-            let mut opt_parent = self.prototype.clone();
+        if self.prototype().is_some() {
+            let mut opt_parent = self.prototype();
 
             while opt_parent.is_some() {
                 let parent_ptr = opt_parent.unwrap();
-                let parent_ref = parent_ptr.get();
-                let parent = parent_ref.get();
+                let parent = parent_ptr.get();
 
                 let opt_parent_header = parent.header.as_ref();
 
@@ -96,7 +109,7 @@ impl Object {
                     }
                 }
 
-                opt_parent = parent.prototype.clone();
+                opt_parent = parent.prototype();
             }
         }
 
@@ -123,18 +136,14 @@ impl Object {
         }
 
         // Look up the constant in one of the parents.
-        if let Some(proto) = self.prototype.as_ref() {
-            let proto_ref = proto.get();
-
-            retval = proto_ref.get().lookup_constant(name);
+        if let Some(proto) = self.prototype() {
+            retval = proto.get().lookup_constant(name);
         }
 
         if retval.is_none() {
             if let Some(header) = opt_header {
                 if let Some(scope) = header.outer_scope.as_ref() {
-                    let scope_ref = scope.get();
-
-                    retval = scope_ref.get().lookup_constant(name);
+                    retval = scope.get().lookup_constant(name);
                 }
             }
         }

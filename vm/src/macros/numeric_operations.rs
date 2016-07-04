@@ -11,11 +11,8 @@ macro_rules! num_op {
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);
 
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let receiver = receiver_ptr.get();
+        let arg = arg_ptr.get();
 
         $ensure!($ins, receiver, arg);
 
@@ -35,11 +32,8 @@ macro_rules! num_bool_op {
         let receiver_ptr = instruction_object!($ins, $process, 1);
         let arg_ptr = instruction_object!($ins, $process, 2);
 
-        let receiver_ref = receiver_ptr.get();
-        let receiver = receiver_ref.get();
-
-        let arg_ref = arg_ptr.get();
-        let arg = arg_ref.get();
+        let receiver = receiver_ptr.get();
+        let arg = arg_ptr.get();
 
         $ensure!($ins, receiver, arg);
 

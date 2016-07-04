@@ -7,7 +7,7 @@
 use object::Object;
 use object_value;
 use object_value::ObjectValue;
-use object_pointer::{RawObjectPointer, ObjectPointer};
+use object_pointer::{ObjectPointer, RawObjectPointer};
 
 const PAGE_SLOTS: usize = 128;
 
@@ -72,12 +72,12 @@ impl Heap {
         self.ensure_last_page_has_space();
 
         let mut last_page = self.pages.last_mut().unwrap();
-        let raw_ptr = last_page.allocate(object);
+        let raw_pointer = last_page.allocate(object);
 
         if self.global {
-            ObjectPointer::global(raw_ptr)
+            ObjectPointer::global(raw_pointer)
         } else {
-            ObjectPointer::local(raw_ptr)
+            ObjectPointer::new(raw_pointer)
         }
     }
 
@@ -113,8 +113,7 @@ impl Heap {
             return to_copy_ptr;
         }
 
-        let to_copy_ref = to_copy_ptr.get();
-        let to_copy = to_copy_ref.get();
+        let to_copy = to_copy_ptr.get();
 
         // Copy over the object value
         let value_copy = match to_copy.value {
@@ -126,7 +125,7 @@ impl Heap {
             }
             ObjectValue::Array(ref raw_vec) => {
                 let new_map = raw_vec.iter()
-                    .map(|val_ptr| self.copy_object(val_ptr.clone()));
+                    .map(|val_ptr| self.copy_object(*val_ptr));
 
                 object_value::array(new_map.collect::<Vec<_>>())
             }
