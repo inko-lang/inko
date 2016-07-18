@@ -19,6 +19,15 @@ impl Mailbox {
     pub fn send(&mut self, message: ObjectPointer) {
         let mut to_send = message;
 
+        // Instead of using is_local we can use an enum with two variants:
+        // Remote and Local. A Remote message requires copying the message into
+        // the message heap, a Local message can be used as-is.
+        //
+        // When we receive() a Remote message we copy it to the eden heap. If
+        // the message is a Local message we just leave things as-is.
+        //
+        // This can also be used for globals as when sending a global object as
+        // a message we can just use the Local variant.
         if to_send.is_local() {
             to_send = self.heap.copy_object(to_send);
         }

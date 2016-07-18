@@ -2,12 +2,13 @@ use std::mem;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::cell::UnsafeCell;
 
+use immix::local_allocator::LocalAllocator;
+use immix::global_allocator::RcGlobalAllocator;
+
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use heap::Heap;
 use mailbox::Mailbox;
-use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
 use execution_context::ExecutionContext;
@@ -23,9 +24,7 @@ pub enum ProcessStatus {
 
 pub struct LocalData {
     pub status: ProcessStatus,
-    pub eden_heap: Heap,
-    pub young_heap: Option<Box<Heap>>,
-    pub mature_heap: Option<Box<Heap>>,
+    pub allocator: LocalAllocator,
     pub call_frame: CallFrame,
     pub context: ExecutionContext,
 }
@@ -42,12 +41,11 @@ unsafe impl Sync for Process {}
 impl Process {
     pub fn new(pid: usize,
                call_frame: CallFrame,
-               context: ExecutionContext)
+               context: ExecutionContext,
+               global_allocator: RcGlobalAllocator)
                -> RcProcess {
         let local_data = LocalData {
-            eden_heap: Heap::local(),
-            young_heap: None,
-            mature_heap: None,
+            allocator: LocalAllocator::new(global_allocator),
             call_frame: call_frame,
             context: context,
             status: ProcessStatus::Scheduled,
@@ -64,12 +62,13 @@ impl Process {
 
     pub fn from_code(pid: usize,
                      code: RcCompiledCode,
-                     self_obj: ObjectPointer)
+                     self_obj: ObjectPointer,
+                     global_allocator: RcGlobalAllocator)
                      -> RcProcess {
         let frame = CallFrame::from_code(code.clone());
         let context = ExecutionContext::with_object(self_obj, code, None);
 
-        Process::new(pid, frame, context)
+        Process::new(pid, frame, context, global_allocator)
     }
 
     pub fn local_data_mut(&self) -> &mut LocalData {
@@ -156,7 +155,13 @@ impl Process {
     }
 
     pub fn allocate_empty(&self) -> ObjectPointer {
-        self.local_data_mut().eden_heap.allocate_empty()
+        let (pointer, gc) = self.local_data_mut().allocator.allocate_empty();
+
+        if gc {
+            self.schedule_eden_collection();
+        }
+
+        pointer
     }
 
     pub fn allocate(&self,
@@ -165,7 +170,14 @@ impl Process {
                     -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
-        local_data.eden_heap.allocate_value_with_prototype(value, proto)
+        let (pointer, gc) = local_data.allocator
+            .allocate_with_prototype(value, proto);
+
+        if gc {
+            self.schedule_eden_collection();
+        }
+
+        pointer
     }
 
     pub fn allocate_without_prototype(&self,
@@ -173,7 +185,14 @@ impl Process {
                                       -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
-        local_data.eden_heap.allocate(Object::new(value))
+        let (pointer, gc) = local_data.allocator
+            .allocate_without_prototype(value);
+
+        if gc {
+            self.schedule_eden_collection();
+        }
+
+        pointer
     }
 
     pub fn send_message(&self, message: ObjectPointer) {
@@ -261,4 +280,17 @@ impl Process {
     pub fn suspend(&self) {
         self.local_data_mut().status = ProcessStatus::Suspended;
     }
+
+    fn schedule_eden_collection(&self) {
+        // First we'll mark everything currently on the stack. We're doing this
+        // in-process so an external GC thread doesn't have to pause this
+        // process while scanning its stack.
+        self.mark_stack();
+
+        // ...
+
+        // Objects marked, time to send the request.
+    }
+
+    fn mark_stack(&self) {}
 }

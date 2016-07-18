@@ -7,12 +7,15 @@ use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
+use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
+
 use binding::RcBinding;
 use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use errors;
+use gc_thread::GcThread;
 use heap::Heap;
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
@@ -35,6 +38,7 @@ pub struct VirtualMachineState {
     exit_status: RwLock<Result<(), ()>>,
 
     global_heap: RwLock<Heap>,
+    global_allocator: RcGlobalAllocator,
     top_level: ObjectPointer,
     integer_prototype: ObjectPointer,
     float_prototype: ObjectPointer,
@@ -85,6 +89,7 @@ impl VirtualMachineState {
             processes: RwLock::new(ProcessList::new()),
             exit_status: RwLock::new(Ok(())),
             global_heap: RwLock::new(heap),
+            global_allocator: GlobalAllocator::new(),
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -123,6 +128,10 @@ impl VirtualMachine {
             self.start_thread();
         }
 
+        for _ in 0..self.config().gc_threads {
+            self.start_gc_thread()
+        }
+
         let thread = self.allocate_main_thread();
         let (_, process) =
             self.allocate_process(code, self.state.top_level.clone());
@@ -149,7 +158,10 @@ impl VirtualMachine {
                         -> (usize, RcProcess) {
         let mut processes = write_lock!(self.state.processes);
         let pid = processes.reserve_pid();
-        let process = Process::from_code(pid, code, self_obj);
+        let process = Process::from_code(pid,
+                                         code,
+                                         self_obj,
+                                         self.state.global_allocator.clone());
 
         processes.add(pid, process.clone());
 
@@ -3891,6 +3903,17 @@ impl VirtualMachine {
         sender.send(thread.clone()).unwrap();
 
         thread
+    }
+
+    /// Starts a new GC thread
+    fn start_gc_thread(&self) {
+        let state_clone = self.state.clone();
+
+        thread::spawn(move || {
+            let mut gc_thread = GcThread::new(state_clone);
+
+            gc_thread.run();
+        });
     }
 
     /// Spawns a new process.
