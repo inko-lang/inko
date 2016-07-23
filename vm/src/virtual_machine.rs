@@ -192,6 +192,8 @@ impl VirtualMachine {
         process.mark_running();
 
         'exec_loop: loop {
+            self.gc_safepoint(process.clone());
+
             let mut goto_index = None;
             let code = process.compiled_code();
             let mut index = process.instruction_index();
@@ -769,6 +771,8 @@ impl VirtualMachine {
                     goto_index = None;
                 }
             } // while
+
+            self.gc_safepoint(process.clone());
 
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
@@ -3976,5 +3980,23 @@ impl VirtualMachine {
                 }
             }
         }
+    }
+
+    /// Checks if a garbage collection run should be scheduled for the given
+    /// process.
+    fn gc_safepoint(&self, process: RcProcess) {
+        if process.should_schedule_eden() {
+            let roots = process.roots();
+
+            // 1: Create a GC request
+            // 2: Put the GC request in a queue
+            // 3: Reset the schedule eden flag
+        }
+
+        // Schedule young
+        // ...
+
+        // Schedule mature
+        // ...
     }
 }

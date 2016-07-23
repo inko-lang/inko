@@ -69,4 +69,18 @@ impl Binding {
 
         found
     }
+
+    pub fn each_binding<F>(&self, mut closure: F)
+        where F: FnMut(&Self)
+    {
+        let mut binding = self;
+
+        closure(binding);
+
+        while binding.parent.is_some() {
+            binding = binding.parent.as_ref().unwrap();
+
+            closure(binding);
+        }
+    }
 }

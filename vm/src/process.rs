@@ -1,4 +1,5 @@
 use std::mem;
+use std::ops::Drop;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::cell::UnsafeCell;
 
@@ -27,6 +28,7 @@ pub struct LocalData {
     pub allocator: LocalAllocator,
     pub call_frame: CallFrame,
     pub context: ExecutionContext,
+    pub schedule_eden: bool,
 }
 
 pub struct Process {
@@ -49,6 +51,7 @@ impl Process {
             call_frame: call_frame,
             context: context,
             status: ProcessStatus::Scheduled,
+            schedule_eden: false,
         };
 
         let process = Process {
@@ -281,16 +284,39 @@ impl Process {
         self.local_data_mut().status = ProcessStatus::Suspended;
     }
 
-    fn schedule_eden_collection(&self) {
-        // First we'll mark everything currently on the stack. We're doing this
-        // in-process so an external GC thread doesn't have to pause this
-        // process while scanning its stack.
-        self.mark_stack();
-
-        // ...
-
-        // Objects marked, time to send the request.
+    pub fn should_schedule_eden(&self) -> bool {
+        self.local_data().schedule_eden
     }
 
-    fn mark_stack(&self) {}
+    /// Scans all the root objects and returns a Vec containing the objects to
+    /// scan for references to other objects.
+    pub fn roots(&self) -> Vec<ObjectPointer> {
+        let mut objects = Vec::new();
+
+        self.context().each_context(|context| {
+            context.binding().each_binding(|binding| {
+                objects.push(binding.self_object());
+
+                for local in read_lock!(binding.locals).iter() {
+                    objects.push(*local);
+                }
+            });
+
+            for pointer in context.register.objects() {
+                objects.push(*pointer);
+            }
+        });
+
+        objects
+    }
+
+    fn schedule_eden_collection(&self) {
+        self.local_data_mut().schedule_eden = true;
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        self.local_data_mut().allocator.return_blocks();
+    }
 }

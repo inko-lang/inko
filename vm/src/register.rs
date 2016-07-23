@@ -9,6 +9,7 @@
 //! being assigned to the "number" variable.
 
 use std::collections::HashMap;
+use std::collections::hash_map;
 
 use object_pointer::ObjectPointer;
 
@@ -37,5 +38,10 @@ impl Register {
             Some(object) => Some(object.clone()),
             None => None,
         }
+    }
+
+    /// Returns all objects stored in the current Register.
+    pub fn objects(&self) -> hash_map::Values<usize, ObjectPointer> {
+        self.values.values()
     }
 }

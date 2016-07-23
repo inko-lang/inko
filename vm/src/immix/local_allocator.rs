@@ -11,16 +11,16 @@ use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
 
-/// The number of GC cycles an object in the young generation has to survive
-/// before being promoted to the next generation.
-const YOUNG_MAX_AGE: usize = 4;
+/// The number of buckets to use for the young generation.
+const YOUNG_BUCKETS: usize = 4;
+
+/// The number of buckets to use for the mature generation.
+const MATURE_BUCKETS: usize = 2;
 
 /// Structure containing the state of a process-local allocator.
 pub struct LocalAllocator {
     global_allocator: RcGlobalAllocator,
-    eden: Bucket,
-    young: Vec<Bucket>,
-    mature: Bucket,
+    buckets: Vec<Bucket>,
 }
 
 /// A tuple containing an allocated object pointer and a boolean that indicates
@@ -29,17 +29,15 @@ pub type AllocationResult = (ObjectPointer, bool);
 
 impl LocalAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
-        let mut young_generation = Vec::with_capacity(YOUNG_MAX_AGE);
+        // Prepare the eden bucket
+        let mut eden = Bucket::new();
+        let (block, _) = global_allocator.request_block();
 
-        for _ in 0..YOUNG_MAX_AGE {
-            young_generation.push(Bucket::new());
-        }
+        eden.add_block(block);
 
         LocalAllocator {
             global_allocator: global_allocator,
-            eden: Bucket::new(),
-            young: young_generation,
-            mature: Bucket::new(),
+            buckets: vec![eden],
         }
     }
 
@@ -67,24 +65,38 @@ impl LocalAllocator {
         self.allocate_without_prototype(object_value::none())
     }
 
+    /// Resets and returns all blocks of all buckets to the global allocator.
+    pub fn return_blocks(&mut self) {
+        for bucket in self.buckets.iter_mut() {
+            for mut block in bucket.blocks.drain(0..) {
+                block.reset();
+
+                self.global_allocator.add_block(block);
+            }
+        }
+    }
+
     /// Allocates a prepared Object on the eden heap.
     fn allocate(&mut self, object: Object) -> AllocationResult {
-        // This block is scoped so Rust shuts up about there being multiple
-        // mutable references to "self.eden".
+        // Try to allocate into the first available block.
         {
-            if let Some(block) = self.eden.find_block() {
-                return (block.allocate(object), false);
+            if let Some(block) = self.eden().first_available_block() {
+                return (block.bump_allocate(object), false);
             }
         }
 
-        // No usable block was found, we'll request one from the global
-        // allocator and use that block.
+        // We could not allocate into any of the existing blocks, let's request
+        // a new one and allocate into it.
         let (block, allocated_new) = self.global_allocator.request_block();
+        let mut eden = self.eden();
 
-        // It's important we first add the block to the bucket as otherwise we
-        // may end up invalidating any pointers created before adding the block.
-        let pointer = self.eden.add_block(block).allocate(object);
+        eden.add_block(block);
 
-        (pointer, allocated_new)
+        (eden.bump_allocate(object), allocated_new)
+    }
+
+    /// Returns the bucket to use for the eden generation
+    fn eden(&mut self) -> &mut Bucket {
+        self.buckets.get_mut(0).unwrap()
     }
 }

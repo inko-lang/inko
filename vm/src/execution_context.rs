@@ -85,4 +85,18 @@ impl ExecutionContext {
 
         found
     }
+
+    pub fn each_context<F>(&self, mut closure: F)
+        where F: FnMut(&Self)
+    {
+        let mut context = self;
+
+        closure(context);
+
+        while context.parent.is_some() {
+            context = context.parent.as_ref().unwrap();
+
+            closure(context);
+        }
+    }
 }
