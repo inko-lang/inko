@@ -1,3 +1,7 @@
+#![feature(alloc, heap_api)]
+extern crate alloc;
+extern crate num_cpus;
+
 pub mod macros;
 
 pub mod queue;
@@ -21,7 +25,7 @@ pub mod register;
 pub mod process;
 pub mod process_list;
 pub mod execution_context;
-pub mod gc_thread;
+pub mod gc;
 pub mod thread;
 pub mod thread_list;
 pub mod virtual_machine;
