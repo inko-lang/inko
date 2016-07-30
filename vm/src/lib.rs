@@ -1,5 +1,7 @@
 pub mod macros;
 
+pub mod queue;
+
 pub mod binding;
 pub mod bytecode_parser;
 pub mod call_frame;

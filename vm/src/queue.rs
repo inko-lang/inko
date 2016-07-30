@@ -1,0 +1,125 @@
+//! An unbounded, synchronized queue
+//!
+//! A Queue can be used as an unbounded, synchronized queue. This can be useful
+//! when you want to share data using multiple producers and consumers but only
+//! want a single consumer (without specifically selecting which one) to obtain
+//! a value in the queue.
+//!
+//! Values are processed in FIFO order.
+
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, Condvar};
+
+pub struct Queue<T> {
+    values: Mutex<VecDeque<T>>,
+    signaler: Condvar,
+}
+
+pub type RcQueue<T> = Arc<Queue<T>>;
+
+impl<T> Queue<T> {
+    /// Returns a new Queue.
+    pub fn new() -> Arc<Self> {
+        let queue = Queue {
+            values: Mutex::new(VecDeque::new()),
+            signaler: Condvar::new(),
+        };
+
+        Arc::new(queue)
+    }
+
+    /// Pushes a value to the end of the queue.
+    ///
+    /// # Examples
+    ///
+    ///     let queue = Queue::new();
+    ///
+    ///     queue.push(10);
+    ///     queue.push(20);
+    pub fn push(&self, value: T) {
+        let mut values = unlock!(self.values);
+
+        values.push_back(value);
+
+        // We don't need _all_ listeners to wait up as chances are only one may
+        // get a value, thus we only wake up one of them.
+        self.signaler.notify_one();
+    }
+
+    /// Removes the first value from the queue and returns it.
+    ///
+    /// If no values are available in the queue this method will block until at
+    /// least a single value is available.
+    ///
+    /// # Examples
+    ///
+    ///     let queue = Queue::new();
+    ///
+    ///     queue.push(10);
+    ///     queue.pop();
+    pub fn pop(&self) -> T {
+        if let Some(value) = unlock!(self.values).pop_front() {
+            return value;
+        }
+
+        let mut values = unlock!(self.values);
+
+        while values.len() == 0 {
+            values = self.signaler.wait(values).unwrap();
+        }
+
+        values.pop_front().unwrap()
+    }
+
+    /// Returns the amount of values in the queue.
+    pub fn len(&self) -> usize {
+        unlock!(self.values).len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn test_push() {
+        let queue = Queue::new();
+
+        queue.push(10);
+
+        assert_eq!(queue.len(), 1);
+    }
+
+    #[test]
+    fn test_pop() {
+        let queue = Queue::new();
+
+        queue.push(10);
+        queue.pop();
+
+        assert_eq!(queue.len(), 0);
+    }
+
+    #[test]
+    fn test_pop_blocking_single_consumer() {
+        let queue = Queue::new();
+        let queue_clone = queue.clone();
+        let handle = thread::spawn(move || queue_clone.pop());
+
+        queue.push(10);
+
+        assert_eq!(handle.join().unwrap(), 10);
+    }
+
+    #[test]
+    fn test_len() {
+        let queue = Queue::new();
+
+        assert_eq!(queue.len(), 0);
+
+        queue.push(10);
+
+        assert_eq!(queue.len(), 1);
+    }
+}
