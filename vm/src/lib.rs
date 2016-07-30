@@ -1,6 +1,7 @@
 pub mod macros;
 
 pub mod queue;
+pub mod tagged_pointer;
 
 pub mod binding;
 pub mod bytecode_parser;
