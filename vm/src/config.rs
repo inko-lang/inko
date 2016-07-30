@@ -1,5 +1,4 @@
-extern crate num_cpus;
-
+use num_cpus;
 use std::path::PathBuf;
 
 pub struct Config {

@@ -3,9 +3,9 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
-use std::mem;
 use std::ops::Drop;
 use std::ptr;
+use alloc::heap;
 
 use immix::bitmap::{Bitmap, ObjectMap, LineMap};
 use object::Object;
@@ -25,7 +25,7 @@ pub const BYTES_PER_OBJECT: usize = 32;
 /// size of "Object".
 pub const OBJECTS_PER_BLOCK: usize = BLOCK_SIZE / BYTES_PER_OBJECT;
 
-/// THe number of objects that can fit in a single line.
+/// The number of objects that can fit in a single line.
 pub const OBJECTS_PER_LINE: usize = LINE_SIZE / BYTES_PER_OBJECT;
 
 /// The first slot objects can be allocated into. The first 4 slots (a single
@@ -57,7 +57,8 @@ pub enum BlockStatus {
 /// status).
 pub struct Block {
     /// The memory to use for the mark bitmap and allocating objects. The first
-    /// 128 bytes of this field are used for the mark bitmap.
+    /// 128 bytes of this field are used for the mark bitmap. Memory is aligned
+    /// 32K.
     pub lines: RawObjectPointer,
 
     /// The status of the block.
@@ -84,14 +85,12 @@ unsafe impl Sync for Block {}
 
 impl Block {
     pub fn new() -> Block {
-        let lines = {
-            let mut buf = Vec::with_capacity(OBJECTS_PER_BLOCK);
-            let ptr = buf.as_mut_ptr() as RawObjectPointer;
+        let lines =
+            unsafe { heap::allocate(BLOCK_SIZE, BLOCK_SIZE) as RawObjectPointer };
 
-            mem::forget(buf);
-
-            ptr
-        };
+        if lines.is_null() {
+            panic!("Failed to allocate memory for a new Block");
+        }
 
         // Allocate the bitmap into the first 128 bytes of the block.
         unsafe {
@@ -149,9 +148,9 @@ impl Block {
 
         let obj_pointer = ObjectPointer::new(self.free_pointer);
 
-        self.used_slots.set(obj_pointer.mark_bitmap_index());
-
         self.free_pointer = unsafe { self.free_pointer.offset(1) };
+
+        self.used_slots.set(obj_pointer.mark_bitmap_index());
 
         obj_pointer
     }
@@ -172,7 +171,7 @@ impl Block {
         // TODO: object pointers will need to re-use this, so this should
         // probably either be a Block function or a separate function.
         let line_addr = (self.free_pointer as isize & LINE_BITMAP_MASK) as usize;
-        let first_line = unsafe { self.lines.offset(0) as usize };
+        let first_line = self.lines as usize;
         let line_index = (line_addr - first_line) / LINE_SIZE;
 
         let mut line_pointer = self.free_pointer;
@@ -205,7 +204,14 @@ impl Block {
         // Destruct all objects still in the block.
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
             if self.used_slots.is_set(index) {
-                unsafe { ptr::drop_in_place(self.lines.offset(index as isize)) };
+                unsafe {
+                    let pointer = self.lines.offset(index as isize);
+                    let mut object = &mut *pointer;
+
+                    object.deallocate_pointers();
+
+                    ptr::drop_in_place(pointer);
+                }
             }
         }
 
@@ -218,6 +224,9 @@ impl Block {
         }
 
         self.status = BlockStatus::Available;
+
+        self.free_pointer = self.start_address();
+        self.end_pointer = self.end_address();
 
         self.used_lines.reset();
         self.used_slots.reset();

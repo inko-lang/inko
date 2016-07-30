@@ -11,16 +11,26 @@ use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
 
-/// The number of buckets to use for the young generation.
-const YOUNG_BUCKETS: usize = 4;
-
-/// The number of buckets to use for the mature generation.
-const MATURE_BUCKETS: usize = 2;
-
 /// Structure containing the state of a process-local allocator.
 pub struct LocalAllocator {
+    /// The global allocated from which to request blocks of memory and return
+    /// unused blocks to.
     global_allocator: RcGlobalAllocator,
-    buckets: Vec<Bucket>,
+
+    /// Buckets for the eden space and the survivor spaces. The buckets for the
+    /// survivor spaces are only allocated when needed.
+    ///
+    /// The order of buckets is as follows:
+    ///
+    ///     0: eden space
+    ///     1: survivor space 1
+    ///     2: survivor space 2
+    ///     3: survivor space 3
+    young_generation: Vec<Bucket>,
+
+    /// The bucket to use for the mature generation. This bucket is only
+    /// allocated when needed.
+    mature_generation: Option<Bucket>,
 }
 
 /// A tuple containing an allocated object pointer and a boolean that indicates
@@ -37,7 +47,8 @@ impl LocalAllocator {
 
         LocalAllocator {
             global_allocator: global_allocator,
-            buckets: vec![eden],
+            young_generation: vec![eden],
+            mature_generation: None,
         }
     }
 
@@ -67,12 +78,23 @@ impl LocalAllocator {
 
     /// Resets and returns all blocks of all buckets to the global allocator.
     pub fn return_blocks(&mut self) {
-        for bucket in self.buckets.iter_mut() {
-            for mut block in bucket.blocks.drain(0..) {
-                block.reset();
+        let mut blocks = Vec::new();
 
-                self.global_allocator.add_block(block);
+        for bucket in self.young_generation.iter_mut() {
+            for block in bucket.blocks.drain(0..) {
+                blocks.push(block);
             }
+        }
+
+        if let Some(mature) = self.mature_generation.as_mut() {
+            for block in mature.blocks.drain(0..) {
+                blocks.push(block);
+            }
+        }
+
+        for mut block in blocks {
+            block.reset();
+            self.global_allocator.add_block(block);
         }
     }
 
@@ -97,6 +119,6 @@ impl LocalAllocator {
 
     /// Returns the bucket to use for the eden generation
     fn eden(&mut self) -> &mut Bucket {
-        self.buckets.get_mut(0).unwrap()
+        self.young_generation.get_mut(0).unwrap()
     }
 }

@@ -1,7 +1,7 @@
-//! Bucket containing objects of the same age
+//! Block Buckets
 //!
-//! A Bucket contains a list of blocks with objects of the same age. This allows
-//! tracking of an object's age without incrementing a counter for every object.
+//! A Bucket contains a sequence of Immix blocks that all contain objects of the
+//! same age.
 
 use immix::block::Block;
 use object::Object;
@@ -11,9 +11,6 @@ use object_pointer::ObjectPointer;
 pub struct Bucket {
     /// The memory blocks to store objects in.
     pub blocks: Vec<Block>,
-
-    /// The number of GC cycles the objects in this bucket have survived.
-    pub age: usize,
 
     /// Index to the current block to allocate objects into.
     pub block_index: usize,
@@ -26,7 +23,6 @@ impl Bucket {
     pub fn new() -> Bucket {
         Bucket {
             blocks: Vec::new(),
-            age: 0,
             block_index: 0,
         }
     }
@@ -45,21 +41,9 @@ impl Bucket {
     pub fn add_block(&mut self, block: Block) -> &mut Block {
         self.blocks.push(block);
 
-        // Don't increment the block index the first time we add a block.
-        if self.blocks.len() > 1 {
-            self.block_index += 1;
-        }
+        self.block_index = self.blocks.len() - 1;
 
         self.blocks.last_mut().unwrap()
-    }
-
-    /// Adds a new block and then bump allocates an object into it.
-    pub fn add_block_and_bump_allocate(&mut self,
-                                       block: Block,
-                                       object: Object)
-                                       -> ObjectPointer {
-        self.add_block(block);
-        self.bump_allocate(object)
     }
 
     /// Bump allocates into the current block.

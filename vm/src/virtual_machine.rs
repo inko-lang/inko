@@ -15,22 +15,26 @@ use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use errors;
-use gc_thread::GcThread;
-use heap::Heap;
+use gc::thread::Thread as GcThread;
+use gc::request::{Request as GcRequest, Generation as GcGeneration};
+use heap::Heap; // TODO: remove me
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
 use object_value;
 use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
+use process;
 use process::{RcProcess, Process};
 use process_list::ProcessList;
 use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
+use queue::{RcQueue, Queue};
 
 pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
 pub struct VirtualMachineState {
+    pub gc_requests: RcQueue<GcRequest>,
     config: Config,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
@@ -87,6 +91,7 @@ impl VirtualMachineState {
             executed_files: RwLock::new(HashSet::new()),
             threads: RwLock::new(ThreadList::new()),
             processes: RwLock::new(ProcessList::new()),
+            gc_requests: Queue::new(),
             exit_status: RwLock::new(Ok(())),
             global_heap: RwLock::new(heap),
             global_allocator: GlobalAllocator::new(),
@@ -176,7 +181,7 @@ impl VirtualMachine {
         let value = object_value::compiled_code(code);
         let proto = self.state.method_prototype.clone();
 
-        if receiver.is_global() {
+        if receiver.is_permanent() {
             write_lock!(self.state.global_heap)
                 .allocate_value_with_prototype(value, proto)
         } else {
@@ -189,7 +194,7 @@ impl VirtualMachine {
         let mut reductions = self.config().reductions;
         let mut suspend_retry = false;
 
-        process.mark_running();
+        process.running();
 
         'exec_loop: loop {
             self.gc_safepoint(process.clone());
@@ -889,10 +894,10 @@ impl VirtualMachine {
                       instruction: &Instruction)
                       -> EmptyResult {
         let register = try_vm_error!(instruction.arg(0), instruction);
-        let is_global_ptr = instruction_object!(instruction, process, 1);
-        let is_global = is_global_ptr != self.state.false_object.clone();
+        let is_permanent_ptr = instruction_object!(instruction, process, 1);
+        let is_permanent = is_permanent_ptr != self.state.false_object.clone();
 
-        let obj = if is_global {
+        let obj = if is_permanent {
             write_lock!(self.state.global_heap).allocate_empty()
         } else {
             process.allocate_empty()
@@ -902,7 +907,7 @@ impl VirtualMachine {
             let mut proto = try_vm_error!(process.get_register(proto_index),
                                           instruction);
 
-            if is_global && proto.is_local() {
+            if is_permanent && proto.is_local() {
                 proto = write_lock!(self.state.global_heap).copy_object(proto);
             }
 
@@ -3969,6 +3974,8 @@ impl VirtualMachine {
                     if reschedule {
                         thread.schedule(process);
                     } else {
+                        process.finished();
+
                         write_lock!(self.state.processes).remove(process);
                     }
                 }
@@ -3985,18 +3992,19 @@ impl VirtualMachine {
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
     fn gc_safepoint(&self, process: RcProcess) {
-        if process.should_schedule_eden() {
-            let roots = process.roots();
+        match *process.gc_state() {
+            process::GcState::ScheduleEden => {
+                process.gc_scheduled();
 
-            // 1: Create a GC request
-            // 2: Put the GC request in a queue
-            // 3: Reset the schedule eden flag
+                let roots = process.roots();
+
+                let request = GcRequest::new(GcGeneration::Eden, process, roots);
+
+                self.state.gc_requests.push(request);
+            }
+            process::GcState::ScheduleYoung => {}
+            process::GcState::ScheduleMature => {}
+            _ => {}
         }
-
-        // Schedule young
-        // ...
-
-        // Schedule mature
-        // ...
     }
 }

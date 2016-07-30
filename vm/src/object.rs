@@ -4,16 +4,72 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
 
-use std::ptr;
-use std::mem;
-
 use object_header::ObjectHeader;
 use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
+use tagged_pointer::TaggedPointer;
 
+/// The bit to set for objects in the mature space.
+const MATURE_BIT: usize = 0;
+
+/// The bit to set for objects in the permanent space.
+const PERMANENT_BIT: usize = 1;
+
+/// The generations an object can reside in.
+pub enum ObjectGeneration {
+    Young,
+    Mature,
+    Permanent,
+}
+
+impl ObjectGeneration {
+    /// Returns true if the current generation is the permanent generation.
+    pub fn is_permanent(&self) -> bool {
+        match *self {
+            ObjectGeneration::Permanent => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the current generation is the mature generation.
+    pub fn is_mature(&self) -> bool {
+        match *self {
+            ObjectGeneration::Mature => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the current generation is the young generation.
+    pub fn is_young(&self) -> bool {
+        match *self {
+            ObjectGeneration::Young => true,
+            _ => false,
+        }
+    }
+}
+
+/// Structure containing data of a single object.
 pub struct Object {
-    pub prototype: *const ObjectPointer,
-    pub header: Option<Box<ObjectHeader>>,
+    /// The prototype of this object. Method and constant lookups use the
+    /// prototype chain in case a method/constant couldn't be found in the
+    /// current object.
+    pub prototype: ObjectPointer,
+
+    /// A pointer to a header storing the methods, attributes, and other data of
+    /// this object. Headers are allocated on demand and default to null
+    /// pointers.
+    ///
+    /// Header pointers are tagged so extra information can be encoded into an
+    /// object without taking up extra space. Tagging is done by setting one of
+    /// the lower two bits to 1. The possible values of these two bits are as
+    /// follows:
+    ///
+    ///     00: object resides in the young generation
+    ///     01: object resides in the mature generation
+    ///     10: object resides in the permanent generation
+    pub header: TaggedPointer<ObjectHeader>,
+
+    /// A native Rust value (e.g. a String) that belongs to this object.
     pub value: ObjectValue,
 }
 
@@ -21,66 +77,71 @@ unsafe impl Sync for Object {}
 unsafe impl Send for Object {}
 
 impl Object {
+    /// Returns a new object with the given value.
     pub fn new(value: ObjectValue) -> Object {
         Object {
-            prototype: ptr::null(),
-            header: None,
+            prototype: ObjectPointer::null(),
+            header: TaggedPointer::null(),
             value: value,
         }
     }
 
+    /// Returns a new object with the given value and prototype.
     pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
         Object {
-            prototype: unsafe { mem::transmute(proto) },
-            header: None,
+            prototype: proto,
+            header: TaggedPointer::null(),
             value: value,
         }
     }
 
+    /// Sets the prototype of this object.
     pub fn set_prototype(&mut self, prototype: ObjectPointer) {
-        self.prototype = unsafe { mem::transmute(prototype) };
+        self.prototype = prototype;
     }
 
+    /// Returns the prototype of this object.
     pub fn prototype(&self) -> Option<ObjectPointer> {
         if self.prototype.is_null() {
             None
         } else {
-            unsafe {
-                let ptr: ObjectPointer = mem::transmute(self.prototype);
-
-                Some(ptr)
-            }
+            Some(self.prototype)
         }
     }
 
+    /// Sets the outer scope used for constant lookups.
     pub fn set_outer_scope(&mut self, scope: ObjectPointer) {
         self.allocate_header();
 
-        let header_ref = self.header.as_mut().unwrap();
+        let mut header_ref = self.header_mut().unwrap();
 
         header_ref.outer_scope = Some(scope);
     }
 
+    /// Adds a new method to this object.
     pub fn add_method(&mut self, name: String, method: ObjectPointer) {
         self.allocate_header();
 
-        let mut header_ref = self.header.as_mut().unwrap();
+        let mut header_ref = self.header_mut().unwrap();
 
         header_ref.add_method(name, method);
     }
 
+    /// Returns true if the object responds to the given message.
     pub fn responds_to(&self, name: &String) -> bool {
         self.lookup_method(name).is_some()
     }
 
+    /// Returns true if the object has the given attribute.
     pub fn has_attribute(&self, name: &String) -> bool {
         self.lookup_attribute(name).is_some()
     }
 
+    /// Looks up a method.
     pub fn lookup_method(&self, name: &String) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
-        let opt_header = self.header.as_ref();
+        let opt_header = self.header();
 
         if let Some(header) = opt_header {
             // Method defined directly on the object
@@ -97,7 +158,7 @@ impl Object {
                 let parent_ptr = opt_parent.unwrap();
                 let parent = parent_ptr.get();
 
-                let opt_parent_header = parent.header.as_ref();
+                let opt_parent_header = parent.header();
 
                 if opt_parent_header.is_some() {
                     let parent_header = opt_parent_header.unwrap();
@@ -116,18 +177,20 @@ impl Object {
         retval
     }
 
+    /// Adds a new constant to the current object.
     pub fn add_constant(&mut self, name: String, value: ObjectPointer) {
         self.allocate_header();
 
-        let mut header_ref = self.header.as_mut().unwrap();
+        let mut header_ref = self.header_mut().unwrap();
 
         header_ref.add_constant(name, value);
     }
 
+    /// Looks up a constant.
     pub fn lookup_constant(&self, name: &String) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
-        let opt_header = self.header.as_ref();
+        let opt_header = self.header();
 
         if let Some(header) = opt_header {
             if header.has_constant(name) {
@@ -151,18 +214,20 @@ impl Object {
         retval
     }
 
+    /// Adds a new attribute to the current object.
     pub fn add_attribute(&mut self, name: String, object: ObjectPointer) {
         self.allocate_header();
 
-        let header = self.header.as_mut().unwrap();
+        let mut header = self.header_mut().unwrap();
 
         header.add_attribute(name, object.clone());
     }
 
+    /// Looks up an attribute.
     pub fn lookup_attribute(&self, name: &String) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
-        let opt_header = self.header.as_ref();
+        let opt_header = self.header();
 
         if opt_header.is_none() {
             return retval;
@@ -177,17 +242,70 @@ impl Object {
         retval
     }
 
-    pub fn header(&self) -> Option<&Box<ObjectHeader>> {
+    /// Returns an immutable reference to the object header.
+    pub fn header(&self) -> Option<&ObjectHeader> {
         self.header.as_ref()
     }
 
-    pub fn set_header(&mut self, header: ObjectHeader) {
-        self.header = Some(Box::new(header));
+    /// Returns a mutable reference to the object header.
+    pub fn header_mut(&self) -> Option<&mut ObjectHeader> {
+        self.header.as_mut()
     }
 
+    /// Sets the object header to the given header.
+    pub fn set_header(&mut self, header: ObjectHeader) {
+        let header = Box::new(header);
+        let pointer = Box::into_raw(header);
+
+        self.header = match self.generation() {
+            ObjectGeneration::Young => TaggedPointer::new(pointer),
+            ObjectGeneration::Mature => {
+                TaggedPointer::with_bit(pointer, MATURE_BIT)
+            }
+            ObjectGeneration::Permanent => {
+                TaggedPointer::with_bit(pointer, PERMANENT_BIT)
+            }
+        };
+    }
+
+    /// Deallocates any pointers stored directly in this object.
+    ///
+    /// Drop adds a flag which increases the struct size. To work around this
+    /// we use this drop-like method that's explicitly called by the garbage
+    /// collector.
+    pub fn deallocate_pointers(&mut self) {
+        if !self.header.is_null() {
+            let boxed = unsafe { Box::from_raw(self.header.untagged()) };
+
+            drop(boxed);
+        }
+    }
+
+    /// Sets the generation of this object to the permanent generation.
+    pub fn set_permanent(&mut self) {
+        self.header.set_bit(PERMANENT_BIT);
+    }
+
+    /// Sets the generation of this object to the mature generation.
+    pub fn set_mature(&mut self) {
+        self.header.set_bit(MATURE_BIT);
+    }
+
+    /// Returns the generation this object belongs to.
+    pub fn generation(&self) -> ObjectGeneration {
+        if self.header.bit_is_set(0) {
+            ObjectGeneration::Mature
+        } else if self.header.bit_is_set(1) {
+            ObjectGeneration::Permanent
+        } else {
+            ObjectGeneration::Young
+        }
+    }
+
+    /// Allocates an object header if needed.
     fn allocate_header(&mut self) {
-        if self.header.is_none() {
-            self.header = Some(Box::new(ObjectHeader::new()));
+        if self.header.is_null() {
+            self.set_header(ObjectHeader::new());
         }
     }
 }

@@ -24,7 +24,7 @@ impl GlobalAllocator {
         let mut blocks = Vec::with_capacity(capacity);
 
         for _ in 0..capacity {
-            blocks.push(Block::new());
+            // blocks.push(Block::new());
         }
 
         Arc::new(GlobalAllocator { blocks: Mutex::new(blocks) })

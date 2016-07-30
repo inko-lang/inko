@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::mem;
 use std::ops::Drop;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -21,6 +22,15 @@ pub enum ProcessStatus {
     Running,
     Suspended,
     Failed,
+    Finished,
+}
+
+pub enum GcState {
+    ScheduleEden,
+    ScheduleYoung,
+    ScheduleMature,
+    Scheduled,
+    None,
 }
 
 pub struct LocalData {
@@ -28,7 +38,7 @@ pub struct LocalData {
     pub allocator: LocalAllocator,
     pub call_frame: CallFrame,
     pub context: ExecutionContext,
-    pub schedule_eden: bool,
+    pub gc_state: GcState,
 }
 
 pub struct Process {
@@ -51,7 +61,7 @@ impl Process {
             call_frame: call_frame,
             context: context,
             status: ProcessStatus::Scheduled,
-            schedule_eden: false,
+            gc_state: GcState::None,
         };
 
         let process = Process {
@@ -276,34 +286,58 @@ impl Process {
         self.context_mut().instruction_index = index;
     }
 
-    pub fn mark_running(&self) {
+    pub fn is_alive(&self) -> bool {
+        match self.local_data().status {
+            ProcessStatus::Scheduled => true,
+            ProcessStatus::Running => true,
+            ProcessStatus::Suspended => true,
+            _ => false,
+        }
+    }
+
+    pub fn running(&self) {
         self.local_data_mut().status = ProcessStatus::Running;
+    }
+
+    pub fn finished(&self) {
+        self.local_data_mut().status = ProcessStatus::Finished;
     }
 
     pub fn suspend(&self) {
         self.local_data_mut().status = ProcessStatus::Suspended;
     }
 
-    pub fn should_schedule_eden(&self) -> bool {
-        self.local_data().schedule_eden
+    pub fn gc_state(&self) -> &GcState {
+        &self.local_data().gc_state
+    }
+
+    pub fn gc_scheduled(&self) {
+        self.local_data_mut().gc_state = GcState::Scheduled;
+    }
+
+    pub fn can_schedule_gc(&self) -> bool {
+        match self.local_data().gc_state {
+            GcState::None => true,
+            _ => false,
+        }
     }
 
     /// Scans all the root objects and returns a Vec containing the objects to
     /// scan for references to other objects.
-    pub fn roots(&self) -> Vec<ObjectPointer> {
-        let mut objects = Vec::new();
+    pub fn roots(&self) -> VecDeque<ObjectPointer> {
+        let mut objects = VecDeque::new();
 
         self.context().each_context(|context| {
             context.binding().each_binding(|binding| {
-                objects.push(binding.self_object());
+                objects.push_back(binding.self_object());
 
                 for local in read_lock!(binding.locals).iter() {
-                    objects.push(*local);
+                    objects.push_back(*local);
                 }
             });
 
             for pointer in context.register.objects() {
-                objects.push(*pointer);
+                objects.push_back(*pointer);
             }
         });
 
@@ -311,7 +345,9 @@ impl Process {
     }
 
     fn schedule_eden_collection(&self) {
-        self.local_data_mut().schedule_eden = true;
+        if self.can_schedule_gc() {
+            self.local_data_mut().gc_state = GcState::ScheduleEden;
+        }
     }
 }
 

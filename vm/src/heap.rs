@@ -73,12 +73,11 @@ impl Heap {
 
         let mut last_page = self.pages.last_mut().unwrap();
         let raw_pointer = last_page.allocate(object);
+        let pointer = ObjectPointer::new(raw_pointer);
 
-        if self.global {
-            ObjectPointer::global(raw_pointer)
-        } else {
-            ObjectPointer::new(raw_pointer)
-        }
+        pointer.get_mut().set_permanent();
+
+        pointer
     }
 
     pub fn allocate_value(&mut self, value: ObjectValue) -> ObjectPointer {
@@ -109,7 +108,7 @@ impl Heap {
     /// The copy of the input object is allocated on the current process' heap.
     /// Values such as Arrays are recursively copied.
     pub fn copy_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
-        if to_copy_ptr.is_global() {
+        if to_copy_ptr.is_permanent() {
             return to_copy_ptr;
         }
 
