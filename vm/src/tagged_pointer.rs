@@ -36,6 +36,15 @@ impl<T> TaggedPointer<T> {
         pointer
     }
 
+    /// Returns a new TaggedPointer with the given bit mask applied.
+    pub fn with_mask(raw: *mut T, mask: usize) -> TaggedPointer<T> {
+        let mut pointer = Self::new(raw);
+
+        pointer.set_mask(mask);
+
+        pointer
+    }
+
     /// Returns a null pointer.
     pub fn null() -> TaggedPointer<T> {
         TaggedPointer { raw: ptr::null::<T>() as *mut T }
@@ -55,11 +64,21 @@ impl<T> TaggedPointer<T> {
         (self.raw as usize & shifted) == shifted
     }
 
+    /// Returns true if the given bit mask is set.
+    pub fn mask_is_set(&self, mask: usize) -> bool {
+        (self.raw as usize & mask) == mask
+    }
+
     /// Sets the given bit.
     pub fn set_bit(&mut self, bit: usize) {
         bit_within_bounds!(bit);
 
         self.raw = unsafe { transmute(self.raw as usize | 1 << bit) };
+    }
+
+    /// Applies the given bit mask.
+    pub fn set_mask(&mut self, mask: usize) {
+        self.raw = unsafe { transmute(self.raw as usize | mask) };
     }
 
     /// Returns true if the current pointer is a null pointer.
@@ -97,7 +116,6 @@ impl<T> Copy for TaggedPointer<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem::transmute;
 
     #[test]
     #[should_panic]
@@ -116,6 +134,14 @@ mod tests {
     }
 
     #[test]
+    fn test_untagged_with_mask() {
+        let mut name = "Alice".to_string();
+        let ptr = TaggedPointer::with_mask(&mut name as *mut String, 0x2);
+
+        assert_eq!(unsafe { &*ptr.untagged() }, &name);
+    }
+
+    #[test]
     fn test_bit_is_set() {
         let mut name = "Alice".to_string();
         let str_ptr = &mut name as *mut String;
@@ -128,12 +154,59 @@ mod tests {
     }
 
     #[test]
+    fn test_bit_is_set_with_mask() {
+        let mut name = "Alice".to_string();
+        let str_ptr = &mut name as *mut String;
+        let ptr = TaggedPointer::with_mask(str_ptr, 0x1);
+
+        assert!(ptr.bit_is_set(0));
+    }
+
+    #[test]
+    fn test_mask_is_set() {
+        let mut name = "Alice".to_string();
+        let str_ptr = &mut name as *mut String;
+
+        assert_eq!(TaggedPointer::new(str_ptr).mask_is_set(0x1), false);
+        assert_eq!(TaggedPointer::new(str_ptr).mask_is_set(0x2), false);
+
+        assert!(TaggedPointer::with_mask(str_ptr, 0x1).mask_is_set(0x1));
+        assert!(TaggedPointer::with_mask(str_ptr, 0x2).mask_is_set(0x2));
+    }
+
+    #[test]
     #[should_panic]
     fn test_bit_is_set_panics_when_out_of_bounds() {
         let mut name = "Alice".to_string();
         let ptr = TaggedPointer::with_bit(&mut name as *mut String, 0);
 
         ptr.bit_is_set(2);
+    }
+
+    #[test]
+    fn test_set_bit() {
+        let mut name = "Alice".to_string();
+        let str_ptr = &mut name as *mut String;
+        let mut ptr = TaggedPointer::new(str_ptr);
+
+        assert_eq!(ptr.bit_is_set(0), false);
+
+        ptr.set_bit(0);
+
+        assert!(ptr.bit_is_set(0));
+    }
+
+    #[test]
+    fn test_set_mask() {
+        let mut name = "Alice".to_string();
+        let str_ptr = &mut name as *mut String;
+        let mut ptr = TaggedPointer::new(str_ptr);
+
+        assert_eq!(ptr.mask_is_set(0x1), false);
+
+        ptr.set_mask(0x1);
+
+        assert!(ptr.mask_is_set(0x1));
     }
 
     #[test]

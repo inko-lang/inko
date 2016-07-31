@@ -9,17 +9,21 @@ use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
 use tagged_pointer::TaggedPointer;
 
-/// The bit to set for objects in the mature space.
-const MATURE_BIT: usize = 0;
+/// The bit mask to use for the mature generation.
+const MATURE_MASK: usize = 0x1;
 
-/// The bit to set for objects in the permanent space.
-const PERMANENT_BIT: usize = 1;
+/// The bit mask to use for the mailbox generation.
+const MAILBOX_MASK: usize = 0x2;
+
+/// The bit mask to use for the permanent generation.
+const PERMANENT_MASK: usize = 0x3;
 
 /// The generations an object can reside in.
 pub enum ObjectGeneration {
     Young,
     Mature,
     Permanent,
+    Mailbox,
 }
 
 impl ObjectGeneration {
@@ -46,6 +50,14 @@ impl ObjectGeneration {
             _ => false,
         }
     }
+
+    /// Returns true if the current generation is the mailbox generation.
+    pub fn is_mailbox(&self) -> bool {
+        match *self {
+            ObjectGeneration::Mailbox => true,
+            _ => false,
+        }
+    }
 }
 
 /// Structure containing data of a single object.
@@ -66,7 +78,8 @@ pub struct Object {
     ///
     ///     00: object resides in the young generation
     ///     01: object resides in the mature generation
-    ///     10: object resides in the permanent generation
+    ///     10: object resides in the mailbox generation
+    ///     11: object resides in the permanent generation
     pub header: TaggedPointer<ObjectHeader>,
 
     /// A native Rust value (e.g. a String) that belongs to this object.
@@ -260,10 +273,13 @@ impl Object {
         self.header = match self.generation() {
             ObjectGeneration::Young => TaggedPointer::new(pointer),
             ObjectGeneration::Mature => {
-                TaggedPointer::with_bit(pointer, MATURE_BIT)
+                TaggedPointer::with_mask(pointer, MATURE_MASK)
             }
             ObjectGeneration::Permanent => {
-                TaggedPointer::with_bit(pointer, PERMANENT_BIT)
+                TaggedPointer::with_mask(pointer, PERMANENT_MASK)
+            }
+            ObjectGeneration::Mailbox => {
+                TaggedPointer::with_mask(pointer, MAILBOX_MASK)
             }
         };
     }
@@ -283,20 +299,24 @@ impl Object {
 
     /// Sets the generation of this object to the permanent generation.
     pub fn set_permanent(&mut self) {
-        self.header.set_bit(PERMANENT_BIT);
+        self.header.set_mask(PERMANENT_MASK);
     }
 
     /// Sets the generation of this object to the mature generation.
     pub fn set_mature(&mut self) {
-        self.header.set_bit(MATURE_BIT);
+        self.header.set_mask(MATURE_MASK);
     }
 
     /// Returns the generation this object belongs to.
     pub fn generation(&self) -> ObjectGeneration {
-        if self.header.bit_is_set(0) {
-            ObjectGeneration::Mature
-        } else if self.header.bit_is_set(1) {
+        // Due to the bit masks used we must compare in the order of greatest to
+        // smallest bit mask.
+        if self.header.mask_is_set(PERMANENT_MASK) {
             ObjectGeneration::Permanent
+        } else if self.header.mask_is_set(MAILBOX_MASK) {
+            ObjectGeneration::Mailbox
+        } else if self.header.mask_is_set(MATURE_MASK) {
+            ObjectGeneration::Mature
         } else {
             ObjectGeneration::Young
         }
