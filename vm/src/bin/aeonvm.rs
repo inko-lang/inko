@@ -63,11 +63,6 @@ fn main() {
         println!("CallFrame: {} bytes",
                  mem::size_of::<libaeon::call_frame::CallFrame>());
 
-        println!("Heap: {} bytes", mem::size_of::<libaeon::heap::Heap>());
-
-        println!("Mailbox: {} bytes",
-                 mem::size_of::<libaeon::mailbox::Mailbox>());
-
         println!("Process: {} bytes",
                  mem::size_of::<libaeon::process::Process>());
 

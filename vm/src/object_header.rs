@@ -3,10 +3,9 @@
 //! The ObjectHeader struct stores metadata associated with an Object, such as
 //! the name, attributes, constants and methods. An ObjectHeader struct is only
 //! allocated when actually needed.
-
 use std::collections::HashMap;
 
-use heap::Heap;
+use immix::copy_object::CopyObject;
 use object_pointer::ObjectPointer;
 
 macro_rules! has_map_key {
@@ -61,32 +60,54 @@ impl ObjectHeader {
         }
     }
 
-    pub fn copy_to(&self, heap: &mut Heap) -> ObjectHeader {
+    pub fn copy_to<T: CopyObject>(&self,
+                                  allocator: &mut T)
+                                  -> (ObjectHeader, bool) {
         let mut copy = ObjectHeader::new();
+        let mut allocated_new = false;
 
         if let Some(map) = self.attributes.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_attribute(key.clone(), heap.copy_object(value.clone()));
+                let (value_copy, alloc_new) =
+                    allocator.copy_object(value.clone());
+
+                reassign_if_true!(allocated_new, alloc_new);
+
+                copy.add_attribute(key.clone(), value_copy);
             }
         }
 
         if let Some(map) = self.constants.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_constant(key.clone(), heap.copy_object(value.clone()));
+                let (value_copy, alloc_new) =
+                    allocator.copy_object(value.clone());
+
+                reassign_if_true!(allocated_new, alloc_new);
+
+                copy.add_constant(key.clone(), value_copy);
             }
         }
 
         if let Some(map) = self.methods.as_ref() {
             for (key, value) in map.iter() {
-                copy.add_method(key.clone(), heap.copy_object(value.clone()));
+                let (value_copy, alloc_new) =
+                    allocator.copy_object(value.clone());
+
+                reassign_if_true!(allocated_new, alloc_new);
+
+                copy.add_method(key.clone(), value_copy);
             }
         }
 
         if let Some(scope) = self.outer_scope.as_ref() {
-            copy.outer_scope = Some(heap.copy_object(scope.clone()));
+            let (outer_copy, alloc_new) = allocator.copy_object(scope.clone());
+
+            reassign_if_true!(allocated_new, alloc_new);
+
+            copy.outer_scope = Some(outer_copy);
         }
 
-        copy
+        (copy, allocated_new)
     }
 
     pub fn add_method(&mut self, key: String, value: ObjectPointer) {

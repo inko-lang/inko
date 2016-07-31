@@ -3,6 +3,8 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
+use immix::allocation_result::AllocationResult;
+use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
 use immix::global_allocator::RcGlobalAllocator;
 
@@ -33,10 +35,6 @@ pub struct LocalAllocator {
     mature_generation: Option<Bucket>,
 }
 
-/// A tuple containing an allocated object pointer and a boolean that indicates
-/// whether or not a GC run should be scheduled.
-pub type AllocationResult = (ObjectPointer, bool);
-
 impl LocalAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
         // Prepare the eden bucket
@@ -49,6 +47,32 @@ impl LocalAllocator {
             global_allocator: global_allocator,
             young_generation: vec![eden],
             mature_generation: None,
+        }
+    }
+
+    pub fn global_allocator(&self) -> RcGlobalAllocator {
+        self.global_allocator.clone()
+    }
+
+    /// Resets and returns all blocks of all buckets to the global allocator.
+    pub fn return_blocks(&mut self) {
+        let mut blocks = Vec::new();
+
+        for bucket in self.young_generation.iter_mut() {
+            for block in bucket.blocks.drain(0..) {
+                blocks.push(block);
+            }
+        }
+
+        if let Some(mature) = self.mature_generation.as_mut() {
+            for block in mature.blocks.drain(0..) {
+                blocks.push(block);
+            }
+        }
+
+        for mut block in blocks {
+            block.reset();
+            self.global_allocator.add_block(block);
         }
     }
 
@@ -76,30 +100,8 @@ impl LocalAllocator {
         self.allocate_without_prototype(object_value::none())
     }
 
-    /// Resets and returns all blocks of all buckets to the global allocator.
-    pub fn return_blocks(&mut self) {
-        let mut blocks = Vec::new();
-
-        for bucket in self.young_generation.iter_mut() {
-            for block in bucket.blocks.drain(0..) {
-                blocks.push(block);
-            }
-        }
-
-        if let Some(mature) = self.mature_generation.as_mut() {
-            for block in mature.blocks.drain(0..) {
-                blocks.push(block);
-            }
-        }
-
-        for mut block in blocks {
-            block.reset();
-            self.global_allocator.add_block(block);
-        }
-    }
-
-    /// Allocates a prepared Object on the eden heap.
-    fn allocate(&mut self, object: Object) -> AllocationResult {
+    /// Allocates a prepared Object on the heap.
+    pub fn allocate(&mut self, object: Object) -> AllocationResult {
         // Try to allocate into the first available block.
         {
             if let Some(block) = self.eden().first_available_block() {
@@ -107,8 +109,6 @@ impl LocalAllocator {
             }
         }
 
-        // We could not allocate into any of the existing blocks, let's request
-        // a new one and allocate into it.
         let (block, allocated_new) = self.global_allocator.request_block();
         let mut eden = self.eden();
 
@@ -117,8 +117,14 @@ impl LocalAllocator {
         (eden.bump_allocate(object), allocated_new)
     }
 
-    /// Returns the bucket to use for the eden generation
+    /// Returns the bucket for the eden space.
     fn eden(&mut self) -> &mut Bucket {
         self.young_generation.get_mut(0).unwrap()
+    }
+}
+
+impl CopyObject for LocalAllocator {
+    fn allocate_copy(&mut self, object: Object) -> AllocationResult {
+        self.allocate(object)
     }
 }

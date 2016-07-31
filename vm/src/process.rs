@@ -1,19 +1,21 @@
 use std::collections::VecDeque;
 use std::mem;
 use std::ops::Drop;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::cell::UnsafeCell;
 
+use immix::copy_object::CopyObject;
 use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
+use immix::mailbox_allocator::MailboxAllocator;
 
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
 use execution_context::ExecutionContext;
+use queue::Queue;
 
 pub type RcProcess = Arc<Process>;
 
@@ -29,6 +31,7 @@ pub enum GcState {
     ScheduleEden,
     ScheduleYoung,
     ScheduleMature,
+    ScheduleMailbox,
     Scheduled,
     None,
 }
@@ -43,7 +46,8 @@ pub struct LocalData {
 
 pub struct Process {
     pub pid: usize,
-    pub mailbox: Mutex<Option<Box<Mailbox>>>,
+    pub mailbox: Queue<ObjectPointer>,
+    pub mailbox_allocator: Mutex<MailboxAllocator>,
     pub local_data: UnsafeCell<LocalData>,
 }
 
@@ -57,7 +61,7 @@ impl Process {
                global_allocator: RcGlobalAllocator)
                -> RcProcess {
         let local_data = LocalData {
-            allocator: LocalAllocator::new(global_allocator),
+            allocator: LocalAllocator::new(global_allocator.clone()),
             call_frame: call_frame,
             context: context,
             status: ProcessStatus::Scheduled,
@@ -66,8 +70,10 @@ impl Process {
 
         let process = Process {
             pid: pid,
+            mailbox: Queue::new(),
+            mailbox_allocator:
+                Mutex::new(MailboxAllocator::new(global_allocator)),
             local_data: UnsafeCell::new(local_data),
-            mailbox: Mutex::new(None),
         };
 
         Arc::new(process)
@@ -208,32 +214,40 @@ impl Process {
         pointer
     }
 
+    /// Sends a message to the current process.
     pub fn send_message(&self, message: ObjectPointer) {
-        let mut mailbox = self.mailbox();
+        let mut to_send = message;
+        let mut allocated_new = false;
 
-        mailbox.as_mut().unwrap().send(message);
-    }
+        // Instead of using is_local we can use an enum with two variants:
+        // Remote and Local. A Remote message requires copying the message into
+        // the message allocator, a Local message can be used as-is.
+        //
+        // When we receive() a Remote message we copy it to the eden allocator. If
+        // the message is a Local message we just leave things as-is.
+        //
+        // This can also be used for globals as when sending a global object as
+        // a message we can just use the Local variant.
+        if to_send.is_local() {
+            let (copy, alloc_new) = unlock!(self.mailbox_allocator)
+                .copy_object(to_send);
 
-    pub fn receive_message(&self) -> Option<ObjectPointer> {
-        let mut mailbox = self.mailbox();
+            reassign_if_true!(allocated_new, alloc_new);
 
-        mailbox.as_mut().unwrap().receive()
-    }
-
-    pub fn mailbox<'a>(&'a self) -> MutexGuard<'a, Option<Box<Mailbox>>> {
-        let mut mailbox = unlock!(self.mailbox);
-
-        let allocate = if mailbox.is_none() {
-            true
-        } else {
-            false
-        };
-
-        if allocate {
-            *mailbox = Some(Box::new(Mailbox::new()));
+            to_send = copy;
         }
 
-        mailbox
+        self.mailbox.push(to_send);
+
+        if allocated_new {
+            // TODO: schedule GC
+        }
+    }
+
+    /// Pops a message from the current process' message queue.
+    pub fn receive_message(&self) -> Option<ObjectPointer> {
+        // TODO: copy to the heap
+        self.mailbox.pop_nonblock()
     }
 
     pub fn is_suspended(&self) -> bool {

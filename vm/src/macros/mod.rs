@@ -1,5 +1,6 @@
 #![macro_use]
 
+pub mod assigns;
 pub mod checks;
 pub mod collections;
 pub mod error_handling;

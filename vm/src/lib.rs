@@ -13,8 +13,6 @@ pub mod call_frame;
 pub mod compiled_code;
 pub mod config;
 pub mod errors;
-pub mod heap;
-pub mod mailbox;
 pub mod instruction;
 pub mod object;
 pub mod object_header;

@@ -19,13 +19,16 @@ pub type RcQueue<T> = Arc<Queue<T>>;
 
 impl<T> Queue<T> {
     /// Returns a new Queue.
-    pub fn new() -> Arc<Self> {
-        let queue = Queue {
+    pub fn new() -> Self {
+        Queue {
             values: Mutex::new(VecDeque::new()),
             signaler: Condvar::new(),
-        };
+        }
+    }
 
-        Arc::new(queue)
+    /// Returns a new queue that can be shared between threads.
+    pub fn with_rc() -> Arc<Self> {
+        Arc::new(Self::new())
     }
 
     /// Pushes a value to the end of the queue.
@@ -71,6 +74,12 @@ impl<T> Queue<T> {
         values.pop_front().unwrap()
     }
 
+    /// Removes the first value from the queue without blocking the caller if
+    /// there are no values in the queue.
+    pub fn pop_nonblock(&self) -> Option<T> {
+        unlock!(self.values).pop_front()
+    }
+
     /// Returns the amount of values in the queue.
     pub fn len(&self) -> usize {
         unlock!(self.values).len()
@@ -103,13 +112,20 @@ mod tests {
 
     #[test]
     fn test_pop_blocking_single_consumer() {
-        let queue = Queue::new();
+        let queue = Queue::with_rc();
         let queue_clone = queue.clone();
         let handle = thread::spawn(move || queue_clone.pop());
 
         queue.push(10);
 
         assert_eq!(handle.join().unwrap(), 10);
+    }
+
+    #[test]
+    fn test_pop_nonblock() {
+        let queue: Queue<()> = Queue::new();
+
+        assert!(queue.pop_nonblock().is_none());
     }
 
     #[test]

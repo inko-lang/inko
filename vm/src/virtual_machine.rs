@@ -7,7 +7,9 @@ use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
+use immix::copy_object::CopyObject;
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
+use immix::permanent_allocator::PermanentAllocator;
 
 use binding::RcBinding;
 use bytecode_parser;
@@ -17,7 +19,6 @@ use config::Config;
 use errors;
 use gc::thread::Thread as GcThread;
 use gc::request::{Request as GcRequest, Generation as GcGeneration};
-use heap::Heap; // TODO: remove me
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
 use object_value;
@@ -29,19 +30,19 @@ use process_list::ProcessList;
 use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 use thread_list::ThreadList;
-use queue::{RcQueue, Queue};
+use queue::Queue;
 
 pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
 pub struct VirtualMachineState {
-    pub gc_requests: RcQueue<GcRequest>,
+    pub gc_requests: Queue<GcRequest>,
     config: Config,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
     processes: RwLock<ProcessList>,
     exit_status: RwLock<Result<(), ()>>,
 
-    global_heap: RwLock<Heap>,
+    permanent_allocator: RwLock<PermanentAllocator>,
     global_allocator: RcGlobalAllocator,
     top_level: ObjectPointer,
     integer_prototype: ObjectPointer,
@@ -64,22 +65,23 @@ pub struct VirtualMachine {
 
 impl VirtualMachineState {
     pub fn new(config: Config) -> RcVirtualMachineState {
-        let mut heap = Heap::global();
+        let global_alloc = GlobalAllocator::new();
+        let mut perm_alloc = PermanentAllocator::new(global_alloc.clone());
 
-        let top_level = heap.allocate_empty();
-        let integer_proto = heap.allocate_empty();
-        let float_proto = heap.allocate_empty();
-        let string_proto = heap.allocate_empty();
-        let array_proto = heap.allocate_empty();
-        let true_proto = heap.allocate_empty();
-        let false_proto = heap.allocate_empty();
-        let file_proto = heap.allocate_empty();
-        let method_proto = heap.allocate_empty();
-        let cc_proto = heap.allocate_empty();
-        let binding_proto = heap.allocate_empty();
+        let top_level = perm_alloc.allocate_empty();
+        let integer_proto = perm_alloc.allocate_empty();
+        let float_proto = perm_alloc.allocate_empty();
+        let string_proto = perm_alloc.allocate_empty();
+        let array_proto = perm_alloc.allocate_empty();
+        let true_proto = perm_alloc.allocate_empty();
+        let false_proto = perm_alloc.allocate_empty();
+        let file_proto = perm_alloc.allocate_empty();
+        let method_proto = perm_alloc.allocate_empty();
+        let cc_proto = perm_alloc.allocate_empty();
+        let binding_proto = perm_alloc.allocate_empty();
 
-        let true_obj = heap.allocate_empty();
-        let false_obj = heap.allocate_empty();
+        let true_obj = perm_alloc.allocate_empty();
+        let false_obj = perm_alloc.allocate_empty();
 
         {
             true_obj.get_mut().set_prototype(true_proto.clone());
@@ -93,8 +95,8 @@ impl VirtualMachineState {
             processes: RwLock::new(ProcessList::new()),
             gc_requests: Queue::new(),
             exit_status: RwLock::new(Ok(())),
-            global_heap: RwLock::new(heap),
-            global_allocator: GlobalAllocator::new(),
+            permanent_allocator: RwLock::new(perm_alloc),
+            global_allocator: global_alloc,
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -182,8 +184,8 @@ impl VirtualMachine {
         let proto = self.state.method_prototype.clone();
 
         if receiver.is_permanent() {
-            write_lock!(self.state.global_heap)
-                .allocate_value_with_prototype(value, proto)
+            write_lock!(self.state.permanent_allocator)
+                .allocate_with_prototype(value, proto)
         } else {
             process.allocate(value, proto)
         }
@@ -898,7 +900,7 @@ impl VirtualMachine {
         let is_permanent = is_permanent_ptr != self.state.false_object.clone();
 
         let obj = if is_permanent {
-            write_lock!(self.state.global_heap).allocate_empty()
+            write_lock!(self.state.permanent_allocator).allocate_empty()
         } else {
             process.allocate_empty()
         };
@@ -908,7 +910,10 @@ impl VirtualMachine {
                                           instruction);
 
             if is_permanent && proto.is_local() {
-                proto = write_lock!(self.state.global_heap).copy_object(proto);
+                let (copy, _) = write_lock!(self.state.permanent_allocator)
+                    .copy_object(proto);
+
+                proto = copy;
             }
 
             obj.get_mut().set_prototype(proto);
@@ -1356,8 +1361,9 @@ impl VirtualMachine {
         let source_ptr = instruction_object!(instruction, process, 2);
         let name = try_vm_error!(code.string(name_index), instruction);
 
-        let source =
-            copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
+        let source = copy_if_permanent!(self.state.permanent_allocator,
+                                        source_ptr,
+                                        target_ptr);
 
         target_ptr.get_mut().add_constant(name.clone(), source);
 
@@ -1384,8 +1390,9 @@ impl VirtualMachine {
 
         let name_str = name_obj.value.as_string().clone();
 
-        let source =
-            copy_if_global!(self.state.global_heap, source_ptr, target_ptr);
+        let source = copy_if_permanent!(self.state.permanent_allocator,
+                                        source_ptr,
+                                        target_ptr);
 
         let target = target_ptr.get_mut();
 
@@ -1505,8 +1512,9 @@ impl VirtualMachine {
         let value_ptr = instruction_object!(instruction, process, 2);
 
         let name = try_vm_error!(code.string(name_index), instruction);
-        let value =
-            copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
+        let value = copy_if_permanent!(self.state.permanent_allocator,
+                                       value_ptr,
+                                       target_ptr);
 
         target_ptr.get_mut().add_attribute(name.clone(), value);
 
@@ -1533,8 +1541,9 @@ impl VirtualMachine {
 
         let name = name_obj.value.as_string();
 
-        let value =
-            copy_if_global!(self.state.global_heap, value_ptr, target_ptr);
+        let value = copy_if_permanent!(self.state.permanent_allocator,
+                                       value_ptr,
+                                       target_ptr);
 
         target_ptr.get_mut().add_attribute(name.clone(), value);
 
@@ -2761,7 +2770,8 @@ impl VirtualMachine {
 
         ensure_array_within_bounds!(instruction, vector, index);
 
-        let value = copy_if_global!(self.state.global_heap, value_ptr, array_ptr);
+        let value =
+            copy_if_permanent!(self.state.permanent_allocator, value_ptr, array_ptr);
 
         vector.insert(index, value.clone());
 
@@ -3625,7 +3635,7 @@ impl VirtualMachine {
         let mut target = target_ptr.get_mut();
 
         let scope =
-            copy_if_global!(self.state.global_heap, scope_ptr, target_ptr);
+            copy_if_permanent!(self.state.permanent_allocator, scope_ptr, target_ptr);
 
         target.set_outer_scope(scope);
 
