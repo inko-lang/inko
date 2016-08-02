@@ -20,11 +20,7 @@ module Aeon
           rec = implicit_receiver
         end
 
-        vis = 1
-
-        # TODO: properly determine visibility
-        @code.send_literal([target, rec, name_idx, vis, rest, *args],
-                           line, column)
+        @code.send_literal([target, rec, name_idx, rest, *args], line, column)
 
         target
       end

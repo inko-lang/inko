@@ -18,7 +18,7 @@ use std::fs::File;
 use std::mem;
 use std::sync::Arc;
 
-use compiled_code::{Visibility, CompiledCode, RcCompiledCode};
+use compiled_code::{CompiledCode, RcCompiledCode};
 use instruction::{InstructionType, Instruction};
 
 macro_rules! parser_error {
@@ -250,8 +250,6 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
     let req_args = try!(read_u32(bytes));
     let rest_arg = try!(read_u8(bytes)) == 1;
 
-    let vis: Visibility = unsafe { mem::transmute(try!(read_u8(bytes))) };
-
     let locals = read_string_vector!(T, bytes);
     let instructions = read_instruction_vector!(T, bytes);
     let int_literals = read_i64_vector!(T, bytes);
@@ -266,7 +264,6 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
         arguments: args,
         required_arguments: req_args,
         rest_argument: rest_arg,
-        visibility: vis,
         locals: locals,
         instructions: instructions,
         integer_literals: int_literals,
@@ -280,7 +277,6 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
 
 #[cfg(test)]
 mod tests {
-    use compiled_code::Visibility;
     use instruction::InstructionType;
     use std::io::prelude::*;
     use std::mem;
@@ -404,7 +400,6 @@ mod tests {
         pack_u32!(0, buffer); // arguments
         pack_u32!(0, buffer); // required arguments
         pack_u8!(0, buffer); // rest argument
-        pack_u8!(0, buffer); // visibility
         pack_u64!(0, buffer); // locals
         pack_u64!(0, buffer); // instructions
         pack_u64!(0, buffer); // integer literals
@@ -634,7 +629,6 @@ mod tests {
         pack_u32!(3, buffer); // arguments
         pack_u32!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
-        pack_u8!(0, buffer); // visibility
         pack_u64!(0, buffer); // locals
 
         pack_u64!(1, buffer); // instructions
@@ -663,11 +657,6 @@ mod tests {
         assert_eq!(object.arguments, 3);
         assert_eq!(object.required_arguments, 2);
         assert_eq!(object.rest_argument, true);
-
-        match object.visibility {
-            Visibility::Public => {}
-            Visibility::Private => panic!("expected Public visibility"),
-        };
 
         assert_eq!(object.locals.len(), 0);
 

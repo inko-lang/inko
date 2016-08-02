@@ -114,7 +114,7 @@ module Aeon
 
           # core::class::Class.new(parent_class, true)
           ins.get_true     true_reg
-          ins.send_literal send_reg, class_class_reg, new_name_idx, 0, 0,
+          ins.send_literal send_reg, class_class_reg, new_name_idx, 0,
             parent_reg, true_reg
 
           # Define the class as a constant.
@@ -138,8 +138,7 @@ module Aeon
       end
 
       def create_body
-        body_code = CompiledCode
-          .new(class_name, @code.file, line, visibility: :public, type: :class)
+        body_code = CompiledCode.new(class_name, @code.file, line, type: :class)
 
         @compiler.process(body_ast, body_code)
 

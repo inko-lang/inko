@@ -37,7 +37,6 @@ module Aeon
         CompiledCode.new(name, @code.file, line, argument_count,
                          required_argument_count,
                          rest_argument: rest_argument?,
-                         visibility: visibility,
                          type: type)
       end
 
@@ -157,16 +156,12 @@ module Aeon
         @ast.children[1]
       end
 
-      def visibility
-        @ast.children[2]
-      end
-
       def arguments_ast
-        @ast.children[4]
+        @ast.children[3]
       end
 
       def body_ast
-        @ast.children[6]
+        @ast.children[5]
       end
 
       def line

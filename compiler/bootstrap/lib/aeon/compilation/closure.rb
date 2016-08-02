@@ -33,10 +33,6 @@ module Aeon
         '<closure>'
       end
 
-      def visibility
-        :public
-      end
-
       def type
         :closure
       end

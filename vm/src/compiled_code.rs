@@ -20,12 +20,6 @@ use instruction::Instruction;
 /// An immutable, reference counted CompiledCode.
 pub type RcCompiledCode = Arc<CompiledCode>;
 
-/// Enum indicating the visibility of a method.
-pub enum Visibility {
-    Public,
-    Private,
-}
-
 /// Structure for storing compiled code information.
 pub struct CompiledCode {
     /// The name of the CompiledCode, usually the method name.
@@ -45,9 +39,6 @@ pub struct CompiledCode {
 
     /// Whether a rest argument is defined.
     pub rest_argument: bool,
-
-    /// The visibility (public or private)
-    pub visibility: Visibility,
 
     /// List of local variable names.
     pub locals: Vec<String>,
@@ -92,7 +83,6 @@ impl CompiledCode {
             arguments: 0,
             required_arguments: 0,
             rest_argument: false,
-            visibility: Visibility::Public,
             locals: Vec::new(),
             instructions: instructions,
             integer_literals: Vec::new(),
@@ -109,14 +99,6 @@ impl CompiledCode {
                    instructions: Vec<Instruction>)
                    -> RcCompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
-    }
-
-    /// Returns true for a private CompiledCode
-    pub fn is_private(&self) -> bool {
-        match self.visibility {
-            Visibility::Private => true,
-            _ => false,
-        }
     }
 
     pub fn integer(&self, index: usize) -> Result<&i64, String> {
@@ -164,16 +146,5 @@ mod tests {
         assert_eq!(code.file, "bar.aeon".to_string());
         assert_eq!(code.line, 1);
         assert_eq!(code.instructions.len(), 1);
-    }
-
-    #[test]
-    fn test_is_private() {
-        let mut code = new_compiled_code();
-
-        assert_eq!(code.is_private(), false);
-
-        code.visibility = Visibility::Private;
-
-        assert!(code.is_private());
     }
 }

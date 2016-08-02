@@ -4,7 +4,7 @@
 %terminals CurlyClose CurlyOpen Docstring Dot Assign Float Greater Identifier;
 %terminals InstanceVariable Integer Lower ParenClose ParenOpen Pipe Equal;
 %terminals Trait Class Def Enum Use Import As Let Mutable Return Super;
-%terminals Break Next Public Dynamic Indent Unindent True False Member;
+%terminals Break Next Dynamic Indent Unindent True False Member;
 %terminals Plus Minus Modulo Div Star And Or Ampersand LowerEqual GreaterEqual;
 %terminals Power PlusAssign MinAssign DivAssign ModAssign MulAssign;
 %terminals PipeAssign AmpersandAssign Compare Not NotEqual RangeInc RangeExcl;
@@ -515,15 +515,14 @@ boolean
   ;
 
 def
-  = def_start def_name type_args? def_args_start return_type? def_body?
+  = Def def_name type_args? def_args_start return_type? def_body?
     {
-      vis, vis_tok = val[0]
       rec, name = val[1]
 
       if val[5]
-        s(:def, rec, name, vis, val[2], val[3], val[4], val[5], location: vis_tok)
+        s(:def, rec, name, val[2], val[3], val[4], val[5], location: val[0])
       else
-        s(:rdef, rec, name, vis, val[2], val[3], val[4], location: vis_tok)
+        s(:rdef, rec, name, val[2], val[3], val[4], location: val[0])
       end
     }
   ;
@@ -591,11 +590,6 @@ def_special_name
 
 def_body
   = Indent exprs Unindent { val[1] }
-  ;
-
-def_start
-  = Public Def { [:public, val[0]] }
-  | Def        { [:private, val[0]] }
   ;
 
 def_args_start

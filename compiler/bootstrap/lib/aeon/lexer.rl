@@ -395,11 +395,6 @@ module Aeon
           fbreak;
         };
 
-        'pub' => {
-          token = token(:Public)
-          fbreak;
-        };
-
         'dyn' => {
           token = token(:Dynamic)
           fbreak;

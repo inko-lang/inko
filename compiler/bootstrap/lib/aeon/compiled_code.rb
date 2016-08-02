@@ -1,20 +1,19 @@
 module Aeon
   class CompiledCode
     attr_reader :name, :file, :line, :arguments, :required_arguments,
-      :rest_argument, :visibility, :integers, :floats, :strings, :code_objects,
+      :rest_argument, :integers, :floats, :strings, :code_objects,
       :register, :locals, :instructions, :register, :labels, :type
 
     attr_accessor :outer_scope
 
     def initialize(name, file, line, arguments = 0, required_arguments = 0,
-                   rest_argument: false, visibility: :private, type: nil)
+                   rest_argument: false, type: nil)
       @name = name
       @file = file
       @line = line
       @arguments = arguments
       @required_arguments = required_arguments
       @rest_argument = rest_argument
-      @visibility = visibility
 
       @locals = Literals.new
       @instructions = []

@@ -1673,13 +1673,12 @@ impl VirtualMachine {
 
     /// Sends a message using a string literal
     ///
-    /// This instruction requires at least 5 arguments:
+    /// This instruction requires at least 4 arguments:
     ///
     /// 1. The register to store the result in.
     /// 2. The register of the receiver.
     /// 3. The index of the string literal to use for the method name.
-    /// 4. A boolean (1 or 0) indicating if private methods can be called.
-    /// 5. A boolean (1 or 0) to indicate if the last argument is a rest
+    /// 4. A boolean (1 or 0) to indicate if the last argument is a rest
     ///    argument. A rest argument will be unpacked into separate arguments.
     ///
     /// Any extra instruction arguments will be passed as arguments to the
@@ -3771,8 +3770,7 @@ impl VirtualMachine {
 
         let register = try_vm_error!(instruction.arg(0), instruction);
         let receiver_ptr = instruction_object!(instruction, process, 1);
-        let allow_private = try_vm_error!(instruction.arg(3), instruction);
-        let rest_arg = try_vm_error!(instruction.arg(4), instruction) == 1;
+        let rest_arg = try_vm_error!(instruction.arg(3), instruction) == 1;
 
         let method_ptr = {
             let receiver_ptr = receiver_ptr.get();
@@ -3795,18 +3793,13 @@ impl VirtualMachine {
 
         let method_code = method_obj.value.as_compiled_code();
 
-        if method_code.is_private() && allow_private == 0 {
-            return_vm_error!(format!("Private method \"{}\" called", name),
-                             instruction.line);
-        }
-
         // Argument handling
-        let arg_count = instruction.arguments.len() - 5;
+        let arg_count = instruction.arguments.len() - 4;
         let tot_args = method_code.arguments as usize;
         let req_args = method_code.required_arguments as usize;
 
         let mut arguments = try!(
-            self.collect_arguments(process.clone(), instruction, 5, arg_count)
+            self.collect_arguments(process.clone(), instruction, 4, arg_count)
         );
 
         // Unpack the last argument if it's a rest argument

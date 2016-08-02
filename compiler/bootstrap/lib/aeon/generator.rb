@@ -63,15 +63,12 @@ module Aeon
     end
 
     def compiled_code(code)
-      visibility = code.visibility == :public ? 0 : 1
-
       string(code.name) +
         string(code.file) +
         u32(code.line) +
         i32(code.arguments) +
         u32(code.required_arguments) +
         boolean(code.rest_argument) +
-        u8(visibility) +
         array(code.locals.to_a, :string) +
         array(code.instructions, :instruction) +
         array(code.integers.to_a, :i64) +
