@@ -3,14 +3,14 @@
 %terminals Arrow BrackClose BrackOpen Colon ColonColon Comma Constant;
 %terminals CurlyClose CurlyOpen Docstring Dot Assign Float Greater Identifier;
 %terminals InstanceVariable Integer Lower ParenClose ParenOpen Pipe Equal;
-%terminals Trait Class Def Enum Use Import As Let Mutable Return Super;
+%terminals Trait Class Def Enum Implement Import As Let Mutable Return Super;
 %terminals Break Next Dynamic Indent Unindent True False Member;
 %terminals Plus Minus Modulo Div Star And Or Ampersand LowerEqual GreaterEqual;
 %terminals Power PlusAssign MinAssign DivAssign ModAssign MulAssign;
 %terminals PipeAssign AmpersandAssign Compare Not NotEqual RangeInc RangeExcl;
 %terminals BitwiseExclOr BitwiseExclOrAssign ShiftLeft ShiftRight Type;
 %terminals PlusPrefix MinPrefix Module Self SingleString DoubleString Extends;
-%terminals CompileFlagOpen CompileFlagClose;
+%terminals CompileFlagOpen CompileFlagClose Symbol;
 
 exprs
   = expr* { s(:exprs, *val[0]) }
@@ -272,11 +272,12 @@ expr_member
   | trait
   | enum
   | import
-  | use
+  | impl
   | type_def
   | module
   | self
   | compile_flag
+  | symbol
   ;
 
 integer
@@ -290,6 +291,10 @@ float
 string
   = SingleString { s(:sstring, val[0]) }
   | DoubleString { s(:dstring, val[0]) }
+  ;
+
+symbol
+  = Symbol { s(:symbol, val[0]) }
   ;
 
 array
@@ -585,6 +590,7 @@ def_special_name
   | Trait
   | Enum
   | Module
+  | Not
   | BrackOpen BrackClose Assign? { val[2] ? '[]=' : '[]' }
   ;
 
@@ -763,13 +769,13 @@ import_ident_as
   = As ident { val[1] }
   ;
 
-use
-  = Use type_name import_list?
+impl
+  = Implement type_name import_list?
     {
       if val[2]
-        s(:use, val[1], val[2], location: val[0])
+        s(:impl, val[1], val[2], location: val[0])
       else
-        s(:use, val[1], location: val[0])
+        s(:impl, val[1], location: val[0])
       end
     }
   ;

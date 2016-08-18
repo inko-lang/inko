@@ -349,8 +349,8 @@ module Aeon
           fbreak;
         };
 
-        'use' => {
-          token = token(:Use)
+        'impl' => {
+          token = token(:Implement)
           fbreak;
         };
 
@@ -447,6 +447,12 @@ module Aeon
 
         ivar => {
           token = offset_token(:InstanceVariable, @ts + 1, @te, 1)
+          fbreak;
+        };
+
+        ':' identifier => {
+          value = to_string(@ts + 1, @te)
+          token = new_token(:Symbol, value, value.length)
           fbreak;
         };
 
