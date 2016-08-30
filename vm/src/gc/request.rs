@@ -1,29 +1,35 @@
-use std::collections::VecDeque;
-
-use object_pointer::ObjectPointer;
 use process::RcProcess;
+use thread::RcThread;
 
 pub enum Generation {
-    Eden,
     Young,
     Mature,
 }
 
+impl Generation {
+    pub fn is_young(&self) -> bool {
+        match self {
+            &Generation::Young => true,
+            _ => false,
+        }
+    }
+}
+
 pub struct Request {
     pub generation: Generation,
+    pub thread: RcThread,
     pub process: RcProcess,
-    pub roots: VecDeque<ObjectPointer>,
 }
 
 impl Request {
     pub fn new(generation: Generation,
-               process: RcProcess,
-               roots: VecDeque<ObjectPointer>)
+               thread: RcThread,
+               process: RcProcess)
                -> Self {
         Request {
             generation: generation,
+            thread: thread,
             process: process,
-            roots: roots,
         }
     }
 }

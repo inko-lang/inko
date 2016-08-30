@@ -3,6 +3,8 @@
 //! The TaggedPointer struct can be used to wrap a `*mut T` with one (or both)
 //! of the lower 2 bits set (or unset).
 
+use std::hash::{Hash, Hasher};
+
 use std::mem::transmute;
 use std::ptr;
 
@@ -77,8 +79,14 @@ impl<T> TaggedPointer<T> {
     }
 
     /// Applies the given bit mask.
+    ///
+    /// Any existing tagged bits are discarded.
     pub fn set_mask(&mut self, mask: usize) {
-        self.raw = unsafe { transmute(self.raw as usize | mask) };
+        self.raw = unsafe {
+            let untagged_addr = self.raw as isize & UNTAG_MASK;
+
+            transmute(untagged_addr as usize | mask)
+        };
     }
 
     /// Returns true if the current pointer is a null pointer.
@@ -103,6 +111,8 @@ impl<T> PartialEq for TaggedPointer<T> {
     }
 }
 
+impl<T> Eq for TaggedPointer<T> {}
+
 // These traits are implemented manually as "derive" doesn't handle the generic
 // "T" argument very well.
 impl<T> Clone for TaggedPointer<T> {
@@ -113,9 +123,16 @@ impl<T> Clone for TaggedPointer<T> {
 
 impl<T> Copy for TaggedPointer<T> {}
 
+impl<T> Hash for TaggedPointer<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.raw.hash(state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     #[should_panic]
@@ -210,6 +227,18 @@ mod tests {
     }
 
     #[test]
+    fn test_set_mask_overwrite() {
+        let mut name = "Alice".to_string();
+        let str_ptr = &mut name as *mut String;
+        let mut ptr = TaggedPointer::with_mask(str_ptr, 0x1);
+
+        ptr.set_mask(0x2);
+
+        assert_eq!(ptr.bit_is_set(0), false);
+        assert!(ptr.bit_is_set(1));
+    }
+
+    #[test]
     fn test_eq() {
         let mut name = "Alice".to_string();
         let ptr1 = TaggedPointer::with_bit(&mut name as *mut String, 0);
@@ -256,5 +285,24 @@ mod tests {
         let ptr = TaggedPointer::new(&mut name as *mut String);
 
         assert_eq!(ptr.as_mut().unwrap(), &mut name);
+    }
+
+    #[test]
+    fn test_hash() {
+        let mut set = HashSet::new();
+        let mut alice = "Alice".to_string();
+        let mut bob = "Bob".to_string();
+
+        let ptr1 = TaggedPointer::new(&mut alice as *mut String);
+        let ptr2 = TaggedPointer::new(&mut alice as *mut String);
+        let ptr3 = TaggedPointer::new(&mut bob as *mut String);
+
+        set.insert(ptr1);
+        set.insert(ptr2);
+
+        assert!(set.contains(&ptr1));
+        assert!(set.contains(&ptr2));
+
+        assert_eq!(set.contains(&ptr3), false);
     }
 }

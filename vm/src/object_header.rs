@@ -60,6 +60,18 @@ impl ObjectHeader {
         }
     }
 
+    pub fn pointers(&self) -> Vec<ObjectPointer> {
+        let mut pointers = Vec::new();
+
+        if let Some(map) = self.attributes.as_ref() {
+            for (_, pointer) in map.iter() {
+                pointers.push(*pointer);
+            }
+        }
+
+        pointers
+    }
+
     pub fn copy_to<T: CopyObject>(&self,
                                   allocator: &mut T)
                                   -> (ObjectHeader, bool) {

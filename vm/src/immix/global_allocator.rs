@@ -14,7 +14,7 @@ pub type RcGlobalAllocator = Arc<GlobalAllocator>;
 
 /// Structure used for storing the state of the global allocator.
 pub struct GlobalAllocator {
-    blocks: Mutex<Vec<Block>>,
+    blocks: Mutex<Vec<Box<Block>>>,
 }
 
 impl GlobalAllocator {
@@ -24,7 +24,7 @@ impl GlobalAllocator {
         let mut blocks = Vec::with_capacity(capacity);
 
         for _ in 0..capacity {
-            // blocks.push(Block::new());
+            // blocks.push(Box::new(Block::new()));
         }
 
         Arc::new(GlobalAllocator { blocks: Mutex::new(blocks) })
@@ -35,7 +35,7 @@ impl GlobalAllocator {
     /// The return value is a tuple containing a block and a boolean that
     /// indicates if a new block had to be allocated. The boolean can be used to
     /// determine if a process should trigger a garbage collection.
-    pub fn request_block(&self) -> (Block, bool) {
+    pub fn request_block(&self) -> (Box<Block>, bool) {
         let mut blocks = unlock!(self.blocks);
 
         if blocks.len() > 0 {
@@ -46,7 +46,7 @@ impl GlobalAllocator {
     }
 
     /// Adds a block to the pool so it can be re-used.
-    pub fn add_block(&self, block: Block) {
+    pub fn add_block(&self, block: Box<Block>) {
         let block = unlock!(self.blocks).push(block);
 
         self.compact();

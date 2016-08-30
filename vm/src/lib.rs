@@ -1,6 +1,7 @@
 #![feature(alloc, heap_api)]
 extern crate alloc;
 extern crate num_cpus;
+extern crate time;
 
 pub mod macros;
 

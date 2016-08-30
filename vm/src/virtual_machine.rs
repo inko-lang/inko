@@ -192,15 +192,13 @@ impl VirtualMachine {
     }
 
     /// Runs a single Process.
-    fn run(&self, process: RcProcess) -> EmptyResult {
+    fn run(&self, thread: RcThread, process: RcProcess) -> EmptyResult {
         let mut reductions = self.config().reductions;
         let mut suspend_retry = false;
 
         process.running();
 
         'exec_loop: loop {
-            self.gc_safepoint(process.clone());
-
             let mut goto_index = None;
             let code = process.compiled_code();
             let mut index = process.instruction_index();
@@ -779,8 +777,6 @@ impl VirtualMachine {
                 }
             } // while
 
-            self.gc_safepoint(process.clone());
-
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
             if process.at_top_level() {
@@ -792,6 +788,12 @@ impl VirtualMachine {
             {
                 process.pop_context();
                 process.pop_call_frame();
+            }
+
+            self.gc_safepoint(thread.clone(), process.clone());
+
+            if process.should_suspend_for_gc() {
+                return Ok(());
             }
 
             // Reduce once we've exhausted all the instructions in a context.
@@ -1367,6 +1369,8 @@ impl VirtualMachine {
 
         target_ptr.get_mut().add_constant(name.clone(), source);
 
+        process.write_barrier(target_ptr, source);
+
         Ok(())
     }
 
@@ -1397,6 +1401,8 @@ impl VirtualMachine {
         let target = target_ptr.get_mut();
 
         target.add_constant(name_str, source);
+
+        process.write_barrier(target_ptr, source);
 
         Ok(())
     }
@@ -1518,6 +1524,8 @@ impl VirtualMachine {
 
         target_ptr.get_mut().add_attribute(name.clone(), value);
 
+        process.write_barrier(target_ptr, value);
+
         Ok(())
     }
 
@@ -1546,6 +1554,8 @@ impl VirtualMachine {
                                        target_ptr);
 
         target_ptr.get_mut().add_attribute(name.clone(), value);
+
+        process.write_barrier(target_ptr, value);
 
         Ok(())
     }
@@ -1905,6 +1915,7 @@ impl VirtualMachine {
 
         receiver.add_method(name.clone(), method.clone());
 
+        process.write_barrier(receiver_ptr, method);
         process.set_register(register, method);
 
         Ok(())
@@ -1943,6 +1954,7 @@ impl VirtualMachine {
 
         receiver.add_method(name.clone(), method.clone());
 
+        process.write_barrier(receiver_ptr, method);
         process.set_register(register, method);
 
         Ok(())
@@ -3638,6 +3650,8 @@ impl VirtualMachine {
 
         target.set_outer_scope(scope);
 
+        process.write_barrier(target_ptr, scope);
+
         Ok(())
     }
 
@@ -3954,27 +3968,29 @@ impl VirtualMachine {
 
             // Terminate gracefully once the main thread has processed its
             // process queue.
-            if thread.main_thread && thread.process_queue_empty() {
+            if thread.main_can_terminate() {
                 write_lock!(self.state.threads).stop();
                 break;
             }
 
             thread.wait_for_work();
 
+            let proc_opt = thread.pop_process();
+
             // A thread may be woken up (e.g. due to a VM error) without there
             // being work available.
-            if thread.process_queue_empty() {
-                break;
+            if proc_opt.is_none() {
+                continue;
             }
 
-            let process = thread.pop_process();
+            let process = proc_opt.unwrap();
 
-            match self.run(process.clone()) {
+            match self.run(thread.clone(), process.clone()) {
                 Ok(_) => {
-                    let reschedule = process.is_suspended();
-
-                    // Process exhausted reductions, re-schedule it.
-                    if reschedule {
+                    if process.should_suspend_for_gc() {
+                        process.suspend_for_gc();
+                        thread.remember_process(process.clone());
+                    } else if process.should_be_rescheduled() {
                         thread.schedule(process);
                     } else {
                         process.finished();
@@ -3994,18 +4010,16 @@ impl VirtualMachine {
 
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
-    fn gc_safepoint(&self, process: RcProcess) {
+    fn gc_safepoint(&self, thread: RcThread, process: RcProcess) {
         match *process.gc_state() {
-            process::GcState::ScheduleEden => {
+            process::GcState::ScheduleYoung => {
                 process.gc_scheduled();
 
-                let roots = process.roots();
-
-                let request = GcRequest::new(GcGeneration::Eden, process, roots);
+                let request =
+                    GcRequest::new(GcGeneration::Young, thread, process.clone());
 
                 self.state.gc_requests.push(request);
             }
-            process::GcState::ScheduleYoung => {}
             process::GcState::ScheduleMature => {}
             _ => {}
         }

@@ -65,6 +65,12 @@ pub struct Object {
     /// The prototype of this object. Method and constant lookups use the
     /// prototype chain in case a method/constant couldn't be found in the
     /// current object.
+    ///
+    /// This pointer may be tagged to store extra information. The following
+    /// bits can be set:
+    ///
+    ///     00: this field contains a regular pointer
+    ///     10: this field contains a forwarding pointer
     pub prototype: ObjectPointer,
 
     /// A pointer to a header storing the methods, attributes, and other data of
@@ -320,6 +326,39 @@ impl Object {
         } else {
             ObjectGeneration::Young
         }
+    }
+
+    /// Returns all the pointers stored in this object.
+    pub fn pointers(&self) -> Vec<ObjectPointer> {
+        let mut pointers = Vec::new();
+
+        if let Some(prototype) = self.prototype() {
+            pointers.push(prototype);
+        }
+
+        if let Some(header) = self.header() {
+            let mut header_pointers = header.pointers();
+
+            pointers.append(&mut header_pointers);
+        }
+
+        pointers
+    }
+
+    /// Returns a new Object that takes over the data of the current object.
+    pub fn take(&mut self) -> Object {
+        let mut new_obj = Object::with_prototype(self.value.take(),
+                                                 self.prototype);
+
+        new_obj.header = self.header;
+        self.header = TaggedPointer::null();
+
+        new_obj
+    }
+
+    /// Forwards this object to the given pointer.
+    pub fn forward_to(&mut self, pointer: ObjectPointer) {
+        self.prototype = pointer.forwarding_pointer();
     }
 
     /// Allocates an object header if needed.

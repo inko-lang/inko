@@ -1,7 +1,9 @@
 //! Virtual Machine Threads
 
 use std::sync::{Arc, Mutex, Condvar};
+use std::collections::HashSet;
 use std::thread;
+use std::time::Duration;
 
 use process::RcProcess;
 
@@ -10,7 +12,7 @@ pub type JoinHandle = thread::JoinHandle<()>;
 
 pub struct Thread {
     pub process_queue: Mutex<Vec<RcProcess>>,
-    pub wake_up: Mutex<bool>,
+    pub remembered_processes: Mutex<HashSet<RcProcess>>,
     pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
@@ -21,7 +23,7 @@ impl Thread {
     pub fn new(main_thread: bool, handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             process_queue: Mutex::new(Vec::new()),
-            wake_up: Mutex::new(false),
+            remembered_processes: Mutex::new(HashSet::new()),
             wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
@@ -32,56 +34,76 @@ impl Thread {
     }
 
     pub fn stop(&self) {
-        let mut stop = self.should_stop.lock().unwrap();
-        let mut wake_up = self.wake_up.lock().unwrap();
+        let mut stop = unlock!(self.should_stop);
 
         *stop = true;
-        *wake_up = true;
 
         self.wakeup_signaler.notify_all();
     }
 
     pub fn take_join_handle(&self) -> Option<JoinHandle> {
-        self.join_handle.lock().unwrap().take()
+        unlock!(self.join_handle).take()
     }
 
     pub fn should_stop(&self) -> bool {
-        *self.should_stop.lock().unwrap()
+        *unlock!(self.should_stop)
     }
 
     pub fn process_queue_size(&self) -> usize {
-        self.process_queue.lock().unwrap().len()
+        unlock!(self.process_queue).len()
     }
 
     pub fn process_queue_empty(&self) -> bool {
         self.process_queue_size() == 0
     }
 
-    pub fn schedule(&self, task: RcProcess) {
-        let mut queue = self.process_queue.lock().unwrap();
-        let mut wake_up = self.wake_up.lock().unwrap();
+    pub fn has_remembered_processes(&self) -> bool {
+        unlock!(self.remembered_processes).len() > 0
+    }
 
-        queue.push(task);
-        *wake_up = true;
+    pub fn main_can_terminate(&self) -> bool {
+        self.main_thread && self.process_queue_empty() &&
+        !self.has_remembered_processes()
+    }
+
+    pub fn schedule(&self, process: RcProcess) {
+        let mut queue = unlock!(self.process_queue);
+
+        queue.push(process.clone());
 
         self.wakeup_signaler.notify_all();
     }
 
-    pub fn wait_for_work(&self) {
-        if self.process_queue_empty() {
-            let mut wake_up = self.wake_up.lock().unwrap();
+    pub fn reschedule(&self, process: RcProcess) {
+        unlock!(self.remembered_processes).remove(&process);
 
-            while !*wake_up {
-                wake_up = self.wakeup_signaler.wait(wake_up).unwrap();
+        process.reset_status();
+        self.schedule(process);
+    }
+
+    pub fn remember_process(&self, process: RcProcess) {
+        unlock!(self.remembered_processes).insert(process);
+    }
+
+    pub fn wait_for_work(&self) {
+        let mut queue = unlock!(self.process_queue);
+        let timeout = Duration::from_millis(5);
+
+        while queue.len() == 0 {
+            if self.should_stop() {
+                return;
             }
 
-            *wake_up = false;
+            let (new_queue, _) =
+                self.wakeup_signaler.wait_timeout(queue, timeout).unwrap();
+
+            queue = new_queue;
         }
     }
 
-    pub fn pop_process(&self) -> RcProcess {
-        let mut queue = self.process_queue.lock().unwrap();
+    pub fn pop_process(&self) -> Option<RcProcess> {
+        let mut queue = unlock!(self.process_queue);
 
-        queue.pop().unwrap()
+        queue.pop()
     }
 }

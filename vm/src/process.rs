@@ -1,9 +1,13 @@
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashSet};
 use std::mem;
+use std::hash::{Hash, Hasher};
 use std::ops::Drop;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Condvar};
 use std::cell::UnsafeCell;
 
+use immix::bitmap::Bitmap;
+use immix::bucket::Bucket;
+use immix::block;
 use immix::copy_object::CopyObject;
 use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
@@ -12,42 +16,99 @@ use immix::mailbox_allocator::MailboxAllocator;
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, RawObjectPointer};
 use object_value;
 use execution_context::ExecutionContext;
 use queue::Queue;
 
 pub type RcProcess = Arc<Process>;
 
+#[derive(Debug)]
 pub enum ProcessStatus {
+    /// The process has been scheduled for execution.
     Scheduled,
+
+    /// The process is running.
     Running,
+
+    /// The process has been suspended.
     Suspended,
+
+    /// The process has been suspended by the garbage collector.
+    SuspendedByGc,
+
+    /// The process ran into some kind of error during execution.
     Failed,
+
+    /// The process has finished execution.
     Finished,
 }
 
+impl ProcessStatus {
+    pub fn is_running(&self) -> bool {
+        match *self {
+            ProcessStatus::Running => true,
+            _ => false,
+        }
+    }
+}
+
 pub enum GcState {
-    ScheduleEden,
+    /// A collection for the young generation should be scheduled.
     ScheduleYoung,
+
+    /// A collection for the mature generation should be scheduled.
     ScheduleMature,
-    ScheduleMailbox,
+
+    /// A collection has been scheduled.
     Scheduled,
+
+    /// No collector activity is taking place.
     None,
 }
 
 pub struct LocalData {
-    pub status: ProcessStatus,
+    /// The process-local memory allocator.
     pub allocator: LocalAllocator,
-    pub call_frame: CallFrame,
-    pub context: ExecutionContext,
+
+    /// The current call frame of this process.
+    pub call_frame: CallFrame, // TODO: use Box<CallFrame>
+
+    /// The current execution context of this process.
+    pub context: Box<ExecutionContext>,
+
+    /// The state of the garbage collector for this process.
     pub gc_state: GcState,
+
+    /// When set to "true" this process should suspend itself so it can be
+    /// garbage collected.
+    pub suspend_for_gc: bool,
+
+    /// The remembered set of this process. This set is not synchronized via a
+    /// lock of sorts. As such the collector must ensure this process is
+    /// suspended upon examining the remembered set.
+    pub remembered_set: HashSet<ObjectPointer>,
 }
 
 pub struct Process {
+    /// The process identifier of this process.
     pub pid: usize,
+
+    /// The status of this process.
+    pub status: Mutex<ProcessStatus>,
+
+    /// Condition variable used for waking up other threads waiting for this
+    /// process' status to change.
+    pub status_signaler: Condvar,
+
+    /// A queue containing received messages.
     pub mailbox: Queue<ObjectPointer>,
+
+    /// The allocator to use for storing objects in the mailbox heap.
     pub mailbox_allocator: Mutex<MailboxAllocator>,
+
+    /// Data stored in a process that should only be modified by a single thread
+    /// at once.
     pub local_data: UnsafeCell<LocalData>,
 }
 
@@ -63,13 +124,16 @@ impl Process {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone()),
             call_frame: call_frame,
-            context: context,
-            status: ProcessStatus::Scheduled,
+            context: Box::new(context),
             gc_state: GcState::None,
+            suspend_for_gc: false,
+            remembered_set: HashSet::new(),
         };
 
         let process = Process {
             pid: pid,
+            status: Mutex::new(ProcessStatus::Scheduled),
+            status_signaler: Condvar::new(),
             mailbox: Queue::new(),
             mailbox_allocator:
                 Mutex::new(MailboxAllocator::new(global_allocator)),
@@ -119,13 +183,14 @@ impl Process {
         local_data.call_frame = *parent;
     }
 
-    pub fn push_context(&self, mut context: ExecutionContext) {
+    pub fn push_context(&self, context: ExecutionContext) {
+        let mut boxed = Box::new(context);
         let mut local_data = self.local_data_mut();
         let ref mut target = local_data.context;
 
-        mem::swap(target, &mut context);
+        mem::swap(target, &mut boxed);
 
-        target.set_parent(context);
+        target.set_parent(boxed);
     }
 
     pub fn pop_context(&self) {
@@ -137,7 +202,7 @@ impl Process {
 
         let parent = local_data.context.parent.take().unwrap();
 
-        local_data.context = *parent;
+        local_data.context = parent;
     }
 
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
@@ -156,15 +221,11 @@ impl Process {
     }
 
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        let local_data = self.local_data();
-
-        local_data.context.binding.set_local(index, value);
+        self.local_data_mut().context.set_local(index, value);
     }
 
     pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
-        let local_data = self.local_data();
-
-        local_data.context.binding.get_local(index)
+        self.local_data().context.get_local(index)
     }
 
     pub fn local_exists(&self, index: usize) -> bool {
@@ -177,7 +238,7 @@ impl Process {
         let (pointer, gc) = self.local_data_mut().allocator.allocate_empty();
 
         if gc {
-            self.schedule_eden_collection();
+            self.schedule_young_collection();
         }
 
         pointer
@@ -193,7 +254,7 @@ impl Process {
             .allocate_with_prototype(value, proto);
 
         if gc {
-            self.schedule_eden_collection();
+            self.schedule_young_collection();
         }
 
         pointer
@@ -208,7 +269,7 @@ impl Process {
             .allocate_without_prototype(value);
 
         if gc {
-            self.schedule_eden_collection();
+            self.schedule_young_collection();
         }
 
         pointer
@@ -240,7 +301,7 @@ impl Process {
         self.mailbox.push(to_send);
 
         if allocated_new {
-            // TODO: schedule GC
+            // TODO: reset the bump pointer to the first hole
         }
     }
 
@@ -250,8 +311,8 @@ impl Process {
         self.mailbox.pop_nonblock()
     }
 
-    pub fn is_suspended(&self) -> bool {
-        match self.local_data().status {
+    pub fn should_be_rescheduled(&self) -> bool {
+        match *unlock!(self.status) {
             ProcessStatus::Suspended => true,
             _ => false,
         }
@@ -272,11 +333,11 @@ impl Process {
         self.context().self_object()
     }
 
-    pub fn context(&self) -> &ExecutionContext {
+    pub fn context(&self) -> &Box<ExecutionContext> {
         &self.local_data().context
     }
 
-    pub fn context_mut(&self) -> &mut ExecutionContext {
+    pub fn context_mut(&self) -> &mut Box<ExecutionContext> {
         &mut self.local_data_mut().context
     }
 
@@ -301,39 +362,119 @@ impl Process {
     }
 
     pub fn is_alive(&self) -> bool {
-        match self.local_data().status {
+        match *unlock!(self.status) {
+            ProcessStatus::Failed => false,
+            ProcessStatus::Finished => false,
+            _ => true,
+        }
+    }
+
+    pub fn available_for_execution(&self) -> bool {
+        match *unlock!(self.status) {
             ProcessStatus::Scheduled => true,
-            ProcessStatus::Running => true,
             ProcessStatus::Suspended => true,
             _ => false,
         }
     }
 
     pub fn running(&self) {
-        self.local_data_mut().status = ProcessStatus::Running;
+        self.set_status(ProcessStatus::Running);
+    }
+
+    pub fn set_status(&self, new_status: ProcessStatus) {
+        let mut status = unlock!(self.status);
+
+        *status = new_status;
+
+        self.status_signaler.notify_all();
+    }
+
+    pub fn set_status_without_overwriting_gc_status(&self,
+                                                    new_status: ProcessStatus) {
+        let mut status = unlock!(self.status);
+
+        let overwrite = match *status {
+            ProcessStatus::SuspendedByGc => false,
+            _ => true,
+        };
+
+        // Don't overwrite the process status if it was suspended by the GC.
+        if overwrite {
+            let mut local_data = self.local_data_mut();
+
+            if local_data.suspend_for_gc {
+                local_data.suspend_for_gc = false;
+                *status = ProcessStatus::SuspendedByGc;
+            } else {
+                *status = new_status;
+            }
+
+            self.status_signaler.notify_all();
+        }
     }
 
     pub fn finished(&self) {
-        self.local_data_mut().status = ProcessStatus::Finished;
+        self.set_status_without_overwriting_gc_status(ProcessStatus::Finished);
     }
 
     pub fn suspend(&self) {
-        self.local_data_mut().status = ProcessStatus::Suspended;
+        self.set_status_without_overwriting_gc_status(ProcessStatus::Suspended);
+    }
+
+    pub fn suspend_for_gc(&self) {
+        self.local_data_mut().suspend_for_gc = false;
+        self.set_status(ProcessStatus::SuspendedByGc);
+    }
+
+    pub fn suspended_by_gc(&self) -> bool {
+        match *unlock!(self.status) {
+            ProcessStatus::SuspendedByGc => true,
+            _ => false,
+        }
+    }
+
+    pub fn request_gc_suspension(&self) {
+        if !self.suspended_by_gc() {
+            self.local_data_mut().suspend_for_gc = true;
+        }
+
+        self.wait_while_running();
+    }
+
+    pub fn wait_while_running(&self) {
+        let mut status = unlock!(self.status);
+
+        while status.is_running() {
+            status = self.status_signaler.wait(status).unwrap();
+        }
+    }
+
+    pub fn should_suspend_for_gc(&self) -> bool {
+        self.suspended_by_gc() || self.local_data().suspend_for_gc
     }
 
     pub fn gc_state(&self) -> &GcState {
         &self.local_data().gc_state
     }
 
+    pub fn set_gc_state(&self, new_state: GcState) {
+        self.local_data_mut().gc_state = new_state;
+    }
+
     pub fn gc_scheduled(&self) {
-        self.local_data_mut().gc_state = GcState::Scheduled;
+        self.set_gc_state(GcState::Scheduled);
     }
 
     pub fn can_schedule_gc(&self) -> bool {
-        match self.local_data().gc_state {
+        match *self.gc_state() {
             GcState::None => true,
             _ => false,
         }
+    }
+
+    pub fn reset_status(&self) {
+        self.set_status(ProcessStatus::Scheduled);
+        self.set_gc_state(GcState::None);
     }
 
     /// Scans all the root objects and returns a Vec containing the objects to
@@ -346,21 +487,69 @@ impl Process {
                 objects.push_back(binding.self_object());
 
                 for local in read_lock!(binding.locals).iter() {
-                    objects.push_back(*local);
+                    if local.is_markable() {
+                        objects.push_back(*local);
+                    }
                 }
             });
 
             for pointer in context.register.objects() {
-                objects.push_back(*pointer);
+                if pointer.is_markable() {
+                    objects.push_back(*pointer);
+                }
             }
         });
 
         objects
     }
 
-    fn schedule_eden_collection(&self) {
+    pub fn remembered_set_mut(&self) -> &mut HashSet<ObjectPointer> {
+        &mut self.local_data_mut().remembered_set
+    }
+
+    /// Write barrier for tracking cross generation writes.
+    /// it grey.
+    pub fn write_barrier(&self,
+                         written_to: ObjectPointer,
+                         written: ObjectPointer) {
+        if written_to.is_mature() && written.is_young() {
+            self.remembered_set_mut().insert(written);
+        }
+    }
+
+    pub fn increment_young_ages(&self) {
+        self.local_data_mut().allocator.increment_young_ages()
+    }
+
+    pub fn mature_generation_mut(&self) -> &mut Bucket {
+        self.local_data_mut().allocator.mature_generation_mut()
+    }
+
+    // Calls the supplied closure for every unmarked object in the young
+    // generation.
+    pub fn each_unmarked_young_pointer<F>(&self, closure: F)
+        where F: Fn(RawObjectPointer)
+    {
+        let mut local_data = self.local_data_mut();
+
+        for bucket in local_data.allocator.young_generation.iter_mut() {
+            for block in bucket.blocks.iter_mut() {
+                for index in block::OBJECT_START_SLOT..block::OBJECTS_PER_BLOCK {
+                    if block.used_slots.is_set(index) &&
+                       !block.mark_bitmap.is_set(index) {
+                        let pointer =
+                            unsafe { block.lines.offset(index as isize) };
+
+                        closure(pointer);
+                    }
+                }
+            }
+        }
+    }
+
+    fn schedule_young_collection(&self) {
         if self.can_schedule_gc() {
-            self.local_data_mut().gc_state = GcState::ScheduleEden;
+            self.set_gc_state(GcState::ScheduleYoung);
         }
     }
 }
@@ -368,5 +557,19 @@ impl Process {
 impl Drop for Process {
     fn drop(&mut self) {
         self.local_data_mut().allocator.return_blocks();
+    }
+}
+
+impl PartialEq for Process {
+    fn eq(&self, other: &Process) -> bool {
+        self.pid == other.pid
+    }
+}
+
+impl Eq for Process {}
+
+impl Hash for Process {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pid.hash(state);
     }
 }

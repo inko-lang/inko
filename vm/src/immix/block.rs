@@ -8,6 +8,7 @@ use std::ptr;
 use alloc::heap;
 
 use immix::bitmap::{Bitmap, ObjectMap, LineMap};
+use immix::bucket::Bucket;
 use object::Object;
 use object_pointer::{RawObjectPointer, ObjectPointer};
 
@@ -41,7 +42,30 @@ pub const OBJECT_BITMAP_MASK: isize = !(BLOCK_SIZE as isize - 1);
 /// The mask to apply to go from a pointer to the line's start.
 pub const LINE_BITMAP_MASK: isize = !(LINE_SIZE as isize - 1);
 
+/// Structure stored in the first line of a block, used to allow objects to
+/// retrieve data from the block they belong to.
+pub struct BlockHeader {
+    pub block: *mut Block,
+}
+
+impl BlockHeader {
+    pub fn new(block: *mut Block) -> BlockHeader {
+        BlockHeader { block: block }
+    }
+
+    /// Returns an immutable reference to the block.
+    pub fn block(&self) -> &Block {
+        unsafe { &*self.block }
+    }
+
+    /// Returns a mutable reference to the block.
+    pub fn block_mut(&self) -> &mut Block {
+        unsafe { &mut *self.block }
+    }
+}
+
 /// Enum indicating the state of a block.
+#[derive(Debug)]
 pub enum BlockStatus {
     /// The block is usable (either it's completely or partially free)
     Available,
@@ -57,8 +81,9 @@ pub enum BlockStatus {
 /// status).
 pub struct Block {
     /// The memory to use for the mark bitmap and allocating objects. The first
-    /// 128 bytes of this field are used for the mark bitmap. Memory is aligned
-    /// 32K.
+    /// 128 bytes of this field are reserved and used for storing a BlockHeader.
+    ///
+    /// Memory is aligned to 32 KB.
     pub lines: RawObjectPointer,
 
     /// The status of the block.
@@ -69,6 +94,9 @@ pub struct Block {
     /// object.
     pub used_lines: LineMap,
 
+    /// Bitmap used for tracking which object slots are live.
+    pub mark_bitmap: ObjectMap,
+
     /// Bitmap used to track which object slots are in use.
     pub used_slots: ObjectMap,
 
@@ -78,13 +106,16 @@ pub struct Block {
     /// Pointer marking the end of the free pointer. Objects may not be
     /// allocated into or beyond this pointer.
     pub end_pointer: RawObjectPointer,
+
+    /// Pointer to the bucket that manages this block.
+    pub bucket: *mut Bucket,
 }
 
 unsafe impl Send for Block {}
 unsafe impl Sync for Block {}
 
 impl Block {
-    pub fn new() -> Block {
+    pub fn new() -> Box<Block> {
         let lines =
             unsafe { heap::allocate(BLOCK_SIZE, BLOCK_SIZE) as RawObjectPointer };
 
@@ -92,24 +123,43 @@ impl Block {
             panic!("Failed to allocate memory for a new Block");
         }
 
-        // Allocate the bitmap into the first 128 bytes of the block.
-        unsafe {
-            ptr::write(lines as *mut ObjectMap, ObjectMap::new());
-        }
-
-        let mut block = Block {
+        let mut block = Box::new(Block {
             lines: lines,
             status: BlockStatus::Available,
             used_lines: LineMap::new(),
+            mark_bitmap: ObjectMap::new(),
             used_slots: ObjectMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
-        };
+            bucket: ptr::null::<Bucket>() as *mut Bucket,
+        });
 
         block.free_pointer = block.start_address();
         block.end_pointer = block.end_address();
 
+        // Store a pointer to the block in the first (reserved) line.
+        unsafe {
+            let pointer = &mut *block as *mut Block;
+            let header = BlockHeader::new(pointer);
+
+            ptr::write(block.lines as *mut BlockHeader, header);
+        }
+
         block
+    }
+
+    /// Returns an immutable reference to the bucket of this block.
+    pub fn bucket(&self) -> Option<&Bucket> {
+        if self.bucket.is_null() {
+            None
+        } else {
+            Some(unsafe { &*self.bucket })
+        }
+    }
+
+    /// Sets the bucket of this block.
+    pub fn set_bucket(&mut self, bucket: *mut Bucket) {
+        self.bucket = bucket;
     }
 
     /// Returns true if objects can be allocated into this block.
@@ -196,10 +246,7 @@ impl Block {
 
     /// Resets the block to a pristine state.
     pub fn reset(&mut self) {
-        let mark_bitmap =
-            unsafe { &mut *(self.lines as *mut ObjectMap).offset(0) };
-
-        mark_bitmap.reset();
+        self.mark_bitmap.reset();
 
         // Destruct all objects still in the block.
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
@@ -227,6 +274,7 @@ impl Block {
 
         self.free_pointer = self.start_address();
         self.end_pointer = self.end_address();
+        self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
         self.used_lines.reset();
         self.used_slots.reset();

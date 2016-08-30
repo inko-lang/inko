@@ -1,4 +1,5 @@
 use std::fs;
+use std::mem;
 
 use binding::RcBinding;
 use object_pointer::ObjectPointer;
@@ -159,6 +160,10 @@ impl ObjectValue {
             ObjectValue::CompiledCode(_) => "CompiledCode",
             ObjectValue::Binding(_) => "Binding",
         }
+    }
+
+    pub fn take(&mut self) -> ObjectValue {
+        mem::replace(self, ObjectValue::None)
     }
 }
 

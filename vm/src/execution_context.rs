@@ -4,11 +4,22 @@ use object_pointer::ObjectPointer;
 use register::Register;
 
 pub struct ExecutionContext {
+    /// The registers for this context.
     pub register: Register,
+
+    /// The binding to evaluate this context in.
     pub binding: RcBinding,
+
+    /// The CompiledCodea object associated with this context.
     pub code: RcCompiledCode,
+
+    /// The parent execution context.
     pub parent: Option<Box<ExecutionContext>>,
+
+    /// The index of the instruction to store prior to suspending a process.
     pub instruction_index: usize,
+
+    /// The register to store this context's return value in.
     pub return_register: Option<usize>,
 }
 
@@ -44,8 +55,8 @@ impl ExecutionContext {
         ExecutionContext::new(binding, code, return_register)
     }
 
-    pub fn set_parent(&mut self, parent: ExecutionContext) {
-        self.parent = Some(Box::new(parent));
+    pub fn set_parent(&mut self, parent: Box<ExecutionContext>) {
+        self.parent = Some(parent);
     }
 
     pub fn parent(&self) -> Option<&Box<ExecutionContext>> {
@@ -66,6 +77,14 @@ impl ExecutionContext {
 
     pub fn set_register(&mut self, register: usize, value: ObjectPointer) {
         self.register.set(register, value);
+    }
+
+    pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
+        self.binding.get_local(index)
+    }
+
+    pub fn set_local(&mut self, index: usize, value: ObjectPointer) {
+        self.binding.set_local(index, value);
     }
 
     pub fn binding(&self) -> RcBinding {

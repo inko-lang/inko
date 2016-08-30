@@ -83,6 +83,8 @@ impl ThreadList {
             }
         }
 
-        self.threads[thread_idx].schedule(process);
+        let ref thread = self.threads[thread_idx];
+
+        thread.schedule(process);
     }
 }
