@@ -84,3 +84,8 @@ impl Binding {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+}

@@ -3787,14 +3787,14 @@ impl VirtualMachine {
         let rest_arg = try_vm_error!(instruction.arg(3), instruction) == 1;
 
         let method_ptr = {
-            let receiver_ptr = receiver_ptr.get();
+            let receiver = receiver_ptr.get();
 
             try_vm_error!(
-                receiver_ptr.lookup_method(name).ok_or_else(|| {
+                receiver.lookup_method(name).ok_or_else(|| {
                     format!(
                         "undefined method \"{}\" called on an object of type {}",
                         name,
-                        receiver_ptr.value.type_name()
+                        receiver.value.type_name()
                     )
                 }),
                 instruction

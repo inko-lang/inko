@@ -4,7 +4,9 @@ use std::collections::VecDeque;
 use std::ptr;
 
 use gc::request::Request;
+
 use immix::block;
+use immix::bitmap::Bitmap;
 
 use object_pointer::ObjectPointer;
 use virtual_machine::RcVirtualMachineState;
@@ -45,12 +47,13 @@ impl Thread {
 
             // Sweep & age objects
             if request.generation.is_young() {
-                self.sweep_young(&request);
+                self.reclaim_young(&request);
             } else {
                 // self.sweep_mature(&request);
             }
 
             self.increment_young_ages(&request);
+            self.reset_mark_bits(&request);
 
             // Reset mark bits
 
@@ -77,12 +80,12 @@ impl Thread {
         let mut remembered_set = request.process.remembered_set_mut();
 
         for pointer in remembered_set.iter() {
-            objects.push_back(*pointer);
+            objects.push_back(pointer as *const ObjectPointer);
         }
 
-        remembered_set.clear();
-
         self.mark_objects(request, objects, evacuate);
+
+        remembered_set.clear();
     }
 
     /// Requests and marks the set of roots.
@@ -95,17 +98,24 @@ impl Thread {
     /// Marks all the given objects, optionally evacuating them.
     fn mark_objects(&self,
                     request: &Request,
-                    mut objects: VecDeque<ObjectPointer>,
+                    mut objects: VecDeque<*const ObjectPointer>,
                     evacuate: bool) {
         while objects.len() > 0 {
-            let pointer = objects.pop_front().unwrap();
+            let pointer_pointer = objects.pop_front().unwrap();
+
+            let mut pointer =
+                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+
+            if pointer.is_marked() {
+                continue;
+            }
 
             if pointer.should_promote_to_mature() {
-                pointer.mark();
-                pointer.mark_line();
-                // let promoted = self.promote_mature(request, pointer);
+                let promoted = self.promote_mature(request, pointer);
 
-                // objects.push_back(promoted);
+                objects.push_back(&promoted as *const ObjectPointer);
+            } else if pointer.is_forwarded() {
+                pointer.resolve_forwarding_pointer();
             } else if evacuate {
                 // TODO: object evacuation
             } else {
@@ -113,9 +123,11 @@ impl Thread {
                 pointer.mark_line();
             }
 
-            for child_pointer in pointer.get().pointers() {
+            for child_pointer_pointer in pointer.get().pointers() {
+                let child_pointer = unsafe { &*child_pointer_pointer };
+
                 if child_pointer.is_markable() && !child_pointer.is_marked() {
-                    objects.push_back(child_pointer);
+                    objects.push_back(child_pointer_pointer);
                 }
             }
         }
@@ -124,7 +136,7 @@ impl Thread {
     /// Promotes an object to the mature generation.
     fn promote_mature(&self,
                       request: &Request,
-                      pointer: ObjectPointer)
+                      pointer: &mut ObjectPointer)
                       -> ObjectPointer {
         let mut old_obj = pointer.get_mut();
         let mut new_obj = old_obj.take();
@@ -140,17 +152,33 @@ impl Thread {
     }
 
     /// Removes any unreachable objects from the young generation
-    fn sweep_young(&self, request: &Request) {
+    fn reclaim_young(&self, request: &Request) {
         request.process.each_unmarked_young_pointer(|pointer| {
             let mut object = unsafe { &mut *pointer };
 
-            // TODO: support destructors/finalization
-            // object.deallocate_pointers();
-            //
-            // unsafe {
-            //     ptr::drop_in_place(pointer);
-            //     ptr::write_bytes(pointer, 0, block::BYTES_PER_OBJECT);
-            // };
+            object.deallocate_pointers();
+
+            unsafe {
+                ptr::drop_in_place(pointer);
+                ptr::write_bytes(pointer, 0, 1);
+            };
         });
+    }
+
+    /// Resets all the mark bits
+    fn reset_mark_bits(&self, request: &Request) {
+        let mut local_data = request.process.local_data_mut();
+
+        for bucket in local_data.allocator.young_generation.iter_mut() {
+            for block in bucket.blocks.iter_mut() {
+                block.mark_bitmap.reset();
+                block.used_lines.reset();
+            }
+        }
+
+        for block in local_data.allocator.mature_generation.blocks.iter_mut() {
+            block.mark_bitmap.reset();
+            block.used_lines.reset();
+        }
     }
 }

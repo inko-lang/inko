@@ -329,11 +329,11 @@ impl Object {
     }
 
     /// Returns all the pointers stored in this object.
-    pub fn pointers(&self) -> Vec<ObjectPointer> {
+    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
         let mut pointers = Vec::new();
 
-        if let Some(prototype) = self.prototype() {
-            pointers.push(prototype);
+        if !self.prototype.is_null() {
+            pointers.push(&self.prototype as *const ObjectPointer);
         }
 
         if let Some(header) = self.header() {

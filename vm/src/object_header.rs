@@ -60,13 +60,29 @@ impl ObjectHeader {
         }
     }
 
-    pub fn pointers(&self) -> Vec<ObjectPointer> {
+    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
         let mut pointers = Vec::new();
 
         if let Some(map) = self.attributes.as_ref() {
             for (_, pointer) in map.iter() {
-                pointers.push(*pointer);
+                pointers.push(pointer as *const ObjectPointer);
             }
+        }
+
+        if let Some(map) = self.constants.as_ref() {
+            for (_, pointer) in map.iter() {
+                pointers.push(pointer as *const ObjectPointer);
+            }
+        }
+
+        if let Some(map) = self.methods.as_ref() {
+            for (_, pointer) in map.iter() {
+                pointers.push(pointer as *const ObjectPointer);
+            }
+        }
+
+        if let Some(scope) = self.outer_scope.as_ref() {
+            pointers.push(scope as *const ObjectPointer);
         }
 
         pointers

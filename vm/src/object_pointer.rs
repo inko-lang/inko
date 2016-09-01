@@ -43,10 +43,9 @@ impl ObjectPointer {
 
     /// Returns a forwarding pointer to the current pointer.
     pub fn forwarding_pointer(&self) -> ObjectPointer {
-        let untagged = self.raw.untagged();
-        let tagged = TaggedPointer::with_mask(untagged, FORWARDING_MASK);
+        let raw = TaggedPointer::with_mask(self.raw.raw, FORWARDING_MASK);
 
-        ObjectPointer { raw: tagged }
+        ObjectPointer { raw: raw }
     }
 
     /// Returns true if the current pointer points to a forwarded object.
@@ -57,6 +56,22 @@ impl ObjectPointer {
             proto.raw.mask_is_set(FORWARDING_MASK)
         } else {
             false
+        }
+    }
+
+    /// Replaces the current pointer with a pointer to the forwarded object.
+    pub fn resolve_forwarding_pointer(&self) {
+        let object = self.get();
+
+        if let Some(proto) = object.prototype() {
+            // Since object pointers are _usually_ immutable we have to use an
+            // extra layer of indirection to update "self".
+            unsafe {
+                let self_ptr = self as *const ObjectPointer as *mut ObjectPointer;
+                let mut self_ref = &mut *self_ptr;
+
+                self_ref.raw = proto.raw.without_tags();
+            };
         }
     }
 
@@ -115,7 +130,9 @@ impl ObjectPointer {
     /// Returns true if the underlying object should be promoted to the mature
     /// generation.
     pub fn should_promote_to_mature(&self) -> bool {
-        self.is_young() && self.block().bucket().unwrap().age >= YOUNG_MAX_AGE
+        let block_age = self.block().bucket().unwrap().age;
+
+        self.is_young() && block_age >= YOUNG_MAX_AGE && !self.is_forwarded()
     }
 
     /// Marks the line this object resides in.
@@ -151,7 +168,7 @@ impl ObjectPointer {
 
     /// Returns the mark bitmap index to use for this pointer.
     pub fn mark_bitmap_index(&self) -> usize {
-        let start_addr = self.block_pointer_address() + block::LINE_SIZE;
+        let start_addr = self.block_header_pointer_address();
         let offset = self.raw.untagged() as usize - start_addr;
 
         offset / block::BYTES_PER_OBJECT
@@ -175,13 +192,13 @@ impl ObjectPointer {
     pub fn block_header(&self) -> &block::BlockHeader {
         unsafe {
             let ptr: *mut block::BlockHeader =
-                transmute(self.block_pointer_address());
+                transmute(self.block_header_pointer_address());
 
             &*ptr
         }
     }
 
-    fn block_pointer_address(&self) -> usize {
+    fn block_header_pointer_address(&self) -> usize {
         (self.raw.untagged() as isize & block::OBJECT_BITMAP_MASK) as usize
     }
 

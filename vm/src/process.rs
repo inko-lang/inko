@@ -113,6 +113,7 @@ pub struct Process {
 }
 
 unsafe impl Sync for LocalData {}
+unsafe impl Send for LocalData {}
 unsafe impl Sync for Process {}
 
 impl Process {
@@ -477,25 +478,25 @@ impl Process {
         self.set_gc_state(GcState::None);
     }
 
-    /// Scans all the root objects and returns a Vec containing the objects to
+    /// Scans all the root objects and returns a list containing the objects to
     /// scan for references to other objects.
-    pub fn roots(&self) -> VecDeque<ObjectPointer> {
+    pub fn roots(&self) -> VecDeque<*const ObjectPointer> {
         let mut objects = VecDeque::new();
 
         self.context().each_context(|context| {
             context.binding().each_binding(|binding| {
-                objects.push_back(binding.self_object());
+                objects.push_back(&binding.self_object as *const ObjectPointer);
 
                 for local in read_lock!(binding.locals).iter() {
                     if local.is_markable() {
-                        objects.push_back(*local);
+                        objects.push_back(local as *const ObjectPointer);
                     }
                 }
             });
 
             for pointer in context.register.objects() {
                 if pointer.is_markable() {
-                    objects.push_back(*pointer);
+                    objects.push_back(pointer as *const ObjectPointer);
                 }
             }
         });
@@ -508,12 +509,14 @@ impl Process {
     }
 
     /// Write barrier for tracking cross generation writes.
-    /// it grey.
+    ///
+    /// This barrier is based on the Steele write barrier and tracks the object
+    /// that is *written to*, not the object that is being written.
     pub fn write_barrier(&self,
                          written_to: ObjectPointer,
                          written: ObjectPointer) {
         if written_to.is_mature() && written.is_young() {
-            self.remembered_set_mut().insert(written);
+            self.remembered_set_mut().insert(written_to);
         }
     }
 
@@ -527,11 +530,12 @@ impl Process {
 
     // Calls the supplied closure for every unmarked object in the young
     // generation.
-    pub fn each_unmarked_young_pointer<F>(&self, closure: F)
-        where F: Fn(RawObjectPointer)
+    pub fn each_unmarked_young_pointer<F>(&self, mut closure: F)
+        where F: FnMut(RawObjectPointer)
     {
         let mut local_data = self.local_data_mut();
 
+        // TODO: refactor this or risk burning in hell forever
         for bucket in local_data.allocator.young_generation.iter_mut() {
             for block in bucket.blocks.iter_mut() {
                 for index in block::OBJECT_START_SLOT..block::OBJECTS_PER_BLOCK {

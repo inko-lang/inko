@@ -57,6 +57,12 @@ impl<T> TaggedPointer<T> {
         unsafe { transmute(self.raw as isize & UNTAG_MASK) }
     }
 
+    /// Returns a new TaggedPointer using the current pointer but without any
+    /// tags.
+    pub fn without_tags(&self) -> Self {
+        Self::new(self.untagged())
+    }
+
     /// Returns true if the given bit is set.
     pub fn bit_is_set(&self, bit: usize) -> bool {
         bit_within_bounds!(bit);
@@ -148,6 +154,16 @@ mod tests {
         let ptr = TaggedPointer::with_bit(&mut name as *mut String, 0);
 
         assert_eq!(unsafe { &*ptr.untagged() }, &name);
+    }
+
+    #[test]
+    fn test_without_tags() {
+        let mut name = "Alice".to_string();
+        let ptr = TaggedPointer::with_bit(&mut name as *mut String, 0);
+
+        let without_tags = ptr.without_tags();
+
+        assert_eq!(without_tags.bit_is_set(0), false);
     }
 
     #[test]
