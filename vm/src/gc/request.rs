@@ -3,7 +3,7 @@ use thread::RcThread;
 
 pub enum Generation {
     Young,
-    Mature,
+    Mailbox,
 }
 
 impl Generation {

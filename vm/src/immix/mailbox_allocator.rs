@@ -6,12 +6,12 @@
 //! allocating objects with prototypes), instead objects are meant to be copied
 //! to/from the heap managed by the mailbox allocator.
 
-use immix::allocation_result::AllocationResult;
 use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
 use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
+use object_pointer::ObjectPointer;
 
 /// Structure containing the state of the mailbox allocator.
 pub struct MailboxAllocator {
@@ -28,24 +28,23 @@ impl MailboxAllocator {
     }
 
     /// Allocates a prepared Object on the heap.
-    pub fn allocate(&mut self, object: Object) -> AllocationResult {
-        // Try to allocate into the first available block.
+    pub fn allocate(&mut self, object: Object) -> ObjectPointer {
         {
             if let Some(block) = self.bucket.first_available_block() {
-                return (block.bump_allocate(object), false);
+                return block.bump_allocate(object);
             }
         }
 
-        let (block, allocated_new) = self.global_allocator.request_block();
+        let block = self.global_allocator.request_block();
 
         self.bucket.add_block(block);
 
-        (self.bucket.bump_allocate(object), allocated_new)
+        self.bucket.bump_allocate(object)
     }
 }
 
 impl CopyObject for MailboxAllocator {
-    fn allocate_copy(&mut self, object: Object) -> AllocationResult {
+    fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
         self.allocate(object)
     }
 }

@@ -5,7 +5,6 @@ use std::ptr;
 
 use gc::request::Request;
 
-use immix::block;
 use immix::bitmap::Bitmap;
 
 use object_pointer::ObjectPointer;
@@ -46,16 +45,15 @@ impl Thread {
             self.mark_remembered_set(&request, evacuate);
 
             // Sweep & age objects
-            if request.generation.is_young() {
-                self.reclaim_young(&request);
+            if request.process.should_collect_mature_generation() {
+                self.sweep_all(&request);
             } else {
-                // self.sweep_mature(&request);
+                self.sweep_young(&request);
             }
 
             self.increment_young_ages(&request);
             self.reset_mark_bits(&request);
-
-            // Reset mark bits
+            self.update_collection_thresholds(&request);
 
             // Release/reset unused blocks
             // ...
@@ -143,7 +141,7 @@ impl Thread {
 
         new_obj.set_mature();
 
-        let (new_pointer, _) =
+        let new_pointer =
             request.process.local_data_mut().allocator.allocate_mature(new_obj);
 
         old_obj.forward_to(new_pointer);
@@ -152,7 +150,7 @@ impl Thread {
     }
 
     /// Removes any unreachable objects from the young generation
-    fn reclaim_young(&self, request: &Request) {
+    fn sweep_young(&self, request: &Request) {
         request.process.each_unmarked_young_pointer(|pointer| {
             let mut object = unsafe { &mut *pointer };
 
@@ -164,6 +162,10 @@ impl Thread {
             };
         });
     }
+
+    /// Removes any unreachable objects from both the young and mature
+    /// generations.
+    fn sweep_all(&self, request: &Request) {}
 
     /// Resets all the mark bits
     fn reset_mark_bits(&self, request: &Request) {
@@ -180,5 +182,12 @@ impl Thread {
             block.mark_bitmap.reset();
             block.used_lines.reset();
         }
+    }
+
+    fn update_collection_thresholds(&self, request: &Request) {
+        let mut local_data = request.process.local_data_mut();
+
+        local_data.allocator.young_block_allocations = 0;
+        local_data.allocator.mature_block_allocations = 0;
     }
 }

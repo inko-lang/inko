@@ -3,9 +3,9 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
-use immix::allocation_result::AllocationResult;
 use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
+use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
@@ -15,6 +15,16 @@ use object_pointer::ObjectPointer;
 
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: isize = 3;
+
+/// The maximum number of blocks that can be allocated before a garbage
+/// collection of the young generation should be performed.
+pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = (5 * 1024 * 1024) /
+                                                    BLOCK_SIZE;
+
+/// The maximum number of blocks that can be allocated before a garbage
+/// collection of the mature generation should be performed.
+pub const MATURE_BLOCK_ALLOCATION_THRESHOLD: usize = (5 * 1024 * 1024) /
+                                                     BLOCK_SIZE;
 
 /// Structure containing the state of a process-local allocator.
 pub struct LocalAllocator {
@@ -30,13 +40,21 @@ pub struct LocalAllocator {
 
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
+
+    /// The number of blocks allocated for the mature generation since the last
+    /// garbage collection cycle.
+    pub young_block_allocations: usize,
+
+    /// The number of blocks allocated for the mature generation since the last
+    /// garbage collection cycle.
+    pub mature_block_allocations: usize,
 }
 
 impl LocalAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
         // Prepare the eden bucket
         let mut eden = Bucket::with_age(0);
-        let (block, _) = global_allocator.request_block();
+        let block = global_allocator.request_block();
 
         eden.add_block(block);
 
@@ -48,6 +66,8 @@ impl LocalAllocator {
                                Bucket::with_age(-3)],
             eden_index: 0,
             mature_generation: Bucket::new(),
+            young_block_allocations: 0,
+            mature_block_allocations: 0,
         }
     }
 
@@ -87,7 +107,7 @@ impl LocalAllocator {
     pub fn allocate_with_prototype(&mut self,
                                    value: ObjectValue,
                                    proto: ObjectPointer)
-                                   -> AllocationResult {
+                                   -> ObjectPointer {
         let object = Object::with_prototype(value, proto);
 
         self.allocate_eden(object)
@@ -96,51 +116,48 @@ impl LocalAllocator {
     /// Allocates an object without a prototype.
     pub fn allocate_without_prototype(&mut self,
                                       value: ObjectValue)
-                                      -> AllocationResult {
+                                      -> ObjectPointer {
         let object = Object::new(value);
 
         self.allocate_eden(object)
     }
 
     /// Allocates an empty object without a prototype.
-    pub fn allocate_empty(&mut self) -> AllocationResult {
+    pub fn allocate_empty(&mut self) -> ObjectPointer {
         self.allocate_without_prototype(object_value::none())
     }
 
     /// Allocates an object in the eden space.
-    pub fn allocate_eden(&mut self, object: Object) -> AllocationResult {
-        // Try to allocate into the first available block.
+    pub fn allocate_eden(&mut self, object: Object) -> ObjectPointer {
         {
-            if let Some(block) = self.eden_space_mut()
-                .first_available_block() {
-                return (block.bump_allocate(object), false);
+            if let Some(block) = self.eden_space_mut().first_available_block() {
+                return block.bump_allocate(object);
             }
         }
 
-        let (block, allocated_new) = self.global_allocator.request_block();
+        let block = self.global_allocator.request_block();
         let mut bucket = self.eden_space_mut();
 
         bucket.add_block(block);
 
-        (bucket.bump_allocate(object), allocated_new)
+        bucket.bump_allocate(object)
     }
 
     /// Allocates an object in the mature space.
-    pub fn allocate_mature(&mut self, object: Object) -> AllocationResult {
-        // Try to allocate into the first available block.
+    pub fn allocate_mature(&mut self, object: Object) -> ObjectPointer {
         {
             if let Some(block) = self.mature_generation_mut()
                 .first_available_block() {
-                return (block.bump_allocate(object), false);
+                return block.bump_allocate(object);
             }
         }
 
-        let (block, allocated_new) = self.global_allocator.request_block();
+        let block = self.global_allocator.request_block();
         let mut bucket = self.mature_generation_mut();
 
         bucket.add_block(block);
 
-        (bucket.bump_allocate(object), allocated_new)
+        bucket.bump_allocate(object)
     }
 
     /// Increments the age of all buckets in the young generation
@@ -154,10 +171,22 @@ impl LocalAllocator {
             }
         }
     }
+
+    /// Returns true if the number of allocated blocks for the young generation
+    /// exceeds its threshold.
+    pub fn young_block_allocation_threshold_exceeded(&self) -> bool {
+        self.young_block_allocations >= YOUNG_BLOCK_ALLOCATION_THRESHOLD
+    }
+
+    /// Returns true if the number of allocated blocks for the mature generation
+    /// exceeds its threshold.
+    pub fn mature_block_allocation_threshold_exceeded(&self) -> bool {
+        self.mature_block_allocations >= MATURE_BLOCK_ALLOCATION_THRESHOLD
+    }
 }
 
 impl CopyObject for LocalAllocator {
-    fn allocate_copy(&mut self, object: Object) -> AllocationResult {
+    fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
         self.allocate_eden(object)
     }
 }

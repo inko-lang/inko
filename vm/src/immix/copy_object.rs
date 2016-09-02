@@ -3,8 +3,6 @@
 //! The CopyObject trait can be implemented by allocators to support copying of
 //! objects into a heap.
 
-use immix::allocation_result::AllocationResult;
-
 use object::Object;
 use object_value;
 use object_value::ObjectValue;
@@ -12,17 +10,16 @@ use object_pointer::ObjectPointer;
 
 pub trait CopyObject: Sized {
     /// Allocates a copied object.
-    fn allocate_copy(&mut self, Object) -> AllocationResult;
+    fn allocate_copy(&mut self, Object) -> ObjectPointer;
 
     /// Performs a deep copy of `object_ptr`
     ///
     /// The copy of the input object is allocated on the current heap.
-    fn copy_object(&mut self, to_copy_ptr: ObjectPointer) -> AllocationResult {
+    fn copy_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
         if to_copy_ptr.is_permanent() {
-            return (to_copy_ptr, false);
+            return to_copy_ptr;
         }
 
-        let mut allocated_new = false;
         let to_copy = to_copy_ptr.get();
 
         // Copy over the object value
@@ -35,13 +32,7 @@ pub trait CopyObject: Sized {
             }
             ObjectValue::Array(ref raw_vec) => {
                 let new_map = raw_vec.iter()
-                    .map(|val_ptr| {
-                        let (copy, alloc_new) = self.copy_object(*val_ptr);
-
-                        reassign_if_true!(allocated_new, alloc_new);
-
-                        copy
-                    });
+                    .map(|val_ptr| self.copy_object(*val_ptr));
 
                 object_value::array(new_map.collect::<Vec<_>>())
             }
@@ -58,9 +49,7 @@ pub trait CopyObject: Sized {
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
-            let (proto_copy, alloc_new) = self.copy_object(proto_ptr);
-
-            reassign_if_true!(allocated_new, alloc_new);
+            let proto_copy = self.copy_object(proto_ptr);
 
             Object::with_prototype(value_copy, proto_copy)
         } else {
@@ -68,17 +57,11 @@ pub trait CopyObject: Sized {
         };
 
         if let Some(header) = to_copy.header() {
-            let (header_copy, alloc_new) = header.copy_to(self);
-
-            reassign_if_true!(allocated_new, alloc_new);
+            let header_copy = header.copy_to(self);
 
             copy.set_header(header_copy);
         }
 
-        let (copy, alloc_new) = self.allocate_copy(copy);
-
-        reassign_if_true!(allocated_new, alloc_new);
-
-        (copy, allocated_new)
+        self.allocate_copy(copy)
     }
 }

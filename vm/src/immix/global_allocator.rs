@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use immix::block::{Block, BLOCK_SIZE};
 
-/// The number of bytes to pre-allocate for blocks.
-const PRE_ALLOCATE: usize = 1 * 1024 * 1024;
+/// The number of blocks to pre-allocate.
+const PRE_ALLOCATE_BLOCKS: usize = (1 * 1024 * 1024) / BLOCK_SIZE;
 
 pub type RcGlobalAllocator = Arc<GlobalAllocator>;
 
@@ -20,28 +20,23 @@ pub struct GlobalAllocator {
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
     pub fn new() -> RcGlobalAllocator {
-        let capacity = PRE_ALLOCATE / BLOCK_SIZE;
-        let mut blocks = Vec::with_capacity(capacity);
+        let mut blocks = Vec::with_capacity(PRE_ALLOCATE_BLOCKS);
 
-        for _ in 0..capacity {
-            // blocks.push(Box::new(Block::new()));
+        for _ in 0..blocks.capacity() {
+            blocks.push(Block::new());
         }
 
         Arc::new(GlobalAllocator { blocks: Mutex::new(blocks) })
     }
 
     /// Requests a new free block from the pool
-    ///
-    /// The return value is a tuple containing a block and a boolean that
-    /// indicates if a new block had to be allocated. The boolean can be used to
-    /// determine if a process should trigger a garbage collection.
-    pub fn request_block(&self) -> (Box<Block>, bool) {
+    pub fn request_block(&self) -> Box<Block> {
         let mut blocks = unlock!(self.blocks);
 
         if blocks.len() > 0 {
-            (blocks.pop().unwrap(), false)
+            blocks.pop().unwrap()
         } else {
-            (Block::new(), true)
+            Block::new()
         }
     }
 

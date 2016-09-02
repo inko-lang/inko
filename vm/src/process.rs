@@ -54,17 +54,11 @@ impl ProcessStatus {
 }
 
 pub enum GcState {
-    /// A collection for the young generation should be scheduled.
-    ScheduleYoung,
-
-    /// A collection for the mature generation should be scheduled.
-    ScheduleMature,
+    /// No collector activity is taking place.
+    None,
 
     /// A collection has been scheduled.
     Scheduled,
-
-    /// No collector activity is taking place.
-    None,
 }
 
 pub struct LocalData {
@@ -236,13 +230,7 @@ impl Process {
     }
 
     pub fn allocate_empty(&self) -> ObjectPointer {
-        let (pointer, gc) = self.local_data_mut().allocator.allocate_empty();
-
-        if gc {
-            self.schedule_young_collection();
-        }
-
-        pointer
+        self.local_data_mut().allocator.allocate_empty()
     }
 
     pub fn allocate(&self,
@@ -251,14 +239,7 @@ impl Process {
                     -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
-        let (pointer, gc) = local_data.allocator
-            .allocate_with_prototype(value, proto);
-
-        if gc {
-            self.schedule_young_collection();
-        }
-
-        pointer
+        local_data.allocator.allocate_with_prototype(value, proto)
     }
 
     pub fn allocate_without_prototype(&self,
@@ -266,22 +247,14 @@ impl Process {
                                       -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
-        let (pointer, gc) = local_data.allocator
-            .allocate_without_prototype(value);
-
-        if gc {
-            self.schedule_young_collection();
-        }
-
-        pointer
+        local_data.allocator.allocate_without_prototype(value)
     }
 
     /// Sends a message to the current process.
     pub fn send_message(&self, message: ObjectPointer) {
         let mut to_send = message;
-        let mut allocated_new = false;
 
-        // Instead of using is_local we can use an enum with two variants:
+        // TODO: Instead of using is_local we can use an enum with two variants:
         // Remote and Local. A Remote message requires copying the message into
         // the message allocator, a Local message can be used as-is.
         //
@@ -291,19 +264,10 @@ impl Process {
         // This can also be used for globals as when sending a global object as
         // a message we can just use the Local variant.
         if to_send.is_local() {
-            let (copy, alloc_new) = unlock!(self.mailbox_allocator)
-                .copy_object(to_send);
-
-            reassign_if_true!(allocated_new, alloc_new);
-
-            to_send = copy;
+            to_send = unlock!(self.mailbox_allocator).copy_object(to_send);
         }
 
         self.mailbox.push(to_send);
-
-        if allocated_new {
-            // TODO: reset the bump pointer to the first hole
-        }
     }
 
     /// Pops a message from the current process' message queue.
@@ -466,11 +430,23 @@ impl Process {
         self.set_gc_state(GcState::Scheduled);
     }
 
-    pub fn can_schedule_gc(&self) -> bool {
+    pub fn should_schedule_gc(&self) -> bool {
         match *self.gc_state() {
-            GcState::None => true,
+            GcState::None => self.should_collect_young_generation(),
             _ => false,
         }
+    }
+
+    pub fn should_collect_young_generation(&self) -> bool {
+        self.local_data()
+            .allocator
+            .young_block_allocation_threshold_exceeded()
+    }
+
+    pub fn should_collect_mature_generation(&self) -> bool {
+        self.local_data()
+            .allocator
+            .mature_block_allocation_threshold_exceeded()
     }
 
     pub fn reset_status(&self) {
@@ -548,12 +524,6 @@ impl Process {
                     }
                 }
             }
-        }
-    }
-
-    fn schedule_young_collection(&self) {
-        if self.can_schedule_gc() {
-            self.set_gc_state(GcState::ScheduleYoung);
         }
     }
 }

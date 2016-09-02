@@ -88,18 +88,12 @@ impl ObjectHeader {
         pointers
     }
 
-    pub fn copy_to<T: CopyObject>(&self,
-                                  allocator: &mut T)
-                                  -> (ObjectHeader, bool) {
+    pub fn copy_to<T: CopyObject>(&self, allocator: &mut T) -> ObjectHeader {
         let mut copy = ObjectHeader::new();
-        let mut allocated_new = false;
 
         if let Some(map) = self.attributes.as_ref() {
             for (key, value) in map.iter() {
-                let (value_copy, alloc_new) =
-                    allocator.copy_object(value.clone());
-
-                reassign_if_true!(allocated_new, alloc_new);
+                let value_copy = allocator.copy_object(value.clone());
 
                 copy.add_attribute(key.clone(), value_copy);
             }
@@ -107,10 +101,7 @@ impl ObjectHeader {
 
         if let Some(map) = self.constants.as_ref() {
             for (key, value) in map.iter() {
-                let (value_copy, alloc_new) =
-                    allocator.copy_object(value.clone());
-
-                reassign_if_true!(allocated_new, alloc_new);
+                let value_copy = allocator.copy_object(value.clone());
 
                 copy.add_constant(key.clone(), value_copy);
             }
@@ -118,24 +109,19 @@ impl ObjectHeader {
 
         if let Some(map) = self.methods.as_ref() {
             for (key, value) in map.iter() {
-                let (value_copy, alloc_new) =
-                    allocator.copy_object(value.clone());
-
-                reassign_if_true!(allocated_new, alloc_new);
+                let value_copy = allocator.copy_object(value.clone());
 
                 copy.add_method(key.clone(), value_copy);
             }
         }
 
         if let Some(scope) = self.outer_scope.as_ref() {
-            let (outer_copy, alloc_new) = allocator.copy_object(scope.clone());
-
-            reassign_if_true!(allocated_new, alloc_new);
+            let outer_copy = allocator.copy_object(scope.clone());
 
             copy.outer_scope = Some(outer_copy);
         }
 
-        (copy, allocated_new)
+        copy
     }
 
     pub fn add_method(&mut self, key: String, value: ObjectPointer) {

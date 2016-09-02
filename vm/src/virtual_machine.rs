@@ -24,7 +24,6 @@ use object_pointer::ObjectPointer;
 use object_value;
 use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
-use process;
 use process::{RcProcess, Process};
 use process_list::ProcessList;
 use execution_context::ExecutionContext;
@@ -912,10 +911,8 @@ impl VirtualMachine {
                                           instruction);
 
             if is_permanent && proto.is_local() {
-                let (copy, _) = write_lock!(self.state.permanent_allocator)
+                proto = write_lock!(self.state.permanent_allocator)
                     .copy_object(proto);
-
-                proto = copy;
             }
 
             obj.get_mut().set_prototype(proto);
@@ -4011,17 +4008,13 @@ impl VirtualMachine {
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
     fn gc_safepoint(&self, thread: RcThread, process: RcProcess) {
-        match *process.gc_state() {
-            process::GcState::ScheduleYoung => {
-                process.gc_scheduled();
+        if process.should_schedule_gc() {
+            process.gc_scheduled();
 
-                let request =
-                    GcRequest::new(GcGeneration::Young, thread, process.clone());
+            let request =
+                GcRequest::new(GcGeneration::Young, thread, process.clone());
 
-                self.state.gc_requests.push(request);
-            }
-            process::GcState::ScheduleMature => {}
-            _ => {}
+            self.state.gc_requests.push(request);
         }
     }
 }

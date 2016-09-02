@@ -2,7 +2,6 @@
 //!
 //! This allocator allocates objects that are never garbage collected.
 
-use immix::allocation_result::AllocationResult;
 use immix::bucket::Bucket;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
@@ -31,7 +30,7 @@ pub struct PermanentAllocator {
 impl PermanentAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> Self {
         let mut bucket = Bucket::new();
-        let (block, _) = global_allocator.request_block();
+        let block = global_allocator.request_block();
 
         bucket.add_block(block);
 
@@ -75,7 +74,7 @@ impl PermanentAllocator {
             }
         }
 
-        let (block, _) = self.global_allocator.request_block();
+        let block = self.global_allocator.request_block();
 
         self.bucket.add_block(block);
 
@@ -86,7 +85,7 @@ impl PermanentAllocator {
 }
 
 impl CopyObject for PermanentAllocator {
-    fn allocate_copy(&mut self, object: Object) -> AllocationResult {
-        (self.allocate(object), false)
+    fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
+        self.allocate(object)
     }
 }

@@ -1,4 +1,3 @@
-pub mod allocation_result;
 pub mod copy_object;
 pub mod bitmap;
 pub mod block;
