@@ -456,19 +456,27 @@ impl Process {
 
     /// Scans all the root objects and returns a list containing the objects to
     /// scan for references to other objects.
+    ///
+    /// This method returns a vector of raw pointers to object pointers. Care
+    /// must be taken to ensure that the raw pointers do not outlive the
+    /// underlying object pointers.
     pub fn roots(&self) -> VecDeque<*const ObjectPointer> {
         let mut objects = VecDeque::new();
 
         self.context().each_context(|context| {
-            context.binding().each_binding(|binding| {
+            let mut binding_opt = Some(context.binding());
+
+            while let Some(binding) = binding_opt {
                 objects.push_back(&binding.self_object as *const ObjectPointer);
 
-                for local in read_lock!(binding.locals).iter() {
+                for local in binding.locals().iter() {
                     if local.is_markable() {
                         objects.push_back(local as *const ObjectPointer);
                     }
                 }
-            });
+
+                binding_opt = binding.parent();
+            }
 
             for pointer in context.register.objects() {
                 if pointer.is_markable() {
