@@ -3655,27 +3655,22 @@ impl VirtualMachine {
     /// Prints a VM backtrace of a given thread with a message.
     fn error(&self, process: RcProcess, error: VirtualMachineError) {
         let mut stderr = io::stderr();
-        let ref frame = process.call_frame();
         let mut message =
             format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
 
-        message.push_str(&format!("{} line {} in {}\n", frame.file(),
-                                  error.line, frame.name()));
-
-        *write_lock!(self.state.exit_status) = Err(());
-
-        frame.each_frame(|frame| {
+        for frame in process.call_frame().call_stack() {
             message.push_str(&format!(
                 "{} line {} in {}\n",
                 frame.file(),
                 frame.line,
                 frame.name()
             ));
-        });
+        }
 
         stderr.write(message.as_bytes()).unwrap();
-
         stderr.flush().unwrap();
+
+        *write_lock!(self.state.exit_status) = Err(());
     }
 
     /// Schedules the execution of a new CompiledCode.

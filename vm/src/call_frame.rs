@@ -19,6 +19,11 @@ pub struct CallFrame {
     pub parent: Option<Box<CallFrame>>,
 }
 
+/// Struct for iterating over all the call frames in a call stack.
+pub struct CallFrameIterator<'a> {
+    current: Option<&'a CallFrame>,
+}
+
 impl CallFrame {
     /// Creates a new CallFrame.
     pub fn new(code: RcCompiledCode, line: u32) -> CallFrame {
@@ -42,38 +47,37 @@ impl CallFrame {
         &self.code.file
     }
 
+    pub fn parent(&self) -> Option<&Box<CallFrame>> {
+        self.parent.as_ref()
+    }
+
     /// Boxes and sets the current frame's parent.
     pub fn set_parent(&mut self, parent: CallFrame) {
         self.parent = Some(Box::new(parent));
     }
 
-    pub fn parent(&self) -> Option<&Box<CallFrame>> {
-        self.parent.as_ref()
+    /// Returns an iterator for traversing the call stack, including the current
+    /// call frame.
+    pub fn call_stack(&self) -> CallFrameIterator {
+        CallFrameIterator { current: Some(self) }
     }
+}
 
-    /// Calls the supplied closure for the current and any parent frames.
-    ///
-    /// The closure takes a single argument: a reference to the CallFrame
-    /// currently being processed.
-    ///
-    /// # Examples
-    ///
-    ///     some_child_frame.each_frame(|frame| {
-    ///         println!("Frame: {}", frame.name);
-    ///     });
-    ///
-    pub fn each_frame<F>(&self, mut closure: F)
-        where F: FnMut(&CallFrame)
-    {
-        let mut frame = self;
+impl<'a> Iterator for CallFrameIterator<'a> {
+    type Item = &'a CallFrame;
 
-        closure(frame);
+    fn next(&mut self) -> Option<&'a CallFrame> {
+        if let Some(frame) = self.current {
+            if let Some(parent) = frame.parent() {
+                self.current = Some(&**parent);
+            } else {
+                self.current = None;
+            }
 
-        while frame.parent.is_some() {
-            frame = frame.parent.as_ref().unwrap();
-
-            closure(frame);
+            return Some(frame);
         }
+
+        None
     }
 }
 
@@ -121,18 +125,22 @@ mod tests {
     }
 
     #[test]
-    fn test_each_frame() {
+    fn test_call_stack() {
         let code = compiled_code();
         let frame1 = CallFrame::new(code.clone(), 1);
-        let mut frame2 = CallFrame::new(code, 1);
-
-        let mut names: Vec<String> = vec![];
+        let mut frame2 = CallFrame::new(code, 2);
 
         frame2.set_parent(frame1);
 
-        frame2.each_frame(|frame| names.push(frame.name().clone()));
+        let mut stack = frame2.call_stack();
 
-        assert_eq!(names[0], "foo".to_string());
-        assert_eq!(names[1], "foo".to_string());
+        let iterator_val1 = stack.next();
+        let iterator_val2 = stack.next();
+
+        assert!(iterator_val1.is_some());
+        assert!(iterator_val2.is_some());
+
+        assert_eq!(iterator_val1.unwrap().line, 2);
+        assert_eq!(iterator_val2.unwrap().line, 1);
     }
 }
