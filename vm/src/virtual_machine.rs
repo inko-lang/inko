@@ -3656,7 +3656,9 @@ impl VirtualMachine {
     fn error(&self, process: RcProcess, error: VirtualMachineError) {
         let mut stderr = io::stderr();
         let mut message =
-            format!("Fatal error:\n\n{}\n\nStacktrace:\n\n", error.message);
+            format!("A fatal VM error occurred in process {}:", process.pid);
+
+        message.push_str(&format!("\n\n{}\n\nCall stack:\n\n", error.message));
 
         for frame in process.call_frame().call_stack() {
             message.push_str(&format!(
