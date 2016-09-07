@@ -130,6 +130,7 @@ impl CompiledCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use instruction::{Instruction, InstructionType};
 
     fn new_compiled_code() -> CompiledCode {
@@ -146,5 +147,64 @@ mod tests {
         assert_eq!(code.file, "bar.aeon".to_string());
         assert_eq!(code.line, 1);
         assert_eq!(code.instructions.len(), 1);
+    }
+
+    #[test]
+    fn test_integer_invalid() {
+        assert!(new_compiled_code().integer(0).is_err());
+    }
+
+    #[test]
+    fn test_integer_valid() {
+        let mut code = new_compiled_code();
+
+        code.integer_literals.push(10);
+
+        assert!(code.integer(0).is_ok());
+        assert_eq!(code.integer(0).unwrap(), &10);
+    }
+
+    #[test]
+    fn test_float_invalid() {
+        assert!(new_compiled_code().float(0).is_err());
+    }
+
+    #[test]
+    fn test_float_valid() {
+        let mut code = new_compiled_code();
+
+        code.float_literals.push(10.5);
+
+        assert!(code.float(0).is_ok());
+    }
+
+    #[test]
+    fn test_string_invalid() {
+        assert!(new_compiled_code().string(0).is_err());
+    }
+
+    #[test]
+    fn test_string_valid() {
+        let mut code = new_compiled_code();
+
+        code.string_literals.push("hello".to_string());
+
+        assert!(code.string(0).is_ok());
+        assert_eq!(code.string(0).unwrap(), &"hello".to_string());
+    }
+
+    #[test]
+    fn test_code_object_invalid() {
+        assert!(new_compiled_code().code_object(0).is_err());
+    }
+
+    #[test]
+    fn test_code_object_valid() {
+        let mut code = new_compiled_code();
+        let code_rc = Arc::new(new_compiled_code());
+
+        code.code_objects.push(code_rc);
+
+        assert!(code.code_object(0).is_ok());
     }
 }
