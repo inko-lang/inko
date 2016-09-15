@@ -463,7 +463,7 @@ impl Process {
     pub fn roots(&self) -> VecDeque<*const ObjectPointer> {
         let mut objects = VecDeque::new();
 
-        self.context().each_context(|context| {
+        for context in self.context().contexts() {
             let mut binding_opt = Some(context.binding());
 
             while let Some(binding) = binding_opt {
@@ -483,7 +483,7 @@ impl Process {
                     objects.push_back(pointer as *const ObjectPointer);
                 }
             }
-        });
+        }
 
         objects
     }
