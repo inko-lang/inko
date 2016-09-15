@@ -159,3 +159,42 @@ impl Instruction {
             .map(|num| num as usize)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_instruction() -> Instruction {
+        Instruction::new(InstructionType::SetInteger, vec![1, 2], 3, 4)
+    }
+
+    #[test]
+    fn test_new() {
+        let ins = new_instruction();
+
+        assert!(match ins.instruction_type {
+            InstructionType::SetInteger => true,
+            _ => false,
+        });
+
+        assert_eq!(ins.arguments[0], 1);
+        assert_eq!(ins.arguments[1], 2);
+        assert_eq!(ins.line, 3);
+        assert_eq!(ins.column, 4);
+    }
+
+    #[test]
+    fn test_arg_invalid() {
+        let ins = new_instruction();
+
+        assert!(ins.arg(5).is_err());
+    }
+
+    #[test]
+    fn test_arg_valid() {
+        let ins = new_instruction();
+
+        assert!(ins.arg(0).is_ok());
+        assert_eq!(ins.arg(0).unwrap(), 1);
+    }
+}
