@@ -313,6 +313,11 @@ impl Object {
         self.header.set_mask(MATURE_MASK);
     }
 
+    /// Sets the generation of this object to the mailbox generation.
+    pub fn set_mailbox(&mut self) {
+        self.header.set_mask(MAILBOX_MASK);
+    }
+
     /// Returns the generation this object belongs to.
     pub fn generation(&self) -> ObjectGeneration {
         // Due to the bit masks used we must compare in the order of greatest to
@@ -366,5 +371,421 @@ impl Object {
         if self.header.is_null() {
             self.set_header(ObjectHeader::new());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_header::ObjectHeader;
+    use object_value::ObjectValue;
+    use object_pointer::{ObjectPointer, RawObjectPointer};
+
+    fn fake_pointer() -> ObjectPointer {
+        ObjectPointer::new(0x4 as RawObjectPointer)
+    }
+
+    fn new_object() -> Object {
+        Object::new(ObjectValue::None)
+    }
+
+    fn object_pointer_for(object: &Object) -> ObjectPointer {
+        ObjectPointer::new(object as *const Object as RawObjectPointer)
+    }
+
+    #[test]
+    fn test_object_generation_is_permanent() {
+        assert_eq!(ObjectGeneration::Young.is_permanent(), false);
+        assert_eq!(ObjectGeneration::Mature.is_permanent(), false);
+        assert_eq!(ObjectGeneration::Permanent.is_permanent(), true);
+        assert_eq!(ObjectGeneration::Mailbox.is_permanent(), false);
+    }
+
+    #[test]
+    fn test_object_generation_is_mature() {
+        assert_eq!(ObjectGeneration::Young.is_mature(), false);
+        assert_eq!(ObjectGeneration::Mature.is_mature(), true);
+        assert_eq!(ObjectGeneration::Permanent.is_mature(), false);
+        assert_eq!(ObjectGeneration::Mailbox.is_mature(), false);
+    }
+
+    #[test]
+    fn test_object_generation_is_young() {
+        assert_eq!(ObjectGeneration::Young.is_young(), true);
+        assert_eq!(ObjectGeneration::Mature.is_young(), false);
+        assert_eq!(ObjectGeneration::Permanent.is_young(), false);
+        assert_eq!(ObjectGeneration::Mailbox.is_young(), false);
+    }
+
+    #[test]
+    fn test_object_generation_is_mailbox() {
+        assert_eq!(ObjectGeneration::Young.is_mailbox(), false);
+        assert_eq!(ObjectGeneration::Mature.is_mailbox(), false);
+        assert_eq!(ObjectGeneration::Permanent.is_mailbox(), false);
+        assert_eq!(ObjectGeneration::Mailbox.is_mailbox(), true);
+    }
+
+    #[test]
+    fn test_object_new() {
+        let obj = new_object();
+
+        assert!(obj.prototype.is_null());
+        assert!(obj.header.is_null());
+        assert!(obj.value.is_none());
+    }
+
+    #[test]
+    fn test_object_with_prototype() {
+        let obj = Object::with_prototype(ObjectValue::None, fake_pointer());
+
+        assert_eq!(obj.prototype.is_null(), false);
+        assert!(obj.header.is_null());
+    }
+
+    #[test]
+    fn test_object_set_prototype() {
+        let mut obj = new_object();
+
+        assert!(obj.prototype.is_null());
+
+        obj.set_prototype(fake_pointer());
+
+        assert_eq!(obj.prototype.is_null(), false);
+    }
+
+    #[test]
+    fn test_object_prototype() {
+        let mut obj = new_object();
+
+        assert!(obj.prototype().is_none());
+
+        obj.set_prototype(fake_pointer());
+
+        assert!(obj.prototype().is_some());
+    }
+
+    #[test]
+    fn test_object_set_outer_scope() {
+        let mut obj = new_object();
+
+        assert!(obj.header.is_null());
+
+        obj.set_outer_scope(fake_pointer());
+
+        assert!(obj.header().is_some());
+        assert!(obj.header().unwrap().outer_scope.is_some());
+    }
+
+    #[test]
+    fn test_object_add_method() {
+        let mut obj = new_object();
+
+        obj.add_method("test".to_string(), fake_pointer());
+
+        assert!(obj.lookup_method(&"test".to_string()).is_some());
+    }
+
+    #[test]
+    fn test_object_responds_to_without_method() {
+        let obj = new_object();
+
+        assert_eq!(obj.responds_to(&"test".to_string()), false);
+    }
+
+    #[test]
+    fn test_object_responds_to_with_method() {
+        let mut obj = new_object();
+
+        obj.add_method("test".to_string(), fake_pointer());
+
+        assert!(obj.responds_to(&"test".to_string()));
+    }
+
+    #[test]
+    fn test_object_has_attribute_without_attribute() {
+        let obj = new_object();
+
+        assert_eq!(obj.has_attribute(&"test".to_string()), false);
+    }
+
+    #[test]
+    fn test_object_has_attribute_with_attribute() {
+        let mut obj = new_object();
+
+        obj.add_attribute("test".to_string(), fake_pointer());
+
+        assert!(obj.has_attribute(&"test".to_string()));
+    }
+
+    #[test]
+    fn test_object_lookup_method() {
+        let obj = new_object();
+
+        assert!(obj.lookup_method(&"test".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_object_lookup_method_defined_in_receiver() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_method(name.clone(), fake_pointer());
+
+        assert!(obj.lookup_method(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_method_defined_in_prototype() {
+        let mut proto = new_object();
+        let mut child = new_object();
+        let name = "test".to_string();
+
+        proto.add_method(name.clone(), fake_pointer());
+        child.set_prototype(object_pointer_for(&proto));
+
+        assert!(child.lookup_method(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_method_with_prototype_without_method() {
+        let proto = new_object();
+        let mut child = new_object();
+        let name = "test".to_string();
+
+        child.set_prototype(object_pointer_for(&proto));
+
+        assert!(child.lookup_method(&name).is_none());
+    }
+
+    #[test]
+    fn test_object_add_constant() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_constant(name.clone(), fake_pointer());
+
+        assert!(obj.lookup_constant(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_constant_without_constant() {
+        let obj = new_object();
+        let name = "test".to_string();
+
+        assert!(obj.lookup_constant(&name).is_none());
+    }
+
+    #[test]
+    fn test_object_lookup_constant_with_constant_defined_in_receiver() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_constant(name.clone(), fake_pointer());
+
+        assert!(obj.lookup_constant(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_constant_with_constant_defined_in_prototype() {
+        let mut proto = new_object();
+        let mut child = new_object();
+        let name = "test".to_string();
+
+        proto.add_constant(name.clone(), fake_pointer());
+        child.set_prototype(object_pointer_for(&proto));
+
+        assert!(child.lookup_constant(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_constant_with_constant_defined_in_outer_scope() {
+        let mut outer_scope = new_object();
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        outer_scope.add_constant(name.clone(), fake_pointer());
+        obj.set_outer_scope(object_pointer_for(&outer_scope));
+
+        assert!(obj.lookup_constant(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_add_attribute() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_attribute(name.clone(), fake_pointer());
+
+        assert!(obj.lookup_attribute(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_lookup_attribute_without_attribute() {
+        let obj = new_object();
+        let name = "test".to_string();
+
+        assert!(obj.lookup_attribute(&name).is_none());
+    }
+
+    #[test]
+    fn test_object_lookup_attribute_with_attribute() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_attribute(name.clone(), fake_pointer());
+
+        assert!(obj.lookup_attribute(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_header_without_header() {
+        let obj = new_object();
+
+        assert!(obj.header().is_none());
+    }
+
+    #[test]
+    fn test_object_header_with_header() {
+        let mut obj = new_object();
+
+        obj.add_attribute("test".to_string(), fake_pointer());
+
+        assert!(obj.header().is_some());
+        assert!(obj.header_mut().is_some());
+    }
+
+    #[test]
+    fn test_object_header_set_header() {
+        let mut obj = new_object();
+        let header = ObjectHeader::new();
+
+        obj.set_header(header);
+
+        assert!(obj.header().is_some());
+    }
+
+    #[test]
+    fn test_object_header_set_header_with_generation() {
+        let mut obj = new_object();
+        let header = ObjectHeader::new();
+
+        obj.set_permanent();
+        obj.set_header(header);
+
+        assert!(obj.generation().is_permanent());
+    }
+
+    #[test]
+    fn test_object_deallocate_pointers() {
+        let mut obj = new_object();
+
+        obj.deallocate_pointers();
+    }
+
+    #[test]
+    fn test_object_deallocate_pointers_with_header() {
+        let mut obj = new_object();
+        let header = ObjectHeader::new();
+
+        obj.set_header(header);
+        obj.deallocate_pointers();
+    }
+
+    #[test]
+    fn test_object_set_permanent() {
+        let mut obj = new_object();
+
+        obj.set_permanent();
+
+        assert!(obj.generation().is_permanent());
+    }
+
+    #[test]
+    fn test_object_set_mature() {
+        let mut obj = new_object();
+
+        obj.set_mature();
+
+        assert!(obj.generation().is_mature());
+    }
+
+    #[test]
+    fn test_object_generation_with_default_generation() {
+        let obj = new_object();
+
+        assert!(obj.generation().is_young());
+    }
+
+    #[test]
+    fn test_object_generation_with_permanent_generation() {
+        let mut obj = new_object();
+
+        obj.set_permanent();
+
+        assert!(obj.generation().is_permanent());
+    }
+
+    #[test]
+    fn test_object_generation_with_mailbox_generation() {
+        let mut obj = new_object();
+
+        obj.set_mailbox();
+
+        assert!(obj.generation().is_mailbox());
+    }
+
+    #[test]
+    fn test_object_generation_with_mature_generation() {
+        let mut obj = new_object();
+
+        obj.set_mature();
+
+        assert!(obj.generation().is_mature());
+    }
+
+    #[test]
+    fn test_object_pointers_without_pointers() {
+        let obj = new_object();
+
+        assert_eq!(obj.pointers().len(), 0);
+    }
+
+    #[test]
+    fn test_object_pointers_with_pointers() {
+        let mut obj = new_object();
+        let name = "test".to_string();
+
+        obj.add_method(name.clone(), fake_pointer());
+        obj.add_attribute(name.clone(), fake_pointer());
+        obj.add_constant(name.clone(), fake_pointer());
+
+        assert_eq!(obj.pointers().len(), 3);
+    }
+
+    #[test]
+    fn test_object_take() {
+        let mut obj = Object::new(ObjectValue::Integer(10));
+        let header = ObjectHeader::new();
+
+        obj.set_header(header);
+
+        let new_obj = obj.take();
+
+        assert!(obj.header().is_none());
+        assert!(obj.value.is_none());
+
+        assert!(new_obj.header().is_some());
+        assert!(new_obj.value.is_integer());
+    }
+
+    #[test]
+    fn test_object_forward_to() {
+        let mut obj = new_object();
+        let target = new_object();
+
+        obj.forward_to(object_pointer_for(&target));
+
+        assert!(obj.prototype().is_some());
+        assert!(object_pointer_for(&obj).is_forwarded());
     }
 }

@@ -19,6 +19,13 @@ pub enum ObjectValue {
 }
 
 impl ObjectValue {
+    pub fn is_none(&self) -> bool {
+        match *self {
+            ObjectValue::None => true,
+            _ => false,
+        }
+    }
+
     pub fn is_integer(&self) -> bool {
         match *self {
             ObjectValue::Integer(_) => true,
