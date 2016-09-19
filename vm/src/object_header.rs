@@ -1,16 +1,20 @@
 //! Object Metadata
 //!
 //! The ObjectHeader struct stores metadata associated with an Object, such as
-//! the name, attributes, constants and methods. An ObjectHeader struct is only
-//! allocated when actually needed.
+//! the name, attributes, constants and methods.
 use std::collections::HashMap;
 
 use immix::copy_object::CopyObject;
 use object_pointer::ObjectPointer;
 
 pub struct ObjectHeader {
+    /// The attributes defined in an object.
     pub attributes: HashMap<String, ObjectPointer>,
+
+    /// The constants defined in an object.
     pub constants: HashMap<String, ObjectPointer>,
+
+    /// The methods defined in an object.
     pub methods: HashMap<String, ObjectPointer>,
 
     /// The object to use for constant lookups when a constant is not available
@@ -28,6 +32,7 @@ impl ObjectHeader {
         }
     }
 
+    /// Returns a Vec containing pointers to all pointers stored in this header.
     pub fn pointers(&self) -> Vec<*const ObjectPointer> {
         let mut pointers = Vec::new();
 
@@ -50,6 +55,7 @@ impl ObjectHeader {
         pointers
     }
 
+    /// Copies all pointers in this header to the given allocator.
     pub fn copy_to<T: CopyObject>(&self, allocator: &mut T) -> ObjectHeader {
         let mut copy = ObjectHeader::new();
 
@@ -114,5 +120,132 @@ impl ObjectHeader {
 
     pub fn has_attribute(&self, key: &str) -> bool {
         self.attributes.contains_key(key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_pointer::ObjectPointer;
+
+    #[test]
+    fn test_new() {
+        let header = ObjectHeader::new();
+
+        assert_eq!(header.attributes.len(), 0);
+        assert_eq!(header.constants.len(), 0);
+        assert_eq!(header.methods.len(), 0);
+        assert!(header.outer_scope.is_none());
+    }
+
+    #[test]
+    fn test_pointers() {
+        let mut header = ObjectHeader::new();
+
+        header.add_method("test".to_string(), ObjectPointer::null());
+        header.add_attribute("test".to_string(), ObjectPointer::null());
+        header.add_constant("test".to_string(), ObjectPointer::null());
+        header.outer_scope = Some(ObjectPointer::null());
+
+        assert_eq!(header.pointers().len(), 4);
+    }
+
+    #[test]
+    fn test_add_method() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_method(name.clone(), ObjectPointer::null());
+
+        assert!(header.get_method(&name).is_some());
+    }
+
+    #[test]
+    fn test_get_method_without_method() {
+        let header = ObjectHeader::new();
+
+        assert!(header.get_method(&"test".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_has_method_without_method() {
+        let header = ObjectHeader::new();
+
+        assert_eq!(header.has_method(&"test".to_string()), false);
+    }
+
+    #[test]
+    fn test_has_method_with_method() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_method(name.clone(), ObjectPointer::null());
+        assert!(header.has_method(&name));
+    }
+
+    #[test]
+    fn test_add_attribute() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_attribute(name.clone(), ObjectPointer::null());
+
+        assert!(header.get_attribute(&name).is_some());
+    }
+
+    #[test]
+    fn test_get_attribute_without_attribute() {
+        let header = ObjectHeader::new();
+
+        assert!(header.get_attribute(&"test".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_has_attribute_without_attribute() {
+        let header = ObjectHeader::new();
+
+        assert_eq!(header.has_attribute(&"test".to_string()), false);
+    }
+
+    #[test]
+    fn test_has_attribute_with_attribute() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_attribute(name.clone(), ObjectPointer::null());
+        assert!(header.has_attribute(&name));
+    }
+
+    #[test]
+    fn test_add_constant() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_constant(name.clone(), ObjectPointer::null());
+
+        assert!(header.get_constant(&name).is_some());
+    }
+
+    #[test]
+    fn test_get_constant_without_constant() {
+        let header = ObjectHeader::new();
+
+        assert!(header.get_constant(&"test".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_has_constant_without_constant() {
+        let header = ObjectHeader::new();
+
+        assert_eq!(header.has_constant(&"test".to_string()), false);
+    }
+
+    #[test]
+    fn test_has_constant_with_constant() {
+        let mut header = ObjectHeader::new();
+        let name = "test".to_string();
+
+        header.add_constant(name.clone(), ObjectPointer::null());
+        assert!(header.has_constant(&name));
     }
 }
