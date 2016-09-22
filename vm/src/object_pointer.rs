@@ -220,3 +220,143 @@ impl Hash for ObjectPointer {
         self.raw.hash(state);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object::Object;
+    use object_value::ObjectValue;
+
+    fn fake_raw_pointer() -> RawObjectPointer {
+        0x4 as RawObjectPointer
+    }
+
+    fn object_pointer_for(object: &Object) -> ObjectPointer {
+        ObjectPointer::new(object as *const Object as RawObjectPointer)
+    }
+
+    #[test]
+    fn test_new() {
+        let pointer = ObjectPointer::new(fake_raw_pointer());
+
+        assert_eq!(pointer.raw.raw as usize, 0x4);
+    }
+
+    #[test]
+    fn test_null() {
+        let pointer = ObjectPointer::null();
+
+        assert_eq!(pointer.raw.raw as usize, 0x0);
+    }
+
+    #[test]
+    fn test_forwarding_pointer() {
+        let pointer = ObjectPointer::null().forwarding_pointer();
+
+        assert!(pointer.raw.mask_is_set(FORWARDING_MASK));
+    }
+
+    #[test]
+    fn test_is_forwarded_with_regular_pointer() {
+        let object = Object::new(ObjectValue::None);
+        let pointer = object_pointer_for(&object);
+
+        assert_eq!(pointer.is_forwarded(), false);
+    }
+
+    #[test]
+    fn test_is_forwarded_with_forwarding_pointer() {
+        let object = Object::new(ObjectValue::None);
+        let pointer = object_pointer_for(&object).forwarding_pointer();
+
+        assert_eq!(pointer.is_forwarded(), false);
+    }
+
+    #[test]
+    fn test_resolve_forwarding_pointer() {
+        let proto = Object::new(ObjectValue::None);
+        let proto_pointer = object_pointer_for(&proto);
+        let mut object = Object::new(ObjectValue::Integer(2));
+
+        object.set_prototype(proto_pointer.forwarding_pointer());
+
+        let pointer = object_pointer_for(&object);
+
+        pointer.resolve_forwarding_pointer();
+
+        assert!(pointer == proto_pointer);
+    }
+
+    #[test]
+    fn test_get_get_mut() {
+        let object = Object::new(ObjectValue::Integer(2));
+        let pointer = object_pointer_for(&object);
+
+        // Object doesn't implement PartialEq/Eq so we can't compare references,
+        // thus we'll just test if we get something somewhat correct-ish.
+        assert!(pointer.get().value.is_integer());
+        assert!(pointer.get_mut().value.is_integer());
+    }
+
+    #[test]
+    fn test_is_null_with_null_pointer() {
+        let pointer = ObjectPointer::null();
+
+        assert!(pointer.is_null());
+    }
+
+    #[test]
+    fn test_is_null_with_regular_pointer() {
+        let pointer = ObjectPointer::new(fake_raw_pointer());
+
+        assert_eq!(pointer.is_null(), false);
+    }
+
+    #[test]
+    fn test_is_permanent_with_young_pointer() {
+        let object = Object::new(ObjectValue::None);
+
+        assert_eq!(object_pointer_for(&object).is_permanent(), false);
+    }
+
+    #[test]
+    fn test_is_permanent_with_permanent_pointer() {
+        let mut object = Object::new(ObjectValue::None);
+
+        object.set_permanent();
+
+        assert!(object_pointer_for(&object).is_permanent());
+    }
+
+    #[test]
+    fn test_is_mature_with_young_pointer() {
+        let object = Object::new(ObjectValue::None);
+
+        assert_eq!(object_pointer_for(&object).is_mature(), false);
+    }
+
+    #[test]
+    fn test_is_mature_with_mature_pointer() {
+        let mut object = Object::new(ObjectValue::None);
+
+        object.set_mature();
+
+        assert!(object_pointer_for(&object).is_mature());
+    }
+
+    #[test]
+    fn test_is_young_with_mature_pointer() {
+        let mut object = Object::new(ObjectValue::None);
+
+        object.set_mature();
+
+        assert_eq!(object_pointer_for(&object).is_young(), false);
+    }
+
+    #[test]
+    fn test_is_young_with_young_pointer() {
+        let object = Object::new(ObjectValue::None);
+
+        assert!(object_pointer_for(&object).is_young());
+    }
+}
