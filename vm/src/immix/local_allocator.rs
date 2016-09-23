@@ -54,15 +54,9 @@ pub struct LocalAllocator {
 
 impl LocalAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
-        // Prepare the eden bucket
-        let mut eden = Bucket::with_age(0);
-        let block = global_allocator.request_block();
-
-        eden.add_block(block);
-
         LocalAllocator {
             global_allocator: global_allocator,
-            young_generation: [eden,
+            young_generation: [Bucket::with_age(0),
                                Bucket::with_age(-1),
                                Bucket::with_age(-2),
                                Bucket::with_age(-3)],
