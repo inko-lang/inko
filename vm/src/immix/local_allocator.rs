@@ -3,6 +3,8 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
+use std::ops::Drop;
+
 use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
 use immix::block::BLOCK_SIZE;
@@ -188,5 +190,11 @@ impl LocalAllocator {
 impl CopyObject for LocalAllocator {
     fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
         self.allocate_eden(object)
+    }
+}
+
+impl Drop for LocalAllocator {
+    fn drop(&mut self) {
+        self.return_blocks();
     }
 }

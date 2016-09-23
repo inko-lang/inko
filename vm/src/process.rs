@@ -1,7 +1,6 @@
 use std::collections::{VecDeque, HashSet};
 use std::mem;
 use std::hash::{Hash, Hasher};
-use std::ops::Drop;
 use std::sync::{Arc, Mutex, Condvar};
 use std::cell::UnsafeCell;
 
@@ -533,12 +532,6 @@ impl Process {
                 }
             }
         }
-    }
-}
-
-impl Drop for Process {
-    fn drop(&mut self) {
-        self.local_data_mut().allocator.return_blocks();
     }
 }
 
