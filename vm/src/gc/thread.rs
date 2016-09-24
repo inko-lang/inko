@@ -118,7 +118,6 @@ impl Thread {
                 // TODO: object evacuation
             } else {
                 pointer.mark();
-                pointer.mark_line();
             }
 
             for child_pointer_pointer in pointer.get().pointers() {

@@ -29,6 +29,11 @@ impl GlobalAllocator {
         Arc::new(GlobalAllocator { blocks: Mutex::new(blocks) })
     }
 
+    /// Creates a new global allocator without pre-allocating any blocks.
+    pub fn without_preallocated_blocks() -> RcGlobalAllocator {
+        Arc::new(GlobalAllocator { blocks: Mutex::new(Vec::new()) })
+    }
+
     /// Requests a new free block from the pool
     pub fn request_block(&self) -> Box<Block> {
         let mut blocks = unlock!(self.blocks);

@@ -147,7 +147,7 @@ impl ObjectPointer {
         block.used_lines.set(line_index);
     }
 
-    /// Marks the current object.
+    /// Marks the current object and its line.
     pub fn mark(&self) {
         if !self.is_markable() {
             return;
@@ -159,6 +159,8 @@ impl ObjectPointer {
         if !bitmap.is_set(index) {
             bitmap.set(index);
         }
+
+        self.mark_line();
     }
 
     /// Returns the mark bitmap to use for this pointer.
@@ -176,7 +178,10 @@ impl ObjectPointer {
 
     /// Returns the line index of the current pointer.
     pub fn line_index(&self) -> usize {
-        (self.raw.untagged() as usize - self.line_address()) / block::LINE_SIZE
+        let start_addr = self.block_header_pointer_address();
+        let offset = self.raw.untagged() as usize - start_addr;
+
+        offset / block::LINE_SIZE
     }
 
     /// Returns a mutable reference to the block this pointer belongs to.
@@ -189,6 +194,8 @@ impl ObjectPointer {
         self.block_header().block()
     }
 
+    /// Returns an immutable reference to the header of the block this pointer
+    /// belongs to.
     pub fn block_header(&self) -> &block::BlockHeader {
         unsafe {
             let ptr: *mut block::BlockHeader =
@@ -200,10 +207,6 @@ impl ObjectPointer {
 
     fn block_header_pointer_address(&self) -> usize {
         (self.raw.untagged() as isize & block::OBJECT_BITMAP_MASK) as usize
-    }
-
-    fn line_address(&self) -> usize {
-        (self.raw.untagged() as isize & block::LINE_BITMAP_MASK) as usize
     }
 }
 
@@ -223,7 +226,11 @@ impl Hash for ObjectPointer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::*;
+    use immix::bitmap::Bitmap;
+    use immix::global_allocator::GlobalAllocator;
+    use immix::local_allocator::LocalAllocator;
     use object::Object;
     use object_value::ObjectValue;
 
@@ -233,6 +240,10 @@ mod tests {
 
     fn object_pointer_for(object: &Object) -> ObjectPointer {
         ObjectPointer::new(object as *const Object as RawObjectPointer)
+    }
+
+    fn local_allocator() -> LocalAllocator {
+        LocalAllocator::new(GlobalAllocator::without_preallocated_blocks())
     }
 
     #[test]
@@ -358,5 +369,165 @@ mod tests {
         let object = Object::new(ObjectValue::None);
 
         assert!(object_pointer_for(&object).is_young());
+    }
+
+    #[test]
+    fn test_is_local_with_local_pointer() {
+        let object = Object::new(ObjectValue::None);
+
+        assert!(object_pointer_for(&object).is_local());
+    }
+
+    #[test]
+    fn test_is_local_with_permanent_pointer() {
+        let mut object = Object::new(ObjectValue::None);
+
+        object.set_permanent();
+
+        assert_eq!(object_pointer_for(&object).is_local(), false);
+    }
+
+    #[test]
+    fn test_is_markable_with_markable_pointer() {
+        let object = Object::new(ObjectValue::None);
+
+        assert!(object_pointer_for(&object).is_markable());
+    }
+
+    #[test]
+    fn test_is_markable_with_non_markable_pointer() {
+        let mut object = Object::new(ObjectValue::None);
+
+        object.set_permanent();
+
+        assert_eq!(object_pointer_for(&object).is_markable(), false);
+    }
+
+    #[test]
+    fn test_is_marked_with_unmarked_object() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        assert_eq!(pointer.is_marked(), false);
+    }
+
+    #[test]
+    fn test_is_marked_with_marked_object() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark();
+
+        assert!(pointer.is_marked());
+    }
+
+    #[test]
+    fn test_should_promote_to_mature_with_eden_pointer() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        assert_eq!(pointer.should_promote_to_mature(), false);
+    }
+
+    #[test]
+    fn test_should_promote_to_mature_with_pointer_to_promote() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        for _ in 0..3 {
+            allocator.increment_young_ages();
+        }
+
+        assert!(pointer.should_promote_to_mature());
+    }
+
+    #[test]
+    fn test_mark_line() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark_line();
+
+        assert!(pointer.block().used_lines.is_set(1));
+    }
+
+    #[test]
+    fn test_mark() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark();
+
+        assert!(pointer.block().mark_bitmap.is_set(4));
+        assert!(pointer.block().used_lines.is_set(1));
+    }
+
+    #[test]
+    fn test_mark_bitmap() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark_bitmap();
+    }
+
+    #[test]
+    fn test_mark_bitmap_index() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        assert_eq!(pointer.mark_bitmap_index(), 4);
+    }
+
+    #[test]
+    fn test_line_index() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        assert_eq!(pointer.line_index(), 1);
+    }
+
+    #[test]
+    fn test_block_mut() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.block_mut();
+    }
+
+    #[test]
+    fn test_block() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.block();
+    }
+
+    #[test]
+    fn test_block_header() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.block_header();
+    }
+
+    #[test]
+    fn test_eq() {
+        let mut allocator = local_allocator();
+        let pointer1 = allocator.allocate_empty();
+        let pointer2 = allocator.allocate_empty();
+
+        assert!(pointer1 == pointer1);
+        assert!(pointer1 != pointer2);
+    }
+
+    #[test]
+    fn test_hashing() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+        let mut set = HashSet::new();
+
+        set.insert(pointer);
+
+        assert!(set.contains(&pointer));
     }
 }
