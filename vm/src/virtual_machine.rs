@@ -3785,11 +3785,7 @@ impl VirtualMachine {
 
             try_vm_error!(
                 receiver.lookup_method(name).ok_or_else(|| {
-                    format!(
-                        "undefined method \"{}\" called on an object of type {}",
-                        name,
-                        receiver.value.type_name()
-                    )
+                    format!("undefined method \"{}\"", name)
                 }),
                 instruction
             )
