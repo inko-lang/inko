@@ -296,10 +296,12 @@ impl Object {
     /// we use this drop-like method that's explicitly called by the garbage
     /// collector.
     pub fn deallocate_pointers(&mut self) {
-        if !self.header.is_null() {
+        if self.has_header() {
             let boxed = unsafe { Box::from_raw(self.header.untagged()) };
 
             drop(boxed);
+
+            self.header = TaggedPointer::null();
         }
     }
 
@@ -366,9 +368,19 @@ impl Object {
         self.prototype = pointer.forwarding_pointer();
     }
 
+    /// Returns true if this object should be finalized.
+    pub fn is_finalizable(&self) -> bool {
+        self.value.should_deallocate_native() || self.has_header()
+    }
+
+    /// Returns true if an object header has been allocated.
+    pub fn has_header(&self) -> bool {
+        !self.header.is_null()
+    }
+
     /// Allocates an object header if needed.
     fn allocate_header(&mut self) {
-        if self.header.is_null() {
+        if !self.has_header() {
             self.set_header(ObjectHeader::new());
         }
     }
