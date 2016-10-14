@@ -29,14 +29,9 @@ pub struct PermanentAllocator {
 
 impl PermanentAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> Self {
-        let mut bucket = Bucket::new();
-        let block = global_allocator.request_block();
-
-        bucket.add_block(block);
-
         PermanentAllocator {
             global_allocator: global_allocator,
-            bucket: bucket,
+            bucket: Bucket::new(),
         }
     }
 
