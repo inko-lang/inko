@@ -110,11 +110,36 @@ pub trait Bitmap {
         true
     }
 
+    /// Returns true if the bitmap is empty.
+    fn is_empty(&self) -> bool {
+        for value in self.values().iter() {
+            if *value != 0 {
+                return false;
+            }
+        }
+
+        true
+    }
+
     /// Resets the bitmap.
     fn reset(&mut self) {
         for index in 0..self.max_entries() {
             self.set_index_value(index, 0);
         }
+    }
+
+    /// The number of indexes set in the bitmap.
+    fn len(&self) -> usize {
+        let max_index = self.max_entries() * BITS_PER_INDEX;
+        let mut count = 0;
+
+        for index in 0..max_index {
+            if self.is_set(index) {
+                count += 1;
+            }
+        }
+
+        count
     }
 }
 
@@ -201,6 +226,17 @@ mod tests {
     }
 
     #[test]
+    fn test_object_map_is_empty() {
+        let mut object_map = ObjectMap::new();
+
+        assert_eq!(object_map.is_empty(), true);
+
+        object_map.set(1);
+
+        assert_eq!(object_map.is_empty(), false);
+    }
+
+    #[test]
     fn test_object_map_is_full() {
         let mut object_map = ObjectMap::new();
 
@@ -225,6 +261,16 @@ mod tests {
         object_map.reset();
 
         assert_eq!(object_map.is_set(1), false);
+    }
+
+    #[test]
+    fn test_object_map_len() {
+        let mut object_map = ObjectMap::new();
+
+        object_map.set(1);
+        object_map.set(3);
+
+        assert_eq!(object_map.len(), 2);
     }
 
     #[test]
@@ -254,6 +300,17 @@ mod tests {
     }
 
     #[test]
+    fn test_line_map_is_empty() {
+        let mut line_map = LineMap::new();
+
+        assert_eq!(line_map.is_empty(), true);
+
+        line_map.set(1);
+
+        assert_eq!(line_map.is_empty(), false);
+    }
+
+    #[test]
     fn test_line_map_is_full() {
         let mut line_map = LineMap::new();
 
@@ -278,6 +335,16 @@ mod tests {
         line_map.reset();
 
         assert_eq!(line_map.is_set(1), false);
+    }
+
+    #[test]
+    fn test_line_map_len() {
+        let mut line_map = LineMap::new();
+
+        line_map.set(1);
+        line_map.set(3);
+
+        assert_eq!(line_map.len(), 2);
     }
 
     #[test]
