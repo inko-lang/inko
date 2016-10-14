@@ -164,6 +164,17 @@ impl ObjectValue {
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
+
+    /// Returns true if this value should be deallocated explicitly.
+    pub fn should_deallocate_native(&self) -> bool {
+        match *self {
+            ObjectValue::None => false,
+            ObjectValue::Integer(_) => false,
+            ObjectValue::Float(_) => false,
+            ObjectValue::Error(_) => false,
+            _ => true,
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
