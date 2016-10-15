@@ -1,7 +1,8 @@
 //! Threads for garbage collecting memory.
 use time;
-use std::collections::{VecDeque, HashSet};
+use std::collections::{VecDeque, HashMap};
 
+use immix::bucket::Bucket;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
 use virtual_machine::RcVirtualMachineState;
@@ -45,12 +46,11 @@ impl Thread {
                 self.finalize_young(process);
             }
 
-            self.increment_young_ages(process);
+            process.increment_young_ages();
+
             self.update_collection_thresholds(process);
             self.reclaim_blocks(process, collect_mature);
             self.rewind_allocator(process, collect_mature);
-
-            // TODO: rewind allocator to the first hole
 
             let duration = time::precise_time_ns() - start_time;
 
@@ -62,79 +62,65 @@ impl Thread {
         }
     }
 
-    fn increment_young_ages(&self, process: &RcProcess) {
-        process.increment_young_ages();
-    }
-
     /// Prepares the collection phase
     ///
     /// This will reset any line bitmaps and check if evacuation is required.
     fn prepare_collection(&self, process: &RcProcess, mature: bool) {
         let mut local_data = process.local_data_mut();
-        let ref mut allocator = local_data.allocator;
 
-        let mut available_young_lines = 0;
-        let mut available_mature_lines = 0;
-
-        for bucket in allocator.young_generation.iter_mut() {
-            for block in bucket.blocks.iter_mut() {
-                if block.should_evacuate() {
-                    let available = block.available_lines_count();
-
-                    bucket.available_histogram.increment(block.holes, available);
-
-                    available_young_lines += available;
-                }
-
-                block.reset_bitmaps();
-            }
+        for bucket in local_data.allocator.young_generation.iter_mut() {
+            self.prepare_bucket(bucket);
         }
 
         if mature {
-            let ref mut bucket = allocator.mature_generation;
+            self.prepare_bucket(&mut local_data.allocator.mature_generation);
+        }
+    }
 
-            for block in bucket.blocks.iter_mut() {
-                if block.should_evacuate() {
-                    let available = block.available_lines_count();
+    /// Prepares a single bucket for collection and evacuation (if needed).
+    fn prepare_bucket(&self, bucket: &mut Bucket) {
+        let mut available: isize = 0;
+        let mut required: isize = 0;
 
-                    bucket.available_histogram.increment(block.holes, available);
+        // HashMap with the keys being the hole counts, and the values being the
+        // indices of the corresponding blocks.
+        let mut blocks_per_holes = HashMap::new();
 
-                    available_mature_lines += available;
-                }
+        for (index, block) in bucket.blocks.iter_mut().enumerate() {
+            if block.should_evacuate() {
+                let count = block.available_lines_count();
 
-                block.reset_bitmaps();
+                bucket.available_histogram.increment(block.holes, count);
+
+                available += count as isize;
+
+                blocks_per_holes.entry(block.holes)
+                    .or_insert(Vec::new())
+                    .push(index);
             }
+
+            block.reset_bitmaps();
         }
 
-        if available_young_lines > 0 {
-            for bucket in allocator.young_generation.iter_mut() {
-                let mut required = 0 as isize;
-                let mut available = available_young_lines as isize;
-                let mut bins = HashSet::new();
+        if available > 0 {
+            for bin in bucket.mark_histogram.iter() {
+                required += bucket.mark_histogram.get(bin).unwrap() as isize;
 
-                for bin in bucket.mark_histogram.iter() {
-                    required += bucket.mark_histogram.get(bin).unwrap() as isize;
+                available -=
+                    bucket.available_histogram.get(bin).unwrap() as isize;
 
-                    available -=
-                        bucket.available_histogram.get(bin).unwrap() as isize;
-
-                    if required >= available {
-                        break;
-                    } else {
-                        bins.insert(bin);
-                    }
-                }
-
-                for block in bucket.blocks.iter_mut() {
-                    if bins.contains(&block.holes) {
-                        block.set_fragmented();
+                if required > available {
+                    break;
+                } else {
+                    // Mark all blocks with the matching number of holes as
+                    // fragmented.
+                    if let Some(indexes) = blocks_per_holes.get(&bin) {
+                        for index in indexes {
+                            bucket.blocks[*index].set_fragmented();
+                        }
                     }
                 }
             }
-        }
-
-        if available_mature_lines > 0 {
-
         }
     }
 
