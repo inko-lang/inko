@@ -5,6 +5,7 @@
 
 use std::ops::Drop;
 
+use immix::finalizer_set::FinalizerSet;
 use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
 use immix::block::BLOCK_SIZE;
@@ -15,17 +16,33 @@ use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
 
+/// Macro that allocates an object in a block and returns a pointer to the
+/// allocated object.
+macro_rules! allocate {
+    ($alloc: expr, $object: ident, $bucket: expr) => ({
+        if let Some(block) = $bucket.first_available_block() {
+            return (false, block.bump_allocate($object));
+        }
+
+        let block = $alloc.global_allocator.request_block();
+        let mut block_ref = $bucket.add_block(block);
+
+        (true, block_ref.bump_allocate($object))
+    });
+}
+
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: isize = 3;
 
 /// The maximum number of blocks that can be allocated before a garbage
 /// collection of the young generation should be performed.
-pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = (5 * 1024 * 1024) /
-                                                    BLOCK_SIZE;
+// pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = (1 * 1024 * 1024) /
+//                                                    BLOCK_SIZE;
+pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = 2;
 
 /// The maximum number of blocks that can be allocated before a garbage
 /// collection of the mature generation should be performed.
-pub const MATURE_BLOCK_ALLOCATION_THRESHOLD: usize = (5 * 1024 * 1024) /
+pub const MATURE_BLOCK_ALLOCATION_THRESHOLD: usize = (2 * 1024 * 1024) /
                                                      BLOCK_SIZE;
 
 /// Structure containing the state of a process-local allocator.
@@ -42,6 +59,12 @@ pub struct LocalAllocator {
 
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
+
+    /// The set containing all young pointers to finalize as some point.
+    pub young_finalizer_set: FinalizerSet,
+
+    /// The set containing all mature pointers to finalize at some point.
+    pub mature_finalizer_set: FinalizerSet,
 
     /// The number of blocks allocated for the mature generation since the last
     /// garbage collection cycle.
@@ -62,6 +85,8 @@ impl LocalAllocator {
                                Bucket::with_age(-3)],
             eden_index: 0,
             mature_generation: Bucket::new(),
+            young_finalizer_set: FinalizerSet::new(),
+            mature_finalizer_set: FinalizerSet::new(),
             young_block_allocations: 0,
             mature_block_allocations: 0,
         }
@@ -81,21 +106,31 @@ impl LocalAllocator {
 
     /// Resets and returns all blocks of all buckets to the global allocator.
     pub fn return_blocks(&mut self) {
-        let mut blocks = Vec::new();
-
         for bucket in self.young_generation.iter_mut() {
-            for block in bucket.blocks.drain(0..) {
-                blocks.push(block);
+            for mut block in bucket.blocks.drain(0..) {
+                block.reset();
+                self.global_allocator.add_block(block);
             }
         }
 
-        for block in self.mature_generation.blocks.drain(0..) {
-            blocks.push(block);
-        }
-
-        for mut block in blocks {
+        for mut block in self.mature_generation.blocks.drain(0..) {
             block.reset();
             self.global_allocator.add_block(block);
+        }
+    }
+
+    /// Returns unused blocks to the global allocator.
+    pub fn reclaim_blocks(&mut self, mature: bool) {
+        for bucket in self.young_generation.iter_mut() {
+            for block in bucket.reclaim_blocks() {
+                self.global_allocator.add_block(block);
+            }
+        }
+
+        if mature {
+            for block in self.mature_generation.reclaim_blocks() {
+                self.global_allocator.add_block(block);
+            }
         }
     }
 
@@ -125,35 +160,40 @@ impl LocalAllocator {
 
     /// Allocates an object in the eden space.
     pub fn allocate_eden(&mut self, object: Object) -> ObjectPointer {
-        {
-            if let Some(block) = self.eden_space_mut().first_available_block() {
-                return block.bump_allocate(object);
-            }
+        let (new_block, pointer) = self.allocate_eden_raw(object);
+
+        if pointer.is_finalizable() {
+            self.young_finalizer_set.insert(pointer);
         }
 
-        let block = self.global_allocator.request_block();
-        let mut bucket = self.eden_space_mut();
+        if new_block {
+            self.young_block_allocations += 1;
+        }
 
-        bucket.add_block(block);
-
-        bucket.bump_allocate(object)
+        pointer
     }
 
     /// Allocates an object in the mature space.
     pub fn allocate_mature(&mut self, object: Object) -> ObjectPointer {
-        {
-            if let Some(block) = self.mature_generation_mut()
-                .first_available_block() {
-                return block.bump_allocate(object);
-            }
+        let (new_block, pointer) = self.allocate_mature_raw(object);
+
+        if pointer.is_finalizable() {
+            self.mature_finalizer_set.insert(pointer);
         }
 
-        let block = self.global_allocator.request_block();
-        let mut bucket = self.mature_generation_mut();
+        if new_block {
+            self.mature_block_allocations += 1;
+        }
 
-        bucket.add_block(block);
+        pointer
+    }
 
-        bucket.bump_allocate(object)
+    /// Allocates an object into a specific bucket.
+    pub fn allocate_bucket(&mut self,
+                           bucket: &mut Bucket,
+                           object: Object)
+                           -> (bool, ObjectPointer) {
+        allocate!(self, object, bucket)
     }
 
     /// Increments the age of all buckets in the young generation
@@ -179,6 +219,21 @@ impl LocalAllocator {
     pub fn mature_block_allocation_threshold_exceeded(&self) -> bool {
         self.mature_block_allocations >= MATURE_BLOCK_ALLOCATION_THRESHOLD
     }
+
+    // Because Rust's borrow checker is sometimes dumb as a brick when it comes
+    // to scoping mutable borrows we have to use two layers of indirection (a
+    // function and a macro) to make the following allocation functions work.
+    //
+    // This can probably be removed once scoping of mutable borrows is handled
+    // in a better way: https://github.com/rust-lang/rfcs/issues/811
+
+    fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
+        allocate!(self, object, self.eden_space_mut())
+    }
+
+    fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
+        allocate!(self, object, self.mature_generation_mut())
+    }
 }
 
 impl CopyObject for LocalAllocator {
@@ -189,6 +244,8 @@ impl CopyObject for LocalAllocator {
 
 impl Drop for LocalAllocator {
     fn drop(&mut self) {
+        self.young_finalizer_set.reset();
+        self.mature_finalizer_set.reset();
         self.return_blocks();
     }
 }

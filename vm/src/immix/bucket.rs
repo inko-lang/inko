@@ -4,6 +4,7 @@
 //! same age.
 
 use immix::block::Block;
+use immix::histogram::Histogram;
 use object::Object;
 use object_pointer::ObjectPointer;
 
@@ -17,26 +18,30 @@ pub struct Bucket {
 
     /// The age of the objects in the current bucket.
     pub age: isize,
+
+    // The available space histogram for the blocks in this bucket.
+    pub available_histogram: Histogram,
+
+    /// The mark histogram for the blocks in this bucket.
+    pub mark_histogram: Histogram,
 }
 
 unsafe impl Send for Bucket {}
 unsafe impl Sync for Bucket {}
 
 impl Bucket {
-    pub fn new() -> Bucket {
-        Bucket {
-            blocks: Vec::new(),
-            block_index: 0,
-            age: 0,
-        }
+    pub fn new() -> Self {
+        Self::with_age(0)
     }
 
     /// Returns a Bucket with a custom age.
-    pub fn with_age(age: isize) -> Bucket {
+    pub fn with_age(age: isize) -> Self {
         Bucket {
             blocks: Vec::new(),
             block_index: 0,
             age: age,
+            available_histogram: Histogram::new(),
+            mark_histogram: Histogram::new(),
         }
     }
 
@@ -109,11 +114,61 @@ impl Bucket {
                 self.block_index = index;
 
                 return Some(block);
+            } else {
+                block.mark_as_full();
             }
 
             // The entire block has been consumed so we'll try the next one.
         }
 
         None
+    }
+
+    /// Resets the block to use for allocations to the first available block.
+    pub fn rewind_allocator(&mut self) {
+        self.block_index = 0;
+
+        self.first_available_block();
+    }
+
+    /// Returns true if this bucket contains any recyclable blocks.
+    pub fn has_recyclable_blocks(&self) -> bool {
+        for block in self.blocks.iter() {
+            if block.is_recyclable() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Removes and returns all unused blocks from this bucket.
+    ///
+    /// For blocks that are kept around the hole count and the mark histogram is
+    /// updated.
+    pub fn reclaim_blocks(&mut self) -> Vec<Box<Block>> {
+        let mut keep = Vec::new();
+        let mut reclaim = Vec::new();
+
+        self.available_histogram.reset();
+        self.mark_histogram.reset();
+
+        for mut block in self.blocks.drain(0..) {
+            if block.is_empty() {
+                block.reset();
+                reclaim.push(block);
+            } else {
+                block.update_hole_count();
+
+                self.mark_histogram
+                    .increment(block.holes, block.marked_lines_count());
+
+                keep.push(block);
+            }
+        }
+
+        self.blocks = keep;
+
+        reclaim
     }
 }

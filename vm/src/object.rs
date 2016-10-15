@@ -335,18 +335,32 @@ impl Object {
         }
     }
 
-    /// Returns all the pointers stored in this object.
+    /// Returns pointers to all the object pointers reachable from this object
     pub fn pointers(&self) -> Vec<*const ObjectPointer> {
         let mut pointers = Vec::new();
 
         if !self.prototype.is_null() {
-            pointers.push(&self.prototype as *const ObjectPointer);
+            pointers.push(self.prototype.as_raw_pointer());
         }
 
         if let Some(header) = self.header() {
             let mut header_pointers = header.pointers();
 
             pointers.append(&mut header_pointers);
+        }
+
+        match self.value {
+            ObjectValue::Array(ref array) => {
+                for pointer in array.iter() {
+                    pointers.push(pointer.as_raw_pointer());
+                }
+            }
+            ObjectValue::Binding(ref binding) => {
+                for pointer in binding.pointers() {
+                    pointers.push(pointer);
+                }
+            }
+            _ => {}
         }
 
         pointers

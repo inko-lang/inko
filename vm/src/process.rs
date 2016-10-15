@@ -4,9 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, Condvar};
 use std::cell::UnsafeCell;
 
-use immix::bitmap::Bitmap;
 use immix::bucket::Bucket;
-use immix::block;
 use immix::copy_object::CopyObject;
 use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
@@ -15,7 +13,7 @@ use immix::mailbox_allocator::MailboxAllocator;
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use object_pointer::{ObjectPointer, RawObjectPointer};
+use object_pointer::ObjectPointer;
 use object_value;
 use execution_context::ExecutionContext;
 use queue::Queue;
@@ -463,24 +461,12 @@ impl Process {
         let mut objects = VecDeque::new();
 
         for context in self.context().contexts() {
-            let mut binding_opt = Some(context.binding());
-
-            while let Some(binding) = binding_opt {
-                objects.push_back(&binding.self_object as *const ObjectPointer);
-
-                for local in binding.locals().iter() {
-                    if local.is_markable() {
-                        objects.push_back(local as *const ObjectPointer);
-                    }
-                }
-
-                binding_opt = binding.parent();
+            for pointer in context.binding().pointers() {
+                objects.push_back(pointer);
             }
 
-            for pointer in context.register.objects() {
-                if pointer.is_markable() {
-                    objects.push_back(pointer as *const ObjectPointer);
-                }
+            for pointer in context.register.pointers() {
+                objects.push_back(pointer);
             }
         }
 
@@ -511,26 +497,13 @@ impl Process {
         self.local_data_mut().allocator.mature_generation_mut()
     }
 
-    // Calls the supplied closure for every unmarked object in the young
-    // generation.
-    pub fn each_unmarked_young_pointer<F>(&self, mut closure: F)
-        where F: FnMut(RawObjectPointer)
-    {
+    pub fn track_for_finalization(&self, pointer: ObjectPointer) {
         let mut local_data = self.local_data_mut();
 
-        // TODO: refactor this or risk burning in hell forever
-        for bucket in local_data.allocator.young_generation.iter_mut() {
-            for block in bucket.blocks.iter_mut() {
-                for index in block::OBJECT_START_SLOT..block::OBJECTS_PER_BLOCK {
-                    if block.used_slots.is_set(index) &&
-                       !block.mark_bitmap.is_set(index) {
-                        let pointer =
-                            unsafe { block.lines.offset(index as isize) };
-
-                        closure(pointer);
-                    }
-                }
-            }
+        if pointer.is_mature() {
+            local_data.allocator.mature_finalizer_set.insert(pointer);
+        } else {
+            local_data.allocator.young_finalizer_set.insert(pointer);
         }
     }
 }
@@ -546,5 +519,56 @@ impl Eq for Process {}
 impl Hash for Process {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pid.hash(state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use immix::global_allocator::GlobalAllocator;
+    use compiled_code::CompiledCode;
+    use object::Object;
+    use object_pointer::ObjectPointer;
+
+    fn new_process() -> RcProcess {
+        let code = CompiledCode::with_rc("a".to_string(),
+                                         "a".to_string(),
+                                         1,
+                                         Vec::new());
+
+        let self_obj = ObjectPointer::null();
+
+        Process::from_code(1, code, self_obj, GlobalAllocator::new())
+    }
+
+    #[test]
+    fn test_roots() {
+        let process = new_process();
+        let pointer = process.allocate_empty();
+
+        process.set_local(0, pointer);
+        process.set_register(0, pointer);
+
+        assert_eq!(process.roots().len(), 3);
+    }
+
+    #[test]
+    fn test_roots_doesnt_copy_pointers() {
+        let process = new_process();
+        let pointer = process.allocate_empty();
+
+        process.set_local(0, pointer);
+        process.set_register(0, pointer);
+
+        for pointer_pointer in process.roots() {
+            let pointer_ref =
+                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+
+            pointer_ref.raw.raw = 0x4 as *mut Object;
+        }
+
+        assert_eq!(process.get_local(0).unwrap().raw.raw as usize, 0x4);
+        assert_eq!(process.get_register(0).unwrap().raw.raw as usize, 0x4);
+        assert_eq!(process.self_object().raw.raw as usize, 0x4);
     }
 }

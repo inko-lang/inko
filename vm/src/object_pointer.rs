@@ -6,7 +6,25 @@ use immix::block;
 use immix::local_allocator::YOUNG_MAX_AGE;
 
 use object::Object;
+use process::RcProcess;
 use tagged_pointer::TaggedPointer;
+
+/// Performs a write to an object and tracks it in the write barrier and
+/// optionally in a finalizer set.
+macro_rules! write_object {
+    ($receiver: expr, $process: expr, $action: expr, $value: expr) => ({
+        let track = !$receiver.get().has_header();
+        let pointer = *$receiver;
+
+        $action;
+
+        $process.write_barrier(pointer, $value);
+
+        if track && $receiver.is_finalizable() {
+            $process.track_for_finalization(pointer);
+        }
+    })
+}
 
 pub type RawObjectPointer = *mut Object;
 
@@ -121,8 +139,8 @@ impl ObjectPointer {
             return false;
         }
 
-        let bitmap = self.mark_bitmap();
-        let index = self.mark_bitmap_index();
+        let bitmap = self.marked_objects_bitmap();
+        let index = self.marked_objects_bitmap_index();
 
         bitmap.is_set(index)
     }
@@ -144,7 +162,9 @@ impl ObjectPointer {
         let mut block = self.block_mut();
         let line_index = self.line_index();
 
-        block.used_lines.set(line_index);
+        if !block.used_lines_bitmap.is_set(line_index) {
+            block.used_lines_bitmap.set(line_index);
+        }
     }
 
     /// Marks the current object and its line.
@@ -153,8 +173,8 @@ impl ObjectPointer {
             return;
         }
 
-        let mut bitmap = self.mark_bitmap();
-        let index = self.mark_bitmap_index();
+        let mut bitmap = self.marked_objects_bitmap();
+        let index = self.marked_objects_bitmap_index();
 
         if !bitmap.is_set(index) {
             bitmap.set(index);
@@ -164,12 +184,12 @@ impl ObjectPointer {
     }
 
     /// Returns the mark bitmap to use for this pointer.
-    pub fn mark_bitmap(&self) -> &mut ObjectMap {
-        &mut self.block_mut().mark_bitmap
+    pub fn marked_objects_bitmap(&self) -> &mut ObjectMap {
+        &mut self.block_mut().marked_objects_bitmap
     }
 
     /// Returns the mark bitmap index to use for this pointer.
-    pub fn mark_bitmap_index(&self) -> usize {
+    pub fn marked_objects_bitmap_index(&self) -> usize {
         let start_addr = self.block_header_pointer_address();
         let offset = self.raw.untagged() as usize - start_addr;
 
@@ -194,6 +214,11 @@ impl ObjectPointer {
         self.block_header().block()
     }
 
+    /// Returns true if this pointer should be evacuated.
+    pub fn should_evacuate(&self) -> bool {
+        !self.is_forwarded() && self.block().is_fragmented()
+    }
+
     /// Returns an immutable reference to the header of the block this pointer
     /// belongs to.
     pub fn block_header(&self) -> &block::BlockHeader {
@@ -203,6 +228,57 @@ impl ObjectPointer {
 
             &*ptr
         }
+    }
+
+    /// Returns true if the object should be finalized.
+    pub fn is_finalizable(&self) -> bool {
+        !self.is_permanent() && self.get().is_finalizable()
+    }
+
+    /// Adds a method to the object this pointer points to.
+    pub fn add_method(&self,
+                      process: &RcProcess,
+                      name: String,
+                      method: ObjectPointer) {
+        write_object!(self,
+                      process,
+                      self.get_mut().add_method(name, method),
+                      method);
+    }
+
+    /// Adds an attribute to the object this pointer points to.
+    pub fn add_attribute(&self,
+                         process: &RcProcess,
+                         name: String,
+                         attr: ObjectPointer) {
+        write_object!(self,
+                      process,
+                      self.get_mut().add_attribute(name, attr),
+                      attr);
+    }
+
+    /// Adds a constant to the object this pointer points to.
+    pub fn add_constant(&self,
+                        process: &RcProcess,
+                        name: String,
+                        constant: ObjectPointer) {
+        write_object!(self,
+                      process,
+                      self.get_mut().add_constant(name, constant),
+                      constant);
+    }
+
+    /// Sets the outer scope of the object this pointer points to.
+    pub fn set_outer_scope(&self, process: &RcProcess, scope: ObjectPointer) {
+        write_object!(self,
+                      process,
+                      self.get_mut().set_outer_scope(scope),
+                      scope);
+    }
+
+    /// Returns a raw pointer to this pointer.
+    pub fn as_raw_pointer(&self) -> *const ObjectPointer {
+        self as *const ObjectPointer
     }
 
     fn block_header_pointer_address(&self) -> usize {
@@ -296,6 +372,39 @@ mod tests {
         pointer.resolve_forwarding_pointer();
 
         assert!(pointer == proto_pointer);
+    }
+
+    #[test]
+    fn test_resolve_forwarding_pointer_in_vector() {
+        let proto = Object::new(ObjectValue::None);
+        let proto_pointer = object_pointer_for(&proto);
+        let mut object = Object::new(ObjectValue::Integer(2));
+
+        object.set_prototype(proto_pointer.forwarding_pointer());
+
+        let pointers = vec![object_pointer_for(&object)];
+
+        pointers.get(0).unwrap().resolve_forwarding_pointer();
+
+        assert!(pointers[0] == proto_pointer);
+    }
+
+    #[test]
+    fn test_resolve_forwarding_pointer_in_vector_with_pointer_pointers() {
+        let proto = Object::new(ObjectValue::None);
+        let proto_pointer = object_pointer_for(&proto);
+        let mut object = Object::new(ObjectValue::Integer(2));
+
+        object.set_prototype(proto_pointer.forwarding_pointer());
+
+        let mut pointers = vec![object_pointer_for(&object)];
+        let mut pointer_pointers = vec![&mut pointers[0] as *mut ObjectPointer];
+
+        let ptr_ref = unsafe { &mut *pointer_pointers[0] };
+
+        ptr_ref.resolve_forwarding_pointer();
+
+        assert!(pointers[0] == proto_pointer);
     }
 
     #[test]
@@ -448,7 +557,7 @@ mod tests {
 
         pointer.mark_line();
 
-        assert!(pointer.block().used_lines.is_set(1));
+        assert!(pointer.block().used_lines_bitmap.is_set(1));
     }
 
     #[test]
@@ -458,24 +567,24 @@ mod tests {
 
         pointer.mark();
 
-        assert!(pointer.block().mark_bitmap.is_set(4));
-        assert!(pointer.block().used_lines.is_set(1));
+        assert!(pointer.block().marked_objects_bitmap.is_set(4));
+        assert!(pointer.block().used_lines_bitmap.is_set(1));
     }
 
     #[test]
-    fn test_mark_bitmap() {
+    fn test_marked_objects_bitmap() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
-        pointer.mark_bitmap();
+        pointer.marked_objects_bitmap();
     }
 
     #[test]
-    fn test_mark_bitmap_index() {
+    fn test_marked_objects_bitmap_index() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
-        assert_eq!(pointer.mark_bitmap_index(), 4);
+        assert_eq!(pointer.marked_objects_bitmap_index(), 4);
     }
 
     #[test]
@@ -508,6 +617,24 @@ mod tests {
         let pointer = allocator.allocate_empty();
 
         pointer.block_header();
+    }
+
+    #[test]
+    fn test_as_raw_pointer() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        let raw_pointer = pointer.as_raw_pointer();
+
+        assert!(unsafe { *raw_pointer } == pointer);
+
+        // Using the raw pointer for any updates should result in the
+        // ObjectPointer being updated properly.
+        let mut reference = unsafe { &mut *(raw_pointer as *mut ObjectPointer) };
+
+        reference.raw.set_bit(0);
+
+        assert!(pointer.raw.bit_is_set(0));
     }
 
     #[test]

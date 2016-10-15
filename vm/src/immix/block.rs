@@ -18,6 +18,9 @@ pub const BLOCK_SIZE: usize = 32 * 1024;
 /// The number of bytes in single line.
 pub const LINE_SIZE: usize = 128;
 
+/// The number of lines in a block.
+pub const LINES_PER_BLOCK: usize = BLOCK_SIZE / LINE_SIZE;
+
 /// The number of bytes to use for a single object. This **must** equal the
 /// output of size_of::<Object>().
 pub const BYTES_PER_OBJECT: usize = 32;
@@ -32,6 +35,9 @@ pub const OBJECTS_PER_LINE: usize = LINE_SIZE / BYTES_PER_OBJECT;
 /// The first slot objects can be allocated into. The first 4 slots (a single
 /// line or 128 bytes of memory) are reserved for the mark bitmap.
 pub const OBJECT_START_SLOT: usize = LINE_SIZE / BYTES_PER_OBJECT;
+
+/// The first line objects can be allocated into.
+pub const LINE_START_SLOT: usize = 1;
 
 /// The offset (in bytes) of the first object in a block.
 pub const FIRST_OBJECT_BYTE_OFFSET: usize = OBJECT_START_SLOT * BYTES_PER_OBJECT;
@@ -48,30 +54,20 @@ pub struct BlockHeader {
     pub block: *mut Block,
 }
 
-impl BlockHeader {
-    pub fn new(block: *mut Block) -> BlockHeader {
-        BlockHeader { block: block }
-    }
-
-    /// Returns an immutable reference to the block.
-    pub fn block(&self) -> &Block {
-        unsafe { &*self.block }
-    }
-
-    /// Returns a mutable reference to the block.
-    pub fn block_mut(&self) -> &mut Block {
-        unsafe { &mut *self.block }
-    }
-}
-
 /// Enum indicating the state of a block.
 #[derive(Debug)]
 pub enum BlockStatus {
-    /// The block is usable (either it's completely or partially free)
-    Available,
+    /// The block is empty.
+    Free,
+
+    /// The block can be recycled.
+    Recyclable,
+
+    /// This block is full.
+    Full,
 
     /// The block is fragmented and objects need to be evacuated.
-    Evacuate,
+    Fragmented,
 }
 
 /// Structure representing a single block.
@@ -89,16 +85,11 @@ pub struct Block {
     /// The status of the block.
     pub status: BlockStatus,
 
-    /// Bitmap used for marking which lines are in use. A line is marked as
-    /// in-use by the GC during the mark phase if it contains at least a single
-    /// object.
-    pub used_lines: LineMap,
-
     /// Bitmap used for tracking which object slots are live.
-    pub mark_bitmap: ObjectMap,
+    pub marked_objects_bitmap: ObjectMap,
 
-    /// Bitmap used to track which object slots are in use.
-    pub used_slots: ObjectMap,
+    /// Bitmap used to track which lines contain one or more reachable objects.
+    pub used_lines_bitmap: LineMap,
 
     /// The pointer to use for allocating a new object.
     pub free_pointer: RawObjectPointer,
@@ -109,10 +100,29 @@ pub struct Block {
 
     /// Pointer to the bucket that manages this block.
     pub bucket: *mut Bucket,
+
+    /// The number of holes in this block.
+    pub holes: usize,
 }
 
 unsafe impl Send for Block {}
 unsafe impl Sync for Block {}
+
+impl BlockHeader {
+    pub fn new(block: *mut Block) -> BlockHeader {
+        BlockHeader { block: block }
+    }
+
+    /// Returns an immutable reference to the block.
+    pub fn block(&self) -> &Block {
+        unsafe { &*self.block }
+    }
+
+    /// Returns a mutable reference to the block.
+    pub fn block_mut(&self) -> &mut Block {
+        unsafe { &mut *self.block }
+    }
+}
 
 impl Block {
     pub fn new() -> Box<Block> {
@@ -125,13 +135,13 @@ impl Block {
 
         let mut block = Box::new(Block {
             lines: lines,
-            status: BlockStatus::Available,
-            used_lines: LineMap::new(),
-            mark_bitmap: ObjectMap::new(),
-            used_slots: ObjectMap::new(),
+            status: BlockStatus::Free,
+            marked_objects_bitmap: ObjectMap::new(),
+            used_lines_bitmap: LineMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
+            holes: LINES_PER_BLOCK,
         });
 
         block.free_pointer = block.start_address();
@@ -148,6 +158,12 @@ impl Block {
         block
     }
 
+    /// Resets the object/line bitmaps for a collection cycle.
+    pub fn reset_bitmaps(&mut self) {
+        self.used_lines_bitmap.reset();
+        self.marked_objects_bitmap.reset();
+    }
+
     /// Returns an immutable reference to the bucket of this block.
     pub fn bucket(&self) -> Option<&Bucket> {
         if self.bucket.is_null() {
@@ -157,23 +173,58 @@ impl Block {
         }
     }
 
+    /// Returns a mutable reference to the bucket of htis block.
+    pub fn bucket_mut(&mut self) -> Option<&mut Bucket> {
+        if self.bucket.is_null() {
+            None
+        } else {
+            Some(unsafe { &mut *self.bucket })
+        }
+    }
+
     /// Sets the bucket of this block.
     pub fn set_bucket(&mut self, bucket: *mut Bucket) {
         self.bucket = bucket;
     }
 
-    /// Returns true if objects can be allocated into this block.
-    pub fn is_available(&self) -> bool {
-        let available = match self.status {
-            BlockStatus::Available => true,
-            BlockStatus::Evacuate => false,
-        };
-
-        if available {
-            !self.used_lines.is_full()
-        } else {
-            false
+    /// Returns true if this block can be recycled.
+    pub fn is_recyclable(&self) -> bool {
+        match self.status {
+            BlockStatus::Recyclable => true,
+            _ => false,
         }
+    }
+
+    /// Returns true if this block is too fragmented for allocations.
+    pub fn is_fragmented(&self) -> bool {
+        match self.status {
+            BlockStatus::Fragmented => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if objects in this block should be evacuated.
+    pub fn should_evacuate(&self) -> bool {
+        self.is_recyclable() || self.is_fragmented()
+    }
+
+    /// Marks this block as being fragmented.
+    pub fn set_fragmented(&mut self) {
+        self.status = BlockStatus::Fragmented;
+    }
+
+    /// Returns true if this block is available for allocations.
+    pub fn is_available(&self) -> bool {
+        match self.status {
+            BlockStatus::Free => true,
+            BlockStatus::Recyclable => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if all lines in this block are available.
+    pub fn is_empty(&self) -> bool {
+        self.used_lines_bitmap.is_empty()
     }
 
     /// Returns a pointer to the first address to be used for objects.
@@ -199,8 +250,6 @@ impl Block {
         let obj_pointer = ObjectPointer::new(self.free_pointer);
 
         self.free_pointer = unsafe { self.free_pointer.offset(1) };
-
-        self.used_slots.set(obj_pointer.mark_bitmap_index());
 
         obj_pointer
     }
@@ -228,11 +277,11 @@ impl Block {
 
         // Iterate over all lines until we find a completely unused one or run
         // out of lines to process.
-        for current_line_index in (line_index + 1)..LINE_SIZE {
+        for current_line_index in (line_index + 1)..LINES_PER_BLOCK {
             line_pointer =
                 unsafe { line_pointer.offset(OBJECTS_PER_LINE as isize) };
 
-            if !self.used_lines.is_set(current_line_index) {
+            if !self.used_lines_bitmap.is_set(current_line_index) {
                 self.free_pointer = line_pointer;
 
                 self.end_pointer = unsafe {
@@ -244,40 +293,51 @@ impl Block {
         }
     }
 
+    pub fn mark_as_full(&mut self) {
+        self.status = BlockStatus::Full;
+    }
+
     /// Resets the block to a pristine state.
+    ///
+    /// Allocated objects are _not_ released as this is up to an allocator to
+    /// take care of.
     pub fn reset(&mut self) {
-        self.mark_bitmap.reset();
-
-        // Destruct all objects still in the block.
-        for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
-            if self.used_slots.is_set(index) {
-                unsafe {
-                    let pointer = self.lines.offset(index as isize);
-                    let mut object = &mut *pointer;
-
-                    object.deallocate_pointers();
-
-                    ptr::drop_in_place(pointer);
-                }
-            }
-        }
-
-        // Wipe the memory so we don't leave any bogus data behind.
-        unsafe {
-            let ptr = self.lines.offset(OBJECT_START_SLOT as isize);
-            let len = OBJECTS_PER_BLOCK - OBJECT_START_SLOT;
-
-            ptr::write_bytes(ptr, 0, len);
-        }
-
-        self.status = BlockStatus::Available;
+        self.status = BlockStatus::Free;
+        self.holes = LINES_PER_BLOCK;
 
         self.free_pointer = self.start_address();
         self.end_pointer = self.end_address();
         self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
-        self.used_lines.reset();
-        self.used_slots.reset();
+        self.reset_bitmaps();
+    }
+
+    /// Updates the number of holes in this block.
+    pub fn update_hole_count(&mut self) {
+        let mut in_hole = false;
+
+        self.holes = 0;
+
+        for index in LINE_START_SLOT..LINES_PER_BLOCK {
+            let is_set = self.used_lines_bitmap.is_set(index);
+
+            if in_hole && is_set {
+                in_hole = false;
+            } else if !in_hole && !is_set {
+                in_hole = true;
+                self.holes += 1;
+            }
+        }
+    }
+
+    /// Returns the number of marked lines in this block.
+    pub fn marked_lines_count(&self) -> usize {
+        self.used_lines_bitmap.len()
+    }
+
+    /// Returns the number of available lines in this block.
+    pub fn available_lines_count(&self) -> usize {
+        (LINES_PER_BLOCK - 1) - self.marked_lines_count()
     }
 }
 

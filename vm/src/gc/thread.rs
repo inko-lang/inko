@@ -1,13 +1,9 @@
 //! Threads for garbage collecting memory.
 use time;
-use std::collections::VecDeque;
-use std::ptr;
-
-use gc::request::Request;
-
-use immix::bitmap::Bitmap;
+use std::collections::{VecDeque, HashSet};
 
 use object_pointer::ObjectPointer;
+use process::RcProcess;
 use virtual_machine::RcVirtualMachineState;
 
 /// Structure containing the state of a single GC thread.
@@ -23,40 +19,38 @@ impl Thread {
     pub fn run(&mut self) {
         loop {
             let request = self.vm_state.gc_requests.pop();
+            let ref process = request.process;
 
             // If the process finished execution in the mean time we don't need
             // to run a GC cycle for it. Once we pass this check the process may
             // still finish prior to collection. This check is simply in place
             // to prevent collecting a process that finished before handling the
             // current GC request.
-            if !request.process.is_alive() {
+            if !process.is_alive() {
                 return;
             }
 
+            process.request_gc_suspension();
+
             let start_time = time::precise_time_ns();
+            let collect_mature = process.should_collect_mature_generation();
 
-            request.process.request_gc_suspension();
+            self.prepare_collection(process, collect_mature);
+            self.mark_roots(process);
+            self.mark_remembered_set(process);
 
-            // Do we need to evacuate any objects?
-            // ...
-            let evacuate = false;
-
-            self.mark_roots(&request, evacuate);
-            self.mark_remembered_set(&request, evacuate);
-
-            // Sweep & age objects
-            if request.process.should_collect_mature_generation() {
-                self.sweep_all(&request);
+            if collect_mature {
+                self.finalize_all(process);
             } else {
-                self.sweep_young(&request);
+                self.finalize_young(process);
             }
 
-            self.increment_young_ages(&request);
-            self.reset_mark_bits(&request);
-            self.update_collection_thresholds(&request);
+            self.increment_young_ages(process);
+            self.update_collection_thresholds(process);
+            self.reclaim_blocks(process, collect_mature);
+            self.rewind_allocator(process, collect_mature);
 
-            // Release/reset unused blocks
-            // ...
+            // TODO: rewind allocator to the first hole
 
             let duration = time::precise_time_ns() - start_time;
 
@@ -64,60 +58,174 @@ impl Thread {
                      duration,
                      (duration as f64) / 1000000.0);
 
-            request.thread.reschedule(request.process);
+            request.thread.reschedule(request.process.clone());
         }
     }
 
-    fn increment_young_ages(&self, request: &Request) {
-        request.process.increment_young_ages();
+    fn increment_young_ages(&self, process: &RcProcess) {
+        process.increment_young_ages();
+    }
+
+    /// Prepares the collection phase
+    ///
+    /// This will reset any line bitmaps and check if evacuation is required.
+    fn prepare_collection(&self, process: &RcProcess, mature: bool) {
+        let mut local_data = process.local_data_mut();
+        let ref mut allocator = local_data.allocator;
+
+        let mut available_young_lines = 0;
+        let mut available_mature_lines = 0;
+
+        for bucket in allocator.young_generation.iter_mut() {
+            for block in bucket.blocks.iter_mut() {
+                if block.should_evacuate() {
+                    let available = block.available_lines_count();
+
+                    bucket.available_histogram.increment(block.holes, available);
+
+                    available_young_lines += available;
+                }
+
+                block.reset_bitmaps();
+            }
+        }
+
+        if mature {
+            let ref mut bucket = allocator.mature_generation;
+
+            for block in bucket.blocks.iter_mut() {
+                if block.should_evacuate() {
+                    let available = block.available_lines_count();
+
+                    bucket.available_histogram.increment(block.holes, available);
+
+                    available_mature_lines += available;
+                }
+
+                block.reset_bitmaps();
+            }
+        }
+
+        if available_young_lines > 0 {
+            for bucket in allocator.young_generation.iter_mut() {
+                let mut required = 0 as isize;
+                let mut available = available_young_lines as isize;
+                let mut bins = HashSet::new();
+
+                for bin in bucket.mark_histogram.iter() {
+                    required += bucket.mark_histogram.get(bin).unwrap() as isize;
+
+                    available -=
+                        bucket.available_histogram.get(bin).unwrap() as isize;
+
+                    if required >= available {
+                        break;
+                    } else {
+                        bins.insert(bin);
+                    }
+                }
+
+                for block in bucket.blocks.iter_mut() {
+                    if bins.contains(&block.holes) {
+                        block.set_fragmented();
+                    }
+                }
+            }
+        }
+
+        if available_mature_lines > 0 {
+
+        }
+    }
+
+    /// Reclaims any unused blocks.
+    fn reclaim_blocks(&self, process: &RcProcess, mature: bool) {
+        let mut local_data = process.local_data_mut();
+
+        local_data.allocator.reclaim_blocks(mature);
+    }
+
+    /// Rewinds the allocator to the first hole in every generation.
+    fn rewind_allocator(&self, process: &RcProcess, mature: bool) {
+        let mut local_data = process.local_data_mut();
+
+        for bucket in local_data.allocator.young_generation.iter_mut() {
+            bucket.rewind_allocator();
+        }
+
+        if mature {
+            local_data.allocator.mature_generation.rewind_allocator();
+        }
     }
 
     /// Marks all objects in the remembered set.
-    fn mark_remembered_set(&self, request: &Request, evacuate: bool) {
+    fn mark_remembered_set(&self, process: &RcProcess) {
         let mut objects = VecDeque::new();
-        let mut remembered_set = request.process.remembered_set_mut();
+        let mut remembered_set = process.remembered_set_mut();
 
         for pointer in remembered_set.iter() {
-            objects.push_back(pointer as *const ObjectPointer);
+            objects.push_back(pointer.as_raw_pointer());
         }
 
-        self.mark_objects(request, objects, evacuate);
+        self.mark_objects(process, objects);
 
         remembered_set.clear();
     }
 
     /// Requests and marks the set of roots.
-    fn mark_roots(&self, request: &Request, evacuate: bool) {
-        let roots = request.process.roots();
-
-        self.mark_objects(request, roots, evacuate);
+    fn mark_roots(&self, process: &RcProcess) {
+        self.mark_objects(process, process.roots());
     }
 
     /// Marks all the given objects, optionally evacuating them.
     fn mark_objects(&self,
-                    request: &Request,
-                    mut objects: VecDeque<*const ObjectPointer>,
-                    evacuate: bool) {
+                    process: &RcProcess,
+                    mut objects: VecDeque<*const ObjectPointer>) {
+        let mut local_data = process.local_data_mut();
+
         while objects.len() > 0 {
             let pointer_pointer = objects.pop_front().unwrap();
 
             let mut pointer =
                 unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
 
-            if pointer.is_marked() {
+            // TODO: unmarkable pointers should never be scheduled.
+            if !pointer.is_markable() {
                 continue;
             }
 
-            if pointer.should_promote_to_mature() {
-                let promoted = self.promote_mature(request, pointer);
+            let already_marked = pointer.is_marked();
 
-                objects.push_back(&promoted as *const ObjectPointer);
+            if pointer.should_promote_to_mature() {
+                let promoted = self.promote_mature(process, pointer);
+
+                objects.push_back(promoted.as_raw_pointer());
+
+                continue;
+            } else if pointer.should_evacuate() {
+                let evacuated = self.evacuate(process, pointer);
+
+                objects.push_back(evacuated.as_raw_pointer());
+
+                continue;
             } else if pointer.is_forwarded() {
                 pointer.resolve_forwarding_pointer();
-            } else if evacuate {
-                // TODO: object evacuation
             } else {
                 pointer.mark();
+
+                // Objects that are still reachable but should be finalized at
+                // some point should be remembered so we don't accidentally
+                // release their resources.
+                if pointer.is_mature() {
+                    local_data.allocator.mature_finalizer_set.retain(pointer);
+                } else {
+                    local_data.allocator.young_finalizer_set.retain(pointer);
+                }
+            }
+
+            // Don't scan objects we have already scanned and marked before.
+            if already_marked {
+                continue;
             }
 
             for child_pointer_pointer in pointer.get().pointers() {
@@ -132,59 +240,85 @@ impl Thread {
 
     /// Promotes an object to the mature generation.
     fn promote_mature(&self,
-                      request: &Request,
+                      process: &RcProcess,
                       pointer: &mut ObjectPointer)
                       -> ObjectPointer {
+        let mut local_data = process.local_data_mut();
         let mut old_obj = pointer.get_mut();
         let mut new_obj = old_obj.take();
 
+        // When we allocate the object in the mature generation we insert the
+        // pointer in the mature generation's finalizer set. As such we should
+        // remove it from the young generation's set.
+        local_data.allocator.young_finalizer_set.remove(pointer);
+
         new_obj.set_mature();
 
-        let new_pointer =
-            request.process.local_data_mut().allocator.allocate_mature(new_obj);
+        let new_pointer = local_data.allocator.allocate_mature(new_obj);
 
         old_obj.forward_to(new_pointer);
+
+        pointer.resolve_forwarding_pointer();
 
         new_pointer
     }
 
-    /// Removes any unreachable objects from the young generation
-    fn sweep_young(&self, request: &Request) {
-        request.process.each_unmarked_young_pointer(|pointer| {
-            let mut object = unsafe { &mut *pointer };
+    // Evacuates a pointer.
+    fn evacuate(&self,
+                process: &RcProcess,
+                pointer: &mut ObjectPointer)
+                -> ObjectPointer {
+        let mut local_data = process.local_data_mut();
+        let is_mature = pointer.is_mature();
 
-            object.deallocate_pointers();
+        // Remove the old pointer from the finalizer set so we don't end up
+        // accidentally finalizing a evacuated object.
+        if is_mature {
+            local_data.allocator.mature_finalizer_set.remove(pointer);
+        } else {
+            local_data.allocator.young_finalizer_set.remove(pointer);
+        };
 
-            unsafe {
-                ptr::drop_in_place(pointer);
-                ptr::write_bytes(pointer, 0, 1);
-            };
-        });
-    }
+        // When evacuating an object we must ensure we evacuate the object into
+        // the same bucket.
+        let mut bucket = pointer.block_mut().bucket_mut().unwrap();
 
-    /// Removes any unreachable objects from both the young and mature
-    /// generations.
-    fn sweep_all(&self, request: &Request) {}
+        let mut old_obj = pointer.get_mut();
+        let new_obj = old_obj.take();
 
-    /// Resets all the mark bits
-    fn reset_mark_bits(&self, request: &Request) {
-        let mut local_data = request.process.local_data_mut();
+        let (_, new_pointer) = local_data.allocator
+            .allocate_bucket(bucket, new_obj);
 
-        for bucket in local_data.allocator.young_generation.iter_mut() {
-            for block in bucket.blocks.iter_mut() {
-                block.mark_bitmap.reset();
-                block.used_lines.reset();
-            }
+        old_obj.forward_to(new_pointer);
+
+        pointer.resolve_forwarding_pointer();
+
+        if is_mature {
+            local_data.allocator.mature_finalizer_set.insert(new_pointer);
+        } else {
+            local_data.allocator.young_finalizer_set.insert(new_pointer);
         }
 
-        for block in local_data.allocator.mature_generation.blocks.iter_mut() {
-            block.mark_bitmap.reset();
-            block.used_lines.reset();
-        }
+        new_pointer
     }
 
-    fn update_collection_thresholds(&self, request: &Request) {
-        let mut local_data = request.process.local_data_mut();
+    /// Finalizes unreachable young objects.
+    fn finalize_young(&self, process: &RcProcess) {
+        let mut local_data = process.local_data_mut();
+
+        local_data.allocator.young_finalizer_set.finalize();
+    }
+
+    /// Finalizes unreachable objects from all generations.
+    fn finalize_all(&self, process: &RcProcess) {
+        let mut local_data = process.local_data_mut();
+
+        local_data.allocator.young_finalizer_set.finalize();
+        local_data.allocator.mature_finalizer_set.finalize();
+    }
+
+    fn update_collection_thresholds(&self, process: &RcProcess) {
+        let mut local_data = process.local_data_mut();
 
         local_data.allocator.young_block_allocations = 0;
         local_data.allocator.mature_block_allocations = 0;

@@ -9,7 +9,6 @@
 //! being assigned to the "number" variable.
 
 use std::collections::HashMap;
-use std::collections::hash_map;
 
 use object_pointer::ObjectPointer;
 
@@ -40,8 +39,14 @@ impl Register {
         }
     }
 
-    /// Returns all objects stored in the current Register.
-    pub fn objects(&self) -> hash_map::Values<usize, ObjectPointer> {
-        self.values.values()
+    /// Returns pointers to the pointers stored in the current Register.
+    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
+        let mut pointers = Vec::new();
+
+        for value in self.values.values() {
+            pointers.push(value.as_raw_pointer());
+        }
+
+        pointers
     }
 }

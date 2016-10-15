@@ -1,4 +1,5 @@
 pub mod copy_object;
+pub mod finalizer_set;
 pub mod bitmap;
 pub mod block;
 pub mod bucket;

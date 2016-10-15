@@ -47,11 +47,8 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        let block = unlock!(self.blocks).push(block);
-
+        unlock!(self.blocks).push(block);
         self.compact();
-
-        block
     }
 
     /// Compacts the list of blocks if needed.

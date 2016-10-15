@@ -37,19 +37,19 @@ impl ObjectHeader {
         let mut pointers = Vec::new();
 
         for (_, pointer) in self.attributes.iter() {
-            pointers.push(pointer as *const ObjectPointer);
+            pointers.push(pointer.as_raw_pointer());
         }
 
         for (_, pointer) in self.constants.iter() {
-            pointers.push(pointer as *const ObjectPointer);
+            pointers.push(pointer.as_raw_pointer());
         }
 
         for (_, pointer) in self.methods.iter() {
-            pointers.push(pointer as *const ObjectPointer);
+            pointers.push(pointer.as_raw_pointer());
         }
 
         if let Some(scope) = self.outer_scope.as_ref() {
-            pointers.push(scope as *const ObjectPointer);
+            pointers.push(scope.as_raw_pointer());
         }
 
         pointers

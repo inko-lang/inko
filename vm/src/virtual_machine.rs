@@ -1,4 +1,5 @@
 //! Virtual Machine for running instructions
+
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
@@ -1364,9 +1365,7 @@ impl VirtualMachine {
                                         source_ptr,
                                         target_ptr);
 
-        target_ptr.get_mut().add_constant(name.clone(), source);
-
-        process.write_barrier(target_ptr, source);
+        target_ptr.add_constant(&process, name.clone(), source);
 
         Ok(())
     }
@@ -1395,11 +1394,7 @@ impl VirtualMachine {
                                         source_ptr,
                                         target_ptr);
 
-        let target = target_ptr.get_mut();
-
-        target.add_constant(name_str, source);
-
-        process.write_barrier(target_ptr, source);
+        target_ptr.add_constant(&process, name_str, source);
 
         Ok(())
     }
@@ -1519,9 +1514,7 @@ impl VirtualMachine {
                                        value_ptr,
                                        target_ptr);
 
-        target_ptr.get_mut().add_attribute(name.clone(), value);
-
-        process.write_barrier(target_ptr, value);
+        target_ptr.add_attribute(&process, name.clone(), value);
 
         Ok(())
     }
@@ -1550,9 +1543,7 @@ impl VirtualMachine {
                                        value_ptr,
                                        target_ptr);
 
-        target_ptr.get_mut().add_attribute(name.clone(), value);
-
-        process.write_barrier(target_ptr, value);
+        target_ptr.add_attribute(&process, name.clone(), value);
 
         Ok(())
     }
@@ -1894,9 +1885,6 @@ impl VirtualMachine {
         let receiver_ptr = instruction_object!(instruction, process, 1);
         let name_ptr = instruction_object!(instruction, process, 2);
         let cc_ptr = instruction_object!(instruction, process, 3);
-
-        let mut receiver = receiver_ptr.get_mut();
-
         let name_obj = name_ptr.get();
 
         ensure_strings!(instruction, name_obj);
@@ -1910,9 +1898,8 @@ impl VirtualMachine {
 
         let method = self.allocate_method(&process, &receiver_ptr, cc);
 
-        receiver.add_method(name.clone(), method.clone());
+        receiver_ptr.add_method(&process, name.clone(), method);
 
-        process.write_barrier(receiver_ptr, method);
         process.set_register(register, method);
 
         Ok(())
@@ -1944,14 +1931,10 @@ impl VirtualMachine {
 
         let name = try_vm_error!(code.string(name_index), instruction);
         let cc = try_vm_error!(code.code_object(cc_index), instruction);
-
-        let mut receiver = receiver_ptr.get_mut();
-
         let method = self.allocate_method(&process, &receiver_ptr, cc);
 
-        receiver.add_method(name.clone(), method.clone());
+        receiver_ptr.add_method(&process, name.clone(), method);
 
-        process.write_barrier(receiver_ptr, method);
         process.set_register(register, method);
 
         Ok(())
@@ -3640,14 +3623,10 @@ impl VirtualMachine {
         let target_ptr = instruction_object!(instruction, process, 0);
         let scope_ptr = instruction_object!(instruction, process, 1);
 
-        let mut target = target_ptr.get_mut();
-
         let scope =
             copy_if_permanent!(self.state.permanent_allocator, scope_ptr, target_ptr);
 
-        target.set_outer_scope(scope);
-
-        process.write_barrier(target_ptr, scope);
+        target_ptr.set_outer_scope(&process, scope);
 
         Ok(())
     }
@@ -3784,9 +3763,8 @@ impl VirtualMachine {
             let receiver = receiver_ptr.get();
 
             try_vm_error!(
-                receiver.lookup_method(name).ok_or_else(|| {
-                    format!("undefined method \"{}\"", name)
-                }),
+                receiver.lookup_method(name)
+                    .ok_or_else(|| format!("undefined method \"{}\"", name)),
                 instruction
             )
         };
