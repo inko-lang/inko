@@ -244,8 +244,6 @@ impl CopyObject for LocalAllocator {
 
 impl Drop for LocalAllocator {
     fn drop(&mut self) {
-        self.young_finalizer_set.reset();
-        self.mature_finalizer_set.reset();
         self.return_blocks();
     }
 }
