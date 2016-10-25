@@ -141,7 +141,7 @@ impl Block {
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
-            holes: LINES_PER_BLOCK,
+            holes: 1,
         });
 
         block.free_pointer = block.start_address();
@@ -187,7 +187,6 @@ impl Block {
         self.bucket = bucket;
     }
 
-    /// Returns true if this block can be recycled.
     pub fn is_recyclable(&self) -> bool {
         match self.status {
             BlockStatus::Recyclable => true,
@@ -195,7 +194,10 @@ impl Block {
         }
     }
 
-    /// Returns true if this block is too fragmented for allocations.
+    pub fn set_recyclable(&mut self) {
+        self.status = BlockStatus::Recyclable;
+    }
+
     pub fn is_fragmented(&self) -> bool {
         match self.status {
             BlockStatus::Fragmented => true,
@@ -203,14 +205,12 @@ impl Block {
         }
     }
 
-    /// Returns true if objects in this block should be evacuated.
-    pub fn should_evacuate(&self) -> bool {
-        self.is_recyclable() || self.is_fragmented()
-    }
-
-    /// Marks this block as being fragmented.
     pub fn set_fragmented(&mut self) {
         self.status = BlockStatus::Fragmented;
+    }
+
+    pub fn should_evacuate(&self) -> bool {
+        self.is_recyclable() || self.is_fragmented()
     }
 
     /// Returns true if this block is available for allocations.
@@ -259,6 +259,13 @@ impl Block {
         self.free_pointer < self.end_pointer
     }
 
+    pub fn line_index_of_pointer(&self, pointer: RawObjectPointer) -> usize {
+        let first_line = self.lines as usize;
+        let line_addr = (pointer as isize & LINE_BITMAP_MASK) as usize;
+
+        (line_addr - first_line) / LINE_SIZE
+    }
+
     /// Moves the free/end pointer to the next available hole if any.
     pub fn find_available_hole(&mut self) {
         if self.free_pointer == self.end_address() {
@@ -266,12 +273,7 @@ impl Block {
             return;
         }
 
-        // Determine the index of the line the current free pointer belongs to.
-        // TODO: object pointers will need to re-use this, so this should
-        // probably either be a Block function or a separate function.
-        let line_addr = (self.free_pointer as isize & LINE_BITMAP_MASK) as usize;
-        let first_line = self.lines as usize;
-        let line_index = (line_addr - first_line) / LINE_SIZE;
+        let line_index = self.line_index_of_pointer(self.free_pointer);
 
         let mut line_pointer = self.free_pointer;
 
@@ -293,7 +295,7 @@ impl Block {
         }
     }
 
-    pub fn mark_as_full(&mut self) {
+    pub fn set_full(&mut self) {
         self.status = BlockStatus::Full;
     }
 
@@ -303,7 +305,9 @@ impl Block {
     /// take care of.
     pub fn reset(&mut self) {
         self.status = BlockStatus::Free;
-        self.holes = LINES_PER_BLOCK;
+
+        // All lines are empty, thus there's only 1 hole.
+        self.holes = 1;
 
         self.free_pointer = self.start_address();
         self.end_pointer = self.end_address();
@@ -343,6 +347,266 @@ impl Block {
 
 impl Drop for Block {
     fn drop(&mut self) {
-        self.reset();
+        unsafe {
+            heap::deallocate(self.lines as *mut u8, BLOCK_SIZE, BLOCK_SIZE);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use immix::bitmap::Bitmap;
+    use immix::bucket::Bucket;
+    use object::Object;
+    use object_value::ObjectValue;
+
+    #[test]
+    fn test_block_new() {
+        let block = Block::new();
+
+        assert_eq!(block.lines.is_null(), false);
+        assert_eq!(block.free_pointer.is_null(), false);
+        assert_eq!(block.end_pointer.is_null(), false);
+        assert!(block.bucket.is_null());
+    }
+
+    #[test]
+    fn test_block_reset_bitmaps() {
+        let mut block = Block::new();
+
+        block.used_lines_bitmap.set(1);
+        block.marked_objects_bitmap.set(1);
+        block.reset_bitmaps();
+
+        assert!(block.used_lines_bitmap.is_empty());
+        assert!(block.marked_objects_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_block_bucket_without_bucket() {
+        let block = Block::new();
+
+        assert!(block.bucket().is_none());
+    }
+
+    #[test]
+    fn test_block_bucket_with_bucket() {
+        let mut block = Block::new();
+        let mut bucket = Bucket::new();
+
+        block.set_bucket(&mut bucket as *mut Bucket);
+
+        assert!(block.bucket().is_some());
+    }
+
+    #[test]
+    fn test_block_is_recyclable() {
+        let mut block = Block::new();
+
+        assert_eq!(block.is_recyclable(), false);
+
+        block.set_recyclable();
+
+        assert!(block.is_recyclable());
+    }
+
+    #[test]
+    fn test_block_is_fragmented() {
+        let mut block = Block::new();
+
+        assert_eq!(block.is_fragmented(), false);
+
+        block.set_fragmented();
+
+        assert!(block.is_fragmented());
+    }
+
+    #[test]
+    fn test_block_should_evacuate() {
+        let mut block = Block::new();
+
+        assert_eq!(block.should_evacuate(), false);
+
+        block.set_recyclable();
+
+        assert!(block.should_evacuate());
+
+        block.set_fragmented();
+
+        assert!(block.should_evacuate());
+    }
+
+    #[test]
+    fn test_block_is_available() {
+        let mut block = Block::new();
+
+        assert!(block.is_available());
+
+        block.set_recyclable();
+
+        assert!(block.is_available());
+
+        block.set_fragmented();
+
+        assert_eq!(block.is_available(), false);
+    }
+
+    #[test]
+    fn test_block_is_empty() {
+        let mut block = Block::new();
+
+        assert!(block.is_empty());
+
+        block.used_lines_bitmap.set(1);
+
+        assert_eq!(block.is_empty(), false);
+    }
+
+    #[test]
+    fn test_block_start_address() {
+        let block = Block::new();
+
+        assert_eq!(block.start_address().is_null(), false);
+    }
+
+    #[test]
+    fn test_block_end_address() {
+        let block = Block::new();
+
+        assert_eq!(block.end_address().is_null(), false);
+    }
+
+    #[test]
+    fn test_block_bump_allocate() {
+        let mut block = Block::new();
+        let obj = Object::new(ObjectValue::Integer(10));
+        let pointer = block.bump_allocate(obj);
+
+        assert!(pointer.get().value.is_integer());
+    }
+
+    #[test]
+    fn test_block_can_bump_allocate() {
+        let mut block = Block::new();
+
+        assert!(block.can_bump_allocate());
+
+        block.free_pointer = block.end_pointer;
+
+        assert_eq!(block.can_bump_allocate(), false);
+    }
+
+    #[test]
+    fn test_line_index_of_pointer() {
+        let block = Block::new();
+
+        assert_eq!(block.line_index_of_pointer(block.free_pointer), 1);
+    }
+
+    #[test]
+    fn test_find_available_hole() {
+        let mut block = Block::new();
+
+        let pointer1 = block.bump_allocate(Object::new(ObjectValue::None));
+
+        block.used_lines_bitmap.set(1);
+        block.find_available_hole();
+
+        let pointer2 = block.bump_allocate(Object::new(ObjectValue::None));
+
+        block.used_lines_bitmap.set(2);
+        block.used_lines_bitmap.set(3);
+        block.find_available_hole();
+
+        let pointer3 = block.bump_allocate(Object::new(ObjectValue::None));
+
+        assert_eq!(pointer1.line_index(), 1);
+        assert_eq!(pointer2.line_index(), 2);
+        assert_eq!(pointer3.line_index(), 4);
+    }
+
+    #[test]
+    fn test_find_available_hole_full_block() {
+        let mut block = Block::new();
+
+        block.free_pointer = block.end_pointer;
+
+        // Since the block has been "consumed" this method should not modify the
+        // free pointer in any way.
+        block.find_available_hole();
+
+        assert!(block.free_pointer == block.end_pointer);
+    }
+
+    #[test]
+    fn test_set_full() {
+        let mut block = Block::new();
+
+        assert!(block.is_available());
+
+        block.set_full();
+
+        assert_eq!(block.is_available(), false);
+    }
+
+    #[test]
+    fn test_reset() {
+        let mut block = Block::new();
+        let mut bucket = Bucket::new();
+
+        block.set_recyclable();
+        block.holes = 4;
+
+        block.free_pointer = block.end_address();
+        block.end_pointer = block.start_address();
+        block.set_bucket(&mut bucket as *mut Bucket);
+        block.used_lines_bitmap.set(1);
+        block.marked_objects_bitmap.set(1);
+
+        block.reset();
+
+        assert!(block.is_available());
+        assert_eq!(block.holes, 1);
+        assert!(block.free_pointer == block.start_address());
+        assert!(block.end_pointer == block.end_address());
+        assert!(block.bucket.is_null());
+        assert!(block.used_lines_bitmap.is_empty());
+        assert!(block.marked_objects_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_update_hole_count() {
+        let mut block = Block::new();
+
+        block.used_lines_bitmap.set(1);
+        block.used_lines_bitmap.set(3);
+        block.used_lines_bitmap.set(10);
+
+        block.update_hole_count();
+
+        assert_eq!(block.holes, 3);
+    }
+
+    #[test]
+    fn test_marked_lines_count() {
+        let mut block = Block::new();
+
+        assert_eq!(block.marked_lines_count(), 0);
+
+        block.used_lines_bitmap.set(1);
+
+        assert_eq!(block.marked_lines_count(), 1);
+    }
+
+    #[test]
+    fn test_available_lines_count() {
+        let mut block = Block::new();
+
+        assert_eq!(block.available_lines_count(), 255);
+
+        block.used_lines_bitmap.set(1);
+
+        assert_eq!(block.available_lines_count(), 254);
     }
 }

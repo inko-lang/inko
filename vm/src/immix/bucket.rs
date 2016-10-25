@@ -115,7 +115,7 @@ impl Bucket {
 
                 return Some(block);
             } else {
-                block.mark_as_full();
+                block.set_full();
             }
 
             // The entire block has been consumed so we'll try the next one.
@@ -162,6 +162,10 @@ impl Bucket {
 
                 self.mark_histogram
                     .increment(block.holes, block.marked_lines_count());
+
+                if block.holes > 0 {
+                    block.set_recyclable();
+                }
 
                 keep.push(block);
             }

@@ -198,10 +198,7 @@ impl ObjectPointer {
 
     /// Returns the line index of the current pointer.
     pub fn line_index(&self) -> usize {
-        let start_addr = self.block_header_pointer_address();
-        let offset = self.raw.untagged() as usize - start_addr;
-
-        offset / block::LINE_SIZE
+        self.block().line_index_of_pointer(self.raw.untagged())
     }
 
     /// Returns a mutable reference to the block this pointer belongs to.
@@ -590,9 +587,18 @@ mod tests {
     #[test]
     fn test_line_index() {
         let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
 
-        assert_eq!(pointer.line_index(), 1);
+        let ptr1 = allocator.allocate_empty();
+        let ptr2 = allocator.allocate_empty();
+        let ptr3 = allocator.allocate_empty();
+        let ptr4 = allocator.allocate_empty();
+        let ptr5 = allocator.allocate_empty();
+
+        assert_eq!(ptr1.line_index(), 1);
+        assert_eq!(ptr2.line_index(), 1);
+        assert_eq!(ptr3.line_index(), 1);
+        assert_eq!(ptr4.line_index(), 1);
+        assert_eq!(ptr5.line_index(), 2);
     }
 
     #[test]
