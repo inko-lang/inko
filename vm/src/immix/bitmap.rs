@@ -101,8 +101,10 @@ pub trait Bitmap {
 
     /// Returns `true` if the bitmap is full, `false` otherwise
     fn is_full(&self) -> bool {
+        let max = &self.max_value();
+
         for value in self.values().iter() {
-            if *value < self.max_value() {
+            if value < max {
                 return false;
             }
         }
