@@ -362,6 +362,31 @@ mod tests {
     use object_value::ObjectValue;
 
     #[test]
+    fn test_block_header_new() {
+        let mut block = Block::new();
+        let header = BlockHeader::new(&mut *block as *mut Block);
+
+        assert_eq!(header.block.is_null(), false);
+    }
+
+    #[test]
+    fn test_block_header_block() {
+        let mut block = Block::new();
+        let header = BlockHeader::new(&mut *block as *mut Block);
+
+        assert!(header.block().is_available());
+    }
+
+
+    #[test]
+    fn test_block_header_block_mut() {
+        let mut block = Block::new();
+        let header = BlockHeader::new(&mut *block as *mut Block);
+
+        assert!(header.block_mut().is_available());
+    }
+
+    #[test]
     fn test_block_new() {
         let block = Block::new();
 
