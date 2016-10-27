@@ -269,29 +269,46 @@ impl Block {
     /// Moves the free/end pointer to the next available hole if any.
     pub fn find_available_hole(&mut self) {
         if self.free_pointer == self.end_address() {
-            // We have already consumed the entire block
             return;
         }
 
         let line_index = self.line_index_of_pointer(self.free_pointer);
+        let mut free_index_opt = None;
 
-        let mut line_pointer = self.free_pointer;
+        // First we'll try to find a new position for the free pointer
+        for index in (line_index + 1)..LINES_PER_BLOCK {
+            if !self.used_lines_bitmap.is_set(index) {
+                unsafe {
+                    let offset = index - line_index;
 
-        // Iterate over all lines until we find a completely unused one or run
-        // out of lines to process.
-        for current_line_index in (line_index + 1)..LINES_PER_BLOCK {
-            line_pointer =
-                unsafe { line_pointer.offset(OBJECTS_PER_LINE as isize) };
+                    self.free_pointer = self.free_pointer
+                        .offset((offset * OBJECTS_PER_LINE) as isize);
+                }
 
-            if !self.used_lines_bitmap.is_set(current_line_index) {
-                self.free_pointer = line_pointer;
-
-                self.end_pointer = unsafe {
-                    self.free_pointer.offset(OBJECTS_PER_LINE as isize)
-                };
+                free_index_opt = Some(index);
 
                 break;
             }
+        }
+
+        // Now we'll try to find the new end pointer.
+        if let Some(free_index) = free_index_opt {
+            for index in (free_index + 1)..LINES_PER_BLOCK {
+                if self.used_lines_bitmap.is_set(index) {
+                    unsafe {
+                        let offset = index - free_index;
+
+                        self.end_pointer = self.free_pointer
+                            .offset((offset * OBJECTS_PER_LINE) as isize);
+                    }
+
+                    return;
+                }
+            }
+
+            // In case all lines following the free pointer are free we'll want
+            // to use that entire hole.
+            self.end_pointer = self.end_address();
         }
     }
 
@@ -562,6 +579,27 @@ mod tests {
         block.find_available_hole();
 
         assert!(block.free_pointer == block.end_pointer);
+    }
+
+    #[test]
+    fn test_find_available_hole_pointer_range() {
+        let mut block = Block::new();
+
+        block.used_lines_bitmap.set(1);
+        block.used_lines_bitmap.set(2);
+        block.used_lines_bitmap.set(255);
+
+        block.find_available_hole();
+
+        let start_pointer = unsafe {
+            block.start_address().offset(2 * OBJECTS_PER_LINE as isize)
+        };
+
+        let end_pointer = (block.end_address() as usize -
+                           LINE_SIZE) as *mut Object;
+
+        assert!(block.free_pointer == start_pointer);
+        assert!(block.end_pointer == end_pointer);
     }
 
     #[test]
