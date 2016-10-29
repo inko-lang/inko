@@ -34,7 +34,6 @@ impl Bucket {
         Self::with_age(0)
     }
 
-    /// Returns a Bucket with a custom age.
     pub fn with_age(age: isize) -> Self {
         Bucket {
             blocks: Vec::new(),
@@ -53,17 +52,14 @@ impl Bucket {
         self.age += 1;
     }
 
-    /// Returns an immutable reference to the current block.
     pub fn current_block(&self) -> &Box<Block> {
         self.blocks.get(self.block_index).unwrap()
     }
 
-    /// Returns a mutable reference to the current block.
     pub fn current_block_mut(&mut self) -> &mut Box<Block> {
         self.blocks.get_mut(self.block_index).unwrap()
     }
 
-    /// Adds a new block to the current bucket.
     pub fn add_block(&mut self, block: Box<Block>) -> &mut Box<Block> {
         self.blocks.push(block);
 
@@ -77,12 +73,10 @@ impl Bucket {
         block_ref
     }
 
-    /// Bump allocates into the current block.
     pub fn bump_allocate(&mut self, object: Object) -> ObjectPointer {
         self.current_block_mut().bump_allocate(object)
     }
 
-    /// Returns true if we can bump allocate into the current block.
     pub fn can_bump_allocate(&self) -> bool {
         self.current_block().can_bump_allocate()
     }
@@ -174,5 +168,208 @@ impl Bucket {
         self.blocks = keep;
 
         reclaim
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use immix::block::Block;
+    use immix::bitmap::Bitmap;
+    use object::Object;
+    use object_value::ObjectValue;
+
+    #[test]
+    fn test_new() {
+        let bucket = Bucket::new();
+
+        assert_eq!(bucket.age, 0);
+    }
+
+    #[test]
+    fn test_with_age() {
+        let bucket = Bucket::with_age(4);
+
+        assert_eq!(bucket.age, 4);
+        assert_eq!(bucket.blocks.len(), 0);
+        assert_eq!(bucket.block_index, 0);
+    }
+
+    #[test]
+    fn test_reset_age() {
+        let mut bucket = Bucket::with_age(4);
+
+        bucket.reset_age();
+
+        assert_eq!(bucket.age, 0);
+    }
+
+    #[test]
+    fn test_increment_age() {
+        let mut bucket = Bucket::new();
+
+        bucket.increment_age();
+        bucket.increment_age();
+
+        assert_eq!(bucket.age, 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_current_block_without_block() {
+        let bucket = Bucket::new();
+
+        bucket.current_block();
+    }
+
+    #[test]
+    fn test_current_block_with_block() {
+        let mut bucket = Bucket::new();
+        let block = Block::new();
+
+        bucket.add_block(block);
+        bucket.current_block();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_current_block_mut_without_block() {
+        let mut bucket = Bucket::new();
+
+        bucket.current_block_mut();
+    }
+
+    #[test]
+    fn test_current_block_mut() {
+        let mut bucket = Bucket::new();
+        let block = Block::new();
+
+        bucket.add_block(block);
+        bucket.current_block_mut();
+    }
+
+    #[test]
+    fn test_add_block() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+
+        assert_eq!(bucket.blocks.len(), 1);
+        assert_eq!(bucket.blocks[0].bucket.is_null(), false);
+    }
+
+    #[test]
+    fn test_bump_allocate() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+
+        let ptr = bucket.bump_allocate(Object::new(ObjectValue::Integer(1)));
+
+        assert!(ptr.get().value.is_integer());
+    }
+
+    #[test]
+    fn test_can_bump_allocate() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+
+        assert!(bucket.can_bump_allocate());
+    }
+
+    #[test]
+    fn test_first_available_block_first_block_empty() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+
+        bucket.first_available_block();
+
+        assert_eq!(bucket.block_index, 0);
+    }
+
+    #[test]
+    fn test_first_available_block_first_block_unavailable() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        bucket.block_index = 0;
+
+        bucket.blocks[0].set_full();
+        bucket.first_available_block();
+
+        assert_eq!(bucket.block_index, 1);
+    }
+
+    #[test]
+    fn test_first_available_block_first_block_consumed() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        bucket.block_index = 0;
+
+        bucket.blocks[0].free_pointer = bucket.blocks[0].end_pointer;
+        bucket.first_available_block();
+
+        assert_eq!(bucket.block_index, 1);
+    }
+
+    #[test]
+    fn test_rewind_allocator() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+        bucket.rewind_allocator();
+
+        assert_eq!(bucket.block_index, 0);
+
+        assert!(bucket.blocks[0].free_pointer ==
+                bucket.blocks[0].start_address());
+    }
+
+    #[test]
+    fn test_has_recyclable_blocks() {
+        let mut bucket = Bucket::new();
+
+        assert_eq!(bucket.has_recyclable_blocks(), false);
+
+        bucket.add_block(Block::new());
+
+        assert_eq!(bucket.has_recyclable_blocks(), false);
+
+        bucket.blocks[0].set_recyclable();
+
+        assert!(bucket.has_recyclable_blocks());
+    }
+
+    #[test]
+    fn test_reclaim_blocks() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        bucket.blocks[0].used_lines_bitmap.set(255);
+        bucket.blocks[2].used_lines_bitmap.set(2);
+
+        bucket.reclaim_blocks();
+
+        assert_eq!(bucket.blocks.len(), 2);
+
+        assert_eq!(bucket.blocks[0].holes, 1);
+        assert_eq!(bucket.blocks[1].holes, 2);
+
+        assert!(bucket.blocks[0].is_recyclable());
+        assert!(bucket.blocks[1].is_recyclable());
+
+        assert_eq!(bucket.mark_histogram.get(1).unwrap(), 1);
+        assert_eq!(bucket.mark_histogram.get(2).unwrap(), 1);
     }
 }
