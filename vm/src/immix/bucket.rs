@@ -136,6 +136,16 @@ impl Bucket {
         false
     }
 
+    pub fn has_blocks_to_evacuate(&self) -> bool {
+        for block in self.blocks.iter() {
+            if block.should_evacuate() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     /// Removes and returns all unused blocks from this bucket.
     ///
     /// For blocks that are kept around the hole count and the mark histogram is
@@ -346,6 +356,21 @@ mod tests {
         bucket.blocks[0].set_recyclable();
 
         assert!(bucket.has_recyclable_blocks());
+    }
+
+    #[test]
+    fn test_has_blocks_to_evacuate() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        assert_eq!(bucket.has_blocks_to_evacuate(), false);
+
+        bucket.blocks[0].set_recyclable();
+        bucket.blocks[1].set_fragmented();
+
+        assert!(bucket.has_blocks_to_evacuate());
     }
 
     #[test]

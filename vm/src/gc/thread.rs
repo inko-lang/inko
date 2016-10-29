@@ -81,22 +81,27 @@ impl Thread {
     fn prepare_bucket(&self, bucket: &mut Bucket) {
         let mut available: isize = 0;
         let mut required: isize = 0;
+        let evacuate = bucket.has_blocks_to_evacuate();
 
         // HashMap with the keys being the hole counts, and the values being the
         // indices of the corresponding blocks.
         let mut blocks_per_holes = HashMap::new();
 
         for (index, block) in bucket.blocks.iter_mut().enumerate() {
-            if block.should_evacuate() {
+            if evacuate {
                 let count = block.available_lines_count();
 
                 bucket.available_histogram.increment(block.holes, count);
 
                 available += count as isize;
 
-                blocks_per_holes.entry(block.holes)
-                    .or_insert(Vec::new())
-                    .push(index);
+                // Evacuating blocks without any holes is rather pointless, so
+                // we'll skip those.
+                if block.holes > 0 {
+                    blocks_per_holes.entry(block.holes)
+                        .or_insert(Vec::new())
+                        .push(index);
+                }
             }
 
             block.reset_bitmaps();
