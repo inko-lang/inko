@@ -8,13 +8,13 @@ use std::sync::{Arc, Mutex};
 use immix::block::{Block, BLOCK_SIZE};
 
 /// The number of blocks to pre-allocate.
-const PRE_ALLOCATE_BLOCKS: usize = (1 * 1024 * 1024) / BLOCK_SIZE;
+pub const PRE_ALLOCATE_BLOCKS: usize = (1 * 1024 * 1024) / BLOCK_SIZE;
 
 pub type RcGlobalAllocator = Arc<GlobalAllocator>;
 
 /// Structure used for storing the state of the global allocator.
 pub struct GlobalAllocator {
-    blocks: Mutex<Vec<Box<Block>>>,
+    pub blocks: Mutex<Vec<Box<Block>>>,
 }
 
 impl GlobalAllocator {
@@ -48,15 +48,45 @@ impl GlobalAllocator {
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
         unlock!(self.blocks).push(block);
-        self.compact();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new() {
+        let alloc = GlobalAllocator::new();
+
+        assert_eq!(unlock!(alloc.blocks).len(), PRE_ALLOCATE_BLOCKS);
     }
 
-    /// Compacts the list of blocks if needed.
-    pub fn compact(&self) {
-        let mut blocks = unlock!(self.blocks);
+    #[test]
+    fn test_without_preallocated_blocks() {
+        let alloc = GlobalAllocator::without_preallocated_blocks();
 
-        if blocks.capacity() / blocks.len() >= 4 {
-            blocks.shrink_to_fit();
-        }
+        assert_eq!(unlock!(alloc.blocks).len(), 0);
+    }
+
+    #[test]
+    fn test_request_block() {
+        let alloc = GlobalAllocator::without_preallocated_blocks();
+        let block = alloc.request_block();
+
+        alloc.add_block(block);
+        alloc.request_block();
+
+        assert_eq!(unlock!(alloc.blocks).len(), 0);
+    }
+
+    #[test]
+    fn test_add_block() {
+        let alloc = GlobalAllocator::without_preallocated_blocks();
+        let block = alloc.request_block();
+
+        alloc.add_block(block);
+
+        assert_eq!(unlock!(alloc.blocks).len(), 1);
     }
 }
