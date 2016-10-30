@@ -104,21 +104,6 @@ impl LocalAllocator {
         &mut self.mature_generation
     }
 
-    /// Resets and returns all blocks of all buckets to the global allocator.
-    pub fn return_blocks(&mut self) {
-        for bucket in self.young_generation.iter_mut() {
-            for mut block in bucket.blocks.drain(0..) {
-                block.reset();
-                self.global_allocator.add_block(block);
-            }
-        }
-
-        for mut block in self.mature_generation.blocks.drain(0..) {
-            block.reset();
-            self.global_allocator.add_block(block);
-        }
-    }
-
     /// Returns unused blocks to the global allocator.
     pub fn reclaim_blocks(&mut self, mature: bool) {
         for bucket in self.young_generation.iter_mut() {
@@ -134,7 +119,6 @@ impl LocalAllocator {
         }
     }
 
-    /// Allocates an object with a prototype.
     pub fn allocate_with_prototype(&mut self,
                                    value: ObjectValue,
                                    proto: ObjectPointer)
@@ -144,7 +128,6 @@ impl LocalAllocator {
         self.allocate_eden(object)
     }
 
-    /// Allocates an object without a prototype.
     pub fn allocate_without_prototype(&mut self,
                                       value: ObjectValue)
                                       -> ObjectPointer {
@@ -158,7 +141,6 @@ impl LocalAllocator {
         self.allocate_without_prototype(object_value::none())
     }
 
-    /// Allocates an object in the eden space.
     pub fn allocate_eden(&mut self, object: Object) -> ObjectPointer {
         let (new_block, pointer) = self.allocate_eden_raw(object);
 
@@ -173,9 +155,10 @@ impl LocalAllocator {
         pointer
     }
 
-    /// Allocates an object in the mature space.
     pub fn allocate_mature(&mut self, object: Object) -> ObjectPointer {
         let (new_block, pointer) = self.allocate_mature_raw(object);
+
+        pointer.get_mut().set_mature();
 
         if pointer.is_finalizable() {
             self.mature_finalizer_set.insert(pointer);
@@ -188,7 +171,6 @@ impl LocalAllocator {
         pointer
     }
 
-    /// Allocates an object into a specific bucket.
     pub fn allocate_bucket(&mut self,
                            bucket: &mut Bucket,
                            object: Object)
@@ -247,6 +229,249 @@ impl CopyObject for LocalAllocator {
 
 impl Drop for LocalAllocator {
     fn drop(&mut self) {
-        self.return_blocks();
+        for bucket in self.young_generation.iter_mut() {
+            for mut block in bucket.blocks.drain(0..) {
+                block.reset();
+                self.global_allocator.add_block(block);
+            }
+        }
+
+        for mut block in self.mature_generation.blocks.drain(0..) {
+            block.reset();
+            self.global_allocator.add_block(block);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use immix::global_allocator::GlobalAllocator;
+    use immix::bucket::Bucket;
+    use object::Object;
+    use object_value;
+
+    fn local_allocator() -> LocalAllocator {
+        LocalAllocator::new(GlobalAllocator::without_preallocated_blocks())
+    }
+
+    #[test]
+    fn test_new() {
+        let alloc = local_allocator();
+
+        assert_eq!(alloc.young_generation[0].age, 0);
+        assert_eq!(alloc.young_generation[1].age, -1);
+        assert_eq!(alloc.young_generation[2].age, -2);
+        assert_eq!(alloc.young_generation[3].age, -3);
+
+        assert_eq!(alloc.eden_index, 0);
+
+        assert_eq!(alloc.young_block_allocations, 0);
+        assert_eq!(alloc.mature_block_allocations, 0);
+    }
+
+    #[test]
+    fn test_global_allocator() {
+        let alloc = local_allocator();
+        let global_alloc = alloc.global_allocator();
+
+        assert_eq!(unlock!(global_alloc.blocks).len(), 0);
+    }
+
+    #[test]
+    fn test_eden_space_mut() {
+        let mut alloc = local_allocator();
+
+        assert_eq!(alloc.eden_space_mut().age, 0);
+    }
+
+    #[test]
+    fn test_mature_generation_mut() {
+        let mut alloc = local_allocator();
+
+        assert_eq!(alloc.mature_generation_mut().age, 0);
+    }
+
+    #[test]
+    fn reclaim_blocks() {
+        let mut alloc = local_allocator();
+
+        let block1 = alloc.global_allocator.request_block();
+        let block2 = alloc.global_allocator.request_block();
+
+        alloc.eden_space_mut().add_block(block1);
+        alloc.mature_generation_mut().add_block(block2);
+
+        alloc.reclaim_blocks(false);
+
+        assert_eq!(alloc.eden_space_mut().blocks.len(), 0);
+        assert_eq!(alloc.mature_generation_mut().blocks.len(), 1);
+
+        alloc.reclaim_blocks(true);
+
+        assert_eq!(alloc.mature_generation_mut().blocks.len(), 0);
+    }
+
+    #[test]
+    fn test_allocate_with_prototype() {
+        let mut alloc = local_allocator();
+        let proto = alloc.allocate_empty();
+        let pointer =
+            alloc.allocate_with_prototype(object_value::integer(5), proto);
+
+        assert!(pointer.get().prototype == proto);
+        assert!(pointer.get().value.is_integer());
+    }
+
+    #[test]
+    fn test_allocate_without_prototype() {
+        let mut alloc = local_allocator();
+        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+
+        assert!(pointer.get().prototype().is_none());
+        assert!(pointer.get().value.is_integer());
+    }
+
+    #[test]
+    fn test_allocate_empty() {
+        let mut alloc = local_allocator();
+        let pointer = alloc.allocate_empty();
+
+        assert!(pointer.get().value.is_none());
+        assert!(pointer.get().prototype().is_none());
+    }
+
+    #[test]
+    fn test_allocate_eden() {
+        let mut alloc = local_allocator();
+        let ptr1 = alloc.allocate_eden(Object::new(object_value::none()));
+
+        let ptr2 = alloc.allocate_eden(
+            Object::new(object_value::string("a".to_string())));
+
+        assert_eq!(alloc.young_block_allocations, 1);
+        assert_eq!(alloc.young_finalizer_set.from.contains(&ptr1), false);
+        assert!(alloc.young_finalizer_set.from.contains(&ptr2));
+
+        assert!(ptr1.is_young());
+        assert!(ptr2.is_young());
+    }
+
+    #[test]
+    fn test_allocate_mature() {
+        let mut alloc = local_allocator();
+        let ptr1 = alloc.allocate_mature(Object::new(object_value::none()));
+
+        let ptr2 = alloc.allocate_mature(
+            Object::new(object_value::string("a".to_string())));
+
+        assert_eq!(alloc.mature_block_allocations, 1);
+        assert_eq!(alloc.mature_finalizer_set.from.contains(&ptr1), false);
+        assert!(alloc.mature_finalizer_set.from.contains(&ptr2));
+
+        assert!(ptr1.is_mature());
+        assert!(ptr2.is_mature());
+    }
+
+    #[test]
+    fn test_allocate_bucket() {
+        let mut alloc = local_allocator();
+        let mut bucket = Bucket::new();
+
+        let (new_block, pointer) =
+            alloc.allocate_bucket(&mut bucket, Object::new(object_value::none()));
+
+        assert!(new_block);
+        assert!(pointer.get().value.is_none());
+    }
+
+    #[test]
+    fn test_increment_young_ages() {
+        let mut alloc = local_allocator();
+
+        assert_eq!(alloc.young_generation[0].age, 0);
+        assert_eq!(alloc.young_generation[1].age, -1);
+        assert_eq!(alloc.young_generation[2].age, -2);
+        assert_eq!(alloc.young_generation[3].age, -3);
+        assert_eq!(alloc.eden_index, 0);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 1);
+        assert_eq!(alloc.young_generation[1].age, 0);
+        assert_eq!(alloc.young_generation[2].age, -1);
+        assert_eq!(alloc.young_generation[3].age, -2);
+        assert_eq!(alloc.eden_index, 1);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 2);
+        assert_eq!(alloc.young_generation[1].age, 1);
+        assert_eq!(alloc.young_generation[2].age, 0);
+        assert_eq!(alloc.young_generation[3].age, -1);
+        assert_eq!(alloc.eden_index, 2);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 3);
+        assert_eq!(alloc.young_generation[1].age, 2);
+        assert_eq!(alloc.young_generation[2].age, 1);
+        assert_eq!(alloc.young_generation[3].age, 0);
+        assert_eq!(alloc.eden_index, 3);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 0);
+        assert_eq!(alloc.young_generation[1].age, 3);
+        assert_eq!(alloc.young_generation[2].age, 2);
+        assert_eq!(alloc.young_generation[3].age, 1);
+        assert_eq!(alloc.eden_index, 0);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 1);
+        assert_eq!(alloc.young_generation[1].age, 0);
+        assert_eq!(alloc.young_generation[2].age, 3);
+        assert_eq!(alloc.young_generation[3].age, 2);
+        assert_eq!(alloc.eden_index, 1);
+    }
+
+    #[test]
+    fn test_young_block_allocation_threshold_exceeded() {
+        let mut alloc = local_allocator();
+
+        assert_eq!(alloc.young_block_allocation_threshold_exceeded(), false);
+
+        alloc.young_block_allocations = YOUNG_BLOCK_ALLOCATION_THRESHOLD + 1;
+
+        assert!(alloc.young_block_allocation_threshold_exceeded());
+    }
+
+
+    #[test]
+    fn test_mature_block_allocation_threshold_exceeded() {
+        let mut alloc = local_allocator();
+
+        assert_eq!(alloc.mature_block_allocation_threshold_exceeded(), false);
+
+        alloc.mature_block_allocations = MATURE_BLOCK_ALLOCATION_THRESHOLD + 1;
+
+        assert!(alloc.mature_block_allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_drop() {
+        let mut alloc = local_allocator();
+        let global_alloc = alloc.global_allocator();
+
+        let block1 = global_alloc.request_block();
+        let block2 = global_alloc.request_block();
+
+        alloc.eden_space_mut().add_block(block1);
+        alloc.mature_generation_mut().add_block(block2);
+
+        drop(alloc);
+
+        assert_eq!(unlock!(global_alloc.blocks).len(), 2);
     }
 }
