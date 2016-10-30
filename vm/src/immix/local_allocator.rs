@@ -248,6 +248,7 @@ mod tests {
     use super::*;
     use immix::global_allocator::GlobalAllocator;
     use immix::bucket::Bucket;
+    use immix::copy_object::CopyObject;
     use object::Object;
     use object_value;
 
@@ -457,6 +458,16 @@ mod tests {
         alloc.mature_block_allocations = MATURE_BLOCK_ALLOCATION_THRESHOLD + 1;
 
         assert!(alloc.mature_block_allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_copy_object() {
+        let mut alloc = local_allocator();
+        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+        let copy = alloc.copy_object(pointer);
+
+        assert!(copy.is_young());
+        assert!(copy.get().value.is_integer());
     }
 
     #[test]
