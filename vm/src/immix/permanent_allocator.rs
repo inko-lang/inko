@@ -2,6 +2,8 @@
 //!
 //! This allocator allocates objects that are never garbage collected.
 
+use std::ops::Drop;
+
 use immix::bucket::Bucket;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
@@ -70,6 +72,15 @@ impl CopyObject for PermanentAllocator {
     }
 }
 
+impl Drop for PermanentAllocator {
+    fn drop(&mut self) {
+        for mut block in self.bucket.blocks.drain(0..) {
+            block.reset();
+            self.global_allocator.add_block(block);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,5 +121,17 @@ mod tests {
         assert!(pointer.get().value.is_none());
         assert!(pointer.get().prototype().is_none());
         assert!(pointer.is_permanent());
+    }
+
+    #[test]
+    fn test_drop() {
+        let mut alloc = permanent_allocator();
+        let global_alloc = alloc.global_allocator.clone();
+
+        alloc.allocate_empty();
+
+        drop(alloc);
+
+        assert_eq!(unlock!(global_alloc.blocks).len(), 1);
     }
 }
