@@ -201,9 +201,12 @@ impl LocalAllocator {
         for (index, bucket) in self.young_generation.iter_mut().enumerate() {
             if bucket.age == YOUNG_MAX_AGE {
                 bucket.reset_age();
-                self.eden_index = index;
             } else {
                 bucket.increment_age();
+            }
+
+            if bucket.age == 0 {
+                self.eden_index = index;
             }
         }
     }
