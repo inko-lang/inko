@@ -11,19 +11,8 @@ use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
 
-macro_rules! make_permanent {
-    ($pointer: expr) => ({
-        $pointer.get_mut().set_permanent();
-        $pointer
-    });
-}
-
-// Structure containing the state of the permanent allocator.
 pub struct PermanentAllocator {
-    /// The global allocator from which to request new blocks of memory.
     global_allocator: RcGlobalAllocator,
-
-    /// The bucket containing the permanent objects.
     bucket: Bucket,
 }
 
@@ -35,37 +24,35 @@ impl PermanentAllocator {
         }
     }
 
-    /// Allocates an object with a prototype.
     pub fn allocate_with_prototype(&mut self,
                                    value: ObjectValue,
                                    proto: ObjectPointer)
                                    -> ObjectPointer {
-        let object = Object::with_prototype(value, proto);
-
-        self.allocate(object)
+        self.allocate(Object::with_prototype(value, proto))
     }
 
-    /// Allocates an object without a prototype.
     pub fn allocate_without_prototype(&mut self,
                                       value: ObjectValue)
                                       -> ObjectPointer {
-        let object = Object::new(value);
-
-        self.allocate(object)
+        self.allocate(Object::new(value))
     }
 
-    /// Allocates an empty object without a prototype.
     pub fn allocate_empty(&mut self) -> ObjectPointer {
         self.allocate_without_prototype(object_value::none())
     }
 
-    /// Allocates a prepared Object on the heap.
-    pub fn allocate(&mut self, object: Object) -> ObjectPointer {
+    fn allocate(&mut self, object: Object) -> ObjectPointer {
+        let pointer = self.allocate_raw(object);
+
+        pointer.get_mut().set_permanent();
+
+        pointer
+    }
+
+    fn allocate_raw(&mut self, object: Object) -> ObjectPointer {
         {
             if let Some(block) = self.bucket.first_available_block() {
-                let pointer = block.bump_allocate(object);
-
-                return make_permanent!(pointer);
+                return block.bump_allocate(object);
             }
         }
 
@@ -73,14 +60,55 @@ impl PermanentAllocator {
 
         self.bucket.add_block(block);
 
-        let pointer = self.bucket.bump_allocate(object);
-
-        make_permanent!(pointer)
+        self.bucket.bump_allocate(object)
     }
 }
 
 impl CopyObject for PermanentAllocator {
     fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
         self.allocate(object)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use immix::global_allocator::GlobalAllocator;
+    use object_value;
+
+    fn permanent_allocator() -> PermanentAllocator {
+        PermanentAllocator::new(GlobalAllocator::without_preallocated_blocks())
+    }
+
+    #[test]
+    fn test_allocate_with_prototype() {
+        let mut alloc = permanent_allocator();
+        let proto = alloc.allocate_empty();
+        let pointer =
+            alloc.allocate_with_prototype(object_value::integer(5), proto);
+
+        assert!(pointer.get().prototype == proto);
+        assert!(pointer.get().value.is_integer());
+        assert!(pointer.is_permanent());
+    }
+
+    #[test]
+    fn test_allocate_without_prototype() {
+        let mut alloc = permanent_allocator();
+        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+
+        assert!(pointer.get().prototype().is_none());
+        assert!(pointer.get().value.is_integer());
+        assert!(pointer.is_permanent());
+    }
+
+    #[test]
+    fn test_allocate_empty() {
+        let mut alloc = permanent_allocator();
+        let pointer = alloc.allocate_empty();
+
+        assert!(pointer.get().value.is_none());
+        assert!(pointer.get().prototype().is_none());
+        assert!(pointer.is_permanent());
     }
 }

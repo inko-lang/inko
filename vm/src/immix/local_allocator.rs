@@ -448,7 +448,6 @@ mod tests {
         assert!(alloc.young_block_allocation_threshold_exceeded());
     }
 
-
     #[test]
     fn test_mature_block_allocation_threshold_exceeded() {
         let mut alloc = local_allocator();
