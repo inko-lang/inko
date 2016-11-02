@@ -164,10 +164,12 @@ impl Bucket {
             } else {
                 block.update_hole_count();
 
-                self.mark_histogram
-                    .increment(block.holes, block.marked_lines_count());
-
+                // Blocks with no holes won't be evacuated so there's no
+                // point in tracking them.
                 if block.holes > 0 {
+                    self.mark_histogram
+                        .increment(block.holes, block.marked_lines_count());
+
                     block.set_recyclable();
                 }
 

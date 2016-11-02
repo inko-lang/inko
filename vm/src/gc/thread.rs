@@ -88,35 +88,31 @@ impl Thread {
         let mut blocks_per_holes = HashMap::new();
 
         for (index, block) in bucket.blocks.iter_mut().enumerate() {
-            if evacuate {
+            if evacuate && block.holes > 0 {
                 let count = block.available_lines_count();
 
                 bucket.available_histogram.increment(block.holes, count);
 
                 available += count as isize;
 
-                // Evacuating blocks without any holes is rather pointless, so
-                // we'll skip those.
-                if block.holes > 0 {
-                    blocks_per_holes.entry(block.holes)
-                        .or_insert(Vec::new())
-                        .push(index);
-                }
+                blocks_per_holes.entry(block.holes)
+                    .or_insert(Vec::new())
+                    .push(index);
             }
 
             block.reset_bitmaps();
         }
 
         if available > 0 {
-            for bin in bucket.mark_histogram.iter() {
-                required += bucket.mark_histogram.get(bin).unwrap() as isize;
+            let mut iter = bucket.mark_histogram.iter();
 
-                available -=
-                    bucket.available_histogram.get(bin).unwrap() as isize;
+            while available > required {
+                if let Some(bin) = iter.next() {
+                    required += bucket.mark_histogram.get(bin).unwrap() as isize;
 
-                if required > available {
-                    break;
-                } else {
+                    available -=
+                        bucket.available_histogram.get(bin).unwrap() as isize;
+
                     // Mark all blocks with the matching number of holes as
                     // fragmented.
                     if let Some(indexes) = blocks_per_holes.get(&bin) {
@@ -124,6 +120,8 @@ impl Thread {
                             bucket.blocks[*index].set_fragmented();
                         }
                     }
+                } else {
+                    break;
                 }
             }
         }
@@ -313,5 +311,139 @@ impl Thread {
 
         local_data.allocator.young_block_allocations = 0;
         local_data.allocator.mature_block_allocations = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use compiled_code::CompiledCode;
+    use config::Config;
+    use immix::bitmap::Bitmap;
+    use immix::block::{OBJECTS_PER_BLOCK, OBJECTS_PER_LINE};
+    use immix::global_allocator::GlobalAllocator;
+    use immix::permanent_allocator::PermanentAllocator;
+    use object::Object;
+    use object_value;
+    use process::{Process, RcProcess};
+    use virtual_machine::{VirtualMachineState, RcVirtualMachineState};
+
+    fn vm_state() -> RcVirtualMachineState {
+        VirtualMachineState::new(Config::new())
+    }
+
+    fn process() -> (PermanentAllocator, RcProcess) {
+        let global_alloc = GlobalAllocator::new();
+        let mut perm_alloc = PermanentAllocator::new(global_alloc.clone());
+        let self_obj = perm_alloc.allocate_empty();
+
+        let code = CompiledCode::with_rc("a".to_string(),
+                                         "a".to_string(),
+                                         1,
+                                         Vec::new());
+
+        (perm_alloc, Process::from_code(1, code, self_obj, global_alloc))
+    }
+
+    fn gc_thread() -> Thread {
+        Thread::new(vm_state())
+    }
+
+    #[test]
+    fn test_prepare_collection() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+
+        process.allocate_empty();
+
+        // This is a smoke test to see if the code just runs. Most of the actual
+        // logic resides in prepare_bucket() and is as such tested separately.
+        thread.prepare_collection(&process, true);
+    }
+
+    #[test]
+    fn test_prepare_bucket_without_evacuation() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+        let pointer = process.allocate_empty();
+
+        pointer.mark();
+
+        let mut block = pointer.block_mut();
+
+        thread.prepare_bucket(block.bucket_mut().unwrap());
+
+        // No evacuation needed means the available histogram is not updated.
+        assert!(block.bucket().unwrap().available_histogram.get(1).is_none());
+
+        assert!(block.used_lines_bitmap.is_empty());
+        assert!(block.marked_objects_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_prepare_bucket_with_evacuation() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+        let pointer = process.allocate_empty();
+
+        pointer.mark();
+        pointer.block_mut().set_recyclable();
+
+        let mut block = pointer.block_mut();
+
+        // Normally the collector updates the mark histogram at the end of a
+        // cycle. Since said code is not executed by the function we're testing
+        // we'll update this histogram manually.
+        block.bucket_mut().unwrap().mark_histogram.increment(1, 1);
+
+        thread.prepare_bucket(block.bucket_mut().unwrap());
+
+        assert_eq!(block.bucket().unwrap().available_histogram.get(1).unwrap(),
+                   254);
+
+        assert!(pointer.block().is_fragmented());
+        assert!(pointer.block().used_lines_bitmap.is_empty());
+        assert!(pointer.block().marked_objects_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_reclaim_blocks() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+
+        let iterations = OBJECTS_PER_BLOCK - OBJECTS_PER_LINE;
+        let mut local_data = process.local_data_mut();
+        let ref mut allocator = local_data.allocator;
+
+        // Fill two blocks, the first one will be in use and the second one will
+        // be treated as empty.
+        for i in 0..(iterations * 2) {
+            let young = allocator.allocate_empty();
+
+            let mature =
+                allocator.allocate_mature(Object::new(object_value::none()));
+
+            // Mark objects 3..1020
+            if i < iterations && i > 3 {
+                young.mark();
+                mature.mark();
+            }
+        }
+
+        // This is to make sure that the assertions after calling
+        // reclaim_blocks() don't pass because there was only 1 block.
+        assert_eq!(allocator.eden_space_mut().blocks.len(), 2);
+        assert_eq!(allocator.mature_generation_mut().blocks.len(), 2);
+
+        thread.reclaim_blocks(&process, true);
+
+        assert_eq!(allocator.eden_space_mut().blocks.len(), 1);
+        assert_eq!(allocator.mature_generation_mut().blocks.len(), 1);
+
+        assert_eq!(allocator.eden_space_mut().blocks[0].holes, 1);
+        assert_eq!(allocator.mature_generation_mut().blocks[0].holes, 1);
+
+        assert!(allocator.eden_space_mut().blocks[0].is_recyclable());
+        assert!(allocator.mature_generation_mut().blocks[0].is_recyclable());
     }
 }
