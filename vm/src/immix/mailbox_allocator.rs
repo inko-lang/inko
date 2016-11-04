@@ -35,17 +35,9 @@ impl MailboxAllocator {
     }
 
     fn allocate_raw(&mut self, object: Object) -> ObjectPointer {
-        {
-            if let Some(block) = self.bucket.first_available_block() {
-                return block.bump_allocate(object);
-            }
-        }
+        let (_, pointer) = allocate_in_bucket!(self, object, self.bucket);
 
-        let block = self.global_allocator.request_block();
-
-        self.bucket.add_block(block);
-
-        self.bucket.bump_allocate(object)
+        pointer
     }
 }
 

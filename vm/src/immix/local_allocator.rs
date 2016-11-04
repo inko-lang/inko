@@ -16,21 +16,6 @@ use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
 
-/// Macro that allocates an object in a block and returns a pointer to the
-/// allocated object.
-macro_rules! allocate {
-    ($alloc: expr, $object: ident, $bucket: expr) => ({
-        if let Some(block) = $bucket.first_available_block() {
-            return (false, block.bump_allocate($object));
-        }
-
-        let block = $alloc.global_allocator.request_block();
-        let mut block_ref = $bucket.add_block(block);
-
-        (true, block_ref.bump_allocate($object))
-    });
-}
-
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: isize = 3;
 
@@ -175,7 +160,7 @@ impl LocalAllocator {
                            bucket: &mut Bucket,
                            object: Object)
                            -> (bool, ObjectPointer) {
-        allocate!(self, object, bucket)
+        allocate_in_bucket!(self, object, bucket)
     }
 
     /// Increments the age of all buckets in the young generation
@@ -213,11 +198,11 @@ impl LocalAllocator {
     // in a better way: https://github.com/rust-lang/rfcs/issues/811
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        allocate!(self, object, self.eden_space_mut())
+        allocate_in_bucket!(self, object, self.eden_space_mut())
     }
 
     fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        allocate!(self, object, self.mature_generation_mut())
+        allocate_in_bucket!(self, object, self.mature_generation_mut())
     }
 }
 

@@ -57,8 +57,8 @@ pub struct BlockHeader {
 /// Enum indicating the state of a block.
 #[derive(Debug)]
 pub enum BlockStatus {
-    /// The block is empty.
-    Free,
+    /// The block has space available.
+    Available,
 
     /// The block can be recycled.
     Recyclable,
@@ -135,7 +135,7 @@ impl Block {
 
         let mut block = Box::new(Block {
             lines: lines,
-            status: BlockStatus::Free,
+            status: BlockStatus::Available,
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
@@ -216,7 +216,7 @@ impl Block {
     /// Returns true if this block is available for allocations.
     pub fn is_available(&self) -> bool {
         match self.status {
-            BlockStatus::Free => true,
+            BlockStatus::Available => true,
             BlockStatus::Recyclable => true,
             _ => false,
         }
@@ -321,7 +321,7 @@ impl Block {
     /// Allocated objects are _not_ released as this is up to an allocator to
     /// take care of.
     pub fn reset(&mut self) {
-        self.status = BlockStatus::Free;
+        self.status = BlockStatus::Available;
 
         // All lines are empty, thus there's only 1 hole.
         self.holes = 1;

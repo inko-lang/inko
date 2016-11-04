@@ -65,10 +65,10 @@ impl Bucket {
 
         self.block_index = self.blocks.len() - 1;
 
-        let block_ptr = self as *mut Bucket;
+        let bucket_ptr = self as *mut Bucket;
         let mut block_ref = self.blocks.last_mut().unwrap();
 
-        block_ref.set_bucket(block_ptr);
+        block_ref.set_bucket(bucket_ptr);
 
         block_ref
     }
@@ -81,48 +81,44 @@ impl Bucket {
         self.current_block().can_bump_allocate()
     }
 
-    /// Attempts to find the first available block that we can allocate into.
-    ///
-    /// Once a block has been found we store the index so any further
-    /// allocations use this block when possible.
-    pub fn first_available_block(&mut self) -> Option<&mut Box<Block>> {
-        let start = self.block_index;
+    // Finds a hole to allocate into.
+    //
+    // Returns true if a hole was found.
+    pub fn find_hole(&mut self) -> bool {
+        for index in self.block_index..self.blocks.len() {
+            let ref mut block = self.blocks[index];
 
-        // Attempt to find any available blocks after the current one.
-        for (index, block) in self.blocks[start..].iter_mut().enumerate() {
             if !block.is_available() {
                 continue;
             }
 
-            // We can bump allocate directly into the current hole.
             if block.can_bump_allocate() {
+                // We can bump allocate into the current hole.
                 self.block_index = index;
 
-                return Some(block);
+                return true;
             }
 
-            // The block _is_ available but the current hole has been exhausted.
+            // Block available but the hole is consumed.
             block.find_available_hole();
 
             if block.can_bump_allocate() {
                 self.block_index = index;
 
-                return Some(block);
-            } else {
-                block.set_full();
+                return true;
             }
 
-            // The entire block has been consumed so we'll try the next one.
+            // The block is full, try the next one.
         }
 
-        None
+        false
     }
 
     /// Resets the block to use for allocations to the first available block.
     pub fn rewind_allocator(&mut self) {
         self.block_index = 0;
 
-        self.first_available_block();
+        self.find_hole();
     }
 
     /// Returns true if this bucket contains any recyclable blocks.
@@ -164,13 +160,15 @@ impl Bucket {
             } else {
                 block.update_hole_count();
 
-                // Blocks with no holes won't be evacuated so there's no
-                // point in tracking them.
                 if block.holes > 0 {
+                    // Only evacuate blocks that have 1 or more holes.
                     self.mark_histogram
                         .increment(block.holes, block.marked_lines_count());
 
                     block.set_recyclable();
+                } else {
+                    // Full blocks should not be evacuated or allocated into.
+                    block.set_full();
                 }
 
                 keep.push(block);
@@ -268,6 +266,12 @@ mod tests {
 
         assert_eq!(bucket.blocks.len(), 1);
         assert_eq!(bucket.blocks[0].bucket.is_null(), false);
+        assert_eq!(bucket.block_index, 0);
+
+        bucket.add_block(Block::new());
+
+        assert_eq!(bucket.blocks.len(), 2);
+        assert_eq!(bucket.block_index, 1);
     }
 
     #[test]
@@ -291,18 +295,18 @@ mod tests {
     }
 
     #[test]
-    fn test_first_available_block_first_block_empty() {
+    fn test_find_hole_first_block_empty() {
         let mut bucket = Bucket::new();
 
         bucket.add_block(Block::new());
 
-        bucket.first_available_block();
+        bucket.find_hole();
 
         assert_eq!(bucket.block_index, 0);
     }
 
     #[test]
-    fn test_first_available_block_first_block_unavailable() {
+    fn test_find_hole_first_block_unavailable() {
         let mut bucket = Bucket::new();
 
         bucket.add_block(Block::new());
@@ -311,13 +315,13 @@ mod tests {
         bucket.block_index = 0;
 
         bucket.blocks[0].set_full();
-        bucket.first_available_block();
+        bucket.find_hole();
 
         assert_eq!(bucket.block_index, 1);
     }
 
     #[test]
-    fn test_first_available_block_first_block_consumed() {
+    fn test_find_hole_first_block_consumed() {
         let mut bucket = Bucket::new();
 
         bucket.add_block(Block::new());
@@ -326,7 +330,21 @@ mod tests {
         bucket.block_index = 0;
 
         bucket.blocks[0].free_pointer = bucket.blocks[0].end_pointer;
-        bucket.first_available_block();
+        bucket.find_hole();
+
+        assert_eq!(bucket.block_index, 1);
+    }
+
+    #[test]
+    fn test_find_hole_multiple_free_blocks() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        assert_eq!(bucket.block_index, 1);
+
+        bucket.find_hole();
 
         assert_eq!(bucket.block_index, 1);
     }
@@ -398,5 +416,21 @@ mod tests {
 
         assert_eq!(bucket.mark_histogram.get(1).unwrap(), 1);
         assert_eq!(bucket.mark_histogram.get(2).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_reclaim_blocks_full() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+
+        for i in 0..256 {
+            bucket.blocks[0].used_lines_bitmap.set(i);
+        }
+
+        bucket.reclaim_blocks();
+
+        assert_eq!(bucket.blocks.len(), 1);
+        assert_eq!(bucket.blocks[0].is_available(), false);
     }
 }
