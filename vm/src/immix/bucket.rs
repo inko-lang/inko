@@ -165,7 +165,7 @@ impl Bucket {
                     self.mark_histogram
                         .increment(block.holes, block.marked_lines_count());
 
-                    block.set_recyclable();
+                    block.recycle();
                 } else {
                     // Full blocks should not be evacuated or allocated into.
                     block.set_full();
