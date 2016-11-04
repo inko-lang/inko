@@ -446,4 +446,60 @@ mod tests {
         assert!(allocator.eden_space_mut().blocks[0].is_recyclable());
         assert!(allocator.mature_generation_mut().blocks[0].is_recyclable());
     }
+
+    #[test]
+    fn test_rewind_allocator_without_mature() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+        let mut local_data = process.local_data_mut();
+        let iterations = OBJECTS_PER_BLOCK - OBJECTS_PER_LINE;
+
+        for i in 0..(iterations * 2) {
+            let young = local_data.allocator.allocate_empty();
+
+            let mature = local_data.allocator
+                .allocate_mature(Object::new(object_value::none()));
+
+            if i > iterations {
+                young.mark();
+                mature.mark();
+            }
+        }
+
+        assert_eq!(local_data.allocator.young_generation[0].block_index, 1);
+        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
+
+        thread.rewind_allocator(&process, false);
+
+        assert_eq!(local_data.allocator.young_generation[0].block_index, 0);
+        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
+    }
+
+    #[test]
+    fn test_rewind_allocator_with_mature() {
+        let (_perm_alloc, process) = process();
+        let thread = gc_thread();
+        let mut local_data = process.local_data_mut();
+        let iterations = OBJECTS_PER_BLOCK - OBJECTS_PER_LINE;
+
+        for i in 0..(iterations * 2) {
+            let young = local_data.allocator.allocate_empty();
+
+            let mature = local_data.allocator
+                .allocate_mature(Object::new(object_value::none()));
+
+            if i > iterations {
+                young.mark();
+                mature.mark();
+            }
+        }
+
+        assert_eq!(local_data.allocator.young_generation[0].block_index, 1);
+        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
+
+        thread.rewind_allocator(&process, true);
+
+        assert_eq!(local_data.allocator.young_generation[0].block_index, 0);
+        assert_eq!(local_data.allocator.mature_generation.block_index, 0);
+    }
 }
