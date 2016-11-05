@@ -50,3 +50,46 @@ impl Register {
         pointers
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_pointer::{RawObjectPointer, ObjectPointer};
+
+    #[test]
+    fn test_set_get() {
+        let mut register = Register::new();
+        let pointer = ObjectPointer::null();
+
+        assert!(register.get(0).is_none());
+
+        register.set(0, pointer);
+
+        assert!(register.get(0).is_some());
+    }
+
+    #[test]
+    fn test_pointers() {
+        let mut register = Register::new();
+
+        let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
+        let pointer2 = ObjectPointer::new(0x2 as RawObjectPointer);
+
+        register.set(0, pointer1);
+        register.set(1, pointer2);
+
+        assert_eq!(register.pointers().len(), 2);
+
+        // The returned pointers should allow updating of what's stored in the
+        // register without copying anything.
+        for pointer_pointer in register.pointers() {
+            let mut pointer =
+                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+
+            pointer.raw.raw = 0x4 as RawObjectPointer;
+        }
+
+        assert_eq!(register.get(0).unwrap().raw.raw as usize, 0x4);
+        assert_eq!(register.get(1).unwrap().raw.raw as usize, 0x4);
+    }
+}
