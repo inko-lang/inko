@@ -784,8 +784,9 @@ mod tests {
         obj.add_method(name.clone(), fake_pointer());
         obj.add_attribute(name.clone(), fake_pointer());
         obj.add_constant(name.clone(), fake_pointer());
+        obj.set_outer_scope(fake_pointer());
 
-        assert_eq!(obj.pointers().len(), 3);
+        assert_eq!(obj.pointers().len(), 4);
     }
 
     #[test]
