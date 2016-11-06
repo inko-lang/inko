@@ -777,6 +777,14 @@ impl VirtualMachine {
                 }
             } // while
 
+            // Make sure that we update the stored instruction index in case we
+            // need to suspend for garbage collection.
+            //
+            // This is important as the collector may reschedule an already
+            // finished process. In that case we don't want to re-run any
+            // previously executed instructions.
+            process.set_instruction_index(index);
+
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
             if process.at_top_level() {
