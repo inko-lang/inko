@@ -172,66 +172,40 @@ impl Thread {
                     mut objects: VecDeque<*const ObjectPointer>) {
         let mut local_data = process.local_data_mut();
 
-        while objects.len() > 0 {
-            let pointer_pointer = objects.pop_front().unwrap();
-
+        while let Some(pointer_pointer) = objects.pop_front() {
             let mut pointer =
                 unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
 
-            // TODO: unmarkable pointers should never be scheduled.
-            if !pointer.is_markable() {
-                continue;
-            }
-
-            let already_marked = pointer.is_marked();
-
-            if pointer.should_promote_to_mature() {
-                let promoted = self.promote_mature(process, pointer);
-
-                objects.push_back(promoted.as_raw_pointer());
-
-                continue;
-            } else if pointer.should_evacuate() {
-                let evacuated = self.evacuate(process, pointer);
-
-                objects.push_back(evacuated.as_raw_pointer());
-
-                continue;
-            } else if pointer.is_forwarded() {
+            if pointer.is_forwarded() {
                 pointer.resolve_forwarding_pointer();
-            } else {
-                pointer.mark();
-
-                // Objects that are still reachable but should be finalized at
-                // some point should be remembered so we don't accidentally
-                // release their resources.
-                if pointer.is_mature() {
-                    local_data.allocator.mature_finalizer_set.retain(pointer);
-                } else {
-                    local_data.allocator.young_finalizer_set.retain(pointer);
-                }
+            } else if pointer.should_promote_to_mature() {
+                self.promote_mature(process, pointer);
+            } else if pointer.should_evacuate() {
+                self.evacuate(process, pointer);
             }
 
-            // Don't scan objects we have already scanned and marked before.
-            if already_marked {
+            if !pointer.is_markable() || pointer.is_marked() {
                 continue;
+            }
+
+            pointer.mark();
+
+            if pointer.is_mature() {
+                local_data.allocator.mature_finalizer_set.retain(pointer);
+            } else {
+                local_data.allocator.young_finalizer_set.retain(pointer);
             }
 
             for child_pointer_pointer in pointer.get().pointers() {
-                let child_pointer = unsafe { &*child_pointer_pointer };
-
-                if child_pointer.is_markable() && !child_pointer.is_marked() {
-                    objects.push_back(child_pointer_pointer);
-                }
+                objects.push_back(child_pointer_pointer);
             }
         }
     }
 
     /// Promotes an object to the mature generation.
-    fn promote_mature(&self,
-                      process: &RcProcess,
-                      pointer: &mut ObjectPointer)
-                      -> ObjectPointer {
+    ///
+    /// The pointer to promote is updated to point to the new location.
+    fn promote_mature(&self, process: &RcProcess, pointer: &mut ObjectPointer) {
         let mut local_data = process.local_data_mut();
         let mut old_obj = pointer.get_mut();
         let mut new_obj = old_obj.take();
@@ -248,15 +222,12 @@ impl Thread {
         old_obj.forward_to(new_pointer);
 
         pointer.resolve_forwarding_pointer();
-
-        new_pointer
     }
 
     // Evacuates a pointer.
-    fn evacuate(&self,
-                process: &RcProcess,
-                pointer: &mut ObjectPointer)
-                -> ObjectPointer {
+    //
+    // The pointer to evacuate is updated to point to the new location.
+    fn evacuate(&self, process: &RcProcess, pointer: &mut ObjectPointer) {
         let mut local_data = process.local_data_mut();
         let is_mature = pointer.is_mature();
 
@@ -287,8 +258,6 @@ impl Thread {
         } else {
             local_data.allocator.young_finalizer_set.insert(new_pointer);
         }
-
-        new_pointer
     }
 
     /// Finalizes unreachable young objects.
