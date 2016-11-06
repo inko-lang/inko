@@ -126,7 +126,7 @@ impl ObjectHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::ObjectPointer;
+    use object_pointer::{RawObjectPointer, ObjectPointer};
 
     #[test]
     fn test_new() {
@@ -148,6 +148,20 @@ mod tests {
         header.outer_scope = Some(ObjectPointer::null());
 
         assert_eq!(header.pointers().len(), 4);
+
+        // Make sure that updating the pointers also updates those stored in the
+        // header.
+        for pointer_pointer in header.pointers() {
+            let mut pointer =
+                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+
+            pointer.raw.raw = 0x4 as RawObjectPointer;
+        }
+
+        assert_eq!(header.get_method("test").unwrap().raw.raw as usize, 0x4);
+        assert_eq!(header.get_attribute("test").unwrap().raw.raw as usize, 0x4);
+        assert_eq!(header.get_constant("test").unwrap().raw.raw as usize, 0x4);
+        assert_eq!(header.outer_scope.as_ref().unwrap().raw.raw as usize, 0x4);
     }
 
     #[test]
