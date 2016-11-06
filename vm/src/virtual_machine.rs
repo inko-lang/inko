@@ -793,10 +793,8 @@ impl VirtualMachine {
 
             // We're not yet at the top level but we did finish running an
             // entire execution context.
-            {
-                process.pop_context();
-                process.pop_call_frame();
-            }
+            process.pop_context();
+            process.pop_call_frame();
 
             self.gc_safepoint(thread.clone(), process.clone());
 
