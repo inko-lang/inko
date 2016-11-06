@@ -321,6 +321,21 @@ mod tests {
     }
 
     #[test]
+    fn test_find_hole_first_block_fragmented() {
+        let mut bucket = Bucket::new();
+
+        bucket.add_block(Block::new());
+        bucket.add_block(Block::new());
+
+        bucket.block_index = 0;
+
+        bucket.blocks[0].set_fragmented();
+        bucket.find_hole();
+
+        assert_eq!(bucket.block_index, 1);
+    }
+
+    #[test]
     fn test_find_hole_first_block_consumed() {
         let mut bucket = Bucket::new();
 
