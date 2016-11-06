@@ -556,19 +556,21 @@ mod tests {
     fn test_recycle() {
         let mut block = Block::new();
 
-        for i in 0..8 {
-            let pointer = block.bump_allocate(Object::new(ObjectValue::None));
-
-            if i > 3 {
-                pointer.mark();
-            }
-        }
-
+        // First line is used
+        block.used_lines_bitmap.set(1);
         block.recycle();
 
         assert!(block.is_recyclable());
+        assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
+        assert!(block.end_pointer == block.end_address());
+
+        // first line is available, followed by a used line
+        block.used_lines_bitmap.reset();
+        block.used_lines_bitmap.set(2);
+        block.recycle();
+
         assert!(block.free_pointer == block.start_address());
-        assert!(block.end_pointer == unsafe { block.free_pointer.offset(4) });
+        assert!(block.end_pointer == unsafe { block.start_address().offset(4) });
     }
 
     #[test]
