@@ -1298,17 +1298,17 @@ impl VirtualMachine {
     ///
     /// This instruction requires 3 arguments:
     ///
-    /// 1. The number of parent bindings to traverse in order to find the
+    /// 1. The local variable index to set.
+    /// 2. The number of parent bindings to traverse in order to find the
     ///    binding to set the variable in.
-    /// 2. The local variable index to set.
     /// 3. The register containing the value to set.
     fn ins_set_parent_local(&self,
                             process: RcProcess,
                             _: RcCompiledCode,
                             instruction: &Instruction)
                             -> EmptyResult {
-        let depth = try_vm_error!(instruction.arg(0), instruction);
-        let index = try_vm_error!(instruction.arg(1), instruction);
+        let index = try_vm_error!(instruction.arg(0), instruction);
+        let depth = try_vm_error!(instruction.arg(1), instruction);
         let value = instruction_object!(instruction, process, 2);
 
         if let Some(binding) = process.binding().find_parent(depth) {
@@ -1323,19 +1323,19 @@ impl VirtualMachine {
 
     /// Gets a local variable in one of the parent bindings.
     ///
-    /// This instruction requires 2 arguments:
+    /// This instruction requires 3 arguments:
     ///
-    /// 1. The number of parent bindings to traverse in order to find the
+    /// 1. The register to store the local variable in.
+    /// 2. The number of parent bindings to traverse in order to find the
     ///    binding to get the variable from.
-    /// 2. The register to store the local variable in.
     /// 3. The local variable index to get.
     fn ins_get_parent_local(&self,
                             process: RcProcess,
                             _: RcCompiledCode,
                             instruction: &Instruction)
                             -> EmptyResult {
-        let depth = try_vm_error!(instruction.arg(0), instruction);
-        let reg = try_vm_error!(instruction.arg(1), instruction);
+        let reg = try_vm_error!(instruction.arg(0), instruction);
+        let depth = try_vm_error!(instruction.arg(1), instruction);
         let index = try_vm_error!(instruction.arg(2), instruction);
 
         if let Some(binding) = process.binding().find_parent(depth) {
@@ -1378,9 +1378,9 @@ impl VirtualMachine {
 
     /// Sets a constant using a runtime allocated String.
     ///
-    /// This instruction takes the same arguments as the "set_const" instruction
-    /// except the 2nd argument should point to a register containing a String
-    /// to use for the name.
+    /// This instruction takes the same arguments as the "set_literal_const"
+    /// instruction except the 2nd argument should point to a register
+    /// containing a String to use for the name.
     fn ins_set_const(&self,
                      process: RcProcess,
                      _: RcCompiledCode,

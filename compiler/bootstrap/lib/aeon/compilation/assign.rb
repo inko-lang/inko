@@ -7,7 +7,7 @@ module Aeon
         if @code.local_defined?(name)
           depth, name_idx = @code.resolve_local(name)
 
-          @code.set_parent_local([depth, name_idx, val_idx], line, column)
+          @code.set_parent_local([name_idx, depth, val_idx], line, column)
 
           name_idx
         else

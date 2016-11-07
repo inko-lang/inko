@@ -115,6 +115,17 @@ module Aeon
       get_binding_of_caller: 110
     }
 
+    # Instructions where the register containing a value to return is the last
+    # register, instead of the first one.
+    REGISTER_LAST = [
+      :set_const,
+      :set_literal_const,
+      :set_attr,
+      :set_literal_attr,
+      :set_local,
+      :set_parent_local
+    ]
+
     def initialize(name, arguments, line, column)
       @name = name
       @arguments = arguments
@@ -138,6 +149,14 @@ module Aeon
 
     def remap_arguments
       @arguments.map! { |arg| yield arg }
+    end
+
+    def written_register
+      if REGISTER_LAST.include?(name.to_sym)
+        arguments[-1]
+      else
+        arguments[0]
+      end
     end
 
     def inspect

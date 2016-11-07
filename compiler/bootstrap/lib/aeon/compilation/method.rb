@@ -95,7 +95,7 @@ module Aeon
         ins = code.instructions.last
 
         unless ins.name == :return
-          arg = ins.arguments[0]
+          arg = ins.written_register
 
           unless arg.is_a?(Fixnum)
             raise TypeError, "Can not add implicit return as #{ins.inspect} doesn't set a register"

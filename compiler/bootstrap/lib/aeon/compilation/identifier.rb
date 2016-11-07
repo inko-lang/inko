@@ -13,7 +13,7 @@ module Aeon
           register = @code.next_register
 
           if depth > 0
-            @code.get_parent_local([depth, register, local_idx], line, column)
+            @code.get_parent_local([register, depth, local_idx], line, column)
           else
             @code.get_local([register, local_idx], line, column)
           end
