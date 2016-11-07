@@ -21,9 +21,8 @@ pub const YOUNG_MAX_AGE: isize = 3;
 
 /// The maximum number of blocks that can be allocated before a garbage
 /// collection of the young generation should be performed.
-// pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = (1 * 1024 * 1024) /
-//                                                    BLOCK_SIZE;
-pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = 2;
+pub const YOUNG_BLOCK_ALLOCATION_THRESHOLD: usize = (1 * 1024 * 1024) /
+                                                    BLOCK_SIZE;
 
 /// The maximum number of blocks that can be allocated before a garbage
 /// collection of the mature generation should be performed.
