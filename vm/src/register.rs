@@ -39,15 +39,11 @@ impl Register {
         }
     }
 
-    /// Returns pointers to the pointers stored in the current Register.
-    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
-        let mut pointers = Vec::new();
-
+    /// Pushes all pointers in this register into the supplied vector.
+    pub fn push_pointers(&self, pointers: &mut Vec<*const ObjectPointer>) {
         for value in self.values.values() {
             pointers.push(value.as_raw_pointer());
         }
-
-        pointers
     }
 }
 
@@ -69,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pointers() {
+    fn test_push_pointers() {
         let mut register = Register::new();
 
         let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
@@ -78,11 +74,15 @@ mod tests {
         register.set(0, pointer1);
         register.set(1, pointer2);
 
-        assert_eq!(register.pointers().len(), 2);
+        let mut pointers = Vec::new();
+
+        register.push_pointers(&mut pointers);
+
+        assert_eq!(pointers.len(), 2);
 
         // The returned pointers should allow updating of what's stored in the
         // register without copying anything.
-        for pointer_pointer in register.pointers() {
+        for pointer_pointer in pointers {
             let mut pointer =
                 unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
 

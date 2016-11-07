@@ -335,18 +335,14 @@ impl Object {
         }
     }
 
-    /// Returns pointers to all the object pointers reachable from this object
-    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
-        let mut pointers = Vec::new();
-
+    /// Pushes all pointers in this object into the given Vec.
+    pub fn push_pointers(&self, mut pointers: &mut Vec<*const ObjectPointer>) {
         if !self.prototype.is_null() {
             pointers.push(self.prototype.as_raw_pointer());
         }
 
         if let Some(header) = self.header() {
-            let mut header_pointers = header.pointers();
-
-            pointers.append(&mut header_pointers);
+            header.push_pointers(pointers);
         }
 
         match self.value {
@@ -356,14 +352,10 @@ impl Object {
                 }
             }
             ObjectValue::Binding(ref binding) => {
-                for pointer in binding.pointers() {
-                    pointers.push(pointer);
-                }
+                binding.push_pointers(pointers);
             }
             _ => {}
         }
-
-        pointers
     }
 
     /// Returns a new Object that takes over the data of the current object.
@@ -772,21 +764,27 @@ mod tests {
     #[test]
     fn test_object_pointers_without_pointers() {
         let obj = new_object();
+        let mut pointers = Vec::new();
 
-        assert_eq!(obj.pointers().len(), 0);
+        obj.push_pointers(&mut pointers);
+
+        assert_eq!(pointers.len(), 0);
     }
 
     #[test]
     fn test_object_pointers_with_pointers() {
         let mut obj = new_object();
         let name = "test".to_string();
+        let mut pointers = Vec::new();
 
         obj.add_method(name.clone(), fake_pointer());
         obj.add_attribute(name.clone(), fake_pointer());
         obj.add_constant(name.clone(), fake_pointer());
         obj.set_outer_scope(fake_pointer());
 
-        assert_eq!(obj.pointers().len(), 4);
+        obj.push_pointers(&mut pointers);
+
+        assert_eq!(pointers.len(), 4);
     }
 
     #[test]

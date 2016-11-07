@@ -103,27 +103,22 @@ impl Binding {
         unsafe { &mut *self.locals.get() }
     }
 
-    /// Returns a collection of pointers to the pointers reachable by this
-    /// binding.
-    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
-        let mut pointers = Vec::new();
-
-        self.push_pointers(&mut pointers, self);
+    /// Pushes all pointers in this binding into the supplied vector.
+    pub fn push_pointers(&self, mut pointers: &mut Vec<*const ObjectPointer>) {
+        self.push_pointers_from_binding(pointers, self);
 
         let mut parent_opt = self.parent.as_ref();
 
         while let Some(parent) = parent_opt {
-            self.push_pointers(&mut pointers, &*parent);
+            self.push_pointers_from_binding(&mut pointers, &*parent);
 
             parent_opt = parent.parent.as_ref();
         }
-
-        pointers
     }
 
-    fn push_pointers(&self,
-                     pointers: &mut Vec<*const ObjectPointer>,
-                     binding: &Binding) {
+    fn push_pointers_from_binding(&self,
+                                  pointers: &mut Vec<*const ObjectPointer>,
+                                  binding: &Binding) {
         pointers.push(binding.self_object.as_raw_pointer());
 
         for local in binding.locals().iter() {
@@ -251,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pointers() {
+    fn test_push_pointers() {
         let self_obj1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let local1 = ObjectPointer::new(0x2 as RawObjectPointer);
         let binding1 = Binding::new(self_obj1);
@@ -264,7 +259,9 @@ mod tests {
 
         binding2.set_local(0, local2);
 
-        let pointers = binding2.pointers();
+        let mut pointers = Vec::new();
+
+        binding2.push_pointers(&mut pointers);
 
         assert_eq!(pointers.len(), 4);
 

@@ -1,6 +1,6 @@
 //! Threads for garbage collecting memory.
 use time;
-use std::collections::{VecDeque, HashMap};
+use std::collections::HashMap;
 
 use immix::bucket::Bucket;
 use object_pointer::ObjectPointer;
@@ -149,11 +149,11 @@ impl Thread {
 
     /// Marks all objects in the remembered set.
     fn mark_remembered_set(&self, process: &RcProcess) {
-        let mut objects = VecDeque::new();
+        let mut objects = Vec::new();
         let mut remembered_set = process.remembered_set_mut();
 
         for pointer in remembered_set.iter() {
-            objects.push_back(pointer.as_raw_pointer());
+            objects.push(pointer.as_raw_pointer());
         }
 
         self.mark_objects(process, objects);
@@ -169,10 +169,10 @@ impl Thread {
     /// Marks all the given objects, optionally evacuating them.
     fn mark_objects(&self,
                     process: &RcProcess,
-                    mut objects: VecDeque<*const ObjectPointer>) {
+                    mut objects: Vec<*const ObjectPointer>) {
         let mut local_data = process.local_data_mut();
 
-        while let Some(pointer_pointer) = objects.pop_front() {
+        while let Some(pointer_pointer) = objects.pop() {
             let mut pointer =
                 unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
 
@@ -196,9 +196,7 @@ impl Thread {
                 local_data.allocator.young_finalizer_set.retain(pointer);
             }
 
-            for child_pointer_pointer in pointer.get().pointers() {
-                objects.push_back(child_pointer_pointer);
-            }
+            pointer.get().push_pointers(&mut objects);
         }
     }
 

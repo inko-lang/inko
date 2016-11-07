@@ -32,10 +32,8 @@ impl ObjectHeader {
         }
     }
 
-    /// Returns a Vec containing pointers to all pointers stored in this header.
-    pub fn pointers(&self) -> Vec<*const ObjectPointer> {
-        let mut pointers = Vec::new();
-
+    /// Pushes all pointers in this header into the given Vec.
+    pub fn push_pointers(&self, pointers: &mut Vec<*const ObjectPointer>) {
         for (_, pointer) in self.attributes.iter() {
             pointers.push(pointer.as_raw_pointer());
         }
@@ -51,8 +49,6 @@ impl ObjectHeader {
         if let Some(scope) = self.outer_scope.as_ref() {
             pointers.push(scope.as_raw_pointer());
         }
-
-        pointers
     }
 
     /// Copies all pointers in this header to the given allocator.
@@ -139,19 +135,22 @@ mod tests {
     }
 
     #[test]
-    fn test_pointers() {
+    fn test_push_pointers() {
         let mut header = ObjectHeader::new();
+        let mut pointers = Vec::new();
 
         header.add_method("test".to_string(), ObjectPointer::null());
         header.add_attribute("test".to_string(), ObjectPointer::null());
         header.add_constant("test".to_string(), ObjectPointer::null());
         header.outer_scope = Some(ObjectPointer::null());
 
-        assert_eq!(header.pointers().len(), 4);
+        header.push_pointers(&mut pointers);
+
+        assert_eq!(pointers.len(), 4);
 
         // Make sure that updating the pointers also updates those stored in the
         // header.
-        for pointer_pointer in header.pointers() {
+        for pointer_pointer in pointers {
             let mut pointer =
                 unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
 

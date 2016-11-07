@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashSet};
+use std::collections::HashSet;
 use std::mem;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, Condvar};
@@ -457,17 +457,12 @@ impl Process {
     /// This method returns a vector of raw pointers to object pointers. Care
     /// must be taken to ensure that the raw pointers do not outlive the
     /// underlying object pointers.
-    pub fn roots(&self) -> VecDeque<*const ObjectPointer> {
-        let mut objects = VecDeque::new();
+    pub fn roots(&self) -> Vec<*const ObjectPointer> {
+        let mut objects = Vec::new();
 
         for context in self.context().contexts() {
-            for pointer in context.binding().pointers() {
-                objects.push_back(pointer);
-            }
-
-            for pointer in context.register.pointers() {
-                objects.push_back(pointer);
-            }
+            context.binding.push_pointers(&mut objects);
+            context.register.push_pointers(&mut objects);
         }
 
         objects
