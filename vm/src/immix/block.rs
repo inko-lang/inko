@@ -60,12 +60,6 @@ pub enum BlockStatus {
     /// The block has space available.
     Available,
 
-    /// The block can be recycled.
-    Recyclable,
-
-    /// This block is full.
-    Full,
-
     /// The block is fragmented and objects need to be evacuated.
     Fragmented,
 }
@@ -187,17 +181,6 @@ impl Block {
         self.bucket = bucket;
     }
 
-    pub fn is_recyclable(&self) -> bool {
-        match self.status {
-            BlockStatus::Recyclable => true,
-            _ => false,
-        }
-    }
-
-    pub fn set_recyclable(&mut self) {
-        self.status = BlockStatus::Recyclable;
-    }
-
     pub fn is_fragmented(&self) -> bool {
         match self.status {
             BlockStatus::Fragmented => true,
@@ -207,19 +190,6 @@ impl Block {
 
     pub fn set_fragmented(&mut self) {
         self.status = BlockStatus::Fragmented;
-    }
-
-    pub fn should_evacuate(&self) -> bool {
-        self.is_recyclable() || self.is_fragmented()
-    }
-
-    /// Returns true if this block is available for allocations.
-    pub fn is_available(&self) -> bool {
-        match self.status {
-            BlockStatus::Available => true,
-            BlockStatus::Recyclable => true,
-            _ => false,
-        }
     }
 
     /// Returns true if all lines in this block are available.
@@ -243,6 +213,10 @@ impl Block {
 
     /// Bump allocates an object into the current block.
     pub fn bump_allocate(&mut self, object: Object) -> ObjectPointer {
+        if self.is_fragmented() {
+            panic!("allocation into fragmented block");
+        }
+
         unsafe {
             ptr::write(self.free_pointer, object);
         }
@@ -268,7 +242,8 @@ impl Block {
 
     /// Recycles the current block
     pub fn recycle(&mut self) {
-        self.set_recyclable();
+        self.status = BlockStatus::Available;
+
         self.find_available_hole_starting_at(LINE_START_SLOT);
     }
 
@@ -278,13 +253,11 @@ impl Block {
             return;
         }
 
+        assert!(self.free_pointer <= self.end_address());
+
         let line_index = self.line_index_of_pointer(self.free_pointer);
 
         self.find_available_hole_starting_at(line_index);
-    }
-
-    pub fn set_full(&mut self) {
-        self.status = BlockStatus::Full;
     }
 
     /// Resets the block to a pristine state.
@@ -397,7 +370,7 @@ mod tests {
         let mut block = Block::new();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
-        assert!(header.block().is_available());
+        assert_eq!(header.block().holes, 1);
     }
 
 
@@ -406,7 +379,7 @@ mod tests {
         let mut block = Block::new();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
-        assert!(header.block_mut().is_available());
+        assert_eq!(header.block_mut().holes, 1);
     }
 
     #[test]
@@ -449,17 +422,6 @@ mod tests {
     }
 
     #[test]
-    fn test_block_is_recyclable() {
-        let mut block = Block::new();
-
-        assert_eq!(block.is_recyclable(), false);
-
-        block.set_recyclable();
-
-        assert!(block.is_recyclable());
-    }
-
-    #[test]
     fn test_block_is_fragmented() {
         let mut block = Block::new();
 
@@ -468,36 +430,6 @@ mod tests {
         block.set_fragmented();
 
         assert!(block.is_fragmented());
-    }
-
-    #[test]
-    fn test_block_should_evacuate() {
-        let mut block = Block::new();
-
-        assert_eq!(block.should_evacuate(), false);
-
-        block.set_recyclable();
-
-        assert!(block.should_evacuate());
-
-        block.set_fragmented();
-
-        assert!(block.should_evacuate());
-    }
-
-    #[test]
-    fn test_block_is_available() {
-        let mut block = Block::new();
-
-        assert!(block.is_available());
-
-        block.set_recyclable();
-
-        assert!(block.is_available());
-
-        block.set_fragmented();
-
-        assert_eq!(block.is_available(), false);
     }
 
     #[test]
@@ -529,9 +461,23 @@ mod tests {
     fn test_block_bump_allocate() {
         let mut block = Block::new();
         let obj = Object::new(ObjectValue::Integer(10));
-        let pointer = block.bump_allocate(obj);
 
-        assert!(pointer.get().value.is_integer());
+        assert!(block.free_pointer == block.start_address());
+
+        assert!(block.bump_allocate(obj).get().value.is_integer());
+        assert!(block.free_pointer == unsafe { block.start_address().offset(1) });
+
+        block.bump_allocate(Object::new(ObjectValue::None));
+        assert!(block.free_pointer == unsafe { block.start_address().offset(2) });
+
+        block.bump_allocate(Object::new(ObjectValue::None));
+        assert!(block.free_pointer == unsafe { block.start_address().offset(3) });
+
+        block.bump_allocate(Object::new(ObjectValue::None));
+        assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
+
+        block.bump_allocate(Object::new(ObjectValue::None));
+        assert!(block.free_pointer == unsafe { block.start_address().offset(5) });
     }
 
     #[test]
@@ -560,7 +506,6 @@ mod tests {
         block.used_lines_bitmap.set(1);
         block.recycle();
 
-        assert!(block.is_recyclable());
         assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
         assert!(block.end_pointer == block.end_address());
 
@@ -630,22 +575,11 @@ mod tests {
     }
 
     #[test]
-    fn test_set_full() {
-        let mut block = Block::new();
-
-        assert!(block.is_available());
-
-        block.set_full();
-
-        assert_eq!(block.is_available(), false);
-    }
-
-    #[test]
     fn test_reset() {
         let mut block = Block::new();
         let mut bucket = Bucket::new();
 
-        block.set_recyclable();
+        block.set_fragmented();
         block.holes = 4;
 
         block.free_pointer = block.end_address();
@@ -656,7 +590,11 @@ mod tests {
 
         block.reset();
 
-        assert!(block.is_available());
+        assert!(match block.status {
+            BlockStatus::Available => true,
+            _ => false,
+        });
+
         assert_eq!(block.holes, 1);
         assert!(block.free_pointer == block.start_address());
         assert!(block.end_pointer == block.end_address());

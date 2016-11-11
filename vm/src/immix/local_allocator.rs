@@ -155,13 +155,6 @@ impl LocalAllocator {
         pointer
     }
 
-    pub fn allocate_bucket(&mut self,
-                           bucket: &mut Bucket,
-                           object: Object)
-                           -> (bool, ObjectPointer) {
-        allocate_in_bucket!(self, object, bucket)
-    }
-
     /// Increments the age of all buckets in the young generation
     pub fn increment_young_ages(&mut self) {
         for (index, bucket) in self.young_generation.iter_mut().enumerate() {
@@ -197,11 +190,12 @@ impl LocalAllocator {
     // in a better way: https://github.com/rust-lang/rfcs/issues/811
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        allocate_in_bucket!(self, object, self.eden_space_mut())
+        self.young_generation[self.eden_index]
+            .allocate(&self.global_allocator, object)
     }
 
     fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        allocate_in_bucket!(self, object, self.mature_generation_mut())
+        self.mature_generation.allocate(&self.global_allocator, object)
     }
 }
 
@@ -231,7 +225,6 @@ impl Drop for LocalAllocator {
 mod tests {
     use super::*;
     use immix::global_allocator::GlobalAllocator;
-    use immix::bucket::Bucket;
     use immix::copy_object::CopyObject;
     use object::Object;
     use object_value;
@@ -356,18 +349,6 @@ mod tests {
 
         assert!(ptr1.is_mature());
         assert!(ptr2.is_mature());
-    }
-
-    #[test]
-    fn test_allocate_bucket() {
-        let mut alloc = local_allocator();
-        let mut bucket = Bucket::new();
-
-        let (new_block, pointer) =
-            alloc.allocate_bucket(&mut bucket, Object::new(object_value::none()));
-
-        assert!(new_block);
-        assert!(pointer.get().value.is_none());
     }
 
     #[test]

@@ -1,8 +1,6 @@
 //! Threads for garbage collecting memory.
 use time;
-use std::collections::HashMap;
 
-use immix::bucket::Bucket;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
 use virtual_machine::RcVirtualMachineState;
@@ -37,8 +35,8 @@ impl Thread {
             let collect_mature = process.should_collect_mature_generation();
 
             self.prepare_collection(process, collect_mature);
-            self.mark_roots(process);
-            self.mark_remembered_set(process);
+
+            let (marked, evacuated, promoted) = self.mark(process);
 
             if collect_mature {
                 self.finalize_all(process);
@@ -50,13 +48,16 @@ impl Thread {
 
             self.update_collection_thresholds(process);
             self.reclaim_blocks(process, collect_mature);
-            self.rewind_allocator(process, collect_mature);
 
             let duration = time::precise_time_ns() - start_time;
 
-            println!("Finished GC run in {} ns ({} ms)",
-                     duration,
-                     (duration as f64) / 1000000.0);
+            println!("Finished GC (mature: {}) in {} ms: {} marked, {} \
+                      evacuated, {} promoted",
+                     collect_mature,
+                     (duration as f64) / 1000000.0,
+                     marked,
+                     evacuated,
+                     promoted);
 
             request.thread.reschedule(request.process.clone());
         }
@@ -69,61 +70,11 @@ impl Thread {
         let mut local_data = process.local_data_mut();
 
         for bucket in local_data.allocator.young_generation.iter_mut() {
-            self.prepare_bucket(bucket);
+            bucket.prepare_for_collection();
         }
 
         if mature {
-            self.prepare_bucket(&mut local_data.allocator.mature_generation);
-        }
-    }
-
-    /// Prepares a single bucket for collection and evacuation (if needed).
-    fn prepare_bucket(&self, bucket: &mut Bucket) {
-        let mut available: isize = 0;
-        let mut required: isize = 0;
-        let evacuate = bucket.has_blocks_to_evacuate();
-
-        // HashMap with the keys being the hole counts, and the values being the
-        // indices of the corresponding blocks.
-        let mut blocks_per_holes = HashMap::new();
-
-        for (index, block) in bucket.blocks.iter_mut().enumerate() {
-            if evacuate && block.holes > 0 {
-                let count = block.available_lines_count();
-
-                bucket.available_histogram.increment(block.holes, count);
-
-                available += count as isize;
-
-                blocks_per_holes.entry(block.holes)
-                    .or_insert(Vec::new())
-                    .push(index);
-            }
-
-            block.reset_bitmaps();
-        }
-
-        if available > 0 {
-            let mut iter = bucket.mark_histogram.iter();
-
-            while available > required {
-                if let Some(bin) = iter.next() {
-                    required += bucket.mark_histogram.get(bin).unwrap() as isize;
-
-                    available -=
-                        bucket.available_histogram.get(bin).unwrap() as isize;
-
-                    // Mark all blocks with the matching number of holes as
-                    // fragmented.
-                    if let Some(indexes) = blocks_per_holes.get(&bin) {
-                        for index in indexes {
-                            bucket.blocks[*index].set_fragmented();
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
+            local_data.allocator.mature_generation.prepare_for_collection();
         }
     }
 
@@ -134,43 +85,24 @@ impl Thread {
         local_data.allocator.reclaim_blocks(mature);
     }
 
-    /// Rewinds the allocator to the first hole in every generation.
-    fn rewind_allocator(&self, process: &RcProcess, mature: bool) {
-        let mut local_data = process.local_data_mut();
-
-        for bucket in local_data.allocator.young_generation.iter_mut() {
-            bucket.rewind_allocator();
-        }
-
-        if mature {
-            local_data.allocator.mature_generation.rewind_allocator();
-        }
-    }
-
-    /// Marks all objects in the remembered set.
-    fn mark_remembered_set(&self, process: &RcProcess) {
-        let mut objects = Vec::new();
+    /// Marks all reachable objects.
+    ///
+    /// The return value is a tuple containing the following numbers:
+    ///
+    /// * The number of marked objects
+    /// * The number of evacuated objects
+    /// * The number of promoted objects
+    fn mark(&self, process: &RcProcess) -> (usize, usize, usize) {
+        let mut objects = process.roots();
         let mut remembered_set = process.remembered_set_mut();
+        let mut local_data = process.local_data_mut();
+        let mut marked = 0;
+        let mut evacuated = 0;
+        let mut promoted = 0;
 
         for pointer in remembered_set.iter() {
             objects.push(pointer.as_raw_pointer());
         }
-
-        self.mark_objects(process, objects);
-
-        remembered_set.clear();
-    }
-
-    /// Requests and marks the set of roots.
-    fn mark_roots(&self, process: &RcProcess) {
-        self.mark_objects(process, process.roots());
-    }
-
-    /// Marks all the given objects, optionally evacuating them.
-    fn mark_objects(&self,
-                    process: &RcProcess,
-                    mut objects: Vec<*const ObjectPointer>) {
-        let mut local_data = process.local_data_mut();
 
         while let Some(pointer_pointer) = objects.pop() {
             let mut pointer =
@@ -180,8 +112,12 @@ impl Thread {
                 pointer.resolve_forwarding_pointer();
             } else if pointer.should_promote_to_mature() {
                 self.promote_mature(process, pointer);
+
+                promoted += 1;
             } else if pointer.should_evacuate() {
                 self.evacuate(process, pointer);
+
+                evacuated += 1;
             }
 
             if !pointer.is_markable() || pointer.is_marked() {
@@ -189,6 +125,8 @@ impl Thread {
             }
 
             pointer.mark();
+
+            marked += 1;
 
             if pointer.is_mature() {
                 local_data.allocator.mature_finalizer_set.retain(pointer);
@@ -198,6 +136,12 @@ impl Thread {
 
             pointer.get().push_pointers(&mut objects);
         }
+
+        // The remembered set must be cleared _after_ traversing all objects as
+        // we may otherwise invalidate pointers too early.
+        remembered_set.clear();
+
+        (marked, evacuated, promoted)
     }
 
     /// Promotes an object to the mature generation.
@@ -244,8 +188,8 @@ impl Thread {
         let mut old_obj = pointer.get_mut();
         let new_obj = old_obj.take();
 
-        let (_, new_pointer) = local_data.allocator
-            .allocate_bucket(bucket, new_obj);
+        let (_, new_pointer) =
+            bucket.allocate(&local_data.allocator.global_allocator, new_obj);
 
         old_obj.forward_to(new_pointer);
 
@@ -286,7 +230,6 @@ mod tests {
     use super::*;
     use compiled_code::CompiledCode;
     use config::Config;
-    use immix::bitmap::Bitmap;
     use immix::block::{OBJECTS_PER_BLOCK, OBJECTS_PER_LINE};
     use immix::global_allocator::GlobalAllocator;
     use immix::permanent_allocator::PermanentAllocator;
@@ -329,51 +272,6 @@ mod tests {
     }
 
     #[test]
-    fn test_prepare_bucket_without_evacuation() {
-        let (_perm_alloc, process) = process();
-        let thread = gc_thread();
-        let pointer = process.allocate_empty();
-
-        pointer.mark();
-
-        let mut block = pointer.block_mut();
-
-        thread.prepare_bucket(block.bucket_mut().unwrap());
-
-        // No evacuation needed means the available histogram is not updated.
-        assert!(block.bucket().unwrap().available_histogram.get(1).is_none());
-
-        assert!(block.used_lines_bitmap.is_empty());
-        assert!(block.marked_objects_bitmap.is_empty());
-    }
-
-    #[test]
-    fn test_prepare_bucket_with_evacuation() {
-        let (_perm_alloc, process) = process();
-        let thread = gc_thread();
-        let pointer = process.allocate_empty();
-
-        pointer.mark();
-        pointer.block_mut().set_recyclable();
-
-        let mut block = pointer.block_mut();
-
-        // Normally the collector updates the mark histogram at the end of a
-        // cycle. Since said code is not executed by the function we're testing
-        // we'll update this histogram manually.
-        block.bucket_mut().unwrap().mark_histogram.increment(1, 1);
-
-        thread.prepare_bucket(block.bucket_mut().unwrap());
-
-        assert_eq!(block.bucket().unwrap().available_histogram.get(1).unwrap(),
-                   254);
-
-        assert!(pointer.block().is_fragmented());
-        assert!(pointer.block().used_lines_bitmap.is_empty());
-        assert!(pointer.block().marked_objects_bitmap.is_empty());
-    }
-
-    #[test]
     fn test_reclaim_blocks() {
         let (_perm_alloc, process) = process();
         let thread = gc_thread();
@@ -404,69 +302,13 @@ mod tests {
 
         thread.reclaim_blocks(&process, true);
 
-        assert_eq!(allocator.eden_space_mut().blocks.len(), 1);
-        assert_eq!(allocator.mature_generation_mut().blocks.len(), 1);
+        assert_eq!(allocator.eden_space_mut().blocks.len(), 0);
+        assert_eq!(allocator.mature_generation.blocks.len(), 0);
 
-        assert_eq!(allocator.eden_space_mut().blocks[0].holes, 1);
-        assert_eq!(allocator.mature_generation_mut().blocks[0].holes, 1);
+        assert_eq!(allocator.eden_space_mut().recyclable_blocks[0].holes, 1);
+        assert_eq!(allocator.mature_generation.recyclable_blocks[0].holes, 1);
 
-        assert!(allocator.eden_space_mut().blocks[0].is_recyclable());
-        assert!(allocator.mature_generation_mut().blocks[0].is_recyclable());
-    }
-
-    #[test]
-    fn test_rewind_allocator_without_mature() {
-        let (_perm_alloc, process) = process();
-        let thread = gc_thread();
-        let mut local_data = process.local_data_mut();
-        let iterations = OBJECTS_PER_BLOCK - OBJECTS_PER_LINE;
-
-        for i in 0..(iterations * 2) {
-            let young = local_data.allocator.allocate_empty();
-
-            let mature = local_data.allocator
-                .allocate_mature(Object::new(object_value::none()));
-
-            if i > iterations {
-                young.mark();
-                mature.mark();
-            }
-        }
-
-        assert_eq!(local_data.allocator.young_generation[0].block_index, 1);
-        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
-
-        thread.rewind_allocator(&process, false);
-
-        assert_eq!(local_data.allocator.young_generation[0].block_index, 0);
-        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
-    }
-
-    #[test]
-    fn test_rewind_allocator_with_mature() {
-        let (_perm_alloc, process) = process();
-        let thread = gc_thread();
-        let mut local_data = process.local_data_mut();
-        let iterations = OBJECTS_PER_BLOCK - OBJECTS_PER_LINE;
-
-        for i in 0..(iterations * 2) {
-            let young = local_data.allocator.allocate_empty();
-
-            let mature = local_data.allocator
-                .allocate_mature(Object::new(object_value::none()));
-
-            if i > iterations {
-                young.mark();
-                mature.mark();
-            }
-        }
-
-        assert_eq!(local_data.allocator.young_generation[0].block_index, 1);
-        assert_eq!(local_data.allocator.mature_generation.block_index, 1);
-
-        thread.rewind_allocator(&process, true);
-
-        assert_eq!(local_data.allocator.young_generation[0].block_index, 0);
-        assert_eq!(local_data.allocator.mature_generation.block_index, 0);
+        assert_eq!(allocator.eden_space_mut().recyclable_blocks.len(), 1);
+        assert_eq!(allocator.mature_generation.recyclable_blocks.len(), 1);
     }
 }

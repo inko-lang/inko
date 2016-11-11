@@ -35,7 +35,7 @@ impl MailboxAllocator {
     }
 
     fn allocate_raw(&mut self, object: Object) -> ObjectPointer {
-        let (_, pointer) = allocate_in_bucket!(self, object, self.bucket);
+        let (_, pointer) = self.bucket.allocate(&self.global_allocator, object);
 
         pointer
     }
