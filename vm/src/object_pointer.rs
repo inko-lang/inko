@@ -135,10 +135,6 @@ impl ObjectPointer {
 
     /// Returns true if the current object is marked.
     pub fn is_marked(&self) -> bool {
-        if !self.is_markable() {
-            return false;
-        }
-
         let bitmap = self.marked_objects_bitmap();
         let index = self.marked_objects_bitmap_index();
 
