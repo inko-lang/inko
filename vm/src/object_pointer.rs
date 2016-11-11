@@ -155,31 +155,16 @@ impl ObjectPointer {
 
     /// Marks the line this object resides in.
     pub fn mark_line(&self) {
-        if !self.is_markable() {
-            return;
-        }
-
-        let mut block = self.block_mut();
         let line_index = self.line_index();
 
-        if !block.used_lines_bitmap.is_set(line_index) {
-            block.used_lines_bitmap.set(line_index);
-        }
+        self.block_mut().used_lines_bitmap.set(line_index);
     }
 
     /// Marks the current object and its line.
     pub fn mark(&self) {
-        if !self.is_markable() {
-            return;
-        }
-
-        let mut bitmap = self.marked_objects_bitmap();
         let index = self.marked_objects_bitmap_index();
 
-        if !bitmap.is_set(index) {
-            bitmap.set(index);
-        }
-
+        self.marked_objects_bitmap().set(index);
         self.mark_line();
     }
 
