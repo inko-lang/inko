@@ -5,44 +5,24 @@
 //! entries while a LineMap is used for marking lines and can hold at most 256
 //! entries.
 
-#[cfg(all(target_pointer_width = "64"))]
-const OBJECT_ENTRIES: usize = 16;
+/// The number of entries in an object map.
+const OBJECT_ENTRIES: usize = 1024;
 
-#[cfg(all(target_pointer_width = "64"))]
-const LINE_ENTRIES: usize = 4;
-
-#[cfg(all(target_pointer_width = "64"))]
-const BITS_PER_INDEX: usize = 64;
-
-#[cfg(all(target_pointer_width = "32"))]
-const OBJECT_ENTRIES: usize = 32;
-
-#[cfg(all(target_pointer_width = "32"))]
-const LINE_ENTRIES: usize = 8;
-
-#[cfg(all(target_pointer_width = "32"))]
-const BITS_PER_INDEX: usize = 32;
-
-/// The maximum value of a single integer in the object bitmap.
-const OBJECT_MAX_VALUE: usize = 1 << (1023 % BITS_PER_INDEX);
-
-/// The maximum value of a single integer in the line bitmap.
-const LINE_MAX_VALUE: usize = 1 << (127 % BITS_PER_INDEX);
+/// The number of entries in a line map.
+const LINE_ENTRIES: usize = 256;
 
 pub struct ObjectMap {
-    values: [usize; OBJECT_ENTRIES],
+    values: [u8; OBJECT_ENTRIES],
 }
 
 pub struct LineMap {
-    values: [usize; LINE_ENTRIES],
+    values: [u8; LINE_ENTRIES],
 }
 
 pub trait Bitmap {
-    fn set_index_value(&mut self, usize, usize);
-    fn get_index_value(&self, usize) -> usize;
-    fn values(&self) -> &[usize];
-    fn max_value(&self) -> usize;
     fn max_entries(&self) -> usize;
+    fn values(&self) -> &[u8];
+    fn values_mut(&mut self) -> &mut [u8];
 
     /// Sets the given index in the bitmap.
     ///
@@ -52,11 +32,7 @@ pub trait Bitmap {
     ///
     ///     bitmap.set(4);
     fn set(&mut self, index: usize) {
-        let slice_idx = index / BITS_PER_INDEX;
-        let bit_offset = index % BITS_PER_INDEX;
-        let current = self.get_index_value(slice_idx);
-
-        self.set_index_value(slice_idx, current | (1 << bit_offset));
+        self.values_mut()[index] = 1;
     }
 
     /// Unsets the given index in the bitmap.
@@ -68,11 +44,7 @@ pub trait Bitmap {
     ///     bitmap.set(4);
     ///     bitmap.unset(4);
     fn unset(&mut self, index: usize) {
-        let slice_idx = index / BITS_PER_INDEX;
-        let bit_offset = index % BITS_PER_INDEX;
-        let current = self.get_index_value(slice_idx);
-
-        self.set_index_value(slice_idx, current & !(1 << bit_offset));
+        self.values_mut()[index] = 0;
     }
 
     /// Returns `true` if a given index is set.
@@ -87,24 +59,15 @@ pub trait Bitmap {
     ///
     ///     bitmap.is_set(1); // => true
     fn is_set(&self, index: usize) -> bool {
-        let slice_idx = index / BITS_PER_INDEX;
-        let current = self.get_index_value(slice_idx);
-
-        if current > 0 {
-            let bit_offset = index % BITS_PER_INDEX;
-
-            (current & (1 << bit_offset)) != 0
-        } else {
-            false
-        }
+        self.values()[index] == 1
     }
 
     /// Returns `true` if the bitmap is full, `false` otherwise
     fn is_full(&self) -> bool {
-        let max = &self.max_value();
+        let empty = 0 as u8;
 
         for value in self.values().iter() {
-            if value < max {
+            if value == &empty {
                 return false;
             }
         }
@@ -114,8 +77,10 @@ pub trait Bitmap {
 
     /// Returns true if the bitmap is empty.
     fn is_empty(&self) -> bool {
+        let empty = 0 as u8;
+
         for value in self.values().iter() {
-            if *value != 0 {
+            if value != &empty {
                 return false;
             }
         }
@@ -126,17 +91,17 @@ pub trait Bitmap {
     /// Resets the bitmap.
     fn reset(&mut self) {
         for index in 0..self.max_entries() {
-            self.set_index_value(index, 0);
+            self.unset(index);
         }
     }
 
     /// The number of indexes set in the bitmap.
     fn len(&self) -> usize {
-        let max_index = self.max_entries() * BITS_PER_INDEX;
+        let set = 1 as u8;
         let mut count = 0;
 
-        for index in 0..max_index {
-            if self.is_set(index) {
+        for value in self.values().iter() {
+            if value == &set {
                 count += 1;
             }
         }
@@ -160,46 +125,30 @@ impl LineMap {
 }
 
 impl Bitmap for ObjectMap {
-    fn set_index_value(&mut self, index: usize, value: usize) {
-        self.values[index] = value;
-    }
-
-    fn get_index_value(&self, index: usize) -> usize {
-        self.values[index]
-    }
-
-    fn values(&self) -> &[usize] {
+    fn values(&self) -> &[u8] {
         &self.values
+    }
+
+    fn values_mut(&mut self) -> &mut [u8] {
+        &mut self.values
     }
 
     fn max_entries(&self) -> usize {
         OBJECT_ENTRIES
     }
-
-    fn max_value(&self) -> usize {
-        OBJECT_MAX_VALUE
-    }
 }
 
 impl Bitmap for LineMap {
-    fn set_index_value(&mut self, index: usize, value: usize) {
-        self.values[index] = value;
-    }
-
-    fn get_index_value(&self, index: usize) -> usize {
-        self.values[index]
-    }
-
-    fn values(&self) -> &[usize] {
+    fn values(&self) -> &[u8] {
         &self.values
+    }
+
+    fn values_mut(&mut self) -> &mut [u8] {
+        &mut self.values
     }
 
     fn max_entries(&self) -> usize {
         LINE_ENTRIES
-    }
-
-    fn max_value(&self) -> usize {
-        LINE_MAX_VALUE
     }
 }
 
@@ -279,7 +228,7 @@ mod tests {
     fn test_object_map_size_of() {
         // This test is put in place to ensure the ObjectMap type doesn't
         // suddenly grow due to some change.
-        assert_eq!(size_of::<ObjectMap>(), 128);
+        assert_eq!(size_of::<ObjectMap>(), 1024);
     }
 
     #[test]
@@ -353,6 +302,6 @@ mod tests {
     fn test_line_map_size_of() {
         // This test is put in place to ensure the LineMap type doesn't suddenly
         // grow due to some change.
-        assert_eq!(size_of::<LineMap>(), 32);
+        assert_eq!(size_of::<LineMap>(), 256);
     }
 }
