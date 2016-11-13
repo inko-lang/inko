@@ -36,7 +36,7 @@ pub type RcVirtualMachineState = Arc<VirtualMachineState>;
 
 pub struct VirtualMachineState {
     pub gc_requests: Queue<GcRequest>,
-    config: Config,
+    pub config: Config,
     executed_files: RwLock<HashSet<String>>,
     threads: RwLock<ThreadList>,
     processes: RwLock<ProcessList>,
