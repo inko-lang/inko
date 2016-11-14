@@ -207,6 +207,11 @@ impl CopyObject for LocalAllocator {
 
 impl Drop for LocalAllocator {
     fn drop(&mut self) {
+        // We need to finalize any objects before we drop the corresponding
+        // Blocks later. Not doing so can lead to segmentation faults.
+        self.young_finalizer_set.finalize_all();
+        self.mature_finalizer_set.finalize_all();
+
         for bucket in self.young_generation.iter_mut() {
             for mut block in bucket.blocks.drain(0..) {
                 block.reset();
@@ -328,8 +333,7 @@ mod tests {
             Object::new(object_value::string("a".to_string())));
 
         assert_eq!(alloc.young_block_allocations, 1);
-        assert_eq!(alloc.young_finalizer_set.from.contains(&ptr1), false);
-        assert!(alloc.young_finalizer_set.from.contains(&ptr2));
+        assert!(alloc.young_finalizer_set.pointers.contains(&ptr2));
 
         assert!(ptr1.is_young());
         assert!(ptr2.is_young());
@@ -344,8 +348,7 @@ mod tests {
             Object::new(object_value::string("a".to_string())));
 
         assert_eq!(alloc.mature_block_allocations, 1);
-        assert_eq!(alloc.mature_finalizer_set.from.contains(&ptr1), false);
-        assert!(alloc.mature_finalizer_set.from.contains(&ptr2));
+        assert!(alloc.mature_finalizer_set.pointers.contains(&ptr2));
 
         assert!(ptr1.is_mature());
         assert!(ptr2.is_mature());

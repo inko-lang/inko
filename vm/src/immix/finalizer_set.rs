@@ -4,9 +4,6 @@
 //! resources (e.g. a Rust string). By tracking these pointers explicitly the
 //! garbage collector can release resources whenever an object becomes
 //! unreachable.
-
-use std::ops::Drop;
-
 use std::collections::HashSet;
 use object_pointer::ObjectPointer;
 
@@ -30,7 +27,7 @@ impl FinalizerSet {
         self.pointers.remove(pointer);
     }
 
-    /// Finalizes all unreachable objects.
+    /// Finalizes unreachable objects.
     pub fn finalize(&mut self) {
         let mut retain = HashSet::new();
 
@@ -38,21 +35,22 @@ impl FinalizerSet {
             if pointer.is_marked() {
                 retain.insert(pointer);
             } else {
-                let mut object = pointer.get_mut();
-
-                object.deallocate_pointers();
-
-                drop(object);
+                pointer.finalize();
             }
         }
 
         self.pointers = retain;
     }
-}
 
-impl Drop for FinalizerSet {
-    fn drop(&mut self) {
-        self.finalize();
+    /// Finalizes all objects, reachable or not.
+    pub fn finalize_all(&mut self) {
+        for pointer in self.pointers.drain() {
+            let mut object = pointer.get_mut();
+
+            object.deallocate_pointers();
+
+            drop(object);
+        }
     }
 }
 
@@ -112,6 +110,20 @@ mod tests {
 
         set.insert(pointer1);
         set.finalize();
+
+        assert_eq!(set.pointers.len(), 0);
+    }
+
+    #[test]
+    fn test_finalize_all() {
+        let mut set = FinalizerSet::new();
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark();
+
+        set.insert(pointer);
+        set.finalize_all();
 
         assert_eq!(set.pointers.len(), 0);
     }
