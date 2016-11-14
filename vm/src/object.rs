@@ -3,7 +3,6 @@
 //! The Object struct is used to represent an object created during runtime. It
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
-
 use object_header::ObjectHeader;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value::ObjectValue;
@@ -290,21 +289,6 @@ impl Object {
         };
     }
 
-    /// Deallocates any pointers stored directly in this object.
-    ///
-    /// Drop adds a flag which increases the struct size. To work around this
-    /// we use this drop-like method that's explicitly called by the garbage
-    /// collector.
-    pub fn deallocate_pointers(&mut self) {
-        if self.has_header() {
-            let boxed = unsafe { Box::from_raw(self.header.untagged()) };
-
-            drop(boxed);
-
-            self.header = TaggedPointer::null();
-        }
-    }
-
     /// Sets the generation of this object to the permanent generation.
     pub fn set_permanent(&mut self) {
         self.header.set_mask(PERMANENT_MASK);
@@ -395,6 +379,7 @@ impl Object {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
     use object_header::ObjectHeader;
     use object_value::ObjectValue;
     use object_pointer::{ObjectPointer, RawObjectPointer};
@@ -694,22 +679,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_deallocate_pointers() {
-        let mut obj = new_object();
-
-        obj.deallocate_pointers();
-    }
-
-    #[test]
-    fn test_object_deallocate_pointers_with_header() {
-        let mut obj = new_object();
-        let header = ObjectHeader::new();
-
-        obj.set_header(header);
-        obj.deallocate_pointers();
-    }
-
-    #[test]
     fn test_object_set_permanent() {
         let mut obj = new_object();
 
@@ -812,5 +781,10 @@ mod tests {
 
         assert!(obj.prototype().is_some());
         assert!(object_pointer_for(&obj).is_forwarded());
+    }
+
+    #[test]
+    fn test_object_size_of() {
+        assert_eq!(mem::size_of::<Object>(), 32);
     }
 }

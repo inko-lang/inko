@@ -45,11 +45,7 @@ impl FinalizerSet {
     /// Finalizes all objects, reachable or not.
     pub fn finalize_all(&mut self) {
         for pointer in self.pointers.drain() {
-            let mut object = pointer.get_mut();
-
-            object.deallocate_pointers();
-
-            drop(object);
+            pointer.finalize();
         }
     }
 }

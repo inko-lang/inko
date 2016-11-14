@@ -271,9 +271,13 @@ impl ObjectPointer {
     pub fn finalize(&self) {
         let mut object = self.get_mut();
 
-        object.deallocate_pointers();
+        if object.has_header() {
+            object.header.deallocate();
+        }
 
-        drop(object);
+        if object.value.should_deallocate_native() {
+            drop(object.value.take());
+        }
     }
 
     fn block_header_pointer_address(&self) -> usize {
