@@ -59,7 +59,14 @@ impl Binding {
 
     /// Sets a local variable.
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        self.locals_mut().insert(index, value);
+        let mut locals = self.locals_mut();
+
+        if locals.get(index).is_some() {
+            // Existing locals should be overwritten without shifting values.
+            locals[index] = value;
+        } else {
+            locals.insert(index, value);
+        }
     }
 
     /// Returns true if the local variable exists.
