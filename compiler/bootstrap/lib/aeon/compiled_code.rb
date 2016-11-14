@@ -60,7 +60,7 @@ module Aeon
 
         [depth, local]
       else
-        [0, @locals.get(name)]
+        [nil, @locals.get(name)]
       end
     end
 

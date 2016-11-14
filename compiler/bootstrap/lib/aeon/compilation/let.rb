@@ -18,14 +18,14 @@ module Aeon
         when :ivar
           instance_variable(val_idx)
         end
+
+        val_idx
       end
 
       def identifier(val_idx)
         name_idx = @code.locals.add(variable_name)
 
         @code.set_local([name_idx, val_idx], line, column)
-
-        name_idx
       end
 
       def constant(val_idx)
@@ -36,8 +36,6 @@ module Aeon
           ins.get_self          self_idx
           ins.set_literal_const self_idx, name_idx, val_idx
         end
-
-        name_idx
       end
 
       def instance_variable(val_idx)
