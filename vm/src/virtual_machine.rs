@@ -2770,7 +2770,11 @@ impl VirtualMachine {
         let value =
             copy_if_permanent!(self.state.permanent_allocator, value_ptr, array_ptr);
 
-        vector.insert(index, value.clone());
+        if vector.get(index).is_some() {
+            vector[index] = value;
+        } else {
+            vector.insert(index, value);
+        }
 
         process.set_register(register, value);
 

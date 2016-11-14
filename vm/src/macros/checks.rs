@@ -87,7 +87,7 @@ macro_rules! ensure_compiled_code {
 /// Ensures the given index is within the bounds of the array.
 macro_rules! ensure_array_within_bounds {
     ($ins: expr, $array: ident, $index: expr) => (
-        if $index >= $array.len() {
+        if $index > $array.len() {
             return_vm_error!(
                 format!("index {} is out of bounds", $index),
                 $ins.line
