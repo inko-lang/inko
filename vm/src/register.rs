@@ -7,10 +7,8 @@
 //! Here both 10 and 20 are temporary values that would be stored in a register.
 //! The result of this expression would also be stored in a register before
 //! being assigned to the "number" variable.
-
 use std::collections::HashMap;
-
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
@@ -40,9 +38,9 @@ impl Register {
     }
 
     /// Pushes all pointers in this register into the supplied vector.
-    pub fn push_pointers(&self, pointers: &mut Vec<*const ObjectPointer>) {
+    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         for value in self.values.values() {
-            pointers.push(value.as_raw_pointer());
+            pointers.push(value.pointer());
         }
     }
 }
@@ -83,8 +81,7 @@ mod tests {
         // The returned pointers should allow updating of what's stored in the
         // register without copying anything.
         for pointer_pointer in pointers {
-            let mut pointer =
-                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+            let mut pointer = pointer_pointer.get_mut();
 
             pointer.raw.raw = 0x4 as RawObjectPointer;
         }

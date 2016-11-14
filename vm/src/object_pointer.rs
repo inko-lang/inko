@@ -43,6 +43,15 @@ pub struct ObjectPointer {
 unsafe impl Send for ObjectPointer {}
 unsafe impl Sync for ObjectPointer {}
 
+/// A pointer to a object pointer. This wrapper is necessary to allow sharing
+/// *const ObjectPointer pointers between threads.
+pub struct ObjectPointerPointer {
+    pub raw: *const ObjectPointer,
+}
+
+unsafe impl Send for ObjectPointerPointer {}
+unsafe impl Sync for ObjectPointerPointer {}
+
 /// The mask to use for tagging a pointer as an integer.
 pub const INTEGER_MARK: usize = 0x1; // TODO: implement integers
 
@@ -254,13 +263,35 @@ impl ObjectPointer {
                       scope);
     }
 
-    /// Returns a raw pointer to this pointer.
-    pub fn as_raw_pointer(&self) -> *const ObjectPointer {
-        self as *const ObjectPointer
+    /// Returns a pointer to this pointer.
+    pub fn pointer(&self) -> ObjectPointerPointer {
+        ObjectPointerPointer::new(self)
+    }
+
+    pub fn finalize(&self) {
+        let mut object = self.get_mut();
+
+        object.deallocate_pointers();
+
+        drop(object);
     }
 
     fn block_header_pointer_address(&self) -> usize {
         (self.raw.untagged() as isize & block::OBJECT_BITMAP_MASK) as usize
+    }
+}
+
+impl ObjectPointerPointer {
+    pub fn new(pointer: &ObjectPointer) -> ObjectPointerPointer {
+        ObjectPointerPointer { raw: pointer as *const ObjectPointer }
+    }
+
+    pub fn get_mut(&self) -> &mut ObjectPointer {
+        unsafe { &mut *(self.raw as *mut ObjectPointer) }
+    }
+
+    pub fn get(&self) -> &ObjectPointer {
+        unsafe { &*self.raw }
     }
 }
 
@@ -301,28 +332,28 @@ mod tests {
     }
 
     #[test]
-    fn test_new() {
+    fn test_object_pointer_new() {
         let pointer = ObjectPointer::new(fake_raw_pointer());
 
         assert_eq!(pointer.raw.raw as usize, 0x4);
     }
 
     #[test]
-    fn test_null() {
+    fn test_object_pointer_null() {
         let pointer = ObjectPointer::null();
 
         assert_eq!(pointer.raw.raw as usize, 0x0);
     }
 
     #[test]
-    fn test_forwarding_pointer() {
+    fn test_object_pointer_forwarding_pointer() {
         let pointer = ObjectPointer::null().forwarding_pointer();
 
         assert!(pointer.raw.mask_is_set(FORWARDING_MASK));
     }
 
     #[test]
-    fn test_is_forwarded_with_regular_pointer() {
+    fn test_object_pointer_is_forwarded_with_regular_pointer() {
         let object = Object::new(ObjectValue::None);
         let pointer = object_pointer_for(&object);
 
@@ -330,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_forwarded_with_forwarding_pointer() {
+    fn test_object_pointer_is_forwarded_with_forwarding_pointer() {
         let object = Object::new(ObjectValue::None);
         let pointer = object_pointer_for(&object).forwarding_pointer();
 
@@ -338,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_forwarding_pointer() {
+    fn test_object_pointer_resolve_forwarding_pointer() {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Integer(2));
@@ -353,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_forwarding_pointer_in_vector() {
+    fn test_object_pointer_resolve_forwarding_pointer_in_vector() {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Integer(2));
@@ -368,7 +399,8 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_forwarding_pointer_in_vector_with_pointer_pointers() {
+    fn test_object_pointer_resolve_forwarding_pointer_in_vector_with_pointer_pointers
+        () {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Integer(2));
@@ -386,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_get_mut() {
+    fn test_object_pointer_get_get_mut() {
         let object = Object::new(ObjectValue::Integer(2));
         let pointer = object_pointer_for(&object);
 
@@ -397,28 +429,28 @@ mod tests {
     }
 
     #[test]
-    fn test_is_null_with_null_pointer() {
+    fn test_object_pointer_is_null_with_null_pointer() {
         let pointer = ObjectPointer::null();
 
         assert!(pointer.is_null());
     }
 
     #[test]
-    fn test_is_null_with_regular_pointer() {
+    fn test_object_pointer_is_null_with_regular_pointer() {
         let pointer = ObjectPointer::new(fake_raw_pointer());
 
         assert_eq!(pointer.is_null(), false);
     }
 
     #[test]
-    fn test_is_permanent_with_young_pointer() {
+    fn test_object_pointer_is_permanent_with_young_pointer() {
         let object = Object::new(ObjectValue::None);
 
         assert_eq!(object_pointer_for(&object).is_permanent(), false);
     }
 
     #[test]
-    fn test_is_permanent_with_permanent_pointer() {
+    fn test_object_pointer_is_permanent_with_permanent_pointer() {
         let mut object = Object::new(ObjectValue::None);
 
         object.set_permanent();
@@ -427,14 +459,14 @@ mod tests {
     }
 
     #[test]
-    fn test_is_mature_with_young_pointer() {
+    fn test_object_pointer_is_mature_with_young_pointer() {
         let object = Object::new(ObjectValue::None);
 
         assert_eq!(object_pointer_for(&object).is_mature(), false);
     }
 
     #[test]
-    fn test_is_mature_with_mature_pointer() {
+    fn test_object_pointer_is_mature_with_mature_pointer() {
         let mut object = Object::new(ObjectValue::None);
 
         object.set_mature();
@@ -443,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_young_with_mature_pointer() {
+    fn test_object_pointer_is_young_with_mature_pointer() {
         let mut object = Object::new(ObjectValue::None);
 
         object.set_mature();
@@ -452,21 +484,21 @@ mod tests {
     }
 
     #[test]
-    fn test_is_young_with_young_pointer() {
+    fn test_object_pointer_is_young_with_young_pointer() {
         let object = Object::new(ObjectValue::None);
 
         assert!(object_pointer_for(&object).is_young());
     }
 
     #[test]
-    fn test_is_local_with_local_pointer() {
+    fn test_object_pointer_is_local_with_local_pointer() {
         let object = Object::new(ObjectValue::None);
 
         assert!(object_pointer_for(&object).is_local());
     }
 
     #[test]
-    fn test_is_local_with_permanent_pointer() {
+    fn test_object_pointer_is_local_with_permanent_pointer() {
         let mut object = Object::new(ObjectValue::None);
 
         object.set_permanent();
@@ -475,14 +507,14 @@ mod tests {
     }
 
     #[test]
-    fn test_is_markable_with_markable_pointer() {
+    fn test_object_pointer_is_markable_with_markable_pointer() {
         let object = Object::new(ObjectValue::None);
 
         assert!(object_pointer_for(&object).is_markable());
     }
 
     #[test]
-    fn test_is_markable_with_non_markable_pointer() {
+    fn test_object_pointer_is_markable_with_non_markable_pointer() {
         let mut object = Object::new(ObjectValue::None);
 
         object.set_permanent();
@@ -491,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_marked_with_unmarked_object() {
+    fn test_object_pointer_is_marked_with_unmarked_object() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -499,7 +531,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_marked_with_marked_object() {
+    fn test_object_pointer_is_marked_with_marked_object() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -509,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn test_should_promote_to_mature_with_eden_pointer() {
+    fn test_object_pointer_should_promote_to_mature_with_eden_pointer() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -517,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn test_should_promote_to_mature_with_pointer_to_promote() {
+    fn test_object_pointer_should_promote_to_mature_with_pointer_to_promote() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -529,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mark_line() {
+    fn test_object_pointer_mark_line() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -539,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mark() {
+    fn test_object_pointer_mark() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -550,7 +582,7 @@ mod tests {
     }
 
     #[test]
-    fn test_marked_objects_bitmap() {
+    fn test_object_pointer_marked_objects_bitmap() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -558,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn test_marked_objects_bitmap_index() {
+    fn test_object_pointer_marked_objects_bitmap_index() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -566,7 +598,7 @@ mod tests {
     }
 
     #[test]
-    fn test_line_index() {
+    fn test_object_pointer_line_index() {
         let mut allocator = local_allocator();
 
         let ptr1 = allocator.allocate_empty();
@@ -583,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_mut() {
+    fn test_object_pointer_block_mut() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -591,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block() {
+    fn test_object_pointer_block() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -599,7 +631,7 @@ mod tests {
     }
 
     #[test]
-    fn test_block_header() {
+    fn test_object_pointer_block_header() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
@@ -607,17 +639,17 @@ mod tests {
     }
 
     #[test]
-    fn test_as_raw_pointer() {
+    fn test_object_pointer_pointer() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
 
-        let raw_pointer = pointer.as_raw_pointer();
+        let raw_pointer = pointer.pointer();
 
-        assert!(unsafe { *raw_pointer } == pointer);
+        assert!(*raw_pointer.get() == pointer);
 
         // Using the raw pointer for any updates should result in the
         // ObjectPointer being updated properly.
-        let mut reference = unsafe { &mut *(raw_pointer as *mut ObjectPointer) };
+        let mut reference = raw_pointer.get_mut();
 
         reference.raw.set_bit(0);
 
@@ -625,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eq() {
+    fn test_object_pointer_eq() {
         let mut allocator = local_allocator();
         let pointer1 = allocator.allocate_empty();
         let pointer2 = allocator.allocate_empty();
@@ -635,7 +667,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hashing() {
+    fn test_object_pointer_hashing() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
         let mut set = HashSet::new();
@@ -643,5 +675,24 @@ mod tests {
         set.insert(pointer);
 
         assert!(set.contains(&pointer));
+    }
+
+    #[test]
+    fn test_object_pointer_finalize() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        // smoke test to see if this even works
+        pointer.finalize();
+    }
+
+    #[test]
+    fn test_object_pointer_pointer_get_mut() {
+        let ptr = ObjectPointer::new(fake_raw_pointer());
+        let ptr_ptr = ptr.pointer();
+
+        ptr_ptr.get_mut().raw.raw = 0x5 as RawObjectPointer;
+
+        assert_eq!(ptr.raw.raw as usize, 0x5);
     }
 }

@@ -5,7 +5,7 @@
 //! methods, add constants, etc.
 
 use object_header::ObjectHeader;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value::ObjectValue;
 use tagged_pointer::TaggedPointer;
 
@@ -335,10 +335,10 @@ impl Object {
         }
     }
 
-    /// Pushes all pointers in this object into the given Vec.
-    pub fn push_pointers(&self, mut pointers: &mut Vec<*const ObjectPointer>) {
+    /// Returns all pointers in this object into the given Vec.
+    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         if !self.prototype.is_null() {
-            pointers.push(self.prototype.as_raw_pointer());
+            pointers.push(self.prototype.pointer());
         }
 
         if let Some(header) = self.header() {
@@ -348,7 +348,7 @@ impl Object {
         match self.value {
             ObjectValue::Array(ref array) => {
                 for pointer in array.iter() {
-                    pointers.push(pointer.as_raw_pointer());
+                    pointers.push(pointer.pointer());
                 }
             }
             ObjectValue::Binding(ref binding) => {
@@ -762,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointers_without_pointers() {
+    fn test_object_push_pointers_without_pointers() {
         let obj = new_object();
         let mut pointers = Vec::new();
 
@@ -772,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointers_with_pointers() {
+    fn test_object_push_pointers_with_pointers() {
         let mut obj = new_object();
         let name = "test".to_string();
         let mut pointers = Vec::new();

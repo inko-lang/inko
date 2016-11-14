@@ -3,9 +3,8 @@
 //! The ObjectHeader struct stores metadata associated with an Object, such as
 //! the name, attributes, constants and methods.
 use std::collections::HashMap;
-
 use immix::copy_object::CopyObject;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 pub struct ObjectHeader {
     /// The attributes defined in an object.
@@ -33,21 +32,21 @@ impl ObjectHeader {
     }
 
     /// Pushes all pointers in this header into the given Vec.
-    pub fn push_pointers(&self, pointers: &mut Vec<*const ObjectPointer>) {
+    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         for (_, pointer) in self.attributes.iter() {
-            pointers.push(pointer.as_raw_pointer());
+            pointers.push(pointer.pointer());
         }
 
         for (_, pointer) in self.constants.iter() {
-            pointers.push(pointer.as_raw_pointer());
+            pointers.push(pointer.pointer());
         }
 
         for (_, pointer) in self.methods.iter() {
-            pointers.push(pointer.as_raw_pointer());
+            pointers.push(pointer.pointer());
         }
 
         if let Some(scope) = self.outer_scope.as_ref() {
-            pointers.push(scope.as_raw_pointer());
+            pointers.push(scope.pointer());
         }
     }
 
@@ -151,8 +150,7 @@ mod tests {
         // Make sure that updating the pointers also updates those stored in the
         // header.
         for pointer_pointer in pointers {
-            let mut pointer =
-                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+            let mut pointer = pointer_pointer.get_mut();
 
             pointer.raw.raw = 0x4 as RawObjectPointer;
         }

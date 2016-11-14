@@ -2,11 +2,9 @@
 //!
 //! A Binding is a structure containing information about the variables (e.g.
 //! local variables and "self") of a certain execution context.
-
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 pub struct Binding {
     /// The object "self" refers to.
@@ -111,25 +109,25 @@ impl Binding {
     }
 
     /// Pushes all pointers in this binding into the supplied vector.
-    pub fn push_pointers(&self, mut pointers: &mut Vec<*const ObjectPointer>) {
+    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         self.push_pointers_from_binding(pointers, self);
 
         let mut parent_opt = self.parent.as_ref();
 
         while let Some(parent) = parent_opt {
-            self.push_pointers_from_binding(&mut pointers, &*parent);
+            self.push_pointers_from_binding(pointers, &*parent);
 
             parent_opt = parent.parent.as_ref();
         }
     }
 
     fn push_pointers_from_binding(&self,
-                                  pointers: &mut Vec<*const ObjectPointer>,
+                                  pointers: &mut Vec<ObjectPointerPointer>,
                                   binding: &Binding) {
-        pointers.push(binding.self_object.as_raw_pointer());
+        pointers.push(binding.self_object.pointer());
 
         for local in binding.locals().iter() {
-            pointers.push(local.as_raw_pointer());
+            pointers.push(local.pointer());
         }
     }
 }
@@ -272,10 +270,10 @@ mod tests {
 
         assert_eq!(pointers.len(), 4);
 
-        assert!(unsafe { *pointers[0] } == self_obj2);
-        assert!(unsafe { *pointers[1] } == local2);
+        assert!(*pointers[0].get() == self_obj2);
+        assert!(*pointers[1].get() == local2);
 
-        assert!(unsafe { *pointers[2] } == self_obj1);
-        assert!(unsafe { *pointers[3] } == local1);
+        assert!(*pointers[2].get() == self_obj1);
+        assert!(*pointers[3].get() == local1);
     }
 }

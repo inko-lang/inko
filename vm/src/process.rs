@@ -13,7 +13,7 @@ use immix::mailbox_allocator::MailboxAllocator;
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value;
 use execution_context::ExecutionContext;
 use queue::Queue;
@@ -457,15 +457,15 @@ impl Process {
     /// This method returns a vector of raw pointers to object pointers. Care
     /// must be taken to ensure that the raw pointers do not outlive the
     /// underlying object pointers.
-    pub fn roots(&self) -> Vec<*const ObjectPointer> {
-        let mut objects = Vec::new();
+    pub fn roots(&self) -> Vec<ObjectPointerPointer> {
+        let mut pointers = Vec::new();
 
         for context in self.context().contexts() {
-            context.binding.push_pointers(&mut objects);
-            context.register.push_pointers(&mut objects);
+            context.binding.push_pointers(&mut pointers);
+            context.register.push_pointers(&mut pointers);
         }
 
-        objects
+        pointers
     }
 
     pub fn remembered_set_mut(&self) -> &mut HashSet<ObjectPointer> {
@@ -556,8 +556,7 @@ mod tests {
         process.set_register(0, pointer);
 
         for pointer_pointer in process.roots() {
-            let pointer_ref =
-                unsafe { &mut *(pointer_pointer as *mut ObjectPointer) };
+            let pointer_ref = pointer_pointer.get_mut();
 
             pointer_ref.raw.raw = 0x4 as *mut Object;
         }
