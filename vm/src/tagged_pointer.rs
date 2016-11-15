@@ -331,8 +331,9 @@ mod tests {
 
     #[test]
     fn test_deallocate() {
-        let mut name = "Alice".to_string();
-        let ptr = TaggedPointer::new(&mut name as *mut String);
+        let name = Box::new("Alice".to_string());
+        let raw_ptr = Box::into_raw(name);
+        let ptr = TaggedPointer::new(raw_ptr as *mut String);
 
         ptr.deallocate();
     }
