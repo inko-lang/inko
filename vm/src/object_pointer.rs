@@ -155,9 +155,7 @@ impl ObjectPointer {
     /// Returns true if the underlying object should be promoted to the mature
     /// generation.
     pub fn should_promote_to_mature(&self) -> bool {
-        let block_age = self.block().bucket().unwrap().age;
-
-        block_age >= YOUNG_MAX_AGE
+        self.block().bucket().unwrap().age >= YOUNG_MAX_AGE
     }
 
     /// Marks the line this object resides in.
