@@ -76,13 +76,14 @@ impl ObjectPointer {
     }
 
     /// Returns true if the current pointer points to a forwarded object.
+    #[inline(always)]
     pub fn is_forwarded(&self) -> bool {
         let object = self.get();
 
-        if let Some(proto) = object.prototype() {
-            proto.raw.mask_is_set(FORWARDING_MASK)
-        } else {
+        if object.prototype.is_null() {
             false
+        } else {
+            object.prototype.raw.mask_is_set(FORWARDING_MASK)
         }
     }
 
@@ -113,8 +114,9 @@ impl ObjectPointer {
     }
 
     /// Returns true if the current pointer is a null pointer.
+    #[inline(always)]
     pub fn is_null(&self) -> bool {
-        self.raw.is_null()
+        self.raw.raw as usize == 0x0
     }
 
     /// Returns true if the current pointer points to a permanent object.
