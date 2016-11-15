@@ -155,7 +155,7 @@ impl ObjectPointer {
     pub fn should_promote_to_mature(&self) -> bool {
         let block_age = self.block().bucket().unwrap().age;
 
-        self.is_young() && block_age >= YOUNG_MAX_AGE
+        block_age >= YOUNG_MAX_AGE
     }
 
     /// Marks the line this object resides in.
