@@ -205,7 +205,7 @@ impl ObjectPointer {
 
     /// Returns true if this pointer should be evacuated.
     pub fn should_evacuate(&self) -> bool {
-        !self.is_forwarded() && self.block().is_fragmented()
+        self.block().is_fragmented()
     }
 
     /// Returns an immutable reference to the header of the block this pointer
@@ -634,6 +634,16 @@ mod tests {
         let pointer = allocator.allocate_empty();
 
         pointer.block();
+    }
+
+    #[test]
+    fn test_object_pointer_should_evacuate() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.block_mut().set_fragmented();
+
+        assert!(pointer.should_evacuate());
     }
 
     #[test]
