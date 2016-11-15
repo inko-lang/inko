@@ -12,17 +12,17 @@ const OBJECT_ENTRIES: usize = 1024;
 const LINE_ENTRIES: usize = 256;
 
 pub struct ObjectMap {
-    values: [u8; OBJECT_ENTRIES],
+    values: [bool; OBJECT_ENTRIES],
 }
 
 pub struct LineMap {
-    values: [u8; LINE_ENTRIES],
+    values: [bool; LINE_ENTRIES],
 }
 
 pub trait Bitmap {
     fn max_entries(&self) -> usize;
-    fn values(&self) -> &[u8];
-    fn values_mut(&mut self) -> &mut [u8];
+    fn values(&self) -> &[bool];
+    fn values_mut(&mut self) -> &mut [bool];
 
     /// Sets the given index in the bitmap.
     ///
@@ -32,7 +32,7 @@ pub trait Bitmap {
     ///
     ///     bitmap.set(4);
     fn set(&mut self, index: usize) {
-        self.values_mut()[index] = 1;
+        self.values_mut()[index] = true;
     }
 
     /// Unsets the given index in the bitmap.
@@ -44,7 +44,7 @@ pub trait Bitmap {
     ///     bitmap.set(4);
     ///     bitmap.unset(4);
     fn unset(&mut self, index: usize) {
-        self.values_mut()[index] = 0;
+        self.values_mut()[index] = false;
     }
 
     /// Returns `true` if a given index is set.
@@ -59,12 +59,12 @@ pub trait Bitmap {
     ///
     ///     bitmap.is_set(1); // => true
     fn is_set(&self, index: usize) -> bool {
-        self.values()[index] == 1
+        self.values()[index]
     }
 
     /// Returns `true` if the bitmap is full, `false` otherwise
     fn is_full(&self) -> bool {
-        let empty = 0 as u8;
+        let empty = false;
 
         for value in self.values().iter() {
             if value == &empty {
@@ -77,10 +77,10 @@ pub trait Bitmap {
 
     /// Returns true if the bitmap is empty.
     fn is_empty(&self) -> bool {
-        let empty = 0 as u8;
+        let set = true;
 
         for value in self.values().iter() {
-            if value != &empty {
+            if value == &set {
                 return false;
             }
         }
@@ -97,7 +97,7 @@ pub trait Bitmap {
 
     /// The number of indexes set in the bitmap.
     fn len(&self) -> usize {
-        let set = 1 as u8;
+        let set = true;
         let mut count = 0;
 
         for value in self.values().iter() {
@@ -113,23 +113,23 @@ pub trait Bitmap {
 impl ObjectMap {
     /// Returns a new, empty object bitmap.
     pub fn new() -> ObjectMap {
-        ObjectMap { values: [0; OBJECT_ENTRIES] }
+        ObjectMap { values: [false; OBJECT_ENTRIES] }
     }
 }
 
 impl LineMap {
     /// Returns a new, empty line bitmap.
     pub fn new() -> LineMap {
-        LineMap { values: [0; LINE_ENTRIES] }
+        LineMap { values: [false; LINE_ENTRIES] }
     }
 }
 
 impl Bitmap for ObjectMap {
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[bool] {
         &self.values
     }
 
-    fn values_mut(&mut self) -> &mut [u8] {
+    fn values_mut(&mut self) -> &mut [bool] {
         &mut self.values
     }
 
@@ -139,11 +139,11 @@ impl Bitmap for ObjectMap {
 }
 
 impl Bitmap for LineMap {
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[bool] {
         &self.values
     }
 
-    fn values_mut(&mut self) -> &mut [u8] {
+    fn values_mut(&mut self) -> &mut [bool] {
         &mut self.values
     }
 
