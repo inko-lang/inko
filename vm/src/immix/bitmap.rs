@@ -125,10 +125,12 @@ impl LineMap {
 }
 
 impl Bitmap for ObjectMap {
+    #[inline(always)]
     fn values(&self) -> &[bool] {
         &self.values
     }
 
+    #[inline(always)]
     fn values_mut(&mut self) -> &mut [bool] {
         &mut self.values
     }
@@ -139,10 +141,12 @@ impl Bitmap for ObjectMap {
 }
 
 impl Bitmap for LineMap {
+    #[inline(always)]
     fn values(&self) -> &[bool] {
         &self.values
     }
 
+    #[inline(always)]
     fn values_mut(&mut self) -> &mut [bool] {
         &mut self.values
     }
