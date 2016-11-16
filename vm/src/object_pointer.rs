@@ -167,13 +167,6 @@ impl ObjectPointer {
         bitmap.is_set(index)
     }
 
-    /// Returns true if the underlying object should be promoted to the mature
-    /// generation.
-    #[inline(always)]
-    pub fn should_promote_to_mature(&self) -> bool {
-        self.block().bucket().unwrap().age >= YOUNG_MAX_AGE
-    }
-
     /// Marks the line this object resides in.
     pub fn mark_line(&self) {
         let line_index = self.line_index();
@@ -229,11 +222,6 @@ impl ObjectPointer {
     #[inline(always)]
     pub fn block(&self) -> &block::Block {
         self.block_header().block()
-    }
-
-    /// Returns true if this pointer should be evacuated.
-    pub fn should_evacuate(&self) -> bool {
-        self.block().is_fragmented()
     }
 
     /// Returns an immutable reference to the header of the block this pointer
@@ -583,26 +571,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_should_promote_to_mature_with_eden_pointer() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        assert_eq!(pointer.should_promote_to_mature(), false);
-    }
-
-    #[test]
-    fn test_object_pointer_should_promote_to_mature_with_pointer_to_promote() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        for _ in 0..3 {
-            allocator.increment_young_ages();
-        }
-
-        assert!(pointer.should_promote_to_mature());
-    }
-
-    #[test]
     fn test_object_pointer_mark_line() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
@@ -670,16 +638,6 @@ mod tests {
         let pointer = allocator.allocate_empty();
 
         pointer.block();
-    }
-
-    #[test]
-    fn test_object_pointer_should_evacuate() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        pointer.block_mut().set_fragmented();
-
-        assert!(pointer.should_evacuate());
     }
 
     #[test]
