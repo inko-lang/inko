@@ -104,11 +104,13 @@ impl ObjectPointer {
     }
 
     /// Returns an immutable reference to the Object.
+    #[inline(always)]
     pub fn get(&self) -> &Object {
         self.raw.as_ref().unwrap()
     }
 
     /// Returns a mutable reference to the Object.
+    #[inline(always)]
     pub fn get_mut(&self) -> &mut Object {
         self.raw.as_mut().unwrap()
     }
@@ -290,10 +292,12 @@ impl ObjectPointerPointer {
         ObjectPointerPointer { raw: pointer as *const ObjectPointer }
     }
 
+    #[inline(always)]
     pub fn get_mut(&self) -> &mut ObjectPointer {
         unsafe { &mut *(self.raw as *mut ObjectPointer) }
     }
 
+    #[inline(always)]
     pub fn get(&self) -> &ObjectPointer {
         unsafe { &*self.raw }
     }
