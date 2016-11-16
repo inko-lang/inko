@@ -5,7 +5,6 @@
 
 use std::ops::Drop;
 
-use immix::finalizer_set::FinalizerSet;
 use immix::copy_object::CopyObject;
 use immix::bucket::Bucket;
 use immix::block::BLOCK_SIZE;
@@ -44,12 +43,6 @@ pub struct LocalAllocator {
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
 
-    /// The set containing all young pointers to finalize as some point.
-    pub young_finalizer_set: FinalizerSet,
-
-    /// The set containing all mature pointers to finalize at some point.
-    pub mature_finalizer_set: FinalizerSet,
-
     /// The number of blocks allocated for the mature generation since the last
     /// garbage collection cycle.
     pub young_block_allocations: usize,
@@ -69,8 +62,6 @@ impl LocalAllocator {
                                Bucket::with_age(-3)],
             eden_index: 0,
             mature_generation: Bucket::new(),
-            young_finalizer_set: FinalizerSet::new(),
-            mature_finalizer_set: FinalizerSet::new(),
             young_block_allocations: 0,
             mature_block_allocations: 0,
         }
@@ -128,10 +119,6 @@ impl LocalAllocator {
     pub fn allocate_eden(&mut self, object: Object) -> ObjectPointer {
         let (new_block, pointer) = self.allocate_eden_raw(object);
 
-        if pointer.is_finalizable() {
-            self.young_finalizer_set.insert(pointer);
-        }
-
         if new_block {
             self.young_block_allocations += 1;
         }
@@ -143,10 +130,6 @@ impl LocalAllocator {
         let (new_block, pointer) = self.allocate_mature_raw(object);
 
         pointer.get_mut().set_mature();
-
-        if pointer.is_finalizable() {
-            self.mature_finalizer_set.insert(pointer);
-        }
 
         if new_block {
             self.mature_block_allocations += 1;
@@ -207,11 +190,6 @@ impl CopyObject for LocalAllocator {
 
 impl Drop for LocalAllocator {
     fn drop(&mut self) {
-        // We need to finalize any objects before we drop the corresponding
-        // Blocks later. Not doing so can lead to segmentation faults.
-        self.young_finalizer_set.finalize_all();
-        self.mature_finalizer_set.finalize_all();
-
         for bucket in self.young_generation.iter_mut() {
             for mut block in bucket.blocks.drain(0..) {
                 block.reset();
@@ -333,7 +311,6 @@ mod tests {
             Object::new(object_value::string("a".to_string())));
 
         assert_eq!(alloc.young_block_allocations, 1);
-        assert!(alloc.young_finalizer_set.pointers.contains(&ptr2));
 
         assert!(ptr1.is_young());
         assert!(ptr2.is_young());
@@ -348,7 +325,6 @@ mod tests {
             Object::new(object_value::string("a".to_string())));
 
         assert_eq!(alloc.mature_block_allocations, 1);
-        assert!(alloc.mature_finalizer_set.pointers.contains(&ptr2));
 
         assert!(ptr1.is_mature());
         assert!(ptr2.is_mature());

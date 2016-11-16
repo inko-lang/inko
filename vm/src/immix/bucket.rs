@@ -164,6 +164,8 @@ impl Bucket {
         for mut block in self.blocks
             .drain(0..)
             .chain(self.recyclable_blocks.drain(0..)) {
+            block.finalize();
+
             if block.is_empty() {
                 block.reset();
                 reclaim.push(block);
@@ -198,6 +200,8 @@ impl Bucket {
     }
 
     /// Prepares this bucket for a collection.
+    ///
+    /// Returns true if evacuation is needed for this bucket.
     pub fn prepare_for_collection(&mut self) {
         let mut available: isize = 0;
         let mut required: isize = 0;
@@ -503,6 +507,7 @@ mod tests {
 
         bucket.add_block(Block::new());
         bucket.current_block_mut().unwrap().used_lines_bitmap.set(1);
+
         bucket.prepare_for_collection();
 
         // No evacuation needed means the available histogram is not updated.
@@ -526,6 +531,7 @@ mod tests {
         // cycle. Since said code is not executed by the function we're testing
         // we'll update this histogram manually.
         bucket.mark_histogram.increment(1, 1);
+
         bucket.prepare_for_collection();
 
         assert_eq!(bucket.available_histogram.get(1).unwrap(), 509);

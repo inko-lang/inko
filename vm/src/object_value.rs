@@ -167,11 +167,8 @@ impl ObjectValue {
 
     /// Returns true if this value should be deallocated explicitly.
     pub fn should_deallocate_native(&self) -> bool {
-        match *self {
-            ObjectValue::None => false,
-            ObjectValue::Integer(_) => false,
-            ObjectValue::Float(_) => false,
-            ObjectValue::Error(_) => false,
+        match self {
+            &ObjectValue::None => false,
             _ => true,
         }
     }

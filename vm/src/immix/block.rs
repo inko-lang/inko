@@ -85,6 +85,9 @@ pub struct Block {
     /// Bitmap used to track which lines contain one or more reachable objects.
     pub used_lines_bitmap: LineMap,
 
+    /// Bitmap used to track which objects need to be finalized.
+    pub finalize_bitmap: ObjectMap,
+
     /// The pointer to use for allocating a new object.
     pub free_pointer: RawObjectPointer,
 
@@ -132,6 +135,7 @@ impl Block {
             status: BlockStatus::Available,
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
+            finalize_bitmap: ObjectMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
@@ -213,10 +217,6 @@ impl Block {
 
     /// Bump allocates an object into the current block.
     pub fn bump_allocate(&mut self, object: Object) -> ObjectPointer {
-        if self.is_fragmented() {
-            panic!("allocation into fragmented block");
-        }
-
         unsafe {
             ptr::write(self.free_pointer, object);
         }
@@ -224,6 +224,10 @@ impl Block {
         let obj_pointer = ObjectPointer::new(self.free_pointer);
 
         self.free_pointer = unsafe { self.free_pointer.offset(1) };
+
+        if obj_pointer.is_finalizable() {
+            obj_pointer.mark_for_finalization();
+        }
 
         obj_pointer
     }
@@ -275,6 +279,25 @@ impl Block {
         self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
         self.reset_bitmaps();
+
+        self.finalize();
+        self.finalize_bitmap.reset();
+    }
+
+    /// Finalizes all unmarked objects.
+    pub fn finalize(&mut self) {
+        for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
+            if self.finalize_bitmap.is_set(index) &&
+               !self.marked_objects_bitmap.is_set(index) {
+                unsafe {
+                    let ptr = self.lines.offset(index as isize);
+
+                    ptr::drop_in_place(ptr);
+                }
+
+                self.finalize_bitmap.unset(index);
+            }
+        }
     }
 
     /// Updates the number of holes in this block.
@@ -344,6 +367,10 @@ impl Block {
 impl Drop for Block {
     fn drop(&mut self) {
         unsafe {
+            // Finalize all objects, marked or not
+            self.reset_bitmaps();
+            self.finalize();
+
             heap::deallocate(self.lines as *mut u8, BLOCK_SIZE, BLOCK_SIZE);
         }
     }
@@ -478,6 +505,9 @@ mod tests {
 
         block.bump_allocate(Object::new(ObjectValue::None));
         assert!(block.free_pointer == unsafe { block.start_address().offset(5) });
+
+        assert!(block.finalize_bitmap.is_set(4));
+        assert_eq!(block.finalize_bitmap.is_set(5), false);
     }
 
     #[test]
@@ -492,14 +522,14 @@ mod tests {
     }
 
     #[test]
-    fn test_line_index_of_pointer() {
+    fn test_block_line_index_of_pointer() {
         let block = Block::new();
 
         assert_eq!(block.line_index_of_pointer(block.free_pointer), 1);
     }
 
     #[test]
-    fn test_recycle() {
+    fn test_block_recycle() {
         let mut block = Block::new();
 
         // First line is used
@@ -519,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_available_hole() {
+    fn test_block_find_available_hole() {
         let mut block = Block::new();
 
         let pointer1 = block.bump_allocate(Object::new(ObjectValue::None));
@@ -541,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_available_hole_full_block() {
+    fn test_block_find_available_hole_full_block() {
         let mut block = Block::new();
 
         block.free_pointer = block.end_pointer;
@@ -554,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_available_hole_pointer_range() {
+    fn test_block_find_available_hole_pointer_range() {
         let mut block = Block::new();
 
         block.used_lines_bitmap.set(1);
@@ -575,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reset() {
+    fn test_block_reset() {
         let mut block = Block::new();
         let mut bucket = Bucket::new();
 
@@ -601,10 +631,23 @@ mod tests {
         assert!(block.bucket.is_null());
         assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
+        assert!(block.finalize_bitmap.is_empty());
     }
 
     #[test]
-    fn test_update_hole_count() {
+    fn test_block_finalize() {
+        let mut block = Block::new();
+        let obj = Object::new(ObjectValue::Integer(10));
+
+        block.bump_allocate(obj);
+
+        block.finalize();
+
+        assert!(block.finalize_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_block_update_hole_count() {
         let mut block = Block::new();
 
         block.used_lines_bitmap.set(1);
@@ -617,7 +660,7 @@ mod tests {
     }
 
     #[test]
-    fn test_marked_lines_count() {
+    fn test_block_marked_lines_count() {
         let mut block = Block::new();
 
         assert_eq!(block.marked_lines_count(), 0);
@@ -628,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn test_available_lines_count() {
+    fn test_block_available_lines_count() {
         let mut block = Block::new();
 
         assert_eq!(block.available_lines_count(), 255);

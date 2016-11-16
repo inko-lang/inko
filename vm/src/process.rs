@@ -491,16 +491,6 @@ impl Process {
     pub fn mature_generation_mut(&self) -> &mut Bucket {
         self.local_data_mut().allocator.mature_generation_mut()
     }
-
-    pub fn track_for_finalization(&self, pointer: ObjectPointer) {
-        let mut local_data = self.local_data_mut();
-
-        if pointer.is_mature() {
-            local_data.allocator.mature_finalizer_set.insert(pointer);
-        } else {
-            local_data.allocator.young_finalizer_set.insert(pointer);
-        }
-    }
 }
 
 impl PartialEq for Process {

@@ -3,6 +3,8 @@
 //! The Object struct is used to represent an object created during runtime. It
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
+use std::ops::Drop;
+
 use object_header::ObjectHeader;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value::ObjectValue;
@@ -23,6 +25,22 @@ pub enum ObjectGeneration {
     Mature,
     Permanent,
     Mailbox,
+}
+
+/// The status of an object.
+pub enum ObjectStatus {
+    /// This object is OK and no action has to be taken by a collector.
+    OK,
+
+    /// This object has been forwarded and all forwarding pointers must be
+    /// resolved.
+    Resolve,
+
+    /// This object is ready to be promoted to the mature generation.
+    Promote,
+
+    /// This object should be evacuated from its block.
+    Evacuate,
 }
 
 impl ObjectGeneration {
@@ -319,7 +337,7 @@ impl Object {
         }
     }
 
-    /// Returns all pointers in this object into the given Vec.
+    /// Pushes all pointers in this object into the given Vec.
     pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         if !self.prototype.is_null() {
             pointers.push(self.prototype.pointer());
@@ -372,6 +390,14 @@ impl Object {
     fn allocate_header(&mut self) {
         if !self.has_header() {
             self.set_header(ObjectHeader::new());
+        }
+    }
+}
+
+impl Drop for Object {
+    fn drop(&mut self) {
+        if self.has_header() {
+            self.header.deallocate();
         }
     }
 }

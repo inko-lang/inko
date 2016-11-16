@@ -5,12 +5,11 @@ use immix::bitmap::{Bitmap, ObjectMap};
 use immix::block;
 use immix::local_allocator::YOUNG_MAX_AGE;
 
-use object::Object;
+use object::{Object, ObjectStatus};
 use process::RcProcess;
 use tagged_pointer::TaggedPointer;
 
-/// Performs a write to an object and tracks it in the write barrier and
-/// optionally in a finalizer set.
+/// Performs a write to an object and tracks it in the write barrier.
 macro_rules! write_object {
     ($receiver: expr, $process: expr, $action: expr, $value: expr) => ({
         let track = !$receiver.get().has_header();
@@ -21,7 +20,7 @@ macro_rules! write_object {
         $process.write_barrier(pointer, $value);
 
         if track && $receiver.is_finalizable() {
-            $process.track_for_finalization(pointer);
+            $receiver.mark_for_finalization();
         }
     })
 }
@@ -87,6 +86,25 @@ impl ObjectPointer {
         }
     }
 
+    /// Returns the status of the object.
+    pub fn status(&self) -> ObjectStatus {
+        if self.is_forwarded() {
+            return ObjectStatus::Resolve;
+        }
+
+        let block = self.block();
+
+        if block.is_fragmented() {
+            return ObjectStatus::Evacuate;
+        }
+
+        if block.bucket().unwrap().age >= YOUNG_MAX_AGE {
+            return ObjectStatus::Promote;
+        }
+
+        ObjectStatus::OK
+    }
+
     /// Replaces the current pointer with a pointer to the forwarded object.
     pub fn resolve_forwarding_pointer(&self) {
         let object = self.get();
@@ -141,11 +159,6 @@ impl ObjectPointer {
         !self.is_permanent()
     }
 
-    /// Returns true if the current pointer can be marked by the GC.
-    pub fn is_markable(&self) -> bool {
-        self.is_local()
-    }
-
     /// Returns true if the current object is marked.
     pub fn is_marked(&self) -> bool {
         let bitmap = self.marked_objects_bitmap();
@@ -156,6 +169,7 @@ impl ObjectPointer {
 
     /// Returns true if the underlying object should be promoted to the mature
     /// generation.
+    #[inline(always)]
     pub fn should_promote_to_mature(&self) -> bool {
         self.block().bucket().unwrap().age >= YOUNG_MAX_AGE
     }
@@ -165,6 +179,18 @@ impl ObjectPointer {
         let line_index = self.line_index();
 
         self.block_mut().used_lines_bitmap.set(line_index);
+    }
+
+    pub fn mark_for_finalization(&self) {
+        let index = self.marked_objects_bitmap_index();
+
+        self.block_mut().finalize_bitmap.set(index);
+    }
+
+    pub fn unmark_for_finalization(&self) {
+        let index = self.marked_objects_bitmap_index();
+
+        self.block_mut().finalize_bitmap.unset(index);
     }
 
     /// Marks the current object and its line.
@@ -194,11 +220,13 @@ impl ObjectPointer {
     }
 
     /// Returns a mutable reference to the block this pointer belongs to.
+    #[inline(always)]
     pub fn block_mut(&self) -> &mut block::Block {
         self.block_header().block_mut()
     }
 
     /// Returns an immutable reference to the block this pointer belongs to.
+    #[inline(always)]
     pub fn block(&self) -> &block::Block {
         self.block_header().block()
     }
@@ -210,6 +238,7 @@ impl ObjectPointer {
 
     /// Returns an immutable reference to the header of the block this pointer
     /// belongs to.
+    #[inline(always)]
     pub fn block_header(&self) -> &block::BlockHeader {
         unsafe {
             let ptr: *mut block::BlockHeader =
@@ -221,7 +250,7 @@ impl ObjectPointer {
 
     /// Returns true if the object should be finalized.
     pub fn is_finalizable(&self) -> bool {
-        !self.is_permanent() && self.get().is_finalizable()
+        self.get().is_finalizable()
     }
 
     /// Adds a method to the object this pointer points to.
@@ -270,18 +299,6 @@ impl ObjectPointer {
         ObjectPointerPointer::new(self)
     }
 
-    pub fn finalize(&self) {
-        let mut object = self.get_mut();
-
-        if object.has_header() {
-            object.header.deallocate();
-        }
-
-        if object.value.should_deallocate_native() {
-            drop(object.value.take());
-        }
-    }
-
     fn block_header_pointer_address(&self) -> usize {
         (self.raw.untagged() as isize & block::OBJECT_BITMAP_MASK) as usize
     }
@@ -324,7 +341,7 @@ mod tests {
     use immix::bitmap::Bitmap;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use object::Object;
+    use object::{Object, ObjectStatus};
     use object_value::ObjectValue;
 
     fn fake_raw_pointer() -> RawObjectPointer {
@@ -374,6 +391,39 @@ mod tests {
         let pointer = object_pointer_for(&object).forwarding_pointer();
 
         assert_eq!(pointer.is_forwarded(), false);
+    }
+
+    #[test]
+    fn test_object_pointer_status() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+        let pointer2 = allocator.allocate_empty();
+
+        assert!(match pointer.status() {
+            ObjectStatus::OK => true,
+            _ => false,
+        });
+
+        pointer.block_mut().bucket_mut().unwrap().age = 3;
+
+        assert!(match pointer.status() {
+            ObjectStatus::Promote => true,
+            _ => false,
+        });
+
+        pointer.block_mut().set_fragmented();
+
+        assert!(match pointer.status() {
+            ObjectStatus::Evacuate => true,
+            _ => false,
+        });
+
+        pointer.get_mut().forward_to(pointer2);
+
+        assert!(match pointer.status() {
+            ObjectStatus::Resolve => true,
+            _ => false,
+        });
     }
 
     #[test]
@@ -512,22 +562,6 @@ mod tests {
         object.set_permanent();
 
         assert_eq!(object_pointer_for(&object).is_local(), false);
-    }
-
-    #[test]
-    fn test_object_pointer_is_markable_with_markable_pointer() {
-        let object = Object::new(ObjectValue::None);
-
-        assert!(object_pointer_for(&object).is_markable());
-    }
-
-    #[test]
-    fn test_object_pointer_is_markable_with_non_markable_pointer() {
-        let mut object = Object::new(ObjectValue::None);
-
-        object.set_permanent();
-
-        assert_eq!(object_pointer_for(&object).is_markable(), false);
     }
 
     #[test]
@@ -693,15 +727,6 @@ mod tests {
         set.insert(pointer);
 
         assert!(set.contains(&pointer));
-    }
-
-    #[test]
-    fn test_object_pointer_finalize() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        // smoke test to see if this even works
-        pointer.finalize();
     }
 
     #[test]
