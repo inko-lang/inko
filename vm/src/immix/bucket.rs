@@ -37,6 +37,9 @@ pub struct Bucket {
 
     /// The mark histogram for the blocks in this bucket.
     pub mark_histogram: Histogram,
+
+    /// The objects in this bucket should be promoted to the mature generation.
+    pub promote: bool,
 }
 
 unsafe impl Send for Bucket {}
@@ -55,11 +58,13 @@ impl Bucket {
             age: age,
             available_histogram: Histogram::new(),
             mark_histogram: Histogram::new(),
+            promote: false,
         }
     }
 
     pub fn reset_age(&mut self) {
         self.age = 0;
+        self.promote = false;
     }
 
     pub fn increment_age(&mut self) {
@@ -120,10 +125,6 @@ impl Bucket {
 
         if !found_hole {
             if let Some(block) = self.recyclable_blocks.pop() {
-                if block.is_fragmented() {
-                    panic!("recyclable block is fragmented");
-                }
-
                 self.add_block(block);
             } else {
                 self.add_block(global_allocator.request_block());
@@ -141,7 +142,7 @@ impl Bucket {
 
         // TODO: use a counter instead of iterating over blocks
         for block in self.blocks.iter() {
-            if block.is_fragmented() {
+            if block.fragmented {
                 return true;
             }
         }
@@ -177,7 +178,7 @@ impl Bucket {
                         .increment(block.holes, block.marked_lines_count());
 
                     // Recyclable blocks should be stored separately.
-                    if !block.is_fragmented() {
+                    if !block.fragmented {
                         block.recycle();
                         recycle.push(block);
 
@@ -297,9 +298,11 @@ mod tests {
     fn test_reset_age() {
         let mut bucket = Bucket::with_age(4);
 
+        bucket.promote = true;
         bucket.reset_age();
 
         assert_eq!(bucket.age, 0);
+        assert_eq!(bucket.promote, false);
     }
 
     #[test]
@@ -538,7 +541,7 @@ mod tests {
 
         let block = bucket.current_block().unwrap();
 
-        assert!(block.is_fragmented());
+        assert!(block.fragmented);
         assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
     }

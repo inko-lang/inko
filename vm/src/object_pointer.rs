@@ -3,7 +3,6 @@ use std::hash::{Hash, Hasher};
 
 use immix::bitmap::{Bitmap, ObjectMap};
 use immix::block;
-use immix::local_allocator::YOUNG_MAX_AGE;
 
 use object::{Object, ObjectStatus};
 use process::RcProcess;
@@ -87,6 +86,7 @@ impl ObjectPointer {
     }
 
     /// Returns the status of the object.
+    #[inline(always)]
     pub fn status(&self) -> ObjectStatus {
         if self.is_forwarded() {
             return ObjectStatus::Resolve;
@@ -94,12 +94,12 @@ impl ObjectPointer {
 
         let block = self.block();
 
-        if block.is_fragmented() {
-            return ObjectStatus::Evacuate;
+        if block.bucket().unwrap().promote {
+            return ObjectStatus::Promote;
         }
 
-        if block.bucket().unwrap().age >= YOUNG_MAX_AGE {
-            return ObjectStatus::Promote;
+        if block.fragmented {
+            return ObjectStatus::Evacuate;
         }
 
         ObjectStatus::OK
@@ -393,7 +393,7 @@ mod tests {
             _ => false,
         });
 
-        pointer.block_mut().bucket_mut().unwrap().age = 3;
+        pointer.block_mut().bucket_mut().unwrap().promote = true;
 
         assert!(match pointer.status() {
             ObjectStatus::Promote => true,

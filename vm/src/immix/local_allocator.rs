@@ -145,6 +145,7 @@ impl LocalAllocator {
                 bucket.reset_age();
             } else {
                 bucket.increment_age();
+                bucket.promote = bucket.age == YOUNG_MAX_AGE;
             }
 
             if bucket.age == 0 {
@@ -359,6 +360,8 @@ mod tests {
         alloc.increment_young_ages();
 
         assert_eq!(alloc.young_generation[0].age, 3);
+        assert_eq!(alloc.young_generation[0].promote, true);
+
         assert_eq!(alloc.young_generation[1].age, 2);
         assert_eq!(alloc.young_generation[2].age, 1);
         assert_eq!(alloc.young_generation[3].age, 0);
@@ -367,7 +370,11 @@ mod tests {
         alloc.increment_young_ages();
 
         assert_eq!(alloc.young_generation[0].age, 0);
+        assert_eq!(alloc.young_generation[0].promote, false);
+
         assert_eq!(alloc.young_generation[1].age, 3);
+        assert_eq!(alloc.young_generation[1].promote, true);
+
         assert_eq!(alloc.young_generation[2].age, 2);
         assert_eq!(alloc.young_generation[3].age, 1);
         assert_eq!(alloc.eden_index, 0);

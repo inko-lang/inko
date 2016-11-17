@@ -54,16 +54,6 @@ pub struct BlockHeader {
     pub block: *mut Block,
 }
 
-/// Enum indicating the state of a block.
-#[derive(Debug)]
-pub enum BlockStatus {
-    /// The block has space available.
-    Available,
-
-    /// The block is fragmented and objects need to be evacuated.
-    Fragmented,
-}
-
 /// Structure representing a single block.
 ///
 /// Allocating these structures will use a little bit more memory than the block
@@ -76,8 +66,8 @@ pub struct Block {
     /// Memory is aligned to 32 KB.
     pub lines: RawObjectPointer,
 
-    /// The status of the block.
-    pub status: BlockStatus,
+    /// This block is fragmented and objects should be evacuated.
+    pub fragmented: bool,
 
     /// Bitmap used for tracking which object slots are live.
     pub marked_objects_bitmap: ObjectMap,
@@ -134,7 +124,7 @@ impl Block {
 
         let mut block = Box::new(Block {
             lines: lines,
-            status: BlockStatus::Available,
+            fragmented: false,
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
             finalize_bitmap: ObjectMap::new(),
@@ -188,16 +178,8 @@ impl Block {
         self.bucket = bucket;
     }
 
-    #[inline(always)]
-    pub fn is_fragmented(&self) -> bool {
-        match self.status {
-            BlockStatus::Fragmented => true,
-            _ => false,
-        }
-    }
-
     pub fn set_fragmented(&mut self) {
-        self.status = BlockStatus::Fragmented;
+        self.fragmented = true;
     }
 
     /// Returns true if all lines in this block are available.
@@ -250,8 +232,6 @@ impl Block {
 
     /// Recycles the current block
     pub fn recycle(&mut self) {
-        self.status = BlockStatus::Available;
-
         self.find_available_hole_starting_at(LINE_START_SLOT);
     }
 
@@ -273,7 +253,7 @@ impl Block {
     /// Allocated objects are _not_ released as this is up to an allocator to
     /// take care of.
     pub fn reset(&mut self) {
-        self.status = BlockStatus::Available;
+        self.fragmented = false;
 
         // All lines are empty, thus there's only 1 hole.
         self.holes = 1;
@@ -453,14 +433,14 @@ mod tests {
     }
 
     #[test]
-    fn test_block_is_fragmented() {
+    fn test_block_set_fragmented() {
         let mut block = Block::new();
 
-        assert_eq!(block.is_fragmented(), false);
+        assert_eq!(block.fragmented, false);
 
         block.set_fragmented();
 
-        assert!(block.is_fragmented());
+        assert!(block.fragmented);
     }
 
     #[test]
@@ -624,11 +604,7 @@ mod tests {
 
         block.reset();
 
-        assert!(match block.status {
-            BlockStatus::Available => true,
-            _ => false,
-        });
-
+        assert_eq!(block.fragmented, false);
         assert_eq!(block.holes, 1);
         assert!(block.free_pointer == block.start_address());
         assert!(block.end_pointer == block.end_address());
