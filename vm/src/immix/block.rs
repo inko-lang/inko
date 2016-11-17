@@ -165,6 +165,7 @@ impl Block {
     }
 
     /// Returns an immutable reference to the bucket of this block.
+    #[inline(always)]
     pub fn bucket(&self) -> Option<&Bucket> {
         if self.bucket.is_null() {
             None
@@ -187,6 +188,7 @@ impl Block {
         self.bucket = bucket;
     }
 
+    #[inline(always)]
     pub fn is_fragmented(&self) -> bool {
         match self.status {
             BlockStatus::Fragmented => true,

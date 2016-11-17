@@ -208,6 +208,7 @@ impl ObjectPointer {
     }
 
     /// Returns the line index of the current pointer.
+    #[inline(always)]
     pub fn line_index(&self) -> usize {
         self.block().line_index_of_pointer(self.raw.untagged())
     }
