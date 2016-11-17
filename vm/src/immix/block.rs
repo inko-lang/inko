@@ -111,11 +111,13 @@ impl BlockHeader {
     }
 
     /// Returns an immutable reference to the block.
+    #[inline(always)]
     pub fn block(&self) -> &Block {
         unsafe { &*self.block }
     }
 
     /// Returns a mutable reference to the block.
+    #[inline(always)]
     pub fn block_mut(&self) -> &mut Block {
         unsafe { &mut *self.block }
     }
