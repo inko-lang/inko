@@ -77,8 +77,17 @@ impl Thread {
             bucket.prepare_for_collection();
         }
 
+        let ref mut mature_space = local_data.allocator.mature_generation;
+
         if mature {
-            local_data.allocator.mature_generation.prepare_for_collection();
+            mature_space.prepare_for_collection();
+        } else {
+            // Since the write barrier may track mature objects we need to
+            // always reset mature bitmaps. This ensures we can scan said mature
+            // objects for child pointers
+            for mut block in mature_space.blocks.iter_mut() {
+                block.reset_bitmaps();
+            }
         }
     }
 
