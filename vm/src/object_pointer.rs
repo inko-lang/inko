@@ -400,6 +400,7 @@ mod tests {
             _ => false,
         });
 
+        pointer.block_mut().bucket_mut().unwrap().promote = false;
         pointer.block_mut().set_fragmented();
 
         assert!(match pointer.status() {
