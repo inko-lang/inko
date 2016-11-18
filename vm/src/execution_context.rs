@@ -151,7 +151,7 @@ impl<'a> Iterator for ExecutionContextIterator<'a> {
 mod tests {
     use super::*;
     use compiled_code::{CompiledCode, RcCompiledCode};
-    use object_pointer::ObjectPointer;
+    use object_pointer::{ObjectPointer, RawObjectPointer};
     use binding::{Binding, RcBinding};
 
     fn new_binding() -> RcBinding {
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn test_get_set_register_valid() {
         let mut context = new_context();
-        let pointer = ObjectPointer::null();
+        let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         context.set_register(0, pointer);
 
