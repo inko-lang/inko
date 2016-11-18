@@ -1,29 +1,29 @@
 //! Struct used for storing values in registers.
 //!
-//! For example, take the following code:
-//!
-//!     number = 10 + 20
-//!
-//! Here both 10 and 20 are temporary values that would be stored in a register.
-//! The result of this expression would also be stored in a register before
-//! being assigned to the "number" variable.
-use std::collections::HashMap;
+//! Registers can be set in any particular order.
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
-    values: HashMap<usize, ObjectPointer>,
+    values: Vec<ObjectPointer>,
 }
+
+/// The extra number of slots that should be made available whenever resizing.
+const RESIZE_PADDING: usize = 32;
 
 impl Register {
     /// Creates a new Register.
     pub fn new() -> Register {
-        Register { values: HashMap::new() }
+        Register { values: Vec::new() }
     }
 
     /// Sets the value of the given register.
     pub fn set(&mut self, register: usize, value: ObjectPointer) {
-        self.values.insert(register, value);
+        if register >= self.values.len() {
+            self.values.resize(register + RESIZE_PADDING, ObjectPointer::null());
+        }
+
+        self.values[register] = value;
     }
 
     /// Returns the value of a register.
@@ -31,16 +31,21 @@ impl Register {
     /// Register values are optional to allow for instructions such as
     /// "goto_if_undef", as such this method returns an Option.
     pub fn get(&self, register: usize) -> Option<ObjectPointer> {
-        match self.values.get(&register) {
-            Some(object) => Some(object.clone()),
-            None => None,
+        if let Some(value) = self.values.get(register) {
+            if !value.is_null() {
+                return Some(value.clone());
+            }
         }
+
+        None
     }
 
     /// Pushes all pointers in this register into the supplied vector.
     pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
-        for value in self.values.values() {
-            pointers.push(value.pointer());
+        for value in self.values.iter() {
+            if !value.is_null() {
+                pointers.push(value.pointer());
+            }
         }
     }
 }
@@ -53,13 +58,16 @@ mod tests {
     #[test]
     fn test_set_get() {
         let mut register = Register::new();
-        let pointer = ObjectPointer::null();
-
-        assert!(register.get(0).is_none());
+        let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         register.set(0, pointer);
+        assert!(register.get(0).unwrap() == pointer);
 
-        assert!(register.get(0).is_some());
+        register.set(5, pointer);
+        assert!(register.get(5).unwrap() == pointer);
+
+        assert!(register.get(2).is_none());
+        assert!(register.get(3).is_none());
     }
 
     #[test]
