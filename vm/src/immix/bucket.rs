@@ -2,6 +2,7 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
+use parking_lot::{Mutex, MutexGuard};
 
 use std::ptr;
 
@@ -40,6 +41,10 @@ pub struct Bucket {
 
     /// The objects in this bucket should be promoted to the mature generation.
     pub promote: bool,
+
+    /// Lock used whenever moving objects around (e.g. when evacuating or
+    /// promoting them).
+    pub lock: Mutex<()>,
 }
 
 unsafe impl Send for Bucket {}
@@ -59,7 +64,12 @@ impl Bucket {
             available_histogram: Histogram::new(),
             mark_histogram: Histogram::new(),
             promote: false,
+            lock: Mutex::new(()),
         }
+    }
+
+    pub fn lock(&self) -> MutexGuard<()> {
+        self.lock.lock()
     }
 
     pub fn reset_age(&mut self) {
@@ -203,7 +213,7 @@ impl Bucket {
     /// Prepares this bucket for a collection.
     ///
     /// Returns true if evacuation is needed for this bucket.
-    pub fn prepare_for_collection(&mut self) {
+    pub fn prepare_for_collection(&mut self) -> bool {
         let mut available: isize = 0;
         let mut required: isize = 0;
         let evacuate = self.should_evacuate();
@@ -262,6 +272,8 @@ impl Bucket {
                 self.recyclable_blocks = recyclable;
             }
         }
+
+        evacuate
     }
 }
 
@@ -511,7 +523,7 @@ mod tests {
         bucket.add_block(Block::new());
         bucket.current_block_mut().unwrap().used_lines_bitmap.set(1);
 
-        bucket.prepare_for_collection();
+        assert_eq!(bucket.prepare_for_collection(), false);
 
         // No evacuation needed means the available histogram is not updated.
         assert!(bucket.available_histogram.get(1).is_none());
@@ -535,7 +547,7 @@ mod tests {
         // we'll update this histogram manually.
         bucket.mark_histogram.increment(1, 1);
 
-        bucket.prepare_for_collection();
+        assert!(bucket.prepare_for_collection());
 
         assert_eq!(bucket.available_histogram.get(1).unwrap(), 509);
 

@@ -1,12 +1,33 @@
 //! Threads for garbage collecting memory.
 use time;
+use rayon::prelude::*;
 
 use gc::request::Request;
-use object_pointer::ObjectPointer;
+use immix::block::BYTES_PER_OBJECT;
 use object::ObjectStatus;
+use object_pointer::ObjectPointer;
 use process::RcProcess;
 use virtual_machine::RcVirtualMachineState;
-use immix::block::BYTES_PER_OBJECT;
+
+/// Tuple containing the number of marked, evacuated, and promoted objects.
+type TraceResult = (usize, usize, usize);
+
+/// Macro used for conditionally moving objects or resolving forwarding
+/// pointers.
+macro_rules! move_object {
+    ($bucket: expr, $pointer: expr, $status: ident, $body: expr) => ({
+        let lock = $bucket.lock();
+
+        match $pointer.status() {
+            ObjectStatus::Resolve => $pointer.resolve_forwarding_pointer(),
+            ObjectStatus::$status => $body,
+            _ => {}
+        }
+
+        // Let's explicitly drop the lock for good measurement.
+        drop(lock);
+    });
+}
 
 /// Structure containing the state of a single GC thread.
 pub struct Thread {
@@ -42,10 +63,11 @@ impl Thread {
 
         let start_time = time::precise_time_ns();
         let collect_mature = process.should_collect_mature_generation();
+        let move_objects = self.prepare_collection(process, collect_mature);
 
-        self.prepare_collection(process, collect_mature);
-
-        let (marked, evacuated, promoted) = self.mark(process);
+        let mark_start = time::precise_time_ns();
+        let (marked, evacuated, promoted) = self.trace(process, move_objects);
+        let mark_duration = time::precise_time_ns() - mark_start;
 
         process.increment_young_ages();
 
@@ -58,10 +80,11 @@ impl Thread {
                       (duration as f64 / 1000000.0)) *
                      1000.0;
 
-        println!("Finished GC (mature: {}) in {} ms, {} \
+        println!("Finished GC (mature: {}) in {:.2} ms ({:.2} ms marking), {} \
                   marked, {} evacuated, {} promoted ({:.2} MB/sec)",
                  collect_mature,
                  (duration as f64) / 1000000.0,
+                 (mark_duration as f64) / 1000000.0,
                  marked,
                  evacuated,
                  promoted,
@@ -70,17 +93,30 @@ impl Thread {
         request.thread.reschedule(request.process.clone());
     }
 
-    fn prepare_collection(&self, process: &RcProcess, mature: bool) {
+    /// Prepares all buckets for a collection cycle.
+    ///
+    /// This method returns true if objects have to be moved around, either due
+    /// to evacuation or promotion.
+    fn prepare_collection(&self, process: &RcProcess, mature: bool) -> bool {
         let mut local_data = process.local_data_mut();
+        let mut move_objects = false;
 
         for bucket in local_data.allocator.young_generation.iter_mut() {
-            bucket.prepare_for_collection();
+            if bucket.prepare_for_collection() {
+                move_objects = true;
+            }
+
+            if bucket.promote {
+                move_objects = true;
+            }
         }
 
         let ref mut mature_space = local_data.allocator.mature_generation;
 
         if mature {
-            mature_space.prepare_for_collection();
+            if mature_space.prepare_for_collection() {
+                move_objects = true;
+            }
         } else {
             // Since the write barrier may track mature objects we need to
             // always reset mature bitmaps. This ensures we can scan said mature
@@ -89,6 +125,8 @@ impl Thread {
                 block.reset_bitmaps();
             }
         }
+
+        move_objects
     }
 
     /// Reclaims any unused blocks.
@@ -98,58 +136,113 @@ impl Thread {
         local_data.allocator.reclaim_blocks(mature);
     }
 
-    /// Marks all reachable objects.
+    /// Traces through and marks all reachable objects.
     ///
     /// The return value is a tuple containing the following numbers:
     ///
     /// * The number of marked objects
     /// * The number of evacuated objects
     /// * The number of promoted objects
-    fn mark(&self, process: &RcProcess) -> (usize, usize, usize) {
-        let mut objects = process.roots();
-        let mut remembered_set = process.remembered_set_mut();
-        let mut marked = 0;
-        let mut evacuated = 0;
-        let mut promoted = 0;
-
-        for pointer in remembered_set.iter() {
-            objects.push(pointer.pointer());
+    fn trace(&self, process: &RcProcess, move_objects: bool) -> TraceResult {
+        if move_objects {
+            self.trace_with_moving(process)
+        } else {
+            self.trace_without_moving(process)
         }
+    }
 
-        while let Some(pointer_pointer) = objects.pop() {
-            let mut pointer = pointer_pointer.get_mut();
+    /// Traces through all objects without moving any.
+    fn trace_without_moving(&self, process: &RcProcess) -> TraceResult {
+        let marked = process.contexts()
+            .par_iter()
+            .weight_max()
+            .map(|context| {
+                let mut objects = context.pointers();
+                let mut marked = 0;
 
-            if pointer.is_marked() {
-                continue;
-            }
+                while let Some(pointer_pointer) = objects.pop() {
+                    let pointer = pointer_pointer.get();
 
-            match pointer.status() {
-                ObjectStatus::Resolve => pointer.resolve_forwarding_pointer(),
-                ObjectStatus::Promote => {
-                    self.promote_mature(process, pointer);
+                    if pointer.is_marked() {
+                        continue;
+                    }
 
-                    promoted += 1;
+                    pointer.mark();
+
+                    marked += 1;
+
+                    pointer.get().push_pointers(&mut objects);
                 }
-                ObjectStatus::Evacuate => {
-                    self.evacuate(process, pointer);
 
-                    evacuated += 1;
+                marked
+            })
+            .reduce(|| 0, |acc, curr| acc + curr);
+
+        (marked, 0, 0)
+    }
+
+    /// Traces through all objects, evacuating or promoting them whenever
+    /// needed.
+    fn trace_with_moving(&self, process: &RcProcess) -> TraceResult {
+        let local_data = process.local_data();
+        let ref allocator = local_data.allocator;
+
+        process.contexts()
+            .par_iter()
+            .weight_max()
+            .map(|context| {
+                let mut objects = context.pointers();
+                let mut marked = 0;
+                let mut evacuated = 0;
+                let mut promoted = 0;
+
+                while let Some(pointer_pointer) = objects.pop() {
+                    let mut pointer = pointer_pointer.get_mut();
+
+                    if pointer.is_marked() {
+                        continue;
+                    }
+
+                    match pointer.status() {
+                        ObjectStatus::Resolve => {
+                            pointer.resolve_forwarding_pointer()
+                        }
+                        ObjectStatus::Promote => {
+                            let ref bucket = allocator.mature_generation;
+
+                            move_object!(bucket, pointer, Promote, {
+                                self.promote_mature(process, pointer);
+
+                                promoted += 1;
+                            });
+                        }
+                        ObjectStatus::Evacuate => {
+                            // To prevent borrow problems we first acquire a new
+                            // reference to the pointer before locking its
+                            // bucket.
+                            let bucket =
+                                pointer_pointer.get().block().bucket().unwrap();
+
+                            move_object!(bucket, pointer, Evacuate, {
+                                self.evacuate(process, pointer);
+
+                                evacuated += 1;
+                            });
+                        }
+                        _ => {}
+                    }
+
+                    pointer.mark();
+
+                    marked += 1;
+
+                    pointer.get().push_pointers(&mut objects);
                 }
-                ObjectStatus::OK => {}
-            }
 
-            pointer.mark();
-
-            marked += 1;
-
-            pointer.get().push_pointers(&mut objects);
-        }
-
-        // The remembered set must be cleared _after_ traversing all objects as
-        // we may otherwise invalidate pointers too early.
-        remembered_set.clear();
-
-        (marked, evacuated, promoted)
+                (marked, evacuated, promoted)
+            })
+            .reduce(|| (0, 0, 0),
+                    |acc, curr| (acc.0 + curr.0, acc.1 + curr.1, acc.2 + curr.2))
     }
 
     /// Promotes an object to the mature generation.
@@ -242,12 +335,13 @@ mod tests {
     fn test_prepare_collection() {
         let (_perm_alloc, process) = process();
         let thread = gc_thread();
+        let pointer = process.allocate_empty();
 
-        process.allocate_empty();
+        assert_eq!(thread.prepare_collection(&process, true), false);
 
-        // This is a smoke test to see if the code just runs. Most of the actual
-        // logic resides in prepare_bucket() and is as such tested separately.
-        thread.prepare_collection(&process, true);
+        pointer.block_mut().bucket_mut().unwrap().promote = true;
+
+        assert_eq!(thread.prepare_collection(&process, true), true);
     }
 
     #[test]

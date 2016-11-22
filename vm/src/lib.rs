@@ -2,6 +2,8 @@
 extern crate alloc;
 extern crate num_cpus;
 extern crate time;
+extern crate rayon;
+extern crate parking_lot;
 
 pub mod macros;
 

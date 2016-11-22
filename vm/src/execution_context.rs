@@ -5,7 +5,7 @@
 
 use binding::{Binding, RcBinding};
 use compiled_code::RcCompiledCode;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use register::Register;
 
 pub struct ExecutionContext {
@@ -27,6 +27,13 @@ pub struct ExecutionContext {
     /// The register to store this context's return value in.
     pub return_register: Option<usize>,
 }
+
+// While an ExecutionContext is not thread-safe we need to implement Sync/Send
+// so we can process a call stack in parallel. Since a stack can not be modified
+// during a collection we can safely share contexts between threads during this
+// time.
+unsafe impl Sync for ExecutionContext {}
+unsafe impl Send for ExecutionContext {}
 
 /// Struct for iterating over an ExecutionContext and its parent contexts.
 pub struct ExecutionContextIterator<'a> {
@@ -126,6 +133,11 @@ impl ExecutionContext {
     /// current context.
     pub fn contexts(&self) -> ExecutionContextIterator {
         ExecutionContextIterator { current: Some(self) }
+    }
+
+    /// Returns pointers to all pointers stored in this context.
+    pub fn pointers(&self) -> Vec<ObjectPointerPointer> {
+        self.binding.pointers().chain(self.register.pointers()).collect()
     }
 }
 
@@ -314,5 +326,18 @@ mod tests {
         assert!(contexts.next().is_some());
         assert!(contexts.next().is_some());
         assert!(contexts.next().is_none());
+    }
+
+    #[test]
+    fn test_pointers() {
+        let mut context = new_context();
+        let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
+
+        context.register.set(0, pointer);
+        context.binding.set_local(0, pointer);
+
+        let pointers = context.pointers();
+
+        assert_eq!(pointers.len(), 2);
     }
 }

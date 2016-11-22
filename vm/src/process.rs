@@ -13,7 +13,7 @@ use immix::mailbox_allocator::MailboxAllocator;
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use object_pointer::ObjectPointer;
 use object_value;
 use execution_context::ExecutionContext;
 use queue::Queue;
@@ -451,21 +451,8 @@ impl Process {
         self.set_gc_state(GcState::None);
     }
 
-    /// Scans all the root objects and returns a list containing the objects to
-    /// scan for references to other objects.
-    ///
-    /// This method returns a vector of raw pointers to object pointers. Care
-    /// must be taken to ensure that the raw pointers do not outlive the
-    /// underlying object pointers.
-    pub fn roots(&self) -> Vec<ObjectPointerPointer> {
-        let mut pointers = Vec::new();
-
-        for context in self.context().contexts() {
-            context.binding.push_pointers(&mut pointers);
-            context.register.push_pointers(&mut pointers);
-        }
-
-        pointers
+    pub fn contexts(&self) -> Vec<&ExecutionContext> {
+        self.context().contexts().collect()
     }
 
     pub fn remembered_set_mut(&self) -> &mut HashSet<ObjectPointer> {
@@ -527,32 +514,9 @@ mod tests {
     }
 
     #[test]
-    fn test_roots() {
+    fn test_contexts() {
         let process = new_process();
-        let pointer = process.allocate_empty();
 
-        process.set_local(0, pointer);
-        process.set_register(0, pointer);
-
-        assert_eq!(process.roots().len(), 3);
-    }
-
-    #[test]
-    fn test_roots_doesnt_copy_pointers() {
-        let process = new_process();
-        let pointer = process.allocate_empty();
-
-        process.set_local(0, pointer);
-        process.set_register(0, pointer);
-
-        for pointer_pointer in process.roots() {
-            let pointer_ref = pointer_pointer.get_mut();
-
-            pointer_ref.raw.raw = 0x4 as *mut Object;
-        }
-
-        assert_eq!(process.get_local(0).unwrap().raw.raw as usize, 0x4);
-        assert_eq!(process.get_register(0).unwrap().raw.raw as usize, 0x4);
-        assert_eq!(process.self_object().raw.raw as usize, 0x4);
+        assert_eq!(process.contexts().len(), 1);
     }
 }

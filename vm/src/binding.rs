@@ -20,6 +20,12 @@ pub struct Binding {
     pub parent: Option<RcBinding>,
 }
 
+pub struct PointerIterator<'a> {
+    binding: &'a Binding,
+    returned_self: bool,
+    local_index: usize,
+}
+
 pub type RcBinding = Arc<Binding>;
 
 impl Binding {
@@ -110,24 +116,45 @@ impl Binding {
 
     /// Pushes all pointers in this binding into the supplied vector.
     pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
-        self.push_pointers_from_binding(pointers, self);
-
-        let mut parent_opt = self.parent.as_ref();
-
-        while let Some(parent) = parent_opt {
-            self.push_pointers_from_binding(pointers, &*parent);
-
-            parent_opt = parent.parent.as_ref();
+        for pointer in self.pointers() {
+            pointers.push(pointer);
         }
     }
 
-    fn push_pointers_from_binding(&self,
-                                  pointers: &mut Vec<ObjectPointerPointer>,
-                                  binding: &Binding) {
-        pointers.push(binding.self_object.pointer());
+    /// Returns an iterator for traversing all pointers in this binding.
+    pub fn pointers(&self) -> PointerIterator {
+        PointerIterator {
+            binding: self,
+            returned_self: false,
+            local_index: 0,
+        }
+    }
+}
 
-        for local in binding.locals().iter() {
-            pointers.push(local.pointer());
+impl<'a> Iterator for PointerIterator<'a> {
+    type Item = ObjectPointerPointer;
+
+    fn next(&mut self) -> Option<ObjectPointerPointer> {
+        loop {
+            if !self.returned_self {
+                self.returned_self = true;
+
+                return Some(self.binding.self_object.pointer());
+            }
+
+            if let Some(local) = self.binding.locals().get(self.local_index) {
+                self.local_index += 1;
+
+                return Some(local.pointer());
+            }
+
+            if self.binding.parent.is_some() {
+                self.binding = self.binding.parent.as_ref().unwrap();
+                self.returned_self = false;
+                self.local_index = 0;
+            } else {
+                return None;
+            }
         }
     }
 }
@@ -275,5 +302,36 @@ mod tests {
 
         assert!(*pointers[2].get() == self_obj1);
         assert!(*pointers[3].get() == local1);
+    }
+
+    #[test]
+    fn test_pointers() {
+        let self1 = ObjectPointer::new(0x1 as RawObjectPointer);
+        let b1_local1 = ObjectPointer::new(0x2 as RawObjectPointer);
+        let b1_local2 = ObjectPointer::new(0x3 as RawObjectPointer);
+        let b1 = Binding::new(self1);
+
+        b1.set_local(0, b1_local1);
+        b1.set_local(1, b1_local2);
+
+        let self2 = ObjectPointer::new(0x4 as RawObjectPointer);
+        let b2_local1 = ObjectPointer::new(0x5 as RawObjectPointer);
+        let b2_local2 = ObjectPointer::new(0x6 as RawObjectPointer);
+        let b2 = Binding::with_parent(self2, b1.clone());
+
+        b2.set_local(0, b2_local1);
+        b2.set_local(1, b2_local2);
+
+        let mut iterator = b2.pointers();
+
+        assert!(iterator.next().unwrap().get() == &self2);
+        assert!(iterator.next().unwrap().get() == &b2_local1);
+        assert!(iterator.next().unwrap().get() == &b2_local2);
+
+        assert!(iterator.next().unwrap().get() == &self1);
+        assert!(iterator.next().unwrap().get() == &b1_local1);
+        assert!(iterator.next().unwrap().get() == &b1_local2);
+
+        assert!(iterator.next().is_none());
     }
 }

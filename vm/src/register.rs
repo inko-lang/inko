@@ -5,7 +5,12 @@ use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
-    values: Vec<ObjectPointer>,
+    pub values: Vec<ObjectPointer>,
+}
+
+pub struct PointerIterator<'a> {
+    register: &'a Register,
+    index: usize,
 }
 
 /// The extra number of slots that should be made available whenever resizing.
@@ -42,9 +47,33 @@ impl Register {
 
     /// Pushes all pointers in this register into the supplied vector.
     pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
-        for value in self.values.iter() {
-            if !value.is_null() {
-                pointers.push(value.pointer());
+        for pointer in self.pointers() {
+            pointers.push(pointer);
+        }
+    }
+
+    /// Returns an iterator for traversing all pointers in this register.
+    pub fn pointers(&self) -> PointerIterator {
+        PointerIterator {
+            register: self,
+            index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for PointerIterator<'a> {
+    type Item = ObjectPointerPointer;
+
+    fn next(&mut self) -> Option<ObjectPointerPointer> {
+        loop {
+            if let Some(local) = self.register.values.get(self.index) {
+                self.index += 1;
+
+                if !local.is_null() {
+                    return Some(local.pointer());
+                }
+            } else {
+                return None;
             }
         }
     }
@@ -96,5 +125,22 @@ mod tests {
 
         assert_eq!(register.get(0).unwrap().raw.raw as usize, 0x4);
         assert_eq!(register.get(1).unwrap().raw.raw as usize, 0x4);
+    }
+
+    #[test]
+    fn test_pointers() {
+        let mut register = Register::new();
+
+        let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
+        let pointer2 = ObjectPointer::new(0x2 as RawObjectPointer);
+
+        register.set(0, pointer1);
+        register.set(1, pointer2);
+
+        let mut iterator = register.pointers();
+
+        assert!(iterator.next().unwrap().get() == &pointer1);
+        assert!(iterator.next().unwrap().get() == &pointer2);
+        assert!(iterator.next().is_none());
     }
 }

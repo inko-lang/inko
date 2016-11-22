@@ -19,3 +19,5 @@ test = false
 getopts = "0.2"
 num_cpus = "0.2"
 time = "0.1"
+rayon = "0.5"
+parking_lot = { version = "0.3", features = ["nightly"] }
