@@ -143,12 +143,46 @@ impl Thread {
     /// * The number of marked objects
     /// * The number of evacuated objects
     /// * The number of promoted objects
-    fn trace(&self, process: &RcProcess, move_objects: bool) -> TraceResult {
+    fn trace(&self, process: &RcProcess, mut move_objects: bool) -> TraceResult {
+        if process.local_data().remembered_set.len() > 0 &&
+           self.trace_remembered_set(process) {
+            move_objects = true;
+        }
+
         if move_objects {
             self.trace_with_moving(process)
         } else {
             self.trace_without_moving(process)
         }
+    }
+
+    /// Traces through all pointers in the remembered set.
+    ///
+    /// Any young pointers found are promoted to the mature generation
+    /// immediately. This removes the need for keeping track of pointers in the
+    /// remembered set for a potential long amount of time.
+    ///
+    /// Returns true if any objects were promoted.
+    fn trace_remembered_set(&self, process: &RcProcess) -> bool {
+        let mut promoted = false;
+        let mut pointers = Vec::new();
+
+        for pointer in process.remembered_set_mut().drain() {
+            pointers.push(pointer.pointer());
+        }
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            let mut pointer = pointer_pointer.get_mut();
+
+            if pointer.is_mature() {
+                pointer.get().push_pointers(&mut pointers);
+            } else if pointer.is_young() {
+                self.promote_mature(process, pointer);
+                promoted = true;
+            }
+        }
+
+        promoted
     }
 
     /// Traces through all objects without moving any.
