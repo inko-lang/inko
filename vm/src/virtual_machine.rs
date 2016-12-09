@@ -3985,7 +3985,6 @@ impl VirtualMachine {
                         write_lock!(self.state.processes).remove(process);
                     }
                 }
-                // TODO: process supervision
                 Err(err) => {
                     self.error(process, err);
 
