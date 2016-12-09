@@ -46,6 +46,7 @@ impl PermanentAllocator {
     fn allocate(&mut self, object: Object) -> ObjectPointer {
         let (_, pointer) = self.bucket.allocate(&self.global_allocator, object);
 
+        pointer.mark();
         pointer
     }
 }
@@ -104,6 +105,14 @@ mod tests {
         assert!(pointer.get().value.is_none());
         assert!(pointer.get().prototype().is_none());
         assert!(pointer.is_permanent());
+    }
+
+    #[test]
+    fn test_allocate_marked() {
+        let mut alloc = permanent_allocator();
+        let pointer = alloc.allocate_empty();
+
+        assert!(pointer.is_marked());
     }
 
     #[test]

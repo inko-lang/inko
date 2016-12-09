@@ -190,7 +190,7 @@ mod tests {
 
         let profile = collect(&thread, &process);
 
-        assert_eq!(profile.marked, 2);
+        assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);
         assert_eq!(profile.promoted, 0);
 
@@ -212,7 +212,7 @@ mod tests {
 
         let result = trace(&process, false, false);
 
-        assert_eq!(result.marked, 2);
+        assert_eq!(result.marked, 1);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
     }
@@ -232,7 +232,7 @@ mod tests {
 
         let result = trace(&process, false, true);
 
-        assert_eq!(result.marked, 3);
+        assert_eq!(result.marked, 2);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
     }
@@ -254,7 +254,7 @@ mod tests {
 
         let result = trace(&process, true, false);
 
-        assert_eq!(result.marked, 2);
+        assert_eq!(result.marked, 1);
         assert_eq!(result.evacuated, 1);
         assert_eq!(result.promoted, 0);
     }
@@ -277,7 +277,7 @@ mod tests {
 
         let result = trace(&process, true, true);
 
-        assert_eq!(result.marked, 3);
+        assert_eq!(result.marked, 2);
         assert_eq!(result.evacuated, 2);
         assert_eq!(result.promoted, 0);
     }
@@ -469,7 +469,7 @@ mod tests {
 
         let result = trace_without_moving(&process, false);
 
-        assert_eq!(result.marked, 4);
+        assert_eq!(result.marked, 3);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
@@ -500,7 +500,7 @@ mod tests {
 
         let result = trace_without_moving(&process, true);
 
-        assert_eq!(result.marked, 5);
+        assert_eq!(result.marked, 4);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
@@ -531,7 +531,7 @@ mod tests {
 
         let result = trace_with_moving(&process, false);
 
-        assert_eq!(result.marked, 4);
+        assert_eq!(result.marked, 3);
         assert_eq!(result.evacuated, 3);
         assert_eq!(result.promoted, 0);
 
@@ -562,7 +562,7 @@ mod tests {
 
         let result = trace_with_moving(&process, true);
 
-        assert_eq!(result.marked, 5);
+        assert_eq!(result.marked, 4);
         assert_eq!(result.evacuated, 3);
         assert_eq!(result.promoted, 0);
 
