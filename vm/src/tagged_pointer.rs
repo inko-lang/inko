@@ -109,13 +109,6 @@ impl<T> TaggedPointer<T> {
     pub fn as_mut(&self) -> Option<&mut T> {
         unsafe { self.untagged().as_mut() }
     }
-
-    /// Deallocates the memory of this pointer.
-    pub fn deallocate(self) {
-        let boxed = unsafe { Box::from_raw(self.untagged()) };
-
-        drop(boxed);
-    }
 }
 
 impl<T> PartialEq for TaggedPointer<T> {
@@ -327,14 +320,5 @@ mod tests {
         assert!(set.contains(&ptr2));
 
         assert_eq!(set.contains(&ptr3), false);
-    }
-
-    #[test]
-    fn test_deallocate() {
-        let name = Box::new("Alice".to_string());
-        let raw_ptr = Box::into_raw(name);
-        let ptr = TaggedPointer::new(raw_ptr as *mut String);
-
-        ptr.deallocate();
     }
 }

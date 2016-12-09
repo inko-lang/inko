@@ -6,7 +6,7 @@
 use std::ops::Drop;
 
 use immix::copy_object::CopyObject;
-use immix::bucket::Bucket;
+use immix::bucket::{Bucket, MATURE};
 use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
 
@@ -61,7 +61,7 @@ impl LocalAllocator {
                                Bucket::with_age(-2),
                                Bucket::with_age(-3)],
             eden_index: 0,
-            mature_generation: Bucket::new(),
+            mature_generation: Bucket::with_age(MATURE),
             young_block_allocations: 0,
             mature_block_allocations: 0,
         }
@@ -75,8 +75,36 @@ impl LocalAllocator {
         &mut self.young_generation[self.eden_index]
     }
 
-    pub fn mature_generation_mut(&mut self) -> &mut Bucket {
-        &mut self.mature_generation
+    /// Prepares for a garbage collection.
+    ///
+    /// Returns true if objects have to be moved around.
+    pub fn prepare_for_collection(&mut self, mature: bool) -> bool {
+        let mut move_objects = false;
+
+        for bucket in self.young_generation.iter_mut() {
+            if bucket.prepare_for_collection() {
+                move_objects = true;
+            }
+
+            if bucket.promote {
+                move_objects = true;
+            }
+        }
+
+        if mature {
+            if self.mature_generation.prepare_for_collection() {
+                move_objects = true;
+            }
+        } else {
+            // Since the write barrier may track mature objects we need to
+            // always reset mature bitmaps. This ensures we can scan said mature
+            // objects for child pointers
+            for mut block in self.mature_generation.all_blocks_mut() {
+                block.update_line_map();
+            }
+        }
+
+        move_objects
     }
 
     /// Returns unused blocks to the global allocator.
@@ -90,6 +118,10 @@ impl LocalAllocator {
         if mature {
             for block in self.mature_generation.reclaim_blocks() {
                 self.global_allocator.add_block(block);
+            }
+        } else {
+            for mut block in self.mature_generation.all_blocks_mut() {
+                block.update_line_map();
             }
         }
     }
@@ -128,8 +160,6 @@ impl LocalAllocator {
 
     pub fn allocate_mature(&mut self, object: Object) -> ObjectPointer {
         let (new_block, pointer) = self.allocate_mature_raw(object);
-
-        pointer.get_mut().set_mature();
 
         if new_block {
             self.mature_block_allocations += 1;
@@ -248,30 +278,34 @@ mod tests {
     }
 
     #[test]
-    fn test_mature_generation_mut() {
+    fn test_prepare_for_collection() {
         let mut alloc = local_allocator();
 
-        assert_eq!(alloc.mature_generation_mut().age, 0);
+        assert_eq!(alloc.prepare_for_collection(true), false);
+
+        alloc.young_generation[0].promote = true;
+
+        assert_eq!(alloc.prepare_for_collection(true), true);
     }
 
     #[test]
-    fn reclaim_blocks() {
+    fn test_reclaim_blocks() {
         let mut alloc = local_allocator();
 
         let block1 = alloc.global_allocator.request_block();
         let block2 = alloc.global_allocator.request_block();
 
         alloc.eden_space_mut().add_block(block1);
-        alloc.mature_generation_mut().add_block(block2);
+        alloc.mature_generation.add_block(block2);
 
         alloc.reclaim_blocks(false);
 
         assert_eq!(alloc.eden_space_mut().blocks.len(), 0);
-        assert_eq!(alloc.mature_generation_mut().blocks.len(), 1);
+        assert_eq!(alloc.mature_generation.blocks.len(), 1);
 
         alloc.reclaim_blocks(true);
 
-        assert_eq!(alloc.mature_generation_mut().blocks.len(), 0);
+        assert_eq!(alloc.mature_generation.blocks.len(), 0);
     }
 
     #[test]
@@ -429,7 +463,7 @@ mod tests {
         let block2 = global_alloc.request_block();
 
         alloc.eden_space_mut().add_block(block1);
-        alloc.mature_generation_mut().add_block(block2);
+        alloc.mature_generation.add_block(block2);
 
         drop(alloc);
 

@@ -80,6 +80,18 @@ impl<T> Queue<T> {
         unlock!(self.values).pop_front()
     }
 
+    /// Pops all messages off the queue.
+    pub fn pop_all(&self) -> VecDeque<T> {
+        let mut values = unlock!(self.values);
+        let mut popped = VecDeque::with_capacity(values.len());
+
+        for pointer in values.drain(0..) {
+            popped.push_back(pointer);
+        }
+
+        popped
+    }
+
     /// Returns the amount of values in the queue.
     pub fn len(&self) -> usize {
         unlock!(self.values).len()
@@ -126,6 +138,21 @@ mod tests {
         let queue: Queue<()> = Queue::new();
 
         assert!(queue.pop_nonblock().is_none());
+    }
+
+    #[test]
+    fn test_pop_all() {
+        let queue = Queue::new();
+
+        queue.push(10);
+        queue.push(20);
+
+        let popped = queue.pop_all();
+
+        assert_eq!(popped.len(), 2);
+        assert_eq!(popped[0], 10);
+        assert_eq!(popped[1], 20);
+        assert_eq!(queue.len(), 0);
     }
 
     #[test]

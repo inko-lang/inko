@@ -12,17 +12,18 @@ const OBJECT_ENTRIES: usize = 1024;
 const LINE_ENTRIES: usize = 256;
 
 pub struct ObjectMap {
-    values: [bool; OBJECT_ENTRIES],
+    values: [u8; OBJECT_ENTRIES],
 }
 
 pub struct LineMap {
-    values: [bool; LINE_ENTRIES],
+    values: [u8; LINE_ENTRIES],
+    mark_value: u8,
 }
 
 pub trait Bitmap {
     fn max_entries(&self) -> usize;
-    fn values(&self) -> &[bool];
-    fn values_mut(&mut self) -> &mut [bool];
+    fn values(&self) -> &[u8];
+    fn values_mut(&mut self) -> &mut [u8];
 
     /// Sets the given index in the bitmap.
     ///
@@ -32,7 +33,7 @@ pub trait Bitmap {
     ///
     ///     bitmap.set(4);
     fn set(&mut self, index: usize) {
-        self.values_mut()[index] = true;
+        self.values_mut()[index] = 1;
     }
 
     /// Unsets the given index in the bitmap.
@@ -44,7 +45,7 @@ pub trait Bitmap {
     ///     bitmap.set(4);
     ///     bitmap.unset(4);
     fn unset(&mut self, index: usize) {
-        self.values_mut()[index] = false;
+        self.values_mut()[index] = 0;
     }
 
     /// Returns `true` if a given index is set.
@@ -59,28 +60,13 @@ pub trait Bitmap {
     ///
     ///     bitmap.is_set(1); // => true
     fn is_set(&self, index: usize) -> bool {
-        self.values()[index]
-    }
-
-    /// Returns `true` if the bitmap is full, `false` otherwise
-    fn is_full(&self) -> bool {
-        let empty = false;
-
-        for value in self.values().iter() {
-            if value == &empty {
-                return false;
-            }
-        }
-
-        true
+        self.values()[index] != 0
     }
 
     /// Returns true if the bitmap is empty.
     fn is_empty(&self) -> bool {
-        let set = true;
-
         for value in self.values().iter() {
-            if value == &set {
+            if value != &0 {
                 return false;
             }
         }
@@ -97,11 +83,10 @@ pub trait Bitmap {
 
     /// The number of indexes set in the bitmap.
     fn len(&self) -> usize {
-        let set = true;
         let mut count = 0;
 
         for value in self.values().iter() {
-            if value == &set {
+            if value != &0 {
                 count += 1;
             }
         }
@@ -113,25 +98,51 @@ pub trait Bitmap {
 impl ObjectMap {
     /// Returns a new, empty object bitmap.
     pub fn new() -> ObjectMap {
-        ObjectMap { values: [false; OBJECT_ENTRIES] }
+        ObjectMap { values: [0; OBJECT_ENTRIES] }
     }
 }
 
 impl LineMap {
     /// Returns a new, empty line bitmap.
     pub fn new() -> LineMap {
-        LineMap { values: [false; LINE_ENTRIES] }
+        LineMap {
+            values: [0; LINE_ENTRIES],
+            mark_value: 1,
+        }
+    }
+
+    pub fn set(&mut self, index: usize) {
+        self.values[index] = self.mark_value;
+    }
+
+    pub fn swap_mark_value(&mut self) {
+        if self.mark_value == 1 {
+            self.mark_value = 2;
+        } else {
+            self.mark_value = 1;
+        }
+    }
+
+    /// Resets marks from previous marking cycles.
+    pub fn reset_previous_marks(&mut self) {
+        for index in 0..self.max_entries() {
+            let current = self.values[index];
+
+            if current > 0 && current != self.mark_value {
+                self.values[index] = 0;
+            }
+        }
     }
 }
 
 impl Bitmap for ObjectMap {
     #[inline(always)]
-    fn values(&self) -> &[bool] {
+    fn values(&self) -> &[u8] {
         &self.values
     }
 
     #[inline(always)]
-    fn values_mut(&mut self) -> &mut [bool] {
+    fn values_mut(&mut self) -> &mut [u8] {
         &mut self.values
     }
 
@@ -142,12 +153,12 @@ impl Bitmap for ObjectMap {
 
 impl Bitmap for LineMap {
     #[inline(always)]
-    fn values(&self) -> &[bool] {
+    fn values(&self) -> &[u8] {
         &self.values
     }
 
     #[inline(always)]
-    fn values_mut(&mut self) -> &mut [bool] {
+    fn values_mut(&mut self) -> &mut [u8] {
         &mut self.values
     }
 
@@ -192,23 +203,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_map_is_full() {
-        let mut object_map = ObjectMap::new();
-
-        assert_eq!(object_map.is_full(), false);
-
-        object_map.set(1023);
-
-        assert_eq!(object_map.is_full(), false);
-
-        for index in 0..1024 {
-            object_map.set(index);
-        }
-
-        assert!(object_map.is_full());
-    }
-
-    #[test]
     fn test_object_map_reset() {
         let mut object_map = ObjectMap::new();
 
@@ -245,6 +239,18 @@ mod tests {
     }
 
     #[test]
+    fn test_line_map_set_swap_marks() {
+        let mut line_map = LineMap::new();
+
+        line_map.set(1);
+        line_map.swap_mark_value();
+        line_map.set(2);
+
+        assert!(line_map.is_set(1));
+        assert!(line_map.is_set(2));
+    }
+
+    #[test]
     fn test_line_map_unset() {
         let mut line_map = LineMap::new();
 
@@ -263,23 +269,6 @@ mod tests {
         line_map.set(1);
 
         assert_eq!(line_map.is_empty(), false);
-    }
-
-    #[test]
-    fn test_line_map_is_full() {
-        let mut line_map = LineMap::new();
-
-        assert_eq!(line_map.is_full(), false);
-
-        line_map.set(254);
-
-        assert_eq!(line_map.is_full(), false);
-
-        for index in 0..256 {
-            line_map.set(index);
-        }
-
-        assert!(line_map.is_full());
     }
 
     #[test]
@@ -306,6 +295,34 @@ mod tests {
     fn test_line_map_size_of() {
         // This test is put in place to ensure the LineMap type doesn't suddenly
         // grow due to some change.
-        assert_eq!(size_of::<LineMap>(), 256);
+        assert_eq!(size_of::<LineMap>(), 257);
+    }
+
+    #[test]
+    fn test_line_map_swap_mark_value() {
+        let mut line_map = LineMap::new();
+
+        assert_eq!(line_map.mark_value, 1);
+
+        line_map.swap_mark_value();
+
+        assert_eq!(line_map.mark_value, 2);
+    }
+
+    #[test]
+    fn test_line_map_reset_previous_marks() {
+        let mut line_map = LineMap::new();
+
+        line_map.set(1);
+        line_map.set(2);
+
+        line_map.swap_mark_value();
+
+        line_map.set(3);
+        line_map.reset_previous_marks();
+
+        assert_eq!(line_map.is_set(1), false);
+        assert_eq!(line_map.is_set(2), false);
+        assert_eq!(line_map.is_set(3), true);
     }
 }

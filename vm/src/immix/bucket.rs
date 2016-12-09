@@ -5,12 +5,23 @@
 use parking_lot::{Mutex, MutexGuard};
 
 use std::ptr;
+use std::iter::Chain;
+use std::slice::IterMut;
 
 use immix::block::Block;
 use immix::histogram::Histogram;
 use immix::global_allocator::RcGlobalAllocator;
 use object::Object;
 use object_pointer::ObjectPointer;
+
+/// The age of a bucket containing mature objects.
+pub const MATURE: isize = 100;
+
+/// The age of a bucket containing mailbox objects.
+pub const MAILBOX: isize = 200;
+
+/// The age of a bucket containing permanent objects.
+pub const PERMANENT: isize = 300;
 
 /// Structure storing data of a single bucket.
 pub struct Bucket {
@@ -175,6 +186,7 @@ impl Bucket {
         for mut block in self.blocks
             .drain(0..)
             .chain(self.recyclable_blocks.drain(0..)) {
+            block.update_line_map();
             block.finalize();
 
             if block.is_empty() {
@@ -229,7 +241,7 @@ impl Bucket {
                 available += count as isize;
             }
 
-            block.reset_bitmaps();
+            block.prepare_for_collection();
         }
 
         if available > 0 {
@@ -274,6 +286,12 @@ impl Bucket {
         }
 
         evacuate
+    }
+
+    /// Returns a mutable iterator for all blocks.
+    pub fn all_blocks_mut(&mut self)
+                          -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
+        self.blocks.iter_mut().chain(self.recyclable_blocks.iter_mut())
     }
 }
 
@@ -530,7 +548,6 @@ mod tests {
 
         let block = bucket.current_block().unwrap();
 
-        assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
     }
 
@@ -554,7 +571,6 @@ mod tests {
         let block = bucket.current_block().unwrap();
 
         assert!(block.fragmented);
-        assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
     }
 }

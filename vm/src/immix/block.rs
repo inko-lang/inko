@@ -57,8 +57,7 @@ pub struct BlockHeader {
 /// Structure representing a single block.
 ///
 /// Allocating these structures will use a little bit more memory than the block
-/// size due to the various types used (e.g. the used slots bitmap and the block
-/// status).
+/// size due to the various types used.
 pub struct Block {
     /// The memory to use for the mark bitmap and allocating objects. The first
     /// 128 bytes of this field are reserved and used for storing a BlockHeader.
@@ -148,10 +147,14 @@ impl Block {
         block
     }
 
-    /// Resets the object/line bitmaps for a collection cycle.
-    pub fn reset_bitmaps(&mut self) {
-        self.used_lines_bitmap.reset();
+    /// Prepares this block for a garbage collection cycle.
+    pub fn prepare_for_collection(&mut self) {
+        self.used_lines_bitmap.swap_mark_value();
         self.marked_objects_bitmap.reset();
+    }
+
+    pub fn update_line_map(&mut self) {
+        self.used_lines_bitmap.reset_previous_marks();
     }
 
     /// Returns an immutable reference to the bucket of this block.
@@ -262,7 +265,8 @@ impl Block {
         self.end_pointer = self.end_address();
         self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
-        self.reset_bitmaps();
+        self.used_lines_bitmap.reset();
+        self.marked_objects_bitmap.reset();
 
         self.finalize();
         self.finalize_bitmap.reset();
@@ -352,7 +356,8 @@ impl Drop for Block {
     fn drop(&mut self) {
         unsafe {
             // Finalize all objects, marked or not
-            self.reset_bitmaps();
+            self.used_lines_bitmap.reset();
+            self.marked_objects_bitmap.reset();
             self.finalize();
 
             heap::deallocate(self.lines as *mut u8, BLOCK_SIZE, BLOCK_SIZE);
@@ -404,15 +409,26 @@ mod tests {
     }
 
     #[test]
-    fn test_block_reset_bitmaps() {
+    fn test_block_prepare_for_collection() {
         let mut block = Block::new();
 
         block.used_lines_bitmap.set(1);
         block.marked_objects_bitmap.set(1);
-        block.reset_bitmaps();
+        block.prepare_for_collection();
+
+        assert!(block.used_lines_bitmap.is_set(1));
+        assert_eq!(block.marked_objects_bitmap.is_set(1), false);
+    }
+
+    #[test]
+    fn test_block_update_line_map() {
+        let mut block = Block::new();
+
+        block.used_lines_bitmap.set(1);
+        block.prepare_for_collection();
+        block.update_line_map();
 
         assert!(block.used_lines_bitmap.is_empty());
-        assert!(block.marked_objects_bitmap.is_empty());
     }
 
     #[test]

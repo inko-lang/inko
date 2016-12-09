@@ -4,7 +4,7 @@
 
 use std::ops::Drop;
 
-use immix::bucket::Bucket;
+use immix::bucket::{Bucket, PERMANENT};
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 
@@ -22,7 +22,7 @@ impl PermanentAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> Self {
         PermanentAllocator {
             global_allocator: global_allocator,
-            bucket: Bucket::new(),
+            bucket: Bucket::with_age(PERMANENT),
         }
     }
 
@@ -44,14 +44,6 @@ impl PermanentAllocator {
     }
 
     fn allocate(&mut self, object: Object) -> ObjectPointer {
-        let pointer = self.allocate_raw(object);
-
-        pointer.get_mut().set_permanent();
-
-        pointer
-    }
-
-    fn allocate_raw(&mut self, object: Object) -> ObjectPointer {
         let (_, pointer) = self.bucket.allocate(&self.global_allocator, object);
 
         pointer
@@ -66,8 +58,7 @@ impl CopyObject for PermanentAllocator {
 
 impl Drop for PermanentAllocator {
     fn drop(&mut self) {
-        for mut block in self.bucket.blocks.drain(0..) {
-            block.reset();
+        for block in self.bucket.blocks.drain(0..) {
             self.global_allocator.add_block(block);
         }
     }

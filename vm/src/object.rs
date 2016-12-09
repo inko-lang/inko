@@ -4,28 +4,11 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add constants, etc.
 use std::ops::Drop;
+use std::ptr;
 
 use object_header::ObjectHeader;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value::ObjectValue;
-use tagged_pointer::TaggedPointer;
-
-/// The bit mask to use for the mature generation.
-const MATURE_MASK: usize = 0x1;
-
-/// The bit mask to use for the mailbox generation.
-const MAILBOX_MASK: usize = 0x2;
-
-/// The bit mask to use for the permanent generation.
-const PERMANENT_MASK: usize = 0x3;
-
-/// The generations an object can reside in.
-pub enum ObjectGeneration {
-    Young,
-    Mature,
-    Permanent,
-    Mailbox,
-}
 
 /// The status of an object.
 pub enum ObjectStatus {
@@ -41,40 +24,6 @@ pub enum ObjectStatus {
 
     /// This object should be evacuated from its block.
     Evacuate,
-}
-
-impl ObjectGeneration {
-    /// Returns true if the current generation is the permanent generation.
-    pub fn is_permanent(&self) -> bool {
-        match *self {
-            ObjectGeneration::Permanent => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the current generation is the mature generation.
-    pub fn is_mature(&self) -> bool {
-        match *self {
-            ObjectGeneration::Mature => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the current generation is the young generation.
-    pub fn is_young(&self) -> bool {
-        match *self {
-            ObjectGeneration::Young => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true if the current generation is the mailbox generation.
-    pub fn is_mailbox(&self) -> bool {
-        match *self {
-            ObjectGeneration::Mailbox => true,
-            _ => false,
-        }
-    }
 }
 
 /// Structure containing data of a single object.
@@ -93,17 +42,7 @@ pub struct Object {
     /// A pointer to a header storing the methods, attributes, and other data of
     /// this object. Headers are allocated on demand and default to null
     /// pointers.
-    ///
-    /// Header pointers are tagged so extra information can be encoded into an
-    /// object without taking up extra space. Tagging is done by setting one of
-    /// the lower two bits to 1. The possible values of these two bits are as
-    /// follows:
-    ///
-    ///     00: object resides in the young generation
-    ///     01: object resides in the mature generation
-    ///     10: object resides in the mailbox generation
-    ///     11: object resides in the permanent generation
-    pub header: TaggedPointer<ObjectHeader>,
+    pub header: *const ObjectHeader,
 
     /// A native Rust value (e.g. a String) that belongs to this object.
     pub value: ObjectValue,
@@ -117,7 +56,7 @@ impl Object {
     pub fn new(value: ObjectValue) -> Object {
         Object {
             prototype: ObjectPointer::null(),
-            header: TaggedPointer::null(),
+            header: ptr::null::<ObjectHeader>(),
             value: value,
         }
     }
@@ -126,7 +65,7 @@ impl Object {
     pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
         Object {
             prototype: proto,
-            header: TaggedPointer::null(),
+            header: ptr::null::<ObjectHeader>(),
             value: value,
         }
     }
@@ -280,61 +219,25 @@ impl Object {
 
     /// Returns an immutable reference to the object header.
     pub fn header(&self) -> Option<&ObjectHeader> {
-        self.header.as_ref()
+        if self.header.is_null() {
+            None
+        } else {
+            Some(unsafe { &*self.header })
+        }
     }
 
     /// Returns a mutable reference to the object header.
     pub fn header_mut(&self) -> Option<&mut ObjectHeader> {
-        self.header.as_mut()
+        if self.header.is_null() {
+            None
+        } else {
+            Some(unsafe { &mut *(self.header as *mut ObjectHeader) })
+        }
     }
 
     /// Sets the object header to the given header.
     pub fn set_header(&mut self, header: ObjectHeader) {
-        let header = Box::new(header);
-        let pointer = Box::into_raw(header);
-
-        self.header = match self.generation() {
-            ObjectGeneration::Young => TaggedPointer::new(pointer),
-            ObjectGeneration::Mature => {
-                TaggedPointer::with_mask(pointer, MATURE_MASK)
-            }
-            ObjectGeneration::Permanent => {
-                TaggedPointer::with_mask(pointer, PERMANENT_MASK)
-            }
-            ObjectGeneration::Mailbox => {
-                TaggedPointer::with_mask(pointer, MAILBOX_MASK)
-            }
-        };
-    }
-
-    /// Sets the generation of this object to the permanent generation.
-    pub fn set_permanent(&mut self) {
-        self.header.set_mask(PERMANENT_MASK);
-    }
-
-    /// Sets the generation of this object to the mature generation.
-    pub fn set_mature(&mut self) {
-        self.header.set_mask(MATURE_MASK);
-    }
-
-    /// Sets the generation of this object to the mailbox generation.
-    pub fn set_mailbox(&mut self) {
-        self.header.set_mask(MAILBOX_MASK);
-    }
-
-    /// Returns the generation this object belongs to.
-    pub fn generation(&self) -> ObjectGeneration {
-        // Due to the bit masks used we must compare in the order of greatest to
-        // smallest bit mask.
-        if self.header.mask_is_set(PERMANENT_MASK) {
-            ObjectGeneration::Permanent
-        } else if self.header.mask_is_set(MAILBOX_MASK) {
-            ObjectGeneration::Mailbox
-        } else if self.header.mask_is_set(MATURE_MASK) {
-            ObjectGeneration::Mature
-        } else {
-            ObjectGeneration::Young
-        }
+        self.header = Box::into_raw(Box::new(header));
     }
 
     /// Pushes all pointers in this object into the given Vec.
@@ -366,7 +269,7 @@ impl Object {
                                                  self.prototype);
 
         new_obj.header = self.header;
-        self.header = TaggedPointer::null();
+        self.header = ptr::null::<ObjectHeader>();
 
         new_obj
     }
@@ -397,7 +300,7 @@ impl Object {
 impl Drop for Object {
     fn drop(&mut self) {
         if self.has_header() {
-            self.header.deallocate();
+            drop(unsafe { Box::from_raw(self.header as *mut ObjectHeader) });
         }
     }
 }
@@ -420,38 +323,6 @@ mod tests {
 
     fn object_pointer_for(object: &Object) -> ObjectPointer {
         ObjectPointer::new(object as *const Object as RawObjectPointer)
-    }
-
-    #[test]
-    fn test_object_generation_is_permanent() {
-        assert_eq!(ObjectGeneration::Young.is_permanent(), false);
-        assert_eq!(ObjectGeneration::Mature.is_permanent(), false);
-        assert_eq!(ObjectGeneration::Permanent.is_permanent(), true);
-        assert_eq!(ObjectGeneration::Mailbox.is_permanent(), false);
-    }
-
-    #[test]
-    fn test_object_generation_is_mature() {
-        assert_eq!(ObjectGeneration::Young.is_mature(), false);
-        assert_eq!(ObjectGeneration::Mature.is_mature(), true);
-        assert_eq!(ObjectGeneration::Permanent.is_mature(), false);
-        assert_eq!(ObjectGeneration::Mailbox.is_mature(), false);
-    }
-
-    #[test]
-    fn test_object_generation_is_young() {
-        assert_eq!(ObjectGeneration::Young.is_young(), true);
-        assert_eq!(ObjectGeneration::Mature.is_young(), false);
-        assert_eq!(ObjectGeneration::Permanent.is_young(), false);
-        assert_eq!(ObjectGeneration::Mailbox.is_young(), false);
-    }
-
-    #[test]
-    fn test_object_generation_is_mailbox() {
-        assert_eq!(ObjectGeneration::Young.is_mailbox(), false);
-        assert_eq!(ObjectGeneration::Mature.is_mailbox(), false);
-        assert_eq!(ObjectGeneration::Permanent.is_mailbox(), false);
-        assert_eq!(ObjectGeneration::Mailbox.is_mailbox(), true);
     }
 
     #[test]
@@ -691,69 +562,6 @@ mod tests {
         obj.set_header(header);
 
         assert!(obj.header().is_some());
-    }
-
-    #[test]
-    fn test_object_header_set_header_with_generation() {
-        let mut obj = new_object();
-        let header = ObjectHeader::new();
-
-        obj.set_permanent();
-        obj.set_header(header);
-
-        assert!(obj.generation().is_permanent());
-    }
-
-    #[test]
-    fn test_object_set_permanent() {
-        let mut obj = new_object();
-
-        obj.set_permanent();
-
-        assert!(obj.generation().is_permanent());
-    }
-
-    #[test]
-    fn test_object_set_mature() {
-        let mut obj = new_object();
-
-        obj.set_mature();
-
-        assert!(obj.generation().is_mature());
-    }
-
-    #[test]
-    fn test_object_generation_with_default_generation() {
-        let obj = new_object();
-
-        assert!(obj.generation().is_young());
-    }
-
-    #[test]
-    fn test_object_generation_with_permanent_generation() {
-        let mut obj = new_object();
-
-        obj.set_permanent();
-
-        assert!(obj.generation().is_permanent());
-    }
-
-    #[test]
-    fn test_object_generation_with_mailbox_generation() {
-        let mut obj = new_object();
-
-        obj.set_mailbox();
-
-        assert!(obj.generation().is_mailbox());
-    }
-
-    #[test]
-    fn test_object_generation_with_mature_generation() {
-        let mut obj = new_object();
-
-        obj.set_mature();
-
-        assert!(obj.generation().is_mature());
     }
 
     #[test]

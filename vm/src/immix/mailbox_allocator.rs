@@ -7,37 +7,56 @@
 use std::ops::Drop;
 
 use immix::copy_object::CopyObject;
-use immix::bucket::Bucket;
+use immix::bucket::{Bucket, MAILBOX};
+use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
 use object_pointer::ObjectPointer;
 
+pub const ALLOCATION_THRESHOLD: usize = (1 * 1024 * 1024) / BLOCK_SIZE;
+
 pub struct MailboxAllocator {
     global_allocator: RcGlobalAllocator,
-    bucket: Bucket,
+    pub bucket: Bucket,
+    pub block_allocations: usize,
 }
 
 impl MailboxAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> Self {
         MailboxAllocator {
             global_allocator: global_allocator,
-            bucket: Bucket::new(),
+            bucket: Bucket::with_age(MAILBOX),
+            block_allocations: 0,
         }
     }
 
     pub fn allocate(&mut self, object: Object) -> ObjectPointer {
-        let pointer = self.allocate_raw(object);
+        let (new_block, pointer) = self.bucket
+            .allocate(&self.global_allocator, object);
 
-        pointer.get_mut().set_mailbox();
+        if new_block {
+            self.block_allocations += 1;
+        }
 
         pointer
     }
 
-    fn allocate_raw(&mut self, object: Object) -> ObjectPointer {
-        let (_, pointer) = self.bucket.allocate(&self.global_allocator, object);
+    /// Prepares a garbage collection cycle, returns true if objects have to be
+    /// moved around.
+    pub fn prepare_for_collection(&mut self) -> bool {
+        self.bucket.prepare_for_collection()
+    }
 
-        pointer
+    /// Returns unused blocks to the global allocator.
+    pub fn reclaim_blocks(&mut self) {
+        for block in self.bucket.reclaim_blocks() {
+            self.global_allocator.add_block(block);
+        }
+    }
+
+    pub fn allocation_threshold_exceeded(&self) -> bool {
+        self.block_allocations >= ALLOCATION_THRESHOLD
     }
 }
 
@@ -76,7 +95,7 @@ mod tests {
         let mut alloc = mailbox_allocator();
         let pointer = alloc.allocate(Object::new(object_value::none()));
 
-        assert!(pointer.get().generation().is_mailbox());
+        assert!(pointer.is_mailbox());
         assert!(pointer.get().value.is_none());
     }
 
@@ -91,7 +110,7 @@ mod tests {
 
         let copy = mbox_alloc.copy_object(original);
 
-        assert!(copy.get().generation().is_mailbox());
+        assert!(copy.is_mailbox());
         assert!(copy.get().value.is_integer());
     }
 

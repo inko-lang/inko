@@ -4,19 +4,16 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, Condvar};
 use std::cell::UnsafeCell;
 
-use immix::bucket::Bucket;
-use immix::copy_object::CopyObject;
 use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
-use immix::mailbox_allocator::MailboxAllocator;
 
 use binding::RcBinding;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
+use execution_context::ExecutionContext;
+use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
-use execution_context::ExecutionContext;
-use queue::Queue;
 
 pub type RcProcess = Arc<Process>;
 
@@ -79,6 +76,23 @@ pub struct LocalData {
     /// lock of sorts. As such the collector must ensure this process is
     /// suspended upon examining the remembered set.
     pub remembered_set: HashSet<ObjectPointer>,
+
+    /// The mailbox for sending/receiving messages.
+    ///
+    /// The Mailbox is stored in LocalData as a Mailbox uses internal locking
+    /// while still allowing a receiver to mutate it without a lock. This means
+    /// some operations need a &mut self, which won't be possible if a Mailbox
+    /// is stored directly in a Process.
+    pub mailbox: Mailbox,
+
+    /// The number of young garbage collections that have been performed.
+    pub young_collections: usize,
+
+    /// The number of mature garbage collections that have been performed.
+    pub mature_collections: usize,
+
+    /// The number of mailbox collections that have been performed.
+    pub mailbox_collections: usize,
 }
 
 pub struct Process {
@@ -91,12 +105,6 @@ pub struct Process {
     /// Condition variable used for waking up other threads waiting for this
     /// process' status to change.
     pub status_signaler: Condvar,
-
-    /// A queue containing received messages.
-    pub mailbox: Queue<ObjectPointer>,
-
-    /// The allocator to use for storing objects in the mailbox heap.
-    pub mailbox_allocator: Mutex<MailboxAllocator>,
 
     /// Data stored in a process that should only be modified by a single thread
     /// at once.
@@ -120,15 +128,16 @@ impl Process {
             gc_state: GcState::None,
             suspend_for_gc: false,
             remembered_set: HashSet::new(),
+            mailbox: Mailbox::new(global_allocator),
+            young_collections: 0,
+            mature_collections: 0,
+            mailbox_collections: 0,
         };
 
         let process = Process {
             pid: pid,
             status: Mutex::new(ProcessStatus::Scheduled),
             status_signaler: Condvar::new(),
-            mailbox: Queue::new(),
-            mailbox_allocator:
-                Mutex::new(MailboxAllocator::new(global_allocator)),
             local_data: UnsafeCell::new(local_data),
         };
 
@@ -248,29 +257,17 @@ impl Process {
     }
 
     /// Sends a message to the current process.
-    pub fn send_message(&self, message: ObjectPointer) {
-        let mut to_send = message;
-
-        // TODO: Instead of using is_local we can use an enum with two variants:
-        // Remote and Local. A Remote message requires copying the message into
-        // the message allocator, a Local message can be used as-is.
-        //
-        // When we receive() a Remote message we copy it to the eden allocator. If
-        // the message is a Local message we just leave things as-is.
-        //
-        // This can also be used for globals as when sending a global object as
-        // a message we can just use the Local variant.
-        if to_send.is_local() {
-            to_send = unlock!(self.mailbox_allocator).copy_object(to_send);
+    pub fn send_message(&self, sender: &RcProcess, message: ObjectPointer) {
+        if sender.pid == self.pid {
+            self.local_data_mut().mailbox.send_from_self(message);
+        } else {
+            self.local_data_mut().mailbox.send_from_external(message);
         }
-
-        self.mailbox.push(to_send);
     }
 
-    /// Pops a message from the current process' message queue.
+    /// Returns a message from the mailbox.
     pub fn receive_message(&self) -> Option<ObjectPointer> {
-        // TODO: copy to the heap
-        self.mailbox.pop_nonblock()
+        self.local_data_mut().mailbox.receive()
     }
 
     pub fn should_be_rescheduled(&self) -> bool {
@@ -427,9 +424,16 @@ impl Process {
         self.set_gc_state(GcState::Scheduled);
     }
 
-    pub fn should_schedule_gc(&self) -> bool {
-        match *self.gc_state() {
-            GcState::None => self.should_collect_young_generation(),
+    pub fn should_schedule_heap_collection(&self) -> bool {
+        match self.gc_state() {
+            &GcState::None => self.should_collect_young_generation(),
+            _ => false,
+        }
+    }
+
+    pub fn should_schedule_mailbox_collection(&self) -> bool {
+        match self.gc_state() {
+            &GcState::None => self.should_collect_mailbox(),
             _ => false,
         }
     }
@@ -446,6 +450,12 @@ impl Process {
             .mature_block_allocation_threshold_exceeded()
     }
 
+    pub fn should_collect_mailbox(&self) -> bool {
+        self.local_data()
+            .mailbox
+            .should_collect()
+    }
+
     pub fn reset_status(&self) {
         self.set_status(ProcessStatus::Scheduled);
         self.set_gc_state(GcState::None);
@@ -455,8 +465,8 @@ impl Process {
         self.context().contexts().collect()
     }
 
-    pub fn remembered_set_mut(&self) -> &mut HashSet<ObjectPointer> {
-        &mut self.local_data_mut().remembered_set
+    pub fn has_remembered_objects(&self) -> bool {
+        self.local_data().remembered_set.len() > 0
     }
 
     /// Write barrier for tracking cross generation writes.
@@ -467,16 +477,38 @@ impl Process {
                          written_to: ObjectPointer,
                          written: ObjectPointer) {
         if written_to.is_mature() && written.is_young() {
-            self.remembered_set_mut().insert(written_to);
+            self.local_data_mut().remembered_set.insert(written_to);
         }
     }
 
-    pub fn increment_young_ages(&self) {
-        self.local_data_mut().allocator.increment_young_ages()
+    pub fn prepare_for_collection(&self, mature: bool) -> bool {
+        self.local_data_mut().allocator.prepare_for_collection(mature)
     }
 
-    pub fn mature_generation_mut(&self) -> &mut Bucket {
-        self.local_data_mut().allocator.mature_generation_mut()
+    pub fn reclaim_blocks(&self, mature: bool) {
+        self.local_data_mut().allocator.reclaim_blocks(mature);
+    }
+
+    pub fn update_collection_statistics(&self, mature: bool) {
+        let mut local_data = self.local_data_mut();
+
+        local_data.allocator.increment_young_ages();
+
+        local_data.allocator.young_block_allocations = 0;
+
+        if mature {
+            local_data.allocator.mature_block_allocations = 0;
+            local_data.mature_collections += 1;
+        } else {
+            local_data.young_collections += 1;
+        }
+    }
+
+    pub fn update_mailbox_collection_statistics(&self) {
+        let mut local_data = self.local_data_mut();
+
+        local_data.mailbox_collections += 1;
+        local_data.mailbox.allocator.block_allocations = 0;
     }
 }
 
@@ -499,7 +531,6 @@ mod tests {
     use super::*;
     use immix::global_allocator::GlobalAllocator;
     use compiled_code::CompiledCode;
-    use object::Object;
     use object_pointer::ObjectPointer;
 
     fn new_process() -> RcProcess {
@@ -518,5 +549,59 @@ mod tests {
         let process = new_process();
 
         assert_eq!(process.contexts().len(), 1);
+    }
+
+    #[test]
+    fn test_update_collection_statistics_without_mature() {
+        let process = new_process();
+
+        process.local_data_mut().allocator.young_block_allocations = 1;
+
+        process.update_collection_statistics(false);
+
+        let local_data = process.local_data();
+
+        assert_eq!(local_data.allocator.young_block_allocations, 0);
+        assert_eq!(local_data.young_collections, 1);
+    }
+
+    #[test]
+    fn test_update_collection_statistics_with_mature() {
+        let process = new_process();
+
+        {
+            let mut local_data = process.local_data_mut();
+
+            local_data.allocator.young_block_allocations = 1;
+            local_data.allocator.mature_block_allocations = 1;
+        }
+
+        process.update_collection_statistics(true);
+
+        let local_data = process.local_data();
+
+        assert_eq!(local_data.allocator.young_block_allocations, 0);
+        assert_eq!(local_data.allocator.mature_block_allocations, 0);
+
+        assert_eq!(local_data.young_collections, 0);
+        assert_eq!(local_data.mature_collections, 1);
+    }
+
+    #[test]
+    fn test_update_mailbox_collection_statistics() {
+        let process = new_process();
+
+        {
+            let mut local_data = process.local_data_mut();
+
+            local_data.mailbox.allocator.block_allocations = 1;
+        }
+
+        process.update_mailbox_collection_statistics();
+
+        let local_data = process.local_data();
+
+        assert_eq!(local_data.mailbox_collections, 1);
+        assert_eq!(local_data.mailbox.allocator.block_allocations, 0);
     }
 }

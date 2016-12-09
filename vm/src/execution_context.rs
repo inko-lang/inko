@@ -338,6 +338,6 @@ mod tests {
 
         let pointers = context.pointers();
 
-        assert_eq!(pointers.len(), 2);
+        assert_eq!(pointers.len(), 3);
     }
 }

@@ -19,7 +19,7 @@ use compiled_code::RcCompiledCode;
 use config::Config;
 use errors;
 use gc::thread::Thread as GcThread;
-use gc::request::{Request as GcRequest, Generation as GcGeneration};
+use gc::request::Request as GcRequest;
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
 use object_value;
@@ -42,7 +42,7 @@ pub struct VirtualMachineState {
     processes: RwLock<ProcessList>,
     exit_status: RwLock<Result<(), ()>>,
 
-    permanent_allocator: RwLock<PermanentAllocator>,
+    permanent_allocator: RwLock<Box<PermanentAllocator>>,
     global_allocator: RcGlobalAllocator,
     top_level: ObjectPointer,
     integer_prototype: ObjectPointer,
@@ -66,7 +66,11 @@ pub struct VirtualMachine {
 impl VirtualMachineState {
     pub fn new(config: Config) -> RcVirtualMachineState {
         let global_alloc = GlobalAllocator::new();
-        let mut perm_alloc = PermanentAllocator::new(global_alloc.clone());
+
+        // Boxed since moving around the allocator can break pointers from the
+        // blocks back to the allocator's bucket.
+        let mut perm_alloc =
+            Box::new(PermanentAllocator::new(global_alloc.clone()));
 
         let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
@@ -917,7 +921,7 @@ impl VirtualMachine {
             let mut proto = try_vm_error!(process.get_register(proto_index),
                                           instruction);
 
-            if is_permanent && proto.is_local() {
+            if is_permanent && !proto.is_permanent() {
                 proto = write_lock!(self.state.permanent_allocator)
                     .copy_object(proto);
             }
@@ -2483,7 +2487,7 @@ impl VirtualMachine {
         };
 
         if let Some(receiver) = read_lock!(self.state.processes).get(pid) {
-            receiver.send_message(msg_ptr.clone());
+            receiver.send_message(&process, msg_ptr);
         }
 
         process.set_register(register, msg_ptr);
@@ -3989,13 +3993,16 @@ impl VirtualMachine {
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
     fn gc_safepoint(&self, thread: RcThread, process: RcProcess) {
-        if process.should_schedule_gc() {
+        if process.should_schedule_heap_collection() {
             process.gc_scheduled();
 
-            let request =
-                GcRequest::new(GcGeneration::Young, thread, process.clone());
+            self.state.gc_requests.push(GcRequest::heap(thread, process.clone()));
+        } else if process.should_schedule_mailbox_collection() {
+            process.gc_scheduled();
 
-            self.state.gc_requests.push(request);
+            self.state
+                .gc_requests
+                .push(GcRequest::mailbox(thread, process.clone()));
         }
     }
 }

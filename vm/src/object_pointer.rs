@@ -3,6 +3,8 @@ use std::hash::{Hash, Hasher};
 
 use immix::bitmap::{Bitmap, ObjectMap};
 use immix::block;
+use immix::bucket::{MATURE, MAILBOX, PERMANENT};
+use immix::local_allocator::YOUNG_MAX_AGE;
 
 use object::{Object, ObjectStatus};
 use process::RcProcess;
@@ -141,22 +143,22 @@ impl ObjectPointer {
 
     /// Returns true if the current pointer points to a permanent object.
     pub fn is_permanent(&self) -> bool {
-        self.get().generation().is_permanent()
+        self.block().bucket().unwrap().age == PERMANENT
     }
 
     /// Returns true if the current pointer points to a mature object.
     pub fn is_mature(&self) -> bool {
-        self.get().generation().is_mature()
+        self.block().bucket().unwrap().age == MATURE
+    }
+
+    /// Returns true if the current pointer points to a mailbox object.
+    pub fn is_mailbox(&self) -> bool {
+        self.block().bucket().unwrap().age == MAILBOX
     }
 
     /// Returns true if the current pointer points to a young object.
     pub fn is_young(&self) -> bool {
-        self.get().generation().is_young()
-    }
-
-    /// Returns true if the pointer points to a local object.
-    pub fn is_local(&self) -> bool {
-        !self.is_permanent()
+        self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
     /// Returns true if the current object is marked.
@@ -330,6 +332,8 @@ mod tests {
     use immix::bitmap::Bitmap;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
+    use immix::bucket::{Bucket, MATURE, MAILBOX, PERMANENT};
+    use immix::block::Block;
     use object::{Object, ObjectStatus};
     use object_value::ObjectValue;
 
@@ -343,6 +347,25 @@ mod tests {
 
     fn local_allocator() -> LocalAllocator {
         LocalAllocator::new(GlobalAllocator::without_preallocated_blocks())
+    }
+
+    fn buckets_for_all_ages() -> (Bucket, Bucket, Bucket, Bucket) {
+        let young = Bucket::with_age(0);
+        let mature = Bucket::with_age(MATURE);
+        let mailbox = Bucket::with_age(MAILBOX);
+        let permanent = Bucket::with_age(PERMANENT);
+
+        (young, mature, mailbox, permanent)
+    }
+
+    fn allocate_in_bucket(bucket: &mut Bucket) -> ObjectPointer {
+        if bucket.blocks.len() == 0 {
+            bucket.add_block(Block::new());
+        }
+
+        bucket.current_block_mut()
+            .unwrap()
+            .bump_allocate(Object::new(ObjectValue::None))
     }
 
     #[test]
@@ -491,67 +514,67 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_is_permanent_with_young_pointer() {
-        let object = Object::new(ObjectValue::None);
+    fn test_object_pointer_is_permanent() {
+        let (mut young, mut mature, mut mailbox, mut permanent) =
+            buckets_for_all_ages();
 
-        assert_eq!(object_pointer_for(&object).is_permanent(), false);
+        let young_ptr = allocate_in_bucket(&mut young);
+        let mature_ptr = allocate_in_bucket(&mut mature);
+        let mailbox_ptr = allocate_in_bucket(&mut mailbox);
+        let permanent_ptr = allocate_in_bucket(&mut permanent);
+
+        assert_eq!(young_ptr.is_permanent(), false);
+        assert_eq!(mature_ptr.is_permanent(), false);
+        assert_eq!(mailbox_ptr.is_permanent(), false);
+        assert_eq!(permanent_ptr.is_permanent(), true);
     }
 
     #[test]
-    fn test_object_pointer_is_permanent_with_permanent_pointer() {
-        let mut object = Object::new(ObjectValue::None);
+    fn test_object_pointer_is_young() {
+        let (mut young, mut mature, mut mailbox, mut permanent) =
+            buckets_for_all_ages();
 
-        object.set_permanent();
+        let young_ptr = allocate_in_bucket(&mut young);
+        let mature_ptr = allocate_in_bucket(&mut mature);
+        let mailbox_ptr = allocate_in_bucket(&mut mailbox);
+        let permanent_ptr = allocate_in_bucket(&mut permanent);
 
-        assert!(object_pointer_for(&object).is_permanent());
+        assert_eq!(young_ptr.is_young(), true);
+        assert_eq!(mature_ptr.is_young(), false);
+        assert_eq!(mailbox_ptr.is_young(), false);
+        assert_eq!(permanent_ptr.is_young(), false);
     }
 
     #[test]
-    fn test_object_pointer_is_mature_with_young_pointer() {
-        let object = Object::new(ObjectValue::None);
+    fn test_object_pointer_is_mature() {
+        let (mut young, mut mature, mut mailbox, mut permanent) =
+            buckets_for_all_ages();
 
-        assert_eq!(object_pointer_for(&object).is_mature(), false);
+        let young_ptr = allocate_in_bucket(&mut young);
+        let mature_ptr = allocate_in_bucket(&mut mature);
+        let mailbox_ptr = allocate_in_bucket(&mut mailbox);
+        let permanent_ptr = allocate_in_bucket(&mut permanent);
+
+        assert_eq!(young_ptr.is_mature(), false);
+        assert_eq!(mature_ptr.is_mature(), true);
+        assert_eq!(mailbox_ptr.is_mature(), false);
+        assert_eq!(permanent_ptr.is_mature(), false);
     }
 
     #[test]
-    fn test_object_pointer_is_mature_with_mature_pointer() {
-        let mut object = Object::new(ObjectValue::None);
+    fn test_object_pointer_is_mailbox() {
+        let (mut young, mut mature, mut mailbox, mut permanent) =
+            buckets_for_all_ages();
 
-        object.set_mature();
+        let young_ptr = allocate_in_bucket(&mut young);
+        let mature_ptr = allocate_in_bucket(&mut mature);
+        let mailbox_ptr = allocate_in_bucket(&mut mailbox);
+        let permanent_ptr = allocate_in_bucket(&mut permanent);
 
-        assert!(object_pointer_for(&object).is_mature());
-    }
-
-    #[test]
-    fn test_object_pointer_is_young_with_mature_pointer() {
-        let mut object = Object::new(ObjectValue::None);
-
-        object.set_mature();
-
-        assert_eq!(object_pointer_for(&object).is_young(), false);
-    }
-
-    #[test]
-    fn test_object_pointer_is_young_with_young_pointer() {
-        let object = Object::new(ObjectValue::None);
-
-        assert!(object_pointer_for(&object).is_young());
-    }
-
-    #[test]
-    fn test_object_pointer_is_local_with_local_pointer() {
-        let object = Object::new(ObjectValue::None);
-
-        assert!(object_pointer_for(&object).is_local());
-    }
-
-    #[test]
-    fn test_object_pointer_is_local_with_permanent_pointer() {
-        let mut object = Object::new(ObjectValue::None);
-
-        object.set_permanent();
-
-        assert_eq!(object_pointer_for(&object).is_local(), false);
+        assert_eq!(young_ptr.is_mailbox(), false);
+        assert_eq!(mature_ptr.is_mailbox(), false);
+        assert_eq!(mailbox_ptr.is_mailbox(), true);
+        assert_eq!(permanent_ptr.is_mailbox(), false);
     }
 
     #[test]
