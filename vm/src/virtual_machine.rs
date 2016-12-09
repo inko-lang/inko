@@ -1,4 +1,5 @@
 //! Virtual Machine for running instructions
+use parking_lot::Mutex;
 
 use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
@@ -42,7 +43,7 @@ pub struct VirtualMachineState {
     processes: RwLock<ProcessList>,
     exit_status: RwLock<Result<(), ()>>,
 
-    permanent_allocator: RwLock<Box<PermanentAllocator>>,
+    permanent_allocator: Mutex<Box<PermanentAllocator>>,
     global_allocator: RcGlobalAllocator,
     top_level: ObjectPointer,
     integer_prototype: ObjectPointer,
@@ -99,7 +100,7 @@ impl VirtualMachineState {
             processes: RwLock::new(ProcessList::new()),
             gc_requests: Queue::new(),
             exit_status: RwLock::new(Ok(())),
-            permanent_allocator: RwLock::new(perm_alloc),
+            permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             top_level: top_level,
             integer_prototype: integer_proto,
@@ -188,7 +189,9 @@ impl VirtualMachine {
         let proto = self.state.method_prototype.clone();
 
         if receiver.is_permanent() {
-            write_lock!(self.state.permanent_allocator)
+            self.state
+                .permanent_allocator
+                .lock()
                 .allocate_with_prototype(value, proto)
         } else {
             process.allocate(value, proto)
@@ -912,7 +915,7 @@ impl VirtualMachine {
         let is_permanent = is_permanent_ptr != self.state.false_object.clone();
 
         let obj = if is_permanent {
-            write_lock!(self.state.permanent_allocator).allocate_empty()
+            self.state.permanent_allocator.lock().allocate_empty()
         } else {
             process.allocate_empty()
         };
@@ -922,7 +925,9 @@ impl VirtualMachine {
                                           instruction);
 
             if is_permanent && !proto.is_permanent() {
-                proto = write_lock!(self.state.permanent_allocator)
+                proto = self.state
+                    .permanent_allocator
+                    .lock()
                     .copy_object(proto);
             }
 

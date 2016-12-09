@@ -34,7 +34,7 @@ impl Thread {
     }
 
     pub fn stop(&self) {
-        let mut stop = unlock!(self.should_stop);
+        let mut stop = lock!(self.should_stop);
 
         *stop = true;
 
@@ -42,15 +42,15 @@ impl Thread {
     }
 
     pub fn take_join_handle(&self) -> Option<JoinHandle> {
-        unlock!(self.join_handle).take()
+        lock!(self.join_handle).take()
     }
 
     pub fn should_stop(&self) -> bool {
-        *unlock!(self.should_stop)
+        *lock!(self.should_stop)
     }
 
     pub fn process_queue_size(&self) -> usize {
-        unlock!(self.process_queue).len()
+        lock!(self.process_queue).len()
     }
 
     pub fn process_queue_empty(&self) -> bool {
@@ -58,7 +58,7 @@ impl Thread {
     }
 
     pub fn has_remembered_processes(&self) -> bool {
-        unlock!(self.remembered_processes).len() > 0
+        lock!(self.remembered_processes).len() > 0
     }
 
     pub fn main_can_terminate(&self) -> bool {
@@ -67,7 +67,7 @@ impl Thread {
     }
 
     pub fn schedule(&self, process: RcProcess) {
-        let mut queue = unlock!(self.process_queue);
+        let mut queue = lock!(self.process_queue);
 
         queue.push(process.clone());
 
@@ -75,18 +75,18 @@ impl Thread {
     }
 
     pub fn reschedule(&self, process: RcProcess) {
-        unlock!(self.remembered_processes).remove(&process);
+        lock!(self.remembered_processes).remove(&process);
 
         process.reset_status();
         self.schedule(process);
     }
 
     pub fn remember_process(&self, process: RcProcess) {
-        unlock!(self.remembered_processes).insert(process);
+        lock!(self.remembered_processes).insert(process);
     }
 
     pub fn wait_for_work(&self) {
-        let mut queue = unlock!(self.process_queue);
+        let mut queue = lock!(self.process_queue);
         let timeout = Duration::from_millis(5);
 
         while queue.len() == 0 {
@@ -102,7 +102,7 @@ impl Thread {
     }
 
     pub fn pop_process(&self) -> Option<RcProcess> {
-        let mut queue = unlock!(self.process_queue);
+        let mut queue = lock!(self.process_queue);
 
         queue.pop()
     }

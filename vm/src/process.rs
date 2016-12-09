@@ -271,7 +271,7 @@ impl Process {
     }
 
     pub fn should_be_rescheduled(&self) -> bool {
-        match *unlock!(self.status) {
+        match *lock!(self.status) {
             ProcessStatus::Suspended => true,
             _ => false,
         }
@@ -321,7 +321,7 @@ impl Process {
     }
 
     pub fn is_alive(&self) -> bool {
-        match *unlock!(self.status) {
+        match *lock!(self.status) {
             ProcessStatus::Failed => false,
             ProcessStatus::Finished => false,
             _ => true,
@@ -329,7 +329,7 @@ impl Process {
     }
 
     pub fn available_for_execution(&self) -> bool {
-        match *unlock!(self.status) {
+        match *lock!(self.status) {
             ProcessStatus::Scheduled => true,
             ProcessStatus::Suspended => true,
             _ => false,
@@ -341,7 +341,7 @@ impl Process {
     }
 
     pub fn set_status(&self, new_status: ProcessStatus) {
-        let mut status = unlock!(self.status);
+        let mut status = lock!(self.status);
 
         *status = new_status;
 
@@ -350,7 +350,7 @@ impl Process {
 
     pub fn set_status_without_overwriting_gc_status(&self,
                                                     new_status: ProcessStatus) {
-        let mut status = unlock!(self.status);
+        let mut status = lock!(self.status);
 
         let overwrite = match *status {
             ProcessStatus::SuspendedByGc => false,
@@ -386,7 +386,7 @@ impl Process {
     }
 
     pub fn suspended_by_gc(&self) -> bool {
-        match *unlock!(self.status) {
+        match *lock!(self.status) {
             ProcessStatus::SuspendedByGc => true,
             _ => false,
         }
@@ -401,7 +401,7 @@ impl Process {
     }
 
     pub fn wait_while_running(&self) {
-        let mut status = unlock!(self.status);
+        let mut status = lock!(self.status);
 
         while status.is_running() {
             status = self.status_signaler.wait(status).unwrap();

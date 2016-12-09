@@ -36,7 +36,7 @@ impl GlobalAllocator {
 
     /// Requests a new free block from the pool
     pub fn request_block(&self) -> Box<Block> {
-        let mut blocks = unlock!(self.blocks);
+        let mut blocks = lock!(self.blocks);
 
         if blocks.len() > 0 {
             blocks.pop().unwrap()
@@ -47,7 +47,7 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        unlock!(self.blocks).push(block);
+        lock!(self.blocks).push(block);
     }
 }
 
@@ -59,14 +59,14 @@ mod tests {
     fn test_new() {
         let alloc = GlobalAllocator::new();
 
-        assert_eq!(unlock!(alloc.blocks).len(), PRE_ALLOCATE_BLOCKS);
+        assert_eq!(lock!(alloc.blocks).len(), PRE_ALLOCATE_BLOCKS);
     }
 
     #[test]
     fn test_without_preallocated_blocks() {
         let alloc = GlobalAllocator::without_preallocated_blocks();
 
-        assert_eq!(unlock!(alloc.blocks).len(), 0);
+        assert_eq!(lock!(alloc.blocks).len(), 0);
     }
 
     #[test]
@@ -77,7 +77,7 @@ mod tests {
         alloc.add_block(block);
         alloc.request_block();
 
-        assert_eq!(unlock!(alloc.blocks).len(), 0);
+        assert_eq!(lock!(alloc.blocks).len(), 0);
     }
 
     #[test]
@@ -87,6 +87,6 @@ mod tests {
 
         alloc.add_block(block);
 
-        assert_eq!(unlock!(alloc.blocks).len(), 1);
+        assert_eq!(lock!(alloc.blocks).len(), 1);
     }
 }

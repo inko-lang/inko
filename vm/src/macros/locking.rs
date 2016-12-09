@@ -14,7 +14,7 @@ macro_rules! write_lock {
     );
 }
 
-macro_rules! unlock {
+macro_rules! lock {
     ($value: expr) => (
         $value.lock().unwrap()
     );

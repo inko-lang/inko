@@ -115,6 +115,6 @@ mod tests {
 
         drop(alloc);
 
-        assert_eq!(unlock!(global_alloc.blocks).len(), 1);
+        assert_eq!(lock!(global_alloc.blocks).len(), 1);
     }
 }

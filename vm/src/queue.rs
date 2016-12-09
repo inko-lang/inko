@@ -40,7 +40,7 @@ impl<T> Queue<T> {
     ///     queue.push(10);
     ///     queue.push(20);
     pub fn push(&self, value: T) {
-        let mut values = unlock!(self.values);
+        let mut values = lock!(self.values);
 
         values.push_back(value);
 
@@ -61,11 +61,11 @@ impl<T> Queue<T> {
     ///     queue.push(10);
     ///     queue.pop();
     pub fn pop(&self) -> T {
-        if let Some(value) = unlock!(self.values).pop_front() {
+        if let Some(value) = lock!(self.values).pop_front() {
             return value;
         }
 
-        let mut values = unlock!(self.values);
+        let mut values = lock!(self.values);
 
         while values.len() == 0 {
             values = self.signaler.wait(values).unwrap();
@@ -77,12 +77,12 @@ impl<T> Queue<T> {
     /// Removes the first value from the queue without blocking the caller if
     /// there are no values in the queue.
     pub fn pop_nonblock(&self) -> Option<T> {
-        unlock!(self.values).pop_front()
+        lock!(self.values).pop_front()
     }
 
     /// Pops all messages off the queue.
     pub fn pop_all(&self) -> VecDeque<T> {
-        let mut values = unlock!(self.values);
+        let mut values = lock!(self.values);
         let mut popped = VecDeque::with_capacity(values.len());
 
         for pointer in values.drain(0..) {
@@ -94,7 +94,7 @@ impl<T> Queue<T> {
 
     /// Returns the amount of values in the queue.
     pub fn len(&self) -> usize {
-        unlock!(self.values).len()
+        lock!(self.values).len()
     }
 }
 
