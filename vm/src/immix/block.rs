@@ -244,8 +244,6 @@ impl Block {
             return;
         }
 
-        assert!(self.free_pointer <= self.end_address());
-
         let line_index = self.line_index_of_pointer(self.free_pointer);
 
         self.find_available_hole_starting_at(line_index);
@@ -568,6 +566,20 @@ mod tests {
         assert_eq!(pointer1.line_index(), 1);
         assert_eq!(pointer2.line_index(), 2);
         assert_eq!(pointer3.line_index(), 4);
+    }
+
+    #[test]
+    fn test_block_find_available_hole_recycle() {
+        let mut block = Block::new();
+
+        block.used_lines_bitmap.set(1);
+        block.used_lines_bitmap.set(2);
+        block.used_lines_bitmap.reset_previous_marks();
+
+        block.find_available_hole_starting_at(1);
+
+        assert_eq!(block.free_pointer,
+                   unsafe { block.start_address().offset(8) });
     }
 
     #[test]
