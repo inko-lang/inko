@@ -112,13 +112,24 @@ impl ObjectPointer {
         let object = self.get();
 
         if let Some(proto) = object.prototype() {
+            let raw_proto = proto.raw;
+
+            // It's possible that between a previous check and calling this
+            // method the pointer has already been resolved. In this case we
+            // should _not_ try to resolve anything as we'd end up storing the
+            // address to the target objects' _prototype_, and not the target
+            // object itself.
+            if !raw_proto.mask_is_set(FORWARDING_MASK) {
+                return;
+            }
+
             // Since object pointers are _usually_ immutable we have to use an
             // extra layer of indirection to update "self".
             unsafe {
                 let self_ptr = self as *const ObjectPointer as *mut ObjectPointer;
                 let mut self_ref = &mut *self_ptr;
 
-                self_ref.raw = proto.raw.without_tags();
+                self_ref.raw = raw_proto.without_tags();
             };
         }
     }
@@ -452,6 +463,39 @@ mod tests {
         pointer.resolve_forwarding_pointer();
 
         assert!(pointer == proto_pointer);
+    }
+
+    #[test]
+    fn test_object_pointer_resolve_forwarding_pointer_concurrently() {
+        // The object to forward to.
+        let mut target_object = Object::new(ObjectValue::None);
+        let target_proto = Object::new(ObjectValue::None);
+        let target_pointer = object_pointer_for(&target_object);
+
+        // For this test the target object must have a prototype. This ensures
+        // resolving the pointer doesn't return early due to there not being a
+        // prototype.
+        target_object.set_prototype(object_pointer_for(&target_proto));
+
+        // The object that is being forwarded.
+        let mut forwarded_object = Object::new(ObjectValue::None);
+
+        forwarded_object.set_prototype(target_pointer.forwarding_pointer());
+
+        let forwarded_pointer = object_pointer_for(&forwarded_object);
+
+        let ptr_ptr1 = forwarded_pointer.pointer();
+        let ptr_ptr2 = forwarded_pointer.pointer();
+
+        // "Simulate" two threads concurrently resolving the same pointer.
+        let ptr1 = ptr_ptr1.get_mut();
+        let ptr2 = ptr_ptr2.get_mut();
+
+        ptr1.resolve_forwarding_pointer();
+        ptr2.resolve_forwarding_pointer();
+
+        assert!(*ptr1 == target_pointer);
+        assert!(*ptr2 == target_pointer);
     }
 
     #[test]
