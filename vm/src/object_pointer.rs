@@ -336,6 +336,14 @@ impl Hash for ObjectPointer {
     }
 }
 
+impl PartialEq for ObjectPointerPointer {
+    fn eq(&self, other: &ObjectPointerPointer) -> bool {
+        self.raw == other.raw
+    }
+}
+
+impl Eq for ObjectPointerPointer {}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -764,5 +772,14 @@ mod tests {
         ptr_ptr.get_mut().raw.raw = 0x5 as RawObjectPointer;
 
         assert_eq!(ptr.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_pointer_pointer_eq() {
+        let ptr = ObjectPointer::new(fake_raw_pointer());
+        let ptr_ptr1 = ptr.pointer();
+        let ptr_ptr2 = ptr.pointer();
+
+        assert!(ptr_ptr1 == ptr_ptr2);
     }
 }
