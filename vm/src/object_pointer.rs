@@ -1,7 +1,7 @@
 use std::mem::transmute;
 use std::hash::{Hash, Hasher};
 
-use immix::bitmap::{Bitmap, ObjectMap};
+use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MATURE, MAILBOX, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
@@ -58,6 +58,17 @@ pub const INTEGER_MARK: usize = 0x1; // TODO: implement integers
 /// The mask to use for forwarding pointers
 pub const FORWARDING_MASK: usize = 0x2;
 
+/// Returns the BlockHeader of the given pointer.
+fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
+    let addr = (pointer as isize & block::OBJECT_BITMAP_MASK) as usize;
+
+    unsafe {
+        let ptr: *mut block::BlockHeader = transmute(addr);
+
+        &*ptr
+    }
+}
+
 impl ObjectPointer {
     pub fn new(pointer: RawObjectPointer) -> ObjectPointer {
         ObjectPointer { raw: TaggedPointer::new(pointer) }
@@ -78,13 +89,7 @@ impl ObjectPointer {
     /// Returns true if the current pointer points to a forwarded object.
     #[inline(always)]
     pub fn is_forwarded(&self) -> bool {
-        let object = self.get();
-
-        if object.prototype.is_null() {
-            false
-        } else {
-            object.prototype.raw.mask_is_set(FORWARDING_MASK)
-        }
+        self.get().prototype.raw.mask_is_set(FORWARDING_MASK)
     }
 
     /// Returns the status of the object.
@@ -172,58 +177,52 @@ impl ObjectPointer {
         self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
-    /// Returns true if the current object is marked.
-    pub fn is_marked(&self) -> bool {
-        let bitmap = self.marked_objects_bitmap();
-        let index = self.marked_objects_bitmap_index();
-
-        bitmap.is_set(index)
-    }
-
-    /// Marks the line this object resides in.
-    pub fn mark_line(&self) {
-        let line_index = self.line_index();
-
-        self.block_mut().used_lines_bitmap.set(line_index);
-    }
-
     pub fn mark_for_finalization(&self) {
-        let index = self.marked_objects_bitmap_index();
+        let mut block = self.block_mut();
+        let index = block.object_index_of_pointer(self.raw.untagged());
 
-        self.block_mut().finalize_bitmap.set(index);
+        block.finalize_bitmap.set(index);
     }
 
     pub fn unmark_for_finalization(&self) {
-        let index = self.marked_objects_bitmap_index();
+        let mut block = self.block_mut();
+        let index = block.object_index_of_pointer(self.raw.untagged());
 
-        self.block_mut().finalize_bitmap.unset(index);
+        block.finalize_bitmap.unset(index);
     }
 
     /// Marks the current object and its line.
+    ///
+    /// As this method is called often during collection, this method refers to
+    /// `self.raw` only once and re-uses the pointer. This ensures there are no
+    /// race conditions when determining the object/line indexes, and reduces
+    /// the overhead of having to call `self.raw.untagged()` multiple times.
     pub fn mark(&self) {
-        let index = self.marked_objects_bitmap_index();
+        let pointer = self.raw.untagged();
+        let header = block_header_of(pointer);
+        let ref mut block = header.block_mut();
 
-        self.marked_objects_bitmap().set(index);
-        self.mark_line();
+        let object_index = block.object_index_of_pointer(pointer);
+        let line_index = block.line_index_of_pointer(pointer);
+
+        block.marked_objects_bitmap.set(object_index);
+        block.used_lines_bitmap.set(line_index);
     }
 
-    /// Returns the mark bitmap to use for this pointer.
-    pub fn marked_objects_bitmap(&self) -> &mut ObjectMap {
-        &mut self.block_mut().marked_objects_bitmap
-    }
+    /// Returns true if the current object is marked.
+    ///
+    /// This method *must not* use any methods that also call
+    /// `self.raw.untagged()` as doing so will lead to race conditions producing
+    /// incorrect object/line indexes. This can happen when one tried checks if
+    /// an object is marked while another thread is updating the pointer's
+    /// address (e.g. after evacuating the underlying object).
+    pub fn is_marked(&self) -> bool {
+        let pointer = self.raw.untagged();
+        let header = block_header_of(pointer);
+        let ref mut block = header.block_mut();
+        let index = block.object_index_of_pointer(pointer);
 
-    /// Returns the mark bitmap index to use for this pointer.
-    pub fn marked_objects_bitmap_index(&self) -> usize {
-        let start_addr = self.block_header_pointer_address();
-        let offset = self.raw.untagged() as usize - start_addr;
-
-        offset / block::BYTES_PER_OBJECT
-    }
-
-    /// Returns the line index of the current pointer.
-    #[inline(always)]
-    pub fn line_index(&self) -> usize {
-        self.block().line_index_of_pointer(self.raw.untagged())
+        block.marked_objects_bitmap.is_set(index)
     }
 
     /// Returns a mutable reference to the block this pointer belongs to.
@@ -242,12 +241,7 @@ impl ObjectPointer {
     /// belongs to.
     #[inline(always)]
     pub fn block_header(&self) -> &block::BlockHeader {
-        unsafe {
-            let ptr: *mut block::BlockHeader =
-                transmute(self.block_header_pointer_address());
-
-            &*ptr
-        }
+        block_header_of(self.raw.untagged())
     }
 
     /// Returns true if the object should be finalized.
@@ -299,10 +293,6 @@ impl ObjectPointer {
     /// Returns a pointer to this pointer.
     pub fn pointer(&self) -> ObjectPointerPointer {
         ObjectPointerPointer::new(self)
-    }
-
-    fn block_header_pointer_address(&self) -> usize {
-        (self.raw.untagged() as isize & block::OBJECT_BITMAP_MASK) as usize
     }
 }
 
@@ -418,10 +408,15 @@ mod tests {
 
     #[test]
     fn test_object_pointer_is_forwarded_with_forwarding_pointer() {
-        let object = Object::new(ObjectValue::None);
-        let pointer = object_pointer_for(&object).forwarding_pointer();
+        let mut source = Object::new(ObjectValue::None);
+        let target = Object::new(ObjectValue::None);
+        let target_ptr = object_pointer_for(&target);
 
-        assert_eq!(pointer.is_forwarded(), false);
+        source.set_prototype(target_ptr.forwarding_pointer());
+
+        let source_ptr = object_pointer_for(&source);
+
+        assert_eq!(source_ptr.is_forwarded(), true);
     }
 
     #[test]
@@ -648,16 +643,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_mark_line() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        pointer.mark_line();
-
-        assert!(pointer.block().used_lines_bitmap.is_set(1));
-    }
-
-    #[test]
     fn test_object_pointer_mark() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
@@ -666,39 +651,6 @@ mod tests {
 
         assert!(pointer.block().marked_objects_bitmap.is_set(4));
         assert!(pointer.block().used_lines_bitmap.is_set(1));
-    }
-
-    #[test]
-    fn test_object_pointer_marked_objects_bitmap() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        pointer.marked_objects_bitmap();
-    }
-
-    #[test]
-    fn test_object_pointer_marked_objects_bitmap_index() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        assert_eq!(pointer.marked_objects_bitmap_index(), 4);
-    }
-
-    #[test]
-    fn test_object_pointer_line_index() {
-        let mut allocator = local_allocator();
-
-        let ptr1 = allocator.allocate_empty();
-        let ptr2 = allocator.allocate_empty();
-        let ptr3 = allocator.allocate_empty();
-        let ptr4 = allocator.allocate_empty();
-        let ptr5 = allocator.allocate_empty();
-
-        assert_eq!(ptr1.line_index(), 1);
-        assert_eq!(ptr2.line_index(), 1);
-        assert_eq!(ptr3.line_index(), 1);
-        assert_eq!(ptr4.line_index(), 1);
-        assert_eq!(ptr5.line_index(), 2);
     }
 
     #[test]

@@ -233,6 +233,13 @@ impl Block {
         (line_addr - first_line) / LINE_SIZE
     }
 
+    pub fn object_index_of_pointer(&self, pointer: RawObjectPointer) -> usize {
+        let first_line = self.lines as usize;
+        let offset = pointer as usize - first_line;
+
+        offset / BYTES_PER_OBJECT
+    }
+
     /// Recycles the current block
     pub fn recycle(&mut self) {
         self.find_available_hole_starting_at(LINE_START_SLOT);
@@ -527,6 +534,17 @@ mod tests {
     }
 
     #[test]
+    fn test_block_object_index_of_pointer() {
+        let block = Block::new();
+
+        let ptr1 = block.free_pointer;
+        let ptr2 = unsafe { block.free_pointer.offset(1) };
+
+        assert_eq!(block.object_index_of_pointer(ptr1), 4);
+        assert_eq!(block.object_index_of_pointer(ptr2), 5);
+    }
+
+    #[test]
     fn test_block_recycle() {
         let mut block = Block::new();
 
@@ -563,9 +581,9 @@ mod tests {
 
         let pointer3 = block.bump_allocate(Object::new(ObjectValue::None));
 
-        assert_eq!(pointer1.line_index(), 1);
-        assert_eq!(pointer2.line_index(), 2);
-        assert_eq!(pointer3.line_index(), 4);
+        assert_eq!(block.line_index_of_pointer(pointer1.raw.raw), 1);
+        assert_eq!(block.line_index_of_pointer(pointer2.raw.raw), 2);
+        assert_eq!(block.line_index_of_pointer(pointer3.raw.raw), 4);
     }
 
     #[test]
