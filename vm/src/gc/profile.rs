@@ -1,5 +1,4 @@
 use gc::trace_result::TraceResult;
-use immix::block::BYTES_PER_OBJECT;
 use timer::Timer;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -71,26 +70,6 @@ impl Profile {
         self.evacuated = result.evacuated;
         self.promoted = result.promoted;
     }
-
-    /// Returns an estimate of the throughput in bytes per second.
-    pub fn throughput_bytes(&self) -> f64 {
-        if self.marked == 0 {
-            return 0.0;
-        }
-
-        if !self.trace.finished() {
-            return 0.0;
-        }
-
-        let bytes = self.marked * BYTES_PER_OBJECT;
-
-        bytes as f64 / self.trace.duration_sec()
-    }
-
-    /// Returns an estimate of the throughput in megabytes per second.
-    pub fn throughput_megabytes(&self) -> f64 {
-        self.throughput_bytes() / 1024.0 / 1024.0
-    }
 }
 
 #[cfg(test)]
@@ -140,19 +119,5 @@ mod tests {
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 2);
         assert_eq!(profile.promoted, 3);
-    }
-
-    #[test]
-    fn test_throughput_bytes_and_megabytes() {
-        let mut profile = Profile::new(CollectionType::Young);
-
-        profile.marked = 1000;
-
-        profile.trace.start();
-        thread::sleep(Duration::from_millis(10));
-        profile.trace.stop();
-
-        assert!(profile.throughput_bytes() >= 32000.0);
-        assert!(profile.throughput_megabytes() >= 0.03);
     }
 }
