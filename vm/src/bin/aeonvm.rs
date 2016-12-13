@@ -5,7 +5,6 @@ use std::io::prelude::*;
 use std::env;
 use std::fs::File;
 use std::process;
-use std::mem;
 
 use libaeon::bytecode_parser;
 use libaeon::config::Config;
@@ -40,8 +39,6 @@ fn main() {
                    "The number of reductions that can take place",
                    "INT");
 
-    options.optflag("", "type-sizes", "Prints the size of various VM types");
-
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(error) => {
@@ -56,37 +53,6 @@ fn main() {
 
     if matches.opt_present("v") {
         println!("aeonvm {}", env!("CARGO_PKG_VERSION"));
-        return;
-    }
-
-    if matches.opt_present("type-sizes") {
-        println!("CallFrame: {} bytes",
-                 mem::size_of::<libaeon::call_frame::CallFrame>());
-
-        println!("Process: {} bytes",
-                 mem::size_of::<libaeon::process::Process>());
-
-        println!("ExecutionContext: {} bytes",
-                 mem::size_of::<libaeon::execution_context::ExecutionContext>());
-
-        println!("Thread: {} bytes",
-                 mem::size_of::<libaeon::thread::Thread>());
-
-        println!("Register: {} bytes",
-                 mem::size_of::<libaeon::register::Register>());
-
-        println!("Object: {} bytes",
-                 mem::size_of::<libaeon::object::Object>());
-
-        println!("ObjectValue: {} bytes",
-                 mem::size_of::<libaeon::object_value::ObjectValue>());
-
-        println!("ObjectPointer: {} bytes",
-                 mem::size_of::<libaeon::object_pointer::ObjectPointer>());
-
-        println!("ObjectHeader: {} bytes",
-                 mem::size_of::<libaeon::object_header::ObjectHeader>());
-
         return;
     }
 
