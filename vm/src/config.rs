@@ -24,6 +24,16 @@ pub struct Config {
     /// The number of reductions a process can perform before being suspended.
     /// Defaults to 1000.
     pub reductions: usize,
+
+    /// The block allocation growth factor for the young generation.
+    pub young_growth_factor: f64,
+
+    /// The block allocation growth factor for the mature generation.
+    pub mature_growth_factor: f64,
+
+    /// The block allocation growth factor for the mailbox space of every
+    /// process..
+    pub mailbox_growth_factor: f64,
 }
 
 impl Config {
@@ -35,6 +45,9 @@ impl Config {
             process_threads: cpu_count,
             gc_threads: cpu_count,
             reductions: 1000,
+            young_growth_factor: 1.5,
+            mature_growth_factor: 1.5,
+            mailbox_growth_factor: 1.5,
         }
     }
 

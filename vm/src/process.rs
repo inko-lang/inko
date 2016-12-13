@@ -8,6 +8,7 @@ use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
 
 use binding::RcBinding;
+use config::Config;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use execution_context::ExecutionContext;
@@ -489,26 +490,37 @@ impl Process {
         self.local_data_mut().allocator.reclaim_blocks(mature);
     }
 
-    pub fn update_collection_statistics(&self, mature: bool) {
+    pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
         let mut local_data = self.local_data_mut();
 
         local_data.allocator.increment_young_ages();
 
         local_data.allocator.young_block_allocations = 0;
 
+        local_data.allocator
+            .increment_young_threshold(config.young_growth_factor);
+
         if mature {
             local_data.allocator.mature_block_allocations = 0;
+
+            local_data.allocator
+                .increment_mature_threshold(config.mature_growth_factor);
+
             local_data.mature_collections += 1;
         } else {
             local_data.young_collections += 1;
         }
     }
 
-    pub fn update_mailbox_collection_statistics(&self) {
+    pub fn update_mailbox_collection_statistics(&self, config: &Config) {
         let mut local_data = self.local_data_mut();
 
         local_data.mailbox_collections += 1;
         local_data.mailbox.allocator.block_allocations = 0;
+
+        local_data.mailbox
+            .allocator
+            .increment_threshold(config.mailbox_growth_factor);
     }
 }
 
@@ -529,6 +541,7 @@ impl Hash for Process {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::Config;
     use immix::global_allocator::GlobalAllocator;
     use compiled_code::CompiledCode;
     use object_pointer::ObjectPointer;
@@ -554,20 +567,28 @@ mod tests {
     #[test]
     fn test_update_collection_statistics_without_mature() {
         let process = new_process();
+        let config = Config::new();
+
+        let old_threshold =
+            process.local_data().allocator.young_block_allocation_threshold;
 
         process.local_data_mut().allocator.young_block_allocations = 1;
 
-        process.update_collection_statistics(false);
+        process.update_collection_statistics(&config, false);
 
         let local_data = process.local_data();
+        let ref allocator = local_data.allocator;
 
-        assert_eq!(local_data.allocator.young_block_allocations, 0);
+        assert_eq!(allocator.young_block_allocations, 0);
         assert_eq!(local_data.young_collections, 1);
+
+        assert!(allocator.young_block_allocation_threshold > old_threshold);
     }
 
     #[test]
     fn test_update_collection_statistics_with_mature() {
         let process = new_process();
+        let config = Config::new();
 
         {
             let mut local_data = process.local_data_mut();
@@ -576,20 +597,33 @@ mod tests {
             local_data.allocator.mature_block_allocations = 1;
         }
 
-        process.update_collection_statistics(true);
+        let old_young_threshold =
+            process.local_data().allocator.young_block_allocation_threshold;
+
+        let old_mature_threshold =
+            process.local_data().allocator.mature_block_allocation_threshold;
+
+        process.update_collection_statistics(&config, true);
 
         let local_data = process.local_data();
+        let ref allocator = local_data.allocator;
 
-        assert_eq!(local_data.allocator.young_block_allocations, 0);
-        assert_eq!(local_data.allocator.mature_block_allocations, 0);
+        assert_eq!(allocator.young_block_allocations, 0);
+        assert_eq!(allocator.mature_block_allocations, 0);
 
         assert_eq!(local_data.young_collections, 0);
         assert_eq!(local_data.mature_collections, 1);
+
+        assert!(allocator.young_block_allocation_threshold > old_young_threshold);
+
+        assert!(allocator.mature_block_allocation_threshold >
+                old_mature_threshold);
     }
 
     #[test]
     fn test_update_mailbox_collection_statistics() {
         let process = new_process();
+        let config = Config::new();
 
         {
             let mut local_data = process.local_data_mut();
@@ -597,11 +631,17 @@ mod tests {
             local_data.mailbox.allocator.block_allocations = 1;
         }
 
-        process.update_mailbox_collection_statistics();
+        let old_threshold =
+            process.local_data().mailbox.allocator.block_allocation_threshold;
+
+        process.update_mailbox_collection_statistics(&config);
 
         let local_data = process.local_data();
+        let ref mailbox = local_data.mailbox;
 
         assert_eq!(local_data.mailbox_collections, 1);
-        assert_eq!(local_data.mailbox.allocator.block_allocations, 0);
+        assert_eq!(mailbox.allocator.block_allocations, 0);
+
+        assert!(mailbox.allocator.block_allocation_threshold > old_threshold);
     }
 }

@@ -2,13 +2,17 @@
 
 use rayon::prelude::*;
 
+use config::Config;
 use gc::collector;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
 use process::RcProcess;
 use thread::RcThread;
 
-pub fn collect(thread: &RcThread, process: &RcProcess) -> Profile {
+pub fn collect(thread: &RcThread,
+               process: &RcProcess,
+               config: &Config)
+               -> Profile {
     process.request_gc_suspension();
 
     let collect_mature = process.should_collect_mature_generation();
@@ -33,7 +37,7 @@ pub fn collect(thread: &RcThread, process: &RcProcess) -> Profile {
     profile.reclaim.start();
 
     process.reclaim_blocks(collect_mature);
-    process.update_collection_statistics(collect_mature);
+    process.update_collection_statistics(config, collect_mature);
 
     profile.reclaim.stop();
     profile.total.stop();
@@ -156,6 +160,7 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
 mod tests {
     use super::*;
     use compiled_code::CompiledCode;
+    use config::Config;
     use immix::global_allocator::GlobalAllocator;
     use immix::permanent_allocator::PermanentAllocator;
     use execution_context::ExecutionContext;
@@ -183,12 +188,13 @@ mod tests {
     #[test]
     fn test_collect() {
         let (_perm_alloc, process) = new_process();
+        let config = Config::new();
         let thread = Thread::new(false, None);
         let pointer = process.allocate_empty();
 
         process.set_register(0, pointer);
 
-        let profile = collect(&thread, &process);
+        let profile = collect(&thread, &process, &config);
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);

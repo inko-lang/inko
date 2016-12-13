@@ -1,5 +1,6 @@
 //! Functions for performing garbage collection of a process mailbox.
 
+use config::Config;
 use gc::collector;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
@@ -7,7 +8,10 @@ use mailbox::Mailbox;
 use process::RcProcess;
 use thread::RcThread;
 
-pub fn collect(thread: &RcThread, process: &RcProcess) -> Profile {
+pub fn collect(thread: &RcThread,
+               process: &RcProcess,
+               config: &Config)
+               -> Profile {
     process.request_gc_suspension();
 
     let mut profile = Profile::mailbox();
@@ -31,7 +35,7 @@ pub fn collect(thread: &RcThread, process: &RcProcess) -> Profile {
     profile.reclaim.start();
 
     mailbox.allocator.reclaim_blocks();
-    process.update_mailbox_collection_statistics();
+    process.update_mailbox_collection_statistics(config);
     drop(lock); // unlock as soon as possible
 
     profile.reclaim.stop();
@@ -60,6 +64,7 @@ pub fn trace(process: &RcProcess,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::Config;
     use compiled_code::CompiledCode;
     use immix::global_allocator::GlobalAllocator;
     use immix::permanent_allocator::PermanentAllocator;
@@ -85,6 +90,7 @@ mod tests {
     #[test]
     fn test_collect() {
         let (_perm_alloc, process) = new_process();
+        let config = Config::new();
         let thread = Thread::new(false, None);
 
         let mut local_data = process.local_data_mut();
@@ -93,7 +99,7 @@ mod tests {
 
         local_data.mailbox.allocator.prepare_for_collection();
 
-        let profile = collect(&thread, &process);
+        let profile = collect(&thread, &process, &config);
 
         assert!(local_data.mailbox.external[0].is_marked());
 

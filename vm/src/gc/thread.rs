@@ -30,13 +30,19 @@ impl Thread {
             return;
         }
 
+        let ref config = self.vm_state.config;
+
         // TODO: store profile details
         let _profile = match request.collection_type {
             CollectionType::Heap => {
-                heap_collector::collect(&request.thread, &request.process)
+                heap_collector::collect(&request.thread,
+                                        &request.process,
+                                        &config)
             }
             CollectionType::Mailbox => {
-                mailbox_collector::collect(&request.thread, &request.process)
+                mailbox_collector::collect(&request.thread,
+                                           &request.process,
+                                           &config)
             }
         };
     }

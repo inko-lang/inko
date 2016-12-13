@@ -14,12 +14,17 @@ use immix::global_allocator::RcGlobalAllocator;
 use object::Object;
 use object_pointer::ObjectPointer;
 
-pub const ALLOCATION_THRESHOLD: usize = (1 * 1024 * 1024) / BLOCK_SIZE;
-
 pub struct MailboxAllocator {
     global_allocator: RcGlobalAllocator,
     pub bucket: Bucket,
+
+    /// The number of blocks that have been allocated since the last garbage
+    /// collection cycle.
     pub block_allocations: usize,
+
+    /// The number of blocks that can be allocated before garbage collection
+    /// is triggered.
+    pub block_allocation_threshold: usize,
 }
 
 impl MailboxAllocator {
@@ -28,6 +33,7 @@ impl MailboxAllocator {
             global_allocator: global_allocator,
             bucket: Bucket::with_age(MAILBOX),
             block_allocations: 0,
+            block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
         }
     }
 
@@ -56,7 +62,14 @@ impl MailboxAllocator {
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {
-        self.block_allocations >= ALLOCATION_THRESHOLD
+        self.block_allocations >= self.block_allocation_threshold
+    }
+
+    /// Increments the allocation threshold by the given factor.
+    pub fn increment_threshold(&mut self, factor: f64) {
+        let threshold = (self.block_allocation_threshold as f64 * factor).ceil();
+
+        self.block_allocation_threshold = threshold as usize;
     }
 }
 
@@ -124,5 +137,29 @@ mod tests {
         drop(alloc);
 
         assert_eq!(lock!(global_alloc.blocks).len(), 1);
+    }
+
+    #[test]
+    fn test_allocation_threshold_exceeded() {
+        let mut alloc = mailbox_allocator();
+
+        alloc.block_allocation_threshold = 1;
+
+        assert_eq!(alloc.allocation_threshold_exceeded(), false);
+
+        alloc.block_allocations = 1;
+
+        assert!(alloc.allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_increment_threshold() {
+        let mut alloc = mailbox_allocator();
+
+        alloc.block_allocation_threshold = 1;
+
+        alloc.increment_threshold(1.5);
+
+        assert_eq!(alloc.block_allocation_threshold, 2);
     }
 }
