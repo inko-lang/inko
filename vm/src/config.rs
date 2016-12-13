@@ -2,8 +2,10 @@
 //!
 //! Various virtual machine settings can be changed by the user, such as the
 //! directories to search for bytecode files and the number of operating system
-//! processes to use for running VM processes. These settings are stored in
-//! instances of the Config struct.
+//! threads to use for running VM processes.
+//!
+//! These settings are all stored in the Config struct, allowing various parts
+//! of the VM to easily access these configuration details.
 
 use num_cpus;
 use std::path::PathBuf;
