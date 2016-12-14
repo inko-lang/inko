@@ -26,13 +26,13 @@ use process::{RcProcess, Process};
 use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
 
-pub struct VirtualMachine {
+pub struct Machine {
     pub state: RcState,
 }
 
-impl VirtualMachine {
-    pub fn new(state: RcState) -> VirtualMachine {
-        VirtualMachine { state: state }
+impl Machine {
+    pub fn new(state: RcState) -> Machine {
+        Machine { state: state }
     }
 
     pub fn config(&self) -> &Config {
@@ -3815,7 +3815,7 @@ impl VirtualMachine {
 
         let handle = thread::spawn(move || {
             let thread = receiver.recv().unwrap();
-            let vm = VirtualMachine::new(state_clone);
+            let vm = Machine::new(state_clone);
 
             vm.run_thread(thread);
         });

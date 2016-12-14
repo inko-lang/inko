@@ -8,7 +8,7 @@ use std::process;
 
 use libaeon::bytecode_parser;
 use libaeon::config::Config;
-use libaeon::virtual_machine::VirtualMachine;
+use libaeon::vm::machine::Machine;
 use libaeon::vm::state::State;
 
 fn print_usage(options: &getopts::Options) -> ! {
@@ -66,7 +66,7 @@ fn main() {
                 match bytecode_parser::parse(&mut bytes) {
                     Ok(code) => {
                         let state = State::new(config);
-                        let vm = VirtualMachine::new(state);
+                        let vm = Machine::new(state);
                         let status = vm.start(code);
 
                         if status.is_err() {
