@@ -8,19 +8,37 @@ module Aeon
       end
 
       def compile
-        register = @code.next_register
+        code_reg = @code.next_register
+        closure_reg = @code.next_register
         closure = compile_body
+
+        core_mod_idx = @code.strings.add('core')
+        closure_mod_idx = @code.strings.add('closure')
+        closure_name_idx = @code.strings.add('Closure')
+        new_idx = @code.strings.add('new')
+
+        core_mod_reg = @code.next_register
+        closure_mod_reg = @code.next_register
+        closure_class_reg = @code.next_register
+        self_reg = @code.next_register
 
         add_implicit_return(closure)
 
         code_idx = @code.code_objects.add(closure)
 
-        # TODO: use Closure.new
         @code.instruct(line, column) do |ins|
-          ins.set_compiled_code register, code_idx
+          # Look up core::closure::Closure
+          ins.get_self          self_reg
+          ins.get_literal_const core_mod_reg, self_reg, core_mod_idx
+          ins.get_literal_const closure_mod_reg, core_mod_reg, closure_mod_idx
+          ins.get_literal_const closure_class_reg, closure_mod_reg, closure_name_idx
+
+          # Closure.new(code)
+          ins.set_compiled_code code_reg, code_idx
+          ins.send_literal      closure_reg, closure_class_reg, new_idx, 0, code_reg
         end
 
-        register
+        closure_reg
       end
 
       def code_for_body

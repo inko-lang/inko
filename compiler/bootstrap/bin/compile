@@ -30,7 +30,7 @@ unless File.file?(file)
   abort "The file #{file} does not exist"
 end
 
-compiler = Aeon::Compiler.new(file)
+compiler = Aeon::Compiler.new(File.expand_path(file))
 code     = compiler.compile
 gen      = Aeon::Generator.new
 bytecode = gen.generate(code)
