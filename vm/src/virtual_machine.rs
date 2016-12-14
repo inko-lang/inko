@@ -1,17 +1,12 @@
 //! Virtual Machine for running instructions
-use parking_lot::Mutex;
 
-use std::collections::HashSet;
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use std::thread;
-use std::sync::{Arc, RwLock};
 use std::sync::mpsc::channel;
 
 use immix::copy_object::CopyObject;
-use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
-use immix::permanent_allocator::PermanentAllocator;
 
 use binding::RcBinding;
 use bytecode_parser;
@@ -24,105 +19,19 @@ use gc::request::Request as GcRequest;
 use instruction::{InstructionType, Instruction};
 use object_pointer::ObjectPointer;
 use object_value;
+use vm::state::RcState;
 use virtual_machine_error::VirtualMachineError;
 use virtual_machine_result::*;
 use process::{RcProcess, Process};
-use process_list::ProcessList;
 use execution_context::ExecutionContext;
 use thread::{RcThread, JoinHandle as ThreadJoinHandle};
-use thread_list::ThreadList;
-use queue::Queue;
-
-pub type RcVirtualMachineState = Arc<VirtualMachineState>;
-
-pub struct VirtualMachineState {
-    pub gc_requests: Queue<GcRequest>,
-    pub config: Config,
-    executed_files: RwLock<HashSet<String>>,
-    threads: RwLock<ThreadList>,
-    processes: RwLock<ProcessList>,
-    exit_status: RwLock<Result<(), ()>>,
-
-    permanent_allocator: Mutex<Box<PermanentAllocator>>,
-    global_allocator: RcGlobalAllocator,
-    top_level: ObjectPointer,
-    integer_prototype: ObjectPointer,
-    float_prototype: ObjectPointer,
-    string_prototype: ObjectPointer,
-    array_prototype: ObjectPointer,
-    true_prototype: ObjectPointer,
-    false_prototype: ObjectPointer,
-    file_prototype: ObjectPointer,
-    method_prototype: ObjectPointer,
-    compiled_code_prototype: ObjectPointer,
-    binding_prototype: ObjectPointer,
-    true_object: ObjectPointer,
-    false_object: ObjectPointer,
-}
 
 pub struct VirtualMachine {
-    pub state: RcVirtualMachineState,
-}
-
-impl VirtualMachineState {
-    pub fn new(config: Config) -> RcVirtualMachineState {
-        let global_alloc = GlobalAllocator::new();
-
-        // Boxed since moving around the allocator can break pointers from the
-        // blocks back to the allocator's bucket.
-        let mut perm_alloc =
-            Box::new(PermanentAllocator::new(global_alloc.clone()));
-
-        let top_level = perm_alloc.allocate_empty();
-        let integer_proto = perm_alloc.allocate_empty();
-        let float_proto = perm_alloc.allocate_empty();
-        let string_proto = perm_alloc.allocate_empty();
-        let array_proto = perm_alloc.allocate_empty();
-        let true_proto = perm_alloc.allocate_empty();
-        let false_proto = perm_alloc.allocate_empty();
-        let file_proto = perm_alloc.allocate_empty();
-        let method_proto = perm_alloc.allocate_empty();
-        let cc_proto = perm_alloc.allocate_empty();
-        let binding_proto = perm_alloc.allocate_empty();
-
-        let true_obj = perm_alloc.allocate_empty();
-        let false_obj = perm_alloc.allocate_empty();
-
-        {
-            true_obj.get_mut().set_prototype(true_proto.clone());
-            false_obj.get_mut().set_prototype(false_proto.clone());
-        }
-
-        let state = VirtualMachineState {
-            config: config,
-            executed_files: RwLock::new(HashSet::new()),
-            threads: RwLock::new(ThreadList::new()),
-            processes: RwLock::new(ProcessList::new()),
-            gc_requests: Queue::new(),
-            exit_status: RwLock::new(Ok(())),
-            permanent_allocator: Mutex::new(perm_alloc),
-            global_allocator: global_alloc,
-            top_level: top_level,
-            integer_prototype: integer_proto,
-            float_prototype: float_proto,
-            string_prototype: string_proto,
-            array_prototype: array_proto,
-            true_prototype: true_proto,
-            false_prototype: false_proto,
-            file_prototype: file_proto,
-            method_prototype: method_proto,
-            compiled_code_prototype: cc_proto,
-            binding_prototype: binding_proto,
-            true_object: true_obj,
-            false_object: false_obj,
-        };
-
-        Arc::new(state)
-    }
+    pub state: RcState,
 }
 
 impl VirtualMachine {
-    pub fn new(state: RcVirtualMachineState) -> VirtualMachine {
+    pub fn new(state: RcState) -> VirtualMachine {
         VirtualMachine { state: state }
     }
 

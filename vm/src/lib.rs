@@ -30,6 +30,7 @@ pub mod gc;
 pub mod thread;
 pub mod thread_list;
 pub mod timer;
+pub mod vm;
 pub mod virtual_machine;
 pub mod virtual_machine_error;
 pub mod virtual_machine_result;

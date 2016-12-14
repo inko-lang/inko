@@ -3,15 +3,15 @@
 use gc::heap_collector;
 use gc::mailbox_collector;
 use gc::request::{Request, CollectionType};
-use virtual_machine::RcVirtualMachineState;
+use vm::state::RcState;
 
 /// Structure containing the state of a single GC thread.
 pub struct Thread {
-    pub vm_state: RcVirtualMachineState,
+    pub vm_state: RcState,
 }
 
 impl Thread {
-    pub fn new(vm_state: RcVirtualMachineState) -> Thread {
+    pub fn new(vm_state: RcState) -> Thread {
         Thread { vm_state: vm_state }
     }
 
@@ -59,7 +59,7 @@ mod tests {
     use immix::permanent_allocator::PermanentAllocator;
     use process::{Process, RcProcess};
     use thread::Thread as VmThread;
-    use virtual_machine::VirtualMachineState;
+    use vm::state::State;
 
     fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
         let global_alloc = GlobalAllocator::without_preallocated_blocks();
@@ -85,7 +85,7 @@ mod tests {
         process.running();
 
         let vm_thread = VmThread::new(false, None);
-        let vm_state = VirtualMachineState::new(Config::new());
+        let vm_state = State::new(Config::new());
         let gc_thread = Thread::new(vm_state);
 
         // In a separate thread we'll emulate a running process.

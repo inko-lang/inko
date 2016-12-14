@@ -8,7 +8,8 @@ use std::process;
 
 use libaeon::bytecode_parser;
 use libaeon::config::Config;
-use libaeon::virtual_machine::{VirtualMachine, VirtualMachineState};
+use libaeon::virtual_machine::VirtualMachine;
+use libaeon::vm::state::State;
 
 fn print_usage(options: &getopts::Options) -> ! {
     println!("{}", options.usage("Usage: aeonvm FILE [OPTIONS]"));
@@ -64,7 +65,7 @@ fn main() {
 
                 match bytecode_parser::parse(&mut bytes) {
                     Ok(code) => {
-                        let state = VirtualMachineState::new(config);
+                        let state = State::new(config);
                         let vm = VirtualMachine::new(state);
                         let status = vm.start(code);
 
