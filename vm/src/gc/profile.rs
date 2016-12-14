@@ -75,8 +75,6 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use std::thread;
     use gc::trace_result::TraceResult;
 
     #[test]

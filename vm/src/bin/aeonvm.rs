@@ -27,18 +27,6 @@ fn main() {
                      "A directory to search for bytecode files",
                      "DIR");
 
-    options.optopt("",
-                   "pthreads",
-                   "The number of threads to use for running processes",
-                   "INT");
-
-    options.optopt("", "gcthreads", "The number of GC threads to use", "INT");
-
-    options.optopt("",
-                   "reductions",
-                   "The number of reductions that can take place",
-                   "INT");
-
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(error) => {
@@ -62,23 +50,13 @@ fn main() {
         let mut config = Config::new();
         let ref path = matches.free[0];
 
-        if let Some(pthreads) = matches.opt_str("pthreads") {
-            config.set_process_threads(pthreads.parse::<usize>().unwrap());
-        }
-
-        if let Some(gc_threads) = matches.opt_str("gcthreads") {
-            config.set_gc_threads(gc_threads.parse::<usize>().unwrap());
-        }
-
-        if let Some(reductions) = matches.opt_str("reductions") {
-            config.set_reductions(reductions.parse::<usize>().unwrap());
-        }
-
         if matches.opt_present("I") {
             for dir in matches.opt_strs("I") {
                 config.add_directory(dir);
             }
         }
+
+        config.populate_from_env();
 
         match File::open(path) {
             Ok(file) => {

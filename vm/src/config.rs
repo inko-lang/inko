@@ -8,7 +8,19 @@
 //! of the VM to easily access these configuration details.
 
 use num_cpus;
+use std::env;
 use std::path::PathBuf;
+
+/// Sets a configuration field based on an environment variable.
+macro_rules! set_from_env {
+    ($config: expr, $field: ident, $key: expr, $value_type: ty) => ({
+        if let Ok(raw_value) = env::var(concat!("AEON_", $key)) {
+            if let Ok(value) = raw_value.parse::<$value_type>() {
+                $config.$field = value;
+            }
+        };
+    });
+}
 
 /// Structure containing the configuration settings for the virtual machine.
 pub struct Config {
@@ -53,6 +65,22 @@ impl Config {
         }
     }
 
+    /// Populates configuration settings based on environment variables.
+    pub fn populate_from_env(&mut self) {
+        set_from_env!(self, process_threads, "PROCESS_THREADS", usize);
+        set_from_env!(self, gc_threads, "GC_THREADS", usize);
+
+        set_from_env!(self, reductions, "REDUCTIONS", usize);
+
+        set_from_env!(self, young_growth_factor, "GC_YOUNG_GROWTH_FACTOR", f64);
+        set_from_env!(self, mature_growth_factor, "GC_MATURE_GROWTH_FACTOR", f64);
+
+        set_from_env!(self,
+                      mailbox_growth_factor,
+                      "GC_MAILBOX_GROWTH_FACTOR",
+                      f64);
+    }
+
     pub fn add_directory(&mut self, path: String) {
         self.directories.push(PathBuf::from(path));
     }
@@ -83,6 +111,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[test]
     fn test_new() {
@@ -92,6 +121,23 @@ mod tests {
         assert!(config.process_threads >= 1);
         assert!(config.gc_threads >= 1);
         assert_eq!(config.reductions, 1000);
+    }
+
+    #[test]
+    fn test_populate_from_env() {
+        env::set_var("AEON_PROCESS_THREADS", "42");
+        env::set_var("AEON_GC_YOUNG_GROWTH_FACTOR", "4.2");
+
+        let mut config = Config::new();
+
+        config.populate_from_env();
+
+        // Unset before any assertions may fail.
+        env::remove_var("AEON_PROCESS_THREADS");
+        env::remove_var("AEON_GC_YOUNG_GROWTH_FACTOR");
+
+        assert_eq!(config.process_threads, 42);
+        assert_eq!(config.young_growth_factor, 4.2);
     }
 
     #[test]
