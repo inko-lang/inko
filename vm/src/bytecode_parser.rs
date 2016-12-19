@@ -19,7 +19,7 @@ use std::mem;
 use std::sync::Arc;
 
 use compiled_code::{CompiledCode, RcCompiledCode};
-use instruction::{InstructionType, Instruction};
+use vm::instruction::{InstructionType, Instruction};
 
 macro_rules! parser_error {
     ($variant: ident) => (
@@ -277,7 +277,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
 
 #[cfg(test)]
 mod tests {
-    use instruction::InstructionType;
+    use vm::instruction::InstructionType;
     use std::io::prelude::*;
     use std::mem;
 

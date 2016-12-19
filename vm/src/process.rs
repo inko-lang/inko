@@ -317,10 +317,6 @@ impl Process {
         self.context().instruction_index
     }
 
-    pub fn set_instruction_index(&self, index: usize) {
-        self.context_mut().instruction_index = index;
-    }
-
     pub fn is_alive(&self) -> bool {
         match *lock!(self.status) {
             ProcessStatus::Failed => false,

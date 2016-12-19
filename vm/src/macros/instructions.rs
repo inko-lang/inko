@@ -6,12 +6,3 @@ macro_rules! run {
         try!($rec.$name($process.clone(), $code.clone(), &$ins))
     );
 }
-
-/// Returns an RcObject from a thread using an instruction argument.
-macro_rules! instruction_object {
-    ($ins: expr, $process: expr, $index: expr) => ({
-        let index = try_vm_error!($ins.arg($index), $ins);
-
-        try_vm_error!($process.get_register(index), $ins)
-    });
-}

@@ -8,20 +8,14 @@ macro_rules! set_error {
 
         $process.set_register($register, obj);
 
-        return Ok(());
+        return Ok(Action::None);
     });
 }
 
 macro_rules! return_vm_error {
     ($message: expr, $line: expr) => (
-        return Err(VirtualMachineError::new($message, $line))
+        return Err($message)
     )
-}
-
-macro_rules! try_vm_error {
-    ($expr: expr, $ins: expr) => (
-        try!($expr.map_err(|err| VirtualMachineError::new(err, $ins.line)));
-    );
 }
 
 /// Returns a Result's OK value or stores the error in a register.

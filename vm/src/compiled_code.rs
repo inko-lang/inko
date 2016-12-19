@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use instruction::Instruction;
+use vm::instruction::Instruction;
 
 /// An immutable, reference counted CompiledCode.
 pub type RcCompiledCode = Arc<CompiledCode>;
@@ -131,7 +131,7 @@ impl CompiledCode {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use instruction::{Instruction, InstructionType};
+    use vm::instruction::{Instruction, InstructionType};
 
     fn new_compiled_code() -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1, 1);
