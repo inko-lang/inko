@@ -168,7 +168,7 @@ impl Machine {
             // LocalData structure in Process.
             drop(context);
 
-            self.gc_safepoint(thread.clone(), process.clone());
+            self.gc_safepoint(&thread, &process);
 
             if process.should_suspend_for_gc() {
                 return Ok(());
@@ -507,17 +507,23 @@ impl Machine {
 
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
-    fn gc_safepoint(&self, thread: RcThread, process: RcProcess) {
-        if process.should_schedule_heap_collection() {
+    fn gc_safepoint(&self, thread: &RcThread, process: &RcProcess) {
+        if process.gc_is_scheduled() {
+            return;
+        }
+
+        let request_opt = if process.should_collect_young_generation() {
+            Some(GcRequest::heap(thread.clone(), process.clone()))
+        } else if process.should_collect_mailbox() {
+            Some(GcRequest::mailbox(thread.clone(), process.clone()))
+        } else {
+            None
+        };
+
+        if let Some(request) = request_opt {
             process.gc_scheduled();
 
-            self.state.gc_requests.push(GcRequest::heap(thread, process.clone()));
-        } else if process.should_schedule_mailbox_collection() {
-            process.gc_scheduled();
-
-            self.state
-                .gc_requests
-                .push(GcRequest::mailbox(thread, process.clone()));
+            self.state.gc_requests.push(request);
         }
     }
 }

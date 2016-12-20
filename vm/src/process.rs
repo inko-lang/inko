@@ -421,17 +421,10 @@ impl Process {
         self.set_gc_state(GcState::Scheduled);
     }
 
-    pub fn should_schedule_heap_collection(&self) -> bool {
+    pub fn gc_is_scheduled(&self) -> bool {
         match self.gc_state() {
-            &GcState::None => self.should_collect_young_generation(),
-            _ => false,
-        }
-    }
-
-    pub fn should_schedule_mailbox_collection(&self) -> bool {
-        match self.gc_state() {
-            &GcState::None => self.should_collect_mailbox(),
-            _ => false,
+            &GcState::None => false,
+            _ => true,
         }
     }
 
