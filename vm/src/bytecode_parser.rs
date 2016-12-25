@@ -79,7 +79,7 @@ macro_rules! read_code_vector {
     );
 }
 
-const SIGNATURE_BYTES: [u8; 4] = [97, 101, 111, 110]; // "inko"
+const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
 const VERSION: u8 = 1;
 
