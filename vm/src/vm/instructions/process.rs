@@ -42,10 +42,7 @@ pub fn spawn_process(machine: &Machine,
     let register = instruction.arg(0)?;
     let code_ptr = process.get_register(instruction.arg(1)?)?;
     let code = code_ptr.get();
-
-    ensure_compiled_code!(instruction, code);
-
-    let code_obj = code.value.as_compiled_code();
+    let code_obj = code.value.as_compiled_code()?;
 
     machine.spawn_process(process, code_obj, register);
 
@@ -68,14 +65,7 @@ pub fn send_process_message(machine: &Machine,
     let register = instruction.arg(0)?;
     let pid_ptr = process.get_register(instruction.arg(1)?)?;
     let msg_ptr = process.get_register(instruction.arg(2)?)?;
-
-    let pid = {
-        let pid_obj = pid_ptr.get();
-
-        ensure_integers!(instruction, pid_obj);
-
-        pid_obj.value.as_integer() as usize
-    };
+    let pid = pid_ptr.get().value.as_integer()? as usize;
 
     if let Some(receiver) = read_lock!(machine.state.processes).get(pid) {
         receiver.send_message(&process, msg_ptr);

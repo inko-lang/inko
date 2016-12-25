@@ -127,10 +127,7 @@ pub fn set_attr(machine: &Machine,
     let value_ptr = process.get_register(instruction.arg(2)?)?;
 
     let name_obj = name_ptr.get();
-
-    ensure_strings!(instruction, name_obj);
-
-    let name = name_obj.value.as_string();
+    let name = name_obj.value.as_string()?;
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -185,10 +182,7 @@ pub fn get_attr(_: &Machine,
     let name = process.get_register(instruction.arg(2)?)?;
 
     let name_obj = name.get();
-
-    ensure_strings!(instruction, name_obj);
-
-    let name = name_obj.value.as_string();
+    let name = name_obj.value.as_string()?;
 
     let attr = source.get()
         .lookup_attribute(name)

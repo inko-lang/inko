@@ -88,76 +88,86 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_integer(&self) -> i64 {
+    pub fn as_integer(&self) -> Result<i64, String> {
         match *self {
-            ObjectValue::Integer(val) => val,
-            _ => panic!("ObjectValue::as_integer() called on a non integer"),
+            ObjectValue::Integer(val) => Ok(val),
+            _ => Err("as_integer called on a non integer value".to_string()),
         }
     }
 
-    pub fn as_float(&self) -> f64 {
+    pub fn as_float(&self) -> Result<f64, String> {
         match *self {
-            ObjectValue::Float(val) => val,
-            _ => panic!("ObjectValue::as_float() called on a non float"),
+            ObjectValue::Float(val) => Ok(val),
+            _ => Err("as_float called non a non float value".to_string()),
         }
     }
 
-    pub fn as_array(&self) -> &Vec<ObjectPointer> {
+    pub fn as_array(&self) -> Result<&Vec<ObjectPointer>, String> {
         match *self {
-            ObjectValue::Array(ref val) => val,
-            _ => panic!("ObjectValue::as_Array() called on a non array"),
+            ObjectValue::Array(ref val) => Ok(val),
+            _ => Err("as_array called non a non array value".to_string()),
         }
     }
 
-    pub fn as_array_mut(&mut self) -> &mut Vec<ObjectPointer> {
+    pub fn as_array_mut(&mut self) -> Result<&mut Vec<ObjectPointer>, String> {
         match *self {
-            ObjectValue::Array(ref mut val) => val,
-            _ => panic!("ObjectValue::as_array_mut() called on a non array"),
+            ObjectValue::Array(ref mut val) => Ok(val),
+            _ => Err("as_array_mut called on a non array".to_string()),
         }
     }
 
-    pub fn as_string(&self) -> &String {
+    pub fn as_string(&self) -> Result<&String, String> {
         match *self {
-            ObjectValue::String(ref val) => val,
-            _ => panic!("ObjectValue::as_string() called on a non string"),
-        }
-    }
-
-    pub fn as_file(&self) -> &fs::File {
-        match *self {
-            ObjectValue::File(ref val) => val,
-            _ => panic!("ObjectValue::as_file() called on a non file"),
-        }
-    }
-
-    pub fn as_file_mut(&mut self) -> &mut fs::File {
-        match *self {
-            ObjectValue::File(ref mut val) => val,
-            _ => panic!("ObjectValue::as_file_mut() called on a non file"),
-        }
-    }
-
-    pub fn as_error(&self) -> u16 {
-        match *self {
-            ObjectValue::Error(val) => val,
-            _ => panic!("ObjectValue::as_error() called non a non error"),
-        }
-    }
-
-    pub fn as_compiled_code(&self) -> RcCompiledCode {
-        match *self {
-            ObjectValue::CompiledCode(ref val) => val.clone(),
+            ObjectValue::String(ref val) => Ok(val),
             _ => {
-                panic!("ObjectValue::as_compiled_code() called on a non \
-                        compiled code object")
+                Err("ObjectValue::as_string() called on a non string".to_string())
             }
         }
     }
 
-    pub fn as_binding(&self) -> RcBinding {
+    pub fn as_file(&self) -> Result<&fs::File, String> {
         match *self {
-            ObjectValue::Binding(ref val) => val.clone(),
-            _ => panic!("ObjectValue::as_binding() called non a non Binding"),
+            ObjectValue::File(ref val) => Ok(val),
+            _ => Err("ObjectValue::as_file() called on a non file".to_string()),
+        }
+    }
+
+    pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
+        match *self {
+            ObjectValue::File(ref mut val) => Ok(val),
+            _ => {
+                Err("ObjectValue::as_file_mut() called on a non file".to_string())
+            }
+        }
+    }
+
+    pub fn as_error(&self) -> Result<u16, String> {
+        match *self {
+            ObjectValue::Error(val) => Ok(val),
+            _ => {
+                Err("ObjectValue::as_error() called non a non error".to_string())
+            }
+        }
+    }
+
+    pub fn as_compiled_code(&self) -> Result<RcCompiledCode, String> {
+        match *self {
+            ObjectValue::CompiledCode(ref val) => Ok(val.clone()),
+            _ => {
+                Err("ObjectValue::as_compiled_code() called on a non compiled \
+                     code object"
+                    .to_string())
+            }
+        }
+    }
+
+    pub fn as_binding(&self) -> Result<RcBinding, String> {
+        match *self {
+            ObjectValue::Binding(ref val) => Ok(val.clone()),
+            _ => {
+                Err("ObjectValue::as_binding() called non a non Binding"
+                    .to_string())
+            }
         }
     }
 
@@ -283,109 +293,122 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_as_integer_without_integer() {
-        ObjectValue::None.as_integer();
+        assert!(ObjectValue::None.as_integer().is_err());
     }
 
     #[test]
     fn test_as_integer_with_integer() {
-        assert_eq!(ObjectValue::Integer(10).as_integer(), 10);
+        let result = ObjectValue::Integer(10).as_integer();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 10);
     }
 
     #[test]
-    #[should_panic]
     fn test_as_float_without_float() {
-        ObjectValue::None.as_float();
+        assert!(ObjectValue::None.as_float().is_err());
     }
 
     #[test]
     fn test_as_float_with_float() {
-        assert!(ObjectValue::Float(10.5).as_float() == 10.5)
+        let result = ObjectValue::Float(10.5).as_float();
+
+        assert!(result.is_ok());
+        assert!(result.unwrap() == 10.5);
     }
 
     #[test]
-    #[should_panic]
     fn test_as_array_without_array() {
-        ObjectValue::None.as_array();
+        assert!(ObjectValue::None.as_array().is_err());
     }
 
     #[test]
     fn test_as_array_with_array() {
         let array = Box::new(vec![ObjectPointer::null()]);
+        let value = ObjectValue::Array(array);
+        let result = value.as_array();
 
-        assert_eq!(ObjectValue::Array(array).as_array().len(), 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 1);
     }
 
     #[test]
-    #[should_panic]
     fn test_as_array_mut_without_array() {
-        ObjectValue::None.as_array_mut();
+        assert!(ObjectValue::None.as_array_mut().is_err());
     }
 
     #[test]
     fn test_as_array_mut_with_array() {
         let array = Box::new(vec![ObjectPointer::null()]);
+        let mut value = ObjectValue::Array(array);
+        let result = value.as_array_mut();
 
-        assert_eq!(ObjectValue::Array(array).as_array_mut().len(), 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 1);
     }
 
     #[test]
-    #[should_panic]
     fn test_as_string_without_string() {
-        ObjectValue::None.as_string();
+        assert!(ObjectValue::None.as_string().is_err());
     }
 
     #[test]
     fn test_as_string_with_string() {
         let string = Box::new("test".to_string());
+        let value = ObjectValue::String(string);
+        let result = value.as_string();
 
-        assert_eq!(ObjectValue::String(string).as_string(), &"test".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), &"test".to_string());
     }
 
     #[test]
-    #[should_panic]
     fn test_as_file_without_file() {
-        ObjectValue::None.as_file();
+        assert!(ObjectValue::None.as_file().is_err());
     }
 
     #[test]
     #[cfg(not(platform = "windows"))]
     fn test_as_file_with_file() {
         let file = Box::new(File::open("/dev/null").unwrap());
+        let value = ObjectValue::File(file);
+        let result = value.as_file();
 
-        ObjectValue::File(file).as_file();
+        assert!(result.is_ok());
     }
 
     #[test]
-    #[should_panic]
     fn test_as_file_mut_without_file() {
-        ObjectValue::None.as_file_mut();
+        assert!(ObjectValue::None.as_file_mut().is_err());
     }
 
     #[test]
     #[cfg(not(platform = "windows"))]
     fn test_as_file_mut_with_file() {
         let file = Box::new(File::open("/dev/null").unwrap());
+        let mut value = ObjectValue::File(file);
+        let result = value.as_file_mut();
 
-        ObjectValue::File(file).as_file_mut();
+        assert!(result.is_ok());
     }
 
     #[test]
-    #[should_panic]
     fn test_as_error_without_error() {
-        ObjectValue::None.as_error();
+        assert!(ObjectValue::None.as_error().is_err());
     }
 
     #[test]
     fn test_as_error_with_error() {
-        assert_eq!(ObjectValue::Error(2).as_error(), 2);
+        let result = ObjectValue::Error(2).as_error();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2);
     }
 
     #[test]
-    #[should_panic]
     fn test_as_compiled_code_without_code() {
-        ObjectValue::None.as_compiled_code();
+        assert!(ObjectValue::None.as_compiled_code().is_err());
     }
 
     #[test]
@@ -394,24 +417,25 @@ mod tests {
                                          "a.aeon".to_string(),
                                          1,
                                          Vec::new());
+        let result = ObjectValue::CompiledCode(code).as_compiled_code();
 
-        assert_eq!(ObjectValue::CompiledCode(code).as_compiled_code().name,
-                   "a".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().name, "a".to_string());
     }
 
     #[test]
-    #[should_panic]
     fn test_as_binding_without_binding() {
-        ObjectValue::None.as_binding();
+        assert!(ObjectValue::None.as_binding().is_err());
     }
 
     #[test]
     fn test_as_binding_with_binding() {
         let pointer = ObjectPointer::null();
         let binding = Binding::new(pointer);
+        let result = ObjectValue::Binding(binding).as_binding();
 
-        assert!(ObjectValue::Binding(binding).as_binding().self_object ==
-                pointer);
+        assert!(result.is_ok());
+        assert!(result.unwrap().self_object == pointer);
     }
 
     #[test]
@@ -421,7 +445,7 @@ mod tests {
 
         assert!(val1.is_none());
         assert!(val2.is_integer());
-        assert_eq!(val2.as_integer(), 5);
+        assert_eq!(val2.as_integer().unwrap(), 5);
     }
 
     #[test]

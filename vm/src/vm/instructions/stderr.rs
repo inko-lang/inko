@@ -29,13 +29,10 @@ pub fn stderr_write(machine: &Machine,
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
     let arg = arg_ptr.get();
-
-    ensure_strings!(instruction, arg);
-
     let int_proto = machine.state.integer_prototype.clone();
     let mut stderr = io::stderr();
 
-    let result = try_io!(stderr.write(arg.value.as_string().as_bytes()),
+    let result = try_io!(stderr.write(arg.value.as_string()?.as_bytes()),
                          process,
                          register);
 

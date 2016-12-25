@@ -50,8 +50,8 @@ pub fn file_open(machine: &Machine,
     let path = path_ptr.get();
     let mode = mode_ptr.get();
 
-    let path_string = path.value.as_string();
-    let mode_string = mode.value.as_string().as_ref();
+    let path_string = path.value.as_string()?;
+    let mode_string = mode.value.as_string()?.as_ref();
     let mut open_opts = OpenOptions::new();
 
     match mode_string {
@@ -95,12 +95,9 @@ pub fn file_write(machine: &Machine,
     let mut file = file_ptr.get_mut();
     let string = string_ptr.get();
 
-    ensure_files!(instruction, file);
-    ensure_strings!(instruction, string);
-
     let int_proto = machine.state.integer_prototype.clone();
-    let mut file = file.value.as_file_mut();
-    let bytes = string.value.as_string().as_bytes();
+    let mut file = file.value.as_file_mut()?;
+    let bytes = string.value.as_string()?.as_bytes();
 
     let result = try_io!(file.write(bytes), process, register);
 
@@ -132,11 +129,9 @@ pub fn file_read(machine: &Machine,
 
     let mut file_obj = file_ptr.get_mut();
 
-    ensure_files!(instruction, file_obj);
-
     let mut buffer = file_reading_buffer!(instruction, process, 2);
     let int_proto = machine.state.integer_prototype.clone();
-    let mut file = file_obj.value.as_file_mut();
+    let mut file = file_obj.value.as_file_mut()?;
 
     try_io!(file.read_to_string(&mut buffer), process, register);
 
@@ -165,11 +160,8 @@ pub fn file_read_line(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
     let mut file_obj = file_ptr.get_mut();
-
-    ensure_files!(instruction, file_obj);
-
     let proto = machine.state.string_prototype.clone();
-    let mut file = file_obj.value.as_file_mut();
+    let mut file = file_obj.value.as_file_mut()?;
     let mut bytes = Vec::new();
 
     for result in file.bytes() {
@@ -209,10 +201,7 @@ pub fn file_flush(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
     let mut file_obj = file_ptr.get_mut();
-
-    ensure_files!(instruction, file_obj);
-
-    let mut file = file_obj.value.as_file_mut();
+    let mut file = file_obj.value.as_file_mut()?;
 
     try_io!(file.flush(), process, register);
 
@@ -239,10 +228,7 @@ pub fn file_size(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
     let file_obj = file_ptr.get();
-
-    ensure_files!(instruction, file_obj);
-
-    let file = file_obj.value.as_file();
+    let file = file_obj.value.as_file()?;
     let meta = try_io!(file.metadata(), process, register);
 
     let size = meta.len() as i64;
@@ -277,11 +263,8 @@ pub fn file_seek(machine: &Machine,
     let mut file_obj = file_ptr.get_mut();
     let offset_obj = offset_ptr.get();
 
-    ensure_files!(instruction, file_obj);
-    ensure_integers!(instruction, offset_obj);
-
-    let mut file = file_obj.value.as_file_mut();
-    let offset = offset_obj.value.as_integer();
+    let mut file = file_obj.value.as_file_mut()?;
+    let offset = offset_obj.value.as_integer()?;
 
     ensure_positive_read_size!(instruction, offset);
 

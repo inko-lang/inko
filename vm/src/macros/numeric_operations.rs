@@ -6,17 +6,14 @@ macro_rules! to_expr {
 
 macro_rules! num_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt, $tname: ident,
-     $as_name: ident, $ensure: ident, $proto: ident) => ({
+     $as_name: ident, $proto: ident) => ({
         let register = $ins.arg(0)?;
         let receiver_ptr = $process.get_register($ins.arg(1)?)?;
         let arg_ptr = $process.get_register($ins.arg(2)?)?;
 
         let receiver = receiver_ptr.get();
         let arg = arg_ptr.get();
-
-        $ensure!($ins, receiver, arg);
-
-        let result = to_expr!(receiver.value.$as_name() $op arg.value.$as_name());
+        let result = to_expr!(receiver.value.$as_name()? $op arg.value.$as_name()?);
 
         let obj = $process
             .allocate(object_value::$tname(result), $vm.state.$proto.clone());
@@ -28,18 +25,14 @@ macro_rules! num_op {
 }
 
 macro_rules! num_bool_op {
-    ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident,
-     $ensure: ident) => ({
+    ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident) => ({
         let register = $ins.arg(0)?;
         let receiver_ptr = $process.get_register($ins.arg(1)?)?;
         let arg_ptr = $process.get_register($ins.arg(2)?)?;
 
         let receiver = receiver_ptr.get();
         let arg = arg_ptr.get();
-
-        $ensure!($ins, receiver, arg);
-
-        let result = to_expr!(receiver.value.$as_name() $op arg.value.$as_name());
+        let result = to_expr!(receiver.value.$as_name()? $op arg.value.$as_name()?);
 
         let boolean = if result {
             $vm.state.true_object.clone()
@@ -56,26 +49,24 @@ macro_rules! num_bool_op {
 
 macro_rules! integer_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt) => ({
-        num_op!($vm, $process, $ins, $op, integer, as_integer, ensure_integers,
-                integer_prototype)
+        num_op!($vm, $process, $ins, $op, integer, as_integer, integer_prototype)
     });
 }
 
 macro_rules! integer_bool_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt) => ({
-        num_bool_op!($vm, $process, $ins, $op, as_integer, ensure_integers)
+        num_bool_op!($vm, $process, $ins, $op, as_integer)
     });
 }
 
 macro_rules! float_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt) => ({
-        num_op!($vm, $process, $ins, $op, float, as_float, ensure_floats,
-                float_prototype)
+        num_op!($vm, $process, $ins, $op, float, as_float, float_prototype)
     });
 }
 
 macro_rules! float_bool_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt) => ({
-        num_bool_op!($vm, $process, $ins, $op, as_float, ensure_floats)
+        num_bool_op!($vm, $process, $ins, $op, as_float)
     });
 }

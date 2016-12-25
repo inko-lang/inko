@@ -122,10 +122,7 @@ pub fn float_to_integer(machine: &Machine,
     let register = instruction.arg(0)?;
     let float_ptr = process.get_register(instruction.arg(1)?)?;
     let float = float_ptr.get();
-
-    ensure_floats!(instruction, float);
-
-    let result = float.value.as_float() as i64;
+    let result = float.value.as_float()? as i64;
 
     let obj = process.allocate(object_value::integer(result),
                                machine.state.integer_prototype.clone());
@@ -149,10 +146,7 @@ pub fn float_to_string(machine: &Machine,
     let register = instruction.arg(0)?;
     let float_ptr = process.get_register(instruction.arg(1)?)?;
     let float = float_ptr.get();
-
-    ensure_floats!(instruction, float);
-
-    let result = float.value.as_float().to_string();
+    let result = float.value.as_float()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
                                machine.state.string_prototype.clone());
@@ -281,8 +275,9 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(2).unwrap();
+                    let object = pointer.get();
 
-                    assert_eq!(pointer.get().value.as_float(), $expected);
+                    assert_eq!(object.value.as_float().unwrap(), $expected);
                 }
             }
         );
@@ -410,8 +405,9 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(1).unwrap();
+                    let object = pointer.get();
 
-                    assert!(pointer.get().value.$target_type() == $target_val);
+                    assert!(object.value.$target_type().unwrap() == $target_val);
                 }
             }
         );
@@ -455,8 +451,9 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(0).unwrap();
+            let object = pointer.get();
 
-            assert_eq!(pointer.get().value.as_float(), 10.0);
+            assert_eq!(object.value.as_float().unwrap(), 10.0);
         }
     }
 

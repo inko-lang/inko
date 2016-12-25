@@ -57,15 +57,10 @@ pub fn array_insert(machine: &Machine,
     let value_ptr = process.get_register(instruction.arg(3)?)?;
 
     let mut array = array_ptr.get_mut();
-
-    ensure_arrays!(instruction, array);
-
     let index_obj = index_ptr.get();
 
-    ensure_integers!(instruction, index_obj);
-
-    let mut vector = array.value.as_array_mut();
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer());
+    let mut vector = array.value.as_array_mut()?;
+    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
     ensure_array_within_bounds!(instruction, vector, index);
 
@@ -106,12 +101,8 @@ pub fn array_at(_: &Machine,
     let array = array_ptr.get();
 
     let index_obj = index_ptr.get();
-
-    ensure_arrays!(instruction, array);
-    ensure_integers!(instruction, index_obj);
-
-    let vector = array.value.as_array();
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer());
+    let vector = array.value.as_array()?;
+    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
     ensure_array_within_bounds!(instruction, vector, index);
 
@@ -144,12 +135,8 @@ pub fn array_remove(_: &Machine,
 
     let mut array = array_ptr.get_mut();
     let index_obj = index_ptr.get();
-
-    ensure_arrays!(instruction, array);
-    ensure_integers!(instruction, index_obj);
-
-    let mut vector = array.value.as_array_mut();
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer());
+    let mut vector = array.value.as_array_mut()?;
+    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
     ensure_array_within_bounds!(instruction, vector, index);
 
@@ -173,12 +160,8 @@ pub fn array_length(machine: &Machine,
                     -> InstructionResult {
     let register = instruction.arg(0)?;
     let array_ptr = process.get_register(instruction.arg(1)?)?;
-
     let array = array_ptr.get();
-
-    ensure_arrays!(instruction, array);
-
-    let vector = array.value.as_array();
+    let vector = array.value.as_array()?;
     let length = vector.len() as i64;
 
     let obj = process.allocate(object_value::integer(length),
@@ -198,12 +181,8 @@ pub fn array_clear(_: &Machine,
                    instruction: &Instruction)
                    -> InstructionResult {
     let array_ptr = process.get_register(instruction.arg(0)?)?;
-
     let mut array = array_ptr.get_mut();
-
-    ensure_arrays!(instruction, array);
-
-    let mut vector = array.value.as_array_mut();
+    let mut vector = array.value.as_array_mut()?;
 
     vector.clear();
 

@@ -314,10 +314,7 @@ impl Machine {
             .ok_or_else(|| format!("undefined method \"{}\"", name))?;
 
         let method_obj = method_ptr.get();
-
-        ensure_compiled_code!(instruction, method_obj);
-
-        let method_code = method_obj.value.as_compiled_code();
+        let method_code = method_obj.value.as_compiled_code()?;
 
         // Argument handling
         let arg_count = instruction.arguments.len() - 4;
@@ -332,9 +329,7 @@ impl Machine {
             if let Some(last_arg) = arguments.pop() {
                 let array = last_arg.get();
 
-                ensure_arrays!(instruction, array);
-
-                for value in array.value.as_array() {
+                for value in array.value.as_array()? {
                     arguments.push(value.clone());
                 }
             }

@@ -27,19 +27,9 @@ pub fn run_code(machine: &Machine,
     let cc_ptr = process.get_register(instruction.arg(1)?)?;
     let args_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let code_obj = {
-        let cc_obj = cc_ptr.get();
-
-        ensure_compiled_code!(instruction, cc_obj);
-
-        cc_obj.value.as_compiled_code()
-    };
-
+    let code_obj = cc_ptr.get().value.as_compiled_code()?;
     let args_obj = args_ptr.get();
-
-    ensure_arrays!(instruction, args_obj);
-
-    let arguments = args_obj.value.as_array();
+    let arguments = args_obj.value.as_array()?;
     let arg_count = arguments.len();
 
     let binding_idx = 3 + arg_count;
@@ -48,12 +38,7 @@ pub fn run_code(machine: &Machine,
         let obj_ptr = process.get_register(binding_idx)?;
         let obj = obj_ptr.get();
 
-        if !obj.value.is_binding() {
-            return Err(format!("Argument {} is not a valid Binding",
-                               binding_idx));
-        }
-
-        Some(obj.value.as_binding())
+        Some(obj.value.as_binding()?)
     } else {
         None
     };
@@ -145,7 +130,5 @@ pub fn run_file(machine: &Machine,
     let path_ptr = process.get_register(instruction.arg(1)?)?;
     let path = path_ptr.get();
 
-    ensure_strings!(instruction, path);
-
-    machine.run_file(path.value.as_string(), process, instruction, register)
+    machine.run_file(path.value.as_string()?, process, instruction, register)
 }

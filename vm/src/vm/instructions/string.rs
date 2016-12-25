@@ -48,10 +48,7 @@ pub fn string_to_lower(machine: &Machine,
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
     let source = source_ptr.get();
-
-    ensure_strings!(instruction, source);
-
-    let lower = source.value.as_string().to_lowercase();
+    let lower = source.value.as_string()?.to_lowercase();
 
     let obj = process.allocate(object_value::string(lower),
                                machine.state.string_prototype.clone());
@@ -75,10 +72,7 @@ pub fn string_to_upper(machine: &Machine,
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
     let source = source_ptr.get();
-
-    ensure_strings!(instruction, source);
-
-    let upper = source.value.as_string().to_uppercase();
+    let upper = source.value.as_string()?.to_uppercase();
 
     let obj = process.allocate(object_value::string(upper),
                                machine.state.string_prototype.clone());
@@ -106,10 +100,7 @@ pub fn string_equals(machine: &Machine,
 
     let receiver = receiver_ptr.get();
     let arg = arg_ptr.get();
-
-    ensure_strings!(instruction, receiver, arg);
-
-    let result = receiver.value.as_string() == arg.value.as_string();
+    let result = receiver.value.as_string()? == arg.value.as_string()?;
 
     let boolean = if result {
         machine.state.true_object.clone()
@@ -144,7 +135,7 @@ pub fn string_to_bytes(machine: &Machine,
     let array_proto = machine.state.array_prototype.clone();
 
     let array = arg.value
-        .as_string()
+        .as_string()?
         .as_bytes()
         .iter()
         .map(|&b| {
@@ -177,23 +168,15 @@ pub fn string_from_bytes(machine: &Machine,
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
     let arg = arg_ptr.get();
-
-    ensure_arrays!(instruction, arg);
-
     let string_proto = machine.state.string_prototype.clone();
-    let array = arg.value.as_array();
+    let array = arg.value.as_array()?;
+    let mut bytes = Vec::with_capacity(array.len());
 
-    for int_ptr in array.iter() {
-        let int_obj = int_ptr.get();
+    for ptr in array.iter() {
+        let integer = ptr.get().value.as_integer()?;
 
-        ensure_integers!(instruction, int_obj);
+        bytes.push(integer as u8);
     }
-
-    let bytes = arg.value
-        .as_array()
-        .iter()
-        .map(|ref int_ptr| int_ptr.get().value.as_integer() as u8)
-        .collect::<Vec<_>>();
 
     let string = try_error!(try_from_utf8!(bytes), process, register);
 
@@ -219,11 +202,8 @@ pub fn string_length(machine: &Machine,
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
     let arg = arg_ptr.get();
-
-    ensure_strings!(instruction, arg);
-
     let int_proto = machine.state.integer_prototype.clone();
-    let length = arg.value.as_string().chars().count() as i64;
+    let length = arg.value.as_string()?.chars().count() as i64;
 
     let obj = process.allocate(object_value::integer(length), int_proto);
 
@@ -247,11 +227,8 @@ pub fn string_size(machine: &Machine,
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
     let arg = arg_ptr.get();
-
-    ensure_strings!(instruction, arg);
-
     let int_proto = machine.state.integer_prototype.clone();
-    let size = arg.value.as_string().len() as i64;
+    let size = arg.value.as_string()?.len() as i64;
 
     let obj = process.allocate(object_value::integer(size), int_proto);
 

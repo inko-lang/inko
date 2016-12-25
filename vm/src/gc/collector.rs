@@ -184,7 +184,7 @@ mod tests {
 
         assert!(old_address != new_address);
         assert!(pointer.is_mature());
-        assert_eq!(pointer.get().value.as_integer(), 15);
+        assert_eq!(pointer.get().value.as_integer().unwrap(), 15);
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
         let new_address = pointer.raw.raw as usize;
 
         assert!(old_address != new_address);
-        assert_eq!(pointer.get().value.as_integer(), 15);
+        assert_eq!(pointer.get().value.as_integer().unwrap(), 15);
     }
 
     #[test]

@@ -6,10 +6,7 @@ macro_rules! file_reading_buffer {
         if $instruction.arguments.get($idx).is_some() {
             let size_ptr = $process.get_register($instruction.arg($idx)?)?;
             let size_obj = size_ptr.get();
-
-            ensure_integers!($instruction, size_obj);
-
-            let size = size_obj.value.as_integer();
+            let size = size_obj.value.as_integer()?;
 
             ensure_positive_read_size!($instruction, size);
 

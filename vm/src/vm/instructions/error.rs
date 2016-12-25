@@ -51,7 +51,7 @@ pub fn error_to_integer(machine: &Machine,
     let error = error_ptr.get();
 
     let proto = machine.state.integer_prototype.clone();
-    let integer = error.value.as_error() as i64;
+    let integer = error.value.as_error()? as i64;
 
     let result = process.allocate(object_value::integer(integer), proto);
 

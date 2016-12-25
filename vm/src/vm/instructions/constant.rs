@@ -49,10 +49,7 @@ pub fn set_const(machine: &Machine,
     let name = process.get_register(instruction.arg(1)?)?;
     let source_ptr = process.get_register(instruction.arg(2)?)?;
     let name_obj = name.get();
-
-    ensure_strings!(instruction, name_obj);
-
-    let name_str = name_obj.value.as_string().clone();
+    let name_str = name_obj.value.as_string()?.clone();
 
     let source = copy_if_permanent!(machine.state.permanent_allocator,
                                     source_ptr,
@@ -105,10 +102,7 @@ pub fn get_const(_: &Machine,
     let name = process.get_register(instruction.arg(2)?)?;
 
     let name_obj = name.get();
-
-    ensure_strings!(instruction, name_obj);
-
-    let name_str = name_obj.value.as_string();
+    let name_str = name_obj.value.as_string()?;
 
     let object = src.get()
         .lookup_constant(name_str)

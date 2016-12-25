@@ -139,7 +139,7 @@ mod tests {
         let copy = dummy.copy_object(pointer);
 
         assert!(copy.get().value.is_integer());
-        assert_eq!(copy.get().value.as_integer(), 5);
+        assert_eq!(copy.get().value.as_integer().unwrap(), 5);
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
         let copy = dummy.copy_object(pointer);
 
         assert!(copy.get().value.is_float());
-        assert_eq!(copy.get().value.as_float(), 2.5);
+        assert_eq!(copy.get().value.as_float().unwrap(), 2.5);
     }
 
     #[test]
@@ -163,7 +163,7 @@ mod tests {
         let copy = dummy.copy_object(pointer);
 
         assert!(copy.get().value.is_string());
-        assert_eq!(copy.get().value.as_string(), &"a".to_string());
+        assert_eq!(copy.get().value.as_string().unwrap(), &"a".to_string());
     }
 
     #[test]
@@ -177,7 +177,7 @@ mod tests {
         let copy = dummy.copy_object(array);
 
         assert!(copy.get().value.is_array());
-        assert_eq!(copy.get().value.as_array().len(), 2);
+        assert_eq!(copy.get().value.as_array().unwrap().len(), 2);
     }
 
     #[test]

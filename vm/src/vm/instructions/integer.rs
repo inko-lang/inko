@@ -122,10 +122,7 @@ pub fn integer_to_float(machine: &Machine,
     let register = instruction.arg(0)?;
     let integer_ptr = process.get_register(instruction.arg(1)?)?;
     let integer = integer_ptr.get();
-
-    ensure_integers!(instruction, integer);
-
-    let result = integer.value.as_integer() as f64;
+    let result = integer.value.as_integer()? as f64;
 
     let obj = process.allocate(object_value::float(result),
                                machine.state.float_prototype.clone());
@@ -149,10 +146,7 @@ pub fn integer_to_string(machine: &Machine,
     let register = instruction.arg(0)?;
     let integer_ptr = process.get_register(instruction.arg(1)?)?;
     let integer = integer_ptr.get();
-
-    ensure_integers!(instruction, integer);
-
-    let result = integer.value.as_integer().to_string();
+    let result = integer.value.as_integer()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
                                machine.state.string_prototype.clone());
@@ -356,8 +350,9 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(2).unwrap();
+                    let object = pointer.get();
 
-                    assert_eq!(pointer.get().value.as_integer(), $expected);
+                    assert_eq!(object.value.as_integer().unwrap(), $expected);
                 }
             }
         );
@@ -485,8 +480,9 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(1).unwrap();
+                    let object = pointer.get();
 
-                    assert!(pointer.get().value.$target_type() == $target_val);
+                    assert!(object.value.$target_type().unwrap() == $target_val);
                 }
             }
         );
@@ -530,8 +526,9 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(0).unwrap();
+            let object = pointer.get();
 
-            assert_eq!(pointer.get().value.as_integer(), 10);
+            assert_eq!(object.value.as_integer().unwrap(), 10);
         }
     }
 
