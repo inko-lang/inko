@@ -27,7 +27,7 @@ pub fn set_array(machine: &Machine,
         machine.collect_arguments(process.clone(), instruction, 1, val_count)?;
 
     let obj = process.allocate(object_value::array(values),
-                               machine.state.array_prototype.clone());
+                               machine.state.array_prototype);
 
     process.set_register(register, obj);
 
@@ -187,4 +187,426 @@ pub fn array_clear(_: &Machine,
     vector.clear();
 
     Ok(Action::None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_value;
+    use vm::instructions::test::*;
+    use vm::instruction::InstructionType;
+
+    mod set_array {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+
+            let instruction = new_instruction(InstructionType::SetArray,
+                                              Vec::new());
+
+            assert!(set_array(&machine, &process, &code, &instruction).is_err());
+        }
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+
+            let instruction = new_instruction(InstructionType::SetArray, vec![0]);
+
+            let result = set_array(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let pointer = process.get_register(0).unwrap();
+            let object = pointer.get();
+
+            assert!(object.value.is_array());
+            assert!(object.prototype == machine.state.array_prototype);
+        }
+
+        #[test]
+        fn test_with_multiple_valid_arguments() {
+            let (machine, code, process) = setup();
+
+            let instruction = new_instruction(InstructionType::SetArray,
+                                              vec![2, 0, 1]);
+
+            let value1 = process.allocate_empty();
+            let value2 = process.allocate_empty();
+
+            process.set_register(0, value1);
+            process.set_register(1, value2);
+
+            let result = set_array(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let pointer = process.get_register(2).unwrap();
+            let object = pointer.get();
+
+            assert!(object.value.is_array());
+
+            let values = object.value.as_array().unwrap();
+
+            assert_eq!(values.len(), 2);
+
+            assert!(values[0] == value1);
+            assert!(values[1] == value2);
+        }
+    }
+
+    mod array_insert {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              Vec::new());
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_array_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              vec![3]);
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_index_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              vec![3, 0]);
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_value_index() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              vec![3, 0, 1]);
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_undefined_registers() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              vec![3, 0, 1, 2]);
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayInsert,
+                                              vec![3, 0, 1, 2]);
+
+            let array = process
+                .allocate_without_prototype(object_value::array(Vec::new()));
+
+            let index =
+                process.allocate_without_prototype(object_value::integer(0));
+
+            let value =
+                process.allocate_without_prototype(object_value::integer(5));
+
+            process.set_register(0, array);
+            process.set_register(1, index);
+            process.set_register(2, value);
+
+            let result = array_insert(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let pointer = process.get_register(3).unwrap();
+            let object = pointer.get();
+
+            assert!(object.value.is_integer());
+            assert_eq!(object.value.as_integer().unwrap(), 5);
+        }
+    }
+
+    mod array_at {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayAt,
+                                              Vec::new());
+
+            let result = array_at(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_array_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayAt, vec![2]);
+            let result = array_at(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_index_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayAt,
+                                              vec![2, 0]);
+
+            let result = array_at(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_undefined_registers() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayAt,
+                                              vec![2, 0, 1]);
+
+            let result = array_at(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayAt,
+                                              vec![2, 0, 1]);
+
+            let value =
+                process.allocate_without_prototype(object_value::integer(5));
+
+            let array = process
+                .allocate_without_prototype(object_value::array(vec![value]));
+
+            let index =
+                process.allocate_without_prototype(object_value::integer(0));
+
+            process.set_register(0, array);
+            process.set_register(1, index);
+
+            let result = array_at(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let pointer = process.get_register(2).unwrap();
+            let object = pointer.get();
+
+            assert!(object.value.is_integer());
+            assert_eq!(object.value.as_integer().unwrap(), 5);
+        }
+    }
+
+    mod array_remove {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayRemove,
+                                              Vec::new());
+
+            let result = array_remove(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_array_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayRemove,
+                                              vec![2]);
+
+            let result = array_remove(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_index_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayRemove,
+                                              vec![2, 0]);
+
+            let result = array_remove(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_undefined_registers() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayRemove,
+                                              vec![2, 0, 1]);
+
+            let result = array_remove(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayRemove,
+                                              vec![2, 0, 1]);
+
+            let value =
+                process.allocate_without_prototype(object_value::integer(5));
+
+            let array = process
+                .allocate_without_prototype(object_value::array(vec![value]));
+
+            let index =
+                process.allocate_without_prototype(object_value::integer(0));
+
+            process.set_register(0, array);
+            process.set_register(1, index);
+
+            let result = array_remove(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let removed_pointer = process.get_register(2).unwrap();
+            let removed_object = removed_pointer.get();
+
+            assert!(removed_object.value.is_integer());
+            assert_eq!(removed_object.value.as_integer().unwrap(), 5);
+
+            assert_eq!(array.get().value.as_array().unwrap().len(), 0);
+        }
+    }
+
+    mod array_length {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayLength,
+                                              Vec::new());
+
+            let result = array_length(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_without_array_argument() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayLength,
+                                              vec![1]);
+
+            let result = array_length(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_undefined_registers() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayLength,
+                                              vec![1, 0]);
+
+            let result = array_length(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayLength,
+                                              vec![1, 0]);
+
+            let value = process.allocate_empty();
+
+            let array = process
+                .allocate_without_prototype(object_value::array(vec![value]));
+
+            process.set_register(0, array);
+
+            let result = array_length(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let pointer = process.get_register(1).unwrap();
+            let object = pointer.get();
+
+            assert!(object.value.is_integer());
+            assert_eq!(object.value.as_integer().unwrap(), 1);
+        }
+    }
+
+    mod array_clear {
+        use super::*;
+
+        #[test]
+        fn test_without_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayClear,
+                                              Vec::new());
+
+            let result = array_clear(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_undefined_registers() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayClear,
+                                              vec![0]);
+
+            let result = array_clear(&machine, &process, &code, &instruction);
+
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn test_with_valid_arguments() {
+            let (machine, code, process) = setup();
+            let instruction = new_instruction(InstructionType::ArrayClear,
+                                              vec![0]);
+
+            let value = process.allocate_empty();
+
+            let array = process
+                .allocate_without_prototype(object_value::array(vec![value]));
+
+            process.set_register(0, array);
+
+            let result = array_clear(&machine, &process, &code, &instruction);
+
+            assert!(result.is_ok());
+
+            let object = array.get();
+
+            assert_eq!(object.value.as_array().unwrap().len(), 0);
+        }
+    }
 }
