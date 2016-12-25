@@ -29,7 +29,10 @@ pub enum ProcessStatus {
     /// The process has been suspended.
     Suspended,
 
-    /// The process has been suspended by the garbage collector.
+    /// The process should be suspended for garbage collection.
+    SuspendForGc,
+
+    /// The process has been suspended for garbage collection.
     SuspendedByGc,
 
     /// The process ran into some kind of error during execution.
@@ -68,10 +71,6 @@ pub struct LocalData {
 
     /// The state of the garbage collector for this process.
     pub gc_state: GcState,
-
-    /// When set to "true" this process should suspend itself so it can be
-    /// garbage collected.
-    pub suspend_for_gc: bool,
 
     /// The remembered set of this process. This set is not synchronized via a
     /// lock of sorts. As such the collector must ensure this process is
@@ -127,7 +126,6 @@ impl Process {
             call_frame: call_frame,
             context: Box::new(context),
             gc_state: GcState::None,
-            suspend_for_gc: false,
             remembered_set: HashSet::new(),
             mailbox: Mailbox::new(global_allocator),
             young_collections: 0,
@@ -349,23 +347,13 @@ impl Process {
                                                     new_status: ProcessStatus) {
         let mut status = lock!(self.status);
 
-        let overwrite = match *status {
-            ProcessStatus::SuspendedByGc => false,
-            _ => true,
-        };
-
-        // Don't overwrite the process status if it was suspended by the GC.
-        if overwrite {
-            let mut local_data = self.local_data_mut();
-
-            if local_data.suspend_for_gc {
-                local_data.suspend_for_gc = false;
-                *status = ProcessStatus::SuspendedByGc;
-            } else {
+        match *status {
+            ProcessStatus::SuspendedByGc |
+            ProcessStatus::SuspendForGc => {}
+            _ => {
                 *status = new_status;
+                self.status_signaler.notify_all();
             }
-
-            self.status_signaler.notify_all();
         }
     }
 
@@ -378,8 +366,7 @@ impl Process {
     }
 
     pub fn suspend_for_gc(&self) {
-        self.local_data_mut().suspend_for_gc = false;
-        self.set_status(ProcessStatus::SuspendedByGc);
+        self.set_status(ProcessStatus::SuspendForGc);
     }
 
     pub fn suspended_by_gc(&self) -> bool {
@@ -391,7 +378,7 @@ impl Process {
 
     pub fn request_gc_suspension(&self) {
         if !self.suspended_by_gc() {
-            self.local_data_mut().suspend_for_gc = true;
+            self.suspend_for_gc();
         }
 
         self.wait_while_running();
@@ -406,7 +393,11 @@ impl Process {
     }
 
     pub fn should_suspend_for_gc(&self) -> bool {
-        self.suspended_by_gc() || self.local_data().suspend_for_gc
+        match *lock!(self.status) {
+            ProcessStatus::SuspendForGc |
+            ProcessStatus::SuspendedByGc => true,
+            _ => false,
+        }
     }
 
     pub fn gc_state(&self) -> &GcState {
