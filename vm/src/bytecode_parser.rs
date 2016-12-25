@@ -435,7 +435,7 @@ mod tests {
 
         let output = unwrap!(read!(read_string, buffer));
 
-        assert_eq!(output, "ae".to_string());
+        assert_eq!(output, "in".to_string());
     }
 
     #[test]
