@@ -12,7 +12,7 @@ name = "aeonvm"
 test = false
 
 [dependencies]
-getopts = "0.2"
-num_cpus = "0.2"
-rayon = "0.5"
-parking_lot = { version = "0.3", features = ["nightly"] }
+getopts = "^0.2"
+num_cpus = "^1.0"
+rayon = "^0.6"
+parking_lot = { version = "^0.3", features = ["nightly"] }
