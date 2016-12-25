@@ -14,7 +14,7 @@ use std::path::PathBuf;
 /// Sets a configuration field based on an environment variable.
 macro_rules! set_from_env {
     ($config: expr, $field: ident, $key: expr, $value_type: ty) => ({
-        if let Ok(raw_value) = env::var(concat!("AEON_", $key)) {
+        if let Ok(raw_value) = env::var(concat!("INKO_", $key)) {
             if let Ok(value) = raw_value.parse::<$value_type>() {
                 $config.$field = value;
             }
@@ -125,16 +125,16 @@ mod tests {
 
     #[test]
     fn test_populate_from_env() {
-        env::set_var("AEON_PROCESS_THREADS", "42");
-        env::set_var("AEON_GC_YOUNG_GROWTH_FACTOR", "4.2");
+        env::set_var("INKO_PROCESS_THREADS", "42");
+        env::set_var("INKO_GC_YOUNG_GROWTH_FACTOR", "4.2");
 
         let mut config = Config::new();
 
         config.populate_from_env();
 
         // Unset before any assertions may fail.
-        env::remove_var("AEON_PROCESS_THREADS");
-        env::remove_var("AEON_GC_YOUNG_GROWTH_FACTOR");
+        env::remove_var("INKO_PROCESS_THREADS");
+        env::remove_var("INKO_GC_YOUNG_GROWTH_FACTOR");
 
         assert_eq!(config.process_threads, 42);
         assert_eq!(config.young_growth_factor, 4.2);

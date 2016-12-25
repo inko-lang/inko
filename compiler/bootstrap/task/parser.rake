@@ -3,4 +3,4 @@ rule '.rb' => '.rll' do |task|
 end
 
 desc 'Generates the parser'
-task :parser => ['lib/aeon/parser.rb']
+task :parser => ['lib/inko/parser.rb']

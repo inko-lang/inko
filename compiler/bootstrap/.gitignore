@@ -1,2 +1,2 @@
-lib/aeon/lexer.rb
-lib/aeon/parser.rb
+lib/inko/lexer.rb
+lib/inko/parser.rb

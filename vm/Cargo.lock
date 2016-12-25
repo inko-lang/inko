@@ -1,5 +1,5 @@
 [root]
-name = "aeon"
+name = "inko"
 version = "0.0.1"
 dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",

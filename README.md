@@ -1,22 +1,22 @@
-# Aeon
+# Inko
 
-**NOTE:** Aeon is still a work in progress and in the very early stages. For
+**NOTE:** Inko is still a work in progress and in the very early stages. For
 example, there's no website just yet, the compiler is in the super early stages,
 etc.
 
-Aeon is a gradually typed, interpreted programming language that combines the
-flexibility of a dynamic language with the safety of a static language. Aeon
+Inko is a gradually typed, interpreted programming language that combines the
+flexibility of a dynamic language with the safety of a static language. Inko
 also combines elements from object oriented languages (e.g. classes and traits)
 with elements from functional programming languages (e.g. immutability by
 default).
 
-Aeon allows writing of concurrent programs without having to worry about locking
-or data races. Furthermore Aeon comes with a high performance garbage collector
+Inko allows writing of concurrent programs without having to worry about locking
+or data races. Furthermore Inko comes with a high performance garbage collector
 based on [Immix][immix].
 
-Aeon borrows a lot of elements from other programming languages such as Ruby,
+Inko borrows a lot of elements from other programming languages such as Ruby,
 Smalltalk, Erlang/Elixir, and Python. Whitespace is used for indentation as it
-leads to a good combination of compact and readable code. Aeon does not feature
+leads to a good combination of compact and readable code. Inko does not feature
 any special statements such as `if` or `switch`, instead almost everything is
 implemented using methods (safe for a few keywords such as `class`).
 
@@ -54,13 +54,13 @@ Sending messages between processes:
 
     sender.send(writer)
 
-For more examples see the Aeon website.
+For more examples see the Inko website.
 
 ## Requirements
 
 * A UNIX system, Windows is currently not tested/supported
 
-When working on Aeon itself you'll also need:
+When working on Inko itself you'll also need:
 
 * Rust 1.10 or newer using a nightly build (stable Rust is not supported)
 * Cargo
@@ -72,7 +72,7 @@ The following dependencies are optional but recommended:
 
 ## Installation (for developers)
 
-The easiest way to install Aeon in case you want to hack on it is to first clone
+The easiest way to install Inko in case you want to hack on it is to first clone
 the repository. Once cloned you'll need to build the VM and the compiler.
 
 ### Building The VM
@@ -92,6 +92,6 @@ installed. If this is not the case you can change things around by setting
 
 ### Building The Compiler
 
-TODO: write this once the Aeon based compiler is up and running.
+TODO: write this once the Inko based compiler is up and running.
 
 [immix]: http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf

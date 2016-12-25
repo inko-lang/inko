@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_is_compiled_code() {
         let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.aeon".to_string(),
+                                         "a.inko".to_string(),
                                          1,
                                          Vec::new());
 
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_as_compiled_code_with_compiled_code() {
         let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.aeon".to_string(),
+                                         "a.inko".to_string(),
                                          1,
                                          Vec::new());
         let result = ObjectValue::CompiledCode(code).as_compiled_code();
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn test_compiled_code() {
         let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.aeon".to_string(),
+                                         "a.inko".to_string(),
                                          1,
                                          Vec::new());
 

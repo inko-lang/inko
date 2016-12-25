@@ -1,14 +1,14 @@
 [package]
-name    = "aeon"
+name    = "inko"
 version = "0.0.1"
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 
 [lib]
-name    = "libaeon"
+name    = "libinko"
 doctest = false
 
 [[bin]]
-name = "aeonvm"
+name = "ivm"
 test = false
 
 [dependencies]

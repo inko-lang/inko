@@ -69,7 +69,7 @@ impl CompiledCode {
     ///
     /// # Examples
     ///
-    ///     let code = CompiledCode::new("(main)", "test.aeon", 1, vec![...]);
+    ///     let code = CompiledCode::new("(main)", "test.inko", 1, vec![...]);
     ///
     pub fn new(name: String,
                file: String,
@@ -136,7 +136,7 @@ mod tests {
     fn new_compiled_code() -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1, 1);
 
-        CompiledCode::new("foo".to_string(), "bar.aeon".to_string(), 1, vec![ins])
+        CompiledCode::new("foo".to_string(), "bar.inko".to_string(), 1, vec![ins])
     }
 
     #[test]
@@ -144,7 +144,7 @@ mod tests {
         let code = new_compiled_code();
 
         assert_eq!(code.name, "foo".to_string());
-        assert_eq!(code.file, "bar.aeon".to_string());
+        assert_eq!(code.file, "bar.inko".to_string());
         assert_eq!(code.line, 1);
         assert_eq!(code.instructions.len(), 1);
     }

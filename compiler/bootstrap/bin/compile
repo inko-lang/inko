@@ -3,7 +3,7 @@
 $:.unshift(File.expand_path('../../lib', __FILE__))
 
 require 'optparse'
-require 'aeon'
+require 'inko'
 
 parser = OptionParser.new do |o|
   o.banner = 'compile [FILE] [OPTIONS]'
@@ -30,14 +30,14 @@ unless File.file?(file)
   abort "The file #{file} does not exist"
 end
 
-compiler = Aeon::Compiler.new(File.expand_path(file))
+compiler = Inko::Compiler.new(File.expand_path(file))
 code     = compiler.compile
-gen      = Aeon::Generator.new
+gen      = Inko::Generator.new
 bytecode = gen.generate(code)
 
 dir  = File.dirname(file)
 name = File.basename(file, File.extname(file))
-out  = File.join(dir, "#{name}.aeonc")
+out  = File.join(dir, "#{name}.inkoc")
 
 File.open(out, 'wb') do |handle|
   handle.write(bytecode)

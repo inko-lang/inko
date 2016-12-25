@@ -1,16 +1,16 @@
-//! A parser for Aeon bytecode streams
+//! A parser for Inko bytecode streams
 //!
-//! This module provides various functions that can be used for parsing Aeon
+//! This module provides various functions that can be used for parsing Inko
 //! bytecode files provided as a stream of bytes.
 //!
 //! To parse a stream of bytes you can use the `parse` function:
 //!
-//!     let mut bytes = File::open("path/to/file.aeonc").unwrap().bytes();
+//!     let mut bytes = File::open("path/to/file.inkoc").unwrap().bytes();
 //!     let result = bytecode_parser::parse(&mut bytes);
 //!
 //! Alternatively you can also parse a file directly:
 //!
-//!     let result = bytecode_parser::parse_file("path/to/file.aeonc");
+//!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
 use std::io::prelude::*;
 use std::io::Bytes;
@@ -79,7 +79,7 @@ macro_rules! read_code_vector {
     );
 }
 
-const SIGNATURE_BYTES: [u8; 4] = [97, 101, 111, 110]; // "aeon"
+const SIGNATURE_BYTES: [u8; 4] = [97, 101, 111, 110]; // "inko"
 
 const VERSION: u8 = 1;
 
@@ -101,7 +101,7 @@ pub type BytecodeResult = ParserResult<RcCompiledCode>;
 ///
 /// # Examples
 ///
-///     let result = bytecode_parser::parse_file("path/to/file.aeonc");
+///     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 pub fn parse_file(path: &str) -> BytecodeResult {
     match File::open(path) {
         Ok(file) => parse(&mut file.bytes()),
@@ -113,7 +113,7 @@ pub fn parse_file(path: &str) -> BytecodeResult {
 ///
 /// # Examples
 ///
-///     let mut bytes = File::open("path/to/file.aeonc").unwrap().bytes();
+///     let mut bytes = File::open("path/to/file.inkoc").unwrap().bytes();
 ///     let result = bytecode_parser::parse(&mut bytes);
 pub fn parse<T: Read>(bytes: &mut Bytes<T>) -> BytecodeResult {
     // Verify the bytecode signature.
@@ -395,7 +395,7 @@ mod tests {
         buffer.push(super::VERSION);
 
         pack_string!("main", buffer);
-        pack_string!("test.aeon", buffer);
+        pack_string!("test.inko", buffer);
         pack_u32!(4, buffer); // line
         pack_u32!(0, buffer); // arguments
         pack_u32!(0, buffer); // required arguments
@@ -410,7 +410,7 @@ mod tests {
         let object = unwrap!(super::parse(&mut buffer.bytes()));
 
         assert_eq!(object.name, "main".to_string());
-        assert_eq!(object.file, "test.aeon".to_string());
+        assert_eq!(object.file, "test.inko".to_string());
         assert_eq!(object.line, 4);
     }
 
@@ -418,11 +418,11 @@ mod tests {
     fn test_read_string() {
         let mut buffer = Vec::new();
 
-        pack_string!("aeon", buffer);
+        pack_string!("inko", buffer);
 
         let output = unwrap!(read!(read_string, buffer));
 
-        assert_eq!(output, "aeon".to_string());
+        assert_eq!(output, "inko".to_string());
     }
 
     #[test]
@@ -431,7 +431,7 @@ mod tests {
 
         pack_u64!(2, buffer);
 
-        buffer.extend_from_slice(&"aeon".as_bytes());
+        buffer.extend_from_slice(&"inko".as_bytes());
 
         let output = unwrap!(read!(read_string, buffer));
 
@@ -624,7 +624,7 @@ mod tests {
         let mut buffer = Vec::new();
 
         pack_string!("main", buffer); // name
-        pack_string!("test.aeon", buffer); // file
+        pack_string!("test.inko", buffer); // file
         pack_u32!(4, buffer); // line
         pack_u32!(3, buffer); // arguments
         pack_u32!(2, buffer); // required args
@@ -652,7 +652,7 @@ mod tests {
         let object = unwrap!(super::read_compiled_code(&mut buffer.bytes()));
 
         assert_eq!(object.name, "main".to_string());
-        assert_eq!(object.file, "test.aeon".to_string());
+        assert_eq!(object.file, "test.inko".to_string());
         assert_eq!(object.line, 4);
         assert_eq!(object.arguments, 3);
         assert_eq!(object.required_arguments, 2);

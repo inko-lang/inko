@@ -88,7 +88,7 @@ mod tests {
 
     fn compiled_code() -> RcCompiledCode {
         CompiledCode::with_rc("foo".to_string(),
-                              "test.aeon".to_string(),
+                              "test.inko".to_string(),
                               1,
                               vec![])
     }
@@ -99,7 +99,7 @@ mod tests {
         let frame = CallFrame::new(code, 1);
 
         assert_eq!(frame.name(), &"foo".to_string());
-        assert_eq!(frame.file(), &"test.aeon".to_string());
+        assert_eq!(frame.file(), &"test.inko".to_string());
         assert_eq!(frame.line, 1);
     }
 
@@ -109,7 +109,7 @@ mod tests {
         let frame = CallFrame::from_code(code);
 
         assert_eq!(frame.name(), &"foo".to_string());
-        assert_eq!(frame.file(), &"test.aeon".to_string());
+        assert_eq!(frame.file(), &"test.inko".to_string());
         assert_eq!(frame.line, 1);
     }
 

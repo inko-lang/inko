@@ -172,7 +172,7 @@ mod tests {
 
     fn new_compiled_code() -> RcCompiledCode {
         CompiledCode::with_rc("a".to_string(),
-                              "a.aeon".to_string(),
+                              "a.inko".to_string(),
                               1,
                               Vec::new())
     }

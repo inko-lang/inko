@@ -3,4 +3,4 @@ rule '.rb' => '.rl' do |task|
 end
 
 desc 'Generates the lexer'
-task :lexer => ['lib/aeon/lexer.rb']
+task :lexer => ['lib/inko/lexer.rb']
