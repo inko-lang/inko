@@ -84,7 +84,7 @@ mod tests {
         process.set_register(0, process.allocate_empty());
         process.running();
 
-        let vm_thread = VmThread::new(false, None);
+        let vm_thread = VmThread::new(None);
         let vm_state = State::new(Config::new());
         let gc_thread = Thread::new(vm_state);
 

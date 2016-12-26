@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn test_new() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(false, None);
+        let thread = Thread::new(None);
         let request = Request::new(CollectionType::Heap, thread, process);
 
         assert!(match request.collection_type {
@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn test_heap() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(false, None);
+        let thread = Thread::new(None);
         let request = Request::heap(thread, process);
 
         assert!(match request.collection_type {
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_mailbox() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(false, None);
+        let thread = Thread::new(None);
         let request = Request::mailbox(thread, process);
 
         assert!(match request.collection_type {

@@ -91,7 +91,7 @@ mod tests {
     fn test_collect() {
         let (_perm_alloc, process) = new_process();
         let config = Config::new();
-        let thread = Thread::new(false, None);
+        let thread = Thread::new(None);
 
         let mut local_data = process.local_data_mut();
 
