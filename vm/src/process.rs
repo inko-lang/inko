@@ -502,6 +502,10 @@ impl Process {
             .allocator
             .increment_threshold(config.mailbox_growth_factor);
     }
+
+    pub fn is_main(&self) -> bool {
+        self.pid == 0
+    }
 }
 
 impl PartialEq for Process {

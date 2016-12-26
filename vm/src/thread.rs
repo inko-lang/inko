@@ -16,18 +16,16 @@ pub struct Thread {
     pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
-    pub main_thread: bool,
 }
 
 impl Thread {
-    pub fn new(main_thread: bool, handle: Option<JoinHandle>) -> RcThread {
+    pub fn new(handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             process_queue: Mutex::new(Vec::new()),
             remembered_processes: Mutex::new(HashSet::new()),
             wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
-            main_thread: main_thread,
         };
 
         Arc::new(thread)
@@ -61,11 +59,6 @@ impl Thread {
         lock!(self.remembered_processes).len() > 0
     }
 
-    pub fn main_can_terminate(&self) -> bool {
-        self.main_thread && self.process_queue_empty() &&
-        !self.has_remembered_processes()
-    }
-
     pub fn schedule(&self, process: RcProcess) {
         let mut queue = lock!(self.process_queue);
 
@@ -85,13 +78,13 @@ impl Thread {
         lock!(self.remembered_processes).insert(process);
     }
 
-    pub fn wait_for_work(&self) {
+    pub fn pop_process(&self) -> Option<RcProcess> {
         let mut queue = lock!(self.process_queue);
         let timeout = Duration::from_millis(5);
 
         while queue.len() == 0 {
             if self.should_stop() {
-                return;
+                return None;
             }
 
             let (new_queue, _) =
@@ -99,10 +92,6 @@ impl Thread {
 
             queue = new_queue;
         }
-    }
-
-    pub fn pop_process(&self) -> Option<RcProcess> {
-        let mut queue = lock!(self.process_queue);
 
         queue.pop()
     }

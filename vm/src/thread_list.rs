@@ -15,15 +15,7 @@ impl ThreadList {
     }
 
     pub fn add(&mut self, handle: Option<JoinHandle>) -> RcThread {
-        let thread = Thread::new(false, handle);
-
-        self.threads.push(thread.clone());
-
-        thread
-    }
-
-    pub fn add_main_thread(&mut self) -> RcThread {
-        let thread = Thread::new(true, None);
+        let thread = Thread::new(handle);
 
         self.threads.push(thread.clone());
 

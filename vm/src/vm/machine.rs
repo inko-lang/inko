@@ -35,11 +35,9 @@ impl Machine {
         &self.state.config
     }
 
-    /// Starts the main thread
+    /// Starts the VM
     ///
-    /// This requires a RcCompiledCode to run. Calling this method will block
-    /// execution as the main thread is executed in the same OS thread as the
-    /// caller of this function is operating in.
+    /// This method will block the calling thread until it returns.
     pub fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
         for _ in 0..self.config().process_threads {
             self.start_thread();
@@ -49,7 +47,8 @@ impl Machine {
             self.start_gc_thread()
         }
 
-        let thread = self.allocate_main_thread();
+        let thread = self.allocate_thread(None);
+
         let (_, process) =
             self.allocate_process(code, self.state.top_level.clone());
 
@@ -62,10 +61,6 @@ impl Machine {
 
     fn allocate_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
         write_lock!(self.state.threads).add(handle)
-    }
-
-    fn allocate_main_thread(&self) -> RcThread {
-        write_lock!(self.state.threads).add_main_thread()
     }
 
     /// Allocates a new process and returns the PID and Process structure.
@@ -459,42 +454,36 @@ impl Machine {
                 break;
             }
 
-            // Terminate gracefully once the main thread has processed its
-            // process queue.
-            if thread.main_can_terminate() {
-                write_lock!(self.state.threads).stop();
-                break;
-            }
-
-            thread.wait_for_work();
-
-            let proc_opt = thread.pop_process();
-
             // A thread may be woken up (e.g. due to a VM error) without there
-            // being work available.
-            if proc_opt.is_none() {
-                continue;
-            }
+            // being work available, hence the "if let".
+            if let Some(process) = thread.pop_process() {
+                match self.run(thread.clone(), process.clone()) {
+                    Ok(_) => {
+                        if process.should_suspend_for_gc() {
+                            process.suspend_for_gc();
+                            thread.remember_process(process.clone());
+                        } else if process.should_be_rescheduled() {
+                            thread.schedule(process);
+                        } else {
+                            let is_main = process.is_main();
 
-            let process = proc_opt.unwrap();
+                            process.finished();
 
-            match self.run(thread.clone(), process.clone()) {
-                Ok(_) => {
-                    if process.should_suspend_for_gc() {
-                        process.suspend_for_gc();
-                        thread.remember_process(process.clone());
-                    } else if process.should_be_rescheduled() {
-                        thread.schedule(process);
-                    } else {
-                        process.finished();
+                            write_lock!(self.state.processes).remove(process);
 
-                        write_lock!(self.state.processes).remove(process);
+                            // Terminate once the main process has finished
+                            // execution.
+                            if is_main {
+                                write_lock!(self.state.threads).stop();
+                                break;
+                            }
+                        }
                     }
-                }
-                Err(message) => {
-                    self.error(process, message);
+                    Err(message) => {
+                        self.error(process, message);
 
-                    write_lock!(self.state.threads).stop();
+                        write_lock!(self.state.threads).stop();
+                    }
                 }
             }
         }
