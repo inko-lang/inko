@@ -387,10 +387,10 @@ mod tests {
     fn test_parse() {
         let mut buffer = Vec::new();
 
-        buffer.push(97);
-        buffer.push(101);
-        buffer.push(111);
+        buffer.push(105);
         buffer.push(110);
+        buffer.push(107);
+        buffer.push(111);
 
         buffer.push(super::VERSION);
 
