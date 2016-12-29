@@ -95,7 +95,6 @@ mod tests {
             loop {
                 if process_clone.should_suspend_for_gc() {
                     process_clone.suspend_for_gc();
-                    thread_clone.remember_process(process_clone);
                     break;
                 }
             }

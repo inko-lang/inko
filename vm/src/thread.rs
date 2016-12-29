@@ -1,7 +1,6 @@
 //! Virtual Machine Threads
 
 use std::sync::{Arc, Mutex, Condvar};
-use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
 
@@ -12,7 +11,6 @@ pub type JoinHandle = thread::JoinHandle<()>;
 
 pub struct Thread {
     pub process_queue: Mutex<Vec<RcProcess>>,
-    pub remembered_processes: Mutex<HashSet<RcProcess>>,
     pub wakeup_signaler: Condvar,
     pub should_stop: Mutex<bool>,
     pub join_handle: Mutex<Option<JoinHandle>>,
@@ -22,7 +20,6 @@ impl Thread {
     pub fn new(handle: Option<JoinHandle>) -> RcThread {
         let thread = Thread {
             process_queue: Mutex::new(Vec::new()),
-            remembered_processes: Mutex::new(HashSet::new()),
             wakeup_signaler: Condvar::new(),
             should_stop: Mutex::new(false),
             join_handle: Mutex::new(handle),
@@ -55,10 +52,6 @@ impl Thread {
         self.process_queue_size() == 0
     }
 
-    pub fn has_remembered_processes(&self) -> bool {
-        lock!(self.remembered_processes).len() > 0
-    }
-
     pub fn schedule(&self, process: RcProcess) {
         let mut queue = lock!(self.process_queue);
 
@@ -68,14 +61,8 @@ impl Thread {
     }
 
     pub fn reschedule(&self, process: RcProcess) {
-        lock!(self.remembered_processes).remove(&process);
-
         process.reset_status();
         self.schedule(process);
-    }
-
-    pub fn remember_process(&self, process: RcProcess) {
-        lock!(self.remembered_processes).insert(process);
     }
 
     pub fn pop_process(&self) -> Option<RcProcess> {

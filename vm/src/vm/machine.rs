@@ -461,7 +461,6 @@ impl Machine {
                     Ok(_) => {
                         if process.should_suspend_for_gc() {
                             process.suspend_for_gc();
-                            thread.remember_process(process.clone());
                         } else if process.should_be_rescheduled() {
                             thread.schedule(process);
                         } else {
