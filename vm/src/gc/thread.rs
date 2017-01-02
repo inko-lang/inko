@@ -51,7 +51,6 @@ impl Thread {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use compiled_code::CompiledCode;
     use config::Config;
     use gc::request::Request;
@@ -88,21 +87,9 @@ mod tests {
         let vm_state = State::new(Config::new());
         let gc_thread = Thread::new(vm_state);
 
-        // In a separate thread we'll emulate a running process.
-        let process_clone = process.clone();
-        let thread_clone = vm_thread.clone();
-        let join_handle = thread::spawn(move || {
-            loop {
-                if process_clone.should_suspend_for_gc() {
-                    process_clone.suspend_for_gc();
-                    break;
-                }
-            }
-        });
+        process.running();
 
         gc_thread.process_request(Request::heap(vm_thread, process.clone()));
-
-        join_handle.join().unwrap();
 
         assert!(process.get_register(0).unwrap().is_marked());
     }
