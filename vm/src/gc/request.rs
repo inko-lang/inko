@@ -3,8 +3,10 @@
 //! A garbage collection request specifies what to collect (a heap or mailbox),
 //! and what process to collect.
 
+use gc::heap_collector;
+use gc::mailbox_collector;
 use process::RcProcess;
-use thread::RcThread;
+use vm::state::RcState;
 
 pub enum CollectionType {
     Heap,
@@ -12,29 +14,54 @@ pub enum CollectionType {
 }
 
 pub struct Request {
+    pub vm_state: RcState,
     pub collection_type: CollectionType,
-    pub thread: RcThread,
     pub process: RcProcess,
 }
 
 impl Request {
     pub fn new(collection_type: CollectionType,
-               thread: RcThread,
+               vm_state: RcState,
                process: RcProcess)
                -> Self {
         Request {
+            vm_state: vm_state,
             collection_type: collection_type,
-            thread: thread,
             process: process,
         }
     }
 
-    pub fn heap(thread: RcThread, process: RcProcess) -> Self {
-        Self::new(CollectionType::Heap, thread, process)
+    /// Returns a request for collecting a process' heap.
+    pub fn heap(vm_state: RcState, process: RcProcess) -> Self {
+        Self::new(CollectionType::Heap, vm_state, process)
     }
 
-    pub fn mailbox(thread: RcThread, process: RcProcess) -> Self {
-        Self::new(CollectionType::Mailbox, thread, process)
+    /// Returns a request for collecting a process' mailbox.
+    pub fn mailbox(vm_state: RcState, process: RcProcess) -> Self {
+        Self::new(CollectionType::Mailbox, vm_state, process)
+    }
+
+    /// Performs the garbage collection request.
+    pub fn perform(&self) {
+        // If we know the process has already been terminated there's no
+        // point in performing a collection.
+        if !self.process.is_alive() {
+            return;
+        }
+
+        // TODO: store profile details
+        let _profile = match self.collection_type {
+            CollectionType::Heap => {
+                heap_collector::collect(&self.vm_state, &self.process)
+            }
+            CollectionType::Mailbox => {
+                mailbox_collector::collect(&self.vm_state, &self.process)
+            }
+        };
+
+        println!("Finished {:?} collection in {:.2} ms",
+                 _profile.collection_type,
+                 _profile.total.duration_msec());
     }
 }
 
@@ -42,10 +69,11 @@ impl Request {
 mod tests {
     use super::*;
     use compiled_code::CompiledCode;
+    use config::Config;
     use immix::global_allocator::GlobalAllocator;
     use immix::permanent_allocator::PermanentAllocator;
     use process::{Process, RcProcess};
-    use thread::Thread;
+    use vm::state::State;
 
     fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
         let global_alloc = GlobalAllocator::without_preallocated_blocks();
@@ -66,8 +94,8 @@ mod tests {
     #[test]
     fn test_new() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(None);
-        let request = Request::new(CollectionType::Heap, thread, process);
+        let state = State::new(Config::new());
+        let request = Request::new(CollectionType::Heap, state, process);
 
         assert!(match request.collection_type {
             CollectionType::Heap => true,
@@ -78,8 +106,8 @@ mod tests {
     #[test]
     fn test_heap() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(None);
-        let request = Request::heap(thread, process);
+        let state = State::new(Config::new());
+        let request = Request::heap(state, process);
 
         assert!(match request.collection_type {
             CollectionType::Heap => true,
@@ -90,12 +118,25 @@ mod tests {
     #[test]
     fn test_mailbox() {
         let (_perm, process) = new_process();
-        let thread = Thread::new(None);
-        let request = Request::mailbox(thread, process);
+        let state = State::new(Config::new());
+        let request = Request::mailbox(state, process);
 
         assert!(match request.collection_type {
             CollectionType::Heap => false,
             CollectionType::Mailbox => true,
         });
+    }
+
+    #[test]
+    fn test_perform() {
+        let (_perm, process) = new_process();
+        let state = State::new(Config::new());
+        let request = Request::heap(state, process.clone());
+
+        process.set_register(0, process.allocate_empty());
+        process.running();
+        request.perform();
+
+        assert!(process.get_register(0).unwrap().is_marked());
     }
 }

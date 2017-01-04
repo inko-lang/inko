@@ -2,25 +2,21 @@
 
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::thread;
-use std::sync::mpsc::channel;
 
 use binding::RcBinding;
 use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
-use config::Config;
-use gc::thread::Thread as GcThread;
+use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
-use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
 use object_pointer::ObjectPointer;
 use object_value;
-use vm::state::RcState;
-use vm::action::Action;
-use vm::instructions::result::InstructionResult;
 use process::{RcProcess, Process};
-use execution_context::ExecutionContext;
-use thread::{RcThread, JoinHandle as ThreadJoinHandle};
+use pool::JoinGuard as PoolJoinGuard;
+use vm::action::Action;
+use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
+use vm::instructions::result::InstructionResult;
+use vm::state::RcState;
 
 pub struct Machine {
     pub state: RcState,
@@ -31,43 +27,74 @@ impl Machine {
         Machine { state: state }
     }
 
-    pub fn config(&self) -> &Config {
-        &self.state.config
-    }
-
     /// Starts the VM
     ///
     /// This method will block the calling thread until it returns.
     pub fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
-        for _ in 0..self.config().process_threads {
-            self.start_thread();
-        }
+        let process_pool_guard = self.start_process_threads();
+        let gc_pool_guard = self.start_gc_threads();
 
-        for _ in 0..self.config().gc_threads {
-            self.start_gc_thread()
-        }
-
-        let thread = self.allocate_thread(None);
-
-        let (_, process) =
+        let main_process =
             self.allocate_process(code, self.state.top_level.clone());
 
-        thread.schedule(process);
+        self.state.process_pool.schedule(main_process);
 
-        self.run_thread(thread);
+        if process_pool_guard.join().is_err() {
+            return Err(());
+        }
+
+        if gc_pool_guard.join().is_err() {
+            return Err(());
+        }
 
         *read_lock!(self.state.exit_status)
     }
 
-    fn allocate_thread(&self, handle: Option<ThreadJoinHandle>) -> RcThread {
-        write_lock!(self.state.threads).add(handle)
+    /// Starts the threads that will execute processes.
+    fn start_process_threads(&self) -> PoolJoinGuard<()> {
+        let machine = Machine::new(self.state.clone());
+
+        self.state.process_pool.run(move |process| {
+            match machine.run(&process) {
+                Ok(_) => {
+                    if process.should_suspend_for_gc() {
+                        process.suspend_for_gc();
+                    } else if process.should_be_rescheduled() {
+                        machine.state.process_pool.schedule(process.clone());
+                    } else {
+                        let is_main = process.is_main();
+
+                        process.finished();
+
+                        write_lock!(machine.state.processes).remove(process);
+
+                        // Terminate once the main process has finished
+                        // execution.
+                        if is_main {
+                            machine.terminate();
+                        }
+                    }
+                }
+                Err(message) => machine.error(process, message),
+            }
+        })
+    }
+
+    /// Starts the garbage collection threads.
+    fn start_gc_threads(&self) -> PoolJoinGuard<()> {
+        self.state.gc_pool.run(move |request| request.perform())
+    }
+
+    fn terminate(&self) {
+        self.state.process_pool.terminate();
+        self.state.gc_pool.terminate();
     }
 
     /// Allocates a new process and returns the PID and Process structure.
     pub fn allocate_process(&self,
                             code: RcCompiledCode,
                             self_obj: ObjectPointer)
-                            -> (usize, RcProcess) {
+                            -> RcProcess {
         let mut processes = write_lock!(self.state.processes);
         let pid = processes.reserve_pid();
         let process = Process::from_code(pid,
@@ -77,7 +104,7 @@ impl Machine {
 
         processes.add(pid, process.clone());
 
-        (pid, process)
+        process
     }
 
     pub fn allocate_method(&self,
@@ -98,8 +125,8 @@ impl Machine {
         }
     }
 
-    fn run(&self, thread: RcThread, process: RcProcess) -> Result<(), String> {
-        let mut reductions = self.config().reductions;
+    fn run(&self, process: &RcProcess) -> Result<(), String> {
+        let mut reductions = self.state.config.reductions;
 
         process.running();
 
@@ -121,7 +148,7 @@ impl Machine {
 
                 index += 1;
 
-                match func(self, &process, &code, instruction)? {
+                match func(self, process, &code, instruction)? {
                     Action::Goto(new_index) => index = new_index,
                     Action::Return => break,
                     Action::EnterContext => {
@@ -163,7 +190,7 @@ impl Machine {
             // LocalData structure in Process.
             drop(context);
 
-            self.gc_safepoint(&thread, &process);
+            self.gc_safepoint(&process);
 
             if process.should_suspend_for_gc() {
                 return Ok(());
@@ -182,7 +209,7 @@ impl Machine {
         Ok(())
     }
 
-    /// Prints a VM backtrace of a given thread with a message.
+    /// Prints a VM backtrace of a given process with a message.
     fn error(&self, process: RcProcess, error: String) {
         let mut stderr = io::stderr();
         let mut message = format!("A fatal VM error occurred in process {}:",
@@ -201,6 +228,8 @@ impl Machine {
         stderr.flush().unwrap();
 
         *write_lock!(self.state.exit_status) = Err(());
+
+        self.terminate();
     }
 
     /// Schedules the execution of a new CompiledCode.
@@ -251,7 +280,7 @@ impl Machine {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in self.config().directories.iter() {
+            for directory in self.state.config.directories.iter() {
                 let full_path = directory.join(path_str);
 
                 if full_path.exists() {
@@ -399,106 +428,33 @@ impl Machine {
         Ok(args)
     }
 
-    /// Starts a new thread.
-    fn start_thread(&self) -> RcThread {
-        let state_clone = self.state.clone();
-
-        let (sender, receiver) = channel();
-
-        let handle = thread::spawn(move || {
-            let thread = receiver.recv().unwrap();
-            let vm = Machine::new(state_clone);
-
-            vm.run_thread(thread);
-        });
-
-        let thread = self.allocate_thread(Some(handle));
-
-        sender.send(thread.clone()).unwrap();
-
-        thread
-    }
-
-    /// Starts a new GC thread
-    fn start_gc_thread(&self) {
-        let state_clone = self.state.clone();
-
-        thread::spawn(move || {
-            let mut gc_thread = GcThread::new(state_clone);
-
-            gc_thread.run();
-        });
-    }
-
     /// Spawns a new process.
     pub fn spawn_process(&self,
                          process: &RcProcess,
                          code: RcCompiledCode,
                          register: usize) {
-        let (pid, new_proc) =
-            self.allocate_process(code, self.state.top_level.clone());
+        let new_proc = self.allocate_process(code, self.state.top_level.clone());
+        let new_pid = new_proc.pid;
 
-        write_lock!(self.state.threads).schedule(new_proc);
+        self.state.process_pool.schedule(new_proc);
 
-        let pid_obj = process.allocate(object_value::integer(pid as i64),
+        let pid_obj = process.allocate(object_value::integer(new_pid as i64),
                                        self.state.integer_prototype.clone());
 
         process.set_register(register, pid_obj);
     }
 
-    /// Start a thread's execution loop.
-    fn run_thread(&self, thread: RcThread) {
-        while !thread.should_stop() {
-            // Bail out if any of the other threads errored.
-            if read_lock!(self.state.exit_status).is_err() {
-                break;
-            }
-
-            // A thread may be woken up (e.g. due to a VM error) without there
-            // being work available, hence the "if let".
-            if let Some(process) = thread.pop_process() {
-                match self.run(thread.clone(), process.clone()) {
-                    Ok(_) => {
-                        if process.should_suspend_for_gc() {
-                            process.suspend_for_gc();
-                        } else if process.should_be_rescheduled() {
-                            thread.schedule(process);
-                        } else {
-                            let is_main = process.is_main();
-
-                            process.finished();
-
-                            write_lock!(self.state.processes).remove(process);
-
-                            // Terminate once the main process has finished
-                            // execution.
-                            if is_main {
-                                write_lock!(self.state.threads).stop();
-                                break;
-                            }
-                        }
-                    }
-                    Err(message) => {
-                        self.error(process, message);
-
-                        write_lock!(self.state.threads).stop();
-                    }
-                }
-            }
-        }
-    }
-
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
-    fn gc_safepoint(&self, thread: &RcThread, process: &RcProcess) {
+    fn gc_safepoint(&self, process: &RcProcess) {
         if process.gc_is_scheduled() {
             return;
         }
 
         let request_opt = if process.should_collect_young_generation() {
-            Some(GcRequest::heap(thread.clone(), process.clone()))
+            Some(GcRequest::heap(self.state.clone(), process.clone()))
         } else if process.should_collect_mailbox() {
-            Some(GcRequest::mailbox(thread.clone(), process.clone()))
+            Some(GcRequest::mailbox(self.state.clone(), process.clone()))
         } else {
             None
         };
@@ -506,7 +462,7 @@ impl Machine {
         if let Some(request) = request_opt {
             process.gc_scheduled();
 
-            self.state.gc_requests.push(request);
+            self.state.gc_pool.schedule(request);
         }
     }
 }

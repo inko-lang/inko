@@ -2,17 +2,13 @@
 
 use rayon::prelude::*;
 
-use config::Config;
 use gc::collector;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
 use process::RcProcess;
-use thread::RcThread;
+use vm::state::RcState;
 
-pub fn collect(thread: &RcThread,
-               process: &RcProcess,
-               config: &Config)
-               -> Profile {
+pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
     process.request_gc_suspension();
 
     let collect_mature = process.should_collect_mature_generation();
@@ -37,14 +33,14 @@ pub fn collect(thread: &RcThread,
     profile.reclaim.start();
 
     process.reclaim_blocks(collect_mature);
-    process.update_collection_statistics(config, collect_mature);
+    process.update_collection_statistics(&vm_state.config, collect_mature);
 
     profile.reclaim.stop();
     profile.total.stop();
 
     profile.populate_tracing_statistics(trace_result);
 
-    thread.reschedule(process.clone());
+    vm_state.process_pool.schedule(process.clone());
 
     profile
 }
@@ -167,7 +163,7 @@ mod tests {
     use object::Object;
     use object_value;
     use process::{Process, RcProcess};
-    use thread::Thread;
+    use vm::state::State;
 
     fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
         let global_alloc = GlobalAllocator::without_preallocated_blocks();
@@ -188,13 +184,12 @@ mod tests {
     #[test]
     fn test_collect() {
         let (_perm_alloc, process) = new_process();
-        let config = Config::new();
-        let thread = Thread::new(None);
+        let state = State::new(Config::new());
         let pointer = process.allocate_empty();
 
         process.set_register(0, pointer);
 
-        let profile = collect(&thread, &process, &config);
+        let profile = collect(&state, &process);
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);

@@ -16,7 +16,7 @@ pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
     let code =
         CompiledCode::with_rc("a".to_string(), "a".to_string(), 1, Vec::new());
 
-    let (_, process) =
+    let process =
         machine.allocate_process(code.clone(), machine.state.top_level.clone());
 
     (machine, code, process)
