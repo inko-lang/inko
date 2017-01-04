@@ -47,7 +47,7 @@ impl Machine {
             return Err(());
         }
 
-        *read_lock!(self.state.exit_status)
+        *self.state.exit_status.lock()
     }
 
     /// Starts the threads that will execute processes.
@@ -227,7 +227,7 @@ impl Machine {
         stderr.write(message.as_bytes()).unwrap();
         stderr.flush().unwrap();
 
-        *write_lock!(self.state.exit_status) = Err(());
+        *self.state.exit_status.lock() = Err(());
 
         self.terminate();
     }
