@@ -23,7 +23,7 @@ pub mod immix;
 pub mod register;
 pub mod mailbox;
 pub mod process;
-pub mod process_list;
+pub mod process_table;
 pub mod pool;
 pub mod execution_context;
 pub mod gc;

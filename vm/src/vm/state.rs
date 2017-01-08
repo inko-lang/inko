@@ -16,7 +16,7 @@ use immix::permanent_allocator::PermanentAllocator;
 use config::Config;
 use object_pointer::ObjectPointer;
 use pool::Pool;
-use process_list::ProcessList;
+use process_table::ProcessTable;
 use process::RcProcess;
 
 pub type RcState = Arc<State>;
@@ -29,8 +29,8 @@ pub struct State {
     /// The files that have been executed.
     pub executed_files: RwLock<HashSet<String>>,
 
-    /// The running VM processes.
-    pub processes: RwLock<ProcessList>,
+    /// Table containing all processes.
+    pub process_table: RwLock<ProcessTable<RcProcess>>,
 
     /// The pool to use for garbage collection.
     pub gc_pool: Pool<Request>,
@@ -39,7 +39,7 @@ pub struct State {
     pub process_pool: Pool<RcProcess>,
 
     /// The exit status of the program.
-    pub exit_status: Mutex<Result<(), ()>>,
+    pub exit_status: Mutex<Result<(), String>>,
 
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
@@ -122,7 +122,7 @@ impl State {
         let state = State {
             config: config,
             executed_files: RwLock::new(HashSet::new()),
-            processes: RwLock::new(ProcessList::new()),
+            process_table: RwLock::new(ProcessTable::new()),
             process_pool: process_pool,
             gc_pool: gc_pool,
             exit_status: Mutex::new(Ok(())),

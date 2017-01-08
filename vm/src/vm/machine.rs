@@ -1,6 +1,5 @@
 //! Virtual Machine for running instructions
 
-use std::io::{self, Write};
 use std::path::PathBuf;
 
 use binding::RcBinding;
@@ -30,24 +29,24 @@ impl Machine {
     /// Starts the VM
     ///
     /// This method will block the calling thread until it returns.
-    pub fn start(&self, code: RcCompiledCode) -> Result<(), ()> {
+    pub fn start(&self, code: RcCompiledCode) -> Result<(), String> {
         let process_pool_guard = self.start_process_threads();
         let gc_pool_guard = self.start_gc_threads();
 
         let main_process =
-            self.allocate_process(code, self.state.top_level.clone());
+            self.allocate_process(code, self.state.top_level.clone())?;
 
         self.state.process_pool.schedule(main_process);
 
         if process_pool_guard.join().is_err() {
-            return Err(());
+            return Err("Failed to join the process pool".to_string());
         }
 
         if gc_pool_guard.join().is_err() {
-            return Err(());
+            return Err("Failed to join the GC pool".to_string());
         }
 
-        *self.state.exit_status.lock()
+        self.state.exit_status.lock().clone()
     }
 
     /// Starts the threads that will execute processes.
@@ -66,7 +65,8 @@ impl Machine {
 
                         process.finished();
 
-                        write_lock!(machine.state.processes).remove(process);
+                        write_lock!(machine.state.process_table)
+                            .release(&process.pid);
 
                         // Terminate once the main process has finished
                         // execution.
@@ -94,17 +94,20 @@ impl Machine {
     pub fn allocate_process(&self,
                             code: RcCompiledCode,
                             self_obj: ObjectPointer)
-                            -> RcProcess {
-        let mut processes = write_lock!(self.state.processes);
-        let pid = processes.reserve_pid();
+                            -> Result<RcProcess, String> {
+        let mut process_table = write_lock!(self.state.process_table);
+
+        let pid = process_table.reserve()
+            .ok_or_else(|| "No PID could be reserved".to_string())?;
+
         let process = Process::from_code(pid,
                                          code,
                                          self_obj,
                                          self.state.global_allocator.clone());
 
-        processes.add(pid, process.clone());
+        process_table.map(pid, process.clone());
 
-        process
+        Ok(process)
     }
 
     pub fn allocate_method(&self,
@@ -211,7 +214,6 @@ impl Machine {
 
     /// Prints a VM backtrace of a given process with a message.
     fn error(&self, process: RcProcess, error: String) {
-        let mut stderr = io::stderr();
         let mut message = format!("A fatal VM error occurred in process {}:",
                                   process.pid);
 
@@ -224,10 +226,7 @@ impl Machine {
                                       frame.name()));
         }
 
-        stderr.write(message.as_bytes()).unwrap();
-        stderr.flush().unwrap();
-
-        *self.state.exit_status.lock() = Err(());
+        *self.state.exit_status.lock() = Err(message);
 
         self.terminate();
     }
@@ -432,8 +431,9 @@ impl Machine {
     pub fn spawn_process(&self,
                          process: &RcProcess,
                          code: RcCompiledCode,
-                         register: usize) {
-        let new_proc = self.allocate_process(code, self.state.top_level.clone());
+                         register: usize)
+                         -> Result<(), String> {
+        let new_proc = self.allocate_process(code, self.state.top_level.clone())?;
         let new_pid = new_proc.pid;
 
         self.state.process_pool.schedule(new_proc);
@@ -442,6 +442,8 @@ impl Machine {
                                        self.state.integer_prototype.clone());
 
         process.set_register(register, pid_obj);
+
+        Ok(())
     }
 
     /// Checks if a garbage collection run should be scheduled for the given

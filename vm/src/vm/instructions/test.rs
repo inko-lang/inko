@@ -19,7 +19,7 @@ pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
     let process =
         machine.allocate_process(code.clone(), machine.state.top_level.clone());
 
-    (machine, code, process)
+    (machine, code, process.unwrap())
 }
 
 /// Creates a new instruction.

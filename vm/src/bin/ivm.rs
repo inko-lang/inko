@@ -2,6 +2,7 @@ extern crate libinko;
 extern crate getopts;
 
 use std::io::prelude::*;
+use std::io::{self, Write};
 use std::env;
 use std::fs::File;
 use std::process;
@@ -12,7 +13,21 @@ use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
 fn print_usage(options: &getopts::Options) -> ! {
-    println!("{}", options.usage("Usage: ivm FILE [OPTIONS]"));
+    print_stderr(format!("{}", options.usage("Usage: ivm FILE [OPTIONS]")));
+
+    process::exit(1);
+}
+
+fn print_stderr(message: String) {
+    let mut stderr = io::stderr();
+
+    stderr.write(message.as_bytes()).unwrap();
+    stderr.write(b"\n").unwrap();
+    stderr.flush().unwrap();
+}
+
+fn terminate(message: String) -> ! {
+    print_stderr(message);
     process::exit(1);
 }
 
@@ -31,7 +46,7 @@ fn main() {
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(error) => {
-            println!("{}", error.to_string());
+            print_stderr(format!("{}", error.to_string()));
             print_usage(&options);
         }
     };
@@ -65,23 +80,24 @@ fn main() {
 
                 match bytecode_parser::parse(&mut bytes) {
                     Ok(code) => {
-                        let state = State::new(config);
-                        let vm = Machine::new(state);
-                        let status = vm.start(code);
+                        let vm = Machine::new(State::new(config));
 
-                        if status.is_err() {
-                            process::exit(1);
+                        match vm.start(code) {
+                            Ok(_) => process::exit(0),
+                            Err(message) => terminate(message),
                         }
                     }
                     Err(error) => {
-                        println!("Failed to parse file {}: {:?}", path, error);
-                        process::exit(1);
+                        terminate(format!("Failed to parse file {}: {:?}",
+                                          path,
+                                          error));
                     }
                 }
             }
             Err(error) => {
-                println!("Failed to execute {}: {}", path, error.to_string());
-                process::exit(1);
+                terminate(format!("Failed to execute {}: {}",
+                                  path,
+                                  error.to_string()));
             }
         }
     }

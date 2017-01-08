@@ -23,7 +23,7 @@ pub fn spawn_literal_process(machine: &Machine,
     let code_index = instruction.arg(1)?;
     let code_obj = code.code_object(code_index)?;
 
-    machine.spawn_process(process, code_obj, register);
+    machine.spawn_process(process, code_obj, register)?;
 
     Ok(Action::None)
 }
@@ -44,7 +44,7 @@ pub fn spawn_process(machine: &Machine,
     let code = code_ptr.get();
     let code_obj = code.value.as_compiled_code()?;
 
-    machine.spawn_process(process, code_obj, register);
+    machine.spawn_process(process, code_obj, register)?;
 
     Ok(Action::None)
 }
@@ -67,7 +67,7 @@ pub fn send_process_message(machine: &Machine,
     let msg_ptr = process.get_register(instruction.arg(2)?)?;
     let pid = pid_ptr.get().value.as_integer()? as usize;
 
-    if let Some(receiver) = read_lock!(machine.state.processes).get(pid) {
+    if let Some(receiver) = read_lock!(machine.state.process_table).get(&pid) {
         receiver.send_message(&process, msg_ptr);
     }
 
