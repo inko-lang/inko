@@ -8,13 +8,14 @@ use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
 
 use binding::RcBinding;
-use config::Config;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
+use config::Config;
 use execution_context::ExecutionContext;
 use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
+use process_table::PID;
 
 pub type RcProcess = Arc<Process>;
 
@@ -97,7 +98,7 @@ pub struct LocalData {
 
 pub struct Process {
     /// The process identifier of this process.
-    pub pid: usize,
+    pub pid: PID,
 
     /// The status of this process.
     pub status: Mutex<ProcessStatus>,
@@ -116,7 +117,7 @@ unsafe impl Send for LocalData {}
 unsafe impl Sync for Process {}
 
 impl Process {
-    pub fn new(pid: usize,
+    pub fn new(pid: PID,
                call_frame: CallFrame,
                context: ExecutionContext,
                global_allocator: RcGlobalAllocator)
