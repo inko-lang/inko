@@ -16,6 +16,7 @@ use immix::permanent_allocator::PermanentAllocator;
 use config::Config;
 use object_pointer::ObjectPointer;
 use pool::Pool;
+use pools::Pools;
 use process_table::ProcessTable;
 use process::RcProcess;
 
@@ -35,8 +36,8 @@ pub struct State {
     /// The pool to use for garbage collection.
     pub gc_pool: Pool<Request>,
 
-    /// The pool to use for executing processes.
-    pub process_pool: Pool<RcProcess>,
+    /// The process pools to use.
+    pub process_pools: Pools,
 
     /// The exit status of the program.
     pub exit_status: Mutex<Result<(), String>>,
@@ -116,14 +117,16 @@ impl State {
             false_obj.get_mut().set_prototype(false_proto.clone());
         }
 
-        let process_pool = Pool::new(config.process_threads);
         let gc_pool = Pool::new(config.gc_threads);
+
+        let process_pools = Pools::new(config.primary_threads,
+                                       config.secondary_threads);
 
         let state = State {
             config: config,
             executed_files: RwLock::new(HashSet::new()),
             process_table: RwLock::new(ProcessTable::new()),
-            process_pool: process_pool,
+            process_pools: process_pools,
             gc_pool: gc_pool,
             exit_status: Mutex::new(Ok(())),
             permanent_allocator: Mutex::new(perm_alloc),

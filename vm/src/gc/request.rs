@@ -88,7 +88,7 @@ mod tests {
                                          1,
                                          Vec::new());
 
-        (perm_alloc, Process::from_code(1, code, self_obj, global_alloc))
+        (perm_alloc, Process::from_code(1, 0, code, self_obj, global_alloc))
     }
 
     #[test]

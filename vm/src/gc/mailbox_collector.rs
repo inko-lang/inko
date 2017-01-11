@@ -39,7 +39,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
 
     profile.populate_tracing_statistics(trace_result);
 
-    vm_state.process_pool.schedule(process.clone());
+    vm_state.process_pools.schedule(process.clone());
 
     profile
 }
@@ -80,7 +80,7 @@ mod tests {
                                          1,
                                          Vec::new());
 
-        (perm_alloc, Process::from_code(1, code, self_obj, global_alloc))
+        (perm_alloc, Process::from_code(1, 0, code, self_obj, global_alloc))
     }
 
     #[test]

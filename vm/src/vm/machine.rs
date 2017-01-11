@@ -12,6 +12,7 @@ use object_pointer::ObjectPointer;
 use object_value;
 use process::{RcProcess, Process};
 use pool::JoinGuard as PoolJoinGuard;
+use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use vm::action::Action;
 use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
 use vm::instructions::result::InstructionResult;
@@ -30,16 +31,23 @@ impl Machine {
     ///
     /// This method will block the calling thread until it returns.
     pub fn start(&self, code: RcCompiledCode) -> Result<(), String> {
-        let process_pool_guard = self.start_process_threads();
+        let primary_guard = self.start_primary_threads();
+        let secondary_guard = self.start_secondary_threads();
         let gc_pool_guard = self.start_gc_threads();
 
         let main_process =
-            self.allocate_process(code, self.state.top_level.clone())?;
+            self.allocate_process(PRIMARY_POOL,
+                                  code,
+                                  self.state.top_level.clone())?;
 
-        self.state.process_pool.schedule(main_process);
+        self.state.process_pools.schedule(main_process);
 
-        if process_pool_guard.join().is_err() {
-            return Err("Failed to join the process pool".to_string());
+        if primary_guard.join().is_err() {
+            return Err("Failed to join the primary process pool".to_string());
+        }
+
+        if secondary_guard.join().is_err() {
+            return Err("Failed to join the secondary process pool".to_string());
         }
 
         if gc_pool_guard.join().is_err() {
@@ -49,35 +57,18 @@ impl Machine {
         self.state.exit_status.lock().clone()
     }
 
-    /// Starts the threads that will execute processes.
-    fn start_process_threads(&self) -> PoolJoinGuard<()> {
+    fn start_primary_threads(&self) -> PoolJoinGuard<()> {
         let machine = Machine::new(self.state.clone());
+        let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
 
-        self.state.process_pool.run(move |process| {
-            match machine.run(&process) {
-                Ok(_) => {
-                    if process.should_suspend_for_gc() {
-                        process.suspend_for_gc();
-                    } else if process.should_be_rescheduled() {
-                        machine.state.process_pool.schedule(process.clone());
-                    } else {
-                        let is_main = process.is_main();
+        pool.run(move |process| machine.run(&process))
+    }
 
-                        process.finished();
+    fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
+        let machine = Machine::new(self.state.clone());
+        let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
-                        write_lock!(machine.state.process_table)
-                            .release(&process.pid);
-
-                        // Terminate once the main process has finished
-                        // execution.
-                        if is_main {
-                            machine.terminate();
-                        }
-                    }
-                }
-                Err(message) => machine.error(process, message),
-            }
-        })
+        pool.run(move |process| machine.run(&process))
     }
 
     /// Starts the garbage collection threads.
@@ -86,12 +77,13 @@ impl Machine {
     }
 
     fn terminate(&self) {
-        self.state.process_pool.terminate();
+        self.state.process_pools.terminate();
         self.state.gc_pool.terminate();
     }
 
     /// Allocates a new process and returns the PID and Process structure.
     pub fn allocate_process(&self,
+                            pool_id: usize,
                             code: RcCompiledCode,
                             self_obj: ObjectPointer)
                             -> Result<RcProcess, String> {
@@ -101,6 +93,7 @@ impl Machine {
             .ok_or_else(|| "No PID could be reserved".to_string())?;
 
         let process = Process::from_code(pid,
+                                         pool_id,
                                          code,
                                          self_obj,
                                          self.state.global_allocator.clone());
@@ -128,7 +121,8 @@ impl Machine {
         }
     }
 
-    fn run(&self, process: &RcProcess) -> Result<(), String> {
+    /// Executes a single process.
+    fn run_process(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -213,7 +207,7 @@ impl Machine {
     }
 
     /// Prints a VM backtrace of a given process with a message.
-    fn error(&self, process: RcProcess, error: String) {
+    fn error(&self, process: &RcProcess, error: String) {
         let mut message = format!("A fatal VM error occurred in process {}:",
                                   process.pid);
 
@@ -430,13 +424,16 @@ impl Machine {
     /// Spawns a new process.
     pub fn spawn_process(&self,
                          process: &RcProcess,
+                         pool_id: usize,
                          code: RcCompiledCode,
                          register: usize)
                          -> Result<(), String> {
-        let new_proc = self.allocate_process(code, self.state.top_level.clone())?;
+        let new_proc =
+            self.allocate_process(pool_id, code, self.state.top_level.clone())?;
+
         let new_pid = new_proc.pid;
 
-        self.state.process_pool.schedule(new_proc);
+        self.state.process_pools.schedule(new_proc);
 
         let pid_obj = process.allocate(object_value::integer(new_pid as i64),
                                        self.state.integer_prototype.clone());
@@ -466,5 +463,31 @@ impl Machine {
 
             self.state.gc_pool.schedule(request);
         }
+    }
+
+    /// Executes a process and handles its result.
+    fn run(&self, process: &RcProcess) {
+        match self.run_process(&process) {
+            Ok(_) => {
+                if process.should_suspend_for_gc() {
+                    process.suspend_for_gc();
+                } else if process.should_be_rescheduled() {
+                    self.state.process_pools.schedule(process.clone());
+                } else {
+                    let is_main = process.is_main();
+
+                    process.finished();
+
+                    write_lock!(self.state.process_table).release(&process.pid);
+
+                    // Terminate once the main process has finished
+                    // execution.
+                    if is_main {
+                        self.terminate();
+                    }
+                }
+            }
+            Err(message) => self.error(process, message),
+        };
     }
 }

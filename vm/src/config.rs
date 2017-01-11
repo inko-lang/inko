@@ -27,9 +27,11 @@ pub struct Config {
     /// The directories to search in for extra bytecode files to run.
     pub directories: Vec<PathBuf>,
 
-    /// The number of operating system processes to use for running virtual
-    /// machine processes. Defaults to the number of CPU cores.
-    pub process_threads: usize,
+    /// The number of primary process threads to run.
+    pub primary_threads: usize,
+
+    /// The number of secondary process threads to run.
+    pub secondary_threads: usize,
 
     /// The number of garbage collector threads to run. Defaults to the number
     /// of CPU cores.
@@ -56,8 +58,9 @@ impl Config {
 
         Config {
             directories: Vec::new(),
-            process_threads: cpu_count,
+            primary_threads: cpu_count,
             gc_threads: cpu_count,
+            secondary_threads: cpu_count,
             reductions: 1000,
             young_growth_factor: 1.5,
             mature_growth_factor: 1.5,
@@ -67,7 +70,8 @@ impl Config {
 
     /// Populates configuration settings based on environment variables.
     pub fn populate_from_env(&mut self) {
-        set_from_env!(self, process_threads, "PROCESS_THREADS", usize);
+        set_from_env!(self, primary_threads, "PRIMARY_THREADS", usize);
+        set_from_env!(self, secondary_threads, "SECONDARY_THREADS", usize);
         set_from_env!(self, gc_threads, "GC_THREADS", usize);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
@@ -85,11 +89,19 @@ impl Config {
         self.directories.push(PathBuf::from(path));
     }
 
-    pub fn set_process_threads(&mut self, threads: usize) {
+    pub fn set_primary_threads(&mut self, threads: usize) {
         if threads == 0 {
-            self.process_threads = 1;
+            self.primary_threads = 1;
         } else {
-            self.process_threads = threads;
+            self.primary_threads = threads;
+        }
+    }
+
+    pub fn set_secondary_threads(&mut self, threads: usize) {
+        if threads == 0 {
+            self.secondary_threads = 1;
+        } else {
+            self.secondary_threads = threads;
         }
     }
 
@@ -118,14 +130,14 @@ mod tests {
         let config = Config::new();
 
         assert_eq!(config.directories.len(), 0);
-        assert!(config.process_threads >= 1);
+        assert!(config.primary_threads >= 1);
         assert!(config.gc_threads >= 1);
         assert_eq!(config.reductions, 1000);
     }
 
     #[test]
     fn test_populate_from_env() {
-        env::set_var("INKO_PROCESS_THREADS", "42");
+        env::set_var("INKO_PRIMARY_THREADS", "42");
         env::set_var("INKO_GC_YOUNG_GROWTH_FACTOR", "4.2");
 
         let mut config = Config::new();
@@ -136,7 +148,7 @@ mod tests {
         env::remove_var("INKO_PROCESS_THREADS");
         env::remove_var("INKO_GC_YOUNG_GROWTH_FACTOR");
 
-        assert_eq!(config.process_threads, 42);
+        assert_eq!(config.primary_threads, 42);
         assert_eq!(config.young_growth_factor, 4.2);
     }
 
@@ -150,12 +162,12 @@ mod tests {
     }
 
     #[test]
-    fn test_set_process_threads() {
+    fn test_set_primary_threads() {
         let mut config = Config::new();
 
-        config.set_process_threads(5);
+        config.set_primary_threads(5);
 
-        assert_eq!(config.process_threads, 5);
+        assert_eq!(config.primary_threads, 5);
     }
 
     #[test]
@@ -174,5 +186,14 @@ mod tests {
         config.set_reductions(5);
 
         assert_eq!(config.reductions, 5);
+    }
+
+    #[test]
+    fn test_set_secondary_threads() {
+        let mut config = Config::new();
+
+        config.set_secondary_threads(2);
+
+        assert_eq!(config.secondary_threads, 2);
     }
 }

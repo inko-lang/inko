@@ -6,14 +6,17 @@ use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
 use object_value;
+use pools::PRIMARY_POOL;
 use process::RcProcess;
 
 /// Runs a CompiledCode in a new process.
 ///
-/// This instruction takes 2 arguments:
+/// This instruction takes 3 arguments:
 ///
 /// 1. The register to store the PID in.
 /// 2. A code objects index pointing to the CompiledCode object to run.
+/// 3. The ID of the process pool to schedule the process on. Defaults to the ID
+///    of the primary pool.
 pub fn spawn_literal_process(machine: &Machine,
                              process: &RcProcess,
                              code: &RcCompiledCode,
@@ -21,9 +24,10 @@ pub fn spawn_literal_process(machine: &Machine,
                              -> InstructionResult {
     let register = instruction.arg(0)?;
     let code_index = instruction.arg(1)?;
+    let pool_id = instruction.arg(2).unwrap_or(PRIMARY_POOL);
     let code_obj = code.code_object(code_index)?;
 
-    machine.spawn_process(process, code_obj, register)?;
+    machine.spawn_process(process, pool_id, code_obj, register)?;
 
     Ok(Action::None)
 }
@@ -41,10 +45,18 @@ pub fn spawn_process(machine: &Machine,
                      -> InstructionResult {
     let register = instruction.arg(0)?;
     let code_ptr = process.get_register(instruction.arg(1)?)?;
-    let code = code_ptr.get();
-    let code_obj = code.value.as_compiled_code()?;
 
-    machine.spawn_process(process, code_obj, register)?;
+    let pool_id = if let Ok(pool_reg) = instruction.arg(2) {
+        let ptr = process.get_register(pool_reg)?;
+
+        ptr.get().value.as_integer()? as usize
+    } else {
+        PRIMARY_POOL
+    };
+
+    let code_obj = code_ptr.get().value.as_compiled_code()?;
+
+    machine.spawn_process(process, pool_id, code_obj, register)?;
 
     Ok(Action::None)
 }

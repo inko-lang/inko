@@ -25,6 +25,7 @@ pub mod mailbox;
 pub mod process;
 pub mod process_table;
 pub mod pool;
+pub mod pools;
 pub mod execution_context;
 pub mod gc;
 pub mod thread;

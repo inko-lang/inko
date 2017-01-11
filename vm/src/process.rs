@@ -100,6 +100,9 @@ pub struct Process {
     /// The process identifier of this process.
     pub pid: PID,
 
+    /// The ID of the pool that this process belongs to.
+    pub pool_id: usize,
+
     /// The status of this process.
     pub status: Mutex<ProcessStatus>,
 
@@ -118,6 +121,7 @@ unsafe impl Sync for Process {}
 
 impl Process {
     pub fn new(pid: PID,
+               pool_id: usize,
                call_frame: CallFrame,
                context: ExecutionContext,
                global_allocator: RcGlobalAllocator)
@@ -136,6 +140,7 @@ impl Process {
 
         let process = Process {
             pid: pid,
+            pool_id: pool_id,
             status: Mutex::new(ProcessStatus::Scheduled),
             status_signaler: Condvar::new(),
             local_data: UnsafeCell::new(local_data),
@@ -144,7 +149,8 @@ impl Process {
         Arc::new(process)
     }
 
-    pub fn from_code(pid: usize,
+    pub fn from_code(pid: PID,
+                     pool_id: usize,
                      code: RcCompiledCode,
                      self_obj: ObjectPointer,
                      global_allocator: RcGlobalAllocator)
@@ -152,7 +158,7 @@ impl Process {
         let frame = CallFrame::from_code(code.clone());
         let context = ExecutionContext::with_object(self_obj, code, None);
 
-        Process::new(pid, frame, context, global_allocator)
+        Process::new(pid, pool_id, frame, context, global_allocator)
     }
 
     pub fn local_data_mut(&self) -> &mut LocalData {
@@ -539,7 +545,7 @@ mod tests {
 
         let self_obj = ObjectPointer::null();
 
-        Process::from_code(1, code, self_obj, GlobalAllocator::new())
+        Process::from_code(1, 0, code, self_obj, GlobalAllocator::new())
     }
 
     #[test]
