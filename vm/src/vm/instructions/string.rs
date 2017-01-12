@@ -5,6 +5,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
+use errors;
 use object_value;
 use process::RcProcess;
 
@@ -167,7 +168,6 @@ pub fn string_from_bytes(machine: &Machine,
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
     let arg = arg_ptr.get();
-    let string_proto = machine.state.string_prototype.clone();
     let array = arg.value.as_array()?;
     let mut bytes = Vec::with_capacity(array.len());
 
@@ -177,9 +177,17 @@ pub fn string_from_bytes(machine: &Machine,
         bytes.push(integer as u8);
     }
 
-    let string = try_error!(try_from_utf8!(bytes), process, register);
+    let obj = match String::from_utf8(bytes) {
+        Ok(string) => {
+            process.allocate(object_value::string(string),
+                             machine.state.string_prototype)
+        }
+        Err(_) => {
+            let code = errors::string::invalid_utf8();
 
-    let obj = process.allocate(object_value::string(string), string_proto);
+            process.allocate_without_prototype(object_value::error(code))
+        }
+    };
 
     process.set_register(register, obj);
 

@@ -25,19 +25,22 @@ pub fn stdout_write(machine: &Machine,
                     instruction: &Instruction)
                     -> InstructionResult {
     let register = instruction.arg(0)?;
-    let arg_ptr = process.get_register(instruction.arg(1)?)?;
-
-    let arg = arg_ptr.get();
-    let int_proto = machine.state.integer_prototype.clone();
+    let string_ptr = process.get_register(instruction.arg(1)?)?;
+    let string = string_ptr.get().value.as_string()?;
     let mut stdout = io::stdout();
 
-    let result = try_io!(stdout.write(arg.value.as_string()?.as_bytes()),
-                         process,
-                         register);
-
-    try_io!(stdout.flush(), process, register);
-
-    let obj = process.allocate(object_value::integer(result as i64), int_proto);
+    let obj = match stdout.write(string.as_bytes()) {
+        Ok(num_bytes) => {
+            match stdout.flush() {
+                Ok(_) => {
+                    process.allocate(object_value::integer(num_bytes as i64),
+                                     machine.state.integer_prototype)
+                }
+                Err(error) => io_error_code!(process, error),
+            }
+        }
+        Err(error) => io_error_code!(process, error),
+    };
 
     process.set_register(register, obj);
 

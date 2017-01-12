@@ -138,14 +138,15 @@ pub enum InstructionType {
     GetParentLocal,
     GetBindingOfCaller,
     ErrorToInteger,
-    ReadExact,
+    FileReadExact,
+    StdinReadExact,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
     &RcProcess,
     &RcCompiledCode,
     &Instruction)
-    -> InstructionResult; 110] = [integer::set_integer,
+    -> InstructionResult; 111] = [integer::set_integer,
                                   float::set_float,
                                   string::set_string,
                                   object::set_object,
@@ -254,7 +255,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                   local_variable::get_parent_local,
                                   binding::get_binding_of_caller,
                                   error::error_to_integer,
-                                  file::file_read_exact];
+                                  file::file_read_exact,
+                                  stdin::stdin_read_exact];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

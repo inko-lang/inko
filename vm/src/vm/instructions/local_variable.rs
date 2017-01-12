@@ -90,12 +90,11 @@ pub fn set_parent_local(_: &Machine,
 
     if let Some(binding) = process.binding().find_parent(depth) {
         binding.set_local(index, value);
-    } else {
-        return_vm_error!(format!("No binding for depth {}", depth),
-                         instruction.line);
-    }
 
-    Ok(Action::None)
+        Ok(Action::None)
+    } else {
+        Err(format!("No binding for depth {}", depth))
+    }
 }
 
 /// Gets a local variable in one of the parent bindings.
