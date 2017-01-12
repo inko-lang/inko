@@ -5,7 +5,6 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
-use errors;
 use object_value;
 use process::RcProcess;
 
