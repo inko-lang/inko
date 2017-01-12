@@ -66,15 +66,6 @@ macro_rules! ensure_compiled_code {
     );
 }
 
-/// Ensures the given index is within the bounds of the array.
-macro_rules! ensure_array_within_bounds {
-    ($ins: expr, $array: ident, $index: expr) => (
-        if $index > $array.len() {
-            return Err(format!("index {} is out of bounds", $index));
-        }
-    );
-}
-
 /// Ensures the given number of bytes to read is greater than 0
 macro_rules! ensure_positive_read_size {
     ($ins: expr, $size: expr) => (

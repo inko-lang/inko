@@ -10,6 +10,27 @@ use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
 
+/// Returns a vector index for an i64
+macro_rules! int_to_vector_index {
+    ($vec: expr, $index: expr) => ({
+        if $index >= 0 as i64 {
+            $index as usize
+        }
+        else {
+            ($vec.len() as i64 - $index) as usize
+        }
+    });
+}
+
+/// Ensures the given index is within the bounds of the array.
+macro_rules! ensure_array_within_bounds {
+    ($array: ident, $index: expr) => (
+        if $index > $array.len() {
+            return Err(format!("array index {} is out of bounds", $index));
+        }
+    );
+}
+
 /// Sets an array in a register.
 ///
 /// This instruction requires at least one argument: the register to store
@@ -62,7 +83,7 @@ pub fn array_insert(machine: &Machine,
     let mut vector = array.value.as_array_mut()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(instruction, vector, index);
+    ensure_array_within_bounds!(vector, index);
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -104,7 +125,7 @@ pub fn array_at(_: &Machine,
     let vector = array.value.as_array()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(instruction, vector, index);
+    ensure_array_within_bounds!(vector, index);
 
     let value = vector[index].clone();
 
@@ -138,7 +159,7 @@ pub fn array_remove(_: &Machine,
     let mut vector = array.value.as_array_mut()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(instruction, vector, index);
+    ensure_array_within_bounds!(vector, index);
 
     let value = vector.remove(index);
 

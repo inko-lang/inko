@@ -125,25 +125,21 @@ pub fn string_to_bytes(machine: &Machine,
                        instruction: &Instruction)
                        -> InstructionResult {
     let register = instruction.arg(0)?;
-    let arg_ptr = process.get_register(instruction.arg(1)?)?;
+    let string_ptr = process.get_register(instruction.arg(1)?)?;
+    let string_obj = string_ptr.get();
 
-    let arg = arg_ptr.get();
-
-    ensure_strings!(instruction, arg);
-
-    let int_proto = machine.state.integer_prototype.clone();
-    let array_proto = machine.state.array_prototype.clone();
-
-    let array = arg.value
+    let array = string_obj.value
         .as_string()?
         .as_bytes()
         .iter()
         .map(|&b| {
-            process.allocate(object_value::integer(b as i64), int_proto.clone())
+            process.allocate(object_value::integer(b as i64),
+                             machine.state.integer_prototype)
         })
         .collect::<Vec<_>>();
 
-    let obj = process.allocate(object_value::array(array), array_proto);
+    let obj = process.allocate(object_value::array(array),
+                               machine.state.array_prototype);
 
     process.set_register(register, obj);
 
