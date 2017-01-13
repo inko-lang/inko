@@ -32,8 +32,9 @@ impl Machine {
     /// This method will block the calling thread until it returns.
     pub fn start(&self, code: RcCompiledCode) -> Result<(), String> {
         let primary_guard = self.start_primary_threads();
-        let secondary_guard = self.start_secondary_threads();
         let gc_pool_guard = self.start_gc_threads();
+
+        self.start_secondary_threads();
 
         let main_process =
             self.allocate_process(PRIMARY_POOL,
@@ -43,14 +44,14 @@ impl Machine {
         self.state.process_pools.schedule(main_process);
 
         if primary_guard.join().is_err() {
+            self.terminate();
+
             return Err("Failed to join the primary process pool".to_string());
         }
 
-        if secondary_guard.join().is_err() {
-            return Err("Failed to join the secondary process pool".to_string());
-        }
-
         if gc_pool_guard.join().is_err() {
+            self.terminate();
+
             return Err("Failed to join the GC pool".to_string());
         }
 
@@ -64,11 +65,11 @@ impl Machine {
         pool.run(move |process| machine.run(&process))
     }
 
-    fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
+    fn start_secondary_threads(&self) {
         let machine = Machine::new(self.state.clone());
         let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run(&process))
+        pool.run(move |process| machine.run(&process));
     }
 
     /// Starts the garbage collection threads.
