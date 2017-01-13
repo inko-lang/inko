@@ -46,7 +46,7 @@ impl Mailbox {
             self.internal.append(&mut self.external.drain(0..).collect());
         }
 
-        self.internal.pop_back()
+        self.internal.pop_front()
     }
 
     pub fn has_local_pointers(&self) -> bool {
