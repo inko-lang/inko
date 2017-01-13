@@ -140,13 +140,14 @@ pub enum InstructionType {
     ErrorToInteger,
     FileReadExact,
     StdinReadExact,
+    ObjectEquals,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
     &RcProcess,
     &RcCompiledCode,
     &Instruction)
-    -> InstructionResult; 111] = [integer::set_integer,
+    -> InstructionResult; 112] = [integer::set_integer,
                                   float::set_float,
                                   string::set_string,
                                   object::set_object,
@@ -256,7 +257,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                   binding::get_binding_of_caller,
                                   error::error_to_integer,
                                   file::file_read_exact,
-                                  stdin::stdin_read_exact];
+                                  stdin::stdin_read_exact,
+                                  object::object_equals];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

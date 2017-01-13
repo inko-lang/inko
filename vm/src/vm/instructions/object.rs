@@ -245,3 +245,35 @@ pub fn set_outer_scope(machine: &Machine,
 
     Ok(Action::None)
 }
+
+/// Checks if two objects are equal.
+///
+/// Comparing equality is done by simply comparing the addresses of both
+/// pointers: if they're equal then the objects are also considered to be equal.
+///
+/// This instruction takes 3 arguments:
+///
+/// 1. The register to store the result in.
+/// 2. The register containing the object to compare.
+/// 3. The register containing the object to compare with.
+///
+/// The result of this instruction is either boolean true, or false.
+pub fn object_equals(machine: &Machine,
+                     process: &RcProcess,
+                     _: &RcCompiledCode,
+                     instruction: &Instruction)
+                     -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let compare = process.get_register(instruction.arg(1)?)?;
+    let compare_with = process.get_register(instruction.arg(2)?)?;
+
+    let obj = if compare == compare_with {
+        machine.state.true_object
+    } else {
+        machine.state.false_object
+    };
+
+    process.set_register(register, obj);
+
+    Ok(Action::None)
+}
