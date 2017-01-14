@@ -65,7 +65,7 @@ pub fn run_code(machine: &Machine,
 ///
 /// 1. The register to store the return value in.
 /// 2. The index of the code object to run.
-/// 3. The register containing the object to use as "machine" when running the
+/// 3. The register containing the object to use as "self" when running the
 ///    CompiledCode.
 pub fn run_literal_code(machine: &Machine,
                         process: &RcProcess,
