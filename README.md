@@ -26,33 +26,20 @@ The venerable Hello World:
 
     import std::stdout
 
-    stdout.write('Hello, world!')
+    stdout.print 'Hello, world!'
 
 Concurrent Hello World:
 
     import std::stdout
     import std::process
 
-    process.spawn:
-      stdout.write('Hello from process 1!')
+    process.spawn {
+      stdout.print 'Hello from process 1!'
+    }
 
-    process.spawn:
-      stdout.write('Hello from process 2!')
-
-Sending messages between processes:
-
-    import std::stdout
-    import std::process
-
-    let writer = process.spawn:
-      let message = process.receive
-
-    let sender = process.spawn:
-      let pid = process.receive
-
-      pid.send('Hello process!')
-
-    sender.send(writer)
+    process.spawn {
+      stdout.print 'Hello from process 2!'
+    }
 
 For more examples see the Inko website.
 
@@ -82,16 +69,11 @@ To build the VM run the following:
     cd vm
     make
 
-This will install any required dependencies and build a debug build of the VM.
-By default this assumes you have `rustup` installed and a `nightly` toolchain
-installed. If this is not the case you can change things around by setting
-`CARGO_CMD` to whatever command should be used to run cargo. For example:
-
-    cd vm
-    CARGO_CMD='rustup run something-other-than-nightly cargo'
-
 ### Building The Compiler
 
-TODO: write this once the Inko based compiler is up and running.
+To build the compiler, run the following:
+
+    cd compiler
+    make
 
 [immix]: http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf

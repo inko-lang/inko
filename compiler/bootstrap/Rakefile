@@ -1,7 +1,0 @@
-require 'rake/clean'
-
-CLEAN.include('lib/inko/parser.rb', 'lib/inko/lexer.rb')
-
-Dir['./task/*.rake'].each do |task|
-  import(task)
-end
