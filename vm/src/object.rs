@@ -84,15 +84,6 @@ impl Object {
         }
     }
 
-    /// Sets the outer scope used for constant lookups.
-    pub fn set_outer_scope(&mut self, scope: ObjectPointer) {
-        self.allocate_header();
-
-        let mut header_ref = self.header_mut().unwrap();
-
-        header_ref.outer_scope = Some(scope);
-    }
-
     /// Adds a new method to this object.
     pub fn add_method(&mut self, name: String, method: ObjectPointer) {
         self.allocate_header();
@@ -176,14 +167,6 @@ impl Object {
         // Look up the constant in one of the parents.
         if let Some(proto) = self.prototype() {
             retval = proto.get().lookup_constant(name);
-        }
-
-        if retval.is_none() {
-            if let Some(header) = opt_header {
-                if let Some(scope) = header.outer_scope.as_ref() {
-                    retval = scope.get().lookup_constant(name);
-                }
-            }
         }
 
         retval
@@ -363,18 +346,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_set_outer_scope() {
-        let mut obj = new_object();
-
-        assert!(obj.header.is_null());
-
-        obj.set_outer_scope(fake_pointer());
-
-        assert!(obj.header().is_some());
-        assert!(obj.header().unwrap().outer_scope.is_some());
-    }
-
-    #[test]
     fn test_object_add_method() {
         let mut obj = new_object();
 
@@ -496,18 +467,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_lookup_constant_with_constant_defined_in_outer_scope() {
-        let mut outer_scope = new_object();
-        let mut obj = new_object();
-        let name = "test".to_string();
-
-        outer_scope.add_constant(name.clone(), fake_pointer());
-        obj.set_outer_scope(object_pointer_for(&outer_scope));
-
-        assert!(obj.lookup_constant(&name).is_some());
-    }
-
-    #[test]
     fn test_object_add_attribute() {
         let mut obj = new_object();
         let name = "test".to_string();
@@ -581,11 +540,10 @@ mod tests {
         obj.add_method(name.clone(), fake_pointer());
         obj.add_attribute(name.clone(), fake_pointer());
         obj.add_constant(name.clone(), fake_pointer());
-        obj.set_outer_scope(fake_pointer());
 
         obj.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 4);
+        assert_eq!(pointers.len(), 3);
     }
 
     #[test]

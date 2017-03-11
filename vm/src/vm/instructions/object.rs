@@ -223,29 +223,6 @@ pub fn literal_attr_exists(machine: &Machine,
     Ok(Action::None)
 }
 
-/// Sets the outer scope of an object
-///
-/// This instruction requires two arguments:
-///
-/// 1. The register containing the object for which to set the outer scope.
-/// 2. The register containing the object to use as the outer scope.
-pub fn set_outer_scope(machine: &Machine,
-                       process: &RcProcess,
-                       _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
-    let target_ptr = process.get_register(instruction.arg(0)?)?;
-    let scope_ptr = process.get_register(instruction.arg(1)?)?;
-
-    let scope = copy_if_permanent!(machine.state.permanent_allocator,
-                                   scope_ptr,
-                                   target_ptr);
-
-    target_ptr.set_outer_scope(&process, scope);
-
-    Ok(Action::None)
-}
-
 /// Checks if two objects are equal.
 ///
 /// Comparing equality is done by simply comparing the addresses of both

@@ -15,10 +15,6 @@ pub struct ObjectHeader {
 
     /// The methods defined in an object.
     pub methods: HashMap<String, ObjectPointer>,
-
-    /// The object to use for constant lookups when a constant is not available
-    /// in the prototype hierarchy.
-    pub outer_scope: Option<ObjectPointer>,
 }
 
 impl ObjectHeader {
@@ -27,7 +23,6 @@ impl ObjectHeader {
             attributes: HashMap::new(),
             constants: HashMap::new(),
             methods: HashMap::new(),
-            outer_scope: None,
         }
     }
 
@@ -43,10 +38,6 @@ impl ObjectHeader {
 
         for (_, pointer) in self.methods.iter() {
             pointers.push(pointer.pointer());
-        }
-
-        if let Some(scope) = self.outer_scope.as_ref() {
-            pointers.push(scope.pointer());
         }
     }
 
@@ -70,12 +61,6 @@ impl ObjectHeader {
             let value_copy = allocator.copy_object(value.clone());
 
             copy.add_method(key.clone(), value_copy);
-        }
-
-        if let Some(scope) = self.outer_scope.as_ref() {
-            let outer_copy = allocator.copy_object(scope.clone());
-
-            copy.outer_scope = Some(outer_copy);
         }
 
         copy
@@ -130,7 +115,6 @@ mod tests {
         assert_eq!(header.attributes.len(), 0);
         assert_eq!(header.constants.len(), 0);
         assert_eq!(header.methods.len(), 0);
-        assert!(header.outer_scope.is_none());
     }
 
     #[test]
@@ -141,11 +125,10 @@ mod tests {
         header.add_method("test".to_string(), ObjectPointer::null());
         header.add_attribute("test".to_string(), ObjectPointer::null());
         header.add_constant("test".to_string(), ObjectPointer::null());
-        header.outer_scope = Some(ObjectPointer::null());
 
         header.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 4);
+        assert_eq!(pointers.len(), 3);
 
         // Make sure that updating the pointers also updates those stored in the
         // header.
@@ -158,7 +141,6 @@ mod tests {
         assert_eq!(header.get_method("test").unwrap().raw.raw as usize, 0x4);
         assert_eq!(header.get_attribute("test").unwrap().raw.raw as usize, 0x4);
         assert_eq!(header.get_constant("test").unwrap().raw.raw as usize, 0x4);
-        assert_eq!(header.outer_scope.as_ref().unwrap().raw.raw as usize, 0x4);
     }
 
     #[test]

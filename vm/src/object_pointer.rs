@@ -282,14 +282,6 @@ impl ObjectPointer {
                       constant);
     }
 
-    /// Sets the outer scope of the object this pointer points to.
-    pub fn set_outer_scope(&self, process: &RcProcess, scope: ObjectPointer) {
-        write_object!(self,
-                      process,
-                      self.get_mut().set_outer_scope(scope),
-                      scope);
-    }
-
     /// Returns a pointer to this pointer.
     pub fn pointer(&self) -> ObjectPointerPointer {
         ObjectPointerPointer::new(self)
