@@ -25,7 +25,7 @@ macro_rules! int_to_vector_index {
 /// Ensures the given index is within the bounds of the array.
 macro_rules! ensure_array_within_bounds {
     ($array: ident, $index: expr) => (
-        if $index >= $array.len() {
+        if $index > $array.len() {
             return Err(format!("array index {} is out of bounds", $index));
         }
     );
