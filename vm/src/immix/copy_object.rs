@@ -211,8 +211,7 @@ mod tests {
     #[should_panic]
     fn test_copy_binding() {
         let mut dummy = DummyAllocator::new();
-        let self_obj = dummy.allocator.allocate_empty();
-        let binding = Binding::new(self_obj);
+        let binding = Binding::new();
         let pointer = dummy.allocator
             .allocate_without_prototype(object_value::binding(binding));
 

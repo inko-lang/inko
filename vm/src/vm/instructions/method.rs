@@ -173,29 +173,3 @@ pub fn responds_to(machine: &Machine,
 
     Ok(Action::None)
 }
-
-/// Gets the caller of a method.
-///
-/// This instruction requires one argument: the register to store the caller
-/// in. If no caller is present "self" is set in the register instead.
-pub fn get_caller(_: &Machine,
-                  process: &RcProcess,
-                  _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-
-    let caller = {
-        let context = process.context();
-
-        if let Some(parent) = context.parent() {
-            parent.self_object()
-        } else {
-            context.self_object()
-        }
-    };
-
-    process.set_register(register, caller);
-
-    Ok(Action::None)
-}

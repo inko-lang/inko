@@ -55,9 +55,7 @@ mod tests {
                                          1,
                                          Vec::new());
 
-        let self_obj = ObjectPointer::null();
-
-        Process::from_code(1, pool_id, code, self_obj, GlobalAllocator::new())
+        Process::from_code(1, pool_id, code, GlobalAllocator::new())
     }
 
     #[test]

@@ -25,23 +25,6 @@ pub fn get_toplevel(machine: &Machine,
     Ok(Action::None)
 }
 
-/// Sets the object "machine" refers to in a register.
-///
-/// This instruction requires one argument: the register to store the object
-/// in.
-pub fn get_self(_: &Machine,
-                process: &RcProcess,
-                _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let self_object = process.self_object();
-
-    process.set_register(register, self_object);
-
-    Ok(Action::None)
-}
-
 /// Sets an object in a register.
 ///
 /// This instruction takes 3 arguments:

@@ -7,7 +7,7 @@ use std::cell::UnsafeCell;
 use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
 
-use binding::RcBinding;
+use binding::{Binding, RcBinding};
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
@@ -152,11 +152,11 @@ impl Process {
     pub fn from_code(pid: PID,
                      pool_id: usize,
                      code: RcCompiledCode,
-                     self_obj: ObjectPointer,
                      global_allocator: RcGlobalAllocator)
                      -> RcProcess {
         let frame = CallFrame::from_code(code.clone());
-        let context = ExecutionContext::with_object(self_obj, code, None);
+        let binding = Binding::new();
+        let context = ExecutionContext::new(binding, code, None);
 
         Process::new(pid, pool_id, frame, context, global_allocator)
     }
@@ -292,10 +292,6 @@ impl Process {
 
     pub fn binding(&self) -> RcBinding {
         self.context().binding()
-    }
-
-    pub fn self_object(&self) -> ObjectPointer {
-        self.context().self_object()
     }
 
     pub fn context(&self) -> &Box<ExecutionContext> {
@@ -543,9 +539,7 @@ mod tests {
                                          1,
                                          Vec::new());
 
-        let self_obj = ObjectPointer::null();
-
-        Process::from_code(1, 0, code, self_obj, GlobalAllocator::new())
+        Process::from_code(1, 0, code, GlobalAllocator::new())
     }
 
     #[test]

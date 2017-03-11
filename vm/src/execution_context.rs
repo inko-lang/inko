@@ -55,22 +55,12 @@ impl ExecutionContext {
         }
     }
 
-    /// Returns a new ExecutionContext using a binding created from the given
-    /// object.
-    pub fn with_object(object: ObjectPointer,
-                       code: RcCompiledCode,
-                       return_register: Option<usize>)
-                       -> ExecutionContext {
-        ExecutionContext::new(Binding::new(object), code, return_register)
-    }
-
     /// Returns a new ExecutionContext with a parent binding.
     pub fn with_binding(parent_binding: RcBinding,
                         code: RcCompiledCode,
                         return_register: Option<usize>)
                         -> ExecutionContext {
-        let object = parent_binding.self_object();
-        let binding = Binding::with_parent(object, parent_binding);
+        let binding = Binding::with_parent(parent_binding);
 
         ExecutionContext::new(binding, code, return_register)
     }
@@ -85,10 +75,6 @@ impl ExecutionContext {
 
     pub fn parent_mut(&mut self) -> Option<&mut Box<ExecutionContext>> {
         self.parent.as_mut()
-    }
-
-    pub fn self_object(&self) -> ObjectPointer {
-        self.binding.self_object.clone()
     }
 
     pub fn get_register(&self, register: usize) -> Option<ObjectPointer> {
@@ -166,10 +152,6 @@ mod tests {
     use object_pointer::{ObjectPointer, RawObjectPointer};
     use binding::{Binding, RcBinding};
 
-    fn new_binding() -> RcBinding {
-        Binding::new(ObjectPointer::null())
-    }
-
     fn new_compiled_code() -> RcCompiledCode {
         CompiledCode::with_rc("a".to_string(),
                               "a.inko".to_string(),
@@ -178,12 +160,12 @@ mod tests {
     }
 
     fn new_context() -> ExecutionContext {
-        ExecutionContext::new(new_binding(), new_compiled_code(), None)
+        ExecutionContext::new(Binding::new(), new_compiled_code(), None)
     }
 
     #[test]
     fn test_new() {
-        let binding = new_binding();
+        let binding = Binding::new();
         let code = new_compiled_code();
         let context = ExecutionContext::new(binding, code, Some(4));
 
@@ -197,8 +179,7 @@ mod tests {
     #[test]
     fn test_with_object() {
         let code = new_compiled_code();
-        let context =
-            ExecutionContext::with_object(ObjectPointer::null(), code, Some(4));
+        let context = ExecutionContext::new(Binding::new(), code, Some(4));
 
         assert!(context.parent.is_none());
         assert_eq!(context.instruction_index, 0);
@@ -209,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_with_binding() {
-        let binding = new_binding();
+        let binding = Binding::new();
         let code = new_compiled_code();
         let context = ExecutionContext::with_binding(binding, code, None);
 
@@ -218,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_set_parent() {
-        let binding = new_binding();
+        let binding = Binding::new();
         let code = new_compiled_code();
         let context1 = ExecutionContext::new(binding.clone(), code.clone(), None);
         let mut context2 = ExecutionContext::new(binding, code, None);
@@ -230,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let binding = new_binding();
+        let binding = Binding::new();
         let code = new_compiled_code();
         let mut context =
             ExecutionContext::new(binding.clone(), code.clone(), None);
@@ -241,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_parent_with_parent() {
-        let binding = new_binding();
+        let binding = Binding::new();
         let code = new_compiled_code();
         let context1 = ExecutionContext::new(binding.clone(), code.clone(), None);
         let mut context2 = ExecutionContext::new(binding, code, None);
@@ -250,15 +231,6 @@ mod tests {
 
         assert!(context2.parent().is_some());
         assert!(context2.parent_mut().is_some());
-    }
-
-    #[test]
-    fn test_self_object() {
-        let binding = new_binding();
-        let code = new_compiled_code();
-        let context = ExecutionContext::new(binding.clone(), code.clone(), None);
-
-        assert_eq!(context.self_object().raw.raw, binding.self_object.raw.raw);
     }
 
     #[test]
@@ -338,6 +310,6 @@ mod tests {
 
         let pointers = context.pointers();
 
-        assert_eq!(pointers.len(), 3);
+        assert_eq!(pointers.len(), 2);
     }
 }

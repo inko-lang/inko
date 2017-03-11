@@ -155,6 +155,7 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use binding::Binding;
     use compiled_code::CompiledCode;
     use config::Config;
     use immix::global_allocator::GlobalAllocator;
@@ -171,14 +172,12 @@ mod tests {
         let mut perm_alloc =
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
-        let self_obj = perm_alloc.allocate_empty();
-
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a".to_string(),
                                          1,
                                          Vec::new());
 
-        (perm_alloc, Process::from_code(1, 0, code, self_obj, global_alloc))
+        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
     }
 
     #[test]
@@ -449,7 +448,6 @@ mod tests {
     #[test]
     fn test_trace_without_moving_without_mature() {
         let (_perm_alloc, process) = new_process();
-        let self_obj = process.allocate_empty();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -460,7 +458,7 @@ mod tests {
         let code = process.call_frame().code.clone();
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::with_object(self_obj, code, None));
+        process.push_context(ExecutionContext::new(Binding::new(), code, None));
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -470,7 +468,7 @@ mod tests {
 
         let result = trace_without_moving(&process, false);
 
-        assert_eq!(result.marked, 3);
+        assert_eq!(result.marked, 2);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
@@ -480,7 +478,6 @@ mod tests {
     #[test]
     fn test_trace_without_moving_with_mature() {
         let (_perm_alloc, process) = new_process();
-        let self_obj = process.allocate_empty();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -491,7 +488,7 @@ mod tests {
         let code = process.call_frame().code.clone();
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::with_object(self_obj, code, None));
+        process.push_context(ExecutionContext::new(Binding::new(), code, None));
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -501,7 +498,7 @@ mod tests {
 
         let result = trace_without_moving(&process, true);
 
-        assert_eq!(result.marked, 4);
+        assert_eq!(result.marked, 3);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
@@ -511,7 +508,6 @@ mod tests {
     #[test]
     fn test_trace_with_moving_without_mature() {
         let (_perm_alloc, process) = new_process();
-        let self_obj = process.allocate_empty();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -522,7 +518,7 @@ mod tests {
         let code = process.call_frame().code.clone();
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::with_object(self_obj, code, None));
+        process.push_context(ExecutionContext::new(Binding::new(), code, None));
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -532,8 +528,8 @@ mod tests {
 
         let result = trace_with_moving(&process, false);
 
-        assert_eq!(result.marked, 3);
-        assert_eq!(result.evacuated, 3);
+        assert_eq!(result.marked, 2);
+        assert_eq!(result.evacuated, 2);
         assert_eq!(result.promoted, 0);
 
         assert_eq!(mature.is_marked(), false);
@@ -542,7 +538,6 @@ mod tests {
     #[test]
     fn test_trace_with_moving_with_mature() {
         let (_perm_alloc, process) = new_process();
-        let self_obj = process.allocate_empty();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -553,7 +548,7 @@ mod tests {
         let code = process.call_frame().code.clone();
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::with_object(self_obj, code, None));
+        process.push_context(ExecutionContext::new(Binding::new(), code, None));
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -563,8 +558,8 @@ mod tests {
 
         let result = trace_with_moving(&process, true);
 
-        assert_eq!(result.marked, 4);
-        assert_eq!(result.evacuated, 3);
+        assert_eq!(result.marked, 3);
+        assert_eq!(result.evacuated, 2);
         assert_eq!(result.promoted, 0);
 
         assert!(mature.is_marked());

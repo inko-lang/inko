@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use binding::RcBinding;
+use binding::{Binding, RcBinding};
 use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
@@ -36,10 +36,7 @@ impl Machine {
 
         self.start_secondary_threads();
 
-        let main_process =
-            self.allocate_process(PRIMARY_POOL,
-                                  code,
-                                  self.state.top_level.clone())?;
+        let main_process = self.allocate_process(PRIMARY_POOL, code)?;
 
         self.state.process_pools.schedule(main_process);
 
@@ -85,8 +82,7 @@ impl Machine {
     /// Allocates a new process and returns the PID and Process structure.
     pub fn allocate_process(&self,
                             pool_id: usize,
-                            code: RcCompiledCode,
-                            self_obj: ObjectPointer)
+                            code: RcCompiledCode)
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
@@ -96,7 +92,6 @@ impl Machine {
         let process = Process::from_code(pid,
                                          pool_id,
                                          code,
-                                         self_obj,
                                          self.state.global_allocator.clone());
 
         process_table.map(pid, process.clone());
@@ -230,14 +225,13 @@ impl Machine {
     pub fn schedule_code(&self,
                          process: RcProcess,
                          code: RcCompiledCode,
-                         self_obj: ObjectPointer,
                          args: &Vec<ObjectPointer>,
                          binding: Option<RcBinding>,
                          register: usize) {
         let context = if let Some(rc_bind) = binding {
             ExecutionContext::with_binding(rc_bind, code.clone(), Some(register))
         } else {
-            ExecutionContext::with_object(self_obj, code.clone(), Some(register))
+            ExecutionContext::new(Binding::new(), code.clone(), Some(register))
         };
 
         let frame = CallFrame::from_code(code);
@@ -294,11 +288,8 @@ impl Machine {
 
         match bytecode_parser::parse_file(input_path_str) {
             Ok(body) => {
-                let self_obj = self.state.top_level.clone();
-
                 self.schedule_code(process.clone(),
                                    body,
-                                   self_obj,
                                    &Vec::new(),
                                    None,
                                    register);
@@ -394,7 +385,6 @@ impl Machine {
 
         self.schedule_code(process.clone(),
                            method_code,
-                           receiver_ptr.clone(),
                            &arguments,
                            None,
                            register);
@@ -429,9 +419,7 @@ impl Machine {
                          code: RcCompiledCode,
                          register: usize)
                          -> Result<(), String> {
-        let new_proc =
-            self.allocate_process(pool_id, code, self.state.top_level.clone())?;
-
+        let new_proc = self.allocate_process(pool_id, code)?;
         let new_pid = new_proc.pid;
 
         self.state.process_pools.schedule(new_proc);

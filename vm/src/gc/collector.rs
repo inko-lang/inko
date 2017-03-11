@@ -159,14 +159,12 @@ mod tests {
         let mut perm_alloc =
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
-        let self_obj = perm_alloc.allocate_empty();
-
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a".to_string(),
                                          1,
                                          Vec::new());
 
-        (perm_alloc, Process::from_code(1, 0, code, self_obj, global_alloc))
+        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
     }
 
     #[test]

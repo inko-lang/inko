@@ -45,7 +45,6 @@ pub fn run_code(machine: &Machine,
 
     machine.schedule_code(process.clone(),
                           code_obj,
-                          cc_ptr,
                           arguments,
                           binding,
                           register);
@@ -65,8 +64,6 @@ pub fn run_code(machine: &Machine,
 ///
 /// 1. The register to store the return value in.
 /// 2. The index of the code object to run.
-/// 3. The register containing the object to use as "self" when running the
-///    CompiledCode.
 pub fn run_literal_code(machine: &Machine,
                         process: &RcProcess,
                         code: &RcCompiledCode,
@@ -76,21 +73,14 @@ pub fn run_literal_code(machine: &Machine,
 
     let register = instruction.arg(0)?;
     let code_index = instruction.arg(1)?;
-    let receiver = process.get_register(instruction.arg(2)?)?;
     let code_obj = code.code_object(code_index)?;
 
-    machine.schedule_code(process.clone(),
-                          code_obj,
-                          receiver,
-                          &Vec::new(),
-                          None,
-                          register);
+    machine.schedule_code(process.clone(), code_obj, &Vec::new(), None, register);
 
     process.pop_call_frame();
 
     Ok(Action::EnterContext)
 }
-
 
 /// Parses and runs a given bytecode file using a string literal
 ///

@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_is_binding() {
-        let binding = Binding::new(ObjectPointer::null());
+        let binding = Binding::new();
 
         assert!(ObjectValue::Binding(binding).is_binding());
         assert_eq!(ObjectValue::None.is_binding(), false);
@@ -431,11 +431,14 @@ mod tests {
     #[test]
     fn test_as_binding_with_binding() {
         let pointer = ObjectPointer::null();
-        let binding = Binding::new(pointer);
+        let binding = Binding::new();
+
+        binding.set_local(0, pointer);
+
         let result = ObjectValue::Binding(binding).as_binding();
 
         assert!(result.is_ok());
-        assert!(result.unwrap().self_object == pointer);
+        assert!(result.unwrap().get_local(0).unwrap() == pointer);
     }
 
     #[test]
@@ -498,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_binding() {
-        let b = Binding::new(ObjectPointer::null());
+        let b = Binding::new();
 
         assert!(binding(b).is_binding());
     }

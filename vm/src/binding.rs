@@ -1,15 +1,11 @@
 //! Variable Bindings
 //!
-//! A Binding is a structure containing information about the variables (e.g.
-//! local variables and "self") of a certain execution context.
+//! A binding contains the local variables available to a certain scope.
 use std::sync::Arc;
 use std::cell::UnsafeCell;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 pub struct Binding {
-    /// The object "self" refers to.
-    pub self_object: ObjectPointer,
-
     /// The local variables in the current binding.
     ///
     /// Local variables must **not** be modified concurrently as access is not
@@ -22,7 +18,6 @@ pub struct Binding {
 
 pub struct PointerIterator<'a> {
     binding: &'a Binding,
-    returned_self: bool,
     local_index: usize,
 }
 
@@ -30,9 +25,8 @@ pub type RcBinding = Arc<Binding>;
 
 impl Binding {
     /// Returns a new binding.
-    pub fn new(self_object: ObjectPointer) -> RcBinding {
+    pub fn new() -> RcBinding {
         let bind = Binding {
-            self_object: self_object,
             locals: UnsafeCell::new(Vec::new()),
             parent: None,
         };
@@ -41,11 +35,8 @@ impl Binding {
     }
 
     /// Returns a new binding with a parent binding.
-    pub fn with_parent(self_object: ObjectPointer,
-                       parent_binding: RcBinding)
-                       -> RcBinding {
+    pub fn with_parent(parent_binding: RcBinding) -> RcBinding {
         let bind = Binding {
-            self_object: self_object,
             locals: UnsafeCell::new(Vec::new()),
             parent: Some(parent_binding),
         };
@@ -81,11 +72,6 @@ impl Binding {
     /// Returns the parent binding.
     pub fn parent(&self) -> Option<RcBinding> {
         self.parent.clone()
-    }
-
-    /// Returns a pointer to the "self" object.
-    pub fn self_object(&self) -> ObjectPointer {
-        self.self_object.clone()
     }
 
     /// Tries to find a parent binding while limiting the amount of bindings to
@@ -125,7 +111,6 @@ impl Binding {
     pub fn pointers(&self) -> PointerIterator {
         PointerIterator {
             binding: self,
-            returned_self: false,
             local_index: 0,
         }
     }
@@ -136,12 +121,6 @@ impl<'a> Iterator for PointerIterator<'a> {
 
     fn next(&mut self) -> Option<ObjectPointerPointer> {
         loop {
-            if !self.returned_self {
-                self.returned_self = true;
-
-                return Some(self.binding.self_object.pointer());
-            }
-
             if let Some(local) = self.binding.locals().get(self.local_index) {
                 self.local_index += 1;
 
@@ -150,7 +129,6 @@ impl<'a> Iterator for PointerIterator<'a> {
 
             if self.binding.parent.is_some() {
                 self.binding = self.binding.parent.as_ref().unwrap();
-                self.returned_self = false;
                 self.local_index = 0;
             } else {
                 return None;
@@ -166,16 +144,15 @@ mod tests {
 
     #[test]
     fn test_with_parent() {
-        let ptr = ObjectPointer::null();
-        let binding1 = Binding::new(ptr);
-        let binding2 = Binding::with_parent(ptr, binding1.clone());
+        let binding1 = Binding::new();
+        let binding2 = Binding::with_parent(binding1.clone());
 
         assert!(binding2.parent.is_some());
     }
 
     #[test]
     fn test_get_local_invalid() {
-        let binding = Binding::new(ObjectPointer::null());
+        let binding = Binding::new();
 
         assert!(binding.get_local(0).is_err());
     }
@@ -183,7 +160,7 @@ mod tests {
     #[test]
     fn test_get_local_valid() {
         let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         binding.set_local(0, ptr);
 
@@ -193,7 +170,7 @@ mod tests {
     #[test]
     fn test_set_local() {
         let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         binding.set_local(0, ptr);
 
@@ -202,8 +179,7 @@ mod tests {
 
     #[test]
     fn test_local_exists_non_existing_local() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         assert_eq!(binding.local_exists(0), false);
     }
@@ -211,7 +187,7 @@ mod tests {
     #[test]
     fn test_local_exists_existing_local() {
         let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         binding.set_local(0, ptr);
 
@@ -220,36 +196,32 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         assert!(binding.parent().is_none());
     }
 
     #[test]
     fn test_parent_with_parent() {
-        let ptr = ObjectPointer::null();
-        let binding1 = Binding::new(ptr);
-        let binding2 = Binding::with_parent(ptr, binding1);
+        let binding1 = Binding::new();
+        let binding2 = Binding::with_parent(binding1);
 
         assert!(binding2.parent().is_some());
     }
 
     #[test]
     fn test_find_parent_without_parent() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         assert!(binding.find_parent(1).is_none());
     }
 
     #[test]
     fn test_find_parent_with_parent() {
-        let ptr = ObjectPointer::null();
-        let binding1 = Binding::new(ptr);
-        let binding2 = Binding::with_parent(ptr, binding1);
-        let binding3 = Binding::with_parent(ptr, binding2);
-        let binding4 = Binding::with_parent(ptr, binding3);
+        let binding1 = Binding::new();
+        let binding2 = Binding::with_parent(binding1);
+        let binding3 = Binding::with_parent(binding2);
+        let binding4 = Binding::with_parent(binding3);
 
         let found = binding4.find_parent(1);
 
@@ -260,7 +232,7 @@ mod tests {
     #[test]
     fn test_locals() {
         let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         binding.set_local(0, ptr);
 
@@ -270,7 +242,7 @@ mod tests {
     #[test]
     fn test_locals_mut() {
         let ptr = ObjectPointer::null();
-        let binding = Binding::new(ptr);
+        let binding = Binding::new();
 
         binding.set_local(0, ptr);
 
@@ -279,15 +251,13 @@ mod tests {
 
     #[test]
     fn test_push_pointers() {
-        let self_obj1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let local1 = ObjectPointer::new(0x2 as RawObjectPointer);
-        let binding1 = Binding::new(self_obj1);
+        let binding1 = Binding::new();
 
         binding1.set_local(0, local1);
 
-        let self_obj2 = ObjectPointer::new(0x3 as RawObjectPointer);
         let local2 = ObjectPointer::new(0x4 as RawObjectPointer);
-        let binding2 = Binding::with_parent(self_obj2, binding1.clone());
+        let binding2 = Binding::with_parent(binding1.clone());
 
         binding2.set_local(0, local2);
 
@@ -295,40 +265,33 @@ mod tests {
 
         binding2.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 4);
+        assert_eq!(pointers.len(), 2);
 
-        assert!(*pointers[0].get() == self_obj2);
-        assert!(*pointers[1].get() == local2);
-
-        assert!(*pointers[2].get() == self_obj1);
-        assert!(*pointers[3].get() == local1);
+        assert!(*pointers[0].get() == local2);
+        assert!(*pointers[1].get() == local1);
     }
 
     #[test]
     fn test_pointers() {
-        let self1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let b1_local1 = ObjectPointer::new(0x2 as RawObjectPointer);
         let b1_local2 = ObjectPointer::new(0x3 as RawObjectPointer);
-        let b1 = Binding::new(self1);
+        let b1 = Binding::new();
 
         b1.set_local(0, b1_local1);
         b1.set_local(1, b1_local2);
 
-        let self2 = ObjectPointer::new(0x4 as RawObjectPointer);
         let b2_local1 = ObjectPointer::new(0x5 as RawObjectPointer);
         let b2_local2 = ObjectPointer::new(0x6 as RawObjectPointer);
-        let b2 = Binding::with_parent(self2, b1.clone());
+        let b2 = Binding::with_parent(b1.clone());
 
         b2.set_local(0, b2_local1);
         b2.set_local(1, b2_local2);
 
         let mut iterator = b2.pointers();
 
-        assert!(iterator.next().unwrap().get() == &self2);
         assert!(iterator.next().unwrap().get() == &b2_local1);
         assert!(iterator.next().unwrap().get() == &b2_local2);
 
-        assert!(iterator.next().unwrap().get() == &self1);
         assert!(iterator.next().unwrap().get() == &b1_local1);
         assert!(iterator.next().unwrap().get() == &b1_local2);
 
