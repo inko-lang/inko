@@ -156,8 +156,7 @@ mod tests {
     fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
         let global_alloc = GlobalAllocator::without_preallocated_blocks();
 
-        let mut perm_alloc =
-            Box::new(PermanentAllocator::new(global_alloc.clone()));
+        let perm_alloc = Box::new(PermanentAllocator::new(global_alloc.clone()));
 
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a".to_string(),

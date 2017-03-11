@@ -531,7 +531,6 @@ mod tests {
     use config::Config;
     use immix::global_allocator::GlobalAllocator;
     use compiled_code::CompiledCode;
-    use object_pointer::ObjectPointer;
 
     fn new_process() -> RcProcess {
         let code = CompiledCode::with_rc("a".to_string(),

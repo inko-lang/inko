@@ -46,7 +46,6 @@ mod tests {
     use super::*;
     use compiled_code::CompiledCode;
     use immix::global_allocator::GlobalAllocator;
-    use object_pointer::ObjectPointer;
     use process::{Process, RcProcess};
 
     fn new_process(pool_id: usize) -> RcProcess {

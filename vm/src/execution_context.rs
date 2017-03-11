@@ -150,7 +150,7 @@ mod tests {
     use super::*;
     use compiled_code::{CompiledCode, RcCompiledCode};
     use object_pointer::{ObjectPointer, RawObjectPointer};
-    use binding::{Binding, RcBinding};
+    use binding::Binding;
 
     fn new_compiled_code() -> RcCompiledCode {
         CompiledCode::with_rc("a".to_string(),

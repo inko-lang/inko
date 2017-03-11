@@ -48,9 +48,6 @@ pub struct State {
     /// The global memory allocator.
     pub global_allocator: RcGlobalAllocator,
 
-    /// The top level object.
-    pub top_level: ObjectPointer,
-
     /// The prototype for integer objects.
     pub integer_prototype: ObjectPointer,
 
@@ -97,7 +94,6 @@ impl State {
         let mut perm_alloc =
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
-        let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
         let float_proto = perm_alloc.allocate_empty();
         let string_proto = perm_alloc.allocate_empty();
@@ -131,7 +127,6 @@ impl State {
             exit_status: Mutex::new(Ok(())),
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
-            top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
             string_prototype: string_proto,
