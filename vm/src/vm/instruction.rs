@@ -136,13 +136,14 @@ pub enum InstructionType {
     FileReadExact,
     StdinReadExact,
     ObjectEquals,
+    GetToplevel,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
    &RcProcess,
    &RcCompiledCode,
    &Instruction)
-   -> InstructionResult; 107] = [integer::set_integer,
+   -> InstructionResult; 108] = [integer::set_integer,
                                  float::set_float,
                                  string::set_string,
                                  object::set_object,
@@ -248,7 +249,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  error::error_to_integer,
                                  file::file_read_exact,
                                  stdin::stdin_read_exact,
-                                 object::object_equals];
+                                 object::object_equals,
+                                 object::get_toplevel];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

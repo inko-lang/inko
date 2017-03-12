@@ -221,3 +221,19 @@ pub fn object_equals(machine: &Machine,
 
     Ok(Action::None)
 }
+
+/// Sets the top-level object in a register.
+///
+/// This instruction requires one argument: the register to store the object
+/// in.
+pub fn get_toplevel(machine: &Machine,
+                    process: &RcProcess,
+                    _: &RcCompiledCode,
+                    instruction: &Instruction)
+                    -> InstructionResult {
+    let register = instruction.arg(0)?;
+
+    process.set_register(register, machine.state.top_level.clone());
+
+    Ok(Action::None)
+}
