@@ -54,34 +54,6 @@ pub fn run_code(machine: &Machine,
     Ok(Action::EnterContext)
 }
 
-/// Runs a CompiledCode literal.
-///
-/// This instruction is meant to execute simple CompiledCode objects,
-/// usually the moment they're defined. For more complex use cases see the
-/// "run_code" instruction.
-///
-/// This instruction takes the following arguments:
-///
-/// 1. The register to store the return value in.
-/// 2. The index of the code object to run.
-pub fn run_literal_code(machine: &Machine,
-                        process: &RcProcess,
-                        code: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
-    process.advance_line(instruction.line);
-
-    let register = instruction.arg(0)?;
-    let code_index = instruction.arg(1)?;
-    let code_obj = code.code_object(code_index)?;
-
-    machine.schedule_code(process.clone(), code_obj, &Vec::new(), None, register);
-
-    process.pop_call_frame();
-
-    Ok(Action::EnterContext)
-}
-
 /// Parses and runs a given bytecode file using a string literal
 ///
 /// Files are executed only once. After a file has been executed any
