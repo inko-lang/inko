@@ -48,7 +48,7 @@ const NEWLINE_BYTE: u8 = 0xA;
 /// * 2: append-only
 /// * 3: read+write
 /// * 4: read+append
-pub fn file_open(machine: &Machine,
+pub fn file_open(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
@@ -82,10 +82,7 @@ pub fn file_open(machine: &Machine,
     };
 
     let object = match open_opts.open(path) {
-        Ok(file) => {
-            process.allocate(object_value::file(file),
-                             machine.state.file_prototype)
-        }
+        Ok(file) => process.allocate_without_prototype(object_value::file(file)),
         Err(error) => io_error_code!(process, error),
     };
 

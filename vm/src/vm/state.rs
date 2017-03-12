@@ -66,9 +66,6 @@ pub struct State {
     /// The prototype for the "false" object.
     pub false_prototype: ObjectPointer,
 
-    /// The prototype for file objects.
-    pub file_prototype: ObjectPointer,
-
     /// The prototype for method objects.
     pub method_prototype: ObjectPointer,
 
@@ -100,7 +97,6 @@ impl State {
         let array_proto = perm_alloc.allocate_empty();
         let true_proto = perm_alloc.allocate_empty();
         let false_proto = perm_alloc.allocate_empty();
-        let file_proto = perm_alloc.allocate_empty();
         let method_proto = perm_alloc.allocate_empty();
         let cc_proto = perm_alloc.allocate_empty();
         let binding_proto = perm_alloc.allocate_empty();
@@ -133,7 +129,6 @@ impl State {
             array_prototype: array_proto,
             true_prototype: true_proto,
             false_prototype: false_proto,
-            file_prototype: file_proto,
             method_prototype: method_proto,
             compiled_code_prototype: cc_proto,
             binding_prototype: binding_proto,
