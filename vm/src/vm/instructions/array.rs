@@ -22,15 +22,6 @@ macro_rules! int_to_vector_index {
     });
 }
 
-/// Ensures the given index is within the bounds of the array.
-macro_rules! ensure_array_within_bounds {
-    ($array: ident, $index: expr) => (
-        if $index > $array.len() {
-            return Err(format!("array index {} is out of bounds", $index));
-        }
-    );
-}
-
 /// Sets an array in a register.
 ///
 /// This instruction requires at least one argument: the register to store
@@ -64,9 +55,8 @@ pub fn set_array(machine: &Machine,
 /// 3. The register containing the index (as an integer) to insert at.
 /// 4. The register containing the value to insert.
 ///
-/// An error is returned when the index is greater than the array length. A
-/// negative index can be used to indicate a position from the end of the
-/// array.
+/// If an index is out of bounds the array is filled with nil values. A negative
+/// index can be used to indicate a position from the end of the array.
 pub fn array_insert(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -83,17 +73,15 @@ pub fn array_insert(machine: &Machine,
     let mut vector = array.value.as_array_mut()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(vector, index);
-
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
                                    array_ptr);
 
-    if vector.get(index).is_some() {
-        vector[index] = value;
-    } else {
-        vector.insert(index, value);
+    if index > vector.len() || vector.is_empty() {
+        vector.resize(index + 1, machine.state.nil_object);
     }
+
+    vector[index] = value;
 
     process.set_register(register, value);
 
@@ -108,10 +96,10 @@ pub fn array_insert(machine: &Machine,
 /// 2. The register containing the array.
 /// 3. The register containing the index.
 ///
-/// An error is returned when the index is greater than the array length. A
-/// negative index can be used to indicate a position from the end of the
-/// array.
-pub fn array_at(_: &Machine,
+/// This instruction will set nil in the target register if the array index is
+/// out of bounds. A negative index can be used to indicate a position from the
+/// end of the array.
+pub fn array_at(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
@@ -125,9 +113,9 @@ pub fn array_at(_: &Machine,
     let vector = array.value.as_array()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(vector, index);
-
-    let value = vector[index].clone();
+    let value = vector.get(index)
+        .cloned()
+        .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, value);
 
@@ -142,10 +130,10 @@ pub fn array_at(_: &Machine,
 /// 2. The register containing the array to remove a value from.
 /// 3. The register containing the index.
 ///
-/// An error is returned when the index is greater than the array length. A
-/// negative index can be used to indicate a position from the end of the
-/// array.
-pub fn array_remove(_: &Machine,
+/// This instruction sets nil in the target register if the index is out of
+/// bounds. A negative index can be used to indicate a position from the end of
+/// the array.
+pub fn array_remove(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
@@ -159,9 +147,11 @@ pub fn array_remove(_: &Machine,
     let mut vector = array.value.as_array_mut()?;
     let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
 
-    ensure_array_within_bounds!(vector, index);
-
-    let value = vector.remove(index);
+    let value = if index > vector.len() {
+        machine.state.nil_object
+    } else {
+        vector.remove(index)
+    };
 
     process.set_register(register, value);
 
@@ -518,7 +508,12 @@ mod tests {
             assert!(removed_object.value.is_integer());
             assert_eq!(removed_object.value.as_integer().unwrap(), 5);
 
-            assert_eq!(array.get().value.as_array().unwrap().len(), 0);
+            assert_eq!(array.get()
+                           .value
+                           .as_array()
+                           .unwrap()
+                           .len(),
+                       0);
         }
     }
 
