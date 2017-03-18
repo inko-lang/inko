@@ -9,35 +9,14 @@ use object_value;
 use pools::PRIMARY_POOL;
 use process::RcProcess;
 
-/// Runs a CompiledCode in a new process.
+/// Spawns a new process.
 ///
 /// This instruction takes 3 arguments:
 ///
 /// 1. The register to store the PID in.
-/// 2. A code objects index pointing to the CompiledCode object to run.
-/// 3. The ID of the process pool to schedule the process on. Defaults to the ID
-///    of the primary pool.
-pub fn spawn_literal_process(machine: &Machine,
-                             process: &RcProcess,
-                             code: &RcCompiledCode,
-                             instruction: &Instruction)
-                             -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let code_index = instruction.arg(1)?;
-    let pool_id = instruction.arg(2).unwrap_or(PRIMARY_POOL);
-    let code_obj = code.code_object(code_index)?;
-
-    machine.spawn_process(process, pool_id, code_obj, register)?;
-
-    Ok(Action::None)
-}
-
-/// Runs a CompiledCode in a new process using a runtime allocated
-/// CompiledCode.
-///
-/// This instruction takes the same arguments as the "spawn_literal_process"
-/// instruction except instead of a code object index the 2nd argument
-/// should point to a register containing a CompiledCode object.
+/// 2. The register containing the CompiledCode object to run in the process.
+/// 3. The register containing the ID of the process pool to schedule the
+///    process on. Defaults to the ID of the primary pool.
 pub fn spawn_process(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
