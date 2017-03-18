@@ -1,18 +1,19 @@
 //! Virtual Machine States
 //!
 //! Each virtual machine has its own state. This state includes any scheduled
-//! garbage collections, the configuration, the files that have been executed,
+//! garbage collections, the configuration, the files that have been parsed,
 //! etc.
 
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use gc::request::Request;
 
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
 
+use compiled_code::RcCompiledCode;
 use config::Config;
 use object_pointer::ObjectPointer;
 use pool::Pool;
@@ -27,8 +28,8 @@ pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
 
-    /// The files that have been executed.
-    pub executed_files: RwLock<HashSet<String>>,
+    /// Hash containing all parsed bytecode files and their file paths.
+    pub parsed_files: RwLock<HashMap<String, RcCompiledCode>>,
 
     /// Table containing all processes.
     pub process_table: RwLock<ProcessTable<RcProcess>>,
@@ -130,7 +131,7 @@ impl State {
 
         let state = State {
             config: config,
-            executed_files: RwLock::new(HashSet::new()),
+            parsed_files: RwLock::new(HashMap::new()),
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,

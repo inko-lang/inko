@@ -1,9 +1,6 @@
 //! Virtual Machine for running instructions
 
-use std::path::PathBuf;
-
 use binding::{Binding, RcBinding};
-use bytecode_parser;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use execution_context::ExecutionContext;
@@ -15,7 +12,6 @@ use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use vm::action::Action;
 use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
-use vm::instructions::result::InstructionResult;
 use vm::state::RcState;
 
 pub struct Machine {
@@ -241,66 +237,6 @@ impl Machine {
 
         for (index, arg) in args.iter().enumerate() {
             process.set_local(index, arg.clone());
-        }
-    }
-
-    /// Runs a bytecode file.
-    pub fn run_file(&self,
-                    path_str: &String,
-                    process: &RcProcess,
-                    instruction: &Instruction,
-                    register: usize)
-                    -> InstructionResult {
-        process.advance_line(instruction.line);
-
-        {
-            let mut executed = write_lock!(self.state.executed_files);
-
-            if executed.contains(path_str) {
-                return Ok(Action::None);
-            } else {
-                executed.insert(path_str.clone());
-            }
-        }
-
-        let mut input_path = PathBuf::from(path_str);
-
-        if input_path.is_relative() {
-            let mut found = false;
-
-            for directory in self.state.config.directories.iter() {
-                let full_path = directory.join(path_str);
-
-                if full_path.exists() {
-                    input_path = full_path;
-                    found = true;
-
-                    break;
-                }
-            }
-
-            if !found {
-                return Err(format!("No file found for {}", path_str));
-            }
-        }
-
-        let input_path_str = input_path.to_str().unwrap();
-
-        match bytecode_parser::parse_file(input_path_str) {
-            Ok(body) => {
-                self.schedule_code(process.clone(),
-                                   body,
-                                   &Vec::new(),
-                                   None,
-                                   register);
-
-                process.pop_call_frame();
-
-                Ok(Action::EnterContext)
-            }
-            Err(err) => {
-                Err(format!("Failed to parse {}: {:?}", input_path_str, err))
-            }
         }
     }
 

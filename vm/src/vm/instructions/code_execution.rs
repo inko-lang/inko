@@ -1,4 +1,7 @@
 //! VM instruction handlers for executing bytecode files and code objects.
+use std::path::PathBuf;
+use bytecode_parser;
+
 use vm::action::Action;
 use vm::instruction::Instruction;
 use vm::instructions::result::InstructionResult;
@@ -111,45 +114,96 @@ pub fn run_code(machine: &Machine,
     Ok(Action::EnterContext)
 }
 
-/// Parses and runs a given bytecode file using a string literal
-///
-/// Files are executed only once. After a file has been executed any
-/// following calls are basically no-ops.
+/// Parses a bytecode file and stores the resulting CompiledCode object in the
+/// register.
 ///
 /// This instruction requires 2 arguments:
 ///
-/// 1. The register to store the resulting object in.
-/// 2. The string literal index containing the file path of the bytecode
-///    file.
+/// 1. The register to store the resulting CompiledCode object in.
+/// 2. The register containing the file path to open, as a string.
 ///
-/// The result of this instruction is whatever the bytecode file returned.
-pub fn run_literal_file(machine: &Machine,
-                        process: &RcProcess,
-                        code: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let index = instruction.arg(1)?;
-    let path = code.string(index)?;
-
-    machine.run_file(path, process, instruction, register)
-}
-
-/// Parses and runs a given bytecode file using a runtime allocated string
-///
-/// This instruction takes the same arguments as the "run_literal_file"
-/// instruction except instead of using a string literal it uses a register
-/// containing a runtime allocated string.
-pub fn run_file(machine: &Machine,
-                process: &RcProcess,
-                _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+/// This instruction will panic if the file does not exist or when the bytecode
+/// is invalid.
+pub fn parse_file(machine: &Machine,
+                  process: &RcProcess,
+                  _: &RcCompiledCode,
+                  instruction: &Instruction)
+                  -> InstructionResult {
     let register = instruction.arg(0)?;
     let path_ptr = process.get_register(instruction.arg(1)?)?;
-    let path = path_ptr.get();
+    let path_obj = path_ptr.get();
+    let path_str = path_obj.value.as_string()?;
 
-    machine.run_file(path.value.as_string()?, process, instruction, register)
+    let mut parsed_files = write_lock!(machine.state.parsed_files);
+
+    if parsed_files.get(path_str).is_none() {
+        let mut input_path = PathBuf::from(path_str);
+
+        if input_path.is_relative() {
+            let mut found = false;
+
+            for directory in machine.state.config.directories.iter() {
+                let full_path = directory.join(path_str);
+
+                if full_path.exists() {
+                    input_path = full_path;
+                    found = true;
+
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(format!("{} does not point to a valid bytecode file",
+                                   path_str));
+            }
+        }
+
+        let parse_path = input_path.to_str().unwrap();
+
+        let code = bytecode_parser::parse_file(parse_path)
+            .map_err(|e| format!("Failed to parse {}: {:?}", parse_path, e))?;
+
+        parsed_files.insert(path_str.clone(), code.clone());
+    }
+
+    let code = parsed_files.get(path_str).cloned().unwrap();
+
+    let code_ptr = process.allocate(object_value::compiled_code(code),
+                                    machine.state.compiled_code_prototype);
+
+    process.set_register(register, code_ptr);
+
+    Ok(Action::None)
+}
+
+/// Sets the target register to true if the given file path has been parsed.
+///
+/// This instruction requires two arguments:
+///
+/// 1. The register to store the resulting boolean in.
+/// 2. The register containing the file path to check.
+///
+/// The result of this instruction is true or false.
+pub fn file_parsed(machine: &Machine,
+                   process: &RcProcess,
+                   _: &RcCompiledCode,
+                   instruction: &Instruction)
+                   -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let path_ptr = process.get_register(instruction.arg(1)?)?;
+    let path_obj = path_ptr.get();
+    let path_str = path_obj.value.as_string()?;
+
+    let ptr = if read_lock!(machine.state.parsed_files).contains_key(path_str) {
+        machine.state.true_object
+    } else {
+        machine.state.false_object
+    };
+
+    process.set_register(register, ptr);
+
+    Ok(Action::None)
 }
 
 #[cfg(test)]
