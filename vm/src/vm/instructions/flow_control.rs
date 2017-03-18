@@ -7,6 +7,13 @@ use vm::machine::Machine;
 use compiled_code::RcCompiledCode;
 use process::RcProcess;
 
+macro_rules! is_false {
+    ($machine: expr, $pointer: expr) => (
+        $pointer == $machine.state.false_object ||
+            $pointer == $machine.state.nil_object
+    )
+}
+
 /// Jumps to an instruction if a register is not set or set to false.
 ///
 /// This instruction takes two arguments:
@@ -22,7 +29,7 @@ pub fn goto_if_false(machine: &Machine,
     let value_reg = instruction.arg(1)?;
 
     let result = if let Some(obj) = process.get_register_option(value_reg) {
-        if obj == machine.state.false_object.clone() {
+        if is_false!(machine, obj) {
             Action::Goto(go_to)
         } else {
             Action::None
@@ -49,7 +56,7 @@ pub fn goto_if_true(machine: &Machine,
     let value_reg = instruction.arg(1)?;
 
     let result = if let Some(obj) = process.get_register_option(value_reg) {
-        if obj == machine.state.false_object.clone() {
+        if is_false!(machine, obj) {
             Action::None
         } else {
             Action::Goto(go_to)

@@ -196,3 +196,19 @@ pub fn get_compiled_code_prototype(machine: &Machine,
 
     Ok(Action::None)
 }
+
+/// Gets the prototype to use for "nil" objects.
+///
+/// This instruction requires one argument: the register to store the prototype
+/// in.
+pub fn get_nil_prototype(machine: &Machine,
+                         process: &RcProcess,
+                         _: &RcCompiledCode,
+                         instruction: &Instruction)
+                         -> InstructionResult {
+    let register = instruction.arg(0)?;
+
+    process.set_register(register, machine.state.nil_prototype.clone());
+
+    Ok(Action::None)
+}

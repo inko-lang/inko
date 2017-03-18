@@ -12,6 +12,7 @@ use vm::instructions::flow_control;
 use vm::instructions::integer;
 use vm::instructions::local_variable;
 use vm::instructions::method;
+use vm::instructions::nil;
 use vm::instructions::object;
 use vm::instructions::process;
 use vm::instructions::prototype;
@@ -137,13 +138,15 @@ pub enum InstructionType {
     StdinReadExact,
     ObjectEquals,
     GetToplevel,
+    GetNilPrototype,
+    GetNil,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
    &RcProcess,
    &RcCompiledCode,
    &Instruction)
-   -> InstructionResult; 108] = [integer::set_integer,
+   -> InstructionResult; 110] = [integer::set_integer,
                                  float::set_float,
                                  string::set_string,
                                  object::set_object,
@@ -250,7 +253,9 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  file::file_read_exact,
                                  stdin::stdin_read_exact,
                                  object::object_equals,
-                                 object::get_toplevel];
+                                 object::get_toplevel,
+                                 prototype::get_nil_prototype,
+                                 nil::get_nil];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

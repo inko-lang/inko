@@ -11,6 +11,7 @@ pub mod flow_control;
 pub mod integer;
 pub mod local_variable;
 pub mod method;
+pub mod nil;
 pub mod object;
 pub mod process;
 pub mod prototype;
