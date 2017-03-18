@@ -6,15 +6,14 @@
 
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 
 use gc::request::Request;
 
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
 
-use compiled_code::RcCompiledCode;
 use config::Config;
+use file_registry::FileRegistry;
 use object_pointer::ObjectPointer;
 use pool::Pool;
 use pools::Pools;
@@ -28,8 +27,8 @@ pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
 
-    /// Hash containing all parsed bytecode files and their file paths.
-    pub parsed_files: RwLock<HashMap<String, RcCompiledCode>>,
+    /// The registry of parsed bytecode files.
+    pub file_registry: RwLock<FileRegistry>,
 
     /// Table containing all processes.
     pub process_table: RwLock<ProcessTable<RcProcess>>,
@@ -129,9 +128,11 @@ impl State {
         let process_pools = Pools::new(config.primary_threads,
                                        config.secondary_threads);
 
+        let registry = FileRegistry::new(config.directories.clone());
+
         let state = State {
             config: config,
-            parsed_files: RwLock::new(HashMap::new()),
+            file_registry: RwLock::new(registry),
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,

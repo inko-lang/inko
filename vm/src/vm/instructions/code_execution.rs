@@ -1,7 +1,4 @@
 //! VM instruction handlers for executing bytecode files and code objects.
-use std::path::PathBuf;
-use bytecode_parser;
-
 use vm::action::Action;
 use vm::instruction::Instruction;
 use vm::instructions::result::InstructionResult;
@@ -134,40 +131,8 @@ pub fn parse_file(machine: &Machine,
     let path_obj = path_ptr.get();
     let path_str = path_obj.value.as_string()?;
 
-    let mut parsed_files = write_lock!(machine.state.parsed_files);
-
-    if parsed_files.get(path_str).is_none() {
-        let mut input_path = PathBuf::from(path_str);
-
-        if input_path.is_relative() {
-            let mut found = false;
-
-            for directory in machine.state.config.directories.iter() {
-                let full_path = directory.join(path_str);
-
-                if full_path.exists() {
-                    input_path = full_path;
-                    found = true;
-
-                    break;
-                }
-            }
-
-            if !found {
-                return Err(format!("{} does not point to a valid bytecode file",
-                                   path_str));
-            }
-        }
-
-        let parse_path = input_path.to_str().unwrap();
-
-        let code = bytecode_parser::parse_file(parse_path)
-            .map_err(|e| format!("Failed to parse {}: {:?}", parse_path, e))?;
-
-        parsed_files.insert(path_str.clone(), code.clone());
-    }
-
-    let code = parsed_files.get(path_str).cloned().unwrap();
+    let code = write_lock!(machine.state.file_registry).get_or_set(path_str)
+        .map_err(|err| err.message())?;
 
     let code_ptr = process.allocate(object_value::compiled_code(code),
                                     machine.state.compiled_code_prototype);
@@ -195,7 +160,8 @@ pub fn file_parsed(machine: &Machine,
     let path_obj = path_ptr.get();
     let path_str = path_obj.value.as_string()?;
 
-    let ptr = if read_lock!(machine.state.parsed_files).contains_key(path_str) {
+    let ptr = if read_lock!(machine.state.file_registry)
+        .contains_path(path_str) {
         machine.state.true_object
     } else {
         machine.state.false_object
