@@ -22,10 +22,8 @@ pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
 }
 
 /// Creates a new instruction.
-pub fn new_instruction(ins_type: InstructionType,
-                       instructions: Vec<u32>)
-                       -> Instruction {
-    Instruction::new(ins_type, instructions, 1, 1)
+pub fn new_instruction(ins_type: InstructionType, args: Vec<u32>) -> Instruction {
+    Instruction::new(ins_type, args, 1, 1)
 }
 
 /// Returns a mutable reference to the wrapped value of an Arc, regardless of

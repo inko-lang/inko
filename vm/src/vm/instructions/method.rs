@@ -7,6 +7,37 @@ use vm::machine::Machine;
 use compiled_code::RcCompiledCode;
 use process::RcProcess;
 
+/// Looks up a method and sets it in the target register.
+///
+/// This instruction requires 3 arguments:
+///
+/// 1. The register to store the method in.
+/// 2. The register containing the object containing the method.
+/// 3. The register containing the method name as a String.
+///
+/// If a method could not be found the target register will be set to nil
+/// instead.
+pub fn lookup_method(machine: &Machine,
+                     process: &RcProcess,
+                     _: &RcCompiledCode,
+                     instruction: &Instruction)
+                     -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
+
+    let name_obj = name_ptr.get();
+    let name = name_obj.value.as_string()?;
+
+    let method = rec_ptr.get()
+        .lookup_method(name)
+        .unwrap_or_else(|| machine.state.nil_object);
+
+    process.set_register(register, method);
+
+    Ok(Action::None)
+}
+
 /// Defines a method for an object.
 ///
 /// This instruction requires 3 arguments:
@@ -41,28 +72,13 @@ pub fn def_method(machine: &Machine,
     Ok(Action::None)
 }
 
-/// Sends a message using a runtime allocated string
+/// Checks if an object responds to a message.
 ///
-/// This instruction takes the same arguments as the "send_literal"
-/// instruction except instead of the 3rd argument pointing to a string
-/// literal it should point to a register containing a string.
-pub fn send(machine: &Machine,
-            process: &RcProcess,
-            _: &RcCompiledCode,
-            instruction: &Instruction)
-            -> InstructionResult {
-    let string = process.get_register(instruction.arg(2)?)?;
-    let string_obj = string.get();
-
-    machine.send_message(string_obj.value.as_string()?, process, instruction)
-}
-
-/// Checks if an object responds to a message using a runtime allocated
-/// string.
+/// This instruction requires 3 arguments:
 ///
-/// This instruction requires the same arguments as the
-/// "literal_responds_to" instruction except the last argument should be a
-/// register containing a string.
+/// 1. The register to store the result in (either true or false)
+/// 2. The register containing the object to check.
+/// 3. The register containing the name to look up, as a string.
 pub fn responds_to(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,

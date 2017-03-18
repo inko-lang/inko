@@ -110,7 +110,6 @@ pub enum InstructionType {
     FileSeek,
     RunLiteralFile,
     RunFile,
-    Send,
     GetBindingPrototype,
     GetBinding,
     SetConst,
@@ -137,6 +136,7 @@ pub enum InstructionType {
     GetToplevel,
     GetNilPrototype,
     GetNil,
+    LookupMethod,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
@@ -223,7 +223,6 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  file::file_seek,
                                  code_execution::run_literal_file,
                                  code_execution::run_file,
-                                 method::send,
                                  prototype::get_binding_prototype,
                                  binding::get_binding,
                                  constant::set_const,
@@ -249,7 +248,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  object::object_equals,
                                  object::get_toplevel,
                                  prototype::get_nil_prototype,
-                                 nil::get_nil];
+                                 nil::get_nil,
+                                 method::lookup_method];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]
