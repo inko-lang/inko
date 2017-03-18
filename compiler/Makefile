@@ -3,6 +3,9 @@ CARGO_CMD := cargo
 debug:
 	CARGO_INCREMENTAL=1 ${CARGO_CMD} build
 
+check:
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} check
+
 test:
 	CARGO_INCREMENTAL=1 ${CARGO_CMD} test
 
