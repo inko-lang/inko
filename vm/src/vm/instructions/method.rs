@@ -27,10 +27,10 @@ pub fn lookup_method(machine: &Machine,
     let name_ptr = process.get_register(instruction.arg(2)?)?;
 
     let name_obj = name_ptr.get();
-    let name = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_obj.value.as_string()?);
 
     let method = rec_ptr.get()
-        .lookup_method(name)
+        .lookup_method(&name)
         .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, method);
@@ -60,7 +60,7 @@ pub fn def_method(machine: &Machine,
     let name_obj = name_ptr.get();
 
     let cc_obj = cc_ptr.get();
-    let name = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_obj.value.as_string()?);
     let cc = cc_obj.value.as_compiled_code()?;
 
     let method = machine.allocate_method(&process, &receiver_ptr, cc);
@@ -86,12 +86,14 @@ pub fn responds_to(machine: &Machine,
                    -> InstructionResult {
     let register = instruction.arg(0)?;
     let source = process.get_register(instruction.arg(1)?)?;
-    let name = process.get_register(instruction.arg(2)?)?;
 
-    let name_obj = name.get();
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name_obj = name_ptr.get();
+    let name = machine.state.intern(name_obj.value.as_string()?);
+
     let source_obj = source.get();
 
-    let result = if source_obj.responds_to(name_obj.value.as_string()?) {
+    let result = if source_obj.responds_to(&name) {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()

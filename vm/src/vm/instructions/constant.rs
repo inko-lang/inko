@@ -24,13 +24,13 @@ pub fn set_literal_const(machine: &Machine,
     let target_ptr = process.get_register(instruction.arg(0)?)?;
     let name_index = instruction.arg(1)?;
     let source_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = code.string(name_index)?;
+    let name = machine.state.intern(code.string(name_index)?);
 
     let source = copy_if_permanent!(machine.state.permanent_allocator,
                                     source_ptr,
                                     target_ptr);
 
-    target_ptr.add_constant(&process, name.clone(), source);
+    target_ptr.add_constant(&process, name, source);
 
     Ok(Action::None)
 }
@@ -46,16 +46,17 @@ pub fn set_const(machine: &Machine,
                  instruction: &Instruction)
                  -> InstructionResult {
     let target_ptr = process.get_register(instruction.arg(0)?)?;
-    let name = process.get_register(instruction.arg(1)?)?;
+    let name_ptr = process.get_register(instruction.arg(1)?)?;
     let source_ptr = process.get_register(instruction.arg(2)?)?;
-    let name_obj = name.get();
-    let name_str = name_obj.value.as_string()?.clone();
+
+    let name_obj = name_ptr.get();
+    let name = machine.state.intern(name_obj.value.as_string()?);
 
     let source = copy_if_permanent!(machine.state.permanent_allocator,
                                     source_ptr,
                                     target_ptr);
 
-    target_ptr.add_constant(&process, name_str, source);
+    target_ptr.add_constant(&process, name, source);
 
     Ok(Action::None)
 }
@@ -68,7 +69,7 @@ pub fn set_const(machine: &Machine,
 /// 2. The register pointing to an object in which to look for the
 ///    constant.
 /// 3. The string literal index containing the name of the constant.
-pub fn get_literal_const(_: &Machine,
+pub fn get_literal_const(machine: &Machine,
                          process: &RcProcess,
                          code: &RcCompiledCode,
                          instruction: &Instruction)
@@ -76,11 +77,12 @@ pub fn get_literal_const(_: &Machine,
     let register = instruction.arg(0)?;
     let src = process.get_register(instruction.arg(1)?)?;
     let name_index = instruction.arg(2)?;
-    let name = code.string(name_index)?;
+    let name_str = code.string(name_index)?;
+    let name = machine.state.intern(name_str);
 
     let object = src.get()
-        .lookup_constant(name)
-        .ok_or_else(|| constant_error!(instruction.arguments[1], name))?;
+        .lookup_constant(&name)
+        .ok_or_else(|| constant_error!(instruction.arguments[1], name_str))?;
 
     process.set_register(register, object);
 
@@ -92,20 +94,21 @@ pub fn get_literal_const(_: &Machine,
 /// This instruction requires the same arguments as the "get_literal_const"
 /// instruction except the last argument should point to a register
 /// containing a String to use for the name.
-pub fn get_const(_: &Machine,
+pub fn get_const(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
     let register = instruction.arg(0)?;
     let src = process.get_register(instruction.arg(1)?)?;
-    let name = process.get_register(instruction.arg(2)?)?;
 
-    let name_obj = name.get();
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name_obj = name_ptr.get();
     let name_str = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_str);
 
     let object = src.get()
-        .lookup_constant(name_str)
+        .lookup_constant(&name)
         .ok_or_else(|| constant_error!(instruction.arguments[1], name_str))?;
 
     process.set_register(register, object);
@@ -128,9 +131,9 @@ pub fn literal_const_exists(machine: &Machine,
     let register = instruction.arg(0)?;
     let source = process.get_register(instruction.arg(1)?)?;
     let name_index = instruction.arg(2)?;
-    let name = code.string(name_index)?;
+    let name = machine.state.intern(code.string(name_index)?);
 
-    if source.get().lookup_constant(name).is_some() {
+    if source.get().lookup_constant(&name).is_some() {
         process.set_register(register, machine.state.true_object.clone());
     } else {
         process.set_register(register, machine.state.false_object.clone());

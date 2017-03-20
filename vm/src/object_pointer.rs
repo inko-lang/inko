@@ -252,7 +252,7 @@ impl ObjectPointer {
     /// Adds a method to the object this pointer points to.
     pub fn add_method(&self,
                       process: &RcProcess,
-                      name: String,
+                      name: ObjectPointer,
                       method: ObjectPointer) {
         write_object!(self,
                       process,
@@ -263,7 +263,7 @@ impl ObjectPointer {
     /// Adds an attribute to the object this pointer points to.
     pub fn add_attribute(&self,
                          process: &RcProcess,
-                         name: String,
+                         name: ObjectPointer,
                          attr: ObjectPointer) {
         write_object!(self,
                       process,
@@ -274,7 +274,7 @@ impl ObjectPointer {
     /// Adds a constant to the object this pointer points to.
     pub fn add_constant(&self,
                         process: &RcProcess,
-                        name: String,
+                        name: ObjectPointer,
                         constant: ObjectPointer) {
         write_object!(self,
                       process,

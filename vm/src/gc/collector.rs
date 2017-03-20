@@ -208,7 +208,7 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute("foo".to_string(), young_child);
+        young_parent.get_mut().add_attribute(young_child, young_child);
 
         young_parent.block_mut().fragmented = true;
 
@@ -237,7 +237,7 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute("foo".to_string(), young_child);
+        young_parent.get_mut().add_attribute(young_child, young_child);
 
         young_parent.block_mut().fragmented = true;
 
@@ -264,7 +264,7 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute("foo".to_string(), young_child);
+        young_parent.get_mut().add_attribute(young_child, young_child);
 
         let mature = process.local_data_mut()
             .allocator
@@ -291,7 +291,7 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute("foo".to_string(), young_child);
+        young_parent.get_mut().add_attribute(young_child, young_child);
 
         let mature = process.local_data_mut()
             .allocator

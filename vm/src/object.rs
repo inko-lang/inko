@@ -85,7 +85,7 @@ impl Object {
     }
 
     /// Adds a new method to this object.
-    pub fn add_method(&mut self, name: String, method: ObjectPointer) {
+    pub fn add_method(&mut self, name: ObjectPointer, method: ObjectPointer) {
         self.allocate_header();
 
         let mut header_ref = self.header_mut().unwrap();
@@ -94,17 +94,17 @@ impl Object {
     }
 
     /// Returns true if the object responds to the given message.
-    pub fn responds_to(&self, name: &String) -> bool {
+    pub fn responds_to(&self, name: &ObjectPointer) -> bool {
         self.lookup_method(name).is_some()
     }
 
     /// Returns true if the object has the given attribute.
-    pub fn has_attribute(&self, name: &String) -> bool {
+    pub fn has_attribute(&self, name: &ObjectPointer) -> bool {
         self.lookup_attribute(name).is_some()
     }
 
     /// Looks up a method.
-    pub fn lookup_method(&self, name: &String) -> Option<ObjectPointer> {
+    pub fn lookup_method(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header();
@@ -144,7 +144,7 @@ impl Object {
     }
 
     /// Adds a new constant to the current object.
-    pub fn add_constant(&mut self, name: String, value: ObjectPointer) {
+    pub fn add_constant(&mut self, name: ObjectPointer, value: ObjectPointer) {
         self.allocate_header();
 
         let mut header_ref = self.header_mut().unwrap();
@@ -153,7 +153,7 @@ impl Object {
     }
 
     /// Looks up a constant.
-    pub fn lookup_constant(&self, name: &String) -> Option<ObjectPointer> {
+    pub fn lookup_constant(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header();
@@ -173,7 +173,7 @@ impl Object {
     }
 
     /// Adds a new attribute to the current object.
-    pub fn add_attribute(&mut self, name: String, object: ObjectPointer) {
+    pub fn add_attribute(&mut self, name: ObjectPointer, object: ObjectPointer) {
         self.allocate_header();
 
         let mut header = self.header_mut().unwrap();
@@ -182,7 +182,9 @@ impl Object {
     }
 
     /// Looks up an attribute.
-    pub fn lookup_attribute(&self, name: &String) -> Option<ObjectPointer> {
+    pub fn lookup_attribute(&self,
+                            name: &ObjectPointer)
+                            -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
 
         let opt_header = self.header();
@@ -348,55 +350,58 @@ mod tests {
     #[test]
     fn test_object_add_method() {
         let mut obj = new_object();
+        let name = fake_pointer();
 
-        obj.add_method("test".to_string(), fake_pointer());
+        obj.add_method(name, fake_pointer());
 
-        assert!(obj.lookup_method(&"test".to_string()).is_some());
+        assert!(obj.lookup_method(&name).is_some());
     }
 
     #[test]
     fn test_object_responds_to_without_method() {
         let obj = new_object();
 
-        assert_eq!(obj.responds_to(&"test".to_string()), false);
+        assert_eq!(obj.responds_to(&fake_pointer()), false);
     }
 
     #[test]
     fn test_object_responds_to_with_method() {
         let mut obj = new_object();
+        let name = fake_pointer();
 
-        obj.add_method("test".to_string(), fake_pointer());
+        obj.add_method(name, fake_pointer());
 
-        assert!(obj.responds_to(&"test".to_string()));
+        assert!(obj.responds_to(&name));
     }
 
     #[test]
     fn test_object_has_attribute_without_attribute() {
         let obj = new_object();
 
-        assert_eq!(obj.has_attribute(&"test".to_string()), false);
+        assert_eq!(obj.has_attribute(&fake_pointer()), false);
     }
 
     #[test]
     fn test_object_has_attribute_with_attribute() {
         let mut obj = new_object();
+        let name = fake_pointer();
 
-        obj.add_attribute("test".to_string(), fake_pointer());
+        obj.add_attribute(name, fake_pointer());
 
-        assert!(obj.has_attribute(&"test".to_string()));
+        assert!(obj.has_attribute(&name));
     }
 
     #[test]
     fn test_object_lookup_method() {
         let obj = new_object();
 
-        assert!(obj.lookup_method(&"test".to_string()).is_none());
+        assert!(obj.lookup_method(&fake_pointer()).is_none());
     }
 
     #[test]
     fn test_object_lookup_method_defined_in_receiver() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         obj.add_method(name.clone(), fake_pointer());
 
@@ -407,7 +412,7 @@ mod tests {
     fn test_object_lookup_method_defined_in_prototype() {
         let mut proto = new_object();
         let mut child = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         proto.add_method(name.clone(), fake_pointer());
         child.set_prototype(object_pointer_for(&proto));
@@ -419,7 +424,7 @@ mod tests {
     fn test_object_lookup_method_with_prototype_without_method() {
         let proto = new_object();
         let mut child = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         child.set_prototype(object_pointer_for(&proto));
 
@@ -429,7 +434,7 @@ mod tests {
     #[test]
     fn test_object_add_constant() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         obj.add_constant(name.clone(), fake_pointer());
 
@@ -439,7 +444,7 @@ mod tests {
     #[test]
     fn test_object_lookup_constant_without_constant() {
         let obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         assert!(obj.lookup_constant(&name).is_none());
     }
@@ -447,7 +452,7 @@ mod tests {
     #[test]
     fn test_object_lookup_constant_with_constant_defined_in_receiver() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         obj.add_constant(name.clone(), fake_pointer());
 
@@ -458,7 +463,7 @@ mod tests {
     fn test_object_lookup_constant_with_constant_defined_in_prototype() {
         let mut proto = new_object();
         let mut child = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         proto.add_constant(name.clone(), fake_pointer());
         child.set_prototype(object_pointer_for(&proto));
@@ -469,7 +474,7 @@ mod tests {
     #[test]
     fn test_object_add_attribute() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         obj.add_attribute(name.clone(), fake_pointer());
 
@@ -479,7 +484,7 @@ mod tests {
     #[test]
     fn test_object_lookup_attribute_without_attribute() {
         let obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         assert!(obj.lookup_attribute(&name).is_none());
     }
@@ -487,7 +492,7 @@ mod tests {
     #[test]
     fn test_object_lookup_attribute_with_attribute() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
 
         obj.add_attribute(name.clone(), fake_pointer());
 
@@ -505,7 +510,7 @@ mod tests {
     fn test_object_header_with_header() {
         let mut obj = new_object();
 
-        obj.add_attribute("test".to_string(), fake_pointer());
+        obj.add_attribute(fake_pointer(), fake_pointer());
 
         assert!(obj.header().is_some());
         assert!(obj.header_mut().is_some());
@@ -534,12 +539,12 @@ mod tests {
     #[test]
     fn test_object_push_pointers_with_pointers() {
         let mut obj = new_object();
-        let name = "test".to_string();
+        let name = fake_pointer();
         let mut pointers = Vec::new();
 
-        obj.add_method(name.clone(), fake_pointer());
-        obj.add_attribute(name.clone(), fake_pointer());
-        obj.add_constant(name.clone(), fake_pointer());
+        obj.add_method(name, fake_pointer());
+        obj.add_attribute(name, fake_pointer());
+        obj.add_constant(name, fake_pointer());
 
         obj.push_pointers(&mut pointers);
 

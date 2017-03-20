@@ -24,7 +24,7 @@ pub fn set_object(machine: &Machine,
                   -> InstructionResult {
     let register = instruction.arg(0)?;
     let is_permanent_ptr = process.get_register(instruction.arg(1)?)?;
-    let is_permanent = is_permanent_ptr != machine.state.false_object.clone();
+    let is_permanent = is_permanent_ptr != machine.state.false_object;
 
     let obj = if is_permanent {
         machine.state.permanent_allocator.lock().allocate_empty()
@@ -68,7 +68,7 @@ pub fn set_literal_attr(machine: &Machine,
     let target_ptr = process.get_register(instruction.arg(0)?)?;
     let name_index = instruction.arg(1)?;
     let value_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = code.string(name_index)?;
+    let name = machine.state.intern(code.string(name_index)?);
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -94,7 +94,7 @@ pub fn set_attr(machine: &Machine,
     let value_ptr = process.get_register(instruction.arg(2)?)?;
 
     let name_obj = name_ptr.get();
-    let name = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_obj.value.as_string()?);
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -114,7 +114,7 @@ pub fn set_attr(machine: &Machine,
 /// 2. The register containing the object from which to retrieve the
 ///    attribute.
 /// 3. The string literal index to use for the name.
-pub fn get_literal_attr(_: &Machine,
+pub fn get_literal_attr(machine: &Machine,
                         process: &RcProcess,
                         code: &RcCompiledCode,
                         instruction: &Instruction)
@@ -122,12 +122,12 @@ pub fn get_literal_attr(_: &Machine,
     let register = instruction.arg(0)?;
     let source = process.get_register(instruction.arg(1)?)?;
     let name_index = instruction.arg(2)?;
-
-    let name = code.string(name_index)?;
+    let name_str = code.string(name_index)?;
+    let name = machine.state.intern(name_str);
 
     let attr = source.get()
-        .lookup_attribute(name)
-        .ok_or_else(|| attribute_error!(instruction.arguments[1], name))?;
+        .lookup_attribute(&name)
+        .ok_or_else(|| attribute_error!(instruction.arguments[1], name_str))?;
 
     process.set_register(register, attr);
 
@@ -139,21 +139,22 @@ pub fn get_literal_attr(_: &Machine,
 /// This instruction takes the same arguments as the "get_literal_attr"
 /// instruction except the last argument should point to a register
 /// containing a String to use for the name.
-pub fn get_attr(_: &Machine,
+pub fn get_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
                 -> InstructionResult {
     let register = instruction.arg(0)?;
     let source = process.get_register(instruction.arg(1)?)?;
-    let name = process.get_register(instruction.arg(2)?)?;
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let name_obj = name.get();
-    let name = name_obj.value.as_string()?;
+    let name_obj = name_ptr.get();
+    let name_str = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_str);
 
     let attr = source.get()
-        .lookup_attribute(name)
-        .ok_or_else(|| attribute_error!(instruction.arguments[1], name))?;
+        .lookup_attribute(&name)
+        .ok_or_else(|| attribute_error!(instruction.arguments[1], name_str))?;
 
     process.set_register(register, attr);
 
@@ -175,11 +176,11 @@ pub fn literal_attr_exists(machine: &Machine,
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
     let name_index = instruction.arg(2)?;
-    let name = code.string(name_index)?;
+    let name = machine.state.intern(code.string(name_index)?);
 
     let source = source_ptr.get();
 
-    let obj = if source.has_attribute(name) {
+    let obj = if source.has_attribute(&name) {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()

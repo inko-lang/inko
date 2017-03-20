@@ -122,8 +122,9 @@ mod tests {
         let mut dummy = DummyAllocator::new();
         let ptr1 = dummy.allocator.allocate_empty();
         let ptr2 = dummy.allocator.allocate_empty();
+        let name = dummy.allocator.allocate_empty();
 
-        ptr1.get_mut().add_attribute("a".to_string(), ptr2);
+        ptr1.get_mut().add_attribute(name, ptr2);
 
         let copy = dummy.copy_object(ptr1);
 
