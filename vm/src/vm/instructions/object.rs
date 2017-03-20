@@ -50,40 +50,14 @@ pub fn set_object(machine: &Machine,
     Ok(Action::None)
 }
 
-
 /// Sets an attribute of an object.
 ///
 /// This instruction requires 3 arguments:
 ///
 /// 1. The register containing the object for which to set the
 ///    attribute.
-/// 2. The string literal index to use for the name.
-/// 3. The register containing the object to set as the attribute
-///    value.
-pub fn set_literal_attr(machine: &Machine,
-                        process: &RcProcess,
-                        code: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
-    let target_ptr = process.get_register(instruction.arg(0)?)?;
-    let name_index = instruction.arg(1)?;
-    let value_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = machine.state.intern(code.string(name_index)?);
-
-    let value = copy_if_permanent!(machine.state.permanent_allocator,
-                                   value_ptr,
-                                   target_ptr);
-
-    target_ptr.add_attribute(&process, name.clone(), value);
-
-    Ok(Action::None)
-}
-
-/// Sets an attribute of an object using a runtime allocated string.
-///
-/// This instruction takes the same arguments as the "set_literal_attr"
-/// instruction except the 2nd argument should point to a register
-/// containing a String to use for the name.
+/// 2. The register containing the attribute name as a string.
+/// 3. The register containing the object to set as the value.
 pub fn set_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -105,7 +79,6 @@ pub fn set_attr(machine: &Machine,
     Ok(Action::None)
 }
 
-
 /// Gets an attribute from an object and stores it in a register.
 ///
 /// This instruction requires 3 arguments:
@@ -113,32 +86,7 @@ pub fn set_attr(machine: &Machine,
 /// 1. The register to store the attribute's value in.
 /// 2. The register containing the object from which to retrieve the
 ///    attribute.
-/// 3. The string literal index to use for the name.
-pub fn get_literal_attr(machine: &Machine,
-                        process: &RcProcess,
-                        code: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source = process.get_register(instruction.arg(1)?)?;
-    let name_index = instruction.arg(2)?;
-    let name_str = code.string(name_index)?;
-    let name = machine.state.intern(name_str);
-
-    let attr = source.get()
-        .lookup_attribute(&name)
-        .ok_or_else(|| attribute_error!(instruction.arguments[1], name_str))?;
-
-    process.set_register(register, attr);
-
-    Ok(Action::None)
-}
-
-/// Gets an object attribute using a runtime allocated string.
-///
-/// This instruction takes the same arguments as the "get_literal_attr"
-/// instruction except the last argument should point to a register
-/// containing a String to use for the name.
+/// 3. The register containing the attribute name as a string.
 pub fn get_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -167,17 +115,19 @@ pub fn get_attr(machine: &Machine,
 ///
 /// 1. The register to store the result in (true or false).
 /// 2. The register containing the object to check.
-/// 3. The string literal index to use for the attribute name.
-pub fn literal_attr_exists(machine: &Machine,
-                           process: &RcProcess,
-                           code: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+/// 3. The register containing the attribute name as a string.
+pub fn attr_exists(machine: &Machine,
+                   process: &RcProcess,
+                   _: &RcCompiledCode,
+                   instruction: &Instruction)
+                   -> InstructionResult {
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_index = instruction.arg(2)?;
-    let name = machine.state.intern(code.string(name_index)?);
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
 
+    let name_obj = name_ptr.get();
+    let name_str = name_obj.value.as_string()?;
+    let name = machine.state.intern(name_str);
     let source = source_ptr.get();
 
     let obj = if source.has_attribute(&name) {
