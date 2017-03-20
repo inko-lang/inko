@@ -627,8 +627,8 @@ mod tests {
             block.start_address().offset(2 * OBJECTS_PER_LINE as isize)
         };
 
-        let end_pointer = (block.end_address() as usize -
-                           LINE_SIZE) as *mut Object;
+        let end_pointer = (block.end_address() as usize - LINE_SIZE) as
+                          *mut Object;
 
         assert!(block.free_pointer == start_pointer);
         assert!(block.end_pointer == end_pointer);

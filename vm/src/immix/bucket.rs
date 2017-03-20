@@ -252,8 +252,8 @@ impl Bucket {
                 if let Some(bin) = iter.next() {
                     required += self.mark_histogram.get(bin).unwrap() as isize;
 
-                    available -=
-                        self.available_histogram.get(bin).unwrap() as isize;
+                    available -= self.available_histogram.get(bin).unwrap() as
+                                 isize;
 
                     min_bin = Some(bin);
                 } else {
