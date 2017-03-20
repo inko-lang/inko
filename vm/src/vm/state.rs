@@ -15,10 +15,12 @@ use immix::permanent_allocator::PermanentAllocator;
 use config::Config;
 use file_registry::FileRegistry;
 use object_pointer::ObjectPointer;
+use object_value;
 use pool::Pool;
 use pools::Pools;
 use process_table::ProcessTable;
 use process::RcProcess;
+use string_pool::StringPool;
 
 pub type RcState = Arc<State>;
 
@@ -47,6 +49,9 @@ pub struct State {
 
     /// The global memory allocator.
     pub global_allocator: RcGlobalAllocator,
+
+    /// Mapping of raw strings and their interned string objects.
+    pub string_pool: Mutex<StringPool>,
 
     /// The global top-level object.
     pub top_level: ObjectPointer,
@@ -139,6 +144,7 @@ impl State {
             exit_status: Mutex::new(Ok(())),
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
+            string_pool: Mutex::new(StringPool::new()),
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -156,5 +162,44 @@ impl State {
         };
 
         Arc::new(state)
+    }
+
+    /// Interns a string.
+    ///
+    /// If a string was not yet interned it's allocated in the permanent space.
+    pub fn intern(&self, string: &String) -> ObjectPointer {
+        let mut pool = self.string_pool.lock();
+
+        if let Some(value) = pool.get(string) {
+            return value;
+        }
+
+        let mut alloc = self.permanent_allocator.lock();
+        let value = object_value::string(string.clone());
+        let ptr = alloc.allocate_with_prototype(value, self.string_prototype);
+
+        pool.add(ptr);
+
+        ptr
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::Config;
+
+    #[test]
+    fn test_intern() {
+        let state = State::new(Config::new());
+        let string = "number".to_string();
+
+        let ptr1 = state.intern(&string);
+        let ptr2 = state.intern(&string);
+
+        assert!(ptr1 == ptr2);
+
+        assert_eq!(ptr1.get().value.as_string().unwrap(),
+                   ptr2.get().value.as_string().unwrap());
     }
 }

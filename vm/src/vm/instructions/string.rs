@@ -9,14 +9,15 @@ use errors;
 use object_value;
 use process::RcProcess;
 
-/// Sets a string in a register.
+/// Sets a string literal in a register.
 ///
 /// This instruction requires two arguments:
 ///
 /// 1. The register to store the float in.
 /// 2. The index of the string literal to use for the value.
 ///
-/// The string literal is extracted from the given CompiledCode.
+/// String literals are interned to prevent allocating objects for identical
+/// strings.
 pub fn set_string(machine: &Machine,
                   process: &RcProcess,
                   code: &RcCompiledCode,
@@ -25,9 +26,7 @@ pub fn set_string(machine: &Machine,
     let register = instruction.arg(0)?;
     let index = instruction.arg(1)?;
     let value = code.string(index)?;
-
-    let obj = process.allocate(object_value::string(value.clone()),
-                               machine.state.string_prototype.clone());
+    let obj = machine.state.intern(value);
 
     process.set_register(register, obj);
 
