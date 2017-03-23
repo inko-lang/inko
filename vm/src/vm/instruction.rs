@@ -8,7 +8,7 @@ use vm::instructions::constant;
 use vm::instructions::error;
 use vm::instructions::file;
 use vm::instructions::float;
-use vm::instructions::flow_control;
+use vm::instructions::control_flow;
 use vm::instructions::integer;
 use vm::instructions::local_variable;
 use vm::instructions::method;
@@ -156,10 +156,10 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  local_variable::set_local,
                                  local_variable::get_local,
                                  compiled_code::set_compiled_code,
-                                 flow_control::return_value,
-                                 flow_control::goto_if_false,
-                                 flow_control::goto_if_true,
-                                 flow_control::goto,
+                                 control_flow::return_value,
+                                 control_flow::goto_if_false,
+                                 control_flow::goto_if_true,
+                                 control_flow::goto,
                                  method::def_method,
                                  code_execution::run_code,
                                  error::is_error,

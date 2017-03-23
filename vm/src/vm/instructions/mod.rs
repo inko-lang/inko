@@ -7,7 +7,7 @@ pub mod constant;
 pub mod error;
 pub mod file;
 pub mod float;
-pub mod flow_control;
+pub mod control_flow;
 pub mod integer;
 pub mod local_variable;
 pub mod method;
