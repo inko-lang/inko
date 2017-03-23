@@ -35,15 +35,18 @@ pub fn get_binding(machine: &Machine,
 /// This instruction requires two arguments:
 ///
 /// 1. The register to store the binding object in.
-/// 2. An integer indicating the amount of parents to walk upwards.
+/// 2. The register containing the number of bindings to walk upwards as an
+///    integer
 pub fn get_binding_of_caller(machine: &Machine,
                              process: &RcProcess,
                              _: &RcCompiledCode,
                              instruction: &Instruction)
                              -> InstructionResult {
     let register = instruction.arg(0)?;
-    let depth = instruction.arg(1)?;
+    let depth_ptr = process.get_register(instruction.arg(1)?)?;
     let start_context = process.context();
+
+    let depth = depth_ptr.get().value.as_integer()? as usize;
 
     let binding = if let Some(context) = start_context.find_parent(depth) {
         context.binding()
