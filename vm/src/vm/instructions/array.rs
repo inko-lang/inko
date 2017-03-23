@@ -77,7 +77,7 @@ pub fn array_insert(machine: &Machine,
                                    value_ptr,
                                    array_ptr);
 
-    if index > vector.len() || vector.is_empty() {
+    if index >= vector.len() {
         vector.resize(index + 1, machine.state.nil_object);
     }
 
