@@ -186,12 +186,6 @@ pub enum Node {
         column: usize,
     },
 
-    Symbol {
-        value: String,
-        line: usize,
-        column: usize,
-    },
-
     Integer {
         value: i64,
         line: usize,
@@ -740,7 +734,6 @@ impl<'a> Parser<'a> {
             TokenType::Impl => self.implement_trait(start),
             TokenType::Comment => self.comment(start),
             TokenType::Import => self.import(start),
-            TokenType::Colon => self.symbol(start),
             TokenType::Type => self.def_type(start),
             TokenType::Attribute => self.attribute(start),
             TokenType::SelfObject => self.self_object(start),
@@ -1400,31 +1393,6 @@ impl<'a> Parser<'a> {
         }
 
         Ok(symbols)
-    }
-
-    /// Parses a symbol
-    ///
-    /// Examples:
-    ///
-    ///     :foo
-    ///     :'foo'
-    ///     :"foo"
-    fn symbol(&mut self, start: Token) -> ParseResult {
-        let token = next_or_error!(self);
-
-        let name = match token.token_type {
-            TokenType::String | TokenType::Identifier => token.value,
-            _ => {
-                parse_error!("Unexpected {:?}, expected a string or identifier",
-                             token.token_type)
-            }
-        };
-
-        Ok(Node::Symbol {
-            value: name,
-            line: start.line,
-            column: start.column,
-        })
     }
 
     /// Parses a type alias definition.
