@@ -347,7 +347,7 @@ mod tests {
     }
 
     fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::without_preallocated_blocks())
+        LocalAllocator::new(GlobalAllocator::new())
     }
 
     fn buckets_for_all_ages() -> (Bucket, Bucket, Bucket, Bucket) {

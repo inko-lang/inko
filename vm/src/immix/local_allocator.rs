@@ -260,7 +260,7 @@ mod tests {
     use object_value;
 
     fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::without_preallocated_blocks())
+        LocalAllocator::new(GlobalAllocator::new())
     }
 
     #[test]

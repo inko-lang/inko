@@ -305,7 +305,7 @@ mod tests {
     use object_value;
 
     fn global_allocator() -> RcGlobalAllocator {
-        GlobalAllocator::without_preallocated_blocks()
+        GlobalAllocator::new()
     }
 
     #[test]

@@ -121,7 +121,7 @@ mod tests {
         use object_value;
 
         fn allocator() -> Box<PermanentAllocator> {
-            let global_alloc = GlobalAllocator::without_preallocated_blocks();
+            let global_alloc = GlobalAllocator::new();
 
             Box::new(PermanentAllocator::new(global_alloc))
         }
@@ -129,7 +129,7 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_add_regular() {
-            let global_alloc = GlobalAllocator::without_preallocated_blocks();
+            let global_alloc = GlobalAllocator::new();
             let mut alloc = LocalAllocator::new(global_alloc);
 
             let mut pool = StringPool::new();

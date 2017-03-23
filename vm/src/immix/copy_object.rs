@@ -83,7 +83,7 @@ mod tests {
 
     impl DummyAllocator {
         pub fn new() -> DummyAllocator {
-            let global_alloc = GlobalAllocator::without_preallocated_blocks();
+            let global_alloc = GlobalAllocator::new();
 
             DummyAllocator { allocator: LocalAllocator::new(global_alloc) }
         }

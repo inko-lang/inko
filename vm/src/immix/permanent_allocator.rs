@@ -72,7 +72,7 @@ mod tests {
     use object_value;
 
     fn permanent_allocator() -> PermanentAllocator {
-        PermanentAllocator::new(GlobalAllocator::without_preallocated_blocks())
+        PermanentAllocator::new(GlobalAllocator::new())
     }
 
     #[test]

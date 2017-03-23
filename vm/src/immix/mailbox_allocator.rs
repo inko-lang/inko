@@ -98,7 +98,7 @@ mod tests {
     use object_value;
 
     fn mailbox_allocator() -> MailboxAllocator {
-        let global = GlobalAllocator::without_preallocated_blocks();
+        let global = GlobalAllocator::new();
 
         MailboxAllocator::new(global)
     }
