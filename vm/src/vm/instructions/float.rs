@@ -468,5 +468,8 @@ mod tests {
     test_bool_op!(FloatEquals, float_equals, false_object);
 
     test_cast_op!(FloatToInteger, float_to_integer, as_integer, 5);
-    test_cast_op!(FloatToString, float_to_string, as_string, &"5.5".to_string());
+    test_cast_op!(FloatToString,
+                  float_to_string,
+                  as_string,
+                  &"5.5".to_string());
 }
