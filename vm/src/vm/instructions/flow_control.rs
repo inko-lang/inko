@@ -7,13 +7,6 @@ use vm::machine::Machine;
 use compiled_code::RcCompiledCode;
 use process::RcProcess;
 
-macro_rules! is_false {
-    ($machine: expr, $pointer: expr) => (
-        $pointer == $machine.state.false_object ||
-            $pointer == $machine.state.nil_object
-    )
-}
-
 /// Jumps to an instruction if a register is not set or set to false.
 ///
 /// This instruction takes two arguments:

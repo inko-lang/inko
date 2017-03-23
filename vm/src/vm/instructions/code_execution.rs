@@ -16,8 +16,9 @@ use process::RcProcess;
 /// 2. The register containing the CompiledCode object to run.
 /// 3. The Binding to use, if any. Setting this register to nil will result in a
 ///    binding being created automatically.
-/// 4. A boolean (1 or 0) indicating if the last argument is a rest argument. A
-///    rest argument will be unpacked into separate arguments.
+/// 4. A register containing a boolean. If the register is truthy the last
+///    argument will be treated as a rest argument. A rest argument will be
+///    unpacked into separate arguments.
 ///
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object.
@@ -42,7 +43,9 @@ pub fn run_code(machine: &Machine,
         }
     };
 
-    let rest_arg = instruction.arg(3)? == 1;
+    let rest_arg_ptr = process.get_register(instruction.arg(3)?)?;
+    let rest_arg = !is_false!(machine, rest_arg_ptr);
+
     let code_obj = code_ptr.get();
     let code_val = code_obj.value.as_compiled_code()?;
 

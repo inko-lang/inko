@@ -10,3 +10,11 @@ macro_rules! copy_if_permanent {
         }
     });
 }
+
+/// Returns true if a given pointer is false.
+macro_rules! is_false {
+    ($machine: expr, $pointer: expr) => (
+        $pointer == $machine.state.false_object ||
+            $pointer == $machine.state.nil_object
+    )
+}
