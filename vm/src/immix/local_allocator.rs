@@ -212,13 +212,6 @@ impl LocalAllocator {
         self.mature_block_allocation_threshold = threshold as usize;
     }
 
-    // Because Rust's borrow checker is sometimes dumb as a brick when it comes
-    // to scoping mutable borrows we have to use two layers of indirection (a
-    // function and a macro) to make the following allocation functions work.
-    //
-    // This can probably be removed once scoping of mutable borrows is handled
-    // in a better way: https://github.com/rust-lang/rfcs/issues/811
-
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
         self.young_generation[self.eden_index]
             .allocate(&self.global_allocator, object)
