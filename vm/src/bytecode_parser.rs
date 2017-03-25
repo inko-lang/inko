@@ -47,9 +47,9 @@ macro_rules! read_string_vector {
     );
 }
 
-macro_rules! read_u32_vector {
+macro_rules! read_u16_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<u32, $byte_type>($bytes, read_u32));
+        try!(read_vector::<u16, $byte_type>($bytes, read_u16));
     );
 }
 
@@ -170,22 +170,6 @@ fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     Ok(u16::from_be(value))
 }
 
-fn read_i32<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i32> {
-    let mut buff: [u8; 4] = [0, 0, 0, 0];
-
-    for index in 0..4 {
-        buff[index] = try_byte!(bytes.next(), InvalidInteger);
-    }
-
-    let value: i32 = unsafe { mem::transmute(buff) };
-
-    Ok(i32::from_be(value))
-}
-
-fn read_u32<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u32> {
-    Ok(try!(read_i32(bytes)) as u32)
-}
-
 fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -233,8 +217,8 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
     let ins_type: InstructionType =
         unsafe { mem::transmute(try!(read_u16(bytes))) };
 
-    let args = read_u32_vector!(T, bytes);
-    let line = try!(read_u32(bytes));
+    let args = read_u16_vector!(T, bytes);
+    let line = try!(read_u16(bytes));
     let ins = Instruction::new(ins_type, args, line);
 
     Ok(ins)
@@ -244,9 +228,9 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
                                -> ParserResult<RcCompiledCode> {
     let name = try!(read_string(bytes));
     let file = try!(read_string(bytes));
-    let line = try!(read_u32(bytes));
-    let args = try!(read_u32(bytes));
-    let req_args = try!(read_u32(bytes));
+    let line = try!(read_u16(bytes));
+    let args = try!(read_u8(bytes));
+    let req_args = try!(read_u8(bytes));
     let rest_arg = try!(read_u8(bytes)) == 1;
 
     let locals = try!(read_u16(bytes));
@@ -308,15 +292,6 @@ mod tests {
         ($num: expr, $buffer: expr) => ({
             let num = u16::to_be($num);
             let bytes: [u8; 2] = unsafe { mem::transmute(num) };
-
-            $buffer.extend_from_slice(&bytes);
-        });
-    }
-
-    macro_rules! pack_u32 {
-        ($num: expr, $buffer: expr) => ({
-            let num = u32::to_be($num);
-            let bytes: [u8; 4] = unsafe { mem::transmute(num) };
 
             $buffer.extend_from_slice(&bytes);
         });
@@ -395,9 +370,9 @@ mod tests {
 
         pack_string!("main", buffer);
         pack_string!("test.inko", buffer);
-        pack_u32!(4, buffer); // line
-        pack_u32!(0, buffer); // arguments
-        pack_u32!(0, buffer); // required arguments
+        pack_u16!(4, buffer); // line
+        pack_u8!(0, buffer); // arguments
+        pack_u8!(0, buffer); // required arguments
         pack_u8!(0, buffer); // rest argument
         pack_u16!(0, buffer); // locals
         pack_u64!(0, buffer); // instructions
@@ -495,35 +470,6 @@ mod tests {
     }
 
     #[test]
-    fn test_read_i32() {
-        let mut buffer = Vec::new();
-
-        pack_u32!(2, buffer);
-
-        let output = unwrap!(read!(read_i32, buffer));
-
-        assert_eq!(output, 2);
-    }
-
-    #[test]
-    fn test_read_i32_empty() {
-        let output = read!(read_i32, []);
-
-        assert!(output.is_err());
-    }
-
-    #[test]
-    fn test_read_u32() {
-        let mut buffer = Vec::new();
-
-        pack_u32!(2, buffer);
-
-        let output = unwrap!(read!(read_u32, buffer));
-
-        assert_eq!(output, 2);
-    }
-
-    #[test]
     fn test_read_i64() {
         let mut buffer = Vec::new();
 
@@ -602,8 +548,8 @@ mod tests {
 
         pack_u16!(0, buffer); // type
         pack_u64!(1, buffer); // args
-        pack_u32!(6, buffer);
-        pack_u32!(2, buffer); // line
+        pack_u16!(6, buffer);
+        pack_u16!(2, buffer); // line
 
         let ins = unwrap!(super::read_instruction(&mut buffer.bytes()));
 
@@ -622,17 +568,17 @@ mod tests {
 
         pack_string!("main", buffer); // name
         pack_string!("test.inko", buffer); // file
-        pack_u32!(4, buffer); // line
-        pack_u32!(3, buffer); // arguments
-        pack_u32!(2, buffer); // required args
+        pack_u16!(4, buffer); // line
+        pack_u8!(3, buffer); // arguments
+        pack_u8!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
         pack_u16!(0, buffer); // locals
 
         pack_u64!(1, buffer); // instructions
         pack_u16!(0, buffer); // type
         pack_u64!(1, buffer); // args
-        pack_u32!(6, buffer);
-        pack_u32!(2, buffer); // line
+        pack_u16!(6, buffer);
+        pack_u16!(2, buffer); // line
 
         pack_u64!(1, buffer); // integer literals
         pack_u64!(10, buffer);

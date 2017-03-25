@@ -248,17 +248,17 @@ pub struct Instruction {
     pub instruction_type: InstructionType,
 
     /// The arguments of the instruction.
-    pub arguments: Vec<u32>,
+    pub arguments: Vec<u16>,
 
     /// The line from which the instruction originated.
-    pub line: u32,
+    pub line: u16,
 }
 
 impl Instruction {
     /// Returns a new Instruction.
     pub fn new(ins_type: InstructionType,
-               arguments: Vec<u32>,
-               line: u32)
+               arguments: Vec<u16>,
+               line: u16)
                -> Instruction {
         Instruction {
             instruction_type: ins_type,

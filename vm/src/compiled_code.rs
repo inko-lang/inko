@@ -29,13 +29,13 @@ pub struct CompiledCode {
     pub file: String,
 
     /// The starting line number.
-    pub line: u32,
+    pub line: u16,
 
     /// The total number of arguments, excluding the rest argument.
-    pub arguments: u32,
+    pub arguments: u8,
 
     /// The amount of required arguments.
-    pub required_arguments: u32,
+    pub required_arguments: u8,
 
     /// Whether a rest argument is defined.
     pub rest_argument: bool,
@@ -73,7 +73,7 @@ impl CompiledCode {
     ///
     pub fn new(name: String,
                file: String,
-               line: u32,
+               line: u16,
                instructions: Vec<Instruction>)
                -> CompiledCode {
         CompiledCode {
@@ -95,7 +95,7 @@ impl CompiledCode {
     /// Creates a new reference counted CompiledCode.
     pub fn with_rc(name: String,
                    file: String,
-                   line: u32,
+                   line: u16,
                    instructions: Vec<Instruction>)
                    -> RcCompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))

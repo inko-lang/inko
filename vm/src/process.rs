@@ -284,7 +284,7 @@ impl Process {
     }
 
     /// Adds a new call frame pointing to the given line number.
-    pub fn advance_line(&self, line: u32) {
+    pub fn advance_line(&self, line: u16) {
         let frame = CallFrame::new(self.compiled_code(), line);
 
         self.push_call_frame(frame);

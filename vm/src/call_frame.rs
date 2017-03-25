@@ -13,7 +13,7 @@ pub struct CallFrame {
     pub code: RcCompiledCode,
 
     /// The line number being executed.
-    pub line: u32,
+    pub line: u16,
 
     /// An optional parent CallFrame.
     pub parent: Option<Box<CallFrame>>,
@@ -26,7 +26,7 @@ pub struct CallFrameIterator<'a> {
 
 impl CallFrame {
     /// Creates a new CallFrame.
-    pub fn new(code: RcCompiledCode, line: u32) -> CallFrame {
+    pub fn new(code: RcCompiledCode, line: u16) -> CallFrame {
         CallFrame {
             code: code,
             line: line,
