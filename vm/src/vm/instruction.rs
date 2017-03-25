@@ -132,13 +132,14 @@ pub enum InstructionType {
     LookupMethod,
     AttrExists,
     ConstExists,
+    RemoveMethod,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
    &RcProcess,
    &RcCompiledCode,
    &Instruction)
-   -> InstructionResult; 102] = [integer::set_integer,
+   -> InstructionResult; 103] = [integer::set_integer,
                                  float::set_float,
                                  string::set_string,
                                  object::set_object,
@@ -239,7 +240,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  nil::get_nil,
                                  method::lookup_method,
                                  object::attr_exists,
-                                 constant::const_exists];
+                                 constant::const_exists,
+                                 method::remove_method];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

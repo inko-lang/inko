@@ -103,3 +103,35 @@ pub fn responds_to(machine: &Machine,
 
     Ok(Action::None)
 }
+
+/// Removes a method from an object.
+///
+/// This instruction requires 3 arguments:
+///
+/// 1. The register to store the removed method in.
+/// 2. The register containing the object from which to remove the method.
+/// 3. The register containing the method name as a string.
+///
+/// If the method did not exist the target register is set to nil instead.
+pub fn remove_method(machine: &Machine,
+                     process: &RcProcess,
+                     _: &RcCompiledCode,
+                     instruction: &Instruction)
+                     -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
+
+    let name_obj = name_ptr.get();
+    let name = machine.state.intern(name_obj.value.as_string()?);
+
+    let obj = if let Some(method) = rec_ptr.get_mut().remove_method(&name) {
+        method
+    } else {
+        machine.state.nil_object
+    };
+
+    process.set_register(register, obj);
+
+    Ok(Action::None)
+}

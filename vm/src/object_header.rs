@@ -101,6 +101,12 @@ impl ObjectHeader {
     pub fn has_attribute(&self, key: &ObjectPointer) -> bool {
         self.attributes.contains_key(key)
     }
+
+    pub fn remove_method(&mut self,
+                         key: &ObjectPointer)
+                         -> Option<ObjectPointer> {
+        self.methods.remove(key)
+    }
 }
 
 #[cfg(test)]
@@ -245,5 +251,18 @@ mod tests {
 
         header.add_constant(name, ObjectPointer::null());
         assert!(header.has_constant(&name));
+    }
+
+    #[test]
+    fn test_remove_method() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+
+        header.add_method(name, ObjectPointer::null());
+
+        let method = header.remove_method(&name);
+
+        assert!(method.is_some());
+        assert!(header.get_method(&name).is_none());
     }
 }

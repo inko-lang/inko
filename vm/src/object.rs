@@ -93,6 +93,17 @@ impl Object {
         header_ref.add_method(name, method);
     }
 
+    /// Removes a method and returns it.
+    pub fn remove_method(&mut self,
+                         name: &ObjectPointer)
+                         -> Option<ObjectPointer> {
+        if let Some(header) = self.header_mut() {
+            header.remove_method(name)
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the object responds to the given message.
     pub fn responds_to(&self, name: &ObjectPointer) -> bool {
         self.lookup_method(name).is_some()
@@ -355,6 +366,19 @@ mod tests {
         obj.add_method(name, fake_pointer());
 
         assert!(obj.lookup_method(&name).is_some());
+    }
+
+    #[test]
+    fn test_object_remove_method() {
+        let mut obj = new_object();
+        let name = fake_pointer();
+
+        obj.add_method(name, fake_pointer());
+
+        let method = obj.remove_method(&name);
+
+        assert!(method.is_some());
+        assert_eq!(obj.responds_to(&name), false);
     }
 
     #[test]
