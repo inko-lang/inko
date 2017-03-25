@@ -40,8 +40,8 @@ pub struct CompiledCode {
     /// Whether a rest argument is defined.
     pub rest_argument: bool,
 
-    /// List of local variable names.
-    pub locals: Vec<String>,
+    /// The number of local variables defined.
+    pub locals: u16,
 
     /// The instructions to execute.
     pub instructions: Vec<Instruction>,
@@ -83,7 +83,7 @@ impl CompiledCode {
             arguments: 0,
             required_arguments: 0,
             rest_argument: false,
-            locals: Vec::new(),
+            locals: 0,
             instructions: instructions,
             integer_literals: Vec::new(),
             float_literals: Vec::new(),

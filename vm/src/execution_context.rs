@@ -47,7 +47,7 @@ impl ExecutionContext {
                -> ExecutionContext {
         // Reserve space for all locals so we don't end up re-allocating memory
         // when adding locals.
-        binding.reserve_locals(code.locals.len());
+        binding.reserve_locals(code.locals as usize);
 
         ExecutionContext {
             register: Register::new(),

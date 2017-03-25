@@ -169,7 +169,6 @@ mod tests {
     use object_value;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use immix::copy_object::CopyObject;
 
     #[test]
     fn test_with_parent() {

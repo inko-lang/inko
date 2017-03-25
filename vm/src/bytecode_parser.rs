@@ -249,7 +249,7 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
     let req_args = try!(read_u32(bytes));
     let rest_arg = try!(read_u8(bytes)) == 1;
 
-    let locals = read_string_vector!(T, bytes);
+    let locals = try!(read_u16(bytes));
     let instructions = read_instruction_vector!(T, bytes);
     let int_literals = read_i64_vector!(T, bytes);
     let float_literals = read_f64_vector!(T, bytes);
@@ -399,7 +399,7 @@ mod tests {
         pack_u32!(0, buffer); // arguments
         pack_u32!(0, buffer); // required arguments
         pack_u8!(0, buffer); // rest argument
-        pack_u64!(0, buffer); // locals
+        pack_u16!(0, buffer); // locals
         pack_u64!(0, buffer); // instructions
         pack_u64!(0, buffer); // integer literals
         pack_u64!(0, buffer); // float literals
@@ -626,7 +626,7 @@ mod tests {
         pack_u32!(3, buffer); // arguments
         pack_u32!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
-        pack_u64!(0, buffer); // locals
+        pack_u16!(0, buffer); // locals
 
         pack_u64!(1, buffer); // instructions
         pack_u16!(0, buffer); // type
@@ -654,7 +654,7 @@ mod tests {
         assert_eq!(object.required_arguments, 2);
         assert_eq!(object.rest_argument, true);
 
-        assert_eq!(object.locals.len(), 0);
+        assert_eq!(object.locals, 0);
 
         assert_eq!(object.instructions.len(), 1);
 
