@@ -107,6 +107,12 @@ impl ObjectHeader {
                          -> Option<ObjectPointer> {
         self.methods.remove(key)
     }
+
+    pub fn remove_attribute(&mut self,
+                            key: &ObjectPointer)
+                            -> Option<ObjectPointer> {
+        self.attributes.remove(key)
+    }
 }
 
 #[cfg(test)]
@@ -264,5 +270,18 @@ mod tests {
 
         assert!(method.is_some());
         assert!(header.get_method(&name).is_none());
+    }
+
+    #[test]
+    fn test_remove_attribute() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+
+        header.add_attribute(name, ObjectPointer::null());
+
+        let attr = header.remove_attribute(&name);
+
+        assert!(attr.is_some());
+        assert!(header.get_attribute(&name).is_none());
     }
 }

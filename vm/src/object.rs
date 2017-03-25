@@ -104,6 +104,17 @@ impl Object {
         }
     }
 
+    /// Removes an attribute and returns it.
+    pub fn remove_attribute(&mut self,
+                            name: &ObjectPointer)
+                            -> Option<ObjectPointer> {
+        if let Some(header) = self.header_mut() {
+            header.remove_attribute(name)
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the object responds to the given message.
     pub fn responds_to(&self, name: &ObjectPointer) -> bool {
         self.lookup_method(name).is_some()
@@ -380,6 +391,20 @@ mod tests {
         assert!(method.is_some());
         assert_eq!(obj.responds_to(&name), false);
     }
+
+    #[test]
+    fn test_object_remove_attribute() {
+        let mut obj = new_object();
+        let name = fake_pointer();
+
+        obj.add_attribute(name, fake_pointer());
+
+        let attr = obj.remove_attribute(&name);
+
+        assert!(attr.is_some());
+        assert!(obj.lookup_attribute(&name).is_none());
+    }
+
 
     #[test]
     fn test_object_responds_to_without_method() {

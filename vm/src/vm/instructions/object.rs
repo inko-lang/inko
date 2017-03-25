@@ -188,3 +188,36 @@ pub fn get_toplevel(machine: &Machine,
 
     Ok(Action::None)
 }
+
+/// Removes a attribute from an object.
+///
+/// This instruction requires 3 arguments:
+///
+/// 1. The register to store the removed attribute in.
+/// 2. The register containing the object from which to remove the attribute.
+/// 3. The register containing the attribute name as a string.
+///
+/// If the attribute did not exist the target register is set to nil instead.
+pub fn remove_attribute(machine: &Machine,
+                        process: &RcProcess,
+                        _: &RcCompiledCode,
+                        instruction: &Instruction)
+                        -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let name_ptr = process.get_register(instruction.arg(2)?)?;
+
+    let name_obj = name_ptr.get();
+    let name = machine.state.intern(name_obj.value.as_string()?);
+
+    let obj = if let Some(attribute) = rec_ptr.get_mut()
+        .remove_attribute(&name) {
+        attribute
+    } else {
+        machine.state.nil_object
+    };
+
+    process.set_register(register, obj);
+
+    Ok(Action::None)
+}
