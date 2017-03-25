@@ -134,7 +134,7 @@ mod tests {
     use vm::instruction::{Instruction, InstructionType};
 
     fn new_compiled_code() -> CompiledCode {
-        let ins = Instruction::new(InstructionType::Return, vec![0], 1, 1);
+        let ins = Instruction::new(InstructionType::Return, vec![0], 1);
 
         CompiledCode::new("foo".to_string(), "bar.inko".to_string(), 1, vec![ins])
     }

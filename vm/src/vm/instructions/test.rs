@@ -23,7 +23,7 @@ pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
 
 /// Creates a new instruction.
 pub fn new_instruction(ins_type: InstructionType, args: Vec<u32>) -> Instruction {
-    Instruction::new(ins_type, args, 1, 1)
+    Instruction::new(ins_type, args, 1)
 }
 
 /// Returns a mutable reference to the wrapped value of an Arc, regardless of
@@ -49,7 +49,6 @@ mod tests {
         assert_eq!(ins.instruction_type, InstructionType::SetInteger);
         assert_eq!(ins.arguments, vec![1, 2]);
         assert_eq!(ins.line, 1);
-        assert_eq!(ins.column, 1);
     }
 
     #[test]

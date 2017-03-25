@@ -252,23 +252,18 @@ pub struct Instruction {
 
     /// The line from which the instruction originated.
     pub line: u32,
-
-    /// The column from which the instruction originated.
-    pub column: u32,
 }
 
 impl Instruction {
     /// Returns a new Instruction.
     pub fn new(ins_type: InstructionType,
                arguments: Vec<u32>,
-               line: u32,
-               column: u32)
+               line: u32)
                -> Instruction {
         Instruction {
             instruction_type: ins_type,
             arguments: arguments,
             line: line,
-            column: column,
         }
     }
 
@@ -288,7 +283,7 @@ mod tests {
     use super::*;
 
     fn new_instruction() -> Instruction {
-        Instruction::new(InstructionType::SetInteger, vec![1, 2], 3, 4)
+        Instruction::new(InstructionType::SetInteger, vec![1, 2], 3)
     }
 
     #[test]
@@ -303,7 +298,6 @@ mod tests {
         assert_eq!(ins.arguments[0], 1);
         assert_eq!(ins.arguments[1], 2);
         assert_eq!(ins.line, 3);
-        assert_eq!(ins.column, 4);
     }
 
     #[test]

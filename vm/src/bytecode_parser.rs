@@ -235,8 +235,7 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
 
     let args = read_u32_vector!(T, bytes);
     let line = try!(read_u32(bytes));
-    let column = try!(read_u32(bytes));
-    let ins = Instruction::new(ins_type, args, line, column);
+    let ins = Instruction::new(ins_type, args, line);
 
     Ok(ins)
 }
@@ -605,7 +604,6 @@ mod tests {
         pack_u64!(1, buffer); // args
         pack_u32!(6, buffer);
         pack_u32!(2, buffer); // line
-        pack_u32!(4, buffer); // column
 
         let ins = unwrap!(super::read_instruction(&mut buffer.bytes()));
 
@@ -616,7 +614,6 @@ mod tests {
 
         assert_eq!(ins.arguments[0], 6);
         assert_eq!(ins.line, 2);
-        assert_eq!(ins.column, 4);
     }
 
     #[test]
@@ -636,7 +633,6 @@ mod tests {
         pack_u64!(1, buffer); // args
         pack_u32!(6, buffer);
         pack_u32!(2, buffer); // line
-        pack_u32!(4, buffer); // column
 
         pack_u64!(1, buffer); // integer literals
         pack_u64!(10, buffer);
@@ -671,7 +667,6 @@ mod tests {
 
         assert_eq!(ins.arguments[0], 6);
         assert_eq!(ins.line, 2);
-        assert_eq!(ins.column, 4);
 
         assert_eq!(object.integer_literals.len(), 1);
         assert_eq!(object.integer_literals[0], 10);
