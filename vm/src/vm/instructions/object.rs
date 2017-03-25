@@ -7,6 +7,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
+use object_value;
 use process::RcProcess;
 
 /// Sets an object in a register.
@@ -216,6 +217,52 @@ pub fn remove_attribute(machine: &Machine,
     } else {
         machine.state.nil_object
     };
+
+    process.set_register(register, obj);
+
+    Ok(Action::None)
+}
+
+/// Gets all the attributes available on an object.
+///
+/// This instruction requires 2 arguments:
+///
+/// 1. The register to store the attributes in.
+/// 2. The register containing the object for which to get all attributes.
+pub fn get_attributes(machine: &Machine,
+                      process: &RcProcess,
+                      _: &RcCompiledCode,
+                      instruction: &Instruction)
+                      -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let attributes = rec_ptr.get().attributes();
+
+    let obj = process.allocate(object_value::array(attributes),
+                               machine.state.array_prototype);
+
+    process.set_register(register, obj);
+
+    Ok(Action::None)
+}
+
+/// Gets all the attributes names available on an object.
+///
+/// This instruction requires 2 arguments:
+///
+/// 1. The register to store the attribute names in.
+/// 2. The register containing the object for which to get all attributes names.
+pub fn get_attribute_names(machine: &Machine,
+                           process: &RcProcess,
+                           _: &RcCompiledCode,
+                           instruction: &Instruction)
+                           -> InstructionResult {
+    let register = instruction.arg(0)?;
+    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let attributes = rec_ptr.get().attribute_names();
+
+    let obj = process.allocate(object_value::array(attributes),
+                               machine.state.array_prototype);
 
     process.set_register(register, obj);
 

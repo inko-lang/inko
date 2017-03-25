@@ -6,6 +6,16 @@ use std::collections::HashMap;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
+macro_rules! push_collection {
+    ($header: expr, $source: ident, $what: ident, $vec: expr) => ({
+        $vec.reserve($header.$source.len());
+
+        for thing in $header.$source.$what() {
+            $vec.push(*thing);
+        }
+    })
+}
+
 pub struct ObjectHeader {
     /// The attributes defined in an object.
     pub attributes: HashMap<ObjectPointer, ObjectPointer>,
@@ -112,6 +122,22 @@ impl ObjectHeader {
                             key: &ObjectPointer)
                             -> Option<ObjectPointer> {
         self.attributes.remove(key)
+    }
+
+    pub fn push_methods(&self, vec: &mut Vec<ObjectPointer>) {
+        push_collection!(self, methods, values, vec);
+    }
+
+    pub fn push_method_names(&self, vec: &mut Vec<ObjectPointer>) {
+        push_collection!(self, methods, keys, vec);
+    }
+
+    pub fn push_attributes(&self, vec: &mut Vec<ObjectPointer>) {
+        push_collection!(self, attributes, values, vec);
+    }
+
+    pub fn push_attribute_names(&self, vec: &mut Vec<ObjectPointer>) {
+        push_collection!(self, attributes, keys, vec);
     }
 }
 
@@ -283,5 +309,61 @@ mod tests {
 
         assert!(attr.is_some());
         assert!(header.get_attribute(&name).is_none());
+    }
+
+    #[test]
+    fn test_push_methods() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+        let method = ObjectPointer::null();
+        let mut methods = Vec::new();
+
+        header.add_method(name, method);
+        header.push_methods(&mut methods);
+
+        assert_eq!(methods.len(), 1);
+        assert!(methods[0] == method);
+    }
+
+    #[test]
+    fn test_push_method_names() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+        let method = ObjectPointer::null();
+        let mut names = Vec::new();
+
+        header.add_method(name, method);
+        header.push_method_names(&mut names);
+
+        assert_eq!(names.len(), 1);
+        assert!(names[0] == name);
+    }
+
+    #[test]
+    fn test_push_attributes() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+        let attribute = ObjectPointer::null();
+        let mut attributes = Vec::new();
+
+        header.add_attribute(name, attribute);
+        header.push_attributes(&mut attributes);
+
+        assert_eq!(attributes.len(), 1);
+        assert!(attributes[0] == attribute);
+    }
+
+    #[test]
+    fn test_push_attribute_names() {
+        let mut header = ObjectHeader::new();
+        let name = fake_pointer();
+        let attribute = ObjectPointer::null();
+        let mut names = Vec::new();
+
+        header.add_attribute(name, attribute);
+        header.push_attribute_names(&mut names);
+
+        assert_eq!(names.len(), 1);
+        assert!(names[0] == name);
     }
 }

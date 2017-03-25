@@ -115,6 +115,68 @@ impl Object {
         }
     }
 
+    /// Returns all the methods available to this object.
+    pub fn methods(&self) -> Vec<ObjectPointer> {
+        let mut methods = Vec::new();
+
+        self.each_header(|header| header.push_methods(&mut methods));
+
+        methods
+    }
+
+    /// Returns all the method names available to this object.
+    pub fn method_names(&self) -> Vec<ObjectPointer> {
+        let mut names = Vec::new();
+
+        self.each_header(|header| header.push_method_names(&mut names));
+
+        names
+    }
+
+    /// Returns all the attributes available to this object.
+    pub fn attributes(&self) -> Vec<ObjectPointer> {
+        let mut attributes = Vec::new();
+
+        if let Some(header) = self.header() {
+            header.push_attributes(&mut attributes);
+        }
+
+        attributes
+    }
+
+    /// Returns all the attribute names available to this object.
+    pub fn attribute_names(&self) -> Vec<ObjectPointer> {
+        let mut attributes = Vec::new();
+
+        if let Some(header) = self.header() {
+            header.push_attribute_names(&mut attributes);
+        }
+
+        attributes
+    }
+
+    /// Calls the supplied closure for the current object's header, and for each
+    /// header in the prototype chain.
+    pub fn each_header<F>(&self, mut func: F)
+        where F: FnMut(&ObjectHeader)
+    {
+        if let Some(header) = self.header() {
+            func(header);
+        }
+
+        let mut proto = self.prototype();
+
+        while let Some(pointer) = proto {
+            let object = pointer.get();
+
+            if let Some(header) = object.header() {
+                func(header);
+            }
+
+            proto = object.prototype();
+        }
+    }
+
     /// Returns true if the object responds to the given message.
     pub fn responds_to(&self, name: &ObjectPointer) -> bool {
         self.lookup_method(name).is_some()
@@ -405,6 +467,65 @@ mod tests {
         assert!(obj.lookup_attribute(&name).is_none());
     }
 
+    #[test]
+    fn test_object_methods() {
+        let mut child = new_object();
+        let mut parent = new_object();
+
+        child.set_prototype(object_pointer_for(&parent));
+
+        child.add_method(fake_pointer(), fake_pointer());
+        parent.add_method(fake_pointer(), fake_pointer());
+
+        assert_eq!(child.methods().len(), 2);
+    }
+
+    #[test]
+    fn test_object_method_names() {
+        let mut child = new_object();
+        let mut parent = new_object();
+
+        child.set_prototype(object_pointer_for(&parent));
+
+        child.add_method(fake_pointer(), fake_pointer());
+        parent.add_method(fake_pointer(), fake_pointer());
+
+        assert_eq!(child.method_names().len(), 2);
+    }
+
+    #[test]
+    fn test_object_attributes() {
+        let mut obj = new_object();
+
+        obj.add_attribute(fake_pointer(), fake_pointer());
+
+        assert_eq!(obj.attributes().len(), 1);
+    }
+
+    #[test]
+    fn test_object_attribute_names() {
+        let mut obj = new_object();
+
+        obj.add_attribute(fake_pointer(), fake_pointer());
+
+        assert_eq!(obj.attribute_names().len(), 1);
+    }
+
+    #[test]
+    fn test_object_each_header() {
+        let mut child = new_object();
+        let mut parent = new_object();
+        let mut counter = 0;
+
+        child.set_prototype(object_pointer_for(&parent));
+
+        child.add_method(fake_pointer(), fake_pointer());
+        parent.add_method(fake_pointer(), fake_pointer());
+
+        child.each_header(|_| counter += 1);
+
+        assert_eq!(counter, 2);
+    }
 
     #[test]
     fn test_object_responds_to_without_method() {

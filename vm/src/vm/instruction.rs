@@ -107,10 +107,10 @@ pub enum InstructionType {
     FileParsed,
     GetBindingPrototype,
     GetBinding,
-    SetConst,
-    GetConst,
-    SetAttr,
-    GetAttr,
+    SetConstant,
+    GetConstant,
+    SetAttribute,
+    GetAttribute,
     SetPrototype,
     GetPrototype,
     LocalExists,
@@ -134,13 +134,17 @@ pub enum InstructionType {
     ConstExists,
     RemoveMethod,
     RemoveAttribute,
+    GetMethods,
+    GetMethodNames,
+    GetAttributes,
+    GetAttributeNames,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
    &RcProcess,
    &RcCompiledCode,
    &Instruction)
-   -> InstructionResult; 104] = [integer::set_integer,
+   -> InstructionResult; 108] = [integer::set_integer,
                                  float::set_float,
                                  string::set_string,
                                  object::set_object,
@@ -243,7 +247,11 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  object::attr_exists,
                                  constant::const_exists,
                                  method::remove_method,
-                                 object::remove_attribute];
+                                 object::remove_attribute,
+                                 method::get_methods,
+                                 method::get_method_names,
+                                 object::get_attributes,
+                                 object::get_attribute_names];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]
