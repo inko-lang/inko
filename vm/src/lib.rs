@@ -10,6 +10,7 @@ pub mod queue;
 pub mod tagged_pointer;
 
 pub mod binding;
+pub mod block;
 pub mod bytecode_parser;
 pub mod call_frame;
 pub mod compiled_code;

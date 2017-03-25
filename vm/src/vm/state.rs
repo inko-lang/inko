@@ -77,8 +77,8 @@ pub struct State {
     /// The prototype for method objects.
     pub method_prototype: ObjectPointer,
 
-    /// The prototype for compiled code objects.
-    pub compiled_code_prototype: ObjectPointer,
+    /// The prototype for Blocks.
+    pub block_prototype: ObjectPointer,
 
     /// The prototype for binding objects.
     pub binding_prototype: ObjectPointer,
@@ -113,7 +113,7 @@ impl State {
         let true_proto = perm_alloc.allocate_empty();
         let false_proto = perm_alloc.allocate_empty();
         let method_proto = perm_alloc.allocate_empty();
-        let cc_proto = perm_alloc.allocate_empty();
+        let block_proto = perm_alloc.allocate_empty();
         let binding_proto = perm_alloc.allocate_empty();
 
         let true_obj = perm_alloc.allocate_empty();
@@ -153,7 +153,7 @@ impl State {
             true_prototype: true_proto,
             false_prototype: false_proto,
             method_prototype: method_proto,
-            compiled_code_prototype: cc_proto,
+            block_prototype: block_proto,
             binding_prototype: binding_proto,
             true_object: true_obj,
             false_object: false_obj,

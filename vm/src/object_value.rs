@@ -8,8 +8,8 @@ use std::fs;
 use std::mem;
 
 use binding::RcBinding;
+use block::Block;
 use object_pointer::ObjectPointer;
-use compiled_code::RcCompiledCode;
 
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
@@ -20,7 +20,7 @@ pub enum ObjectValue {
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
     Error(u16),
-    CompiledCode(RcCompiledCode),
+    Block(Box<Block>),
     Binding(RcBinding),
 }
 
@@ -74,9 +74,9 @@ impl ObjectValue {
         }
     }
 
-    pub fn is_compiled_code(&self) -> bool {
+    pub fn is_block(&self) -> bool {
         match *self {
-            ObjectValue::CompiledCode(_) => true,
+            ObjectValue::Block(_) => true,
             _ => false,
         }
     }
@@ -150,12 +150,11 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_compiled_code(&self) -> Result<RcCompiledCode, String> {
+    pub fn as_block(&self) -> Result<&Box<Block>, String> {
         match *self {
-            ObjectValue::CompiledCode(ref val) => Ok(val.clone()),
+            ObjectValue::Block(ref val) => Ok(val),
             _ => {
-                Err("ObjectValue::as_compiled_code() called on a non compiled \
-                     code object"
+                Err("ObjectValue::as_block() called on a non block object"
                     .to_string())
             }
         }
@@ -212,8 +211,8 @@ pub fn error(value: u16) -> ObjectValue {
     ObjectValue::Error(value)
 }
 
-pub fn compiled_code(value: RcCompiledCode) -> ObjectValue {
-    ObjectValue::CompiledCode(value)
+pub fn block(value: Block) -> ObjectValue {
+    ObjectValue::Block(Box::new(value))
 }
 
 pub fn binding(value: RcBinding) -> ObjectValue {
@@ -224,6 +223,7 @@ pub fn binding(value: RcBinding) -> ObjectValue {
 mod tests {
     use super::*;
     use std::fs::File;
+    use block::Block;
     use binding::Binding;
     use compiled_code::CompiledCode;
     use object_pointer::ObjectPointer;
@@ -274,14 +274,17 @@ mod tests {
     }
 
     #[test]
-    fn test_is_compiled_code() {
+    fn test_is_block() {
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a.inko".to_string(),
                                          1,
                                          Vec::new());
 
-        assert!(ObjectValue::CompiledCode(code).is_compiled_code());
-        assert_eq!(ObjectValue::None.is_compiled_code(), false);
+        let binding = Binding::new();
+        let block = Block::new(code, binding);
+
+        assert!(ObjectValue::Block(Box::new(block)).is_block());
+        assert_eq!(ObjectValue::None.is_block(), false);
     }
 
     #[test]
@@ -407,20 +410,22 @@ mod tests {
     }
 
     #[test]
-    fn test_as_compiled_code_without_code() {
-        assert!(ObjectValue::None.as_compiled_code().is_err());
+    fn test_as_block_without_block() {
+        assert!(ObjectValue::None.as_block().is_err());
     }
 
     #[test]
-    fn test_as_compiled_code_with_compiled_code() {
+    fn test_as_block_with_block() {
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a.inko".to_string(),
                                          1,
                                          Vec::new());
-        let result = ObjectValue::CompiledCode(code).as_compiled_code();
+        let binding = Binding::new();
+        let block = Block::new(code, binding);
+        let value = ObjectValue::Block(Box::new(block));
+        let result = value.as_block();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().name, "a".to_string());
     }
 
     #[test]
@@ -490,13 +495,16 @@ mod tests {
     }
 
     #[test]
-    fn test_compiled_code() {
+    fn test_block() {
         let code = CompiledCode::with_rc("a".to_string(),
                                          "a.inko".to_string(),
                                          1,
                                          Vec::new());
 
-        assert!(compiled_code(code).is_compiled_code());
+        let binding = Binding::new();
+        let blk = Block::new(code, binding);
+
+        assert!(block(blk).is_block());
     }
 
     #[test]

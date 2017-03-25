@@ -1,6 +1,7 @@
 //! Virtual Machine for running instructions
 
 use binding::{Binding, RcBinding};
+use block::Block;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use execution_context::ExecutionContext;
@@ -98,9 +99,10 @@ impl Machine {
     pub fn allocate_method(&self,
                            process: &RcProcess,
                            receiver: &ObjectPointer,
-                           code: RcCompiledCode)
+                           block_ref: &Box<Block>)
                            -> ObjectPointer {
-        let value = object_value::compiled_code(code);
+        let block = (**block_ref).clone();
+        let value = object_value::block(block);
         let proto = self.state.method_prototype.clone();
 
         if receiver.is_permanent() {
@@ -217,17 +219,21 @@ impl Machine {
         self.terminate();
     }
 
-    /// Schedules the execution of a new CompiledCode.
+    /// Schedules the execution of a new Block.
     pub fn schedule_code(&self,
                          process: RcProcess,
-                         code: RcCompiledCode,
+                         block: &Box<Block>,
                          args: &Vec<ObjectPointer>,
                          binding: Option<RcBinding>,
                          register: usize) {
+        let code = block.code.clone();
+
         let context = if let Some(rc_bind) = binding {
             ExecutionContext::with_binding(rc_bind, code.clone(), Some(register))
         } else {
-            ExecutionContext::new(Binding::new(), code.clone(), Some(register))
+            let binding = Binding::with_parent(block.binding.clone());
+
+            ExecutionContext::new(binding, code.clone(), Some(register))
         };
 
         let frame = CallFrame::from_code(code);

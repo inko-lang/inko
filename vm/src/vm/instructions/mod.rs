@@ -1,8 +1,8 @@
 pub mod array;
 pub mod binding;
+pub mod block;
 pub mod boolean;
 pub mod code_execution;
-pub mod compiled_code;
 pub mod constant;
 pub mod error;
 pub mod file;

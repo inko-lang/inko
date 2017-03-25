@@ -181,18 +181,18 @@ pub fn get_binding_prototype(machine: &Machine,
     Ok(Action::None)
 }
 
-/// Gets the prototype to use for compiled code objects.
+/// Gets the prototype to use for Blocks.
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
-pub fn get_compiled_code_prototype(machine: &Machine,
-                                   process: &RcProcess,
-                                   _: &RcCompiledCode,
-                                   instruction: &Instruction)
-                                   -> InstructionResult {
+pub fn get_block_prototype(machine: &Machine,
+                           process: &RcProcess,
+                           _: &RcCompiledCode,
+                           instruction: &Instruction)
+                           -> InstructionResult {
     let register = instruction.arg(0)?;
 
-    process.set_register(register, machine.state.compiled_code_prototype.clone());
+    process.set_register(register, machine.state.block_prototype);
 
     Ok(Action::None)
 }

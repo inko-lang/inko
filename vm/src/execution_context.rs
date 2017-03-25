@@ -45,6 +45,10 @@ impl ExecutionContext {
                code: RcCompiledCode,
                return_register: Option<usize>)
                -> ExecutionContext {
+        // Reserve space for all locals so we don't end up re-allocating memory
+        // when adding locals.
+        binding.reserve_locals(code.locals.len());
+
         ExecutionContext {
             register: Register::new(),
             binding: binding,

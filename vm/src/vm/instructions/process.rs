@@ -14,7 +14,7 @@ use process::RcProcess;
 /// This instruction takes 3 arguments:
 ///
 /// 1. The register to store the PID in.
-/// 2. The register containing the CompiledCode object to run in the process.
+/// 2. The register containing the Block to run in the process.
 /// 3. The register containing the ID of the process pool to schedule the
 ///    process on. Defaults to the ID of the primary pool.
 pub fn spawn_process(machine: &Machine,
@@ -23,7 +23,7 @@ pub fn spawn_process(machine: &Machine,
                      instruction: &Instruction)
                      -> InstructionResult {
     let register = instruction.arg(0)?;
-    let code_ptr = process.get_register(instruction.arg(1)?)?;
+    let block_ptr = process.get_register(instruction.arg(1)?)?;
 
     let pool_id = if let Ok(pool_reg) = instruction.arg(2) {
         let ptr = process.get_register(pool_reg)?;
@@ -33,9 +33,9 @@ pub fn spawn_process(machine: &Machine,
         PRIMARY_POOL
     };
 
-    let code_obj = code_ptr.get().value.as_compiled_code()?;
+    let block_obj = block_ptr.get().value.as_block()?;
 
-    machine.spawn_process(process, pool_id, code_obj, register)?;
+    machine.spawn_process(process, pool_id, block_obj.code.clone(), register)?;
 
     Ok(Action::None)
 }

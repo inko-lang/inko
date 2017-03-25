@@ -1,9 +1,9 @@
 //! Structures for encoding virtual machine instructions.
 use vm::instructions::array;
 use vm::instructions::binding;
+use vm::instructions::block;
 use vm::instructions::boolean;
 use vm::instructions::code_execution;
-use vm::instructions::compiled_code;
 use vm::instructions::constant;
 use vm::instructions::error;
 use vm::instructions::file;
@@ -42,18 +42,18 @@ pub enum InstructionType {
     GetTruePrototype,
     GetFalsePrototype,
     GetMethodPrototype,
-    GetCompiledCodePrototype,
+    GetBlockPrototype,
     GetTrue,
     GetFalse,
     SetLocal,
     GetLocal,
-    SetCompiledCode,
+    SetBlock,
     Return,
     GotoIfFalse,
     GotoIfTrue,
     Goto,
     DefMethod,
-    RunCode,
+    RunBlock,
     IsError,
     IntegerAdd,
     IntegerDiv,
@@ -150,18 +150,18 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  prototype::get_true_prototype,
                                  prototype::get_false_prototype,
                                  prototype::get_method_prototype,
-                                 prototype::get_compiled_code_prototype,
+                                 prototype::get_block_prototype,
                                  boolean::get_true,
                                  boolean::get_false,
                                  local_variable::set_local,
                                  local_variable::get_local,
-                                 compiled_code::set_compiled_code,
+                                 block::set_block,
                                  control_flow::return_value,
                                  control_flow::goto_if_false,
                                  control_flow::goto_if_true,
                                  control_flow::goto,
                                  method::def_method,
-                                 code_execution::run_code,
+                                 code_execution::run_block,
                                  error::is_error,
                                  integer::integer_add,
                                  integer::integer_div,

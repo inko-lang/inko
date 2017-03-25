@@ -3,6 +3,7 @@
 //! The CopyObject trait can be implemented by allocators to support copying of
 //! objects into a heap.
 
+use block::Block;
 use object::Object;
 use object_value;
 use object_value::ObjectValue;
@@ -40,11 +41,16 @@ pub trait CopyObject: Sized {
                 panic!("ObjectValue::File can not be cloned");
             }
             ObjectValue::Error(num) => object_value::error(num),
-            ObjectValue::CompiledCode(ref code) => {
-                object_value::compiled_code(code.clone())
+            ObjectValue::Block(ref block) => {
+                let new_binding = block.binding.clone_to(self);
+                let new_block = Block::new(block.code.clone(), new_binding);
+
+                object_value::block(new_block)
             }
-            ObjectValue::Binding(_) => {
-                panic!("ObjectValue::Binding can not be cloned");
+            ObjectValue::Binding(ref binding) => {
+                let new_binding = binding.clone_to(self);
+
+                object_value::binding(new_binding)
             }
         };
 
@@ -193,29 +199,57 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_compiled_code() {
+    fn test_copy_block() {
         let mut dummy = DummyAllocator::new();
         let cc = CompiledCode::with_rc("a".to_string(),
                                        "a".to_string(),
                                        1,
                                        Vec::new());
 
+        let block = Block::new(cc, Binding::new());
+
         let ptr = dummy.allocator
-            .allocate_without_prototype(object_value::compiled_code(cc));
+            .allocate_without_prototype(object_value::block(block));
 
         let copy = dummy.copy_object(ptr);
 
-        assert!(copy.get().value.is_compiled_code());
+        assert!(copy.get().value.is_block());
     }
 
     #[test]
-    #[should_panic]
     fn test_copy_binding() {
         let mut dummy = DummyAllocator::new();
-        let binding = Binding::new();
-        let pointer = dummy.allocator
-            .allocate_without_prototype(object_value::binding(binding));
 
-        dummy.copy_object(pointer);
+        let binding1 = Binding::new();
+        let binding2 = Binding::with_parent(binding1.clone());
+
+        let local1 = dummy.allocator
+            .allocate_without_prototype(object_value::integer(15));
+
+        let local2 = dummy.allocator
+            .allocate_without_prototype(object_value::integer(20));
+
+        binding1.set_local(0, local1);
+        binding2.set_local(0, local2);
+
+        let binding_ptr = dummy.allocator
+            .allocate_without_prototype(object_value::binding(binding2));
+
+        let binding_copy_ptr = dummy.copy_object(binding_ptr);
+        let binding_copy_obj = binding_copy_ptr.get();
+
+        let binding_copy = binding_copy_obj.value.as_binding().unwrap();
+        let parent_copy = binding_copy.parent.clone().unwrap();
+
+        assert!(binding_copy.parent.is_some());
+
+        let local1_copy = binding_copy.get_local(0).unwrap();
+        let local2_copy = parent_copy.get_local(0).unwrap();
+
+        assert!(local1 != local1_copy);
+        assert!(local2 != local2_copy);
+
+        assert_eq!(local1_copy.get().value.as_integer().unwrap(), 20);
+        assert_eq!(local2_copy.get().value.as_integer().unwrap(), 15);
     }
 }

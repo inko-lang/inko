@@ -3,6 +3,8 @@
 //! A binding contains the local variables available to a certain scope.
 use std::sync::Arc;
 use std::cell::UnsafeCell;
+
+use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 pub struct Binding {
@@ -42,6 +44,11 @@ impl Binding {
         };
 
         Arc::new(bind)
+    }
+
+    /// Reserves space for the given number of local variables.
+    pub fn reserve_locals(&self, amount: usize) {
+        self.locals_mut().reserve_exact(amount);
     }
 
     /// Returns the value of a local variable.
@@ -114,6 +121,24 @@ impl Binding {
             local_index: 0,
         }
     }
+
+    /// Creates a new binding and recursively copies over all pointers to the
+    /// target heap.
+    pub fn clone_to<H: CopyObject>(&self, heap: &mut H) -> RcBinding {
+        let parent = if let Some(ref bind) = self.parent {
+            Some(bind.clone_to(heap))
+        } else {
+            None
+        };
+
+        let locals =
+            self.locals().iter().map(|val| heap.copy_object(*val)).collect();
+
+        Arc::new(Binding {
+            locals: UnsafeCell::new(locals),
+            parent: parent,
+        })
+    }
 }
 
 impl<'a> Iterator for PointerIterator<'a> {
@@ -141,6 +166,10 @@ impl<'a> Iterator for PointerIterator<'a> {
 mod tests {
     use super::*;
     use object_pointer::{ObjectPointer, RawObjectPointer};
+    use object_value;
+    use immix::global_allocator::GlobalAllocator;
+    use immix::local_allocator::LocalAllocator;
+    use immix::copy_object::CopyObject;
 
     #[test]
     fn test_with_parent() {
@@ -148,6 +177,15 @@ mod tests {
         let binding2 = Binding::with_parent(binding1.clone());
 
         assert!(binding2.parent.is_some());
+    }
+
+    #[test]
+    fn test_reserve_locals() {
+        let binding = Binding::new();
+
+        binding.reserve_locals(4);
+
+        assert_eq!(binding.locals().capacity(), 4);
     }
 
     #[test]
@@ -296,5 +334,47 @@ mod tests {
         assert!(iterator.next().unwrap().get() == &b1_local2);
 
         assert!(iterator.next().is_none());
+    }
+
+    #[test]
+    fn test_clone_to() {
+        let global_alloc = GlobalAllocator::new();
+        let mut alloc1 = LocalAllocator::new(global_alloc.clone());
+        let mut alloc2 = LocalAllocator::new(global_alloc);
+
+        let ptr1 = alloc1.allocate_without_prototype(object_value::integer(5));
+        let ptr2 = alloc1.allocate_without_prototype(object_value::integer(2));
+
+        let src_bind1 = Binding::new();
+        let src_bind2 = Binding::with_parent(src_bind1.clone());
+
+        src_bind1.set_local(0, ptr1);
+        src_bind2.set_local(0, ptr2);
+
+        let bind_copy = src_bind2.clone_to(&mut alloc2);
+
+        assert_eq!(bind_copy.locals().len(), 1);
+        assert!(bind_copy.parent.is_some());
+
+        assert_eq!(bind_copy.get_local(0)
+                       .unwrap()
+                       .get()
+                       .value
+                       .as_integer()
+                       .unwrap(),
+                   2);
+
+        let bind_copy_parent = bind_copy.parent.as_ref().unwrap();
+
+        assert_eq!(bind_copy_parent.locals().len(), 1);
+        assert!(bind_copy_parent.parent.is_none());
+
+        assert_eq!(bind_copy_parent.get_local(0)
+                       .unwrap()
+                       .get()
+                       .value
+                       .as_integer()
+                       .unwrap(),
+                   5);
     }
 }

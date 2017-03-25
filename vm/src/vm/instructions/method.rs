@@ -46,8 +46,7 @@ pub fn lookup_method(machine: &Machine,
 /// 2. The register pointing to a specific object to define the method
 ///    on.
 /// 3. The register containing a String to use as the method name.
-/// 4. The register containing the CompiledCode object to use for the
-///    method.
+/// 4. The register containing the Block to use for the method.
 pub fn def_method(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -56,14 +55,15 @@ pub fn def_method(machine: &Machine,
     let register = instruction.arg(0)?;
     let receiver_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let cc_ptr = process.get_register(instruction.arg(3)?)?;
+    let block_ptr = process.get_register(instruction.arg(3)?)?;
+
     let name_obj = name_ptr.get();
-
-    let cc_obj = cc_ptr.get();
     let name = machine.state.intern(name_obj.value.as_string()?);
-    let cc = cc_obj.value.as_compiled_code()?;
 
-    let method = machine.allocate_method(&process, &receiver_ptr, cc);
+    let block_obj = block_ptr.get();
+    let block = block_obj.value.as_block()?;
+
+    let method = machine.allocate_method(&process, &receiver_ptr, block);
 
     receiver_ptr.add_method(&process, name.clone(), method);
 

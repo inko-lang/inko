@@ -4,16 +4,18 @@ use vm::instruction::Instruction;
 use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
+use block::Block;
+use binding::Binding;
 use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
 
-/// Executes a CompiledCode object.
+/// Executes a Block object.
 ///
 /// This instruction takes the following arguments:
 ///
 /// 1. The register to store the return value in.
-/// 2. The register containing the CompiledCode object to run.
+/// 2. The register containing the Block object to run.
 /// 3. The Binding to use, if any. Setting this register to nil will result in a
 ///    binding being created automatically.
 /// 4. A register containing a boolean. If the register is truthy the last
@@ -22,15 +24,15 @@ use process::RcProcess;
 ///
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object.
-pub fn run_code(machine: &Machine,
-                process: &RcProcess,
-                _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+pub fn run_block(machine: &Machine,
+                 process: &RcProcess,
+                 _: &RcCompiledCode,
+                 instruction: &Instruction)
+                 -> InstructionResult {
     process.advance_line(instruction.line);
 
     let register = instruction.arg(0)?;
-    let code_ptr = process.get_register(instruction.arg(1)?)?;
+    let block_ptr = process.get_register(instruction.arg(1)?)?;
 
     // Figure out what binding we need to use.
     let binding = {
@@ -46,13 +48,13 @@ pub fn run_code(machine: &Machine,
     let rest_arg_ptr = process.get_register(instruction.arg(3)?)?;
     let rest_arg = !is_false!(machine, rest_arg_ptr);
 
-    let code_obj = code_ptr.get();
-    let code_val = code_obj.value.as_compiled_code()?;
+    let block_obj = block_ptr.get();
+    let block_val = block_obj.value.as_block()?;
 
     // Argument handling
     let arg_count = instruction.arguments.len() - 4;
-    let tot_args = code_val.arguments as usize;
-    let req_args = code_val.required_arguments as usize;
+    let tot_args = block_val.arguments();
+    let req_args = block_val.required_arguments();
 
     let mut arguments =
         machine.collect_arguments(process.clone(), instruction, 4, arg_count)?;
@@ -70,7 +72,7 @@ pub fn run_code(machine: &Machine,
 
     // If the code object defines a rest argument we'll pack any excessive
     // arguments into a single array.
-    if code_val.rest_argument && arguments.len() > tot_args {
+    if block_val.has_rest_argument() && arguments.len() > tot_args {
         let rest_count = arguments.len() - tot_args;
         let mut rest = Vec::new();
 
@@ -84,42 +86,41 @@ pub fn run_code(machine: &Machine,
                                           machine.state.array_prototype.clone());
 
         arguments.push(rest_array);
-    } else if code_val.rest_argument && arguments.len() == 0 {
+    } else if block_val.has_rest_argument() && arguments.len() == 0 {
         let rest_array = process.allocate(object_value::array(Vec::new()),
                                           machine.state.array_prototype.clone());
 
         arguments.push(rest_array);
     }
 
-    if arguments.len() > tot_args && !code_val.rest_argument {
+    if arguments.len() > tot_args && !block_val.has_rest_argument() {
         return Err(format!("{} accepts up to {} arguments, but {} \
                             arguments were given",
-                           code_val.name,
-                           code_val.arguments,
+                           block_val.name(),
+                           block_val.arguments(),
                            arguments.len()));
     }
 
     if arguments.len() < req_args {
         return Err(format!("{} requires {} arguments, but {} arguments \
                             were given",
-                           code_val.name,
-                           code_val.required_arguments,
+                           block_val.name(),
+                           block_val.required_arguments(),
                            arguments.len()));
     }
 
-    machine.schedule_code(process.clone(), code_val, &arguments, binding, register);
+    machine.schedule_code(process.clone(), block_val, &arguments, binding, register);
 
     process.pop_call_frame();
 
     Ok(Action::EnterContext)
 }
 
-/// Parses a bytecode file and stores the resulting CompiledCode object in the
-/// register.
+/// Parses a bytecode file and stores the resulting Block in the register.
 ///
 /// This instruction requires 2 arguments:
 ///
-/// 1. The register to store the resulting CompiledCode object in.
+/// 1. The register to store the resulting Block in.
 /// 2. The register containing the file path to open, as a string.
 ///
 /// This instruction will panic if the file does not exist or when the bytecode
@@ -137,10 +138,12 @@ pub fn parse_file(machine: &Machine,
     let code = write_lock!(machine.state.file_registry).get_or_set(path_str)
         .map_err(|err| err.message())?;
 
-    let code_ptr = process.allocate(object_value::compiled_code(code),
-                                    machine.state.compiled_code_prototype);
+    let block = Block::new(code.clone(), Binding::new());
 
-    process.set_register(register, code_ptr);
+    let block_ptr = process.allocate(object_value::block(block),
+                                    machine.state.block_prototype);
+
+    process.set_register(register, block_ptr);
 
     Ok(Action::None)
 }
@@ -183,23 +186,25 @@ mod tests {
     use vm::instructions::test::*;
     use vm::instruction::InstructionType;
 
-    mod run_code {
+    mod run_block {
         use super::*;
 
         #[test]
         fn test_without_arguments() {
             let (machine, code, process) = setup();
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
 
-            process.set_register(0, code_ptr);
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
+
+            process.set_register(0, block_ptr);
             process.set_register(1, machine.state.nil_object);
 
-            let instruction = new_instruction(InstructionType::RunCode,
+            let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1, 0]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_ok());
 
@@ -211,17 +216,19 @@ mod tests {
         fn test_with_too_many_arguments() {
             let (machine, code, process) = setup();
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
 
-            process.set_register(0, code_ptr);
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
+
+            process.set_register(0, block_ptr);
             process.set_register(1, machine.state.nil_object);
             process.set_register(2, machine.state.true_object);
 
-            let instruction = new_instruction(InstructionType::RunCode,
+            let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![4, 0, 1, 0, 2]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_err());
         }
@@ -233,17 +240,19 @@ mod tests {
             arc_mut(&code).arguments = 2;
             arc_mut(&code).required_arguments = 2;
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
 
-            process.set_register(0, code_ptr);
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
+
+            process.set_register(0, block_ptr);
             process.set_register(1, machine.state.nil_object);
             process.set_register(2, machine.state.true_object);
 
-            let instruction = new_instruction(InstructionType::RunCode,
+            let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![4, 0, 1, 0, 2]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_err());
         }
@@ -254,18 +263,21 @@ mod tests {
 
             arc_mut(&code).arguments = 2;
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
 
-            process.set_register(0, code_ptr);
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
+
+            process.set_register(0, block_ptr);
             process.set_register(1, machine.state.nil_object);
             process.set_register(2, machine.state.true_object);
             process.set_register(3, machine.state.false_object);
+            process.set_register(4, machine.state.false_object);
 
-            let instruction = new_instruction(InstructionType::RunCode,
-                                              vec![4, 0, 1, 0, 2, 3]);
+            let instruction = new_instruction(InstructionType::RunBlock,
+                                              vec![5, 0, 1, 4, 2, 3]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_ok());
 
@@ -285,22 +297,25 @@ mod tests {
             arc_mut(&code).arguments = 2;
             arc_mut(&code).rest_argument = true;
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
 
-            process.set_register(0, code_ptr);
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
+
+            process.set_register(0, block_ptr);
             process.set_register(1, machine.state.nil_object);
+            process.set_register(2, machine.state.true_object);
 
             let args =
                 process.allocate_without_prototype(object_value::array(vec![machine.state.true_object,
                                                                        machine.state.false_object]));
 
-            process.set_register(2, args);
+            process.set_register(3, args);
 
-            let instruction = new_instruction(InstructionType::RunCode,
-                                              vec![4, 0, 1, 1, 2]);
+            let instruction = new_instruction(InstructionType::RunBlock,
+                                              vec![5, 0, 1, 2, 3]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_ok());
 
@@ -317,23 +332,25 @@ mod tests {
         fn test_with_binding() {
             let (machine, code, process) = setup();
 
-            let code_ptr = process
-                .allocate_without_prototype(object_value::compiled_code(code.clone()));
+            let block = Block::new(code.clone(), Binding::new());
+
+            let block_ptr =
+                process.allocate_without_prototype(object_value::block(block));
 
             let binding = Binding::new();
 
-            binding.set_local(0, code_ptr);
+            binding.set_local(0, block_ptr);
 
             let binding_ptr =
                 process.allocate_without_prototype(object_value::binding(binding.clone()));
 
-            process.set_register(0, code_ptr);
+            process.set_register(0, block_ptr);
             process.set_register(1, binding_ptr);
 
-            let instruction = new_instruction(InstructionType::RunCode,
+            let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1, 0]);
 
-            let result = run_code(&machine, &process, &code, &instruction);
+            let result = run_block(&machine, &process, &code, &instruction);
 
             assert!(result.is_ok());
 
@@ -341,7 +358,7 @@ mod tests {
                 .parent()
                 .unwrap()
                 .get_local(0)
-                .unwrap() == code_ptr);
+                .unwrap() == block_ptr);
         }
     }
 }
