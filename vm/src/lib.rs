@@ -1,4 +1,9 @@
+#![cfg_attr(feature="system-allocator", feature(alloc_system))]
 #![feature(alloc, heap_api)]
+
+#[cfg(feature="system-allocator")]
+extern crate alloc_system;
+
 extern crate alloc;
 extern crate num_cpus;
 extern crate rayon;

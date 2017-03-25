@@ -16,3 +16,7 @@ getopts = "^0.2"
 num_cpus = "^1.0"
 rayon = "^0.6"
 parking_lot = { version = "^0.3", features = ["nightly"] }
+
+[features]
+# Use the system allocator instead of Rust's default (jemalloc)
+system-allocator = []
