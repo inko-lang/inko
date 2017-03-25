@@ -3,7 +3,8 @@
 //! The global allocator is used by process-local allocators to request the
 //! allocation of new blocks or the re-using of existing (and returned) free
 //! blocks.
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 use immix::block::Block;
 
@@ -22,7 +23,7 @@ impl GlobalAllocator {
 
     /// Requests a new free block from the pool
     pub fn request_block(&self) -> Box<Block> {
-        let mut blocks = lock!(self.blocks);
+        let mut blocks = self.blocks.lock();
 
         if blocks.len() > 0 {
             blocks.pop().unwrap()
@@ -33,7 +34,7 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        lock!(self.blocks).push(block);
+        self.blocks.lock().push(block);
     }
 }
 
@@ -45,7 +46,7 @@ mod tests {
     fn test_new() {
         let alloc = GlobalAllocator::new();
 
-        assert_eq!(lock!(alloc.blocks).len(), 0);
+        assert_eq!(alloc.blocks.lock().len(), 0);
     }
 
     #[test]
@@ -56,7 +57,7 @@ mod tests {
         alloc.add_block(block);
         alloc.request_block();
 
-        assert_eq!(lock!(alloc.blocks).len(), 0);
+        assert_eq!(alloc.blocks.lock().len(), 0);
     }
 
     #[test]
@@ -66,6 +67,6 @@ mod tests {
 
         alloc.add_block(block);
 
-        assert_eq!(lock!(alloc.blocks).len(), 1);
+        assert_eq!(alloc.blocks.lock().len(), 1);
     }
 }

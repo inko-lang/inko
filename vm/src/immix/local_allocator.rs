@@ -283,7 +283,7 @@ mod tests {
         let alloc = local_allocator();
         let global_alloc = alloc.global_allocator();
 
-        assert_eq!(lock!(global_alloc.blocks).len(), 0);
+        assert_eq!(global_alloc.blocks.lock().len(), 0);
     }
 
     #[test]
@@ -507,6 +507,6 @@ mod tests {
 
         drop(alloc);
 
-        assert_eq!(lock!(global_alloc.blocks).len(), 2);
+        assert_eq!(global_alloc.blocks.lock().len(), 2);
     }
 }
