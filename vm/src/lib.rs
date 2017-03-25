@@ -36,6 +36,5 @@ pub mod process;
 pub mod process_table;
 pub mod register;
 pub mod string_pool;
-pub mod thread;
 pub mod timer;
 pub mod vm;
