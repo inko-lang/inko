@@ -20,6 +20,7 @@ use vm::instructions::stderr;
 use vm::instructions::stdin;
 use vm::instructions::stdout;
 use vm::instructions::string;
+use vm::instructions::time;
 use vm::machine::Machine;
 use vm::instructions::result::InstructionResult;
 
@@ -138,13 +139,15 @@ pub enum InstructionType {
     GetMethodNames,
     GetAttributes,
     GetAttributeNames,
+    MonotonicTimeNanoseconds,
+    MonotonicTimeMilliseconds,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
    &RcProcess,
    &RcCompiledCode,
    &Instruction)
-   -> InstructionResult; 108] = [integer::set_integer,
+   -> InstructionResult; 110] = [integer::set_integer,
                                  float::set_float,
                                  string::set_string,
                                  object::set_object,
@@ -251,7 +254,9 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  method::get_methods,
                                  method::get_method_names,
                                  object::get_attributes,
-                                 object::get_attribute_names];
+                                 object::get_attribute_names,
+                                 time::monotonic_time_nanoseconds,
+                                 time::monotonic_time_milliseconds];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

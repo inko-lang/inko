@@ -20,4 +20,5 @@ pub mod stderr;
 pub mod stdin;
 pub mod stdout;
 pub mod string;
+pub mod time;
 pub mod test;

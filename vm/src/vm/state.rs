@@ -6,6 +6,7 @@
 
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
+use std::time;
 
 use gc::request::Request;
 
@@ -52,6 +53,9 @@ pub struct State {
 
     /// Mapping of raw strings and their interned string objects.
     pub string_pool: Mutex<StringPool>,
+
+    /// The start time of the VM (more or less).
+    pub start_time: time::Instant,
 
     /// The global top-level object.
     pub top_level: ObjectPointer,
@@ -145,6 +149,7 @@ impl State {
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
+            start_time: time::Instant::now(),
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
