@@ -179,9 +179,12 @@ impl State {
             return value;
         }
 
-        let mut alloc = self.permanent_allocator.lock();
-        let value = object_value::string(string.clone());
-        let ptr = alloc.allocate_with_prototype(value, self.string_prototype);
+        let ptr = {
+            let mut alloc = self.permanent_allocator.lock();
+            let value = object_value::string(string.clone());
+
+            alloc.allocate_with_prototype(value, self.string_prototype)
+        };
 
         pool.add(ptr);
 
