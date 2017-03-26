@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::mem;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex, Condvar};
+use std::sync::{Arc, Mutex};
 use std::cell::UnsafeCell;
 
 use immix::local_allocator::LocalAllocator;
@@ -21,23 +21,14 @@ pub type RcProcess = Arc<Process>;
 
 #[derive(Debug)]
 pub enum ProcessStatus {
-    /// The process has been scheduled for execution.
+    /// The process has been (re-)scheduled for execution.
     Scheduled,
 
     /// The process is running.
     Running,
 
-    /// The process has been suspended.
-    Suspended,
-
-    /// The process should be suspended for garbage collection.
+    /// The process is suspended for garbage collection.
     SuspendForGc,
-
-    /// The process has been suspended for garbage collection.
-    SuspendedByGc,
-
-    /// The process ran into some kind of error during execution.
-    Failed,
 
     /// The process has finished execution.
     Finished,
@@ -52,14 +43,6 @@ impl ProcessStatus {
     }
 }
 
-pub enum GcState {
-    /// No collector activity is taking place.
-    None,
-
-    /// A collection has been scheduled.
-    Scheduled,
-}
-
 pub struct LocalData {
     /// The process-local memory allocator.
     pub allocator: LocalAllocator,
@@ -69,9 +52,6 @@ pub struct LocalData {
 
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
-
-    /// The state of the garbage collector for this process.
-    pub gc_state: GcState,
 
     /// The remembered set of this process. This set is not synchronized via a
     /// lock of sorts. As such the collector must ensure this process is
@@ -106,10 +86,6 @@ pub struct Process {
     /// The status of this process.
     pub status: Mutex<ProcessStatus>,
 
-    /// Condition variable used for waking up other threads waiting for this
-    /// process' status to change.
-    pub status_signaler: Condvar,
-
     /// Data stored in a process that should only be modified by a single thread
     /// at once.
     pub local_data: UnsafeCell<LocalData>,
@@ -130,7 +106,6 @@ impl Process {
             allocator: LocalAllocator::new(global_allocator.clone()),
             call_frame: call_frame,
             context: Box::new(context),
-            gc_state: GcState::None,
             remembered_set: HashSet::new(),
             mailbox: Mailbox::new(global_allocator),
             young_collections: 0,
@@ -142,7 +117,6 @@ impl Process {
             pid: pid,
             pool_id: pool_id,
             status: Mutex::new(ProcessStatus::Scheduled),
-            status_signaler: Condvar::new(),
             local_data: UnsafeCell::new(local_data),
         };
 
@@ -276,13 +250,6 @@ impl Process {
         self.local_data_mut().mailbox.receive()
     }
 
-    pub fn should_be_rescheduled(&self) -> bool {
-        match *lock!(self.status) {
-            ProcessStatus::Suspended => true,
-            _ => false,
-        }
-    }
-
     /// Adds a new call frame pointing to the given line number.
     pub fn advance_line(&self, line: u16) {
         let frame = CallFrame::new(self.compiled_code(), line);
@@ -318,108 +285,33 @@ impl Process {
         self.context().instruction_index
     }
 
-    pub fn is_alive(&self) -> bool {
-        match *lock!(self.status) {
-            ProcessStatus::Failed => false,
-            ProcessStatus::Finished => false,
-            _ => true,
-        }
-    }
-
     pub fn available_for_execution(&self) -> bool {
         match *lock!(self.status) {
             ProcessStatus::Scheduled => true,
-            ProcessStatus::Suspended => true,
             _ => false,
         }
-    }
-
-    pub fn running(&self) {
-        self.set_status(ProcessStatus::Running);
     }
 
     pub fn set_status(&self, new_status: ProcessStatus) {
         let mut status = lock!(self.status);
 
         *status = new_status;
-
-        self.status_signaler.notify_all();
     }
 
-    pub fn set_status_without_overwriting_gc_status(&self,
-                                                    new_status: ProcessStatus) {
-        let mut status = lock!(self.status);
-
-        match *status {
-            ProcessStatus::SuspendedByGc |
-            ProcessStatus::SuspendForGc => {}
-            _ => {
-                *status = new_status;
-                self.status_signaler.notify_all();
-            }
-        }
+    pub fn running(&self) {
+        self.set_status(ProcessStatus::Running);
     }
 
     pub fn finished(&self) {
-        self.set_status_without_overwriting_gc_status(ProcessStatus::Finished);
+        self.set_status(ProcessStatus::Finished);
     }
 
-    pub fn suspend(&self) {
-        self.set_status_without_overwriting_gc_status(ProcessStatus::Suspended);
+    pub fn scheduled(&self) {
+        self.set_status(ProcessStatus::Scheduled);
     }
 
     pub fn suspend_for_gc(&self) {
         self.set_status(ProcessStatus::SuspendForGc);
-    }
-
-    pub fn suspended_by_gc(&self) -> bool {
-        match *lock!(self.status) {
-            ProcessStatus::SuspendedByGc => true,
-            _ => false,
-        }
-    }
-
-    pub fn request_gc_suspension(&self) {
-        if !self.suspended_by_gc() {
-            self.suspend_for_gc();
-        }
-
-        self.wait_while_running();
-    }
-
-    pub fn wait_while_running(&self) {
-        let mut status = lock!(self.status);
-
-        while status.is_running() {
-            status = self.status_signaler.wait(status).unwrap();
-        }
-    }
-
-    pub fn should_suspend_for_gc(&self) -> bool {
-        match *lock!(self.status) {
-            ProcessStatus::SuspendForGc |
-            ProcessStatus::SuspendedByGc => true,
-            _ => false,
-        }
-    }
-
-    pub fn gc_state(&self) -> &GcState {
-        &self.local_data().gc_state
-    }
-
-    pub fn set_gc_state(&self, new_state: GcState) {
-        self.local_data_mut().gc_state = new_state;
-    }
-
-    pub fn gc_scheduled(&self) {
-        self.set_gc_state(GcState::Scheduled);
-    }
-
-    pub fn gc_is_scheduled(&self) -> bool {
-        match self.gc_state() {
-            &GcState::None => false,
-            _ => true,
-        }
     }
 
     pub fn should_collect_young_generation(&self) -> bool {
@@ -438,11 +330,6 @@ impl Process {
         self.local_data()
             .mailbox
             .should_collect()
-    }
-
-    pub fn reset_status(&self) {
-        self.set_status(ProcessStatus::Scheduled);
-        self.set_gc_state(GcState::None);
     }
 
     pub fn contexts(&self) -> Vec<&ExecutionContext> {

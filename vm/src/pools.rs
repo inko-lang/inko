@@ -26,8 +26,7 @@ impl Pools {
 
     pub fn schedule(&self, process: RcProcess) {
         if let Some(pool) = self.get(process.pool_id) {
-            process.reset_status();
-
+            process.scheduled();
             pool.schedule(process);
         } else {
             panic!("The pool ID ({}) for process {} is invalid",
@@ -86,11 +85,11 @@ mod tests {
         let pools = Pools::new(1, 1);
         let process = new_process(0);
 
-        process.gc_scheduled();
+        process.running();
         pools.schedule(process.clone());
 
         assert_eq!(pools.pools[0].inner.queues.len(), 1);
-        assert_eq!(process.gc_is_scheduled(), false);
+        assert_eq!(process.available_for_execution(), true);
     }
 
     #[test]

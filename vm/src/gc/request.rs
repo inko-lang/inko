@@ -43,12 +43,6 @@ impl Request {
 
     /// Performs the garbage collection request.
     pub fn perform(&self) {
-        // If we know the process has already been terminated there's no
-        // point in performing a collection.
-        if !self.process.is_alive() {
-            return;
-        }
-
         // TODO: store profile details
         let _profile = match self.collection_type {
             CollectionType::Heap => {
@@ -59,9 +53,13 @@ impl Request {
             }
         };
 
-        println!("Finished {:?} collection in {:.2} ms",
+        println!("Finished {:?} collection in {:.2} ms, {} marked, {} \
+                  promoted, {} evacuated",
                  _profile.collection_type,
-                 _profile.total.duration_msec());
+                 _profile.total.duration_msec(),
+                 _profile.marked,
+                 _profile.promoted,
+                 _profile.evacuated);
     }
 }
 

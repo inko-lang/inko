@@ -9,8 +9,6 @@ use process::RcProcess;
 use vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
-    process.request_gc_suspension();
-
     let collect_mature = process.should_collect_mature_generation();
 
     let mut profile = if collect_mature {

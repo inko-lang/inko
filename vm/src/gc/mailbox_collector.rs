@@ -8,8 +8,6 @@ use process::RcProcess;
 use vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
-    process.request_gc_suspension();
-
     let mut profile = Profile::mailbox();
 
     profile.total.start();

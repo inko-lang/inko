@@ -1,5 +1,4 @@
 //! Virtual Machine for running instructions
-
 use binding::{Binding, RcBinding};
 use block::Block;
 use call_frame::CallFrame;
@@ -116,7 +115,7 @@ impl Machine {
     }
 
     /// Executes a single process.
-    fn run_process(&self, process: &RcProcess) -> Result<(), String> {
+    fn run(&self, process: &RcProcess) {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -139,21 +138,25 @@ impl Machine {
 
                 index += 1;
 
-                match func(self, process, &code, instruction)? {
-                    Action::Goto(new_index) => index = new_index,
-                    Action::Return => break,
-                    Action::EnterContext => {
+                match func(self, process, &code, instruction) {
+                    Ok(Action::Goto(new_index)) => index = new_index,
+                    Ok(Action::Return) => break,
+                    Ok(Action::EnterContext) => {
                         context.instruction_index = index;
 
                         continue 'exec_loop;
                     }
-                    Action::Suspend => {
+                    Ok(Action::Suspend) => {
                         context.instruction_index = index - 1;
-                        process.suspend();
-
-                        return Ok(());
+                        self.reschedule(process.clone());
+                        return;
                     }
-                    _ => {}
+                    Ok(_) => {}
+                    Err(message) => {
+                        self.error(process, message);
+
+                        return;
+                    }
                 }
             } // while
 
@@ -181,23 +184,27 @@ impl Machine {
             // LocalData structure in Process.
             drop(context);
 
-            self.gc_safepoint(&process);
-
-            if process.should_suspend_for_gc() {
-                return Ok(());
+            if self.gc_safepoint(&process) {
+                return;
             }
 
             // Reduce once we've exhausted all the instructions in a context.
             if reductions > 0 {
                 reductions -= 1;
             } else {
-                process.suspend();
-
-                return Ok(());
+                self.reschedule(process.clone());
+                return;
             }
         } // loop
 
-        Ok(())
+        process.finished();
+
+        write_lock!(self.state.process_table).release(&process.pid);
+
+        // Terminate once the main process has finished execution.
+        if process.is_main() {
+            self.terminate();
+        }
     }
 
     /// Prints a VM backtrace of a given process with a message.
@@ -286,11 +293,9 @@ impl Machine {
 
     /// Checks if a garbage collection run should be scheduled for the given
     /// process.
-    fn gc_safepoint(&self, process: &RcProcess) {
-        if process.gc_is_scheduled() {
-            return;
-        }
-
+    ///
+    /// Returns true if a process should be suspended for garbage collection.
+    fn gc_safepoint(&self, process: &RcProcess) -> bool {
         let request_opt = if process.should_collect_young_generation() {
             Some(GcRequest::heap(self.state.clone(), process.clone()))
         } else if process.should_collect_mailbox() {
@@ -300,35 +305,17 @@ impl Machine {
         };
 
         if let Some(request) = request_opt {
-            process.gc_scheduled();
-
+            process.suspend_for_gc();
             self.state.gc_pool.schedule(request);
+
+            true
+        } else {
+            false
         }
     }
 
-    /// Executes a process and handles its result.
-    fn run(&self, process: &RcProcess) {
-        match self.run_process(&process) {
-            Ok(_) => {
-                if process.should_suspend_for_gc() {
-                    process.suspend_for_gc();
-                } else if process.should_be_rescheduled() {
-                    self.state.process_pools.schedule(process.clone());
-                } else {
-                    let is_main = process.is_main();
-
-                    process.finished();
-
-                    write_lock!(self.state.process_table).release(&process.pid);
-
-                    // Terminate once the main process has finished
-                    // execution.
-                    if is_main {
-                        self.terminate();
-                    }
-                }
-            }
-            Err(message) => self.error(process, message),
-        };
+    /// Reschedules a process.
+    fn reschedule(&self, process: RcProcess) {
+        self.state.process_pools.schedule(process);
     }
 }
