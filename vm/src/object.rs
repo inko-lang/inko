@@ -325,6 +325,9 @@ impl Object {
                     pointers.push(pointer.pointer());
                 }
             }
+            ObjectValue::Block(ref block) => {
+                block.binding.push_pointers(pointers)
+            }
             ObjectValue::Binding(ref binding) => binding.push_pointers(pointers),
             _ => {}
         }
