@@ -51,7 +51,7 @@ pub struct CompiledCode {
     pub integer_literals: Vec<ObjectPointer>,
 
     /// Any literal floats appearing in the source code.
-    pub float_literals: Vec<f64>,
+    pub float_literals: Vec<ObjectPointer>,
 
     /// Any literal strings appearing in the source code.
     pub string_literals: Vec<ObjectPointer>,
@@ -109,9 +109,10 @@ impl CompiledCode {
             .ok_or_else(|| format!("Undefined integer literal {}", index))
     }
 
-    pub fn float(&self, index: usize) -> Result<&f64, String> {
+    pub fn float(&self, index: usize) -> Result<ObjectPointer, String> {
         self.float_literals
             .get(index)
+            .cloned()
             .ok_or_else(|| format!("Undefined float literal {}", index))
     }
 
@@ -135,7 +136,9 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use object_pointer::ObjectPointer;
+    use config::Config;
     use vm::instruction::{Instruction, InstructionType};
+    use vm::state::State;
 
     fn new_compiled_code() -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1);
@@ -176,8 +179,10 @@ mod tests {
     #[test]
     fn test_float_valid() {
         let mut code = new_compiled_code();
+        let state = State::new(Config::new());
+        let float = state.allocate_permanent_float(10.5);
 
-        code.float_literals.push(10.5);
+        code.float_literals.push(float);
 
         assert!(code.float(0).is_ok());
     }

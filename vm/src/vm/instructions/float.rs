@@ -15,21 +15,15 @@ use process::RcProcess;
 ///
 /// 1. The register to store the float in.
 /// 2. The index of the float literals to use for the value.
-///
-/// The float literal is extracted from the given CompiledCode.
-pub fn set_float(machine: &Machine,
+pub fn set_float(_: &Machine,
                  process: &RcProcess,
                  code: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
     let register = instruction.arg(0)?;
     let index = instruction.arg(1)?;
-    let value = *code.float(index)?;
 
-    let obj = process.allocate(object_value::float(value),
-                               machine.state.float_prototype.clone());
-
-    process.set_register(register, obj);
+    process.set_register(register, code.float(index)?);
 
     Ok(Action::None)
 }
@@ -438,7 +432,9 @@ mod tests {
             let instruction = new_instruction(InstructionType::SetFloat,
                                               vec![0, 0]);
 
-            arc_mut(&code).float_literals.push(10.0);
+            let float = machine.state.allocate_permanent_float(10.0);
+
+            arc_mut(&code).float_literals.push(float);
 
             let result = set_float(&machine, &process, &code, &instruction);
 
@@ -446,7 +442,7 @@ mod tests {
 
             let pointer = process.get_register(0).unwrap();
 
-            assert_eq!(pointer.float_value().unwrap(), 10.0);
+            assert!(pointer == float);
         }
     }
 

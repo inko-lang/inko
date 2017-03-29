@@ -196,6 +196,14 @@ impl State {
 
         ptr
     }
+
+    /// Allocates a float in the permanent space.
+    pub fn allocate_permanent_float(&self, float: f64) -> ObjectPointer {
+        let mut alloc = self.permanent_allocator.lock();
+        let value = object_value::float(float);
+
+        alloc.allocate_with_prototype(value, self.float_prototype)
+    }
 }
 
 #[cfg(test)]
@@ -235,5 +243,13 @@ mod tests {
             .allocate_empty();
 
         assert!(state.intern_pointer(&string).is_err());
+    }
+
+    #[test]
+    fn test_allocate_permanent_float() {
+        let state = State::new(Config::new());
+        let float = state.allocate_permanent_float(10.5);
+
+        assert_eq!(float.float_value().unwrap(), 10.5);
     }
 }

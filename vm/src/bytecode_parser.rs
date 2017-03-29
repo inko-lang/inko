@@ -260,7 +260,10 @@ fn read_compiled_code<T: Read>(state: &RcState,
         .map(|integer| ObjectPointer::integer(*integer))
         .collect();
 
-    let float_literals = read_f64_vector!(T, bytes);
+    let float_literals = read_f64_vector!(T, bytes)
+        .iter()
+        .map(|float| state.allocate_permanent_float(*float))
+        .collect();
 
     let str_literals = read_string_vector!(T, bytes)
         .iter()
@@ -657,7 +660,7 @@ mod tests {
         assert!(object.integer_literals[0] == ObjectPointer::integer(10));
 
         assert_eq!(object.float_literals.len(), 1);
-        assert!((object.float_literals[0] - 1.2).abs() < 0.001);
+        assert_eq!(object.float_literals[0].float_value().unwrap(), 1.2);
 
         assert_eq!(object.string_literals.len(), 1);
         assert!(object.string_literals[0] == state.intern(&"foo".to_string()));
