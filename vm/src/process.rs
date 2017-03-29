@@ -177,13 +177,9 @@ impl Process {
     pub fn pop_context(&self) {
         let mut local_data = self.local_data_mut();
 
-        if local_data.context.parent.is_none() {
-            return;
+        if let Some(parent) = local_data.context.parent.take() {
+            local_data.context = parent;
         }
-
-        let parent = local_data.context.parent.take().unwrap();
-
-        local_data.context = parent;
     }
 
     pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
