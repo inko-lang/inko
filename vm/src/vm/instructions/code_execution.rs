@@ -16,9 +16,7 @@ use process::RcProcess;
 ///
 /// 1. The register to store the return value in.
 /// 2. The register containing the Block object to run.
-/// 3. The Binding to use, if any. Setting this register to nil will result in a
-///    binding being created automatically.
-/// 4. A register containing a boolean. If the register is truthy the last
+/// 3. A register containing a boolean. If the register is truthy the last
 ///    argument will be treated as a rest argument. A rest argument will be
 ///    unpacked into separate arguments.
 ///
@@ -33,30 +31,18 @@ pub fn run_block(machine: &Machine,
 
     let register = instruction.arg(0)?;
     let block_ptr = process.get_register(instruction.arg(1)?)?;
+    let rest_arg_ptr = process.get_register(instruction.arg(2)?)?;
 
-    // Figure out what binding we need to use.
-    let binding = {
-        let ptr = process.get_register(instruction.arg(2)?)?;
-
-        if ptr == machine.state.nil_object {
-            None
-        } else {
-            Some(ptr.binding_value()?.clone())
-        }
-    };
-
-    let rest_arg_ptr = process.get_register(instruction.arg(3)?)?;
     let rest_arg = !is_false!(machine, rest_arg_ptr);
-
     let block_val = block_ptr.block_value()?;
 
     // Argument handling
-    let arg_count = instruction.arguments.len() - 4;
+    let arg_count = instruction.arguments.len() - 3;
     let tot_args = block_val.arguments();
     let req_args = block_val.required_arguments();
 
     let mut arguments =
-        machine.collect_arguments(process.clone(), instruction, 4, arg_count)?;
+        machine.collect_arguments(process.clone(), instruction, 3, arg_count)?;
 
     // Unpack the last argument if it's a rest argument
     if rest_arg {
@@ -106,7 +92,7 @@ pub fn run_block(machine: &Machine,
                            arguments.len()));
     }
 
-    machine.schedule_code(process.clone(), block_val, &arguments, binding, register);
+    machine.schedule_code(process.clone(), block_val, &arguments, register);
 
     process.pop_call_frame();
 
@@ -193,10 +179,10 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.nil_object);
+            process.set_register(1, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![2, 0, 1, 0]);
+                                              vec![2, 0, 1]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -216,11 +202,11 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.nil_object);
-            process.set_register(2, machine.state.true_object);
+            process.set_register(1, machine.state.true_object);
+            process.set_register(2, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![4, 0, 1, 0, 2]);
+                                              vec![3, 0, 1, 2]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -240,11 +226,11 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.nil_object);
-            process.set_register(2, machine.state.true_object);
+            process.set_register(1, machine.state.true_object);
+            process.set_register(2, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![4, 0, 1, 0, 2]);
+                                              vec![3, 0, 2, 1]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -263,13 +249,12 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.nil_object);
-            process.set_register(2, machine.state.true_object);
+            process.set_register(1, machine.state.true_object);
+            process.set_register(2, machine.state.false_object);
             process.set_register(3, machine.state.false_object);
-            process.set_register(4, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![5, 0, 1, 4, 2, 3]);
+                                              vec![4, 0, 3, 1, 2]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -297,17 +282,16 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.nil_object);
-            process.set_register(2, machine.state.true_object);
+            process.set_register(1, machine.state.true_object);
 
             let args =
                 process.allocate_without_prototype(object_value::array(vec![machine.state.true_object,
                                                                        machine.state.false_object]));
 
-            process.set_register(3, args);
+            process.set_register(2, args);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![5, 0, 1, 2, 3]);
+                                              vec![5, 0, 1, 2]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -320,39 +304,6 @@ mod tests {
 
             assert!(process.binding().get_local(1).unwrap() ==
                     machine.state.false_object);
-        }
-
-        #[test]
-        fn test_with_binding() {
-            let (machine, code, process) = setup();
-
-            let block = Block::new(code.clone(), Binding::new());
-
-            let block_ptr =
-                process.allocate_without_prototype(object_value::block(block));
-
-            let binding = Binding::new();
-
-            binding.set_local(0, block_ptr);
-
-            let binding_ptr =
-                process.allocate_without_prototype(object_value::binding(binding.clone()));
-
-            process.set_register(0, block_ptr);
-            process.set_register(1, binding_ptr);
-
-            let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![2, 0, 1, 0]);
-
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
-
-            assert!(process.binding()
-                .parent()
-                .unwrap()
-                .get_local(0)
-                .unwrap() == block_ptr);
         }
     }
 }

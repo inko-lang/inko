@@ -1,5 +1,5 @@
 //! Virtual Machine for running instructions
-use binding::{Binding, RcBinding};
+use binding::Binding;
 use block::Block;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
@@ -244,18 +244,11 @@ impl Machine {
                          process: RcProcess,
                          block: &Box<Block>,
                          args: &Vec<ObjectPointer>,
-                         binding: Option<RcBinding>,
                          register: usize) {
         let code = block.code.clone();
-
-        let context = if let Some(rc_bind) = binding {
-            ExecutionContext::with_binding(rc_bind, code.clone(), Some(register))
-        } else {
-            let binding = Binding::with_parent(block.binding.clone());
-
-            ExecutionContext::new(binding, code.clone(), Some(register))
-        };
-
+        let binding = Binding::with_parent(block.binding.clone());
+        let context =
+            ExecutionContext::new(binding, code.clone(), Some(register));
         let frame = CallFrame::from_code(code);
 
         process.push_context(context);
