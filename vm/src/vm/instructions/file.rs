@@ -9,6 +9,7 @@ use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
 use errors;
+use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
 
@@ -57,8 +58,8 @@ pub fn file_open(_: &Machine,
     let path_ptr = process.get_register(instruction.arg(1)?)?;
     let mode_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let path = path_ptr.get().value.as_string()?;
-    let mode = mode_ptr.get().value.as_integer()?;
+    let path = path_ptr.string_value()?;
+    let mode = mode_ptr.integer_value()?;
 
     let mut open_opts = OpenOptions::new();
 
@@ -101,7 +102,7 @@ pub fn file_open(_: &Machine,
 ///
 /// The result of this instruction is either the amount of written bytes or
 /// an error object.
-pub fn file_write(machine: &Machine,
+pub fn file_write(_: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
@@ -110,17 +111,11 @@ pub fn file_write(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
     let string_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let mut file = file_ptr.get_mut();
-    let string = string_ptr.get();
-
-    let mut file = file.value.as_file_mut()?;
-    let bytes = string.value.as_string()?.as_bytes();
+    let mut file = file_ptr.file_value_mut()?;
+    let bytes = string_ptr.string_value()?.as_bytes();
 
     let obj = match file.write(bytes) {
-        Ok(num_bytes) => {
-            process.allocate(object_value::integer(num_bytes as i64),
-                             machine.state.integer_prototype)
-        }
+        Ok(num_bytes) => ObjectPointer::integer(num_bytes as i64),
         Err(error) => io_error_code!(process, error),
     };
 
@@ -146,8 +141,7 @@ pub fn file_read(machine: &Machine,
     let register = instruction.arg(0)?;
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let mut file_obj = file_ptr.get_mut();
-    let mut file = file_obj.value.as_file_mut()?;
+    let mut file = file_ptr.file_value_mut()?;
     let mut buffer = String::new();
 
     let obj = match file.read_to_string(&mut buffer) {
@@ -183,10 +177,8 @@ pub fn file_read_exact(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
     let size_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let mut file_obj = file_ptr.get_mut();
-    let mut file = file_obj.value.as_file_mut()?;
-
-    let size = size_ptr.get().value.as_integer()? as usize;
+    let mut file = file_ptr.file_value_mut()?;
+    let size = size_ptr.integer_value()? as usize;
     let mut buffer = String::with_capacity(size);
 
     let obj = match file.take(size as u64).read_to_string(&mut buffer) {
@@ -219,8 +211,7 @@ pub fn file_read_line(machine: &Machine,
     let register = instruction.arg(0)?;
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let mut file_obj = file_ptr.get_mut();
-    let mut file = file_obj.value.as_file_mut()?;
+    let mut file = file_ptr.file_value_mut()?;
     let mut buffer = Vec::new();
 
     for result in file.bytes() {
@@ -274,8 +265,7 @@ pub fn file_flush(_: &Machine,
     let register = instruction.arg(0)?;
     let file_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let mut file_obj = file_ptr.get_mut();
-    let mut file = file_obj.value.as_file_mut()?;
+    let mut file = file_ptr.file_value_mut()?;
 
     let obj = match file.flush() {
         Ok(_) => file_ptr,
@@ -296,22 +286,17 @@ pub fn file_flush(_: &Machine,
 ///
 /// The resulting object is either an integer representing the amount of
 /// bytes, or an error object.
-pub fn file_size(machine: &Machine,
+pub fn file_size(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
     let register = instruction.arg(0)?;
     let file_ptr = process.get_register(instruction.arg(1)?)?;
-
-    let file_obj = file_ptr.get();
-    let file = file_obj.value.as_file()?;
+    let file = file_ptr.file_value()?;
 
     let obj = match file.metadata() {
-        Ok(meta) => {
-            process.allocate(object_value::integer(meta.len() as i64),
-                             machine.state.integer_prototype)
-        }
+        Ok(meta) => ObjectPointer::integer(meta.len() as i64),
         Err(error) => io_error_code!(process, error),
     };
 
@@ -330,7 +315,7 @@ pub fn file_size(machine: &Machine,
 ///
 /// The resulting object is either an integer representing the new cursor
 /// position, or an error object.
-pub fn file_seek(machine: &Machine,
+pub fn file_seek(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
@@ -339,15 +324,11 @@ pub fn file_seek(machine: &Machine,
     let file_ptr = process.get_register(instruction.arg(1)?)?;
     let offset_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let mut file_obj = file_ptr.get_mut();
-    let mut file = file_obj.value.as_file_mut()?;
-    let offset = offset_ptr.get().value.as_integer()?;
+    let mut file = file_ptr.file_value_mut()?;
+    let offset = offset_ptr.integer_value()?;
 
     let obj = match file.seek(SeekFrom::Start(offset as u64)) {
-        Ok(new_offset) => {
-            process.allocate(object_value::integer(new_offset as i64),
-                             machine.state.integer_prototype)
-        }
+        Ok(new_offset) => ObjectPointer::integer(new_offset as i64),
         Err(error) => io_error_code!(process, error),
     };
 

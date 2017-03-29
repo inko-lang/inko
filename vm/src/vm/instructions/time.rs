@@ -5,6 +5,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
+use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
 
@@ -44,10 +45,7 @@ pub fn monotonic_time_nanoseconds(machine: &Machine,
     let duration = machine.state.start_time.elapsed();
     let nsec = (duration.as_secs() * 1000000000) + duration.subsec_nanos() as u64;
 
-    let obj = process.allocate(object_value::integer(nsec as i64),
-                               machine.state.integer_prototype);
-
-    process.set_register(register, obj);
+    process.set_register(register, ObjectPointer::integer(nsec as i64));
 
     Ok(Action::None)
 }

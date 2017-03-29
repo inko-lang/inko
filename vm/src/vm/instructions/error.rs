@@ -5,7 +5,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
-use object_value;
+use object_pointer::ObjectPointer;
 use process::RcProcess;
 
 /// Checks if a given object is an error object.
@@ -41,19 +41,16 @@ pub fn is_error(machine: &Machine,
 ///
 /// 1. The register to store the integer in.
 /// 2. The register containing the error.
-pub fn error_to_integer(machine: &Machine,
+pub fn error_to_integer(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
     let register = instruction.arg(0)?;
     let error_ptr = process.get_register(instruction.arg(1)?)?;
-    let error = error_ptr.get();
 
-    let proto = machine.state.integer_prototype.clone();
-    let integer = error.value.as_error()? as i64;
-
-    let result = process.allocate(object_value::integer(integer), proto);
+    let integer = error_ptr.error_value()? as i64;
+    let result = ObjectPointer::integer(integer);
 
     process.set_register(register, result);
 

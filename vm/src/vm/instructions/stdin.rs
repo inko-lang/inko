@@ -57,7 +57,7 @@ pub fn stdin_read_exact(machine: &Machine,
     let register = instruction.arg(0)?;
     let size_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let size = size_ptr.get().value.as_integer()? as usize;
+    let size = size_ptr.integer_value()? as usize;
     let mut buffer = String::with_capacity(size);
     let stdin = io::stdin();
 

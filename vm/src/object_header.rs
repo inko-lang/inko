@@ -108,10 +108,6 @@ impl ObjectHeader {
         self.constants.contains_key(key)
     }
 
-    pub fn has_attribute(&self, key: &ObjectPointer) -> bool {
-        self.attributes.contains_key(key)
-    }
-
     pub fn remove_method(&mut self,
                          key: &ObjectPointer)
                          -> Option<ObjectPointer> {
@@ -234,22 +230,6 @@ mod tests {
         let header = ObjectHeader::new();
 
         assert!(header.get_attribute(&fake_pointer()).is_none());
-    }
-
-    #[test]
-    fn test_has_attribute_without_attribute() {
-        let header = ObjectHeader::new();
-
-        assert_eq!(header.has_attribute(&fake_pointer()), false);
-    }
-
-    #[test]
-    fn test_has_attribute_with_attribute() {
-        let mut header = ObjectHeader::new();
-        let name = fake_pointer();
-
-        header.add_attribute(name, ObjectPointer::null());
-        assert!(header.has_attribute(&name));
     }
 
     #[test]

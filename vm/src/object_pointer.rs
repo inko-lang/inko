@@ -1,14 +1,18 @@
 use std::mem::transmute;
 use std::hash::{Hash, Hasher};
+use std::fs;
 
 use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MATURE, MAILBOX, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
 
+use binding::RcBinding;
+use block::Block;
 use object::{Object, ObjectStatus};
 use process::RcProcess;
 use tagged_pointer::TaggedPointer;
+use vm::state::RcState;
 
 /// Performs a write to an object and tracks it in the write barrier.
 macro_rules! write_object {
@@ -24,6 +28,20 @@ macro_rules! write_object {
             $receiver.mark_for_finalization();
         }
     })
+}
+
+/// Defines a method for getting the value of an object as a given type.
+macro_rules! def_value_getter {
+    ($name: ident, $getter: ident, $as_type: ident, $ok_type: ty) => (
+        pub fn $name(&self) -> Result<$ok_type, String> {
+            if self.is_tagged_integer() {
+                Err(format!("ObjectPointer::{}() called on a tagged integer",
+                            stringify!($as_type)))
+            } else {
+                self.$getter().value.$as_type()
+            }
+        }
+    )
 }
 
 pub type RawObjectPointer = *mut Object;
@@ -52,11 +70,11 @@ pub struct ObjectPointerPointer {
 unsafe impl Send for ObjectPointerPointer {}
 unsafe impl Sync for ObjectPointerPointer {}
 
-/// The mask to use for tagging a pointer as an integer.
-pub const INTEGER_MARK: usize = 0x1; // TODO: implement integers
+/// The bit to set for tagged integers.
+pub const INTEGER_BIT: usize = 0;
 
-/// The mask to use for forwarding pointers
-pub const FORWARDING_MASK: usize = 0x2;
+/// The bit to set for forwarding pointers
+pub const FORWARDING_BIT: usize = 1;
 
 /// Returns the BlockHeader of the given pointer.
 fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
@@ -74,6 +92,14 @@ impl ObjectPointer {
         ObjectPointer { raw: TaggedPointer::new(pointer) }
     }
 
+    /// Creates a new tagged integer.
+    pub fn integer(value: i64) -> ObjectPointer {
+        ObjectPointer {
+            raw: TaggedPointer::with_bit((value << 1) as RawObjectPointer,
+                                         INTEGER_BIT),
+        }
+    }
+
     /// Creates a new null pointer.
     pub fn null() -> ObjectPointer {
         ObjectPointer { raw: TaggedPointer::null() }
@@ -81,7 +107,7 @@ impl ObjectPointer {
 
     /// Returns a forwarding pointer to the current pointer.
     pub fn forwarding_pointer(&self) -> ObjectPointer {
-        let raw = TaggedPointer::with_mask(self.raw.raw, FORWARDING_MASK);
+        let raw = TaggedPointer::with_bit(self.raw.raw, FORWARDING_BIT);
 
         ObjectPointer { raw: raw }
     }
@@ -89,7 +115,7 @@ impl ObjectPointer {
     /// Returns true if the current pointer points to a forwarded object.
     #[inline(always)]
     pub fn is_forwarded(&self) -> bool {
-        self.get().prototype.raw.mask_is_set(FORWARDING_MASK)
+        self.get().prototype.raw.bit_is_set(FORWARDING_BIT)
     }
 
     /// Returns the status of the object.
@@ -124,7 +150,7 @@ impl ObjectPointer {
             // should _not_ try to resolve anything as we'd end up storing the
             // address to the target objects' _prototype_, and not the target
             // object itself.
-            if !raw_proto.mask_is_set(FORWARDING_MASK) {
+            if !raw_proto.bit_is_set(FORWARDING_BIT) {
                 return;
             }
 
@@ -159,21 +185,23 @@ impl ObjectPointer {
 
     /// Returns true if the current pointer points to a permanent object.
     pub fn is_permanent(&self) -> bool {
+        self.is_tagged_integer() ||
         self.block().bucket().unwrap().age == PERMANENT
     }
 
     /// Returns true if the current pointer points to a mature object.
     pub fn is_mature(&self) -> bool {
-        self.block().bucket().unwrap().age == MATURE
+        !self.is_tagged_integer() && self.block().bucket().unwrap().age == MATURE
     }
 
     /// Returns true if the current pointer points to a mailbox object.
     pub fn is_mailbox(&self) -> bool {
-        self.block().bucket().unwrap().age == MAILBOX
+        !self.is_tagged_integer() && self.block().bucket().unwrap().age == MAILBOX
     }
 
     /// Returns true if the current pointer points to a young object.
     pub fn is_young(&self) -> bool {
+        !self.is_tagged_integer() &&
         self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
@@ -217,6 +245,10 @@ impl ObjectPointer {
     /// an object is marked while another thread is updating the pointer's
     /// address (e.g. after evacuating the underlying object).
     pub fn is_marked(&self) -> bool {
+        if self.is_tagged_integer() {
+            return true;
+        }
+
         let pointer = self.raw.untagged();
         let header = block_header_of(pointer);
         let ref mut block = header.block_mut();
@@ -282,10 +314,106 @@ impl ObjectPointer {
                       constant);
     }
 
+    /// Looks up a method.
+    pub fn lookup_method(&self,
+                         state: &RcState,
+                         name: &ObjectPointer)
+                         -> Option<ObjectPointer> {
+        if self.is_tagged_integer() {
+            state.integer_prototype.get().lookup_method(name)
+        } else {
+            self.get().lookup_method(name)
+        }
+    }
+
+    /// Looks up an attribute.
+    ///
+    /// For tagged integers this method will always return None as attributes
+    /// can not be defined on an integer.
+    pub fn lookup_attribute(&self,
+                            name: &ObjectPointer)
+                            -> Option<ObjectPointer> {
+        if self.is_tagged_integer() {
+            None
+        } else {
+            self.get().lookup_attribute(name)
+        }
+    }
+
+    /// Looks up a constant.
+    pub fn lookup_constant(&self,
+                           state: &RcState,
+                           name: &ObjectPointer)
+                           -> Option<ObjectPointer> {
+        if self.is_tagged_integer() {
+            state.integer_prototype.get().lookup_constant(name)
+        } else {
+            self.get().lookup_constant(name)
+        }
+    }
+
+    pub fn attributes(&self) -> Vec<ObjectPointer> {
+        if self.is_tagged_integer() {
+            Vec::new()
+        } else {
+            self.get().attributes()
+        }
+    }
+
+    pub fn attribute_names(&self) -> Vec<ObjectPointer> {
+        if self.is_tagged_integer() {
+            Vec::new()
+        } else {
+            self.get().attribute_names()
+        }
+    }
+
+    pub fn methods(&self) -> Vec<ObjectPointer> {
+        if self.is_tagged_integer() {
+            Vec::new()
+        } else {
+            self.get().methods()
+        }
+    }
+
+    pub fn method_names(&self) -> Vec<ObjectPointer> {
+        if self.is_tagged_integer() {
+            Vec::new()
+        } else {
+            self.get().method_names()
+        }
+    }
+
     /// Returns a pointer to this pointer.
     pub fn pointer(&self) -> ObjectPointerPointer {
         ObjectPointerPointer::new(self)
     }
+
+    pub fn is_tagged_integer(&self) -> bool {
+        self.raw.bit_is_set(INTEGER_BIT)
+    }
+
+    pub fn integer_value(&self) -> Result<i64, String> {
+        if self.is_tagged_integer() {
+            Ok(self.raw.raw as i64 >> 1)
+        } else {
+            Err("ObjectPointer::integer_value() called on a non integer object"
+                .to_string())
+        }
+    }
+
+    def_value_getter!(float_value, get, as_float, f64);
+    def_value_getter!(string_value, get, as_string, &String);
+
+    def_value_getter!(array_value, get, as_array, &Vec<ObjectPointer>);
+    def_value_getter!(array_value_mut, get_mut, as_array_mut, &mut Vec<ObjectPointer>);
+
+    def_value_getter!(file_value, get, as_file, &fs::File);
+    def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut fs::File);
+
+    def_value_getter!(error_value, get, as_error, u16);
+    def_value_getter!(block_value, get, as_block, &Box<Block>);
+    def_value_getter!(binding_value, get, as_binding, RcBinding);
 }
 
 impl ObjectPointerPointer {
@@ -330,13 +458,16 @@ impl Eq for ObjectPointerPointer {}
 mod tests {
     use std::collections::HashSet;
     use super::*;
+
+    use config::Config;
     use immix::bitmap::Bitmap;
+    use immix::block::Block;
+    use immix::bucket::{Bucket, MATURE, MAILBOX, PERMANENT};
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use immix::bucket::{Bucket, MATURE, MAILBOX, PERMANENT};
-    use immix::block::Block;
     use object::{Object, ObjectStatus};
     use object_value::ObjectValue;
+    use vm::state::State;
 
     fn fake_raw_pointer() -> RawObjectPointer {
         0x4 as RawObjectPointer
@@ -387,7 +518,7 @@ mod tests {
     fn test_object_pointer_forwarding_pointer() {
         let pointer = ObjectPointer::null().forwarding_pointer();
 
-        assert!(pointer.raw.mask_is_set(FORWARDING_MASK));
+        assert!(pointer.raw.bit_is_set(FORWARDING_BIT));
     }
 
     #[test]
@@ -449,7 +580,7 @@ mod tests {
     fn test_object_pointer_resolve_forwarding_pointer() {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
-        let mut object = Object::new(ObjectValue::Integer(2));
+        let mut object = Object::new(ObjectValue::Float(2.0));
 
         object.set_prototype(proto_pointer.forwarding_pointer());
 
@@ -497,7 +628,7 @@ mod tests {
     fn test_object_pointer_resolve_forwarding_pointer_in_vector() {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
-        let mut object = Object::new(ObjectValue::Integer(2));
+        let mut object = Object::new(ObjectValue::Float(2.0));
 
         object.set_prototype(proto_pointer.forwarding_pointer());
 
@@ -513,7 +644,7 @@ mod tests {
         () {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
-        let mut object = Object::new(ObjectValue::Integer(2));
+        let mut object = Object::new(ObjectValue::Float(2.0));
 
         object.set_prototype(proto_pointer.forwarding_pointer());
 
@@ -529,13 +660,13 @@ mod tests {
 
     #[test]
     fn test_object_pointer_get_get_mut() {
-        let object = Object::new(ObjectValue::Integer(2));
+        let object = Object::new(ObjectValue::Float(2.0));
         let pointer = object_pointer_for(&object);
 
         // Object doesn't implement PartialEq/Eq so we can't compare references,
         // thus we'll just test if we get something somewhat correct-ish.
-        assert!(pointer.get().value.is_integer());
-        assert!(pointer.get_mut().value.is_integer());
+        assert!(pointer.get().value.is_float());
+        assert!(pointer.get_mut().value.is_float());
     }
 
     #[test]
@@ -706,6 +837,82 @@ mod tests {
         set.insert(pointer);
 
         assert!(set.contains(&pointer));
+    }
+
+    #[test]
+    fn test_object_pointer_integer_value() {
+        for i in 1..10 {
+            assert_eq!(ObjectPointer::integer(i).integer_value().unwrap(), i);
+        }
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_method_with_integer() {
+        let state = State::new(Config::new());
+        let ptr = ObjectPointer::integer(5);
+        let name = state.intern(&"foo".to_string());
+        let method = state.permanent_allocator.lock().allocate_empty();
+
+        state.integer_prototype.get_mut().add_method(name, method);
+
+        assert!(ptr.lookup_method(&state, &name).unwrap() == method);
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_method_with_object() {
+        let state = State::new(Config::new());
+        let ptr = state.permanent_allocator.lock().allocate_empty();
+        let name = state.intern(&"foo".to_string());
+        let method = state.permanent_allocator.lock().allocate_empty();
+
+        ptr.get_mut().add_method(name, method);
+
+        assert!(ptr.lookup_method(&state, &name).unwrap() == method);
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_attribute_with_integer() {
+        let state = State::new(Config::new());
+        let ptr = ObjectPointer::integer(5);
+        let name = state.intern(&"foo".to_string());
+
+        assert!(ptr.lookup_attribute(&name).is_none());
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_attribute_with_object() {
+        let state = State::new(Config::new());
+        let ptr = state.permanent_allocator.lock().allocate_empty();
+        let name = state.intern(&"foo".to_string());
+        let value = state.permanent_allocator.lock().allocate_empty();
+
+        ptr.get_mut().add_attribute(name, value);
+
+        assert!(ptr.lookup_attribute(&name).unwrap() == value);
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_constant_with_integer() {
+        let state = State::new(Config::new());
+        let ptr = ObjectPointer::integer(5);
+        let name = state.intern(&"foo".to_string());
+        let constant = state.permanent_allocator.lock().allocate_empty();
+
+        state.integer_prototype.get_mut().add_constant(name, constant);
+
+        assert!(ptr.lookup_constant(&state, &name).unwrap() == constant);
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_constant_with_object() {
+        let state = State::new(Config::new());
+        let ptr = state.permanent_allocator.lock().allocate_empty();
+        let name = state.intern(&"foo".to_string());
+        let constant = state.permanent_allocator.lock().allocate_empty();
+
+        ptr.get_mut().add_constant(name, constant);
+
+        assert!(ptr.lookup_constant(&state, &name).unwrap() == constant);
     }
 
     #[test]

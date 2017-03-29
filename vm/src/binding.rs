@@ -341,8 +341,8 @@ mod tests {
         let mut alloc1 = LocalAllocator::new(global_alloc.clone());
         let mut alloc2 = LocalAllocator::new(global_alloc);
 
-        let ptr1 = alloc1.allocate_without_prototype(object_value::integer(5));
-        let ptr2 = alloc1.allocate_without_prototype(object_value::integer(2));
+        let ptr1 = alloc1.allocate_without_prototype(object_value::float(5.0));
+        let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
 
         let src_bind1 = Binding::new();
         let src_bind2 = Binding::with_parent(src_bind1.clone());
@@ -357,11 +357,9 @@ mod tests {
 
         assert_eq!(bind_copy.get_local(0)
                        .unwrap()
-                       .get()
-                       .value
-                       .as_integer()
+                       .float_value()
                        .unwrap(),
-                   2);
+                   2.0);
 
         let bind_copy_parent = bind_copy.parent.as_ref().unwrap();
 
@@ -370,10 +368,8 @@ mod tests {
 
         assert_eq!(bind_copy_parent.get_local(0)
                        .unwrap()
-                       .get()
-                       .value
-                       .as_integer()
+                       .float_value()
                        .unwrap(),
-                   5);
+                   5.0);
     }
 }

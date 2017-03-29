@@ -171,7 +171,7 @@ mod tests {
         let (_perm, process) = new_process();
 
         let mut pointer =
-            process.allocate_without_prototype(object_value::integer(15));
+            process.allocate_without_prototype(object_value::float(15.0));
 
         let old_address = pointer.raw.raw as usize;
 
@@ -181,7 +181,7 @@ mod tests {
 
         assert!(old_address != new_address);
         assert!(pointer.is_mature());
-        assert_eq!(pointer.get().value.as_integer().unwrap(), 15);
+        assert_eq!(pointer.float_value().unwrap(), 15.0);
     }
 
     #[test]
@@ -189,7 +189,7 @@ mod tests {
         let (_perm, process) = new_process();
 
         let mut pointer =
-            process.allocate_without_prototype(object_value::integer(15));
+            process.allocate_without_prototype(object_value::float(15.0));
 
         let old_address = pointer.raw.raw as usize;
 
@@ -198,7 +198,7 @@ mod tests {
         let new_address = pointer.raw.raw as usize;
 
         assert!(old_address != new_address);
-        assert_eq!(pointer.get().value.as_integer().unwrap(), 15);
+        assert_eq!(pointer.float_value().unwrap(), 15.0);
     }
 
     #[test]

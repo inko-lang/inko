@@ -283,10 +283,7 @@ impl Machine {
 
         self.state.process_pools.schedule(new_proc);
 
-        let pid_obj = process.allocate(object_value::integer(new_pid as i64),
-                                       self.state.integer_prototype.clone());
-
-        process.set_register(register, pid_obj);
+        process.set_register(register, ObjectPointer::integer(new_pid as i64));
 
         Ok(())
     }

@@ -67,7 +67,7 @@ impl StringPool {
 
         // Permanent pointers can not outlive a string pool, thus the below is
         // safe.
-        let pointer = StringPointer::new(value.get().value.as_string().unwrap());
+        let pointer = StringPointer::new(value.string_value().unwrap());
 
         self.mapping.insert(pointer, value);
     }

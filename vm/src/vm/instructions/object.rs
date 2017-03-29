@@ -68,8 +68,11 @@ pub fn set_attr(machine: &Machine,
     let name_ptr = process.get_register(instruction.arg(1)?)?;
     let value_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
+    if target_ptr.is_tagged_integer() {
+        return Err("attributes can not be set for integers".to_string());
+    }
+
+    let name = machine.state.intern(name_ptr.string_value()?);
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -96,13 +99,10 @@ pub fn get_attr(machine: &Machine,
     let register = instruction.arg(0)?;
     let source = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-
-    let name_obj = name_ptr.get();
-    let name_str = name_obj.value.as_string()?;
+    let name_str = name_ptr.string_value()?;
     let name = machine.state.intern(name_str);
 
-    let attr = source.get()
-        .lookup_attribute(&name)
+    let attr = source.lookup_attribute(&name)
         .ok_or_else(|| attribute_error!(instruction.arguments[1], name_str))?;
 
     process.set_register(register, attr);
@@ -126,12 +126,9 @@ pub fn attr_exists(machine: &Machine,
     let source_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let name_obj = name_ptr.get();
-    let name_str = name_obj.value.as_string()?;
-    let name = machine.state.intern(name_str);
-    let source = source_ptr.get();
+    let name = machine.state.intern(name_ptr.string_value()?);
 
-    let obj = if source.has_attribute(&name) {
+    let obj = if source_ptr.lookup_attribute(&name).is_some() {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()
@@ -207,9 +204,11 @@ pub fn remove_attribute(machine: &Machine,
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name = machine.state.intern(name_ptr.string_value()?);
 
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
+    if rec_ptr.is_tagged_integer() {
+        return Err("attributes can not be removed for integers".to_string());
+    }
 
     let obj = if let Some(attribute) = rec_ptr.get_mut()
         .remove_attribute(&name) {
@@ -236,7 +235,7 @@ pub fn get_attributes(machine: &Machine,
                       -> InstructionResult {
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let attributes = rec_ptr.get().attributes();
+    let attributes = rec_ptr.attributes();
 
     let obj = process.allocate(object_value::array(attributes),
                                machine.state.array_prototype);
@@ -259,7 +258,7 @@ pub fn get_attribute_names(machine: &Machine,
                            -> InstructionResult {
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let attributes = rec_ptr.get().attribute_names();
+    let attributes = rec_ptr.attribute_names();
 
     let obj = process.allocate(object_value::array(attributes),
                                machine.state.array_prototype);

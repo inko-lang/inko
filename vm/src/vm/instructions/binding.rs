@@ -46,7 +46,7 @@ pub fn get_binding_of_caller(machine: &Machine,
     let depth_ptr = process.get_register(instruction.arg(1)?)?;
     let start_context = process.context();
 
-    let depth = depth_ptr.get().value.as_integer()? as usize;
+    let depth = depth_ptr.integer_value()? as usize;
 
     let binding = if let Some(context) = start_context.find_parent(depth) {
         context.binding()

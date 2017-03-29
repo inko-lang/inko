@@ -26,7 +26,6 @@ pub trait CopyObject: Sized {
         // Copy over the object value
         let value_copy = match to_copy.value {
             ObjectValue::None => object_value::none(),
-            ObjectValue::Integer(num) => object_value::integer(num),
             ObjectValue::Float(num) => object_value::float(num),
             ObjectValue::String(ref string) => {
                 object_value::string(*string.clone())
@@ -141,12 +140,12 @@ mod tests {
     fn test_copy_integer() {
         let mut dummy = DummyAllocator::new();
         let pointer = dummy.allocator
-            .allocate_without_prototype(object_value::integer(5));
+            .allocate_without_prototype(object_value::float(5.0));
 
         let copy = dummy.copy_object(pointer);
 
-        assert!(copy.get().value.is_integer());
-        assert_eq!(copy.get().value.as_integer().unwrap(), 5);
+        assert!(copy.get().value.is_float());
+        assert_eq!(copy.float_value().unwrap(), 5.0);
     }
 
     #[test]
@@ -170,7 +169,7 @@ mod tests {
         let copy = dummy.copy_object(pointer);
 
         assert!(copy.get().value.is_string());
-        assert_eq!(copy.get().value.as_string().unwrap(), &"a".to_string());
+        assert_eq!(copy.string_value().unwrap(), &"a".to_string());
     }
 
     #[test]
@@ -224,10 +223,10 @@ mod tests {
         let binding2 = Binding::with_parent(binding1.clone());
 
         let local1 = dummy.allocator
-            .allocate_without_prototype(object_value::integer(15));
+            .allocate_without_prototype(object_value::float(15.0));
 
         let local2 = dummy.allocator
-            .allocate_without_prototype(object_value::integer(20));
+            .allocate_without_prototype(object_value::float(20.0));
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);
@@ -249,7 +248,7 @@ mod tests {
         assert!(local1 != local1_copy);
         assert!(local2 != local2_copy);
 
-        assert_eq!(local1_copy.get().value.as_integer().unwrap(), 20);
-        assert_eq!(local2_copy.get().value.as_integer().unwrap(), 15);
+        assert_eq!(local1_copy.float_value().unwrap(), 20.0);
+        assert_eq!(local2_copy.float_value().unwrap(), 15.0);
     }
 }

@@ -7,6 +7,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
+use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
 
@@ -67,11 +68,8 @@ pub fn array_insert(machine: &Machine,
     let index_ptr = process.get_register(instruction.arg(2)?)?;
     let value_ptr = process.get_register(instruction.arg(3)?)?;
 
-    let mut array = array_ptr.get_mut();
-    let index_obj = index_ptr.get();
-
-    let mut vector = array.value.as_array_mut()?;
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
+    let mut vector = array_ptr.array_value_mut()?;
+    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -107,11 +105,9 @@ pub fn array_at(machine: &Machine,
     let register = instruction.arg(0)?;
     let array_ptr = process.get_register(instruction.arg(1)?)?;
     let index_ptr = process.get_register(instruction.arg(2)?)?;
-    let array = array_ptr.get();
 
-    let index_obj = index_ptr.get();
-    let vector = array.value.as_array()?;
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
+    let vector = array_ptr.array_value()?;
+    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
 
     let value = vector.get(index)
         .cloned()
@@ -142,10 +138,8 @@ pub fn array_remove(machine: &Machine,
     let array_ptr = process.get_register(instruction.arg(1)?)?;
     let index_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let mut array = array_ptr.get_mut();
-    let index_obj = index_ptr.get();
-    let mut vector = array.value.as_array_mut()?;
-    let index = int_to_vector_index!(vector, index_obj.value.as_integer()?);
+    let mut vector = array_ptr.array_value_mut()?;
+    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
 
     let value = if index > vector.len() {
         machine.state.nil_object
@@ -164,21 +158,17 @@ pub fn array_remove(machine: &Machine,
 ///
 /// 1. The register to store the length in.
 /// 2. The register containing the array.
-pub fn array_length(machine: &Machine,
+pub fn array_length(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
     let register = instruction.arg(0)?;
     let array_ptr = process.get_register(instruction.arg(1)?)?;
-    let array = array_ptr.get();
-    let vector = array.value.as_array()?;
+    let vector = array_ptr.array_value()?;
     let length = vector.len() as i64;
 
-    let obj = process.allocate(object_value::integer(length),
-                               machine.state.integer_prototype.clone());
-
-    process.set_register(register, obj);
+    process.set_register(register, ObjectPointer::integer(length));
 
     Ok(Action::None)
 }
@@ -192,8 +182,7 @@ pub fn array_clear(_: &Machine,
                    instruction: &Instruction)
                    -> InstructionResult {
     let array_ptr = process.get_register(instruction.arg(0)?)?;
-    let mut array = array_ptr.get_mut();
-    let mut vector = array.value.as_array_mut()?;
+    let mut vector = array_ptr.array_value_mut()?;
 
     vector.clear();
 
@@ -336,11 +325,8 @@ mod tests {
             let array = process
                 .allocate_without_prototype(object_value::array(Vec::new()));
 
-            let index =
-                process.allocate_without_prototype(object_value::integer(0));
-
-            let value =
-                process.allocate_without_prototype(object_value::integer(5));
+            let index = ObjectPointer::integer(0);
+            let value = ObjectPointer::integer(5);
 
             process.set_register(0, array);
             process.set_register(1, index);
@@ -351,10 +337,8 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(3).unwrap();
-            let object = pointer.get();
 
-            assert!(object.value.is_integer());
-            assert_eq!(object.value.as_integer().unwrap(), 5);
+            assert_eq!(pointer.integer_value().unwrap(), 5);
         }
     }
 
@@ -409,14 +393,12 @@ mod tests {
             let instruction = new_instruction(InstructionType::ArrayAt,
                                               vec![2, 0, 1]);
 
-            let value =
-                process.allocate_without_prototype(object_value::integer(5));
+            let value = ObjectPointer::integer(5);
 
             let array = process
                 .allocate_without_prototype(object_value::array(vec![value]));
 
-            let index =
-                process.allocate_without_prototype(object_value::integer(0));
+            let index = ObjectPointer::integer(0);
 
             process.set_register(0, array);
             process.set_register(1, index);
@@ -426,10 +408,8 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(2).unwrap();
-            let object = pointer.get();
 
-            assert!(object.value.is_integer());
-            assert_eq!(object.value.as_integer().unwrap(), 5);
+            assert_eq!(pointer.integer_value().unwrap(), 5);
         }
     }
 
@@ -486,14 +466,12 @@ mod tests {
             let instruction = new_instruction(InstructionType::ArrayRemove,
                                               vec![2, 0, 1]);
 
-            let value =
-                process.allocate_without_prototype(object_value::integer(5));
+            let value = ObjectPointer::integer(5);
 
             let array = process
                 .allocate_without_prototype(object_value::array(vec![value]));
 
-            let index =
-                process.allocate_without_prototype(object_value::integer(0));
+            let index = ObjectPointer::integer(0);
 
             process.set_register(0, array);
             process.set_register(1, index);
@@ -503,10 +481,8 @@ mod tests {
             assert!(result.is_ok());
 
             let removed_pointer = process.get_register(2).unwrap();
-            let removed_object = removed_pointer.get();
 
-            assert!(removed_object.value.is_integer());
-            assert_eq!(removed_object.value.as_integer().unwrap(), 5);
+            assert_eq!(removed_pointer.integer_value().unwrap(), 5);
 
             assert_eq!(array.get()
                            .value
@@ -571,10 +547,8 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(1).unwrap();
-            let object = pointer.get();
 
-            assert!(object.value.is_integer());
-            assert_eq!(object.value.as_integer().unwrap(), 1);
+            assert_eq!(pointer.integer_value().unwrap(), 1);
         }
     }
 

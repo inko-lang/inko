@@ -7,7 +7,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
-use object_value;
+use object_pointer::ObjectPointer;
 use process::RcProcess;
 
 /// Writes a string to STDOUT and returns the amount of written bytes.
@@ -19,23 +19,20 @@ use process::RcProcess;
 ///
 /// The result of this instruction is either an integer indicating the
 /// amount of bytes written, or an error object.
-pub fn stdout_write(machine: &Machine,
+pub fn stdout_write(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
     let register = instruction.arg(0)?;
     let string_ptr = process.get_register(instruction.arg(1)?)?;
-    let string = string_ptr.get().value.as_string()?;
+    let string = string_ptr.string_value()?;
     let mut stdout = io::stdout();
 
     let obj = match stdout.write(string.as_bytes()) {
         Ok(num_bytes) => {
             match stdout.flush() {
-                Ok(_) => {
-                    process.allocate(object_value::integer(num_bytes as i64),
-                                     machine.state.integer_prototype)
-                }
+                Ok(_) => ObjectPointer::integer(num_bytes as i64),
                 Err(error) => io_error_code!(process, error),
             }
         }

@@ -207,7 +207,6 @@ mod tests {
 
         assert!(ptr1 == ptr2);
 
-        assert_eq!(ptr1.get().value.as_string().unwrap(),
-                   ptr2.get().value.as_string().unwrap());
+        assert_eq!(ptr1.string_value().unwrap(), ptr2.string_value().unwrap());
     }
 }

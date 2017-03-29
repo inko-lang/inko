@@ -41,15 +41,14 @@ pub fn run_block(machine: &Machine,
         if ptr == machine.state.nil_object {
             None
         } else {
-            Some(ptr.get().value.as_binding()?.clone())
+            Some(ptr.binding_value()?.clone())
         }
     };
 
     let rest_arg_ptr = process.get_register(instruction.arg(3)?)?;
     let rest_arg = !is_false!(machine, rest_arg_ptr);
 
-    let block_obj = block_ptr.get();
-    let block_val = block_obj.value.as_block()?;
+    let block_val = block_ptr.block_value()?;
 
     // Argument handling
     let arg_count = instruction.arguments.len() - 4;
@@ -62,9 +61,7 @@ pub fn run_block(machine: &Machine,
     // Unpack the last argument if it's a rest argument
     if rest_arg {
         if let Some(last_arg) = arguments.pop() {
-            let array = last_arg.get();
-
-            for value in array.value.as_array()? {
+            for value in last_arg.array_value()? {
                 arguments.push(value.clone());
             }
         }
@@ -132,8 +129,7 @@ pub fn parse_file(machine: &Machine,
                   -> InstructionResult {
     let register = instruction.arg(0)?;
     let path_ptr = process.get_register(instruction.arg(1)?)?;
-    let path_obj = path_ptr.get();
-    let path_str = path_obj.value.as_string()?;
+    let path_str = path_ptr.string_value()?;
 
     let code = write_lock!(machine.state.file_registry).get_or_set(path_str)
         .map_err(|err| err.message())?;
@@ -163,8 +159,7 @@ pub fn file_parsed(machine: &Machine,
                    -> InstructionResult {
     let register = instruction.arg(0)?;
     let path_ptr = process.get_register(instruction.arg(1)?)?;
-    let path_obj = path_ptr.get();
-    let path_str = path_obj.value.as_string()?;
+    let path_str = path_ptr.string_value()?;
 
     let ptr = if read_lock!(machine.state.file_registry)
         .contains_path(path_str) {

@@ -119,12 +119,12 @@ mod tests {
         let mut local_alloc = LocalAllocator::new(global_alloc);
 
         let original =
-            local_alloc.allocate_without_prototype(object_value::integer(5));
+            local_alloc.allocate_without_prototype(object_value::float(5.0));
 
         let copy = mbox_alloc.copy_object(original);
 
         assert!(copy.is_mailbox());
-        assert!(copy.get().value.is_integer());
+        assert!(copy.get().value.is_float());
     }
 
     #[test]

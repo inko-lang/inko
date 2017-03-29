@@ -6,6 +6,7 @@ use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
 use object_value;
+use object_pointer::ObjectPointer;
 use process::RcProcess;
 
 /// Sets a float in a register.
@@ -114,20 +115,16 @@ pub fn float_mod(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the float to convert.
-pub fn float_to_integer(machine: &Machine,
+pub fn float_to_integer(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
     let register = instruction.arg(0)?;
     let float_ptr = process.get_register(instruction.arg(1)?)?;
-    let float = float_ptr.get();
-    let result = float.value.as_float()? as i64;
+    let result = float_ptr.float_value()? as i64;
 
-    let obj = process.allocate(object_value::integer(result),
-                               machine.state.integer_prototype.clone());
-
-    process.set_register(register, obj);
+    process.set_register(register, ObjectPointer::integer(result));
 
     Ok(Action::None)
 }
@@ -145,8 +142,7 @@ pub fn float_to_string(machine: &Machine,
                        -> InstructionResult {
     let register = instruction.arg(0)?;
     let float_ptr = process.get_register(instruction.arg(1)?)?;
-    let float = float_ptr.get();
-    let result = float.value.as_float()?.to_string();
+    let result = float_ptr.float_value()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
                                machine.state.string_prototype.clone());
@@ -275,9 +271,8 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(2).unwrap();
-                    let object = pointer.get();
 
-                    assert_eq!(object.value.as_float().unwrap(), $expected);
+                    assert_eq!(pointer.float_value().unwrap(), $expected);
                 }
             }
         );
@@ -405,9 +400,8 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(1).unwrap();
-                    let object = pointer.get();
 
-                    assert!(object.value.$target_type().unwrap() == $target_val);
+                    assert!(pointer.$target_type().unwrap() == $target_val);
                 }
             }
         );
@@ -451,9 +445,8 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(0).unwrap();
-            let object = pointer.get();
 
-            assert_eq!(object.value.as_float().unwrap(), 10.0);
+            assert_eq!(pointer.float_value().unwrap(), 10.0);
         }
     }
 
@@ -467,9 +460,9 @@ mod tests {
     test_bool_op!(FloatGreater, float_greater, true_object);
     test_bool_op!(FloatEquals, float_equals, false_object);
 
-    test_cast_op!(FloatToInteger, float_to_integer, as_integer, 5);
+    test_cast_op!(FloatToInteger, float_to_integer, integer_value, 5);
     test_cast_op!(FloatToString,
                   float_to_string,
-                  as_string,
+                  string_value,
                   &"5.5".to_string());
 }

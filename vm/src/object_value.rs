@@ -1,7 +1,7 @@
 //! Values for Objects
 //!
-//! Objects need to be able to store values of different types such as integers
-//! or strings. The ObjectValue enum can be used for storing such data and
+//! Objects need to be able to store values of different types such as floats or
+//! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
 use std::fs;
@@ -14,7 +14,6 @@ use object_pointer::ObjectPointer;
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
     None,
-    Integer(i64),
     Float(f64),
     String(Box<String>),
     Array(Box<Vec<ObjectPointer>>),
@@ -28,13 +27,6 @@ impl ObjectValue {
     pub fn is_none(&self) -> bool {
         match *self {
             ObjectValue::None => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_integer(&self) -> bool {
-        match *self {
-            ObjectValue::Integer(_) => true,
             _ => false,
         }
     }
@@ -85,13 +77,6 @@ impl ObjectValue {
         match *self {
             ObjectValue::Binding(_) => true,
             _ => false,
-        }
-    }
-
-    pub fn as_integer(&self) -> Result<i64, String> {
-        match *self {
-            ObjectValue::Integer(val) => Ok(val),
-            _ => Err("as_integer called on a non integer value".to_string()),
         }
     }
 
@@ -187,10 +172,6 @@ pub fn none() -> ObjectValue {
     ObjectValue::None
 }
 
-pub fn integer(value: i64) -> ObjectValue {
-    ObjectValue::Integer(value)
-}
-
 pub fn float(value: f64) -> ObjectValue {
     ObjectValue::Float(value)
 }
@@ -231,13 +212,7 @@ mod tests {
     #[test]
     fn test_is_none() {
         assert!(ObjectValue::None.is_none());
-        assert_eq!(ObjectValue::Integer(10).is_none(), false);
-    }
-
-    #[test]
-    fn test_is_integer() {
-        assert!(ObjectValue::Integer(10).is_integer());
-        assert_eq!(ObjectValue::None.is_integer(), false);
+        assert_eq!(ObjectValue::Float(10.0).is_none(), false);
     }
 
     #[test]
@@ -293,19 +268,6 @@ mod tests {
 
         assert!(ObjectValue::Binding(binding).is_binding());
         assert_eq!(ObjectValue::None.is_binding(), false);
-    }
-
-    #[test]
-    fn test_as_integer_without_integer() {
-        assert!(ObjectValue::None.as_integer().is_err());
-    }
-
-    #[test]
-    fn test_as_integer_with_integer() {
-        let result = ObjectValue::Integer(10).as_integer();
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 10);
     }
 
     #[test]
@@ -448,22 +410,17 @@ mod tests {
 
     #[test]
     fn test_take() {
-        let mut val1 = ObjectValue::Integer(5);
+        let mut val1 = ObjectValue::Float(5.0);
         let val2 = val1.take();
 
         assert!(val1.is_none());
-        assert!(val2.is_integer());
-        assert_eq!(val2.as_integer().unwrap(), 5);
+        assert!(val2.is_float());
+        assert_eq!(val2.as_float().unwrap(), 5.0);
     }
 
     #[test]
     fn test_none() {
         assert!(none().is_none());
-    }
-
-    #[test]
-    fn test_integer() {
-        assert!(integer(10).is_integer());
     }
 
     #[test]

@@ -177,16 +177,6 @@ impl Object {
         }
     }
 
-    /// Returns true if the object responds to the given message.
-    pub fn responds_to(&self, name: &ObjectPointer) -> bool {
-        self.lookup_method(name).is_some()
-    }
-
-    /// Returns true if the object has the given attribute.
-    pub fn has_attribute(&self, name: &ObjectPointer) -> bool {
-        self.lookup_attribute(name).is_some()
-    }
-
     /// Looks up a method.
     pub fn lookup_method(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
         let mut retval: Option<ObjectPointer> = None;
@@ -269,21 +259,11 @@ impl Object {
     pub fn lookup_attribute(&self,
                             name: &ObjectPointer)
                             -> Option<ObjectPointer> {
-        let mut retval: Option<ObjectPointer> = None;
-
-        let opt_header = self.header();
-
-        if opt_header.is_none() {
-            return retval;
+        if let Some(header) = self.header() {
+            header.get_attribute(name)
+        } else {
+            None
         }
-
-        let header = opt_header.unwrap();
-
-        if header.has_attribute(name) {
-            retval = header.get_attribute(name);
-        }
-
-        retval
     }
 
     /// Returns an immutable reference to the object header.
@@ -454,7 +434,7 @@ mod tests {
         let method = obj.remove_method(&name);
 
         assert!(method.is_some());
-        assert_eq!(obj.responds_to(&name), false);
+        assert!(obj.lookup_method(&name).is_none());
     }
 
     #[test]
@@ -528,40 +508,6 @@ mod tests {
         child.each_header(|_| counter += 1);
 
         assert_eq!(counter, 2);
-    }
-
-    #[test]
-    fn test_object_responds_to_without_method() {
-        let obj = new_object();
-
-        assert_eq!(obj.responds_to(&fake_pointer()), false);
-    }
-
-    #[test]
-    fn test_object_responds_to_with_method() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_method(name, fake_pointer());
-
-        assert!(obj.responds_to(&name));
-    }
-
-    #[test]
-    fn test_object_has_attribute_without_attribute() {
-        let obj = new_object();
-
-        assert_eq!(obj.has_attribute(&fake_pointer()), false);
-    }
-
-    #[test]
-    fn test_object_has_attribute_with_attribute() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_attribute(name, fake_pointer());
-
-        assert!(obj.has_attribute(&name));
     }
 
     #[test]
@@ -726,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_object_take() {
-        let mut obj = Object::new(ObjectValue::Integer(10));
+        let mut obj = Object::new(ObjectValue::Float(10.0));
         let header = ObjectHeader::new();
 
         obj.set_header(header);
@@ -737,7 +683,7 @@ mod tests {
         assert!(obj.value.is_none());
 
         assert!(new_obj.header().is_some());
-        assert!(new_obj.value.is_integer());
+        assert!(new_obj.value.is_float());
     }
 
     #[test]

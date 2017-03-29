@@ -492,11 +492,11 @@ mod tests {
     #[test]
     fn test_block_bump_allocate() {
         let mut block = Block::new();
-        let obj = Object::new(ObjectValue::Integer(10));
+        let obj = Object::new(ObjectValue::Float(10.0));
 
         assert!(block.free_pointer == block.start_address());
 
-        assert!(block.bump_allocate(obj).get().value.is_integer());
+        assert!(block.bump_allocate(obj).get().value.is_float());
         assert!(block.free_pointer == unsafe { block.start_address().offset(1) });
 
         block.bump_allocate(Object::new(ObjectValue::None));
@@ -663,7 +663,7 @@ mod tests {
     #[test]
     fn test_block_finalize() {
         let mut block = Block::new();
-        let obj = Object::new(ObjectValue::Integer(10));
+        let obj = Object::new(ObjectValue::Float(10.0));
 
         block.bump_allocate(obj);
 

@@ -6,6 +6,7 @@ use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
 use errors;
+use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
 
@@ -46,8 +47,7 @@ pub fn string_to_lower(machine: &Machine,
                        -> InstructionResult {
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
-    let source = source_ptr.get();
-    let lower = source.value.as_string()?.to_lowercase();
+    let lower = source_ptr.string_value()?.to_lowercase();
 
     let obj = process.allocate(object_value::string(lower),
                                machine.state.string_prototype.clone());
@@ -70,8 +70,7 @@ pub fn string_to_upper(machine: &Machine,
                        -> InstructionResult {
     let register = instruction.arg(0)?;
     let source_ptr = process.get_register(instruction.arg(1)?)?;
-    let source = source_ptr.get();
-    let upper = source.value.as_string()?.to_uppercase();
+    let upper = source_ptr.string_value()?.to_uppercase();
 
     let obj = process.allocate(object_value::string(upper),
                                machine.state.string_prototype.clone());
@@ -97,11 +96,7 @@ pub fn string_equals(machine: &Machine,
     let receiver_ptr = process.get_register(instruction.arg(1)?)?;
     let arg_ptr = process.get_register(instruction.arg(2)?)?;
 
-    let receiver = receiver_ptr.get();
-    let arg = arg_ptr.get();
-    let result = receiver.value.as_string()? == arg.value.as_string()?;
-
-    let boolean = if result {
+    let boolean = if receiver_ptr.string_value()? == arg_ptr.string_value()? {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()
@@ -125,16 +120,11 @@ pub fn string_to_bytes(machine: &Machine,
                        -> InstructionResult {
     let register = instruction.arg(0)?;
     let string_ptr = process.get_register(instruction.arg(1)?)?;
-    let string_obj = string_ptr.get();
 
-    let array = string_obj.value
-        .as_string()?
+    let array = string_ptr.string_value()?
         .as_bytes()
         .iter()
-        .map(|&b| {
-            process.allocate(object_value::integer(b as i64),
-                             machine.state.integer_prototype)
-        })
+        .map(|&b| ObjectPointer::integer(b as i64))
         .collect::<Vec<_>>();
 
     let obj = process.allocate(object_value::array(array),
@@ -162,12 +152,11 @@ pub fn string_from_bytes(machine: &Machine,
     let register = instruction.arg(0)?;
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let arg = arg_ptr.get();
-    let array = arg.value.as_array()?;
+    let array = arg_ptr.array_value()?;
     let mut bytes = Vec::with_capacity(array.len());
 
     for ptr in array.iter() {
-        let integer = ptr.get().value.as_integer()?;
+        let integer = ptr.integer_value()?;
 
         bytes.push(integer as u8);
     }
@@ -195,7 +184,7 @@ pub fn string_from_bytes(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the string.
-pub fn string_length(machine: &Machine,
+pub fn string_length(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
@@ -203,13 +192,9 @@ pub fn string_length(machine: &Machine,
     let register = instruction.arg(0)?;
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let arg = arg_ptr.get();
-    let int_proto = machine.state.integer_prototype.clone();
-    let length = arg.value.as_string()?.chars().count() as i64;
+    let length = arg_ptr.string_value()?.chars().count() as i64;
 
-    let obj = process.allocate(object_value::integer(length), int_proto);
-
-    process.set_register(register, obj);
+    process.set_register(register, ObjectPointer::integer(length));
 
     Ok(Action::None)
 }
@@ -220,7 +205,7 @@ pub fn string_length(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the string.
-pub fn string_size(machine: &Machine,
+pub fn string_size(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
@@ -228,13 +213,9 @@ pub fn string_size(machine: &Machine,
     let register = instruction.arg(0)?;
     let arg_ptr = process.get_register(instruction.arg(1)?)?;
 
-    let arg = arg_ptr.get();
-    let int_proto = machine.state.integer_prototype.clone();
-    let size = arg.value.as_string()?.len() as i64;
+    let size = arg_ptr.string_value()?.len() as i64;
 
-    let obj = process.allocate(object_value::integer(size), int_proto);
-
-    process.set_register(register, obj);
+    process.set_register(register, ObjectPointer::integer(size));
 
     Ok(Action::None)
 }

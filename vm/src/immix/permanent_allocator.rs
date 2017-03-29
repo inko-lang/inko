@@ -80,20 +80,20 @@ mod tests {
         let mut alloc = permanent_allocator();
         let proto = alloc.allocate_empty();
         let pointer =
-            alloc.allocate_with_prototype(object_value::integer(5), proto);
+            alloc.allocate_with_prototype(object_value::float(5.0), proto);
 
         assert!(pointer.get().prototype == proto);
-        assert!(pointer.get().value.is_integer());
+        assert!(pointer.get().value.is_float());
         assert!(pointer.is_permanent());
     }
 
     #[test]
     fn test_allocate_without_prototype() {
         let mut alloc = permanent_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
 
         assert!(pointer.get().prototype().is_none());
-        assert!(pointer.get().value.is_integer());
+        assert!(pointer.get().value.is_float());
         assert!(pointer.is_permanent());
     }
 

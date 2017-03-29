@@ -5,7 +5,7 @@ use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
-use object_value;
+use object_pointer::ObjectPointer;
 use pools::PRIMARY_POOL;
 use process::RcProcess;
 
@@ -28,12 +28,12 @@ pub fn spawn_process(machine: &Machine,
     let pool_id = if let Ok(pool_reg) = instruction.arg(2) {
         let ptr = process.get_register(pool_reg)?;
 
-        ptr.get().value.as_integer()? as usize
+        ptr.integer_value()? as usize
     } else {
         PRIMARY_POOL
     };
 
-    let block_obj = block_ptr.get().value.as_block()?;
+    let block_obj = block_ptr.block_value()?;
 
     machine.spawn_process(process, pool_id, block_obj.code.clone(), register)?;
 
@@ -56,7 +56,7 @@ pub fn send_process_message(machine: &Machine,
     let register = instruction.arg(0)?;
     let pid_ptr = process.get_register(instruction.arg(1)?)?;
     let msg_ptr = process.get_register(instruction.arg(2)?)?;
-    let pid = pid_ptr.get().value.as_integer()? as usize;
+    let pid = pid_ptr.integer_value()? as usize;
 
     if let Some(receiver) = read_lock!(machine.state.process_table).get(&pid) {
         receiver.send_message(&process, msg_ptr);
@@ -95,7 +95,7 @@ pub fn receive_process_message(_: &Machine,
 ///
 /// This instruction requires one argument: the register to store the PID
 /// in (as an integer).
-pub fn get_current_pid(machine: &Machine,
+pub fn get_current_pid(_: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
@@ -103,10 +103,7 @@ pub fn get_current_pid(machine: &Machine,
     let register = instruction.arg(0)?;
     let pid = process.pid;
 
-    let pid_obj = process.allocate(object_value::integer(pid as i64),
-                                   machine.state.integer_prototype.clone());
-
-    process.set_register(register, pid_obj);
+    process.set_register(register, ObjectPointer::integer(pid as i64));
 
     Ok(Action::None)
 }

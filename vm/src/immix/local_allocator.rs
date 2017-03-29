@@ -322,19 +322,19 @@ mod tests {
         let mut alloc = local_allocator();
         let proto = alloc.allocate_empty();
         let pointer =
-            alloc.allocate_with_prototype(object_value::integer(5), proto);
+            alloc.allocate_with_prototype(object_value::float(5.0), proto);
 
         assert!(pointer.get().prototype == proto);
-        assert!(pointer.get().value.is_integer());
+        assert!(pointer.get().value.is_float());
     }
 
     #[test]
     fn test_allocate_without_prototype() {
         let mut alloc = local_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
 
         assert!(pointer.get().prototype().is_none());
-        assert!(pointer.get().value.is_integer());
+        assert!(pointer.get().value.is_float());
     }
 
     #[test]
@@ -480,11 +480,11 @@ mod tests {
     #[test]
     fn test_copy_object() {
         let mut alloc = local_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::integer(5));
+        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
         let copy = alloc.copy_object(pointer);
 
         assert!(copy.is_young());
-        assert!(copy.get().value.is_integer());
+        assert!(copy.get().value.is_float());
     }
 
     #[test]

@@ -26,12 +26,9 @@ pub fn lookup_method(machine: &Machine,
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name = machine.state.intern(name_ptr.string_value()?);
 
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
-
-    let method = rec_ptr.get()
-        .lookup_method(&name)
+    let method = rec_ptr.lookup_method(&machine.state, &name)
         .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, method);
@@ -58,12 +55,12 @@ pub fn def_method(machine: &Machine,
     let name_ptr = process.get_register(instruction.arg(2)?)?;
     let block_ptr = process.get_register(instruction.arg(3)?)?;
 
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
+    if receiver_ptr.is_tagged_integer() {
+        return Err("methods can not be defined on integers".to_string());
+    }
 
-    let block_obj = block_ptr.get();
-    let block = block_obj.value.as_block()?;
-
+    let name = machine.state.intern(name_ptr.string_value()?);
+    let block = block_ptr.block_value()?;
     let method = machine.allocate_method(&process, &receiver_ptr, block);
 
     receiver_ptr.add_method(&process, name.clone(), method);
@@ -89,12 +86,9 @@ pub fn responds_to(machine: &Machine,
     let source = process.get_register(instruction.arg(1)?)?;
 
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
+    let name = machine.state.intern(name_ptr.string_value()?);
 
-    let source_obj = source.get();
-
-    let result = if source_obj.responds_to(&name) {
+    let result = if source.lookup_method(&machine.state, &name).is_some() {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()
@@ -122,9 +116,11 @@ pub fn remove_method(machine: &Machine,
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name = machine.state.intern(name_ptr.string_value()?);
 
-    let name_obj = name_ptr.get();
-    let name = machine.state.intern(name_obj.value.as_string()?);
+    if rec_ptr.is_tagged_integer() {
+        return Err("methods can not be removed from integers".to_string());
+    }
 
     let obj = if let Some(method) = rec_ptr.get_mut().remove_method(&name) {
         method
@@ -150,7 +146,7 @@ pub fn get_methods(machine: &Machine,
                    -> InstructionResult {
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let methods = rec_ptr.get().methods();
+    let methods = rec_ptr.methods();
 
     let obj =
         process.allocate(object_value::array(methods),
@@ -174,7 +170,7 @@ pub fn get_method_names(machine: &Machine,
                         -> InstructionResult {
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let methods = rec_ptr.get().method_names();
+    let methods = rec_ptr.method_names();
 
     let obj =
         process.allocate(object_value::array(methods),

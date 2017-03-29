@@ -465,11 +465,11 @@ mod tests {
         assert_eq!(bucket.blocks.len(), 0);
 
         let (new_block, new_pointer) =
-            bucket.allocate(&global_alloc, Object::new(object_value::integer(4)));
+            bucket.allocate(&global_alloc, Object::new(object_value::float(4.0)));
 
         assert!(new_block);
         assert!(pointer.get().value.is_none());
-        assert!(new_pointer.get().value.is_integer());
+        assert!(new_pointer.get().value.is_float());
 
         assert!(bucket.blocks[0].free_pointer ==
                 unsafe { bucket.blocks[0].start_address().offset(5) });

@@ -6,6 +6,7 @@ use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
 use object_value;
+use object_pointer::ObjectPointer;
 use process::RcProcess;
 
 /// Sets an integer in a register.
@@ -16,7 +17,7 @@ use process::RcProcess;
 /// 2. The index of the integer literals to use for the value.
 ///
 /// The integer literal is extracted from the given CompiledCode.
-pub fn set_integer(machine: &Machine,
+pub fn set_integer(_: &Machine,
                    process: &RcProcess,
                    code: &RcCompiledCode,
                    instruction: &Instruction)
@@ -24,9 +25,7 @@ pub fn set_integer(machine: &Machine,
     let register = instruction.arg(0)?;
     let index = instruction.arg(1)?;
     let value = *code.integer(index)?;
-
-    let obj = process.allocate(object_value::integer(value),
-                               machine.state.integer_prototype.clone());
+    let obj = ObjectPointer::integer(value);
 
     process.set_register(register, obj);
 
@@ -40,12 +39,12 @@ pub fn set_integer(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
-pub fn integer_add(machine: &Machine,
+pub fn integer_add(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    integer_op!(machine, process, instruction, +)
+    integer_op!(process, instruction, +)
 }
 
 /// Divides an integer
@@ -55,12 +54,12 @@ pub fn integer_add(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
-pub fn integer_div(machine: &Machine,
+pub fn integer_div(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    integer_op!(machine, process, instruction, /)
+    integer_op!(process, instruction, /)
 }
 
 /// Multiplies an integer
@@ -70,12 +69,12 @@ pub fn integer_div(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
-pub fn integer_mul(machine: &Machine,
+pub fn integer_mul(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    integer_op!(machine, process, instruction, *)
+    integer_op!(process, instruction, *)
 }
 
 /// Subtracts an integer
@@ -85,12 +84,12 @@ pub fn integer_mul(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
-pub fn integer_sub(machine: &Machine,
+pub fn integer_sub(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    integer_op!(machine, process, instruction, -)
+    integer_op!(process, instruction, -)
 }
 
 /// Gets the modulo of an integer
@@ -100,12 +99,12 @@ pub fn integer_sub(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
-pub fn integer_mod(machine: &Machine,
+pub fn integer_mod(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    integer_op!(machine, process, instruction, %)
+    integer_op!(process, instruction, %)
 }
 
 /// Converts an integer to a float
@@ -121,8 +120,7 @@ pub fn integer_to_float(machine: &Machine,
                         -> InstructionResult {
     let register = instruction.arg(0)?;
     let integer_ptr = process.get_register(instruction.arg(1)?)?;
-    let integer = integer_ptr.get();
-    let result = integer.value.as_integer()? as f64;
+    let result = integer_ptr.integer_value()? as f64;
 
     let obj = process.allocate(object_value::float(result),
                                machine.state.float_prototype.clone());
@@ -145,8 +143,7 @@ pub fn integer_to_string(machine: &Machine,
                          -> InstructionResult {
     let register = instruction.arg(0)?;
     let integer_ptr = process.get_register(instruction.arg(1)?)?;
-    let integer = integer_ptr.get();
-    let result = integer.value.as_integer()?.to_string();
+    let result = integer_ptr.integer_value()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
                                machine.state.string_prototype.clone());
@@ -163,12 +160,12 @@ pub fn integer_to_string(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
-pub fn integer_bitwise_and(machine: &Machine,
+pub fn integer_bitwise_and(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    integer_op!(machine, process, instruction, &)
+    integer_op!(process, instruction, &)
 }
 
 /// Performs an integer bitwise OR.
@@ -178,12 +175,12 @@ pub fn integer_bitwise_and(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
-pub fn integer_bitwise_or(machine: &Machine,
+pub fn integer_bitwise_or(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
                           instruction: &Instruction)
                           -> InstructionResult {
-    integer_op!(machine, process, instruction, |)
+    integer_op!(process, instruction, |)
 }
 
 /// Performs an integer bitwise XOR.
@@ -193,12 +190,12 @@ pub fn integer_bitwise_or(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
-pub fn integer_bitwise_xor(machine: &Machine,
+pub fn integer_bitwise_xor(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    integer_op!(machine, process, instruction, ^)
+    integer_op!(process, instruction, ^)
 }
 
 /// Shifts an integer to the left.
@@ -208,12 +205,12 @@ pub fn integer_bitwise_xor(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
-pub fn integer_shift_left(machine: &Machine,
+pub fn integer_shift_left(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
                           instruction: &Instruction)
                           -> InstructionResult {
-    integer_op!(machine, process, instruction, <<)
+    integer_op!(process, instruction, <<)
 }
 
 /// Shifts an integer to the right.
@@ -223,12 +220,12 @@ pub fn integer_shift_left(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
-pub fn integer_shift_right(machine: &Machine,
+pub fn integer_shift_right(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    integer_op!(machine, process, instruction, >>)
+    integer_op!(process, instruction, >>)
 }
 
 /// Checks if one integer is smaller than the other.
@@ -285,7 +282,6 @@ pub fn integer_equals(machine: &Machine,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_value;
     use vm::instructions::test::*;
     use vm::instruction::InstructionType;
 
@@ -321,8 +317,7 @@ mod tests {
                     let instruction = new_instruction(InstructionType::$ins_type,
                                                       vec![2, 0, 1]);
 
-                    let left =
-                        process.allocate_without_prototype(object_value::integer(5));
+                    let left = ObjectPointer::integer(5);
 
                     process.set_register(0, left);
 
@@ -336,11 +331,8 @@ mod tests {
                     let instruction = new_instruction(InstructionType::$ins_type,
                                                       vec![2, 0, 1]);
 
-                    let left =
-                        process.allocate_without_prototype(object_value::integer(5));
-
-                    let right =
-                        process.allocate_without_prototype(object_value::integer(2));
+                    let left = ObjectPointer::integer(5);
+                    let right = ObjectPointer::integer(2);
 
                     process.set_register(0, left);
                     process.set_register(1, right);
@@ -350,9 +342,8 @@ mod tests {
                     assert!(result.is_ok());
 
                     let pointer = process.get_register(2).unwrap();
-                    let object = pointer.get();
 
-                    assert_eq!(object.value.as_integer().unwrap(), $expected);
+                    assert_eq!(pointer.integer_value().unwrap(), $expected);
                 }
             }
         );
@@ -390,8 +381,7 @@ mod tests {
                     let instruction = new_instruction(InstructionType::$ins_type,
                                                       vec![2, 0, 1]);
 
-                    let left =
-                        process.allocate_without_prototype(object_value::integer(5));
+                    let left = ObjectPointer::integer(5);
 
                     process.set_register(0, left);
 
@@ -405,11 +395,8 @@ mod tests {
                     let instruction = new_instruction(InstructionType::$ins_type,
                                                       vec![2, 0, 1]);
 
-                    let left =
-                        process.allocate_without_prototype(object_value::integer(5));
-
-                    let right =
-                        process.allocate_without_prototype(object_value::integer(2));
+                    let left = ObjectPointer::integer(5);
+                    let right = ObjectPointer::integer(2);
 
                     process.set_register(0, left);
                     process.set_register(1, right);
@@ -469,8 +456,7 @@ mod tests {
                     let instruction = new_instruction(InstructionType::$ins_type,
                                                       vec![1, 0]);
 
-                    let original =
-                        process.allocate_without_prototype(object_value::integer(5));
+                    let original = ObjectPointer::integer(5);
 
                     process.set_register(0, original);
 
@@ -526,9 +512,8 @@ mod tests {
             assert!(result.is_ok());
 
             let pointer = process.get_register(0).unwrap();
-            let object = pointer.get();
 
-            assert_eq!(object.value.as_integer().unwrap(), 10);
+            assert_eq!(pointer.integer_value().unwrap(), 10);
         }
     }
 
