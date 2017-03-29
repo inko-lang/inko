@@ -48,7 +48,7 @@ pub struct CompiledCode {
     pub instructions: Vec<Instruction>,
 
     /// Any literal integers appearing in the source code.
-    pub integer_literals: Vec<i64>,
+    pub integer_literals: Vec<ObjectPointer>,
 
     /// Any literal floats appearing in the source code.
     pub float_literals: Vec<f64>,
@@ -102,9 +102,10 @@ impl CompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
     }
 
-    pub fn integer(&self, index: usize) -> Result<&i64, String> {
+    pub fn integer(&self, index: usize) -> Result<ObjectPointer, String> {
         self.integer_literals
             .get(index)
+            .cloned()
             .ok_or_else(|| format!("Undefined integer literal {}", index))
     }
 
@@ -161,10 +162,10 @@ mod tests {
     fn test_integer_valid() {
         let mut code = new_compiled_code();
 
-        code.integer_literals.push(10);
+        code.integer_literals.push(ObjectPointer::integer(10));
 
         assert!(code.integer(0).is_ok());
-        assert_eq!(code.integer(0).unwrap(), &10);
+        assert!(code.integer(0).unwrap() == ObjectPointer::integer(10));
     }
 
     #[test]

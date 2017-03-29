@@ -19,6 +19,7 @@ use std::mem;
 use std::sync::Arc;
 
 use compiled_code::{CompiledCode, RcCompiledCode};
+use object_pointer::ObjectPointer;
 use vm::instruction::{InstructionType, Instruction};
 use vm::state::RcState;
 
@@ -253,7 +254,12 @@ fn read_compiled_code<T: Read>(state: &RcState,
 
     let locals = try!(read_u16(bytes));
     let instructions = read_instruction_vector!(T, bytes);
-    let int_literals = read_i64_vector!(T, bytes);
+
+    let int_literals = read_i64_vector!(T, bytes)
+        .iter()
+        .map(|integer| ObjectPointer::integer(*integer))
+        .collect();
+
     let float_literals = read_f64_vector!(T, bytes);
 
     let str_literals = read_string_vector!(T, bytes)
@@ -648,7 +654,7 @@ mod tests {
         assert_eq!(ins.line, 2);
 
         assert_eq!(object.integer_literals.len(), 1);
-        assert_eq!(object.integer_literals[0], 10);
+        assert!(object.integer_literals[0] == ObjectPointer::integer(10));
 
         assert_eq!(object.float_literals.len(), 1);
         assert!((object.float_literals[0] - 1.2).abs() < 0.001);

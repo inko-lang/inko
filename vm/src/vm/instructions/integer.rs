@@ -15,8 +15,6 @@ use process::RcProcess;
 ///
 /// 1. The register to store the integer in.
 /// 2. The index of the integer literals to use for the value.
-///
-/// The integer literal is extracted from the given CompiledCode.
 pub fn set_integer(_: &Machine,
                    process: &RcProcess,
                    code: &RcCompiledCode,
@@ -24,10 +22,8 @@ pub fn set_integer(_: &Machine,
                    -> InstructionResult {
     let register = instruction.arg(0)?;
     let index = instruction.arg(1)?;
-    let value = *code.integer(index)?;
-    let obj = ObjectPointer::integer(value);
 
-    process.set_register(register, obj);
+    process.set_register(register, code.integer(index)?);
 
     Ok(Action::None)
 }
@@ -505,7 +501,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::SetInteger,
                                               vec![0, 0]);
 
-            arc_mut(&code).integer_literals.push(10);
+            arc_mut(&code).integer_literals.push(ObjectPointer::integer(10));
 
             let result = set_integer(&machine, &process, &code, &instruction);
 
