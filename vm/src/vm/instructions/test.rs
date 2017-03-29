@@ -11,7 +11,7 @@ use process::RcProcess;
 /// Sets up a VM with a single process.
 pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
     let state = State::new(Config::new());
-    let machine = Machine::new(state);
+    let machine = Machine::default(state);
 
     let code =
         CompiledCode::with_rc("a".to_string(), "a".to_string(), 1, Vec::new());

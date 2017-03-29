@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use object_pointer::ObjectPointer;
 use vm::instruction::Instruction;
 
 /// An immutable, reference counted CompiledCode.
@@ -53,7 +54,7 @@ pub struct CompiledCode {
     pub float_literals: Vec<f64>,
 
     /// Any literal strings appearing in the source code.
-    pub string_literals: Vec<String>,
+    pub string_literals: Vec<ObjectPointer>,
 
     /// Extra CompiledCode objects to associate with the current one. This can
     /// be used to store CompiledCode objects for every method in a class in the
@@ -113,9 +114,10 @@ impl CompiledCode {
             .ok_or_else(|| format!("Undefined float literal {}", index))
     }
 
-    pub fn string(&self, index: usize) -> Result<&String, String> {
+    pub fn string(&self, index: usize) -> Result<ObjectPointer, String> {
         self.string_literals
             .get(index)
+            .cloned()
             .ok_or_else(|| format!("Undefined string literal {}", index))
     }
 
@@ -131,6 +133,7 @@ impl CompiledCode {
 mod tests {
     use super::*;
     use std::sync::Arc;
+    use object_pointer::ObjectPointer;
     use vm::instruction::{Instruction, InstructionType};
 
     fn new_compiled_code() -> CompiledCode {
@@ -186,11 +189,12 @@ mod tests {
     #[test]
     fn test_string_valid() {
         let mut code = new_compiled_code();
+        let pointer = ObjectPointer::integer(42);
 
-        code.string_literals.push("hello".to_string());
+        code.string_literals.push(pointer);
 
         assert!(code.string(0).is_ok());
-        assert_eq!(code.string(0).unwrap(), &"hello".to_string());
+        assert!(code.string(0).unwrap() == pointer);
     }
 
     #[test]

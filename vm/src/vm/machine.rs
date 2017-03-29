@@ -4,6 +4,7 @@ use block::Block;
 use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use execution_context::ExecutionContext;
+use file_registry::{FileRegistry, RcFileRegistry};
 use gc::request::Request as GcRequest;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -14,13 +15,25 @@ use vm::action::Action;
 use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
 use vm::state::RcState;
 
+#[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
+    pub file_registry: RcFileRegistry,
 }
 
 impl Machine {
-    pub fn new(state: RcState) -> Machine {
-        Machine { state: state }
+    /// Creates a new Machine with various fields set to their defaults.
+    pub fn default(state: RcState) -> Self {
+        let file_registry = FileRegistry::with_rc(state.clone());
+
+        Machine::new(state, file_registry)
+    }
+
+    pub fn new(state: RcState, file_registry: RcFileRegistry) -> Self {
+        Machine {
+            state: state,
+            file_registry: file_registry,
+        }
     }
 
     /// Starts the VM
@@ -52,14 +65,14 @@ impl Machine {
     }
 
     fn start_primary_threads(&self) -> PoolJoinGuard<()> {
-        let machine = Machine::new(self.state.clone());
+        let machine = self.clone();
         let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
 
         pool.run(move |process| machine.run(&process))
     }
 
     fn start_secondary_threads(&self) {
-        let machine = Machine::new(self.state.clone());
+        let machine = self.clone();
         let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
         pool.run(move |process| machine.run(&process));

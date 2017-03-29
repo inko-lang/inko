@@ -1,9 +1,13 @@
 //! Parsing and caching of bytecode files.
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use bytecode_parser;
 use compiled_code::RcCompiledCode;
+use vm::state::RcState;
+
+pub type RcFileRegistry = Arc<RwLock<FileRegistry>>;
 
 pub enum FileError {
     /// The bytecode file did exist but could not be parsed.
@@ -14,8 +18,8 @@ pub enum FileError {
 }
 
 pub struct FileRegistry {
+    state: RcState,
     parsed: HashMap<String, RcCompiledCode>,
-    directories: Vec<PathBuf>,
 }
 
 impl FileError {
@@ -33,10 +37,14 @@ impl FileError {
 }
 
 impl FileRegistry {
-    pub fn new(directories: Vec<PathBuf>) -> Self {
+    pub fn with_rc(state: RcState) -> RcFileRegistry {
+        Arc::new(RwLock::new(FileRegistry::new(state)))
+    }
+
+    pub fn new(state: RcState) -> Self {
         FileRegistry {
+            state: state,
             parsed: HashMap::new(),
-            directories: directories,
         }
     }
 
@@ -66,7 +74,7 @@ impl FileRegistry {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in self.directories.iter() {
+            for directory in self.state.config.directories.iter() {
                 let full_path = directory.join(path);
 
                 if full_path.exists() {
@@ -84,7 +92,7 @@ impl FileRegistry {
 
         let parse_path = input_path.to_str().unwrap();
 
-        let code = bytecode_parser::parse_file(parse_path)
+        let code = bytecode_parser::parse_file(&self.state, parse_path)
             .map_err(|err| FileError::FailedToParse(path.clone(), err))?;
 
         self.parsed.insert(path.clone(), code.clone());

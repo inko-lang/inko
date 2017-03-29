@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use compiled_code::{CompiledCode, RcCompiledCode};
 use vm::instruction::{InstructionType, Instruction};
+use vm::state::RcState;
 
 macro_rules! parser_error {
     ($variant: ident) => (
@@ -101,10 +102,11 @@ pub type BytecodeResult = ParserResult<RcCompiledCode>;
 ///
 /// # Examples
 ///
-///     let result = bytecode_parser::parse_file("path/to/file.inkoc");
-pub fn parse_file(path: &str) -> BytecodeResult {
+///     let state = State::new(Config::new());
+///     let result = bytecode_parser::parse_file(&state, "path/to/file.inkoc");
+pub fn parse_file(state: &RcState, path: &str) -> BytecodeResult {
     match File::open(path) {
-        Ok(file) => parse(&mut file.bytes()),
+        Ok(file) => parse(state, &mut file.bytes()),
         Err(_) => parser_error!(InvalidFile),
     }
 }
@@ -114,8 +116,9 @@ pub fn parse_file(path: &str) -> BytecodeResult {
 /// # Examples
 ///
 ///     let mut bytes = File::open("path/to/file.inkoc").unwrap().bytes();
-///     let result = bytecode_parser::parse(&mut bytes);
-pub fn parse<T: Read>(bytes: &mut Bytes<T>) -> BytecodeResult {
+///     let state = State::new(Config::new());
+///     let result = bytecode_parser::parse(&state, &mut bytes);
+pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
     // Verify the bytecode signature.
     for expected in SIGNATURE_BYTES.iter() {
         let byte = try_byte!(bytes.next(), InvalidSignature);
@@ -130,7 +133,7 @@ pub fn parse<T: Read>(bytes: &mut Bytes<T>) -> BytecodeResult {
         parser_error!(InvalidVersion);
     }
 
-    let code = try!(read_compiled_code(bytes));
+    let code = try!(read_compiled_code(state, bytes));
 
     Ok(code)
 }
@@ -213,6 +216,20 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
     Ok(buff)
 }
 
+fn read_code_vector<T: Read>(state: &RcState,
+                             bytes: &mut Bytes<T>)
+                             -> ParserResult<Vec<RcCompiledCode>> {
+    let amount = try!(read_u64(bytes));
+
+    let mut buff = Vec::new();
+
+    for _ in 0..amount {
+        buff.push(try!(read_compiled_code(state, bytes)));
+    }
+
+    Ok(buff)
+}
+
 fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> {
     let ins_type: InstructionType =
         unsafe { mem::transmute(try!(read_u16(bytes))) };
@@ -224,7 +241,8 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
     Ok(ins)
 }
 
-fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
+fn read_compiled_code<T: Read>(state: &RcState,
+                               bytes: &mut Bytes<T>)
                                -> ParserResult<RcCompiledCode> {
     let name = try!(read_string(bytes));
     let file = try!(read_string(bytes));
@@ -237,8 +255,13 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
     let instructions = read_instruction_vector!(T, bytes);
     let int_literals = read_i64_vector!(T, bytes);
     let float_literals = read_f64_vector!(T, bytes);
-    let str_literals = read_string_vector!(T, bytes);
-    let code_objects = read_code_vector!(T, bytes);
+
+    let str_literals = read_string_vector!(T, bytes)
+        .iter()
+        .map(|string| state.intern(string))
+        .collect();
+
+    let code_objects = try!(read_code_vector(state, bytes));
 
     let code_obj = CompiledCode {
         name: name,
@@ -260,9 +283,15 @@ fn read_compiled_code<T: Read>(bytes: &mut Bytes<T>)
 
 #[cfg(test)]
 mod tests {
-    use vm::instruction::InstructionType;
-    use std::io::prelude::*;
+    use super::*;
     use std::mem;
+    use config::Config;
+    use vm::instruction::InstructionType;
+    use vm::state::{State, RcState};
+
+    fn state() -> RcState {
+        State::new(Config::new())
+    }
 
     macro_rules! unwrap {
         ($expr: expr) => ({
@@ -275,7 +304,7 @@ mod tests {
 
     macro_rules! read {
         ($name: ident, $buffer: expr) => (
-            super::$name(&mut $buffer.bytes())
+            $name(&mut $buffer.bytes())
         );
     }
 
@@ -325,7 +354,8 @@ mod tests {
     #[test]
     fn test_parse_empty() {
         let buffer = Vec::new();
-        let output = super::parse(&mut buffer.bytes());
+        let state = state();
+        let output = parse(&state, &mut buffer.bytes());
 
         assert!(output.is_err());
     }
@@ -333,10 +363,11 @@ mod tests {
     #[test]
     fn test_parse_invalid_signature() {
         let mut buffer = Vec::new();
+        let state = state();
 
         pack_string!("cats", buffer);
 
-        let output = super::parse(&mut buffer.bytes());
+        let output = parse(&state, &mut buffer.bytes());
 
         assert!(output.is_err());
     }
@@ -344,15 +375,16 @@ mod tests {
     #[test]
     fn test_parse_invalid_version() {
         let mut buffer = Vec::new();
+        let state = state();
 
         buffer.push(97);
         buffer.push(101);
         buffer.push(111);
         buffer.push(110);
 
-        buffer.push(super::VERSION + 1);
+        buffer.push(VERSION + 1);
 
-        let output = super::parse(&mut buffer.bytes());
+        let output = parse(&state, &mut buffer.bytes());
 
         assert!(output.is_err());
     }
@@ -360,13 +392,14 @@ mod tests {
     #[test]
     fn test_parse() {
         let mut buffer = Vec::new();
+        let state = state();
 
         buffer.push(105);
         buffer.push(110);
         buffer.push(107);
         buffer.push(111);
 
-        buffer.push(super::VERSION);
+        buffer.push(VERSION);
 
         pack_string!("main", buffer);
         pack_string!("test.inko", buffer);
@@ -381,7 +414,7 @@ mod tests {
         pack_u64!(0, buffer); // string literals
         pack_u64!(0, buffer); // code objects
 
-        let object = unwrap!(super::parse(&mut buffer.bytes()));
+        let object = unwrap!(parse(&state, &mut buffer.bytes()));
 
         assert_eq!(object.name, "main".to_string());
         assert_eq!(object.file, "test.inko".to_string());
@@ -524,9 +557,8 @@ mod tests {
         pack_string!("hello", buffer);
         pack_string!("world", buffer);
 
-        let output = unwrap!(super::read_vector::<String,
-                                                  &[u8]>(&mut buffer.bytes(),
-                                                         super::read_string));
+        let output = unwrap!(read_vector::<String, &[u8]>(&mut buffer.bytes(),
+                                                          read_string));
 
         assert_eq!(output.len(), 2);
         assert_eq!(output[0], "hello".to_string());
@@ -536,8 +568,8 @@ mod tests {
     #[test]
     fn test_read_vector_empty() {
         let buffer = Vec::new();
-        let output = super::read_vector::<String, &[u8]>(&mut buffer.bytes(),
-                                                         super::read_string);
+        let output = read_vector::<String, &[u8]>(&mut buffer.bytes(),
+                                                  read_string);
 
         assert!(output.is_err());
     }
@@ -551,7 +583,7 @@ mod tests {
         pack_u16!(6, buffer);
         pack_u16!(2, buffer); // line
 
-        let ins = unwrap!(super::read_instruction(&mut buffer.bytes()));
+        let ins = unwrap!(read_instruction(&mut buffer.bytes()));
 
         match ins.instruction_type {
             InstructionType::SetInteger => {}
@@ -565,6 +597,7 @@ mod tests {
     #[test]
     fn test_read_compiled_code() {
         let mut buffer = Vec::new();
+        let state = state();
 
         pack_string!("main", buffer); // name
         pack_string!("test.inko", buffer); // file
@@ -591,7 +624,7 @@ mod tests {
 
         pack_u64!(0, buffer); // code objects
 
-        let object = unwrap!(super::read_compiled_code(&mut buffer.bytes()));
+        let object = unwrap!(read_compiled_code(&state, &mut buffer.bytes()));
 
         assert_eq!(object.name, "main".to_string());
         assert_eq!(object.file, "test.inko".to_string());
@@ -621,7 +654,7 @@ mod tests {
         assert!((object.float_literals[0] - 1.2).abs() < 0.001);
 
         assert_eq!(object.string_literals.len(), 1);
-        assert_eq!(object.string_literals[0], "foo".to_string());
+        assert!(object.string_literals[0] == state.intern(&"foo".to_string()));
 
         assert_eq!(object.code_objects.len(), 0);
     }

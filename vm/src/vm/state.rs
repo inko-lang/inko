@@ -14,7 +14,6 @@ use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
 
 use config::Config;
-use file_registry::FileRegistry;
 use object_pointer::ObjectPointer;
 use object_value;
 use pool::Pool;
@@ -29,9 +28,6 @@ pub type RcState = Arc<State>;
 pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
-
-    /// The registry of parsed bytecode files.
-    pub file_registry: RwLock<FileRegistry>,
 
     /// Table containing all processes.
     pub process_table: RwLock<ProcessTable<RcProcess>>,
@@ -137,11 +133,8 @@ impl State {
         let process_pools = Pools::new(config.primary_threads,
                                        config.secondary_threads);
 
-        let registry = FileRegistry::new(config.directories.clone());
-
         let state = State {
             config: config,
-            file_registry: RwLock::new(registry),
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,
@@ -167,6 +160,19 @@ impl State {
         };
 
         Arc::new(state)
+    }
+
+    /// Interns a pointer pointing to a string.
+    ///
+    /// If the pointer is already interned it's simply returned.
+    pub fn intern_pointer(&self,
+                          pointer: &ObjectPointer)
+                          -> Result<ObjectPointer, String> {
+        if pointer.is_permanent() && pointer.get().value.is_string() {
+            Ok(*pointer)
+        } else {
+            Ok(self.intern(pointer.string_value()?))
+        }
     }
 
     /// Interns a string.
@@ -208,5 +214,26 @@ mod tests {
         assert!(ptr1 == ptr2);
 
         assert_eq!(ptr1.string_value().unwrap(), ptr2.string_value().unwrap());
+    }
+
+    #[test]
+    fn test_intern_pointer_with_string() {
+        let state = State::new(Config::new());
+        let string = state.permanent_allocator
+            .lock()
+            .allocate_without_prototype(object_value::string("hello"
+                .to_string()));
+
+        assert!(state.intern_pointer(&string).unwrap() == string);
+    }
+
+    #[test]
+    fn test_intern_pointer_without_string() {
+        let state = State::new(Config::new());
+        let string = state.permanent_allocator
+            .lock()
+            .allocate_empty();
+
+        assert!(state.intern_pointer(&string).is_err());
     }
 }

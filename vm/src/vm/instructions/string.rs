@@ -19,17 +19,15 @@ use process::RcProcess;
 ///
 /// String literals are interned to prevent allocating objects for identical
 /// strings.
-pub fn set_string(machine: &Machine,
+pub fn set_string(_: &Machine,
                   process: &RcProcess,
                   code: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
     let register = instruction.arg(0)?;
     let index = instruction.arg(1)?;
-    let value = code.string(index)?;
-    let obj = machine.state.intern(value);
 
-    process.set_register(register, obj);
+    process.set_register(register, code.string(index)?);
 
     Ok(Action::None)
 }

@@ -131,7 +131,7 @@ pub fn parse_file(machine: &Machine,
     let path_ptr = process.get_register(instruction.arg(1)?)?;
     let path_str = path_ptr.string_value()?;
 
-    let code = write_lock!(machine.state.file_registry).get_or_set(path_str)
+    let code = write_lock!(machine.file_registry).get_or_set(path_str)
         .map_err(|err| err.message())?;
 
     let block = Block::new(code.clone(), Binding::new());
@@ -161,8 +161,7 @@ pub fn file_parsed(machine: &Machine,
     let path_ptr = process.get_register(instruction.arg(1)?)?;
     let path_str = path_ptr.string_value()?;
 
-    let ptr = if read_lock!(machine.state.file_registry)
-        .contains_path(path_str) {
+    let ptr = if read_lock!(machine.file_registry).contains_path(path_str) {
         machine.state.true_object
     } else {
         machine.state.false_object

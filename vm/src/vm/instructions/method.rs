@@ -26,7 +26,7 @@ pub fn lookup_method(machine: &Machine,
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = machine.state.intern(name_ptr.string_value()?);
+    let name = machine.state.intern_pointer(&name_ptr)?;
 
     let method = rec_ptr.lookup_method(&machine.state, &name)
         .unwrap_or_else(|| machine.state.nil_object);
@@ -59,7 +59,7 @@ pub fn def_method(machine: &Machine,
         return Err("methods can not be defined on integers".to_string());
     }
 
-    let name = machine.state.intern(name_ptr.string_value()?);
+    let name = machine.state.intern_pointer(&name_ptr)?;
     let block = block_ptr.block_value()?;
     let method = machine.allocate_method(&process, &receiver_ptr, block);
 
@@ -86,7 +86,7 @@ pub fn responds_to(machine: &Machine,
     let source = process.get_register(instruction.arg(1)?)?;
 
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = machine.state.intern(name_ptr.string_value()?);
+    let name = machine.state.intern_pointer(&name_ptr)?;
 
     let result = if source.lookup_method(&machine.state, &name).is_some() {
         machine.state.true_object.clone()
@@ -116,7 +116,7 @@ pub fn remove_method(machine: &Machine,
     let register = instruction.arg(0)?;
     let rec_ptr = process.get_register(instruction.arg(1)?)?;
     let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let name = machine.state.intern(name_ptr.string_value()?);
+    let name = machine.state.intern_pointer(&name_ptr)?;
 
     if rec_ptr.is_tagged_integer() {
         return Err("methods can not be removed from integers".to_string());

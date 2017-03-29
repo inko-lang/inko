@@ -77,10 +77,11 @@ fn main() {
         match File::open(path) {
             Ok(file) => {
                 let mut bytes = file.bytes();
+                let state = State::new(config);
 
-                match bytecode_parser::parse(&mut bytes) {
+                match bytecode_parser::parse(&state, &mut bytes) {
                     Ok(code) => {
-                        let vm = Machine::new(State::new(config));
+                        let vm = Machine::default(state);
 
                         match vm.start(code) {
                             Ok(_) => process::exit(0),
