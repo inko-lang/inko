@@ -122,7 +122,7 @@ impl Process {
                      code: RcCompiledCode,
                      global_allocator: RcGlobalAllocator)
                      -> RcProcess {
-        let binding = Binding::new();
+        let binding = Binding::with_capacity(code.locals as usize);
         let context = ExecutionContext::new(binding, code, None);
 
         Process::new(pid, pool_id, context, global_allocator)

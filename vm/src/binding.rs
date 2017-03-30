@@ -36,19 +36,25 @@ impl Binding {
         Arc::new(bind)
     }
 
-    /// Returns a new binding with a parent binding.
-    pub fn with_parent(parent_binding: RcBinding) -> RcBinding {
+    /// Returns a new binding with space reserved for a number of locals.
+    pub fn with_capacity(capacity: usize) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(Vec::new()),
-            parent: Some(parent_binding),
+            locals: UnsafeCell::new(Vec::with_capacity(capacity)),
+            parent: None,
         };
 
         Arc::new(bind)
     }
 
-    /// Reserves space for the given number of local variables.
-    pub fn reserve_locals(&self, amount: usize) {
-        self.locals_mut().reserve_exact(amount);
+    /// Returns a new binding with a parent binding and a defalt capacity for
+    /// the local variables.
+    pub fn with_parent(parent_binding: RcBinding, capacity: usize) -> RcBinding {
+        let bind = Binding {
+            locals: UnsafeCell::new(Vec::with_capacity(capacity)),
+            parent: Some(parent_binding),
+        };
+
+        Arc::new(bind)
     }
 
     /// Returns the value of a local variable.
@@ -171,20 +177,19 @@ mod tests {
     use immix::local_allocator::LocalAllocator;
 
     #[test]
-    fn test_with_parent() {
-        let binding1 = Binding::new();
-        let binding2 = Binding::with_parent(binding1.clone());
+    fn test_with_capacity() {
+        let binding = Binding::with_capacity(2);
 
-        assert!(binding2.parent.is_some());
+        assert_eq!(binding.locals().capacity(), 2);
     }
 
     #[test]
-    fn test_reserve_locals() {
-        let binding = Binding::new();
+    fn test_with_parent() {
+        let binding1 = Binding::new();
+        let binding2 = Binding::with_parent(binding1.clone(), 1);
 
-        binding.reserve_locals(4);
-
-        assert_eq!(binding.locals().capacity(), 4);
+        assert!(binding2.parent.is_some());
+        assert_eq!(binding2.locals().capacity(), 1);
     }
 
     #[test]
@@ -241,7 +246,7 @@ mod tests {
     #[test]
     fn test_parent_with_parent() {
         let binding1 = Binding::new();
-        let binding2 = Binding::with_parent(binding1);
+        let binding2 = Binding::with_parent(binding1, 0);
 
         assert!(binding2.parent().is_some());
     }
@@ -256,9 +261,9 @@ mod tests {
     #[test]
     fn test_find_parent_with_parent() {
         let binding1 = Binding::new();
-        let binding2 = Binding::with_parent(binding1);
-        let binding3 = Binding::with_parent(binding2);
-        let binding4 = Binding::with_parent(binding3);
+        let binding2 = Binding::with_parent(binding1, 0);
+        let binding3 = Binding::with_parent(binding2, 0);
+        let binding4 = Binding::with_parent(binding3, 0);
 
         let found = binding4.find_parent(1);
 
@@ -294,7 +299,7 @@ mod tests {
         binding1.set_local(0, local1);
 
         let local2 = ObjectPointer::new(0x4 as RawObjectPointer);
-        let binding2 = Binding::with_parent(binding1.clone());
+        let binding2 = Binding::with_parent(binding1.clone(), 0);
 
         binding2.set_local(0, local2);
 
@@ -319,7 +324,7 @@ mod tests {
 
         let b2_local1 = ObjectPointer::new(0x5 as RawObjectPointer);
         let b2_local2 = ObjectPointer::new(0x6 as RawObjectPointer);
-        let b2 = Binding::with_parent(b1.clone());
+        let b2 = Binding::with_parent(b1.clone(), 0);
 
         b2.set_local(0, b2_local1);
         b2.set_local(1, b2_local2);
@@ -345,7 +350,7 @@ mod tests {
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
 
         let src_bind1 = Binding::new();
-        let src_bind2 = Binding::with_parent(src_bind1.clone());
+        let src_bind2 = Binding::with_parent(src_bind1.clone(), 0);
 
         src_bind1.set_local(0, ptr1);
         src_bind2.set_local(0, ptr2);

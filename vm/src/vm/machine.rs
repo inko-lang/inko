@@ -244,7 +244,10 @@ impl Machine {
                          args: &Vec<ObjectPointer>,
                          register: usize) {
         let code = block.code.clone();
-        let binding = Binding::with_parent(block.binding.clone());
+
+        let binding = Binding::with_parent(block.binding.clone(),
+                                           code.locals as usize);
+
         let context =
             ExecutionContext::new(binding, code.clone(), Some(register));
 

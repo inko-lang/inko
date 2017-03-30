@@ -220,7 +220,7 @@ mod tests {
         let mut dummy = DummyAllocator::new();
 
         let binding1 = Binding::new();
-        let binding2 = Binding::with_parent(binding1.clone());
+        let binding2 = Binding::with_parent(binding1.clone(), 0);
 
         let local1 = dummy.allocator
             .allocate_without_prototype(object_value::float(15.0));

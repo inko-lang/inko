@@ -48,10 +48,6 @@ impl ExecutionContext {
                code: RcCompiledCode,
                return_register: Option<usize>)
                -> ExecutionContext {
-        // Reserve space for all locals so we don't end up re-allocating memory
-        // when adding locals.
-        binding.reserve_locals(code.locals as usize);
-
         let line = code.line;
 
         ExecutionContext {
@@ -70,7 +66,7 @@ impl ExecutionContext {
                         code: RcCompiledCode,
                         return_register: Option<usize>)
                         -> ExecutionContext {
-        let binding = Binding::with_parent(parent_binding);
+        let binding = Binding::with_parent(parent_binding, code.locals as usize);
 
         ExecutionContext::new(binding, code, return_register)
     }
