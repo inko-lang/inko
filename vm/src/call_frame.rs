@@ -52,8 +52,8 @@ impl CallFrame {
     }
 
     /// Boxes and sets the current frame's parent.
-    pub fn set_parent(&mut self, parent: CallFrame) {
-        self.parent = Some(Box::new(parent));
+    pub fn set_parent(&mut self, parent: Box<CallFrame>) {
+        self.parent = Some(parent);
     }
 
     /// Returns an iterator for traversing the call stack, including the current
@@ -116,7 +116,7 @@ mod tests {
     #[test]
     fn test_set_parent() {
         let code = compiled_code();
-        let frame1 = CallFrame::new(code.clone(), 1);
+        let frame1 = Box::new(CallFrame::new(code.clone(), 1));
         let mut frame2 = CallFrame::new(code, 1);
 
         frame2.set_parent(frame1);
@@ -127,7 +127,7 @@ mod tests {
     #[test]
     fn test_call_stack() {
         let code = compiled_code();
-        let frame1 = CallFrame::new(code.clone(), 1);
+        let frame1 = Box::new(CallFrame::new(code.clone(), 1));
         let mut frame2 = CallFrame::new(code, 2);
 
         frame2.set_parent(frame1);

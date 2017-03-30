@@ -48,7 +48,7 @@ pub struct LocalData {
     pub allocator: LocalAllocator,
 
     /// The current call frame of this process.
-    pub call_frame: CallFrame, // TODO: use Box<CallFrame>
+    pub call_frame: Box<CallFrame>,
 
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
@@ -104,7 +104,7 @@ impl Process {
                -> RcProcess {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone()),
-            call_frame: call_frame,
+            call_frame: Box::new(call_frame),
             context: Box::new(context),
             remembered_set: HashSet::new(),
             mailbox: Mailbox::new(global_allocator),
@@ -143,25 +143,23 @@ impl Process {
         unsafe { &*self.local_data.get() }
     }
 
-    pub fn push_call_frame(&self, mut frame: CallFrame) {
+    pub fn push_call_frame(&self, frame: CallFrame) {
+        let mut boxed = Box::new(frame);
+
         let mut local_data = self.local_data_mut();
         let ref mut target = local_data.call_frame;
 
-        mem::swap(target, &mut frame);
+        mem::swap(target, &mut boxed);
 
-        target.set_parent(frame);
+        target.set_parent(boxed);
     }
 
     pub fn pop_call_frame(&self) {
         let mut local_data = self.local_data_mut();
 
-        if local_data.call_frame.parent.is_none() {
-            return;
+        if let Some(parent) = local_data.call_frame.parent.take() {
+            local_data.call_frame = parent;
         }
-
-        let parent = local_data.call_frame.parent.take().unwrap();
-
-        local_data.call_frame = *parent;
     }
 
     pub fn push_context(&self, context: ExecutionContext) {
