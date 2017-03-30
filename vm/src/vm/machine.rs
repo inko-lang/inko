@@ -1,7 +1,6 @@
 //! Virtual Machine for running instructions
 use binding::Binding;
 use block::Block;
-use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use execution_context::ExecutionContext;
 use file_registry::{FileRegistry, RcFileRegistry};
@@ -190,7 +189,6 @@ impl Machine {
             // We're not yet at the top level but we did finish running an
             // entire execution context.
             process.pop_context();
-            process.pop_call_frame();
 
             // The underlying ExecutionContext is no longer available at this
             // point. Rust however is not aware of this due to the use of the
@@ -227,11 +225,11 @@ impl Machine {
 
         message.push_str(&format!("\n\n{}\n\nCall stack:\n\n", error));
 
-        for frame in process.call_frame().call_stack() {
+        for context in process.context().contexts() {
             message.push_str(&format!("{} line {} in {}\n",
-                                      frame.file(),
-                                      frame.line,
-                                      frame.name()));
+                                      context.file(),
+                                      context.line,
+                                      context.name()));
         }
 
         *self.state.exit_status.lock() = Err(message);
@@ -249,10 +247,8 @@ impl Machine {
         let binding = Binding::with_parent(block.binding.clone());
         let context =
             ExecutionContext::new(binding, code.clone(), Some(register));
-        let frame = CallFrame::from_code(code);
 
         process.push_context(context);
-        process.push_call_frame(frame);
 
         for (index, arg) in args.iter().enumerate() {
             process.set_local(index, arg.clone());

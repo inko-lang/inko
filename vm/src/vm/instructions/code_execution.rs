@@ -94,8 +94,6 @@ pub fn run_block(machine: &Machine,
 
     machine.schedule_code(process.clone(), block_val, &arguments, register);
 
-    process.pop_call_frame();
-
     Ok(Action::EnterContext)
 }
 

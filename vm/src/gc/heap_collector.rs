@@ -452,7 +452,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let code = process.call_frame().code.clone();
+        let code = process.context().code.clone();
 
         process.set_register(0, pointer1);
         process.push_context(ExecutionContext::new(Binding::new(), code, None));
@@ -482,7 +482,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let code = process.call_frame().code.clone();
+        let code = process.context().code.clone();
 
         process.set_register(0, pointer1);
         process.push_context(ExecutionContext::new(Binding::new(), code, None));
@@ -512,7 +512,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let code = process.call_frame().code.clone();
+        let code = process.context().code.clone();
 
         process.set_register(0, pointer1);
         process.push_context(ExecutionContext::new(Binding::new(), code, None));
@@ -542,7 +542,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let code = process.call_frame().code.clone();
+        let code = process.context().code.clone();
 
         process.set_register(0, pointer1);
         process.push_context(ExecutionContext::new(Binding::new(), code, None));

@@ -26,6 +26,9 @@ pub struct ExecutionContext {
 
     /// The register to store this context's return value in.
     pub return_register: Option<usize>,
+
+    /// The current line that is being executed.
+    pub line: u16,
 }
 
 // While an ExecutionContext is not thread-safe we need to implement Sync/Send
@@ -49,6 +52,8 @@ impl ExecutionContext {
         // when adding locals.
         binding.reserve_locals(code.locals as usize);
 
+        let line = code.line;
+
         ExecutionContext {
             register: Register::new(),
             binding: binding,
@@ -56,6 +61,7 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             return_register: return_register,
+            line: line,
         }
     }
 
@@ -67,6 +73,14 @@ impl ExecutionContext {
         let binding = Binding::with_parent(parent_binding);
 
         ExecutionContext::new(binding, code, return_register)
+    }
+
+    pub fn file(&self) -> &String {
+        &self.code.file
+    }
+
+    pub fn name(&self) -> &String {
+        &self.code.name
     }
 
     pub fn set_parent(&mut self, parent: Box<ExecutionContext>) {

@@ -8,7 +8,6 @@ use immix::local_allocator::LocalAllocator;
 use immix::global_allocator::RcGlobalAllocator;
 
 use binding::{Binding, RcBinding};
-use call_frame::CallFrame;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use execution_context::ExecutionContext;
@@ -46,9 +45,6 @@ impl ProcessStatus {
 pub struct LocalData {
     /// The process-local memory allocator.
     pub allocator: LocalAllocator,
-
-    /// The current call frame of this process.
-    pub call_frame: Box<CallFrame>,
 
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
@@ -98,13 +94,11 @@ unsafe impl Sync for Process {}
 impl Process {
     pub fn new(pid: PID,
                pool_id: usize,
-               call_frame: CallFrame,
                context: ExecutionContext,
                global_allocator: RcGlobalAllocator)
                -> RcProcess {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone()),
-            call_frame: Box::new(call_frame),
             context: Box::new(context),
             remembered_set: HashSet::new(),
             mailbox: Mailbox::new(global_allocator),
@@ -128,11 +122,10 @@ impl Process {
                      code: RcCompiledCode,
                      global_allocator: RcGlobalAllocator)
                      -> RcProcess {
-        let frame = CallFrame::from_code(code.clone());
         let binding = Binding::new();
         let context = ExecutionContext::new(binding, code, None);
 
-        Process::new(pid, pool_id, frame, context, global_allocator)
+        Process::new(pid, pool_id, context, global_allocator)
     }
 
     pub fn local_data_mut(&self) -> &mut LocalData {
@@ -141,25 +134,6 @@ impl Process {
 
     pub fn local_data(&self) -> &LocalData {
         unsafe { &*self.local_data.get() }
-    }
-
-    pub fn push_call_frame(&self, frame: CallFrame) {
-        let mut boxed = Box::new(frame);
-
-        let mut local_data = self.local_data_mut();
-        let ref mut target = local_data.call_frame;
-
-        mem::swap(target, &mut boxed);
-
-        target.set_parent(boxed);
-    }
-
-    pub fn pop_call_frame(&self) {
-        let mut local_data = self.local_data_mut();
-
-        if let Some(parent) = local_data.call_frame.parent.take() {
-            local_data.call_frame = parent;
-        }
     }
 
     pub fn push_context(&self, context: ExecutionContext) {
@@ -244,11 +218,8 @@ impl Process {
         self.local_data_mut().mailbox.receive()
     }
 
-    /// Adds a new call frame pointing to the given line number.
     pub fn advance_line(&self, line: u16) {
-        let frame = CallFrame::new(self.compiled_code(), line);
-
-        self.push_call_frame(frame);
+        self.context_mut().line = line;
     }
 
     pub fn binding(&self) -> RcBinding {
@@ -265,10 +236,6 @@ impl Process {
 
     pub fn at_top_level(&self) -> bool {
         self.context().parent.is_none()
-    }
-
-    pub fn call_frame(&self) -> &CallFrame {
-        &self.local_data().call_frame
     }
 
     pub fn compiled_code(&self) -> RcCompiledCode {
