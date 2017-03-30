@@ -262,7 +262,7 @@ impl Machine {
                              offset: usize,
                              amount: usize)
                              -> Result<Vec<ObjectPointer>, String> {
-        let mut args: Vec<ObjectPointer> = Vec::new();
+        let mut args: Vec<ObjectPointer> = Vec::with_capacity(amount);
 
         for index in offset..(offset + amount) {
             let arg_index = instruction.arg(index)?;
