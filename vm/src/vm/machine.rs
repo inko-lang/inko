@@ -1,8 +1,6 @@
 //! Virtual Machine for running instructions
-use binding::Binding;
 use block::Block;
 use compiled_code::RcCompiledCode;
-use execution_context::ExecutionContext;
 use file_registry::{FileRegistry, RcFileRegistry};
 use gc::request::Request as GcRequest;
 use object_pointer::ObjectPointer;
@@ -237,30 +235,9 @@ impl Machine {
         self.terminate();
     }
 
-    /// Schedules the execution of a new Block.
-    pub fn schedule_code(&self,
-                         process: RcProcess,
-                         block: &Box<Block>,
-                         args: &Vec<ObjectPointer>,
-                         register: usize) {
-        let code = block.code.clone();
-
-        let binding = Binding::with_parent(block.binding.clone(),
-                                           code.locals as usize);
-
-        let context =
-            ExecutionContext::new(binding, code.clone(), Some(register));
-
-        process.push_context(context);
-
-        for (index, arg) in args.iter().enumerate() {
-            process.set_local(index, arg.clone());
-        }
-    }
-
     /// Collects a set of arguments from an instruction.
     pub fn collect_arguments(&self,
-                             process: RcProcess,
+                             process: &RcProcess,
                              instruction: &Instruction,
                              offset: usize,
                              amount: usize)

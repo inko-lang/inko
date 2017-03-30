@@ -36,8 +36,7 @@ pub fn set_array(machine: &Machine,
     let register = instruction.arg(0)?;
     let val_count = instruction.arguments.len() - 1;
 
-    let values =
-        machine.collect_arguments(process.clone(), instruction, 1, val_count)?;
+    let values = machine.collect_arguments(&process, instruction, 1, val_count)?;
 
     let obj = process.allocate(object_value::array(values),
                                machine.state.array_prototype);

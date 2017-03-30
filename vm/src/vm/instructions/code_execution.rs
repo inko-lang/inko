@@ -7,6 +7,7 @@ use vm::machine::Machine;
 use block::Block;
 use binding::Binding;
 use compiled_code::RcCompiledCode;
+use execution_context::ExecutionContext;
 use object_value;
 use process::RcProcess;
 
@@ -42,7 +43,7 @@ pub fn run_block(machine: &Machine,
     let req_args = block_val.required_arguments();
 
     let mut arguments =
-        machine.collect_arguments(process.clone(), instruction, 3, arg_count)?;
+        machine.collect_arguments(&process, instruction, 3, arg_count)?;
 
     // Unpack the last argument if it's a rest argument
     if rest_arg {
@@ -92,7 +93,18 @@ pub fn run_block(machine: &Machine,
                            arguments.len()));
     }
 
-    machine.schedule_code(process.clone(), block_val, &arguments, register);
+    let code = block_val.code.clone();
+
+    let binding = Binding::with_parent(block_val.binding.clone(),
+                                       code.locals as usize);
+
+    let context = ExecutionContext::new(binding, code.clone(), Some(register));
+
+    process.push_context(context);
+
+    for (index, arg) in arguments.iter().enumerate() {
+        process.set_local(index, arg.clone());
+    }
 
     Ok(Action::EnterContext)
 }
