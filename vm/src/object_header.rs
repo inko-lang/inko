@@ -2,7 +2,7 @@
 //!
 //! The ObjectHeader struct stores metadata associated with an Object, such as
 //! the name, attributes, constants and methods.
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
@@ -18,21 +18,21 @@ macro_rules! push_collection {
 
 pub struct ObjectHeader {
     /// The attributes defined in an object.
-    pub attributes: HashMap<ObjectPointer, ObjectPointer>,
+    pub attributes: FnvHashMap<ObjectPointer, ObjectPointer>,
 
     /// The constants defined in an object.
-    pub constants: HashMap<ObjectPointer, ObjectPointer>,
+    pub constants: FnvHashMap<ObjectPointer, ObjectPointer>,
 
     /// The methods defined in an object.
-    pub methods: HashMap<ObjectPointer, ObjectPointer>,
+    pub methods: FnvHashMap<ObjectPointer, ObjectPointer>,
 }
 
 impl ObjectHeader {
     pub fn new() -> ObjectHeader {
         ObjectHeader {
-            attributes: HashMap::new(),
-            constants: HashMap::new(),
-            methods: HashMap::new(),
+            attributes: FnvHashMap::default(),
+            constants: FnvHashMap::default(),
+            methods: FnvHashMap::default(),
         }
     }
 
