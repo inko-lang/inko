@@ -18,7 +18,7 @@ macro_rules! int_to_vector_index {
             $index as usize
         }
         else {
-            ($vec.len() as i64 - $index) as usize
+            ($vec.len() as i64 + $index) as usize
         }
     });
 }
