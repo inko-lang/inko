@@ -179,14 +179,11 @@ impl Object {
 
     /// Looks up a method.
     pub fn lookup_method(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
-        let mut retval: Option<ObjectPointer> = None;
+        if let Some(header) = self.header() {
+            let got = header.get_method(name);
 
-        let opt_header = self.header();
-
-        if let Some(header) = opt_header {
-            // Method defined directly on the object
-            if header.has_method(name) {
-                return header.get_method(name);
+            if got.is_some() {
+                return got;
             }
         }
 
@@ -194,19 +191,14 @@ impl Object {
         if self.prototype().is_some() {
             let mut opt_parent = self.prototype();
 
-            while opt_parent.is_some() {
-                let parent_ptr = opt_parent.unwrap();
+            while let Some(parent_ptr) = opt_parent {
                 let parent = parent_ptr.get();
 
-                let opt_parent_header = parent.header();
+                if let Some(header) = parent.header() {
+                    let got = header.get_method(name);
 
-                if opt_parent_header.is_some() {
-                    let parent_header = opt_parent_header.unwrap();
-
-                    if parent_header.has_method(name) {
-                        retval = parent_header.get_method(name);
-
-                        break;
+                    if got.is_some() {
+                        return got;
                     }
                 }
 
@@ -214,7 +206,7 @@ impl Object {
             }
         }
 
-        retval
+        None
     }
 
     /// Adds a new constant to the current object.
@@ -228,22 +220,20 @@ impl Object {
 
     /// Looks up a constant.
     pub fn lookup_constant(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
-        let mut retval: Option<ObjectPointer> = None;
+        if let Some(header) = self.header() {
+            let got = header.get_constant(name);
 
-        let opt_header = self.header();
-
-        if let Some(header) = opt_header {
-            if header.has_constant(name) {
-                return header.get_constant(name);
+            if got.is_some() {
+                return got;
             }
         }
 
         // Look up the constant in one of the parents.
         if let Some(proto) = self.prototype() {
-            retval = proto.get().lookup_constant(name);
+            return proto.get().lookup_constant(name);
         }
 
-        retval
+        None
     }
 
     /// Adds a new attribute to the current object.
