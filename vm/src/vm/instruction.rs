@@ -140,6 +140,7 @@ pub enum InstructionType {
     GetAttributeNames,
     MonotonicTimeNanoseconds,
     MonotonicTimeMilliseconds,
+    RunBlockWithRest,
 }
 
 pub const INSTRUCTION_MAPPING: [fn(&Machine,
@@ -254,7 +255,8 @@ pub const INSTRUCTION_MAPPING: [fn(&Machine,
                                  object::get_attributes,
                                  object::get_attribute_names,
                                  time::monotonic_time_nanoseconds,
-                                 time::monotonic_time_milliseconds];
+                                 time::monotonic_time_milliseconds,
+                                 code_execution::run_block_with_rest];
 
 /// Struct for storing information about a single instruction.
 #[derive(Clone, Debug)]

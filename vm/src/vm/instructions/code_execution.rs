@@ -17,13 +17,10 @@ use process::RcProcess;
 ///
 /// 1. The register to store the return value in.
 /// 2. The register containing the Block object to run.
-/// 3. A register containing a boolean. If the register is truthy the last
-///    argument will be treated as a rest argument. A rest argument will be
-///    unpacked into separate arguments.
 ///
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object.
-pub fn run_block(machine: &Machine,
+pub fn run_block(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
@@ -32,79 +29,102 @@ pub fn run_block(machine: &Machine,
 
     let register = instruction.arg(0)?;
     let block_ptr = process.get_register(instruction.arg(1)?)?;
-    let rest_arg_ptr = process.get_register(instruction.arg(2)?)?;
-
-    let rest_arg = !is_false!(machine, rest_arg_ptr);
     let block_val = block_ptr.block_value()?;
 
-    // Argument handling
-    let arg_count = instruction.arguments.len() - 3;
+    let arg_offset = 2;
+    let arg_count = instruction.arguments.len() - arg_offset;
     let tot_args = block_val.arguments();
     let req_args = block_val.required_arguments();
 
-    let mut arguments =
-        machine.collect_arguments(&process, instruction, 3, arg_count)?;
-
-    // Unpack the last argument if it's a rest argument
-    if rest_arg {
-        if let Some(last_arg) = arguments.pop() {
-            for value in last_arg.array_value()? {
-                arguments.push(value.clone());
-            }
-        }
-    }
-
-    // If the code object defines a rest argument we'll pack any excessive
-    // arguments into a single array.
-    if block_val.has_rest_argument() && arguments.len() > tot_args {
-        let rest_count = arguments.len() - tot_args;
-        let mut rest = Vec::new();
-
-        for obj in arguments[arguments.len() - rest_count..].iter() {
-            rest.push(obj.clone());
-        }
-
-        arguments.truncate(tot_args);
-
-        let rest_array = process.allocate(object_value::array(rest),
-                                          machine.state.array_prototype.clone());
-
-        arguments.push(rest_array);
-    } else if block_val.has_rest_argument() && arguments.len() == 0 {
-        let rest_array = process.allocate(object_value::array(Vec::new()),
-                                          machine.state.array_prototype.clone());
-
-        arguments.push(rest_array);
-    }
-
-    if arguments.len() > tot_args && !block_val.has_rest_argument() {
-        return Err(format!("{} accepts up to {} arguments, but {} \
-                            arguments were given",
-                           block_val.name(),
-                           block_val.arguments(),
-                           arguments.len()));
-    }
-
-    if arguments.len() < req_args {
-        return Err(format!("{} requires {} arguments, but {} arguments \
+    if arg_count > tot_args {
+        return Err(format!("{} accepts up to {} arguments, but {} arguments \
                             were given",
                            block_val.name(),
-                           block_val.required_arguments(),
-                           arguments.len()));
+                           tot_args,
+                           arg_count));
     }
 
-    let code = block_val.code.clone();
+    if arg_count < req_args {
+        return Err(format!("{} requires {} arguments, but {} arguments were \
+                            given",
+                           block_val.name(),
+                           req_args,
+                           arg_count));
+    }
 
-    let binding = Binding::with_parent(block_val.binding.clone(),
-                                       code.locals as usize);
+    let context = ExecutionContext::with_binding(block_val.binding.clone(),
+                                                 block_val.code.clone(),
+                                                 Some(register));
 
-    let context = ExecutionContext::new(binding, code.clone(), Some(register));
+    {
+        // Add the arguments to the binding. Since arguments are the first
+        // locals we can just push them in-order.
+        let mut locals = context.binding.locals_mut();
+
+        for index in arg_offset..(arg_offset + arg_count) {
+            let register = instruction.arg(index)?;
+
+            locals.push(process.get_register(register)?);
+        }
+    }
 
     process.push_context(context);
 
-    for (index, arg) in arguments.iter().enumerate() {
-        process.set_local(index, arg.clone());
-    }
+    Ok(Action::EnterContext)
+}
+
+/// Executes a Block object with a rest argument.
+///
+/// This instruction takes the following arguments:
+///
+/// 1. The register to store the return value in.
+/// 2. The register containing the Block object to run.
+///
+/// Any extra arguments passed are passed as arguments to the CompiledCode
+/// object. If excessive arguments are given they are packed into the block's
+/// rest argument.
+pub fn run_block_with_rest(_: &Machine,
+                           _: &RcProcess,
+                           _: &RcCompiledCode,
+                           _: &Instruction)
+                           -> InstructionResult {
+    // TODO: implement
+    //let register = instruction.arg(0)?;
+    //let block_ptr = process.get_register(instruction.arg(1)?)?;
+    //let block_val = block_ptr.block_value()?;
+    //let has_rest = block_val.has_rest_argument();
+
+    // Unpack the last argument if it's a rest argument
+    //if rest_arg {
+    //if let Some(last_arg) = arguments.pop() {
+    //for value in last_arg.array_value()? {
+    //arguments.push(value.clone());
+    //}
+    //}
+    //}
+
+    // If the code object defines a rest argument we'll pack any excessive
+    // arguments into a single array.
+    //if block_val.has_rest_argument() && arguments.len() > tot_args {
+    //let rest_count = arguments.len() - tot_args;
+    //let mut rest = Vec::new();
+
+    //for obj in arguments[arguments.len() - rest_count..].iter() {
+    //rest.push(obj.clone());
+    //}
+
+    //arguments.truncate(tot_args);
+
+    //let rest_array = process.allocate(object_value::array(rest),
+    //machine.state.array_prototype.clone());
+
+    //arguments.push(rest_array);
+    //} else if block_val.has_rest_argument() && arguments.len() == 0 {
+    //let rest_array = process.allocate(object_value::array(Vec::new()),
+    //machine.state.array_prototype.clone());
+
+    //arguments.push(rest_array);
+    //}
 
     Ok(Action::EnterContext)
 }
