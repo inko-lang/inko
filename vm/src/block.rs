@@ -22,10 +22,12 @@ impl Block {
         }
     }
 
+    #[inline(always)]
     pub fn arguments(&self) -> usize {
         self.code.arguments as usize
     }
 
+    #[inline(always)]
     pub fn required_arguments(&self) -> usize {
         self.code.required_arguments as usize
     }
