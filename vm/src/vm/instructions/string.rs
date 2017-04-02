@@ -25,10 +25,10 @@ pub fn set_string(_: &Machine,
                   code: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let index = instruction.arg(1);
 
-    process.set_register(register, code.string(index)?);
+    process.set_register(register, code.string(index));
 
     Ok(Action::None)
 }
@@ -45,8 +45,8 @@ pub fn string_to_lower(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let source_ptr = process.get_register(instruction.arg(1));
     let lower = source_ptr.string_value()?.to_lowercase();
 
     let obj = process.allocate(object_value::string(lower),
@@ -69,8 +69,8 @@ pub fn string_to_upper(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let source_ptr = process.get_register(instruction.arg(1));
     let upper = source_ptr.string_value()?.to_uppercase();
 
     let obj = process.allocate(object_value::string(upper),
@@ -94,9 +94,9 @@ pub fn string_equals(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let receiver_ptr = process.get_register(instruction.arg(1)?)?;
-    let arg_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let receiver_ptr = process.get_register(instruction.arg(1));
+    let arg_ptr = process.get_register(instruction.arg(2));
 
     let boolean = if receiver_ptr.string_value()? == arg_ptr.string_value()? {
         machine.state.true_object.clone()
@@ -121,8 +121,8 @@ pub fn string_to_bytes(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let string_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let string_ptr = process.get_register(instruction.arg(1));
 
     let array = string_ptr.string_value()?
         .as_bytes()
@@ -153,8 +153,8 @@ pub fn string_from_bytes(machine: &Machine,
                          _: &RcCompiledCode,
                          instruction: &Instruction)
                          -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let arg_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let arg_ptr = process.get_register(instruction.arg(1));
 
     let array = arg_ptr.array_value()?;
     let mut bytes = Vec::with_capacity(array.len());
@@ -194,8 +194,8 @@ pub fn string_length(_: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let arg_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let arg_ptr = process.get_register(instruction.arg(1));
 
     let length = arg_ptr.string_value()?.chars().count() as i64;
 
@@ -216,8 +216,8 @@ pub fn string_size(_: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let arg_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let arg_ptr = process.get_register(instruction.arg(1));
 
     let size = arg_ptr.string_value()?.len() as i64;
 

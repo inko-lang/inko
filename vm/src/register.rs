@@ -32,17 +32,8 @@ impl Register {
     }
 
     /// Returns the value of a register.
-    ///
-    /// Register values are optional to allow for instructions such as
-    /// "goto_if_undef", as such this method returns an Option.
-    pub fn get(&self, register: usize) -> Option<ObjectPointer> {
-        if let Some(value) = self.values.get(register) {
-            if !value.is_null() {
-                return Some(value.clone());
-            }
-        }
-
-        None
+    pub fn get(&self, register: usize) -> ObjectPointer {
+        self.values[register]
     }
 
     /// Pushes all pointers in this register into the supplied vector.
@@ -90,13 +81,18 @@ mod tests {
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         register.set(0, pointer);
-        assert!(register.get(0).unwrap() == pointer);
+        assert!(register.get(0) == pointer);
 
         register.set(5, pointer);
-        assert!(register.get(5).unwrap() == pointer);
+        assert!(register.get(5) == pointer);
+    }
 
-        assert!(register.get(2).is_none());
-        assert!(register.get(3).is_none());
+    #[test]
+    #[should_panic]
+    fn test_get_invalid() {
+        let register = Register::new();
+
+        register.get(2);
     }
 
     #[test]
@@ -123,8 +119,8 @@ mod tests {
             pointer.raw.raw = 0x4 as RawObjectPointer;
         }
 
-        assert_eq!(register.get(0).unwrap().raw.raw as usize, 0x4);
-        assert_eq!(register.get(1).unwrap().raw.raw as usize, 0x4);
+        assert_eq!(register.get(0).raw.raw as usize, 0x4);
+        assert_eq!(register.get(1).raw.raw as usize, 0x4);
     }
 
     #[test]

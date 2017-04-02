@@ -28,8 +28,8 @@ pub fn run_block(_: &Machine,
                  -> InstructionResult {
     process.advance_line(instruction.line);
 
-    let register = instruction.arg(0)?;
-    let block_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let block_ptr = process.get_register(instruction.arg(1));
     let block_val = block_ptr.block_value()?;
 
     let arg_offset = 2;
@@ -63,9 +63,9 @@ pub fn run_block(_: &Machine,
         let mut locals = context.binding.locals_mut();
 
         for index in arg_offset..(arg_offset + arg_count) {
-            let register = instruction.arg(index)?;
+            let register = instruction.arg(index);
 
-            locals.push(process.get_register(register)?);
+            locals.push(process.get_register(register));
         }
     }
 
@@ -91,8 +91,8 @@ pub fn run_block_with_rest(_: &Machine,
                            _: &Instruction)
                            -> InstructionResult {
     // TODO: implement
-    //let register = instruction.arg(0)?;
-    //let block_ptr = process.get_register(instruction.arg(1)?)?;
+    //let register = instruction.arg(0);
+    //let block_ptr = process.get_register(instruction.arg(1));
     //let block_val = block_ptr.block_value()?;
     //let has_rest = block_val.has_rest_argument();
 
@@ -146,8 +146,8 @@ pub fn parse_file(machine: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let path_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let path_ptr = process.get_register(instruction.arg(1));
     let path_str = path_ptr.string_value()?;
 
     let code = write_lock!(machine.file_registry).get_or_set(path_str)
@@ -177,8 +177,8 @@ pub fn file_parsed(machine: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let path_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let path_ptr = process.get_register(instruction.arg(1));
     let path_str = path_ptr.string_value()?;
 
     let ptr = if read_lock!(machine.file_registry).contains_path(path_str) {

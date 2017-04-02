@@ -17,7 +17,7 @@ pub fn get_nil(machine: &Machine,
                _: &RcCompiledCode,
                instruction: &Instruction)
                -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.nil_object.clone());
 

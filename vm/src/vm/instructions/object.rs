@@ -24,8 +24,8 @@ pub fn set_object(machine: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let is_permanent_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let is_permanent_ptr = process.get_register(instruction.arg(1));
     let is_permanent = is_permanent_ptr != machine.state.false_object;
 
     let obj = if is_permanent {
@@ -34,8 +34,8 @@ pub fn set_object(machine: &Machine,
         process.allocate_empty()
     };
 
-    if let Ok(proto_index) = instruction.arg(2) {
-        let mut proto = process.get_register(proto_index)?;
+    if let Some(proto_index) = instruction.arg_opt(2) {
+        let mut proto = process.get_register(proto_index);
 
         if is_permanent && !proto.is_permanent() {
             proto = machine.state
@@ -66,9 +66,9 @@ pub fn set_attr(machine: &Machine,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
                 -> InstructionResult {
-    let target_ptr = process.get_register(instruction.arg(0)?)?;
-    let name_ptr = process.get_register(instruction.arg(1)?)?;
-    let value_ptr = process.get_register(instruction.arg(2)?)?;
+    let target_ptr = process.get_register(instruction.arg(0));
+    let name_ptr = process.get_register(instruction.arg(1));
+    let value_ptr = process.get_register(instruction.arg(2));
 
     if target_ptr.is_tagged_integer() {
         return Err("attributes can not be set for integers".to_string());
@@ -99,9 +99,9 @@ pub fn get_attr(machine: &Machine,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
                 -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let source = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     let attr = source.lookup_attribute(&name)
@@ -128,9 +128,9 @@ pub fn attr_exists(machine: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let source_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
 
     let name = machine.state.intern_pointer(&name_ptr)?;
 
@@ -163,9 +163,9 @@ pub fn object_equals(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let compare = process.get_register(instruction.arg(1)?)?;
-    let compare_with = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let compare = process.get_register(instruction.arg(1));
+    let compare_with = process.get_register(instruction.arg(2));
 
     let obj = if compare == compare_with {
         machine.state.true_object
@@ -188,7 +188,7 @@ pub fn get_toplevel(machine: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.top_level.clone());
 
@@ -210,9 +210,9 @@ pub fn remove_attribute(machine: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     if rec_ptr.is_tagged_integer() {
@@ -243,8 +243,8 @@ pub fn get_attributes(machine: &Machine,
                       _: &RcCompiledCode,
                       instruction: &Instruction)
                       -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
     let attributes = rec_ptr.attributes();
 
     let obj = process.allocate(object_value::array(attributes),
@@ -267,8 +267,8 @@ pub fn get_attribute_names(machine: &Machine,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
     let attributes = rec_ptr.attribute_names();
 
     let obj = process.allocate(object_value::array(attributes),

@@ -102,32 +102,20 @@ impl CompiledCode {
         Arc::new(CompiledCode::new(name, file, line, instructions))
     }
 
-    pub fn integer(&self, index: usize) -> Result<ObjectPointer, String> {
-        self.integer_literals
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined integer literal {}", index))
+    pub fn integer(&self, index: usize) -> ObjectPointer {
+        self.integer_literals[index]
     }
 
-    pub fn float(&self, index: usize) -> Result<ObjectPointer, String> {
-        self.float_literals
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined float literal {}", index))
+    pub fn float(&self, index: usize) -> ObjectPointer {
+        self.float_literals[index]
     }
 
-    pub fn string(&self, index: usize) -> Result<ObjectPointer, String> {
-        self.string_literals
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined string literal {}", index))
+    pub fn string(&self, index: usize) -> ObjectPointer {
+        self.string_literals[index]
     }
 
-    pub fn code_object(&self, index: usize) -> Result<RcCompiledCode, String> {
-        self.code_objects
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined code object {}", index))
+    pub fn code_object(&self, index: usize) -> &RcCompiledCode {
+        &self.code_objects[index]
     }
 }
 
@@ -157,8 +145,9 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_integer_invalid() {
-        assert!(new_compiled_code().integer(0).is_err());
+        new_compiled_code().integer(0);
     }
 
     #[test]
@@ -167,13 +156,13 @@ mod tests {
 
         code.integer_literals.push(ObjectPointer::integer(10));
 
-        assert!(code.integer(0).is_ok());
-        assert!(code.integer(0).unwrap() == ObjectPointer::integer(10));
+        assert!(code.integer(0) == ObjectPointer::integer(10));
     }
 
     #[test]
+    #[should_panic]
     fn test_float_invalid() {
-        assert!(new_compiled_code().float(0).is_err());
+        new_compiled_code().float(0);
     }
 
     #[test]
@@ -184,12 +173,13 @@ mod tests {
 
         code.float_literals.push(float);
 
-        assert!(code.float(0).is_ok());
+        assert_eq!(code.float(0).float_value().unwrap(), 10.5);
     }
 
     #[test]
+    #[should_panic]
     fn test_string_invalid() {
-        assert!(new_compiled_code().string(0).is_err());
+        new_compiled_code().string(0);
     }
 
     #[test]
@@ -199,13 +189,13 @@ mod tests {
 
         code.string_literals.push(pointer);
 
-        assert!(code.string(0).is_ok());
-        assert!(code.string(0).unwrap() == pointer);
+        assert!(code.string(0) == pointer);
     }
 
     #[test]
+    #[should_panic]
     fn test_code_object_invalid() {
-        assert!(new_compiled_code().code_object(0).is_err());
+        new_compiled_code().code_object(0);
     }
 
     #[test]
@@ -213,8 +203,8 @@ mod tests {
         let mut code = new_compiled_code();
         let code_rc = Arc::new(new_compiled_code());
 
-        code.code_objects.push(code_rc);
+        code.code_objects.push(code_rc.clone());
 
-        assert!(code.code_object(0).is_ok());
+        assert_eq!(code.code_object(0).name, code_rc.name);
     }
 }

@@ -19,7 +19,7 @@ pub fn monotonic_time_milliseconds(machine: &Machine,
                                    _: &RcCompiledCode,
                                    instruction: &Instruction)
                                    -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let duration = machine.state.start_time.elapsed();
 
     let msec = (duration.as_secs() * 1_000) as f64 +
@@ -43,7 +43,7 @@ pub fn monotonic_time_nanoseconds(machine: &Machine,
                                   _: &RcCompiledCode,
                                   instruction: &Instruction)
                                   -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let duration = machine.state.start_time.elapsed();
     let nsec = (duration.as_secs() * 1000000000) + duration.subsec_nanos() as u64;
 

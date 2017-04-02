@@ -24,9 +24,9 @@ pub fn lookup_method(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     let method = rec_ptr.lookup_method(&machine.state, &name)
@@ -52,10 +52,10 @@ pub fn def_method(machine: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let receiver_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
-    let block_ptr = process.get_register(instruction.arg(3)?)?;
+    let register = instruction.arg(0);
+    let receiver_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
+    let block_ptr = process.get_register(instruction.arg(3));
 
     if receiver_ptr.is_tagged_integer() {
         return Err("methods can not be defined on integers".to_string());
@@ -85,10 +85,10 @@ pub fn responds_to(machine: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let source = process.get_register(instruction.arg(1));
 
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     let result = if source.lookup_method(&machine.state, &name).is_some() {
@@ -117,9 +117,9 @@ pub fn remove_method(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     if rec_ptr.is_tagged_integer() {
@@ -149,8 +149,8 @@ pub fn get_methods(machine: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
     let methods = rec_ptr.methods();
 
     let obj =
@@ -174,8 +174,8 @@ pub fn get_method_names(machine: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let rec_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
     let methods = rec_ptr.method_names();
 
     let obj =

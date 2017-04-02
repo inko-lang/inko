@@ -21,10 +21,10 @@ pub fn set_integer(_: &Machine,
                    code: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let index = instruction.arg(1);
 
-    process.set_register(register, code.integer(index)?);
+    process.set_register(register, code.integer(index));
 
     Ok(Action::None)
 }
@@ -121,8 +121,8 @@ pub fn integer_to_float(machine: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let integer_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let integer_ptr = process.get_register(instruction.arg(1));
     let result = integer_ptr.integer_value()? as f64;
 
     let obj = process.allocate(object_value::float(result),
@@ -145,8 +145,8 @@ pub fn integer_to_string(machine: &Machine,
                          _: &RcCompiledCode,
                          instruction: &Instruction)
                          -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let integer_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let integer_ptr = process.get_register(instruction.arg(1));
     let result = integer_ptr.integer_value()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
@@ -298,252 +298,116 @@ mod tests {
     use vm::instruction::InstructionType;
 
     macro_rules! test_op {
-        ($ins_type: ident, $ins_func: ident, $expected: expr) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: expr) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![2, 0, 1]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let left = ObjectPointer::integer(5);
+                let right = ObjectPointer::integer(2);
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                process.set_register(0, left);
+                process.set_register(1, right);
 
-                #[test]
-                fn test_with_invalid_left_register() {
-                    let (machine, code, process) = setup();
+                let result = $ins_func(&machine, &process, &code, &instruction);
 
-                    let instruction = new_instruction(InstructionType::SetInteger,
-                                                      vec![0]);
+                assert!(result.is_ok());
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let pointer = process.get_register(2);
 
-                #[test]
-                fn test_with_invalid_right_register() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = ObjectPointer::integer(5);
-
-                    process.set_register(0, left);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = ObjectPointer::integer(5);
-                    let right = ObjectPointer::integer(2);
-
-                    process.set_register(0, left);
-                    process.set_register(1, right);
-
-                    let result = $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(2).unwrap();
-
-                    assert_eq!(pointer.integer_value().unwrap(), $expected);
-                }
+                assert_eq!(pointer.integer_value().unwrap(), $expected);
             }
         );
     }
 
     macro_rules! test_bool_op {
-        ($ins_type: ident, $ins_func: ident, $expected: ident) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: ident) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![2, 0, 1]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let left = ObjectPointer::integer(5);
+                let right = ObjectPointer::integer(2);
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                process.set_register(0, left);
+                process.set_register(1, right);
 
-                #[test]
-                fn test_with_invalid_left_register() {
-                    let (machine, code, process) = setup();
+                let result =
+                    $ins_func(&machine, &process, &code, &instruction);
 
-                    let instruction =
-                        new_instruction(InstructionType::$ins_type, vec![0]);
+                assert!(result.is_ok());
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let pointer = process.get_register(2);
 
-                #[test]
-                fn test_with_invalid_right_register() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = ObjectPointer::integer(5);
-
-                    process.set_register(0, left);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = ObjectPointer::integer(5);
-                    let right = ObjectPointer::integer(2);
-
-                    process.set_register(0, left);
-                    process.set_register(1, right);
-
-                    let result =
-                        $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(2).unwrap();
-
-                    assert!(pointer == machine.state.$expected);
-                }
+                assert!(pointer == machine.state.$expected);
             }
         );
     }
 
     macro_rules! test_cast_op {
-        ($ins_type: ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func:ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![1, 0]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let original = ObjectPointer::integer(5);
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                process.set_register(0, original);
 
-                #[test]
-                fn test_without_source_register() {
-                    let (machine, code, process) = setup();
+                let result =
+                    $ins_func(&machine, &process, &code, &instruction);
 
-                    let instruction =
-                        new_instruction(InstructionType::$ins_type, vec![0]);
+                assert!(result.is_ok());
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let pointer = process.get_register(1);
+                let object = pointer.get();
 
-                #[test]
-                fn test_with_invalid_source_register() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![1, 0]);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![1, 0]);
-
-                    let original = ObjectPointer::integer(5);
-
-                    process.set_register(0, original);
-
-                    let result =
-                        $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(1).unwrap();
-                    let object = pointer.get();
-
-                    assert!(object.value.$target_type().unwrap() == $target_val);
-                }
+                assert!(object.value.$target_type().unwrap() == $target_val);
             }
         );
     }
 
-    mod set_integer {
-        use super::*;
+    #[test]
+    fn test_set_integer() {
+        let (machine, code, process) = setup();
+        let instruction = new_instruction(InstructionType::SetInteger,
+                                          vec![0, 0]);
 
-        #[test]
-        fn test_without_arguments() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetInteger,
-                                              Vec::new());
+        arc_mut(&code).integer_literals.push(ObjectPointer::integer(10));
 
-            let result = set_integer(&machine, &process, &code, &instruction);
+        let result = set_integer(&machine, &process, &code, &instruction);
 
-            assert!(result.is_err());
-        }
+        assert!(result.is_ok());
 
-        #[test]
-        fn test_with_invalid_literal_index() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetInteger,
-                                              vec![0, 0]);
+        let pointer = process.get_register(0);
 
-            let result = set_integer(&machine, &process, &code, &instruction);
-
-            assert!(result.is_err());
-        }
-
-        #[test]
-        fn test_with_valid_arguments() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetInteger,
-                                              vec![0, 0]);
-
-            arc_mut(&code).integer_literals.push(ObjectPointer::integer(10));
-
-            let result = set_integer(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
-
-            let pointer = process.get_register(0).unwrap();
-
-            assert_eq!(pointer.integer_value().unwrap(), 10);
-        }
+        assert_eq!(pointer.integer_value().unwrap(), 10);
     }
 
-    test_op!(IntegerAdd, integer_add, 7);
-    test_op!(IntegerDiv, integer_div, 2);
-    test_op!(IntegerMul, integer_mul, 10);
-    test_op!(IntegerSub, integer_sub, 3);
-    test_op!(IntegerMod, integer_mod, 1);
-    test_op!(IntegerBitwiseAnd, integer_bitwise_and, 0);
-    test_op!(IntegerBitwiseOr, integer_bitwise_or, 7);
-    test_op!(IntegerBitwiseXor, integer_bitwise_xor, 7);
-    test_op!(IntegerShiftLeft, integer_shift_left, 20);
-    test_op!(IntegerShiftRight, integer_shift_right, 1);
+    test_op!(IntegerAdd, test_integer_add, integer_add, 7);
+    test_op!(IntegerDiv, test_integer_div, integer_div, 2);
+    test_op!(IntegerMul, test_integer_mul, integer_mul, 10);
+    test_op!(IntegerSub, test_integer_sub, integer_sub, 3);
+    test_op!(IntegerMod, test_integer_mod, integer_mod, 1);
+    test_op!(IntegerBitwiseAnd, test_integer_bitwise_and, integer_bitwise_and, 0);
+    test_op!(IntegerBitwiseOr, test_integer_bitwise_or, integer_bitwise_or, 7);
+    test_op!(IntegerBitwiseXor, test_integer_bitwise_xor, integer_bitwise_xor, 7);
+    test_op!(IntegerShiftLeft, test_integer_shift_left, integer_shift_left, 20);
+    test_op!(IntegerShiftRight, test_integer_shift_right, integer_shift_right, 1);
 
-    test_bool_op!(IntegerSmaller, integer_smaller, false_object);
-    test_bool_op!(IntegerGreater, integer_greater, true_object);
-    test_bool_op!(IntegerEquals, integer_equals, false_object);
+    test_bool_op!(IntegerSmaller, test_integer_smaller, integer_smaller, false_object);
+    test_bool_op!(IntegerGreater, test_integer_greater, integer_greater, true_object);
+    test_bool_op!(IntegerEquals, test_integer_equals, integer_equals, false_object);
 
-    test_cast_op!(IntegerToFloat, integer_to_float, as_float, 5.0);
-    test_cast_op!(IntegerToString, integer_to_string, as_string, &"5".to_string());
+    test_cast_op!(IntegerToFloat, test_integer_to_float, integer_to_float, as_float, 5.0);
+    test_cast_op!(IntegerToString, test_integer_to_string, integer_to_string, as_string, &"5".to_string());
 }

@@ -21,10 +21,10 @@ pub fn set_float(_: &Machine,
                  code: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let index = instruction.arg(1);
 
-    process.set_register(register, code.float(index)?);
+    process.set_register(register, code.float(index));
 
     Ok(Action::None)
 }
@@ -121,8 +121,8 @@ pub fn float_to_integer(_: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let float_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let float_ptr = process.get_register(instruction.arg(1));
     let result = float_ptr.float_value()? as i64;
 
     process.set_register(register, ObjectPointer::integer(result));
@@ -142,8 +142,8 @@ pub fn float_to_string(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let float_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let float_ptr = process.get_register(instruction.arg(1));
     let result = float_ptr.float_value()?.to_string();
 
     let obj = process.allocate(object_value::string(result),
@@ -216,259 +216,130 @@ mod tests {
     use vm::instruction::InstructionType;
 
     macro_rules! test_op {
-        ($ins_type: ident, $ins_func: ident, $expected: expr) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: expr) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![2, 0, 1]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let left = process
+                    .allocate_without_prototype(object_value::float(5.0));
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let right = process
+                    .allocate_without_prototype(object_value::float(2.0));
 
-                #[test]
-                fn test_with_invalid_left_register() {
-                    let (machine, code, process) = setup();
+                process.set_register(0, left);
+                process.set_register(1, right);
 
-                    let instruction = new_instruction(InstructionType::SetFloat,
-                                                      vec![0]);
+                let result = $ins_func(&machine, &process, &code, &instruction);
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                assert!(result.is_ok());
 
-                #[test]
-                fn test_with_invalid_right_register() {
-                    let (machine, code, process) = setup();
+                let pointer = process.get_register(2);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = process
-                        .allocate_without_prototype(object_value::float(5.0));
-
-                    process.set_register(0, left);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = process
-                        .allocate_without_prototype(object_value::float(5.0));
-
-                    let right = process
-                        .allocate_without_prototype(object_value::float(2.0));
-
-                    process.set_register(0, left);
-                    process.set_register(1, right);
-
-                    let result = $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(2).unwrap();
-
-                    assert_eq!(pointer.float_value().unwrap(), $expected);
-                }
+                assert_eq!(pointer.float_value().unwrap(), $expected);
             }
         );
     }
 
     macro_rules! test_bool_op {
-        ($ins_type: ident, $ins_func: ident, $expected: ident) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: ident) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![2, 0, 1]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let left = process
+                    .allocate_without_prototype(object_value::float(5.0));
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let right = process
+                    .allocate_without_prototype(object_value::float(2.0));
 
-                #[test]
-                fn test_with_invalid_left_register() {
-                    let (machine, code, process) = setup();
+                process.set_register(0, left);
+                process.set_register(1, right);
 
-                    let instruction =
-                        new_instruction(InstructionType::$ins_type, vec![0]);
+                let result =
+                    $ins_func(&machine, &process, &code, &instruction);
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                assert!(result.is_ok());
 
-                #[test]
-                fn test_with_invalid_right_register() {
-                    let (machine, code, process) = setup();
+                let pointer = process.get_register(2);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = process
-                        .allocate_without_prototype(object_value::float(5.0));
-
-                    process.set_register(0, left);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![2, 0, 1]);
-
-                    let left = process
-                        .allocate_without_prototype(object_value::float(5.0));
-
-                    let right = process
-                        .allocate_without_prototype(object_value::float(2.0));
-
-                    process.set_register(0, left);
-                    process.set_register(1, right);
-
-                    let result =
-                        $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(2).unwrap();
-
-                    assert!(pointer == machine.state.$expected);
-                }
+                assert!(pointer == machine.state.$expected);
             }
         );
     }
 
     macro_rules! test_cast_op {
-        ($ins_type: ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
-            mod $ins_func {
-                use super::*;
+        ($ins_type: ident, $test_func: ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
+            #[test]
+            fn $test_func() {
+                let (machine, code, process) = setup();
 
-                #[test]
-                fn test_without_arguments() {
-                    let (machine, code, process) = setup();
+                let instruction = new_instruction(InstructionType::$ins_type,
+                                                  vec![1, 0]);
 
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      Vec::new());
+                let original = process
+                    .allocate_without_prototype(object_value::float(5.5));
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                process.set_register(0, original);
 
-                #[test]
-                fn test_without_source_register() {
-                    let (machine, code, process) = setup();
+                let result =
+                    $ins_func(&machine, &process, &code, &instruction);
 
-                    let instruction =
-                        new_instruction(InstructionType::$ins_type, vec![0]);
+                assert!(result.is_ok());
 
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
+                let pointer = process.get_register(1);
 
-                #[test]
-                fn test_with_invalid_source_register() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![1, 0]);
-
-                    assert!($ins_func(&machine, &process, &code, &instruction).is_err());
-                }
-
-                #[test]
-                fn test_with_valid_arguments() {
-                    let (machine, code, process) = setup();
-
-                    let instruction = new_instruction(InstructionType::$ins_type,
-                                                      vec![1, 0]);
-
-                    let original = process
-                        .allocate_without_prototype(object_value::float(5.5));
-
-                    process.set_register(0, original);
-
-                    let result =
-                        $ins_func(&machine, &process, &code, &instruction);
-
-                    assert!(result.is_ok());
-
-                    let pointer = process.get_register(1).unwrap();
-
-                    assert!(pointer.$target_type().unwrap() == $target_val);
-                }
+                assert!(pointer.$target_type().unwrap() == $target_val);
             }
         );
     }
 
-    mod set_float {
-        use super::*;
+    #[test]
+    fn test_set_float() {
+        let (machine, code, process) = setup();
+        let instruction = new_instruction(InstructionType::SetFloat, vec![0, 0]);
 
-        #[test]
-        fn test_without_arguments() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetFloat,
-                                              Vec::new());
+        let float = machine.state.allocate_permanent_float(10.0);
 
-            let result = set_float(&machine, &process, &code, &instruction);
+        arc_mut(&code).float_literals.push(float);
 
-            assert!(result.is_err());
-        }
+        let result = set_float(&machine, &process, &code, &instruction);
 
-        #[test]
-        fn test_with_invalid_literal_index() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetFloat,
-                                              vec![0, 0]);
+        assert!(result.is_ok());
 
-            let result = set_float(&machine, &process, &code, &instruction);
+        let pointer = process.get_register(0);
 
-            assert!(result.is_err());
-        }
-
-        #[test]
-        fn test_with_valid_arguments() {
-            let (machine, code, process) = setup();
-            let instruction = new_instruction(InstructionType::SetFloat,
-                                              vec![0, 0]);
-
-            let float = machine.state.allocate_permanent_float(10.0);
-
-            arc_mut(&code).float_literals.push(float);
-
-            let result = set_float(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
-
-            let pointer = process.get_register(0).unwrap();
-
-            assert!(pointer == float);
-        }
+        assert!(pointer == float);
     }
 
-    test_op!(FloatAdd, float_add, 7.0);
-    test_op!(FloatDiv, float_div, 2.5);
-    test_op!(FloatMul, float_mul, 10.0);
-    test_op!(FloatSub, float_sub, 3.0);
-    test_op!(FloatMod, float_mod, 1.0);
+    test_op!(FloatAdd, test_float_add, float_add, 7.0);
+    test_op!(FloatDiv, test_float_div, float_div, 2.5);
+    test_op!(FloatMul, test_float_mul, float_mul, 10.0);
+    test_op!(FloatSub, test_float_sub, float_sub, 3.0);
+    test_op!(FloatMod, test_float_mod, float_mod, 1.0);
 
-    test_bool_op!(FloatSmaller, float_smaller, false_object);
-    test_bool_op!(FloatGreater, float_greater, true_object);
-    test_bool_op!(FloatEquals, float_equals, false_object);
+    test_bool_op!(FloatSmaller,
+                  test_float_smaller,
+                  float_smaller,
+                  false_object);
 
-    test_cast_op!(FloatToInteger, float_to_integer, integer_value, 5);
+    test_bool_op!(FloatGreater, test_float_greater, float_greater, true_object);
+    test_bool_op!(FloatEquals, test_float_equals, float_equals, false_object);
+
+    test_cast_op!(FloatToInteger,
+                  test_float_to_integer,
+                  float_to_integer,
+                  integer_value,
+                  5);
+
     test_cast_op!(FloatToString,
+                  test_float_to_string,
                   float_to_string,
                   string_value,
                   &"5.5".to_string());

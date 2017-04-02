@@ -20,8 +20,8 @@ pub fn is_error(machine: &Machine,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
                 -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let obj_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let obj_ptr = process.get_register(instruction.arg(1));
 
     let obj = obj_ptr.get();
 
@@ -48,8 +48,8 @@ pub fn error_to_integer(_: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let error_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let error_ptr = process.get_register(instruction.arg(1));
 
     let integer = error_ptr.error_value()? as i64;
     let result = ObjectPointer::integer(integer);

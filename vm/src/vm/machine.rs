@@ -203,7 +203,7 @@ impl Machine {
                         object::set_object(self, process, &code, instruction)?;
                     }
                     InstructionType::SetArray => {
-                        array::set_array(self, process, &code, instruction)?;
+                        array::set_array(self, process, &code, instruction);
                     }
                     InstructionType::GetIntegerPrototype => {
                         prototype::get_integer_prototype(self,
@@ -774,16 +774,16 @@ impl Machine {
                              instruction: &Instruction,
                              offset: usize,
                              amount: usize)
-                             -> Result<Vec<ObjectPointer>, String> {
+                             -> Vec<ObjectPointer> {
         let mut args: Vec<ObjectPointer> = Vec::with_capacity(amount);
 
         for index in offset..(offset + amount) {
-            let arg_index = instruction.arg(index)?;
+            let arg_index = instruction.arg(index);
 
-            args.push(process.get_register(arg_index)?);
+            args.push(process.get_register(arg_index));
         }
 
-        Ok(args)
+        args
     }
 
     /// Spawns a new process.

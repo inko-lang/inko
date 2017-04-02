@@ -6,9 +6,9 @@ macro_rules! to_expr {
 
 macro_rules! num_bool_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt, $as_name: ident) => ({
-        let register = $ins.arg(0)?;
-        let receiver_ptr = $process.get_register($ins.arg(1)?)?;
-        let arg_ptr = $process.get_register($ins.arg(2)?)?;
+        let register = $ins.arg(0);
+        let receiver_ptr = $process.get_register($ins.arg(1));
+        let arg_ptr = $process.get_register($ins.arg(2));
         let result = to_expr!(receiver_ptr.$as_name()? $op arg_ptr.$as_name()?);
 
         let boolean = if result {
@@ -26,9 +26,9 @@ macro_rules! num_bool_op {
 
 macro_rules! integer_op {
     ($process: expr, $ins: expr, $op: tt) => ({
-        let register = $ins.arg(0)?;
-        let receiver_ptr = $process.get_register($ins.arg(1)?)?;
-        let arg_ptr = $process.get_register($ins.arg(2)?)?;
+        let register = $ins.arg(0);
+        let receiver_ptr = $process.get_register($ins.arg(1));
+        let arg_ptr = $process.get_register($ins.arg(2));
         let result = to_expr!(receiver_ptr.integer_value()? $op arg_ptr.integer_value()?);
 
         $process.set_register(register, ObjectPointer::integer(result));
@@ -45,9 +45,9 @@ macro_rules! integer_bool_op {
 
 macro_rules! float_op {
     ($vm: expr, $process: expr, $ins: expr, $op: tt) => ({
-        let register = $ins.arg(0)?;
-        let receiver_ptr = $process.get_register($ins.arg(1)?)?;
-        let arg_ptr = $process.get_register($ins.arg(2)?)?;
+        let register = $ins.arg(0);
+        let receiver_ptr = $process.get_register($ins.arg(1));
+        let arg_ptr = $process.get_register($ins.arg(2));
         let result = to_expr!(receiver_ptr.float_value()? $op arg_ptr.float_value()?);
 
         let obj = $process

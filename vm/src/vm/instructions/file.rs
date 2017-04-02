@@ -55,9 +55,9 @@ pub fn file_open(_: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let path_ptr = process.get_register(instruction.arg(1)?)?;
-    let mode_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let path_ptr = process.get_register(instruction.arg(1));
+    let mode_ptr = process.get_register(instruction.arg(2));
 
     let path = path_ptr.string_value()?;
     let mode = mode_ptr.integer_value()?;
@@ -109,9 +109,9 @@ pub fn file_write(_: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
-    let string_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
+    let string_ptr = process.get_register(instruction.arg(2));
 
     let mut file = file_ptr.file_value_mut()?;
     let bytes = string_ptr.string_value()?.as_bytes();
@@ -141,8 +141,8 @@ pub fn file_read(machine: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
 
     let mut file = file_ptr.file_value_mut()?;
     let mut buffer = String::new();
@@ -177,9 +177,9 @@ pub fn file_read_exact(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
-    let size_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
+    let size_ptr = process.get_register(instruction.arg(2));
 
     let mut file = file_ptr.file_value_mut()?;
     let size = size_ptr.integer_value()? as usize;
@@ -213,8 +213,8 @@ pub fn file_read_line(machine: &Machine,
                       _: &RcCompiledCode,
                       instruction: &Instruction)
                       -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
 
     let mut file = file_ptr.file_value_mut()?;
     let mut buffer = Vec::new();
@@ -268,8 +268,8 @@ pub fn file_flush(_: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
 
     let mut file = file_ptr.file_value_mut()?;
 
@@ -298,8 +298,8 @@ pub fn file_size(_: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
     let file = file_ptr.file_value()?;
 
     let obj = match file.metadata() {
@@ -328,9 +328,9 @@ pub fn file_seek(_: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let file_ptr = process.get_register(instruction.arg(1)?)?;
-    let offset_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let file_ptr = process.get_register(instruction.arg(1));
+    let offset_ptr = process.get_register(instruction.arg(2));
 
     let mut file = file_ptr.file_value_mut()?;
     let offset = offset_ptr.integer_value()?;

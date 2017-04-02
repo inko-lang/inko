@@ -25,8 +25,8 @@ pub fn stderr_write(_: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let string_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let string_ptr = process.get_register(instruction.arg(1));
     let string = string_ptr.string_value()?;
     let mut stderr = io::stderr();
 

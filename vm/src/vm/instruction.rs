@@ -142,14 +142,16 @@ impl Instruction {
         }
     }
 
-    pub fn arg(&self, index: usize) -> Result<usize, String> {
-        self.arguments
-            .get(index)
-            .cloned()
-            .ok_or_else(|| {
-                format!("Undefined instruction argument {} for {:?}", index, self)
-            })
-            .map(|num| num as usize)
+    /// Returns the value of an argument without performing any bounds checking.
+    ///
+    /// This method will panic when trying to access an out of bounds index.
+    pub fn arg(&self, index: usize) -> usize {
+        self.arguments[index] as usize
+    }
+
+    /// Returns the value of an argument as an Option.
+    pub fn arg_opt(&self, index: usize) -> Option<usize> {
+        self.arguments.get(index).cloned().map(|val| val as usize)
     }
 }
 
@@ -176,17 +178,32 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_arg_invalid() {
         let ins = new_instruction();
 
-        assert!(ins.arg(5).is_err());
+        ins.arg(5);
     }
 
     #[test]
     fn test_arg_valid() {
         let ins = new_instruction();
 
-        assert!(ins.arg(0).is_ok());
-        assert_eq!(ins.arg(0).unwrap(), 1);
+        assert_eq!(ins.arg(0), 1);
+    }
+
+    #[test]
+    fn test_arg_opt_invalid() {
+        let ins = new_instruction();
+
+        assert!(ins.arg_opt(5).is_none());
+    }
+
+    #[test]
+    fn test_arg_opt_valid() {
+        let ins = new_instruction();
+
+        assert!(ins.arg_opt(0).is_some());
+        assert_eq!(ins.arg_opt(0).unwrap(), 1);
     }
 }

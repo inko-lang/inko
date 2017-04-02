@@ -20,17 +20,13 @@ pub fn goto_if_false(machine: &Machine,
                      instruction: &Instruction,
                      index: usize)
                      -> Result<usize, String> {
-    let go_to = instruction.arg(0)?;
-    let value_reg = instruction.arg(1)?;
+    let go_to = instruction.arg(0);
+    let value_reg = instruction.arg(1);
 
-    let result = if let Some(obj) = process.get_register_option(value_reg) {
-        if is_false!(machine, obj) {
-            go_to
-        } else {
-            index
-        }
-    } else {
+    let result = if is_false!(machine, process.get_register(value_reg)) {
         go_to
+    } else {
+        index
     };
 
     Ok(result)
@@ -49,17 +45,13 @@ pub fn goto_if_true(machine: &Machine,
                     instruction: &Instruction,
                     index: usize)
                     -> Result<usize, String> {
-    let go_to = instruction.arg(0)?;
-    let value_reg = instruction.arg(1)?;
+    let go_to = instruction.arg(0);
+    let value_reg = instruction.arg(1);
 
-    let result = if let Some(obj) = process.get_register_option(value_reg) {
-        if is_false!(machine, obj) {
-            index
-        } else {
-            go_to
-        }
-    } else {
+    let result = if is_false!(machine, process.get_register(value_reg)) {
         index
+    } else {
+        go_to
     };
 
     Ok(result)
@@ -74,7 +66,7 @@ pub fn goto(_: &Machine,
             _: &RcCompiledCode,
             instruction: &Instruction)
             -> Result<usize, String> {
-    let go_to = instruction.arg(0)?;
+    let go_to = instruction.arg(0);
 
     Ok(go_to)
 }
@@ -89,7 +81,7 @@ pub fn return_value(_: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
-    let object = process.get_register(instruction.arg(0)?)?;
+    let object = process.get_register(instruction.arg(0));
     let current_context = process.context_mut();
 
     if let Some(register) = current_context.return_register {

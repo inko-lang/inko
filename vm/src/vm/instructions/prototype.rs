@@ -19,8 +19,8 @@ pub fn set_prototype(_: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let source = process.get_register(instruction.arg(0)?)?;
-    let proto = process.get_register(instruction.arg(1)?)?;
+    let source = process.get_register(instruction.arg(0));
+    let proto = process.get_register(instruction.arg(1));
 
     source.get_mut().set_prototype(proto);
 
@@ -39,8 +39,8 @@ pub fn get_prototype(_: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let source = process.get_register(instruction.arg(1));
 
     let source_obj = source.get();
 
@@ -65,7 +65,7 @@ pub fn get_integer_prototype(machine: &Machine,
                              _: &RcCompiledCode,
                              instruction: &Instruction)
                              -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.integer_prototype.clone());
 
@@ -82,7 +82,7 @@ pub fn get_float_prototype(machine: &Machine,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.float_prototype.clone());
 
@@ -99,7 +99,7 @@ pub fn get_string_prototype(machine: &Machine,
                             _: &RcCompiledCode,
                             instruction: &Instruction)
                             -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.string_prototype.clone());
 
@@ -116,7 +116,7 @@ pub fn get_array_prototype(machine: &Machine,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.array_prototype.clone());
 
@@ -133,7 +133,7 @@ pub fn get_true_prototype(machine: &Machine,
                           _: &RcCompiledCode,
                           instruction: &Instruction)
                           -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.true_prototype.clone());
 
@@ -150,7 +150,7 @@ pub fn get_false_prototype(machine: &Machine,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.false_prototype.clone());
 
@@ -167,7 +167,7 @@ pub fn get_method_prototype(machine: &Machine,
                             _: &RcCompiledCode,
                             instruction: &Instruction)
                             -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.method_prototype.clone());
 
@@ -184,7 +184,7 @@ pub fn get_binding_prototype(machine: &Machine,
                              _: &RcCompiledCode,
                              instruction: &Instruction)
                              -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.binding_prototype.clone());
 
@@ -201,7 +201,7 @@ pub fn get_block_prototype(machine: &Machine,
                            _: &RcCompiledCode,
                            instruction: &Instruction)
                            -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.block_prototype);
 
@@ -218,7 +218,7 @@ pub fn get_nil_prototype(machine: &Machine,
                          _: &RcCompiledCode,
                          instruction: &Instruction)
                          -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.nil_prototype.clone());
 

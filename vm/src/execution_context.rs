@@ -91,7 +91,7 @@ impl ExecutionContext {
         self.parent.as_mut()
     }
 
-    pub fn get_register(&self, register: usize) -> Option<ObjectPointer> {
+    pub fn get_register(&self, register: usize) -> ObjectPointer {
         self.register.get(register)
     }
 
@@ -248,10 +248,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_get_register_invalid() {
         let context = new_context();
 
-        assert!(context.get_register(0).is_none());
+        context.get_register(0);
     }
 
     #[test]
@@ -261,7 +262,7 @@ mod tests {
 
         context.set_register(0, pointer);
 
-        assert!(context.get_register(0).is_some());
+        assert!(context.get_register(0) == pointer);
     }
 
     #[test]

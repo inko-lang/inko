@@ -18,7 +18,7 @@ pub fn get_binding(machine: &Machine,
                    _: &RcCompiledCode,
                    instruction: &Instruction)
                    -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let binding = process.binding();
 
     let obj = process.allocate(object_value::binding(binding),

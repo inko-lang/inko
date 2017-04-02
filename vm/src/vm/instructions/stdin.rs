@@ -24,7 +24,7 @@ pub fn stdin_read(machine: &Machine,
                   _: &RcCompiledCode,
                   instruction: &Instruction)
                   -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let mut buffer = String::new();
 
     let obj = match io::stdin().read_to_string(&mut buffer) {
@@ -56,8 +56,8 @@ pub fn stdin_read_exact(machine: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let size_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let size_ptr = process.get_register(instruction.arg(1));
 
     let size = size_ptr.integer_value()? as usize;
     let mut buffer = String::with_capacity(size);
@@ -89,7 +89,7 @@ pub fn stdin_read_line(machine: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let mut buffer = String::new();
 
     let obj = match io::stdin().read_line(&mut buffer) {

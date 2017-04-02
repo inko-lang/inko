@@ -154,15 +154,10 @@ impl Process {
         }
     }
 
-    pub fn get_register(&self, register: usize) -> Result<ObjectPointer, String> {
+    pub fn get_register(&self, register: usize) -> ObjectPointer {
         self.local_data()
             .context
             .get_register(register)
-            .ok_or_else(|| format!("Undefined object in register {}", register))
-    }
-
-    pub fn get_register_option(&self, register: usize) -> Option<ObjectPointer> {
-        self.local_data().context.get_register(register)
     }
 
     pub fn set_register(&self, register: usize, value: ObjectPointer) {

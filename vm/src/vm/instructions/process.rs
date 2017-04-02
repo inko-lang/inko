@@ -23,11 +23,11 @@ pub fn spawn_process(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction)
                      -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let block_ptr = process.get_register(instruction.arg(1)?)?;
+    let register = instruction.arg(0);
+    let block_ptr = process.get_register(instruction.arg(1));
 
-    let pool_id = if let Ok(pool_reg) = instruction.arg(2) {
-        let ptr = process.get_register(pool_reg)?;
+    let pool_id = if let Some(pool_reg) = instruction.arg_opt(2) {
+        let ptr = process.get_register(pool_reg);
 
         ptr.integer_value()? as usize
     } else {
@@ -55,9 +55,9 @@ pub fn send_process_message(machine: &Machine,
                             _: &RcCompiledCode,
                             instruction: &Instruction)
                             -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let pid_ptr = process.get_register(instruction.arg(1)?)?;
-    let msg_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let pid_ptr = process.get_register(instruction.arg(1));
+    let msg_ptr = process.get_register(instruction.arg(2));
     let pid = pid_ptr.integer_value()? as usize;
 
     if let Some(receiver) = read_lock!(machine.state.process_table).get(&pid) {
@@ -82,7 +82,7 @@ pub fn receive_process_message(_: &Machine,
                                _: &RcCompiledCode,
                                instruction: &Instruction)
                                -> Result<bool, String> {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let result = if let Some(msg_ptr) = process.receive_message() {
         process.set_register(register, msg_ptr);
 
@@ -104,7 +104,7 @@ pub fn get_current_pid(_: &Machine,
                        _: &RcCompiledCode,
                        instruction: &Instruction)
                        -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
     let pid = process.pid;
 
     process.set_register(register, ObjectPointer::integer(pid as i64));

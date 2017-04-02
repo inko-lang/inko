@@ -17,7 +17,7 @@ pub fn get_true(machine: &Machine,
                 _: &RcCompiledCode,
                 instruction: &Instruction)
                 -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.true_object.clone());
 
@@ -34,7 +34,7 @@ pub fn get_false(machine: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
+    let register = instruction.arg(0);
 
     process.set_register(register, machine.state.false_object.clone());
 

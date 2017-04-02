@@ -22,9 +22,9 @@ pub fn set_const(machine: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let target_ptr = process.get_register(instruction.arg(0)?)?;
-    let name_ptr = process.get_register(instruction.arg(1)?)?;
-    let source_ptr = process.get_register(instruction.arg(2)?)?;
+    let target_ptr = process.get_register(instruction.arg(0));
+    let name_ptr = process.get_register(instruction.arg(1));
+    let source_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     if source_ptr.is_tagged_integer() {
@@ -54,9 +54,9 @@ pub fn get_const(machine: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let src = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let src = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     let object = src.lookup_constant(&machine.state, &name)
@@ -83,9 +83,9 @@ pub fn const_exists(machine: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let source = process.get_register(instruction.arg(1)?)?;
-    let name_ptr = process.get_register(instruction.arg(2)?)?;
+    let register = instruction.arg(0);
+    let source = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
     let name = machine.state.intern_pointer(&name_ptr)?;
 
     if source.lookup_constant(&machine.state, &name).is_some() {

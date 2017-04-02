@@ -22,10 +22,10 @@ pub fn set_block(machine: &Machine,
                  code: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let cc_index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let cc_index = instruction.arg(1);
 
-    let cc = code.code_object(cc_index)?;
+    let cc = code.code_object(cc_index);
     let binding = process.binding();
     let block = Block::new(cc.clone(), binding);
 

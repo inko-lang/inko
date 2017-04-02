@@ -132,6 +132,6 @@ mod tests {
         process.running();
         request.perform();
 
-        assert!(process.get_register(0).unwrap().is_marked());
+        assert!(process.get_register(0).is_marked());
     }
 }

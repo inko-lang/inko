@@ -19,8 +19,8 @@ pub fn set_local(_: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let local_index = instruction.arg(0)?;
-    let object = process.get_register(instruction.arg(1)?)?;
+    let local_index = instruction.arg(0);
+    let object = process.get_register(instruction.arg(1));
 
     process.set_local(local_index, object);
 
@@ -39,8 +39,8 @@ pub fn get_local(_: &Machine,
                  _: &RcCompiledCode,
                  instruction: &Instruction)
                  -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let local_index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let local_index = instruction.arg(1);
     let object = process.get_local(local_index)?;
 
     process.set_register(register, object);
@@ -60,8 +60,8 @@ pub fn local_exists(machine: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction)
                     -> InstructionResult {
-    let register = instruction.arg(0)?;
-    let local_index = instruction.arg(1)?;
+    let register = instruction.arg(0);
+    let local_index = instruction.arg(1);
 
     let value = if process.local_exists(local_index) {
         machine.state.true_object.clone()
@@ -88,9 +88,9 @@ pub fn set_parent_local(_: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let index = instruction.arg(0)?;
-    let depth = instruction.arg(1)?;
-    let value = process.get_register(instruction.arg(2)?)?;
+    let index = instruction.arg(0);
+    let depth = instruction.arg(1);
+    let value = process.get_register(instruction.arg(2));
 
     if let Some(binding) = process.binding().find_parent(depth) {
         binding.set_local(index, value);
@@ -115,9 +115,9 @@ pub fn get_parent_local(_: &Machine,
                         _: &RcCompiledCode,
                         instruction: &Instruction)
                         -> InstructionResult {
-    let reg = instruction.arg(0)?;
-    let depth = instruction.arg(1)?;
-    let index = instruction.arg(2)?;
+    let reg = instruction.arg(0);
+    let depth = instruction.arg(1);
+    let index = instruction.arg(2);
 
     let binding = process.binding()
         .find_parent(depth)
