@@ -16,6 +16,7 @@ use process::RcProcess;
 /// 1. The register to store the object in.
 /// 2. The index of the CompiledCode object literal to use for creating the
 ///    Block.
+#[inline(always)]
 pub fn set_block(machine: &Machine,
                  process: &RcProcess,
                  code: &RcCompiledCode,

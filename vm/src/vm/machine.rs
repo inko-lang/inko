@@ -8,9 +8,46 @@ use object_value;
 use process::{RcProcess, Process};
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
-use vm::action::Action;
-use vm::instruction::{Instruction, INSTRUCTION_MAPPING};
+use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
+use vm::instructions::array;
+use vm::instructions::binding;
+use vm::instructions::block;
+use vm::instructions::boolean;
+use vm::instructions::code_execution;
+use vm::instructions::constant;
+use vm::instructions::error;
+use vm::instructions::file;
+use vm::instructions::float;
+use vm::instructions::control_flow;
+use vm::instructions::integer;
+use vm::instructions::local_variable;
+use vm::instructions::method;
+use vm::instructions::nil;
+use vm::instructions::object;
+use vm::instructions::process;
+use vm::instructions::prototype;
+use vm::instructions::stderr;
+use vm::instructions::stdin;
+use vm::instructions::stdout;
+use vm::instructions::string;
+use vm::instructions::time;
+
+macro_rules! suspend_retry {
+    ($machine: expr, $context: expr, $process: expr, $index: expr) => ({
+        $context.instruction_index = $index - 1;
+        $machine.reschedule($process.clone());
+
+        return Ok(());
+    })
+}
+
+macro_rules! enter_context {
+    ($context: expr, $index: expr, $label: tt) => ({
+        $context.instruction_index = $index;
+        continue $label;
+    })
+}
 
 #[derive(Clone)]
 pub struct Machine {
@@ -124,8 +161,14 @@ impl Machine {
         }
     }
 
-    /// Executes a single process.
     fn run(&self, process: &RcProcess) {
+        if let Err(message) = self.run_process(process) {
+            self.error(process, message);
+        }
+    }
+
+    /// Executes a single process.
+    fn run_process(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -143,31 +186,519 @@ impl Machine {
 
             while index < count {
                 let ref instruction = code.instructions[index];
-                let mapping_index = instruction.instruction_type as usize;
-                let func = INSTRUCTION_MAPPING[mapping_index];
 
                 index += 1;
 
-                match func(self, process, &code, instruction) {
-                    Ok(Action::Goto(new_index)) => index = new_index,
-                    Ok(Action::Return) => break,
-                    Ok(Action::EnterContext) => {
-                        context.instruction_index = index;
+                match instruction.instruction_type {
+                    InstructionType::SetInteger => {
+                        integer::set_integer(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetFloat => {
+                        float::set_float(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetString => {
+                        string::set_string(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetObject => {
+                        object::set_object(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetArray => {
+                        array::set_array(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetIntegerPrototype => {
+                        prototype::get_integer_prototype(self,
+                                                         process,
+                                                         &code,
+                                                         instruction)?;
+                    }
+                    InstructionType::GetFloatPrototype => {
+                        prototype::get_float_prototype(self,
+                                                       process,
+                                                       &code,
+                                                       instruction)?;
+                    }
+                    InstructionType::GetStringPrototype => {
+                        prototype::get_string_prototype(self,
+                                                        process,
+                                                        &code,
+                                                        instruction)?;
+                    }
+                    InstructionType::GetArrayPrototype => {
+                        prototype::get_array_prototype(self,
+                                                       process,
+                                                       &code,
+                                                       instruction)?;
+                    }
+                    InstructionType::GetTruePrototype => {
+                        prototype::get_true_prototype(self,
+                                                      process,
+                                                      &code,
+                                                      instruction)?;
+                    }
+                    InstructionType::GetFalsePrototype => {
+                        prototype::get_false_prototype(self,
+                                                       process,
+                                                       &code,
+                                                       instruction)?;
+                    }
+                    InstructionType::GetMethodPrototype => {
+                        prototype::get_method_prototype(self,
+                                                        process,
+                                                        &code,
+                                                        instruction)?;
+                    }
+                    InstructionType::GetBlockPrototype => {
+                        prototype::get_block_prototype(self,
+                                                       process,
+                                                       &code,
+                                                       instruction)?;
+                    }
+                    InstructionType::GetTrue => {
+                        boolean::get_true(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetFalse => {
+                        boolean::get_false(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetLocal => {
+                        local_variable::set_local(self,
+                                                  process,
+                                                  &code,
+                                                  instruction)?;
+                    }
+                    InstructionType::GetLocal => {
+                        local_variable::get_local(self,
+                                                  process,
+                                                  &code,
+                                                  instruction)?;
+                    }
+                    InstructionType::SetBlock => {
+                        block::set_block(self, process, &code, instruction)?;
+                    }
+                    InstructionType::Return => {
+                        control_flow::return_value(self,
+                                                   process,
+                                                   &code,
+                                                   instruction)?;
 
-                        continue 'exec_loop;
+                        break;
                     }
-                    Ok(Action::Suspend) => {
-                        context.instruction_index = index - 1;
-                        self.reschedule(process.clone());
-                        return;
+                    InstructionType::GotoIfFalse => {
+                        index = control_flow::goto_if_false(self,
+                                                            process,
+                                                            &code,
+                                                            instruction,
+                                                            index)?;
                     }
-                    Ok(_) => {}
-                    Err(message) => {
-                        self.error(process, message);
+                    InstructionType::GotoIfTrue => {
+                        index = control_flow::goto_if_true(self,
+                                                           process,
+                                                           &code,
+                                                           instruction,
+                                                           index)?;
+                    }
+                    InstructionType::Goto => {
+                        index = control_flow::goto(self,
+                                                   process,
+                                                   &code,
+                                                   instruction)?;
+                    }
+                    InstructionType::DefMethod => {
+                        method::def_method(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IsError => {
+                        error::is_error(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerAdd => {
+                        integer::integer_add(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerDiv => {
+                        integer::integer_div(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerMul => {
+                        integer::integer_mul(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerSub => {
+                        integer::integer_sub(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerMod => {
+                        integer::integer_mod(self, process, &code, instruction)?;
+                    }
+                    InstructionType::IntegerToFloat => {
+                        integer::integer_to_float(self,
+                                                  process,
+                                                  &code,
+                                                  instruction)?;
+                    }
+                    InstructionType::IntegerToString => {
+                        integer::integer_to_string(self,
+                                                   process,
+                                                   &code,
+                                                   instruction)?;
+                    }
+                    InstructionType::IntegerBitwiseAnd => {
+                        integer::integer_bitwise_and(self,
+                                                     process,
+                                                     &code,
+                                                     instruction)?;
+                    }
+                    InstructionType::IntegerBitwiseOr => {
+                        integer::integer_bitwise_or(self,
+                                                    process,
+                                                    &code,
+                                                    instruction)?;
+                    }
+                    InstructionType::IntegerBitwiseXor => {
+                        integer::integer_bitwise_xor(self,
+                                                     process,
+                                                     &code,
+                                                     instruction)?;
+                    }
+                    InstructionType::IntegerShiftLeft => {
+                        integer::integer_shift_left(self,
+                                                    process,
+                                                    &code,
+                                                    instruction)?;
+                    }
+                    InstructionType::IntegerShiftRight => {
+                        integer::integer_shift_right(self,
+                                                     process,
+                                                     &code,
+                                                     instruction)?;
+                    }
+                    InstructionType::IntegerSmaller => {
+                        integer::integer_smaller(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::IntegerGreater => {
+                        integer::integer_greater(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::IntegerEquals => {
+                        integer::integer_equals(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::FloatAdd => {
+                        float::float_add(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatMul => {
+                        float::float_mul(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatDiv => {
+                        float::float_div(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatSub => {
+                        float::float_sub(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatMod => {
+                        float::float_mod(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatToInteger => {
+                        float::float_to_integer(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::FloatToString => {
+                        float::float_to_string(self,
+                                               process,
+                                               &code,
+                                               instruction)?;
+                    }
+                    InstructionType::FloatSmaller => {
+                        float::float_smaller(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatGreater => {
+                        float::float_greater(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FloatEquals => {
+                        float::float_equals(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ArrayInsert => {
+                        array::array_insert(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ArrayAt => {
+                        array::array_at(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ArrayRemove => {
+                        array::array_remove(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ArrayLength => {
+                        array::array_length(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ArrayClear => {
+                        array::array_clear(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StringToLower => {
+                        string::string_to_lower(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::StringToUpper => {
+                        string::string_to_upper(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::StringEquals => {
+                        string::string_equals(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StringToBytes => {
+                        string::string_to_bytes(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::StringFromBytes => {
+                        string::string_from_bytes(self,
+                                                  process,
+                                                  &code,
+                                                  instruction)?;
+                    }
+                    InstructionType::StringLength => {
+                        string::string_length(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StringSize => {
+                        string::string_size(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StdoutWrite => {
+                        stdout::stdout_write(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StderrWrite => {
+                        stderr::stderr_write(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StdinRead => {
+                        stdin::stdin_read(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StdinReadLine => {
+                        stdin::stdin_read_line(self,
+                                               process,
+                                               &code,
+                                               instruction)?;
+                    }
+                    InstructionType::FileOpen => {
+                        file::file_open(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileWrite => {
+                        file::file_write(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileRead => {
+                        file::file_read(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileReadLine => {
+                        file::file_read_line(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileFlush => {
+                        file::file_flush(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileSize => {
+                        file::file_size(self, process, &code, instruction)?;
+                    }
+                    InstructionType::FileSeek => {
+                        file::file_seek(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ParseFile => {
+                        code_execution::parse_file(self,
+                                                   process,
+                                                   &code,
+                                                   instruction)?;
+                    }
+                    InstructionType::FileParsed => {
+                        code_execution::file_parsed(self,
+                                                    process,
+                                                    &code,
+                                                    instruction)?;
+                    }
+                    InstructionType::GetBindingPrototype => {
+                        prototype::get_binding_prototype(self,
+                                                         process,
+                                                         &code,
+                                                         instruction)?;
+                    }
+                    InstructionType::GetBinding => {
+                        binding::get_binding(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetConstant => {
+                        constant::set_const(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetConstant => {
+                        constant::get_const(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetAttribute => {
+                        object::set_attr(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetAttribute => {
+                        object::get_attr(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SetPrototype => {
+                        prototype::set_prototype(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::GetPrototype => {
+                        prototype::get_prototype(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::LocalExists => {
+                        local_variable::local_exists(self,
+                                                     process,
+                                                     &code,
+                                                     instruction)?;
+                    }
+                    InstructionType::RespondsTo => {
+                        method::responds_to(self, process, &code, instruction)?;
+                    }
+                    InstructionType::SpawnProcess => {
+                        process::spawn_process(self,
+                                               process,
+                                               &code,
+                                               instruction)?;
+                    }
+                    InstructionType::SendProcessMessage => {
+                        process::send_process_message(self,
+                                                      process,
+                                                      &code,
+                                                      instruction)?;
+                    }
+                    InstructionType::ReceiveProcessMessage => {
+                        let suspend =
+                            process::receive_process_message(self,
+                                                             process,
+                                                             &code,
+                                                             instruction)?;
 
-                        return;
+                        if suspend {
+                            suspend_retry!(self, context, process, index);
+                        }
                     }
-                }
+                    InstructionType::GetCurrentPid => {
+                        process::get_current_pid(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::SetParentLocal => {
+                        local_variable::set_parent_local(self,
+                                                         process,
+                                                         &code,
+                                                         instruction)?;
+                    }
+                    InstructionType::GetParentLocal => {
+                        local_variable::get_parent_local(self,
+                                                         process,
+                                                         &code,
+                                                         instruction)?;
+                    }
+                    InstructionType::ErrorToInteger => {
+                        error::error_to_integer(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::FileReadExact => {
+                        file::file_read_exact(self, process, &code, instruction)?;
+                    }
+                    InstructionType::StdinReadExact => {
+                        stdin::stdin_read_exact(self,
+                                                process,
+                                                &code,
+                                                instruction)?;
+                    }
+                    InstructionType::ObjectEquals => {
+                        object::object_equals(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetToplevel => {
+                        object::get_toplevel(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetNilPrototype => {
+                        prototype::get_nil_prototype(self,
+                                                     process,
+                                                     &code,
+                                                     instruction)?;
+                    }
+                    InstructionType::GetNil => {
+                        nil::get_nil(self, process, &code, instruction)?;
+                    }
+                    InstructionType::LookupMethod => {
+                        method::lookup_method(self, process, &code, instruction)?;
+                    }
+                    InstructionType::AttrExists => {
+                        object::attr_exists(self, process, &code, instruction)?;
+                    }
+                    InstructionType::ConstExists => {
+                        constant::const_exists(self,
+                                               process,
+                                               &code,
+                                               instruction)?;
+                    }
+                    InstructionType::RemoveMethod => {
+                        method::remove_method(self, process, &code, instruction)?;
+                    }
+                    InstructionType::RemoveAttribute => {
+                        object::remove_attribute(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::GetMethods => {
+                        method::get_methods(self, process, &code, instruction)?;
+                    }
+                    InstructionType::GetMethodNames => {
+                        method::get_method_names(self,
+                                                 process,
+                                                 &code,
+                                                 instruction)?;
+                    }
+                    InstructionType::GetAttributes => {
+                        object::get_attributes(self,
+                                               process,
+                                               &code,
+                                               instruction)?;
+                    }
+                    InstructionType::GetAttributeNames => {
+                        object::get_attribute_names(self,
+                                                    process,
+                                                    &code,
+                                                    instruction)?;
+                    }
+                    InstructionType::MonotonicTimeNanoseconds => {
+                        time::monotonic_time_nanoseconds(self,
+                                                         process,
+                                                         &code,
+                                                         instruction)?;
+                    }
+                    InstructionType::MonotonicTimeMilliseconds => {
+                        time::monotonic_time_milliseconds(self,
+                                                          process,
+                                                          &code,
+                                                          instruction)?;
+                    }
+                    InstructionType::RunBlock => {
+                        code_execution::run_block(self,
+                                                  process,
+                                                  &code,
+                                                  instruction)?;
+
+                        enter_context!(context, index, 'exec_loop);
+                    }
+                    InstructionType::RunBlockWithRest => {
+                        code_execution::run_block_with_rest(self,
+                                                            process,
+                                                            &code,
+                                                            instruction)?;
+
+                        enter_context!(context, index, 'exec_loop);
+                    }
+                };
             } // while
 
             // Make sure that we update the stored instruction index in case we
@@ -194,7 +725,7 @@ impl Machine {
             drop(context);
 
             if self.gc_safepoint(&process) {
-                return;
+                return Ok(());
             }
 
             // Reduce once we've exhausted all the instructions in a context.
@@ -202,7 +733,7 @@ impl Machine {
                 reductions -= 1;
             } else {
                 self.reschedule(process.clone());
-                return;
+                return Ok(());
             }
         } // loop
 
@@ -214,6 +745,8 @@ impl Machine {
         if process.is_main() {
             self.terminate();
         }
+
+        Ok(())
     }
 
     /// Prints a VM backtrace of a given process with a message.

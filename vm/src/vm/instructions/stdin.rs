@@ -18,6 +18,7 @@ use process::RcProcess;
 ///
 /// The result of this instruction is either a string containing the data
 /// read, or an error object.
+#[inline(always)]
 pub fn stdin_read(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -49,6 +50,7 @@ pub fn stdin_read(machine: &Machine,
 ///
 /// The result of this instruction is either a string containing the data
 /// read, or an error object.
+#[inline(always)]
 pub fn stdin_read_exact(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
@@ -81,6 +83,7 @@ pub fn stdin_read_exact(machine: &Machine,
 ///
 /// The result of this instruction is either a string containing the read
 /// data, or an error object.
+#[inline(always)]
 pub fn stdin_read_line(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,

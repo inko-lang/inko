@@ -12,6 +12,7 @@ use process::RcProcess;
 ///
 /// This instruction requires only one argument: the register to store the
 /// object in.
+#[inline(always)]
 pub fn get_binding(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,

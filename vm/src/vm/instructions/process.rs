@@ -17,6 +17,7 @@ use process::RcProcess;
 /// 2. The register containing the Block to run in the process.
 /// 3. The register containing the ID of the process pool to schedule the
 ///    process on. Defaults to the ID of the primary pool.
+#[inline(always)]
 pub fn spawn_process(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -48,6 +49,7 @@ pub fn spawn_process(machine: &Machine,
 /// 2. The register containing the PID to send the message to.
 /// 3. The register containing the message (an object) to send to the
 ///    process.
+#[inline(always)]
 pub fn send_process_message(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
@@ -74,18 +76,19 @@ pub fn send_process_message(machine: &Machine,
 ///
 /// If no messages are available the current process will be suspended, and
 /// the instruction will be retried the next time the process is executed.
+#[inline(always)]
 pub fn receive_process_message(_: &Machine,
                                process: &RcProcess,
                                _: &RcCompiledCode,
                                instruction: &Instruction)
-                               -> InstructionResult {
+                               -> Result<bool, String> {
     let register = instruction.arg(0)?;
     let result = if let Some(msg_ptr) = process.receive_message() {
         process.set_register(register, msg_ptr);
 
-        Action::None
+        false
     } else {
-        Action::Suspend
+        true
     };
 
     Ok(result)
@@ -95,6 +98,7 @@ pub fn receive_process_message(_: &Machine,
 ///
 /// This instruction requires one argument: the register to store the PID
 /// in (as an integer).
+#[inline(always)]
 pub fn get_current_pid(_: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,

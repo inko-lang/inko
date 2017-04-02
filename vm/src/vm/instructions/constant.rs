@@ -16,6 +16,7 @@ use process::RcProcess;
 /// 1. The register pointing to the object to store the constant in.
 /// 2. The register containing the constant name as a string.
 /// 3. The register pointing to the object to store.
+#[inline(always)]
 pub fn set_const(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -47,6 +48,7 @@ pub fn set_const(machine: &Machine,
 /// 2. The register pointing to an object in which to look for the
 ///    constant.
 /// 3. The register containing the name of the constant as a string.
+#[inline(always)]
 pub fn get_const(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -75,6 +77,7 @@ pub fn get_const(machine: &Machine,
 /// 1. The register to store the resulting boolean in.
 /// 2. The register containing the source object to check.
 /// 3. The register containing the constant name as a string.
+#[inline(always)]
 pub fn const_exists(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,

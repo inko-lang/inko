@@ -13,6 +13,7 @@ use process::RcProcess;
 ///
 /// 1. The local variable index to set.
 /// 2. The register containing the object to store in the variable.
+#[inline(always)]
 pub fn set_local(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -32,6 +33,7 @@ pub fn set_local(_: &Machine,
 ///
 /// 1. The register to store the local's value in.
 /// 2. The local variable index to get the value from.
+#[inline(always)]
 pub fn get_local(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -52,6 +54,7 @@ pub fn get_local(_: &Machine,
 ///
 /// 1. The register to store the result in (true or false).
 /// 2. The local variable index to check.
+#[inline(always)]
 pub fn local_exists(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -79,6 +82,7 @@ pub fn local_exists(machine: &Machine,
 /// 2. The number of parent bindings to traverse in order to find the
 ///    binding to set the variable in.
 /// 3. The register containing the value to set.
+#[inline(always)]
 pub fn set_parent_local(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
@@ -105,6 +109,7 @@ pub fn set_parent_local(_: &Machine,
 /// 2. The number of parent bindings to traverse in order to find the
 ///    binding to get the variable from.
 /// 3. The local variable index to get.
+#[inline(always)]
 pub fn get_parent_local(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,

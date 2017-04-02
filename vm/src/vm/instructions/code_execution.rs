@@ -20,6 +20,7 @@ use process::RcProcess;
 ///
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object.
+#[inline(always)]
 pub fn run_block(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -83,6 +84,7 @@ pub fn run_block(_: &Machine,
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object. If excessive arguments are given they are packed into the block's
 /// rest argument.
+#[inline(always)]
 pub fn run_block_with_rest(_: &Machine,
                            _: &RcProcess,
                            _: &RcCompiledCode,
@@ -138,6 +140,7 @@ pub fn run_block_with_rest(_: &Machine,
 ///
 /// This instruction will panic if the file does not exist or when the bytecode
 /// is invalid.
+#[inline(always)]
 pub fn parse_file(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -168,6 +171,7 @@ pub fn parse_file(machine: &Machine,
 /// 2. The register containing the file path to check.
 ///
 /// The result of this instruction is true or false.
+#[inline(always)]
 pub fn file_parsed(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -209,10 +213,9 @@ mod tests {
                 process.allocate_without_prototype(object_value::block(block));
 
             process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![2, 0, 1]);
+                                              vec![1, 0]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -233,10 +236,9 @@ mod tests {
 
             process.set_register(0, block_ptr);
             process.set_register(1, machine.state.true_object);
-            process.set_register(2, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![3, 0, 1, 2]);
+                                              vec![2, 0, 1]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -257,10 +259,9 @@ mod tests {
 
             process.set_register(0, block_ptr);
             process.set_register(1, machine.state.true_object);
-            process.set_register(2, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![3, 0, 2, 1]);
+                                              vec![2, 0, 1]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 
@@ -281,47 +282,9 @@ mod tests {
             process.set_register(0, block_ptr);
             process.set_register(1, machine.state.true_object);
             process.set_register(2, machine.state.false_object);
-            process.set_register(3, machine.state.false_object);
 
             let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![4, 0, 3, 1, 2]);
-
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
-
-            assert_eq!(process.binding().locals().len(), 2);
-
-            assert!(process.binding().get_local(0).unwrap() ==
-                    machine.state.true_object);
-
-            assert!(process.binding().get_local(1).unwrap() ==
-                    machine.state.false_object);
-        }
-
-        #[test]
-        fn test_with_rest_argument() {
-            let (machine, code, process) = setup();
-
-            arc_mut(&code).arguments = 2;
-            arc_mut(&code).rest_argument = true;
-
-            let block = Block::new(code.clone(), Binding::new());
-
-            let block_ptr =
-                process.allocate_without_prototype(object_value::block(block));
-
-            process.set_register(0, block_ptr);
-            process.set_register(1, machine.state.true_object);
-
-            let args =
-                process.allocate_without_prototype(object_value::array(vec![machine.state.true_object,
-                                                                       machine.state.false_object]));
-
-            process.set_register(2, args);
-
-            let instruction = new_instruction(InstructionType::RunBlock,
-                                              vec![5, 0, 1, 2]);
+                                              vec![3, 0, 1, 2]);
 
             let result = run_block(&machine, &process, &code, &instruction);
 

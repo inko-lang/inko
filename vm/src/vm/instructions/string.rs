@@ -19,6 +19,7 @@ use process::RcProcess;
 ///
 /// String literals are interned to prevent allocating objects for identical
 /// strings.
+#[inline(always)]
 pub fn set_string(_: &Machine,
                   process: &RcProcess,
                   code: &RcCompiledCode,
@@ -38,6 +39,7 @@ pub fn set_string(_: &Machine,
 ///
 /// 1. The register to store the new string in.
 /// 2. The register containing the input string.
+#[inline(always)]
 pub fn string_to_lower(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -61,6 +63,7 @@ pub fn string_to_lower(machine: &Machine,
 ///
 /// 1. The register to store the new string in.
 /// 2. The register containing the input string.
+#[inline(always)]
 pub fn string_to_upper(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -85,6 +88,7 @@ pub fn string_to_upper(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the string to compare.
 /// 3. The register of the string to compare with.
+#[inline(always)]
 pub fn string_equals(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -111,6 +115,7 @@ pub fn string_equals(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register containing the string to get the bytes from.
+#[inline(always)]
 pub fn string_to_bytes(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -142,6 +147,7 @@ pub fn string_to_bytes(machine: &Machine,
 ///
 /// The result of this instruction is either a string based on the given
 /// bytes, or an error object.
+#[inline(always)]
 pub fn string_from_bytes(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,
@@ -182,6 +188,7 @@ pub fn string_from_bytes(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the string.
+#[inline(always)]
 pub fn string_length(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -203,6 +210,7 @@ pub fn string_length(_: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the string.
+#[inline(always)]
 pub fn string_size(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,

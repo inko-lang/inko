@@ -11,6 +11,7 @@ use process::RcProcess;
 ///
 /// This instruction requires only one argument: the register to store the
 /// object in.
+#[inline(always)]
 pub fn get_true(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -27,6 +28,7 @@ pub fn get_true(machine: &Machine,
 ///
 /// This instruction requires only one argument: the register to store the
 /// object in.
+#[inline(always)]
 pub fn get_false(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,

@@ -13,6 +13,7 @@ use process::RcProcess;
 ///
 /// 1. The register containing the object for which to set the prototype.
 /// 2. The register containing the object to use as the prototype.
+#[inline(always)]
 pub fn set_prototype(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -32,6 +33,7 @@ pub fn set_prototype(_: &Machine,
 ///
 /// 1. The register to store the prototype in.
 /// 2. The register containing the object to get the prototype from.
+#[inline(always)]
 pub fn get_prototype(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -57,6 +59,7 @@ pub fn get_prototype(_: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_integer_prototype(machine: &Machine,
                              process: &RcProcess,
                              _: &RcCompiledCode,
@@ -73,6 +76,7 @@ pub fn get_integer_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_float_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -89,6 +93,7 @@ pub fn get_float_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_string_prototype(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
@@ -105,6 +110,7 @@ pub fn get_string_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_array_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -121,6 +127,7 @@ pub fn get_array_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_true_prototype(machine: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
@@ -137,6 +144,7 @@ pub fn get_true_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_false_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -153,6 +161,7 @@ pub fn get_false_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_method_prototype(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
@@ -169,6 +178,7 @@ pub fn get_method_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_binding_prototype(machine: &Machine,
                              process: &RcProcess,
                              _: &RcCompiledCode,
@@ -185,6 +195,7 @@ pub fn get_binding_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the
 /// prototype in.
+#[inline(always)]
 pub fn get_block_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -201,6 +212,7 @@ pub fn get_block_prototype(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the prototype
 /// in.
+#[inline(always)]
 pub fn get_nil_prototype(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,

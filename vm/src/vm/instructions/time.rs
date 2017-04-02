@@ -13,6 +13,7 @@ use process::RcProcess;
 ///
 /// This instruction requires one argument: the register to set the time in, as
 /// a float.
+#[inline(always)]
 pub fn monotonic_time_milliseconds(machine: &Machine,
                                    process: &RcProcess,
                                    _: &RcCompiledCode,
@@ -36,6 +37,7 @@ pub fn monotonic_time_milliseconds(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to set the time in, as
 /// an integer.
+#[inline(always)]
 pub fn monotonic_time_nanoseconds(machine: &Machine,
                                   process: &RcProcess,
                                   _: &RcCompiledCode,

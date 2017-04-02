@@ -15,6 +15,7 @@ use process::RcProcess;
 ///
 /// 1. The register to store the integer in.
 /// 2. The index of the integer literals to use for the value.
+#[inline(always)]
 pub fn set_integer(_: &Machine,
                    process: &RcProcess,
                    code: &RcCompiledCode,
@@ -35,6 +36,7 @@ pub fn set_integer(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
+#[inline(always)]
 pub fn integer_add(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -50,6 +52,7 @@ pub fn integer_add(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
+#[inline(always)]
 pub fn integer_div(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -65,6 +68,7 @@ pub fn integer_div(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
+#[inline(always)]
 pub fn integer_mul(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -80,6 +84,7 @@ pub fn integer_mul(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
+#[inline(always)]
 pub fn integer_sub(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -95,6 +100,7 @@ pub fn integer_sub(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
+#[inline(always)]
 pub fn integer_mod(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -109,6 +115,7 @@ pub fn integer_mod(_: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the integer to convert.
+#[inline(always)]
 pub fn integer_to_float(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
@@ -132,6 +139,7 @@ pub fn integer_to_float(machine: &Machine,
 ///
 /// 1. The register to store the result in.
 /// 2. The register of the integer to convert.
+#[inline(always)]
 pub fn integer_to_string(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,
@@ -156,6 +164,7 @@ pub fn integer_to_string(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
+#[inline(always)]
 pub fn integer_bitwise_and(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -171,6 +180,7 @@ pub fn integer_bitwise_and(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
+#[inline(always)]
 pub fn integer_bitwise_or(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
@@ -186,6 +196,7 @@ pub fn integer_bitwise_or(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
+#[inline(always)]
 pub fn integer_bitwise_xor(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -201,6 +212,7 @@ pub fn integer_bitwise_xor(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
+#[inline(always)]
 pub fn integer_shift_left(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
@@ -216,6 +228,7 @@ pub fn integer_shift_left(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
+#[inline(always)]
 pub fn integer_shift_right(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
@@ -233,6 +246,7 @@ pub fn integer_shift_right(_: &Machine,
 /// 3. The register containing the integer to compare with.
 ///
 /// The result of this instruction is either boolean true or false.
+#[inline(always)]
 pub fn integer_smaller(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -250,6 +264,7 @@ pub fn integer_smaller(machine: &Machine,
 /// 3. The register containing the integer to compare with.
 ///
 /// The result of this instruction is either boolean true or false.
+#[inline(always)]
 pub fn integer_greater(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -267,6 +282,7 @@ pub fn integer_greater(machine: &Machine,
 /// 3. The register containing the integer to compare with.
 ///
 /// The result of this instruction is either boolean true or false.
+#[inline(always)]
 pub fn integer_equals(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,

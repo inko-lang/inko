@@ -19,6 +19,7 @@ use process::RcProcess;
 ///
 /// The result of this instruction is either an integer indicating the
 /// amount of bytes written, or an error object.
+#[inline(always)]
 pub fn stderr_write(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,

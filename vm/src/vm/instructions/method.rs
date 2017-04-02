@@ -18,6 +18,7 @@ use process::RcProcess;
 ///
 /// If a method could not be found the target register will be set to nil
 /// instead.
+#[inline(always)]
 pub fn lookup_method(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -45,6 +46,7 @@ pub fn lookup_method(machine: &Machine,
 ///    on.
 /// 3. The register containing a String to use as the method name.
 /// 4. The register containing the Block to use for the method.
+#[inline(always)]
 pub fn def_method(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -77,6 +79,7 @@ pub fn def_method(machine: &Machine,
 /// 1. The register to store the result in (either true or false)
 /// 2. The register containing the object to check.
 /// 3. The register containing the name to look up, as a string.
+#[inline(always)]
 pub fn responds_to(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -108,6 +111,7 @@ pub fn responds_to(machine: &Machine,
 /// 3. The register containing the method name as a string.
 ///
 /// If the method did not exist the target register is set to nil instead.
+#[inline(always)]
 pub fn remove_method(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -139,6 +143,7 @@ pub fn remove_method(machine: &Machine,
 ///
 /// 1. The register to store the methods in.
 /// 2. The register containing the object for which to get all methods.
+#[inline(always)]
 pub fn get_methods(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -163,6 +168,7 @@ pub fn get_methods(machine: &Machine,
 ///
 /// 1. The register to store the method names in.
 /// 2. The register containing the object for which to get all method names.
+#[inline(always)]
 pub fn get_method_names(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,

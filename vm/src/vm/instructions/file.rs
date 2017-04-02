@@ -49,6 +49,7 @@ const NEWLINE_BYTE: u8 = 0xA;
 /// * 2: append-only
 /// * 3: read+write
 /// * 4: read+append
+#[inline(always)]
 pub fn file_open(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -102,6 +103,7 @@ pub fn file_open(_: &Machine,
 ///
 /// The result of this instruction is either the amount of written bytes or
 /// an error object.
+#[inline(always)]
 pub fn file_write(_: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -133,6 +135,7 @@ pub fn file_write(_: &Machine,
 ///
 /// The result of this instruction is either a string containing the data
 /// read, or an error object.
+#[inline(always)]
 pub fn file_read(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -168,6 +171,7 @@ pub fn file_read(machine: &Machine,
 ///
 /// The result of this instruction is either a string containing the data
 /// read, or an error object.
+#[inline(always)]
 pub fn file_read_exact(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
@@ -203,6 +207,7 @@ pub fn file_read_exact(machine: &Machine,
 ///
 /// The result of this instruction is either a string containing the read
 /// line, or an error object.
+#[inline(always)]
 pub fn file_read_line(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,
@@ -257,6 +262,7 @@ pub fn file_read_line(machine: &Machine,
 ///
 /// The resulting object is either the file itself upon success, or an error
 /// object.
+#[inline(always)]
 pub fn file_flush(_: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -286,6 +292,7 @@ pub fn file_flush(_: &Machine,
 ///
 /// The resulting object is either an integer representing the amount of
 /// bytes, or an error object.
+#[inline(always)]
 pub fn file_size(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -315,6 +322,7 @@ pub fn file_size(_: &Machine,
 ///
 /// The resulting object is either an integer representing the new cursor
 /// position, or an error object.
+#[inline(always)]
 pub fn file_seek(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,

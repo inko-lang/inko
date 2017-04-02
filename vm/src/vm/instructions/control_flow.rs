@@ -13,22 +13,24 @@ use process::RcProcess;
 ///
 /// 1. The instruction index to jump to if a register is not set.
 /// 2. The register to check.
+#[inline(always)]
 pub fn goto_if_false(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction,
+                     index: usize)
+                     -> Result<usize, String> {
     let go_to = instruction.arg(0)?;
     let value_reg = instruction.arg(1)?;
 
     let result = if let Some(obj) = process.get_register_option(value_reg) {
         if is_false!(machine, obj) {
-            Action::Goto(go_to)
+            go_to
         } else {
-            Action::None
+            index
         }
     } else {
-        Action::Goto(go_to)
+        go_to
     };
 
     Ok(result)
@@ -40,22 +42,24 @@ pub fn goto_if_false(machine: &Machine,
 ///
 /// 1. The instruction index to jump to if a register is set.
 /// 2. The register to check.
+#[inline(always)]
 pub fn goto_if_true(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction,
+                    index: usize)
+                    -> Result<usize, String> {
     let go_to = instruction.arg(0)?;
     let value_reg = instruction.arg(1)?;
 
     let result = if let Some(obj) = process.get_register_option(value_reg) {
         if is_false!(machine, obj) {
-            Action::None
+            index
         } else {
-            Action::Goto(go_to)
+            go_to
         }
     } else {
-        Action::None
+        index
     };
 
     Ok(result)
@@ -64,20 +68,22 @@ pub fn goto_if_true(machine: &Machine,
 /// Jumps to a specific instruction.
 ///
 /// This instruction takes one argument: the instruction index to jump to.
+#[inline(always)]
 pub fn goto(_: &Machine,
             _: &RcProcess,
             _: &RcCompiledCode,
             instruction: &Instruction)
-            -> InstructionResult {
+            -> Result<usize, String> {
     let go_to = instruction.arg(0)?;
 
-    Ok(Action::Goto(go_to))
+    Ok(go_to)
 }
 
 /// Returns the value in the given register.
 ///
 /// This instruction takes a single argument: the register containing the
 /// value to return.
+#[inline(always)]
 pub fn return_value(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,

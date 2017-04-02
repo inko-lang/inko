@@ -18,6 +18,7 @@ use process::RcProcess;
 /// 2. A register containing a truthy/falsy object. When the register
 ///    contains a truthy object the new object will be a global object.
 /// 3. An optional register containing the prototype for the object.
+#[inline(always)]
 pub fn set_object(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
@@ -59,6 +60,7 @@ pub fn set_object(machine: &Machine,
 ///    attribute.
 /// 2. The register containing the attribute name as a string.
 /// 3. The register containing the object to set as the value.
+#[inline(always)]
 pub fn set_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -91,6 +93,7 @@ pub fn set_attr(machine: &Machine,
 /// 2. The register containing the object from which to retrieve the
 ///    attribute.
 /// 3. The register containing the attribute name as a string.
+#[inline(always)]
 pub fn get_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -119,6 +122,7 @@ pub fn get_attr(machine: &Machine,
 /// 1. The register to store the result in (true or false).
 /// 2. The register containing the object to check.
 /// 3. The register containing the attribute name as a string.
+#[inline(always)]
 pub fn attr_exists(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
@@ -153,6 +157,7 @@ pub fn attr_exists(machine: &Machine,
 /// 3. The register containing the object to compare with.
 ///
 /// The result of this instruction is either boolean true, or false.
+#[inline(always)]
 pub fn object_equals(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
@@ -177,6 +182,7 @@ pub fn object_equals(machine: &Machine,
 ///
 /// This instruction requires one argument: the register to store the object
 /// in.
+#[inline(always)]
 pub fn get_toplevel(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -198,6 +204,7 @@ pub fn get_toplevel(machine: &Machine,
 /// 3. The register containing the attribute name as a string.
 ///
 /// If the attribute did not exist the target register is set to nil instead.
+#[inline(always)]
 pub fn remove_attribute(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
@@ -230,6 +237,7 @@ pub fn remove_attribute(machine: &Machine,
 ///
 /// 1. The register to store the attributes in.
 /// 2. The register containing the object for which to get all attributes.
+#[inline(always)]
 pub fn get_attributes(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,
@@ -253,6 +261,7 @@ pub fn get_attributes(machine: &Machine,
 ///
 /// 1. The register to store the attribute names in.
 /// 2. The register containing the object for which to get all attributes names.
+#[inline(always)]
 pub fn get_attribute_names(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,

@@ -28,6 +28,7 @@ macro_rules! int_to_vector_index {
 /// This instruction requires at least one argument: the register to store
 /// the resulting array in. Any extra instruction arguments should point to
 /// registers containing objects to store in the array.
+#[inline(always)]
 pub fn set_array(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
@@ -57,6 +58,7 @@ pub fn set_array(machine: &Machine,
 ///
 /// If an index is out of bounds the array is filled with nil values. A negative
 /// index can be used to indicate a position from the end of the array.
+#[inline(always)]
 pub fn array_insert(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -96,6 +98,7 @@ pub fn array_insert(machine: &Machine,
 /// This instruction will set nil in the target register if the array index is
 /// out of bounds. A negative index can be used to indicate a position from the
 /// end of the array.
+#[inline(always)]
 pub fn array_at(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -128,6 +131,7 @@ pub fn array_at(machine: &Machine,
 /// This instruction sets nil in the target register if the index is out of
 /// bounds. A negative index can be used to indicate a position from the end of
 /// the array.
+#[inline(always)]
 pub fn array_remove(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -157,6 +161,7 @@ pub fn array_remove(machine: &Machine,
 ///
 /// 1. The register to store the length in.
 /// 2. The register containing the array.
+#[inline(always)]
 pub fn array_length(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
@@ -175,6 +180,7 @@ pub fn array_length(_: &Machine,
 /// Removes all elements from an array.
 ///
 /// This instruction requires 1 argument: the register of the array.
+#[inline(always)]
 pub fn array_clear(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,

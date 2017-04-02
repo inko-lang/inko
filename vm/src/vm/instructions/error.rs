@@ -14,6 +14,7 @@ use process::RcProcess;
 ///
 /// 1. The register to store the boolean result in.
 /// 2. The register of the object to check.
+#[inline(always)]
 pub fn is_error(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
@@ -41,6 +42,7 @@ pub fn is_error(machine: &Machine,
 ///
 /// 1. The register to store the integer in.
 /// 2. The register containing the error.
+#[inline(always)]
 pub fn error_to_integer(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
