@@ -1,4 +1,6 @@
 //! VM instruction handlers for method operations.
+use block::Block;
+use binding::Binding;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
 
@@ -57,9 +59,21 @@ pub fn def_method(machine: &Machine,
 
     let name = machine.state.intern_pointer(&name_ptr).unwrap();
     let block = block_ptr.block_value().unwrap();
-    let method = machine.allocate_method(&process, &receiver_ptr, block);
 
-    receiver_ptr.add_method(&process, name.clone(), method);
+    let new_block = Block::new(block.code.clone(), Binding::new());
+    let value = object_value::block(new_block);
+    let proto = machine.state.method_prototype;
+
+    let method = if receiver_ptr.is_permanent() {
+        machine.state
+            .permanent_allocator
+            .lock()
+            .allocate_with_prototype(value, proto)
+    } else {
+        process.allocate(value, proto)
+    };
+
+    receiver_ptr.add_method(&process, name, method);
 
     process.set_register(register, method);
 }

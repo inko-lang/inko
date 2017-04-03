@@ -1,10 +1,8 @@
 //! Virtual Machine for running instructions
-use block::Block;
 use compiled_code::RcCompiledCode;
 use file_registry::{FileRegistry, RcFileRegistry};
 use gc::request::Request as GcRequest;
 use object_pointer::ObjectPointer;
-use object_value;
 use process::{RcProcess, Process};
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
@@ -142,25 +140,6 @@ impl Machine {
         process_table.map(pid, process.clone());
 
         Ok(process)
-    }
-
-    pub fn allocate_method(&self,
-                           process: &RcProcess,
-                           receiver: &ObjectPointer,
-                           block_ref: &Box<Block>)
-                           -> ObjectPointer {
-        let block = (**block_ref).clone();
-        let value = object_value::block(block);
-        let proto = self.state.method_prototype.clone();
-
-        if receiver.is_permanent() {
-            self.state
-                .permanent_allocator
-                .lock()
-                .allocate_with_prototype(value, proto)
-        } else {
-            process.allocate(value, proto)
-        }
     }
 
     /// Executes a single process.
