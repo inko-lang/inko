@@ -726,23 +726,6 @@ impl Machine {
         }
     }
 
-    /// Prints a VM backtrace of a given process with a message.
-    fn error(&self, process: &RcProcess, error: String) {
-        let mut message = format!("A fatal VM error occurred in process {}:",
-                                  process.pid);
-
-        message.push_str(&format!("\n\n{}\n\nCall stack:\n\n", error));
-
-        for context in process.context().contexts() {
-            message.push_str(&format!("{} line {} in {}\n",
-                                      context.file(),
-                                      context.line,
-                                      context.name()));
-        }
-
-        self.terminate();
-    }
-
     /// Collects a set of arguments from an instruction.
     pub fn collect_arguments(&self,
                              process: &RcProcess,
