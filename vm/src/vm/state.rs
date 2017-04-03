@@ -38,9 +38,6 @@ pub struct State {
     /// The process pools to use.
     pub process_pools: Pools,
 
-    /// The exit status of the program.
-    pub exit_status: Mutex<Result<(), String>>,
-
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
 
@@ -138,7 +135,6 @@ impl State {
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,
-            exit_status: Mutex::new(Ok(())),
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
