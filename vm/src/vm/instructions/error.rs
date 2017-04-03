@@ -1,10 +1,8 @@
 //! VM instruction handlers for error operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Checks if a given object is an error object.
 ///
@@ -15,7 +13,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn is_error(machine: &Machine,
                 process: &RcProcess,
-                _: &RcCompiledCode,
                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let ptr = process.get_register(instruction.arg(1));
@@ -36,10 +33,7 @@ pub fn is_error(machine: &Machine,
 /// 1. The register to store the integer in.
 /// 2. The register containing the error.
 #[inline(always)]
-pub fn error_to_integer(_: &Machine,
-                        process: &RcProcess,
-                        _: &RcCompiledCode,
-                        instruction: &Instruction) {
+pub fn error_to_integer(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let error_ptr = process.get_register(instruction.arg(1));
 

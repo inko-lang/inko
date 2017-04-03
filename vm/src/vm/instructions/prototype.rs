@@ -1,9 +1,7 @@
 //! VM instruction handlers for getting/setting object prototypes.
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Sets the prototype of an object.
 ///
@@ -12,10 +10,7 @@ use process::RcProcess;
 /// 1. The register containing the object for which to set the prototype.
 /// 2. The register containing the object to use as the prototype.
 #[inline(always)]
-pub fn set_prototype(_: &Machine,
-                     process: &RcProcess,
-                     _: &RcCompiledCode,
-                     instruction: &Instruction) {
+pub fn set_prototype(process: &RcProcess, instruction: &Instruction) {
     let source = process.get_register(instruction.arg(0));
     let proto = process.get_register(instruction.arg(1));
 
@@ -33,7 +28,6 @@ pub fn set_prototype(_: &Machine,
 #[inline(always)]
 pub fn get_prototype(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
@@ -51,7 +45,6 @@ pub fn get_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_integer_prototype(machine: &Machine,
                              process: &RcProcess,
-                             _: &RcCompiledCode,
                              instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -65,7 +58,6 @@ pub fn get_integer_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_float_prototype(machine: &Machine,
                            process: &RcProcess,
-                           _: &RcCompiledCode,
                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -79,7 +71,6 @@ pub fn get_float_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_string_prototype(machine: &Machine,
                             process: &RcProcess,
-                            _: &RcCompiledCode,
                             instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -93,7 +84,6 @@ pub fn get_string_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_array_prototype(machine: &Machine,
                            process: &RcProcess,
-                           _: &RcCompiledCode,
                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -107,7 +97,6 @@ pub fn get_array_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_true_prototype(machine: &Machine,
                           process: &RcProcess,
-                          _: &RcCompiledCode,
                           instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -121,7 +110,6 @@ pub fn get_true_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_false_prototype(machine: &Machine,
                            process: &RcProcess,
-                           _: &RcCompiledCode,
                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -135,7 +123,6 @@ pub fn get_false_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_method_prototype(machine: &Machine,
                             process: &RcProcess,
-                            _: &RcCompiledCode,
                             instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -149,7 +136,6 @@ pub fn get_method_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_binding_prototype(machine: &Machine,
                              process: &RcProcess,
-                             _: &RcCompiledCode,
                              instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -163,7 +149,6 @@ pub fn get_binding_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_block_prototype(machine: &Machine,
                            process: &RcProcess,
-                           _: &RcCompiledCode,
                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -177,7 +162,6 @@ pub fn get_block_prototype(machine: &Machine,
 #[inline(always)]
 pub fn get_nil_prototype(machine: &Machine,
                          process: &RcProcess,
-                         _: &RcCompiledCode,
                          instruction: &Instruction) {
     let register = instruction.arg(0);
 

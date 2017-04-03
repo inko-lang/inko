@@ -1,12 +1,9 @@
 //! VM instruction handlers for writing to STDERR.
 use std::io::{self, Write};
 
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
+use vm::instruction::Instruction;
 
 /// Writes a string to STDERR and returns the amount of written bytes.
 ///
@@ -18,10 +15,7 @@ use process::RcProcess;
 /// The result of this instruction is either an integer indicating the
 /// amount of bytes written, or an error object.
 #[inline(always)]
-pub fn stderr_write(_: &Machine,
-                    process: &RcProcess,
-                    _: &RcCompiledCode,
-                    instruction: &Instruction) {
+pub fn stderr_write(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let string_ptr = process.get_register(instruction.arg(1));
     let string = string_ptr.string_value().unwrap();

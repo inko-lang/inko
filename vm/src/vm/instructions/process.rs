@@ -1,11 +1,9 @@
 //! VM instruction handlers for process operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_pointer::ObjectPointer;
 use pools::PRIMARY_POOL;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Spawns a new process.
 ///
@@ -18,7 +16,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn spawn_process(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let block_ptr = process.get_register(instruction.arg(1));
@@ -51,7 +48,6 @@ pub fn spawn_process(machine: &Machine,
 #[inline(always)]
 pub fn send_process_message(machine: &Machine,
                             process: &RcProcess,
-                            _: &RcCompiledCode,
                             instruction: &Instruction) {
     let register = instruction.arg(0);
     let pid_ptr = process.get_register(instruction.arg(1));
@@ -73,9 +69,7 @@ pub fn send_process_message(machine: &Machine,
 /// If no messages are available the current process will be suspended, and
 /// the instruction will be retried the next time the process is executed.
 #[inline(always)]
-pub fn receive_process_message(_: &Machine,
-                               process: &RcProcess,
-                               _: &RcCompiledCode,
+pub fn receive_process_message(process: &RcProcess,
                                instruction: &Instruction)
                                -> bool {
     if let Some(msg_ptr) = process.receive_message() {
@@ -92,10 +86,7 @@ pub fn receive_process_message(_: &Machine,
 /// This instruction requires one argument: the register to store the PID
 /// in (as an integer).
 #[inline(always)]
-pub fn get_current_pid(_: &Machine,
-                       process: &RcProcess,
-                       _: &RcCompiledCode,
-                       instruction: &Instruction) {
+pub fn get_current_pid(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let pid = process.pid;
 

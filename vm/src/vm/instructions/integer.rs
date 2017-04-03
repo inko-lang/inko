@@ -14,8 +14,7 @@ use process::RcProcess;
 /// 1. The register to store the integer in.
 /// 2. The index of the integer literals to use for the value.
 #[inline(always)]
-pub fn set_integer(_: &Machine,
-                   process: &RcProcess,
+pub fn set_integer(process: &RcProcess,
                    code: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
@@ -32,10 +31,7 @@ pub fn set_integer(_: &Machine,
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
 #[inline(always)]
-pub fn integer_add(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn integer_add(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, +);
 }
 
@@ -47,10 +43,7 @@ pub fn integer_add(_: &Machine,
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
 #[inline(always)]
-pub fn integer_div(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn integer_div(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, /);
 }
 
@@ -62,10 +55,7 @@ pub fn integer_div(_: &Machine,
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
 #[inline(always)]
-pub fn integer_mul(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn integer_mul(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, *);
 }
 
@@ -77,10 +67,7 @@ pub fn integer_mul(_: &Machine,
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
 #[inline(always)]
-pub fn integer_sub(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn integer_sub(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, -);
 }
 
@@ -92,10 +79,7 @@ pub fn integer_sub(_: &Machine,
 /// 2. The register of the left-hand side object.
 /// 3. The register of the right-hand side object.
 #[inline(always)]
-pub fn integer_mod(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn integer_mod(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, %);
 }
 
@@ -108,7 +92,6 @@ pub fn integer_mod(_: &Machine,
 #[inline(always)]
 pub fn integer_to_float(machine: &Machine,
                         process: &RcProcess,
-                        _: &RcCompiledCode,
                         instruction: &Instruction) {
     let register = instruction.arg(0);
     let integer_ptr = process.get_register(instruction.arg(1));
@@ -129,7 +112,6 @@ pub fn integer_to_float(machine: &Machine,
 #[inline(always)]
 pub fn integer_to_string(machine: &Machine,
                          process: &RcProcess,
-                         _: &RcCompiledCode,
                          instruction: &Instruction) {
     let register = instruction.arg(0);
     let integer_ptr = process.get_register(instruction.arg(1));
@@ -150,10 +132,7 @@ pub fn integer_to_string(machine: &Machine,
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
 #[inline(always)]
-pub fn integer_bitwise_and(_: &Machine,
-                           process: &RcProcess,
-                           _: &RcCompiledCode,
-                           instruction: &Instruction) {
+pub fn integer_bitwise_and(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, &);
 }
 
@@ -165,10 +144,7 @@ pub fn integer_bitwise_and(_: &Machine,
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
 #[inline(always)]
-pub fn integer_bitwise_or(_: &Machine,
-                          process: &RcProcess,
-                          _: &RcCompiledCode,
-                          instruction: &Instruction) {
+pub fn integer_bitwise_or(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, |);
 }
 
@@ -180,10 +156,7 @@ pub fn integer_bitwise_or(_: &Machine,
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
 #[inline(always)]
-pub fn integer_bitwise_xor(_: &Machine,
-                           process: &RcProcess,
-                           _: &RcCompiledCode,
-                           instruction: &Instruction) {
+pub fn integer_bitwise_xor(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, ^);
 }
 
@@ -195,10 +168,7 @@ pub fn integer_bitwise_xor(_: &Machine,
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
 #[inline(always)]
-pub fn integer_shift_left(_: &Machine,
-                          process: &RcProcess,
-                          _: &RcCompiledCode,
-                          instruction: &Instruction) {
+pub fn integer_shift_left(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, <<);
 }
 
@@ -210,10 +180,7 @@ pub fn integer_shift_left(_: &Machine,
 /// 2. The register of the integer to operate on.
 /// 3. The register of the integer to use as the operand.
 #[inline(always)]
-pub fn integer_shift_right(_: &Machine,
-                           process: &RcProcess,
-                           _: &RcCompiledCode,
-                           instruction: &Instruction) {
+pub fn integer_shift_right(process: &RcProcess, instruction: &Instruction) {
     integer_op!(process, instruction, >>);
 }
 
@@ -229,7 +196,6 @@ pub fn integer_shift_right(_: &Machine,
 #[inline(always)]
 pub fn integer_smaller(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     integer_bool_op!(machine, process, instruction, <);
 }
@@ -246,7 +212,6 @@ pub fn integer_smaller(machine: &Machine,
 #[inline(always)]
 pub fn integer_greater(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     integer_bool_op!(machine, process, instruction, >);
 }
@@ -263,7 +228,6 @@ pub fn integer_greater(machine: &Machine,
 #[inline(always)]
 pub fn integer_equals(machine: &Machine,
                       process: &RcProcess,
-                      _: &RcCompiledCode,
                       instruction: &Instruction) {
     integer_bool_op!(machine, process, instruction, ==);
 }

@@ -1,9 +1,7 @@
 //! VM instruction handlers for boolean operations.
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Sets a "true" value in a register.
 ///
@@ -12,7 +10,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn get_true(machine: &Machine,
                 process: &RcProcess,
-                _: &RcCompiledCode,
                 instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -26,7 +23,6 @@ pub fn get_true(machine: &Machine,
 #[inline(always)]
 pub fn get_false(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
 

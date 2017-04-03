@@ -1,13 +1,11 @@
 //! VM instruction handlers for executing bytecode files and code objects.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use block::Block;
 use binding::Binding;
-use compiled_code::RcCompiledCode;
+use block::Block;
 use execution_context::ExecutionContext;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Executes a Block object.
 ///
@@ -19,10 +17,7 @@ use process::RcProcess;
 /// Any extra arguments passed are passed as arguments to the CompiledCode
 /// object.
 #[inline(always)]
-pub fn run_block(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn run_block(process: &RcProcess, instruction: &Instruction) {
     process.advance_line(instruction.line);
 
     let register = instruction.arg(0);
@@ -76,10 +71,7 @@ pub fn run_block(_: &Machine,
 /// object. If excessive arguments are given they are packed into the block's
 /// rest argument.
 #[inline(always)]
-pub fn run_block_with_rest(_: &Machine,
-                           _: &RcProcess,
-                           _: &RcCompiledCode,
-                           _: &Instruction) {
+pub fn run_block_with_rest() {
     // TODO: implement
     //let register = instruction.arg(0);
     //let block_ptr = process.get_register(instruction.arg(1));
@@ -131,7 +123,6 @@ pub fn run_block_with_rest(_: &Machine,
 #[inline(always)]
 pub fn parse_file(machine: &Machine,
                   process: &RcProcess,
-                  _: &RcCompiledCode,
                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));
@@ -165,7 +156,6 @@ pub fn parse_file(machine: &Machine,
 #[inline(always)]
 pub fn file_parsed(machine: &Machine,
                    process: &RcProcess,
-                   _: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));

@@ -1,9 +1,7 @@
 //! VM instruction handlers for local variable operations.
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Sets a local variable to a given register's value.
 ///
@@ -12,10 +10,7 @@ use process::RcProcess;
 /// 1. The local variable index to set.
 /// 2. The register containing the object to store in the variable.
 #[inline(always)]
-pub fn set_local(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn set_local(process: &RcProcess, instruction: &Instruction) {
     let local_index = instruction.arg(0);
     let object = process.get_register(instruction.arg(1));
 
@@ -29,10 +24,7 @@ pub fn set_local(_: &Machine,
 /// 1. The register to store the local's value in.
 /// 2. The local variable index to get the value from.
 #[inline(always)]
-pub fn get_local(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn get_local(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let local_index = instruction.arg(1);
     let object = process.get_local(local_index);
@@ -49,7 +41,6 @@ pub fn get_local(_: &Machine,
 #[inline(always)]
 pub fn local_exists(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let local_index = instruction.arg(1);
@@ -72,10 +63,7 @@ pub fn local_exists(machine: &Machine,
 ///    binding to set the variable in.
 /// 3. The register containing the value to set.
 #[inline(always)]
-pub fn set_parent_local(_: &Machine,
-                        process: &RcProcess,
-                        _: &RcCompiledCode,
-                        instruction: &Instruction) {
+pub fn set_parent_local(process: &RcProcess, instruction: &Instruction) {
     let index = instruction.arg(0);
     let depth = instruction.arg(1);
     let value = process.get_register(instruction.arg(2));
@@ -96,10 +84,7 @@ pub fn set_parent_local(_: &Machine,
 ///    binding to get the variable from.
 /// 3. The local variable index to get.
 #[inline(always)]
-pub fn get_parent_local(_: &Machine,
-                        process: &RcProcess,
-                        _: &RcCompiledCode,
-                        instruction: &Instruction) {
+pub fn get_parent_local(process: &RcProcess, instruction: &Instruction) {
     let reg = instruction.arg(0);
     let depth = instruction.arg(1);
     let index = instruction.arg(2);

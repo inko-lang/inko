@@ -1,11 +1,8 @@
 //! VM instruction handlers for constant operations.
 use immix::copy_object::CopyObject;
-
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Sets a constant in a given object.
 ///
@@ -17,7 +14,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn set_const(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     let target_ptr = process.get_register(instruction.arg(0));
     let name_ptr = process.get_register(instruction.arg(1));
@@ -48,7 +44,6 @@ pub fn set_const(machine: &Machine,
 #[inline(always)]
 pub fn get_const(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let src = process.get_register(instruction.arg(1));
@@ -71,7 +66,6 @@ pub fn get_const(machine: &Machine,
 #[inline(always)]
 pub fn const_exists(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));

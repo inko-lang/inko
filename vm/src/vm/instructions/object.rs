@@ -1,12 +1,9 @@
 //! VM instruction handlers for regular object operations.
 use immix::copy_object::CopyObject;
-
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Sets an object in a register.
 ///
@@ -19,7 +16,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn set_object(machine: &Machine,
                   process: &RcProcess,
-                  _: &RcCompiledCode,
                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let is_permanent_ptr = process.get_register(instruction.arg(1));
@@ -58,7 +54,6 @@ pub fn set_object(machine: &Machine,
 #[inline(always)]
 pub fn set_attr(machine: &Machine,
                 process: &RcProcess,
-                _: &RcCompiledCode,
                 instruction: &Instruction) {
     let target_ptr = process.get_register(instruction.arg(0));
     let name_ptr = process.get_register(instruction.arg(1));
@@ -90,7 +85,6 @@ pub fn set_attr(machine: &Machine,
 #[inline(always)]
 pub fn get_attr(machine: &Machine,
                 process: &RcProcess,
-                _: &RcCompiledCode,
                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
@@ -113,7 +107,6 @@ pub fn get_attr(machine: &Machine,
 #[inline(always)]
 pub fn attr_exists(machine: &Machine,
                    process: &RcProcess,
-                   _: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
@@ -145,7 +138,6 @@ pub fn attr_exists(machine: &Machine,
 #[inline(always)]
 pub fn object_equals(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let compare = process.get_register(instruction.arg(1));
@@ -167,7 +159,6 @@ pub fn object_equals(machine: &Machine,
 #[inline(always)]
 pub fn get_toplevel(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     let register = instruction.arg(0);
 
@@ -186,7 +177,6 @@ pub fn get_toplevel(machine: &Machine,
 #[inline(always)]
 pub fn remove_attribute(machine: &Machine,
                         process: &RcProcess,
-                        _: &RcCompiledCode,
                         instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
@@ -216,7 +206,6 @@ pub fn remove_attribute(machine: &Machine,
 #[inline(always)]
 pub fn get_attributes(machine: &Machine,
                       process: &RcProcess,
-                      _: &RcCompiledCode,
                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
@@ -237,7 +226,6 @@ pub fn get_attributes(machine: &Machine,
 #[inline(always)]
 pub fn get_attribute_names(machine: &Machine,
                            process: &RcProcess,
-                           _: &RcCompiledCode,
                            instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));

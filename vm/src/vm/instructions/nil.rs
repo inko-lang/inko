@@ -1,9 +1,7 @@
 //! VM instruction handlers for nil objects.
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Sets a "nil" object in a register.
 ///
@@ -12,7 +10,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn get_nil(machine: &Machine,
                process: &RcProcess,
-               _: &RcCompiledCode,
                instruction: &Instruction) {
     let register = instruction.arg(0);
 

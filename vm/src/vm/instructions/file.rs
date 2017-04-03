@@ -2,14 +2,12 @@
 use std::io::{Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use errors;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// File opened for reading, equal to fopen's "r" mode.
 const READ: i64 = 0;
@@ -48,10 +46,7 @@ const NEWLINE_BYTE: u8 = 0xA;
 /// * 3: read+write
 /// * 4: read+append
 #[inline(always)]
-pub fn file_open(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn file_open(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));
     let mode_ptr = process.get_register(instruction.arg(2));
@@ -98,10 +93,7 @@ pub fn file_open(_: &Machine,
 /// The result of this instruction is either the amount of written bytes or
 /// an error object.
 #[inline(always)]
-pub fn file_write(_: &Machine,
-                  process: &RcProcess,
-                  _: &RcCompiledCode,
-                  instruction: &Instruction) {
+pub fn file_write(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let string_ptr = process.get_register(instruction.arg(2));
@@ -129,7 +121,6 @@ pub fn file_write(_: &Machine,
 #[inline(always)]
 pub fn file_read(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
@@ -162,7 +153,6 @@ pub fn file_read(machine: &Machine,
 #[inline(always)]
 pub fn file_read_exact(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
@@ -195,7 +185,6 @@ pub fn file_read_exact(machine: &Machine,
 #[inline(always)]
 pub fn file_read_line(machine: &Machine,
                       process: &RcProcess,
-                      _: &RcCompiledCode,
                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
@@ -245,10 +234,7 @@ pub fn file_read_line(machine: &Machine,
 /// The resulting object is either the file itself upon success, or an error
 /// object.
 #[inline(always)]
-pub fn file_flush(_: &Machine,
-                  process: &RcProcess,
-                  _: &RcCompiledCode,
-                  instruction: &Instruction) {
+pub fn file_flush(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
 
@@ -272,10 +258,7 @@ pub fn file_flush(_: &Machine,
 /// The resulting object is either an integer representing the amount of
 /// bytes, or an error object.
 #[inline(always)]
-pub fn file_size(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn file_size(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let file = file_ptr.file_value().unwrap();
@@ -299,10 +282,7 @@ pub fn file_size(_: &Machine,
 /// The resulting object is either an integer representing the new cursor
 /// position, or an error object.
 #[inline(always)]
-pub fn file_seek(_: &Machine,
-                 process: &RcProcess,
-                 _: &RcCompiledCode,
-                 instruction: &Instruction) {
+pub fn file_seek(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let offset_ptr = process.get_register(instruction.arg(2));

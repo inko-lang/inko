@@ -1,13 +1,10 @@
 //! VM instruction handlers for array operations.
 use immix::copy_object::CopyObject;
-
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Returns a vector index for an i64
 macro_rules! int_to_vector_index {
@@ -29,7 +26,6 @@ macro_rules! int_to_vector_index {
 #[inline(always)]
 pub fn set_array(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let val_count = instruction.arguments.len() - 1;
@@ -56,7 +52,6 @@ pub fn set_array(machine: &Machine,
 #[inline(always)]
 pub fn array_insert(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
@@ -93,7 +88,6 @@ pub fn array_insert(machine: &Machine,
 #[inline(always)]
 pub fn array_at(machine: &Machine,
                 process: &RcProcess,
-                _: &RcCompiledCode,
                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
@@ -123,7 +117,6 @@ pub fn array_at(machine: &Machine,
 #[inline(always)]
 pub fn array_remove(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
@@ -148,10 +141,7 @@ pub fn array_remove(machine: &Machine,
 /// 1. The register to store the length in.
 /// 2. The register containing the array.
 #[inline(always)]
-pub fn array_length(_: &Machine,
-                    process: &RcProcess,
-                    _: &RcCompiledCode,
-                    instruction: &Instruction) {
+pub fn array_length(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
     let vector = array_ptr.array_value().unwrap();
@@ -164,10 +154,7 @@ pub fn array_length(_: &Machine,
 ///
 /// This instruction requires 1 argument: the register of the array.
 #[inline(always)]
-pub fn array_clear(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn array_clear(process: &RcProcess, instruction: &Instruction) {
     let array_ptr = process.get_register(instruction.arg(0));
     let mut vector = array_ptr.array_value_mut().unwrap();
 

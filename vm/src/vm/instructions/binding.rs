@@ -1,10 +1,8 @@
 //! VM instruction handlers for binding operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Gets the Binding of the current scope and sets it in a register
 ///
@@ -13,7 +11,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn get_binding(machine: &Machine,
                    process: &RcProcess,
-                   _: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let binding = process.binding();

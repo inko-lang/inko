@@ -1,11 +1,10 @@
 //! VM instruction handlers for Block operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
 use block::Block;
 use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Sets a Block in a register.
 ///

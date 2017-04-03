@@ -18,8 +18,7 @@ use process::RcProcess;
 /// String literals are interned to prevent allocating objects for identical
 /// strings.
 #[inline(always)]
-pub fn set_string(_: &Machine,
-                  process: &RcProcess,
+pub fn set_string(process: &RcProcess,
                   code: &RcCompiledCode,
                   instruction: &Instruction) {
     let register = instruction.arg(0);
@@ -37,7 +36,6 @@ pub fn set_string(_: &Machine,
 #[inline(always)]
 pub fn string_to_lower(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
@@ -59,7 +57,6 @@ pub fn string_to_lower(machine: &Machine,
 #[inline(always)]
 pub fn string_to_upper(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
@@ -82,7 +79,6 @@ pub fn string_to_upper(machine: &Machine,
 #[inline(always)]
 pub fn string_equals(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let receiver_ptr = process.get_register(instruction.arg(1));
@@ -107,7 +103,6 @@ pub fn string_equals(machine: &Machine,
 #[inline(always)]
 pub fn string_to_bytes(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let string_ptr = process.get_register(instruction.arg(1));
@@ -137,7 +132,6 @@ pub fn string_to_bytes(machine: &Machine,
 #[inline(always)]
 pub fn string_from_bytes(machine: &Machine,
                          process: &RcProcess,
-                         _: &RcCompiledCode,
                          instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
@@ -173,10 +167,7 @@ pub fn string_from_bytes(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the string.
 #[inline(always)]
-pub fn string_length(_: &Machine,
-                     process: &RcProcess,
-                     _: &RcCompiledCode,
-                     instruction: &Instruction) {
+pub fn string_length(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
 
@@ -192,10 +183,7 @@ pub fn string_length(_: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the string.
 #[inline(always)]
-pub fn string_size(_: &Machine,
-                   process: &RcProcess,
-                   _: &RcCompiledCode,
-                   instruction: &Instruction) {
+pub fn string_size(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
 

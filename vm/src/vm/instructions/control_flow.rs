@@ -1,9 +1,7 @@
 //! VM instruction handlers for flow control related operations.
+use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
-use process::RcProcess;
 
 /// Jumps to an instruction if a register is not set or set to false.
 ///
@@ -14,7 +12,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn goto_if_false(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction,
                      index: usize)
                      -> usize {
@@ -37,7 +34,6 @@ pub fn goto_if_false(machine: &Machine,
 #[inline(always)]
 pub fn goto_if_true(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction,
                     index: usize)
                     -> usize {
@@ -55,11 +51,7 @@ pub fn goto_if_true(machine: &Machine,
 ///
 /// This instruction takes one argument: the instruction index to jump to.
 #[inline(always)]
-pub fn goto(_: &Machine,
-            _: &RcProcess,
-            _: &RcCompiledCode,
-            instruction: &Instruction)
-            -> usize {
+pub fn goto(instruction: &Instruction) -> usize {
     instruction.arg(0)
 }
 
@@ -68,10 +60,7 @@ pub fn goto(_: &Machine,
 /// This instruction takes a single argument: the register containing the
 /// value to return.
 #[inline(always)]
-pub fn return_value(_: &Machine,
-                    process: &RcProcess,
-                    _: &RcCompiledCode,
-                    instruction: &Instruction) {
+pub fn return_value(process: &RcProcess, instruction: &Instruction) {
     let object = process.get_register(instruction.arg(0));
     let current_context = process.context_mut();
 

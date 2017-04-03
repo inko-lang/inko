@@ -1,7 +1,6 @@
 //! VM instruction handlers for method operations.
 use binding::Binding;
 use block::Block;
-use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
 use vm::instruction::Instruction;
@@ -20,7 +19,6 @@ use vm::machine::Machine;
 #[inline(always)]
 pub fn lookup_method(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
@@ -45,7 +43,6 @@ pub fn lookup_method(machine: &Machine,
 #[inline(always)]
 pub fn def_method(machine: &Machine,
                   process: &RcProcess,
-                  _: &RcCompiledCode,
                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let receiver_ptr = process.get_register(instruction.arg(1));
@@ -88,7 +85,6 @@ pub fn def_method(machine: &Machine,
 #[inline(always)]
 pub fn responds_to(machine: &Machine,
                    process: &RcProcess,
-                   _: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
@@ -117,7 +113,6 @@ pub fn responds_to(machine: &Machine,
 #[inline(always)]
 pub fn remove_method(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
@@ -146,7 +141,6 @@ pub fn remove_method(machine: &Machine,
 #[inline(always)]
 pub fn get_methods(machine: &Machine,
                    process: &RcProcess,
-                   _: &RcCompiledCode,
                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
@@ -168,7 +162,6 @@ pub fn get_methods(machine: &Machine,
 #[inline(always)]
 pub fn get_method_names(machine: &Machine,
                         process: &RcProcess,
-                        _: &RcCompiledCode,
                         instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));

@@ -14,8 +14,7 @@ use process::RcProcess;
 /// 1. The register to store the float in.
 /// 2. The index of the float literals to use for the value.
 #[inline(always)]
-pub fn set_float(_: &Machine,
-                 process: &RcProcess,
+pub fn set_float(process: &RcProcess,
                  code: &RcCompiledCode,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
@@ -34,7 +33,6 @@ pub fn set_float(_: &Machine,
 #[inline(always)]
 pub fn float_add(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     float_op!(machine, process, instruction, +);
 }
@@ -49,7 +47,6 @@ pub fn float_add(machine: &Machine,
 #[inline(always)]
 pub fn float_mul(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     float_op!(machine, process, instruction, *);
 }
@@ -64,7 +61,6 @@ pub fn float_mul(machine: &Machine,
 #[inline(always)]
 pub fn float_div(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     float_op!(machine, process, instruction, /);
 }
@@ -79,7 +75,6 @@ pub fn float_div(machine: &Machine,
 #[inline(always)]
 pub fn float_sub(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     float_op!(machine, process, instruction, -);
 }
@@ -94,7 +89,6 @@ pub fn float_sub(machine: &Machine,
 #[inline(always)]
 pub fn float_mod(machine: &Machine,
                  process: &RcProcess,
-                 _: &RcCompiledCode,
                  instruction: &Instruction) {
     float_op!(machine, process, instruction, %);
 }
@@ -106,10 +100,7 @@ pub fn float_mod(machine: &Machine,
 /// 1. The register to store the result in.
 /// 2. The register of the float to convert.
 #[inline(always)]
-pub fn float_to_integer(_: &Machine,
-                        process: &RcProcess,
-                        _: &RcCompiledCode,
-                        instruction: &Instruction) {
+pub fn float_to_integer(process: &RcProcess, instruction: &Instruction) {
     let register = instruction.arg(0);
     let float_ptr = process.get_register(instruction.arg(1));
     let result = float_ptr.float_value().unwrap() as i64;
@@ -126,7 +117,6 @@ pub fn float_to_integer(_: &Machine,
 #[inline(always)]
 pub fn float_to_string(machine: &Machine,
                        process: &RcProcess,
-                       _: &RcCompiledCode,
                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let float_ptr = process.get_register(instruction.arg(1));
@@ -151,7 +141,6 @@ pub fn float_to_string(machine: &Machine,
 #[inline(always)]
 pub fn float_smaller(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     float_bool_op!(machine, process, instruction, <);
 }
@@ -168,7 +157,6 @@ pub fn float_smaller(machine: &Machine,
 #[inline(always)]
 pub fn float_greater(machine: &Machine,
                      process: &RcProcess,
-                     _: &RcCompiledCode,
                      instruction: &Instruction) {
     float_bool_op!(machine, process, instruction, >);
 }
@@ -185,7 +173,6 @@ pub fn float_greater(machine: &Machine,
 #[inline(always)]
 pub fn float_equals(machine: &Machine,
                     process: &RcProcess,
-                    _: &RcCompiledCode,
                     instruction: &Instruction) {
     float_bool_op!(machine, process, instruction, ==);
 }

@@ -1,11 +1,9 @@
 //! VM instruction handlers for time operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::RcCompiledCode;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Gets the current value of a monotonic clock in milliseconds.
 ///
@@ -14,7 +12,6 @@ use process::RcProcess;
 #[inline(always)]
 pub fn monotonic_time_milliseconds(machine: &Machine,
                                    process: &RcProcess,
-                                   _: &RcCompiledCode,
                                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let duration = machine.state.start_time.elapsed();
@@ -35,7 +32,6 @@ pub fn monotonic_time_milliseconds(machine: &Machine,
 #[inline(always)]
 pub fn monotonic_time_nanoseconds(machine: &Machine,
                                   process: &RcProcess,
-                                  _: &RcCompiledCode,
                                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let duration = machine.state.start_time.elapsed();
