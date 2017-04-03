@@ -1,7 +1,7 @@
 //! Variable Bindings
 //!
 //! A binding contains the local variables available to a certain scope.
-use std::sync::Arc;
+use std::rc::Rc;
 use std::cell::UnsafeCell;
 
 use immix::copy_object::CopyObject;
@@ -23,7 +23,7 @@ pub struct PointerIterator<'a> {
     local_index: usize,
 }
 
-pub type RcBinding = Arc<Binding>;
+pub type RcBinding = Rc<Binding>;
 
 impl Binding {
     /// Returns a new binding.
@@ -33,7 +33,7 @@ impl Binding {
             parent: None,
         };
 
-        Arc::new(bind)
+        Rc::new(bind)
     }
 
     /// Returns a new binding with space reserved for a number of locals.
@@ -43,7 +43,7 @@ impl Binding {
             parent: None,
         };
 
-        Arc::new(bind)
+        Rc::new(bind)
     }
 
     /// Returns a new binding with a parent binding and a defalt capacity for
@@ -54,7 +54,7 @@ impl Binding {
             parent: Some(parent_binding),
         };
 
-        Arc::new(bind)
+        Rc::new(bind)
     }
 
     /// Returns the value of a local variable.
@@ -137,7 +137,7 @@ impl Binding {
         let locals =
             self.locals().iter().map(|val| heap.copy_object(*val)).collect();
 
-        Arc::new(Binding {
+        Rc::new(Binding {
             locals: UnsafeCell::new(locals),
             parent: parent,
         })
