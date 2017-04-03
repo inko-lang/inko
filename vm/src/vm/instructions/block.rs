@@ -24,7 +24,7 @@ pub fn set_block(machine: &Machine,
 
     let cc = code.code_object(cc_index);
     let binding = process.binding();
-    let block = Block::new(cc.clone(), binding);
+    let block = Block::new(cc.clone(), binding, process.global_scope().clone());
 
     let obj = process.allocate(object_value::block(block),
                                machine.state.block_prototype);

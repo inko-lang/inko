@@ -4,13 +4,14 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::cell::UnsafeCell;
 
-use immix::local_allocator::LocalAllocator;
-use immix::global_allocator::RcGlobalAllocator;
-
-use binding::{Binding, RcBinding};
+use binding::RcBinding;
+use block::Block;
 use compiled_code::RcCompiledCode;
 use config::Config;
 use execution_context::ExecutionContext;
+use global_scope::GlobalScopeReference;
+use immix::global_allocator::RcGlobalAllocator;
+use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -117,13 +118,12 @@ impl Process {
         Arc::new(process)
     }
 
-    pub fn from_code(pid: PID,
-                     pool_id: usize,
-                     code: RcCompiledCode,
-                     global_allocator: RcGlobalAllocator)
-                     -> RcProcess {
-        let binding = Binding::with_capacity(code.locals as usize);
-        let context = ExecutionContext::new(binding, code, None);
+    pub fn from_block(pid: PID,
+                      pool_id: usize,
+                      block: &Block,
+                      global_allocator: RcGlobalAllocator)
+                      -> RcProcess {
+        let context = ExecutionContext::from_block(block, None);
 
         Process::new(pid, pool_id, context, global_allocator)
     }
@@ -178,6 +178,14 @@ impl Process {
         local_data.context.binding.local_exists(index)
     }
 
+    pub fn set_global(&self, index: usize, value: ObjectPointer) {
+        self.local_data_mut().context.set_global(index, value);
+    }
+
+    pub fn get_global(&self, index: usize) -> ObjectPointer {
+        self.local_data().context.get_global(index)
+    }
+
     pub fn allocate_empty(&self) -> ObjectPointer {
         self.local_data_mut().allocator.allocate_empty()
     }
@@ -219,6 +227,10 @@ impl Process {
 
     pub fn binding(&self) -> RcBinding {
         self.context().binding()
+    }
+
+    pub fn global_scope(&self) -> &GlobalScopeReference {
+        &self.context().global_scope
     }
 
     pub fn context(&self) -> &Box<ExecutionContext> {
@@ -370,30 +382,19 @@ impl Hash for Process {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use compiled_code::CompiledCode;
-
-    fn new_process() -> RcProcess {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        Process::from_code(1, 0, code, GlobalAllocator::new())
-    }
+    use vm::instructions::test::setup;
 
     #[test]
     fn test_contexts() {
-        let process = new_process();
+        let (_machine, _block, process) = setup();
 
         assert_eq!(process.contexts().len(), 1);
     }
 
     #[test]
     fn test_update_collection_statistics_without_mature() {
-        let process = new_process();
+        let (_machine, _block, process) = setup();
         let config = Config::new();
 
         let old_threshold =
@@ -414,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_update_collection_statistics_with_mature() {
-        let process = new_process();
+        let (_machine, _block, process) = setup();
         let config = Config::new();
 
         {
@@ -449,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_update_mailbox_collection_statistics() {
-        let process = new_process();
+        let (_machine, _block, process) = setup();
         let config = Config::new();
 
         {

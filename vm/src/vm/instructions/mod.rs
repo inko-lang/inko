@@ -8,6 +8,7 @@ pub mod error;
 pub mod file;
 pub mod float;
 pub mod control_flow;
+pub mod globals;
 pub mod integer;
 pub mod local_variable;
 pub mod method;

@@ -278,7 +278,7 @@ mod tests {
         ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: expr) => (
             #[test]
             fn $test_func() {
-                let (machine, code, process) = setup();
+                let (machine, block, process) = setup();
 
                 let instruction = new_instruction(InstructionType::$ins_type,
                                                   vec![2, 0, 1]);
@@ -289,7 +289,7 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                $ins_func(&machine, &process, &code, &instruction);
+                $ins_func(&machine, &process, &block.code, &instruction);
 
                 let pointer = process.get_register(2);
 
@@ -302,7 +302,7 @@ mod tests {
         ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: ident) => (
             #[test]
             fn $test_func() {
-                let (machine, code, process) = setup();
+                let (machine, block, process) = setup();
 
                 let instruction = new_instruction(InstructionType::$ins_type,
                                                   vec![2, 0, 1]);
@@ -313,7 +313,7 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                $ins_func(&machine, &process, &code, &instruction);
+                $ins_func(&machine, &process, &block.code, &instruction);
 
                 let pointer = process.get_register(2);
 
@@ -326,7 +326,7 @@ mod tests {
         ($ins_type: ident, $test_func:ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
             #[test]
             fn $test_func() {
-                let (machine, code, process) = setup();
+                let (machine, block, process) = setup();
 
                 let instruction = new_instruction(InstructionType::$ins_type,
                                                   vec![1, 0]);
@@ -335,7 +335,7 @@ mod tests {
 
                 process.set_register(0, original);
 
-                $ins_func(&machine, &process, &code, &instruction);
+                $ins_func(&machine, &process, &block.code, &instruction);
 
                 let pointer = process.get_register(1);
                 let object = pointer.get();
@@ -347,13 +347,13 @@ mod tests {
 
     #[test]
     fn test_set_integer() {
-        let (machine, code, process) = setup();
+        let (machine, block, process) = setup();
         let instruction = new_instruction(InstructionType::SetInteger,
                                           vec![0, 0]);
 
-        arc_mut(&code).integer_literals.push(ObjectPointer::integer(10));
+        arc_mut(&block.code).integer_literals.push(ObjectPointer::integer(10));
 
-        set_integer(&machine, &process, &code, &instruction);
+        set_integer(&machine, &process, &block.code, &instruction);
 
         let pointer = process.get_register(0);
 

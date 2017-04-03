@@ -114,6 +114,8 @@ pub enum InstructionType {
     MonotonicTimeNanoseconds,
     MonotonicTimeMilliseconds,
     RunBlockWithRest,
+    GetGlobal,
+    SetGlobal,
 }
 
 /// Struct for storing information about a single instruction.

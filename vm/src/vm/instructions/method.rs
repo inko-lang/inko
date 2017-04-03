@@ -1,12 +1,11 @@
 //! VM instruction handlers for method operations.
-use block::Block;
 use binding::Binding;
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
+use block::Block;
 use compiled_code::RcCompiledCode;
 use object_value;
 use process::RcProcess;
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Looks up a method and sets it in the target register.
 ///
@@ -60,7 +59,8 @@ pub fn def_method(machine: &Machine,
     let name = machine.state.intern_pointer(&name_ptr).unwrap();
     let block = block_ptr.block_value().unwrap();
 
-    let new_block = Block::new(block.code.clone(), Binding::new());
+    let global_scope = block.global_scope.clone();
+    let new_block = Block::new(block.code.clone(), Binding::new(), global_scope);
     let value = object_value::block(new_block);
     let proto = machine.state.method_prototype;
 

@@ -146,29 +146,13 @@ pub fn trace_pointers_without_moving(mut objects: Vec<ObjectPointerPointer>,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiled_code::CompiledCode;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::permanent_allocator::PermanentAllocator;
     use object::Object;
     use object_value;
-    use process::{Process, RcProcess};
-
-    fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
-        let global_alloc = GlobalAllocator::new();
-
-        let perm_alloc = Box::new(PermanentAllocator::new(global_alloc.clone()));
-
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
-    }
+    use vm::instructions::test::setup;
 
     #[test]
     fn test_promote_mature() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut pointer =
             process.allocate_without_prototype(object_value::float(15.0));
@@ -186,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_evacuate() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut pointer =
             process.allocate_without_prototype(object_value::float(15.0));
@@ -203,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_trace_pointers_with_moving_without_mature() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
@@ -232,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_trace_pointers_with_moving_with_mature() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
@@ -259,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_trace_pointers_without_moving_without_mature() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
@@ -286,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_trace_pointers_without_moving_with_mature() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();

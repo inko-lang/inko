@@ -4,7 +4,9 @@
 //! needed by a process in order to execute bytecode.
 
 use binding::{Binding, RcBinding};
+use block::Block;
 use compiled_code::RcCompiledCode;
+use global_scope::GlobalScopeReference;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use register::Register;
 
@@ -29,6 +31,9 @@ pub struct ExecutionContext {
 
     /// The current line that is being executed.
     pub line: u16,
+
+    /// The current global scope.
+    pub global_scope: GlobalScopeReference,
 }
 
 // While an ExecutionContext is not thread-safe we need to implement Sync/Send
@@ -44,11 +49,14 @@ pub struct ExecutionContextIterator<'a> {
 }
 
 impl ExecutionContext {
-    pub fn new(binding: RcBinding,
-               code: RcCompiledCode,
-               return_register: Option<usize>)
-               -> ExecutionContext {
-        let line = code.line;
+    /// Creates a new execution context using an existing bock.
+    pub fn from_block(block: &Block,
+                      return_register: Option<usize>)
+                      -> ExecutionContext {
+        let parent_binding = block.binding.clone();
+        let code = block.code.clone();
+        let scope = block.global_scope.clone();
+        let binding = Binding::with_parent(parent_binding, block.locals());
 
         ExecutionContext {
             register: Register::new(),
@@ -57,18 +65,9 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             return_register: return_register,
-            line: line,
+            line: block.code.line,
+            global_scope: scope,
         }
-    }
-
-    /// Returns a new ExecutionContext with a parent binding.
-    pub fn with_binding(parent_binding: RcBinding,
-                        code: RcCompiledCode,
-                        return_register: Option<usize>)
-                        -> ExecutionContext {
-        let binding = Binding::with_parent(parent_binding, code.locals as usize);
-
-        ExecutionContext::new(binding, code, return_register)
     }
 
     pub fn file(&self) -> &String {
@@ -105,6 +104,14 @@ impl ExecutionContext {
 
     pub fn set_local(&mut self, index: usize, value: ObjectPointer) {
         self.binding.set_local(index, value);
+    }
+
+    pub fn get_global(&self, index: usize) -> ObjectPointer {
+        self.global_scope.get(index)
+    }
+
+    pub fn set_global(&mut self, index: usize, value: ObjectPointer) {
+        self.global_scope.set(index, value);
     }
 
     pub fn binding(&self) -> RcBinding {
@@ -162,61 +169,30 @@ impl<'a> Iterator for ExecutionContextIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiled_code::{CompiledCode, RcCompiledCode};
-    use object_pointer::{ObjectPointer, RawObjectPointer};
     use binding::Binding;
+    use block::Block;
+    use compiled_code::CompiledCode;
+    use global_scope::{GlobalScope, GlobalScopeReference};
+    use object_pointer::{ObjectPointer, RawObjectPointer};
 
-    fn new_compiled_code() -> RcCompiledCode {
-        CompiledCode::with_rc("a".to_string(),
-                              "a.inko".to_string(),
-                              1,
-                              Vec::new())
-    }
+    fn setup() -> (GlobalScope, Block, ExecutionContext) {
+        let code = CompiledCode::with_rc("a".to_string(),
+                                         "a.inko".to_string(),
+                                         1,
+                                         Vec::new());
 
-    fn new_context() -> ExecutionContext {
-        ExecutionContext::new(Binding::new(), new_compiled_code(), None)
-    }
+        let scope = GlobalScope::new();
+        let scope_ref = GlobalScopeReference::new(&scope);
+        let block = Block::new(code, Binding::new(), scope_ref);
+        let context = ExecutionContext::from_block(&block, None);
 
-    #[test]
-    fn test_new() {
-        let binding = Binding::new();
-        let code = new_compiled_code();
-        let context = ExecutionContext::new(binding, code, Some(4));
-
-        assert!(context.parent.is_none());
-        assert_eq!(context.instruction_index, 0);
-
-        assert!(context.return_register.is_some());
-        assert_eq!(context.return_register.unwrap(), 4);
-    }
-
-    #[test]
-    fn test_with_object() {
-        let code = new_compiled_code();
-        let context = ExecutionContext::new(Binding::new(), code, Some(4));
-
-        assert!(context.parent.is_none());
-        assert_eq!(context.instruction_index, 0);
-
-        assert!(context.return_register.is_some());
-        assert_eq!(context.return_register.unwrap(), 4);
-    }
-
-    #[test]
-    fn test_with_binding() {
-        let binding = Binding::new();
-        let code = new_compiled_code();
-        let context = ExecutionContext::with_binding(binding, code, None);
-
-        assert!(context.binding.parent().is_some());
+        (scope, block, context)
     }
 
     #[test]
     fn test_set_parent() {
-        let binding = Binding::new();
-        let code = new_compiled_code();
-        let context1 = ExecutionContext::new(binding.clone(), code.clone(), None);
-        let mut context2 = ExecutionContext::new(binding, code, None);
+        let (_scope, block, context1) = setup();
+        let mut context2 = ExecutionContext::from_block(&block, None);
 
         context2.set_parent(Box::new(context1));
 
@@ -225,39 +201,24 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let binding = Binding::new();
-        let code = new_compiled_code();
-        let mut context =
-            ExecutionContext::new(binding.clone(), code.clone(), None);
+        let (_scope, _block, mut context) = setup();
 
         assert!(context.parent().is_none());
         assert!(context.parent_mut().is_none());
     }
 
     #[test]
-    fn test_parent_with_parent() {
-        let binding = Binding::new();
-        let code = new_compiled_code();
-        let context1 = ExecutionContext::new(binding.clone(), code.clone(), None);
-        let mut context2 = ExecutionContext::new(binding, code, None);
-
-        context2.set_parent(Box::new(context1));
-
-        assert!(context2.parent().is_some());
-        assert!(context2.parent_mut().is_some());
-    }
-
-    #[test]
     #[should_panic]
     fn test_get_register_invalid() {
-        let context = new_context();
+        let (_scope, _block, context) = setup();
 
         context.get_register(0);
     }
 
     #[test]
     fn test_get_set_register_valid() {
-        let mut context = new_context();
+        let (_scope, _block, mut context) = setup();
+
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         context.set_register(0, pointer);
@@ -268,14 +229,15 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_get_local_invalid() {
-        let context = new_context();
+        let (_scope, _block, context) = setup();
 
         context.get_local(0);
     }
 
     #[test]
     fn test_get_set_local_valid() {
-        let mut context = new_context();
+        let (_scope, _block, mut context) = setup();
+
         let pointer = ObjectPointer::null();
 
         context.set_local(0, pointer);
@@ -285,9 +247,10 @@ mod tests {
 
     #[test]
     fn test_find_parent() {
-        let context1 = new_context();
-        let mut context2 = new_context();
-        let mut context3 = new_context();
+        let (_scope, block, context1) = setup();
+
+        let mut context2 = ExecutionContext::from_block(&block, None);
+        let mut context3 = ExecutionContext::from_block(&block, None);
 
         context2.set_parent(Box::new(context1));
         context3.set_parent(Box::new(context2));
@@ -301,9 +264,10 @@ mod tests {
 
     #[test]
     fn test_contexts() {
-        let context1 = new_context();
-        let mut context2 = new_context();
-        let mut context3 = new_context();
+        let (_scope, block, context1) = setup();
+
+        let mut context2 = ExecutionContext::from_block(&block, None);
+        let mut context3 = ExecutionContext::from_block(&block, None);
 
         context2.set_parent(Box::new(context1));
         context3.set_parent(Box::new(context2));
@@ -318,7 +282,8 @@ mod tests {
 
     #[test]
     fn test_pointers() {
-        let mut context = new_context();
+        let (_scope, _block, mut context) = setup();
+
         let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
 
         context.register.set(0, pointer);

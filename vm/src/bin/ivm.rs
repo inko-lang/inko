@@ -1,13 +1,10 @@
 extern crate libinko;
 extern crate getopts;
 
-use std::io::prelude::*;
 use std::io::{self, Write};
 use std::env;
-use std::fs::File;
 use std::process;
 
-use libinko::bytecode_parser;
 use libinko::config::Config;
 use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
@@ -24,11 +21,6 @@ fn print_stderr(message: String) {
     stderr.write(message.as_bytes()).unwrap();
     stderr.write(b"\n").unwrap();
     stderr.flush().unwrap();
-}
-
-fn terminate(message: String) -> ! {
-    print_stderr(message);
-    process::exit(1);
 }
 
 fn main() {
@@ -72,21 +64,9 @@ fn main() {
 
         config.populate_from_env();
 
-        let file = File::open(path).unwrap_or_else(|err| {
-            terminate(format!("Failed to execute {}: {}", path, err))
-        });
+        let machine = Machine::default(State::new(config));
 
-        let mut bytes = file.bytes();
-        let state = State::new(config);
-
-        let code = bytecode_parser::parse(&state, &mut bytes)
-            .unwrap_or_else(|err| {
-                terminate(format!("Failed to parse {}: {:?}", path, err))
-            });
-
-        let machine = Machine::default(state);
-
-        if !machine.start(code) {
+        if !machine.start(path) {
             process::exit(1);
         }
     }

@@ -45,18 +45,7 @@ impl Pools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiled_code::CompiledCode;
-    use immix::global_allocator::GlobalAllocator;
-    use process::{Process, RcProcess};
-
-    fn new_process(pool_id: usize) -> RcProcess {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        Process::from_code(1, pool_id, code, GlobalAllocator::new())
-    }
+    use vm::instructions::test::setup;
 
     #[test]
     fn test_new() {
@@ -83,22 +72,13 @@ mod tests {
     #[test]
     fn test_schedule() {
         let pools = Pools::new(1, 1);
-        let process = new_process(0);
+        let (_machine, _block, process) = setup();
 
         process.running();
         pools.schedule(process.clone());
 
         assert_eq!(pools.pools[0].inner.queues.len(), 1);
         assert_eq!(process.available_for_execution(), true);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_schedule_invalid() {
-        let pools = Pools::new(1, 1);
-        let process = new_process(5);
-
-        pools.schedule(process);
     }
 
     #[test]

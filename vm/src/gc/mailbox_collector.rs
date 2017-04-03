@@ -59,28 +59,12 @@ pub fn trace(process: &RcProcess,
 mod tests {
     use super::*;
     use config::Config;
-    use compiled_code::CompiledCode;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::permanent_allocator::PermanentAllocator;
-    use process::{Process, RcProcess};
     use vm::state::State;
-
-    fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
-        let global_alloc = GlobalAllocator::new();
-
-        let perm_alloc = Box::new(PermanentAllocator::new(global_alloc.clone()));
-
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
-    }
+    use vm::instructions::test::setup;
 
     #[test]
     fn test_collect() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
 
         let mut local_data = process.local_data_mut();
@@ -100,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_trace_without_moving() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut local_data = process.local_data_mut();
 
@@ -117,7 +101,7 @@ mod tests {
 
     #[test]
     fn test_trace_with_moving() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut local_data = process.local_data_mut();
 

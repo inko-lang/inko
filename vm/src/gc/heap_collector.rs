@@ -154,32 +154,17 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
 mod tests {
     use super::*;
     use binding::Binding;
-    use compiled_code::CompiledCode;
+    use block::Block;
     use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::permanent_allocator::PermanentAllocator;
     use execution_context::ExecutionContext;
     use object::Object;
     use object_value;
-    use process::{Process, RcProcess};
+    use vm::instructions::test::setup;
     use vm::state::State;
-
-    fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
-        let global_alloc = GlobalAllocator::new();
-
-        let perm_alloc = Box::new(PermanentAllocator::new(global_alloc.clone()));
-
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
-    }
 
     #[test]
     fn test_collect() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let pointer = process.allocate_empty();
 
@@ -196,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_trace_trace_without_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young = process.allocate_empty();
 
@@ -216,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_trace_trace_without_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young = process.allocate_empty();
 
@@ -236,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_trace_trace_with_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young = process.allocate_empty();
 
@@ -258,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_trace_trace_with_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let young = process.allocate_empty();
 
@@ -281,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_trace_remembered_set_without_moving() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut local_data = process.local_data_mut();
 
@@ -301,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_trace_remembered_set_with_moving() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut local_data = process.local_data_mut();
 
@@ -323,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_prune_remembered_set() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
 
         let mut local_data = process.local_data_mut();
 
@@ -346,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_trace_mailbox_locals_with_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
         let mut local_data = process.local_data_mut();
 
@@ -371,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_trace_mailbox_locals_with_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
         let mut local_data = process.local_data_mut();
 
@@ -396,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_trace_mailbox_locals_without_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
         let mut local_data = process.local_data_mut();
 
@@ -420,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_trace_mailbox_locals_without_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
         let mut local_data = process.local_data_mut();
 
@@ -444,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_trace_without_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, block, process) = setup();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -453,9 +438,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
+        let new_block = Block::new(code, Binding::new(), block.global_scope);
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::new(Binding::new(), code, None));
+
+        process.push_context(ExecutionContext::from_block(&new_block, None));
+
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -474,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_trace_without_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, block, process) = setup();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -483,9 +471,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
+        let new_block = Block::new(code, Binding::new(), block.global_scope);
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::new(Binding::new(), code, None));
+
+        process.push_context(ExecutionContext::from_block(&new_block, None));
+
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -504,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_trace_with_moving_without_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, block, process) = setup();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -513,9 +504,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
+        let new_block = Block::new(code, Binding::new(), block.global_scope);
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::new(Binding::new(), code, None));
+
+        process.push_context(ExecutionContext::from_block(&new_block, None));
+
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
@@ -534,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_trace_with_moving_with_mature() {
-        let (_perm_alloc, process) = new_process();
+        let (_machine, block, process) = setup();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
@@ -543,9 +537,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
+        let new_block = Block::new(code, Binding::new(), block.global_scope);
 
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::new(Binding::new(), code, None));
+
+        process.push_context(ExecutionContext::from_block(&new_block, None));
+
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 

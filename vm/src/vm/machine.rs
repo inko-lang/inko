@@ -1,23 +1,24 @@
 //! Virtual Machine for running instructions
-use compiled_code::RcCompiledCode;
-use file_registry::{FileRegistry, RcFileRegistry};
+use binding::Binding;
+use block::Block;
 use gc::request::Request as GcRequest;
+use module_registry::{ModuleRegistry, RcModuleRegistry};
 use object_pointer::ObjectPointer;
-use process::{RcProcess, Process};
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
+use process::{RcProcess, Process};
 use vm::instruction::{Instruction, InstructionType};
-use vm::state::RcState;
 use vm::instructions::array;
 use vm::instructions::binding;
 use vm::instructions::block;
 use vm::instructions::boolean;
 use vm::instructions::code_execution;
 use vm::instructions::constant;
+use vm::instructions::control_flow;
 use vm::instructions::error;
 use vm::instructions::file;
 use vm::instructions::float;
-use vm::instructions::control_flow;
+use vm::instructions::globals;
 use vm::instructions::integer;
 use vm::instructions::local_variable;
 use vm::instructions::method;
@@ -30,6 +31,7 @@ use vm::instructions::stdin;
 use vm::instructions::stdout;
 use vm::instructions::string;
 use vm::instructions::time;
+use vm::state::RcState;
 
 macro_rules! suspend_retry {
     ($machine: expr, $context: expr, $process: expr, $index: expr) => ({
@@ -50,21 +52,21 @@ macro_rules! enter_context {
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
-    pub file_registry: RcFileRegistry,
+    pub module_registry: RcModuleRegistry,
 }
 
 impl Machine {
     /// Creates a new Machine with various fields set to their defaults.
     pub fn default(state: RcState) -> Self {
-        let file_registry = FileRegistry::with_rc(state.clone());
+        let module_registry = ModuleRegistry::with_rc(state.clone());
 
-        Machine::new(state, file_registry)
+        Machine::new(state, module_registry)
     }
 
-    pub fn new(state: RcState, file_registry: RcFileRegistry) -> Self {
+    pub fn new(state: RcState, module_registry: RcModuleRegistry) -> Self {
         Machine {
             state: state,
-            file_registry: file_registry,
+            module_registry: module_registry,
         }
     }
 
@@ -74,15 +76,12 @@ impl Machine {
     ///
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
-    pub fn start(&self, code: RcCompiledCode) -> bool {
+    pub fn start(&self, file: &String) -> bool {
         let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
 
         self.start_secondary_threads();
-
-        let main_process = self.allocate_process(PRIMARY_POOL, code).unwrap();
-
-        self.state.process_pools.schedule(main_process);
+        self.start_main_process(file);
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output, so we just
@@ -122,20 +121,39 @@ impl Machine {
         self.state.gc_pool.terminate();
     }
 
+    /// Starts the main process
+    pub fn start_main_process(&self, file: &String) {
+        let process = {
+            let mut registry = write_lock!(self.module_registry);
+
+            let module = registry.parse_path(file)
+                .map_err(|err| err.message())
+                .unwrap();
+
+            let block = Block::new(module.code.clone(),
+                                   Binding::new(),
+                                   module.global_scope_ref());
+
+            self.allocate_process(PRIMARY_POOL, &block).unwrap()
+        };
+
+        self.state.process_pools.schedule(process);
+    }
+
     /// Allocates a new process and returns the PID and Process structure.
     pub fn allocate_process(&self,
                             pool_id: usize,
-                            code: RcCompiledCode)
+                            block: &Block)
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
         let pid = process_table.reserve()
             .ok_or_else(|| "No PID could be reserved".to_string())?;
 
-        let process = Process::from_code(pid,
-                                         pool_id,
-                                         code,
-                                         self.state.global_allocator.clone());
+        let process = Process::from_block(pid,
+                                          pool_id,
+                                          block,
+                                          self.state.global_allocator.clone());
 
         process_table.map(pid, process.clone());
 
@@ -656,6 +674,12 @@ impl Machine {
 
                         enter_context!(context, index, 'exec_loop);
                     }
+                    InstructionType::GetGlobal => {
+                        globals::get_global(process, instruction);
+                    }
+                    InstructionType::SetGlobal => {
+                        globals::set_global(process, instruction);
+                    }
                 };
             } // while
 
@@ -721,23 +745,6 @@ impl Machine {
         }
 
         args
-    }
-
-    /// Spawns a new process.
-    pub fn spawn_process(&self,
-                         process: &RcProcess,
-                         pool_id: usize,
-                         code: RcCompiledCode,
-                         register: usize)
-                         -> Result<(), String> {
-        let new_proc = self.allocate_process(pool_id, code)?;
-        let new_pid = new_proc.pid;
-
-        self.state.process_pools.schedule(new_proc);
-
-        process.set_register(register, ObjectPointer::integer(new_pid as i64));
-
-        Ok(())
     }
 
     /// Checks if a garbage collection run should be scheduled for the given

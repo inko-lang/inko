@@ -48,9 +48,7 @@ pub fn run_block(_: &Machine,
                arg_count);
     }
 
-    let context = ExecutionContext::with_binding(block_val.binding.clone(),
-                                                 block_val.code.clone(),
-                                                 Some(register));
+    let context = ExecutionContext::from_block(block_val, Some(register));
 
     {
         // Add the arguments to the binding. Since arguments are the first
@@ -139,12 +137,16 @@ pub fn parse_file(machine: &Machine,
     let path_ptr = process.get_register(instruction.arg(1));
     let path_str = path_ptr.string_value().unwrap();
 
-    let code = write_lock!(machine.file_registry)
-        .get_or_set(path_str)
-        .map_err(|err| err.message())
-        .unwrap();
+    let block = {
+        let mut registry = write_lock!(machine.module_registry);
+        let module = registry.get_or_set(path_str)
+            .map_err(|err| err.message())
+            .unwrap();
 
-    let block = Block::new(code.clone(), Binding::new());
+        Block::new(module.code.clone(),
+                   Binding::with_capacity(module.code.locals as usize),
+                   module.global_scope_ref())
+    };
 
     let block_ptr = process.allocate(object_value::block(block),
                                     machine.state.block_prototype);
@@ -169,7 +171,7 @@ pub fn file_parsed(machine: &Machine,
     let path_ptr = process.get_register(instruction.arg(1));
     let path_str = path_ptr.string_value().unwrap();
 
-    let ptr = if read_lock!(machine.file_registry).contains_path(path_str) {
+    let ptr = if read_lock!(machine.module_registry).contains_path(path_str) {
         machine.state.true_object
     } else {
         machine.state.false_object
@@ -181,19 +183,17 @@ pub fn file_parsed(machine: &Machine,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
     use object_value;
-    use vm::instructions::test::*;
     use vm::instruction::InstructionType;
+    use vm::instructions::test::*;
 
     mod run_block {
         use super::*;
 
         #[test]
         fn test_without_arguments() {
-            let (machine, code, process) = setup();
-
-            let block = Block::new(code.clone(), Binding::new());
+            let (machine, block, process) = setup();
+            let code = block.code.clone();
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -212,9 +212,8 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_with_too_many_arguments() {
-            let (machine, code, process) = setup();
-
-            let block = Block::new(code.clone(), Binding::new());
+            let (machine, block, process) = setup();
+            let code = block.code.clone();
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -231,12 +230,11 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_with_not_enough_arguments() {
-            let (machine, code, process) = setup();
+            let (machine, block, process) = setup();
+            let code = block.code.clone();
 
             arc_mut(&code).arguments = 2;
             arc_mut(&code).required_arguments = 2;
-
-            let block = Block::new(code.clone(), Binding::new());
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -252,11 +250,10 @@ mod tests {
 
         #[test]
         fn test_with_enough_arguments() {
-            let (machine, code, process) = setup();
+            let (machine, block, process) = setup();
+            let code = block.code.clone();
 
             arc_mut(&code).arguments = 2;
-
-            let block = Block::new(code.clone(), Binding::new());
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));

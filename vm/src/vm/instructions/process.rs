@@ -32,9 +32,12 @@ pub fn spawn_process(machine: &Machine,
     };
 
     let block_obj = block_ptr.block_value().unwrap();
+    let new_proc = machine.allocate_process(pool_id, block_obj).unwrap();
+    let new_pid = new_proc.pid;
 
-    machine.spawn_process(process, pool_id, block_obj.code.clone(), register)
-        .unwrap();
+    machine.state.process_pools.schedule(new_proc);
+
+    process.set_register(register, ObjectPointer::integer(new_pid as i64));
 }
 
 /// Sends a message to a process.

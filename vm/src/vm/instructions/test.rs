@@ -1,25 +1,35 @@
 //! Functions for testing instruction handlers.
+use binding::Binding;
+use block::Block;
+use compiled_code::CompiledCode;
+use config::Config;
+use module::Module;
+use process::RcProcess;
 use std::sync::Arc;
 use vm::instruction::{Instruction, InstructionType};
 use vm::machine::Machine;
 use vm::state::State;
 
-use compiled_code::{RcCompiledCode, CompiledCode};
-use config::Config;
-use process::RcProcess;
-
 /// Sets up a VM with a single process.
 #[inline(always)]
-pub fn setup() -> (Machine, RcCompiledCode, RcProcess) {
+pub fn setup() -> (Machine, Block, RcProcess) {
     let state = State::new(Config::new());
     let machine = Machine::default(state);
 
     let code =
         CompiledCode::with_rc("a".to_string(), "a".to_string(), 1, Vec::new());
 
-    let process = machine.allocate_process(0, code.clone());
+    let module = Module::new(code.clone());
+    let scope = module.global_scope_ref();
 
-    (machine, code, process.unwrap())
+    // To ensure the module sticks around long enough we'll manually store in
+    // in the module registry.
+    write_lock!(machine.module_registry).add_module("test", module);
+
+    let block = Block::new(code.clone(), Binding::new(), scope);
+    let process = machine.allocate_process(0, &block);
+
+    (machine, block, process.unwrap())
 }
 
 /// Creates a new instruction.

@@ -42,7 +42,10 @@ pub trait CopyObject: Sized {
             ObjectValue::Error(num) => object_value::error(num),
             ObjectValue::Block(ref block) => {
                 let new_binding = block.binding.clone_to(self);
-                let new_block = Block::new(block.code.clone(), new_binding);
+                let new_scope = block.global_scope.clone();
+
+                let new_block =
+                    Block::new(block.code.clone(), new_binding, new_scope);
 
                 object_value::block(new_block)
             }
@@ -78,6 +81,7 @@ mod tests {
     use immix::local_allocator::LocalAllocator;
     use binding::Binding;
     use compiled_code::CompiledCode;
+    use global_scope::{GlobalScope, GlobalScopeReference};
     use object::Object;
     use object_pointer::ObjectPointer;
     use object_value;
@@ -205,7 +209,10 @@ mod tests {
                                        1,
                                        Vec::new());
 
-        let block = Block::new(cc, Binding::new());
+        let scope = GlobalScope::new();
+
+        let block =
+            Block::new(cc, Binding::new(), GlobalScopeReference::new(&scope));
 
         let ptr = dummy.allocator
             .allocate_without_prototype(object_value::block(block));

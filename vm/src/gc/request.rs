@@ -66,29 +66,13 @@ impl Request {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compiled_code::CompiledCode;
     use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::permanent_allocator::PermanentAllocator;
-    use process::{Process, RcProcess};
     use vm::state::State;
-
-    fn new_process() -> (Box<PermanentAllocator>, RcProcess) {
-        let global_alloc = GlobalAllocator::new();
-
-        let perm_alloc = Box::new(PermanentAllocator::new(global_alloc.clone()));
-
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a".to_string(),
-                                         1,
-                                         Vec::new());
-
-        (perm_alloc, Process::from_code(1, 0, code, global_alloc))
-    }
+    use vm::instructions::test::setup;
 
     #[test]
     fn test_new() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let request = Request::new(CollectionType::Heap, state, process);
 
@@ -100,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_heap() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let request = Request::heap(state, process);
 
@@ -112,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_mailbox() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let request = Request::mailbox(state, process);
 
@@ -124,7 +108,7 @@ mod tests {
 
     #[test]
     fn test_perform() {
-        let (_perm, process) = new_process();
+        let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let request = Request::heap(state, process.clone());
 
