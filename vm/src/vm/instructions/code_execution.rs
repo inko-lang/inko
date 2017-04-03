@@ -272,11 +272,8 @@ mod tests {
 
             assert_eq!(process.binding().locals().len(), 2);
 
-            assert!(process.binding().get_local(0).unwrap() ==
-                    machine.state.true_object);
-
-            assert!(process.binding().get_local(1).unwrap() ==
-                    machine.state.false_object);
+            assert!(process.binding().get_local(0) == machine.state.true_object);
+            assert!(process.binding().get_local(1) == machine.state.false_object);
         }
     }
 }

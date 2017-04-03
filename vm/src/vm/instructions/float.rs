@@ -215,9 +215,7 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                let result = $ins_func(&machine, &process, &code, &instruction);
-
-                assert!(result.is_ok());
+                $ins_func(&machine, &process, &code, &instruction);
 
                 let pointer = process.get_register(2);
 
@@ -244,10 +242,7 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                let result =
-                    $ins_func(&machine, &process, &code, &instruction);
-
-                assert!(result.is_ok());
+                $ins_func(&machine, &process, &code, &instruction);
 
                 let pointer = process.get_register(2);
 
@@ -270,10 +265,7 @@ mod tests {
 
                 process.set_register(0, original);
 
-                let result =
-                    $ins_func(&machine, &process, &code, &instruction);
-
-                assert!(result.is_ok());
+                $ins_func(&machine, &process, &code, &instruction);
 
                 let pointer = process.get_register(1);
 
@@ -291,9 +283,7 @@ mod tests {
 
         arc_mut(&code).float_literals.push(float);
 
-        let result = set_float(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        set_float(&machine, &process, &code, &instruction);
 
         let pointer = process.get_register(0);
 

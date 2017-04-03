@@ -266,10 +266,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_get_local_invalid() {
         let context = new_context();
 
-        assert!(context.get_local(0).is_err());
+        context.get_local(0);
     }
 
     #[test]
@@ -279,7 +280,7 @@ mod tests {
 
         context.set_local(0, pointer);
 
-        assert!(context.get_local(0).is_ok());
+        assert!(context.get_local(0) == pointer);
     }
 
     #[test]

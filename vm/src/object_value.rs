@@ -405,7 +405,7 @@ mod tests {
         let result = ObjectValue::Binding(binding).as_binding();
 
         assert!(result.is_ok());
-        assert!(result.unwrap().get_local(0).unwrap() == pointer);
+        assert!(result.unwrap().get_local(0) == pointer);
     }
 
     #[test]

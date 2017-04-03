@@ -242,8 +242,8 @@ mod tests {
 
         assert!(binding_copy.parent.is_some());
 
-        let local1_copy = binding_copy.get_local(0).unwrap();
-        let local2_copy = parent_copy.get_local(0).unwrap();
+        let local1_copy = binding_copy.get_local(0);
+        let local2_copy = parent_copy.get_local(0);
 
         assert!(local1 != local1_copy);
         assert!(local2 != local2_copy);
