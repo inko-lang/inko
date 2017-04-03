@@ -1,7 +1,5 @@
 //! VM instruction handlers for getting/setting object prototypes.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -17,14 +15,11 @@ use process::RcProcess;
 pub fn set_prototype(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let source = process.get_register(instruction.arg(0));
     let proto = process.get_register(instruction.arg(1));
 
     source.get_mut().set_prototype(proto);
-
-    Ok(Action::None)
 }
 
 /// Gets the prototype of an object.
@@ -33,26 +28,20 @@ pub fn set_prototype(_: &Machine,
 ///
 /// 1. The register to store the prototype in.
 /// 2. The register containing the object to get the prototype from.
+///
+/// If no prototype was found, nil is set in the register instead.
 #[inline(always)]
-pub fn get_prototype(_: &Machine,
+pub fn get_prototype(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
 
-    let source_obj = source.get();
-
-    let proto = source_obj.prototype()
-        .ok_or_else(|| {
-            format!("The object in register {} does not have a prototype",
-                    instruction.arguments[1])
-        })?;
+    let proto = source.prototype(&machine.state)
+        .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, proto);
-
-    Ok(Action::None)
 }
 
 /// Returns the prototype to use for integer objects.
@@ -63,13 +52,10 @@ pub fn get_prototype(_: &Machine,
 pub fn get_integer_prototype(machine: &Machine,
                              process: &RcProcess,
                              _: &RcCompiledCode,
-                             instruction: &Instruction)
-                             -> InstructionResult {
+                             instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.integer_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.integer_prototype);
 }
 
 /// Returns the prototype to use for float objects.
@@ -80,13 +66,10 @@ pub fn get_integer_prototype(machine: &Machine,
 pub fn get_float_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+                           instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.float_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.float_prototype);
 }
 
 /// Returns the prototype to use for string objects.
@@ -97,13 +80,10 @@ pub fn get_float_prototype(machine: &Machine,
 pub fn get_string_prototype(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
-                            instruction: &Instruction)
-                            -> InstructionResult {
+                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.string_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.string_prototype);
 }
 
 /// Returns the prototype to use for array objects.
@@ -114,13 +94,10 @@ pub fn get_string_prototype(machine: &Machine,
 pub fn get_array_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+                           instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.array_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.array_prototype);
 }
 
 /// Gets the prototype to use for true objects.
@@ -131,13 +108,10 @@ pub fn get_array_prototype(machine: &Machine,
 pub fn get_true_prototype(machine: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
-                          instruction: &Instruction)
-                          -> InstructionResult {
+                          instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.true_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.true_prototype);
 }
 
 /// Gets the prototype to use for false objects.
@@ -148,13 +122,10 @@ pub fn get_true_prototype(machine: &Machine,
 pub fn get_false_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+                           instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.false_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.false_prototype);
 }
 
 /// Gets the prototype to use for method objects.
@@ -165,13 +136,10 @@ pub fn get_false_prototype(machine: &Machine,
 pub fn get_method_prototype(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
-                            instruction: &Instruction)
-                            -> InstructionResult {
+                            instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.method_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.method_prototype);
 }
 
 /// Gets the prototype to use for Binding objects.
@@ -182,13 +150,10 @@ pub fn get_method_prototype(machine: &Machine,
 pub fn get_binding_prototype(machine: &Machine,
                              process: &RcProcess,
                              _: &RcCompiledCode,
-                             instruction: &Instruction)
-                             -> InstructionResult {
+                             instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.binding_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.binding_prototype);
 }
 
 /// Gets the prototype to use for Blocks.
@@ -199,13 +164,10 @@ pub fn get_binding_prototype(machine: &Machine,
 pub fn get_block_prototype(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+                           instruction: &Instruction) {
     let register = instruction.arg(0);
 
     process.set_register(register, machine.state.block_prototype);
-
-    Ok(Action::None)
 }
 
 /// Gets the prototype to use for "nil" objects.
@@ -216,11 +178,8 @@ pub fn get_block_prototype(machine: &Machine,
 pub fn get_nil_prototype(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,
-                         instruction: &Instruction)
-                         -> InstructionResult {
+                         instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.nil_prototype.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.nil_prototype);
 }

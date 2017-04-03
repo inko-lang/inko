@@ -8,19 +8,9 @@ macro_rules! io_error_code {
     });
 }
 
-macro_rules! constant_error {
-    ($reg: expr, $name: expr) => (
-        format!(
-            "The object in register {} does not define the constant \"{}\"",
-            $reg,
-            $name
-        )
-    )
-}
-
 macro_rules! attribute_error {
     ($reg: expr, $name: expr) => (
-        format!(
+        panic!(
             "The object in register {} does not define the attribute \"{}\"",
             $reg,
             $name

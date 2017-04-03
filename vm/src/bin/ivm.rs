@@ -43,13 +43,11 @@ fn main() {
                      "A directory to search for bytecode files",
                      "DIR");
 
-    let matches = match options.parse(&args[1..]) {
-        Ok(matches) => matches,
-        Err(error) => {
-            print_stderr(format!("{}", error.to_string()));
+    let matches = options.parse(&args[1..])
+        .unwrap_or_else(|err| {
+            print_stderr(format!("{}\n", err));
             print_usage(&options);
-        }
-    };
+        });
 
     if matches.opt_present("h") {
         print_usage(&options);
@@ -74,32 +72,22 @@ fn main() {
 
         config.populate_from_env();
 
-        match File::open(path) {
-            Ok(file) => {
-                let mut bytes = file.bytes();
-                let state = State::new(config);
+        let file = File::open(path).unwrap_or_else(|err| {
+            terminate(format!("Failed to execute {}: {}", path, err))
+        });
 
-                match bytecode_parser::parse(&state, &mut bytes) {
-                    Ok(code) => {
-                        let vm = Machine::default(state);
+        let mut bytes = file.bytes();
+        let state = State::new(config);
 
-                        match vm.start(code) {
-                            Ok(_) => process::exit(0),
-                            Err(message) => terminate(message),
-                        }
-                    }
-                    Err(error) => {
-                        terminate(format!("Failed to parse file {}: {:?}",
-                                          path,
-                                          error));
-                    }
-                }
-            }
-            Err(error) => {
-                terminate(format!("Failed to execute {}: {}",
-                                  path,
-                                  error.to_string()));
-            }
+        let code = bytecode_parser::parse(&state, &mut bytes)
+            .unwrap_or_else(|err| {
+                terminate(format!("Failed to parse {}: {:?}", path, err))
+            });
+
+        let machine = Machine::default(state);
+
+        if !machine.start(code) {
+            process::exit(1);
         }
     }
 }

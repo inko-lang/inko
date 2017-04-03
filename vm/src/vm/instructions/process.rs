@@ -1,7 +1,5 @@
 //! VM instruction handlers for process operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -21,24 +19,22 @@ use process::RcProcess;
 pub fn spawn_process(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let block_ptr = process.get_register(instruction.arg(1));
 
     let pool_id = if let Some(pool_reg) = instruction.arg_opt(2) {
         let ptr = process.get_register(pool_reg);
 
-        ptr.integer_value()? as usize
+        ptr.integer_value().unwrap() as usize
     } else {
         PRIMARY_POOL
     };
 
-    let block_obj = block_ptr.block_value()?;
+    let block_obj = block_ptr.block_value().unwrap();
 
-    machine.spawn_process(process, pool_id, block_obj.code.clone(), register)?;
-
-    Ok(Action::None)
+    machine.spawn_process(process, pool_id, block_obj.code.clone(), register)
+        .unwrap();
 }
 
 /// Sends a message to a process.
@@ -53,20 +49,17 @@ pub fn spawn_process(machine: &Machine,
 pub fn send_process_message(machine: &Machine,
                             process: &RcProcess,
                             _: &RcCompiledCode,
-                            instruction: &Instruction)
-                            -> InstructionResult {
+                            instruction: &Instruction) {
     let register = instruction.arg(0);
     let pid_ptr = process.get_register(instruction.arg(1));
     let msg_ptr = process.get_register(instruction.arg(2));
-    let pid = pid_ptr.integer_value()? as usize;
+    let pid = pid_ptr.integer_value().unwrap() as usize;
 
     if let Some(receiver) = read_lock!(machine.state.process_table).get(&pid) {
         receiver.send_message(&process, msg_ptr);
     }
 
     process.set_register(register, msg_ptr);
-
-    Ok(Action::None)
 }
 
 /// Receives a message for the current process.
@@ -81,17 +74,14 @@ pub fn receive_process_message(_: &Machine,
                                process: &RcProcess,
                                _: &RcCompiledCode,
                                instruction: &Instruction)
-                               -> Result<bool, String> {
-    let register = instruction.arg(0);
-    let result = if let Some(msg_ptr) = process.receive_message() {
-        process.set_register(register, msg_ptr);
+                               -> bool {
+    if let Some(msg_ptr) = process.receive_message() {
+        process.set_register(instruction.arg(0), msg_ptr);
 
         false
     } else {
         true
-    };
-
-    Ok(result)
+    }
 }
 
 /// Gets the PID of the currently running process.
@@ -102,12 +92,9 @@ pub fn receive_process_message(_: &Machine,
 pub fn get_current_pid(_: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let pid = process.pid;
 
     process.set_register(register, ObjectPointer::integer(pid as i64));
-
-    Ok(Action::None)
 }

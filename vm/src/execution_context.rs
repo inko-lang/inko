@@ -99,7 +99,7 @@ impl ExecutionContext {
         self.register.set(register, value);
     }
 
-    pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
+    pub fn get_local(&self, index: usize) -> ObjectPointer {
         self.binding.get_local(index)
     }
 

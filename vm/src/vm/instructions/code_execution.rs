@@ -1,7 +1,5 @@
 //! VM instruction handlers for executing bytecode files and code objects.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use block::Block;
@@ -24,13 +22,12 @@ use process::RcProcess;
 pub fn run_block(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     process.advance_line(instruction.line);
 
     let register = instruction.arg(0);
     let block_ptr = process.get_register(instruction.arg(1));
-    let block_val = block_ptr.block_value()?;
+    let block_val = block_ptr.block_value().unwrap();
 
     let arg_offset = 2;
     let arg_count = instruction.arguments.len() - arg_offset;
@@ -38,19 +35,17 @@ pub fn run_block(_: &Machine,
     let req_args = block_val.required_arguments();
 
     if arg_count > tot_args {
-        return Err(format!("{} accepts up to {} arguments, but {} arguments \
-                            were given",
-                           block_val.name(),
-                           tot_args,
-                           arg_count));
+        panic!("{} accepts up to {} arguments, but {} arguments were given",
+               block_val.name(),
+               tot_args,
+               arg_count);
     }
 
     if arg_count < req_args {
-        return Err(format!("{} requires {} arguments, but {} arguments were \
-                            given",
-                           block_val.name(),
-                           req_args,
-                           arg_count));
+        panic!("{} requires {} arguments, but {} arguments were given",
+               block_val.name(),
+               req_args,
+               arg_count);
     }
 
     let context = ExecutionContext::with_binding(block_val.binding.clone(),
@@ -70,8 +65,6 @@ pub fn run_block(_: &Machine,
     }
 
     process.push_context(context);
-
-    Ok(Action::EnterContext)
 }
 
 /// Executes a Block object with a rest argument.
@@ -88,8 +81,7 @@ pub fn run_block(_: &Machine,
 pub fn run_block_with_rest(_: &Machine,
                            _: &RcProcess,
                            _: &RcCompiledCode,
-                           _: &Instruction)
-                           -> InstructionResult {
+                           _: &Instruction) {
     // TODO: implement
     //let register = instruction.arg(0);
     //let block_ptr = process.get_register(instruction.arg(1));
@@ -127,8 +119,6 @@ pub fn run_block_with_rest(_: &Machine,
 
     //arguments.push(rest_array);
     //}
-
-    Ok(Action::EnterContext)
 }
 
 /// Parses a bytecode file and stores the resulting Block in the register.
@@ -144,14 +134,15 @@ pub fn run_block_with_rest(_: &Machine,
 pub fn parse_file(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));
-    let path_str = path_ptr.string_value()?;
+    let path_str = path_ptr.string_value().unwrap();
 
-    let code = write_lock!(machine.file_registry).get_or_set(path_str)
-        .map_err(|err| err.message())?;
+    let code = write_lock!(machine.file_registry)
+        .get_or_set(path_str)
+        .map_err(|err| err.message())
+        .unwrap();
 
     let block = Block::new(code.clone(), Binding::new());
 
@@ -159,8 +150,6 @@ pub fn parse_file(machine: &Machine,
                                     machine.state.block_prototype);
 
     process.set_register(register, block_ptr);
-
-    Ok(Action::None)
 }
 
 /// Sets the target register to true if the given file path has been parsed.
@@ -175,11 +164,10 @@ pub fn parse_file(machine: &Machine,
 pub fn file_parsed(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));
-    let path_str = path_ptr.string_value()?;
+    let path_str = path_ptr.string_value().unwrap();
 
     let ptr = if read_lock!(machine.file_registry).contains_path(path_str) {
         machine.state.true_object
@@ -188,8 +176,6 @@ pub fn file_parsed(machine: &Machine,
     };
 
     process.set_register(register, ptr);
-
-    Ok(Action::None)
 }
 
 #[cfg(test)]
@@ -217,15 +203,14 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![1, 0]);
 
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
+            run_block(&machine, &process, &code, &instruction);
 
             assert!(process.context().parent.is_some());
             assert!(process.binding().locals().is_empty());
         }
 
         #[test]
+        #[should_panic]
         fn test_with_too_many_arguments() {
             let (machine, code, process) = setup();
 
@@ -240,12 +225,11 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1]);
 
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_err());
+            run_block(&machine, &process, &code, &instruction);
         }
 
         #[test]
+        #[should_panic]
         fn test_with_not_enough_arguments() {
             let (machine, code, process) = setup();
 
@@ -263,9 +247,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1]);
 
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_err());
+            run_block(&machine, &process, &code, &instruction);
         }
 
         #[test]
@@ -286,9 +268,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![3, 0, 1, 2]);
 
-            let result = run_block(&machine, &process, &code, &instruction);
-
-            assert!(result.is_ok());
+            run_block(&machine, &process, &code, &instruction);
 
             assert_eq!(process.binding().locals().len(), 2);
 

@@ -1,9 +1,7 @@
 //! VM instruction handlers for array operations.
 use immix::copy_object::CopyObject;
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -59,15 +57,14 @@ pub fn set_array(machine: &Machine,
 pub fn array_insert(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
     let index_ptr = process.get_register(instruction.arg(2));
     let value_ptr = process.get_register(instruction.arg(3));
 
-    let mut vector = array_ptr.array_value_mut()?;
-    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
+    let mut vector = array_ptr.array_value_mut().unwrap();
+    let index = int_to_vector_index!(vector, index_ptr.integer_value().unwrap());
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
@@ -80,8 +77,6 @@ pub fn array_insert(machine: &Machine,
     vector[index] = value;
 
     process.set_register(register, value);
-
-    Ok(Action::None)
 }
 
 /// Gets the value of an array index.
@@ -99,22 +94,19 @@ pub fn array_insert(machine: &Machine,
 pub fn array_at(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+                instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
     let index_ptr = process.get_register(instruction.arg(2));
 
-    let vector = array_ptr.array_value()?;
-    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
+    let vector = array_ptr.array_value().unwrap();
+    let index = int_to_vector_index!(vector, index_ptr.integer_value().unwrap());
 
     let value = vector.get(index)
         .cloned()
         .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, value);
-
-    Ok(Action::None)
 }
 
 /// Removes a value from an array.
@@ -132,14 +124,13 @@ pub fn array_at(machine: &Machine,
 pub fn array_remove(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
     let index_ptr = process.get_register(instruction.arg(2));
 
-    let mut vector = array_ptr.array_value_mut()?;
-    let index = int_to_vector_index!(vector, index_ptr.integer_value()?);
+    let mut vector = array_ptr.array_value_mut().unwrap();
+    let index = int_to_vector_index!(vector, index_ptr.integer_value().unwrap());
 
     let value = if index > vector.len() {
         machine.state.nil_object
@@ -148,8 +139,6 @@ pub fn array_remove(machine: &Machine,
     };
 
     process.set_register(register, value);
-
-    Ok(Action::None)
 }
 
 /// Gets the amount of elements in an array.
@@ -162,16 +151,13 @@ pub fn array_remove(machine: &Machine,
 pub fn array_length(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let array_ptr = process.get_register(instruction.arg(1));
-    let vector = array_ptr.array_value()?;
+    let vector = array_ptr.array_value().unwrap();
     let length = vector.len() as i64;
 
     process.set_register(register, ObjectPointer::integer(length));
-
-    Ok(Action::None)
 }
 
 /// Removes all elements from an array.
@@ -181,14 +167,11 @@ pub fn array_length(_: &Machine,
 pub fn array_clear(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let array_ptr = process.get_register(instruction.arg(0));
-    let mut vector = array_ptr.array_value_mut()?;
+    let mut vector = array_ptr.array_value_mut().unwrap();
 
     vector.clear();
-
-    Ok(Action::None)
 }
 
 #[cfg(test)]
@@ -242,9 +225,7 @@ mod tests {
         process.set_register(1, index);
         process.set_register(2, value);
 
-        let result = array_insert(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        array_insert(&machine, &process, &code, &instruction);
 
         let pointer = process.get_register(3);
 
@@ -267,9 +248,7 @@ mod tests {
         process.set_register(0, array);
         process.set_register(1, index);
 
-        let result = array_at(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        array_at(&machine, &process, &code, &instruction);
 
         let pointer = process.get_register(2);
 
@@ -292,9 +271,7 @@ mod tests {
         process.set_register(0, array);
         process.set_register(1, index);
 
-        let result = array_remove(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        array_remove(&machine, &process, &code, &instruction);
 
         let removed_pointer = process.get_register(2);
 
@@ -321,9 +298,7 @@ mod tests {
 
         process.set_register(0, array);
 
-        let result = array_length(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        array_length(&machine, &process, &code, &instruction);
 
         let pointer = process.get_register(1);
 
@@ -342,9 +317,7 @@ mod tests {
 
         process.set_register(0, array);
 
-        let result = array_clear(&machine, &process, &code, &instruction);
-
-        assert!(result.is_ok());
+        array_clear(&machine, &process, &code, &instruction);
 
         let object = array.get();
 

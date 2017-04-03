@@ -58,11 +58,8 @@ impl Binding {
     }
 
     /// Returns the value of a local variable.
-    pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
-        self.locals()
-            .get(index)
-            .cloned()
-            .ok_or_else(|| format!("Undefined local variable index {}", index))
+    pub fn get_local(&self, index: usize) -> ObjectPointer {
+        self.locals()[index]
     }
 
     /// Sets a local variable.
@@ -193,10 +190,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_get_local_invalid() {
         let binding = Binding::new();
 
-        assert!(binding.get_local(0).is_err());
+        binding.get_local(0);
     }
 
     #[test]
@@ -206,7 +204,7 @@ mod tests {
 
         binding.set_local(0, ptr);
 
-        assert!(binding.get_local(0).is_ok());
+        assert!(binding.get_local(0) == ptr);
     }
 
     #[test]
@@ -361,7 +359,6 @@ mod tests {
         assert!(bind_copy.parent.is_some());
 
         assert_eq!(bind_copy.get_local(0)
-                       .unwrap()
                        .float_value()
                        .unwrap(),
                    2.0);
@@ -372,7 +369,6 @@ mod tests {
         assert!(bind_copy_parent.parent.is_none());
 
         assert_eq!(bind_copy_parent.get_local(0)
-                       .unwrap()
                        .float_value()
                        .unwrap(),
                    5.0);

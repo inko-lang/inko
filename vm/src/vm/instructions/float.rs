@@ -1,7 +1,5 @@
 //! VM instruction handlers for float operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -19,14 +17,11 @@ use process::RcProcess;
 pub fn set_float(_: &Machine,
                  process: &RcProcess,
                  code: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let index = instruction.arg(1);
 
     process.set_register(register, code.float(index));
-
-    Ok(Action::None)
 }
 
 /// Adds two floats
@@ -40,9 +35,8 @@ pub fn set_float(_: &Machine,
 pub fn float_add(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
-    float_op!(machine, process, instruction, +)
+                 instruction: &Instruction) {
+    float_op!(machine, process, instruction, +);
 }
 
 /// Multiplies two floats
@@ -56,9 +50,8 @@ pub fn float_add(machine: &Machine,
 pub fn float_mul(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
-    float_op!(machine, process, instruction, *)
+                 instruction: &Instruction) {
+    float_op!(machine, process, instruction, *);
 }
 
 /// Divides two floats
@@ -72,9 +65,8 @@ pub fn float_mul(machine: &Machine,
 pub fn float_div(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
-    float_op!(machine, process, instruction, /)
+                 instruction: &Instruction) {
+    float_op!(machine, process, instruction, /);
 }
 
 /// Subtracts two floats
@@ -88,9 +80,8 @@ pub fn float_div(machine: &Machine,
 pub fn float_sub(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
-    float_op!(machine, process, instruction, -)
+                 instruction: &Instruction) {
+    float_op!(machine, process, instruction, -);
 }
 
 /// Gets the modulo of a float
@@ -104,9 +95,8 @@ pub fn float_sub(machine: &Machine,
 pub fn float_mod(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
-    float_op!(machine, process, instruction, %)
+                 instruction: &Instruction) {
+    float_op!(machine, process, instruction, %);
 }
 
 /// Converts a float to an integer
@@ -119,15 +109,12 @@ pub fn float_mod(machine: &Machine,
 pub fn float_to_integer(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let float_ptr = process.get_register(instruction.arg(1));
-    let result = float_ptr.float_value()? as i64;
+    let result = float_ptr.float_value().unwrap() as i64;
 
     process.set_register(register, ObjectPointer::integer(result));
-
-    Ok(Action::None)
 }
 
 /// Converts a float to a string
@@ -140,18 +127,16 @@ pub fn float_to_integer(_: &Machine,
 pub fn float_to_string(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let float_ptr = process.get_register(instruction.arg(1));
-    let result = float_ptr.float_value()?.to_string();
+    let result = float_ptr.float_value().unwrap().to_string();
 
-    let obj = process.allocate(object_value::string(result),
-                               machine.state.string_prototype.clone());
+    let obj =
+        process.allocate(object_value::string(result),
+                         machine.state.string_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Checks if one float is smaller than the other.
@@ -167,9 +152,8 @@ pub fn float_to_string(machine: &Machine,
 pub fn float_smaller(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
-    float_bool_op!(machine, process, instruction, <)
+                     instruction: &Instruction) {
+    float_bool_op!(machine, process, instruction, <);
 }
 
 /// Checks if one float is greater than the other.
@@ -185,9 +169,8 @@ pub fn float_smaller(machine: &Machine,
 pub fn float_greater(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
-    float_bool_op!(machine, process, instruction, >)
+                     instruction: &Instruction) {
+    float_bool_op!(machine, process, instruction, >);
 }
 
 /// Checks if two floats are equal.
@@ -203,9 +186,8 @@ pub fn float_greater(machine: &Machine,
 pub fn float_equals(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
-    float_bool_op!(machine, process, instruction, ==)
+                    instruction: &Instruction) {
+    float_bool_op!(machine, process, instruction, ==);
 }
 
 #[cfg(test)]

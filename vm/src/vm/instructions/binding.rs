@@ -1,7 +1,5 @@
 //! VM instruction handlers for binding operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -16,15 +14,12 @@ use process::RcProcess;
 pub fn get_binding(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let binding = process.binding();
 
     let obj = process.allocate(object_value::binding(binding),
-                               machine.state.binding_prototype.clone());
+                               machine.state.binding_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

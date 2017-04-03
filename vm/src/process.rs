@@ -168,7 +168,7 @@ impl Process {
         self.local_data_mut().context.set_local(index, value);
     }
 
-    pub fn get_local(&self, index: usize) -> Result<ObjectPointer, String> {
+    pub fn get_local(&self, index: usize) -> ObjectPointer {
         self.local_data().context.get_local(index)
     }
 

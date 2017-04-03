@@ -1,7 +1,5 @@
 //! VM instruction handlers for nil objects.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -15,11 +13,8 @@ use process::RcProcess;
 pub fn get_nil(machine: &Machine,
                process: &RcProcess,
                _: &RcCompiledCode,
-               instruction: &Instruction)
-               -> InstructionResult {
+               instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.nil_object.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.nil_object);
 }

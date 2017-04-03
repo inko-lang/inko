@@ -1,7 +1,5 @@
 //! VM instruction handlers for string operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -23,14 +21,11 @@ use process::RcProcess;
 pub fn set_string(_: &Machine,
                   process: &RcProcess,
                   code: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let index = instruction.arg(1);
 
     process.set_register(register, code.string(index));
-
-    Ok(Action::None)
 }
 
 /// Returns the lowercase equivalent of a string.
@@ -43,18 +38,16 @@ pub fn set_string(_: &Machine,
 pub fn string_to_lower(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
-    let lower = source_ptr.string_value()?.to_lowercase();
+    let lower = source_ptr.string_value().unwrap().to_lowercase();
 
-    let obj = process.allocate(object_value::string(lower),
-                               machine.state.string_prototype.clone());
+    let obj =
+        process.allocate(object_value::string(lower),
+                         machine.state.string_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Returns the uppercase equivalent of a string.
@@ -67,18 +60,16 @@ pub fn string_to_lower(machine: &Machine,
 pub fn string_to_upper(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
-    let upper = source_ptr.string_value()?.to_uppercase();
+    let upper = source_ptr.string_value().unwrap().to_uppercase();
 
-    let obj = process.allocate(object_value::string(upper),
-                               machine.state.string_prototype.clone());
+    let obj =
+        process.allocate(object_value::string(upper),
+                         machine.state.string_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Checks if two strings are equal.
@@ -92,21 +83,19 @@ pub fn string_to_upper(machine: &Machine,
 pub fn string_equals(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let receiver_ptr = process.get_register(instruction.arg(1));
     let arg_ptr = process.get_register(instruction.arg(2));
 
-    let boolean = if receiver_ptr.string_value()? == arg_ptr.string_value()? {
-        machine.state.true_object.clone()
+    let boolean = if receiver_ptr.string_value().unwrap() ==
+                     arg_ptr.string_value().unwrap() {
+        machine.state.true_object
     } else {
-        machine.state.false_object.clone()
+        machine.state.false_object
     };
 
     process.set_register(register, boolean);
-
-    Ok(Action::None)
 }
 
 /// Returns an array containing the bytes of a string.
@@ -119,12 +108,12 @@ pub fn string_equals(machine: &Machine,
 pub fn string_to_bytes(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let string_ptr = process.get_register(instruction.arg(1));
 
-    let array = string_ptr.string_value()?
+    let array = string_ptr.string_value()
+        .unwrap()
         .as_bytes()
         .iter()
         .map(|&b| ObjectPointer::integer(b as i64))
@@ -134,8 +123,6 @@ pub fn string_to_bytes(machine: &Machine,
                                machine.state.array_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Creates a string from an array of bytes
@@ -151,16 +138,15 @@ pub fn string_to_bytes(machine: &Machine,
 pub fn string_from_bytes(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,
-                         instruction: &Instruction)
-                         -> InstructionResult {
+                         instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
 
-    let array = arg_ptr.array_value()?;
+    let array = arg_ptr.array_value().unwrap();
     let mut bytes = Vec::with_capacity(array.len());
 
     for ptr in array.iter() {
-        let integer = ptr.integer_value()?;
+        let integer = ptr.integer_value().unwrap();
 
         bytes.push(integer as u8);
     }
@@ -178,8 +164,6 @@ pub fn string_from_bytes(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Returns the amount of characters in a string.
@@ -192,16 +176,13 @@ pub fn string_from_bytes(machine: &Machine,
 pub fn string_length(_: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
 
-    let length = arg_ptr.string_value()?.chars().count() as i64;
+    let length = arg_ptr.string_value().unwrap().chars().count() as i64;
 
     process.set_register(register, ObjectPointer::integer(length));
-
-    Ok(Action::None)
 }
 
 /// Returns the amount of bytes in a string.
@@ -214,14 +195,11 @@ pub fn string_length(_: &Machine,
 pub fn string_size(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let arg_ptr = process.get_register(instruction.arg(1));
 
-    let size = arg_ptr.string_value()?.len() as i64;
+    let size = arg_ptr.string_value().unwrap().len() as i64;
 
     process.set_register(register, ObjectPointer::integer(size));
-
-    Ok(Action::None)
 }

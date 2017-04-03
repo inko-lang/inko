@@ -9,7 +9,7 @@ macro_rules! num_bool_op {
         let register = $ins.arg(0);
         let receiver_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
-        let result = to_expr!(receiver_ptr.$as_name()? $op arg_ptr.$as_name()?);
+        let result = to_expr!(receiver_ptr.$as_name().unwrap() $op arg_ptr.$as_name().unwrap());
 
         let boolean = if result {
             $vm.state.true_object.clone()
@@ -19,8 +19,6 @@ macro_rules! num_bool_op {
         };
 
         $process.set_register(register, boolean);
-
-        Ok(Action::None)
     });
 }
 
@@ -29,11 +27,9 @@ macro_rules! integer_op {
         let register = $ins.arg(0);
         let receiver_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
-        let result = to_expr!(receiver_ptr.integer_value()? $op arg_ptr.integer_value()?);
+        let result = to_expr!(receiver_ptr.integer_value().unwrap() $op arg_ptr.integer_value().unwrap());
 
         $process.set_register(register, ObjectPointer::integer(result));
-
-        Ok(Action::None)
     });
 }
 
@@ -48,14 +44,12 @@ macro_rules! float_op {
         let register = $ins.arg(0);
         let receiver_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
-        let result = to_expr!(receiver_ptr.float_value()? $op arg_ptr.float_value()?);
+        let result = to_expr!(receiver_ptr.float_value().unwrap() $op arg_ptr.float_value().unwrap());
 
         let obj = $process
             .allocate(object_value::float(result), $vm.state.float_prototype);
 
         $process.set_register(register, obj);
-
-        Ok(Action::None)
     });
 }
 

@@ -1,7 +1,5 @@
 //! VM instruction handlers for Block operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use block::Block;
@@ -20,8 +18,7 @@ use process::RcProcess;
 pub fn set_block(machine: &Machine,
                  process: &RcProcess,
                  code: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let cc_index = instruction.arg(1);
 
@@ -33,6 +30,4 @@ pub fn set_block(machine: &Machine,
                                machine.state.block_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

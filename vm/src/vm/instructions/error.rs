@@ -1,7 +1,5 @@
 //! VM instruction handlers for error operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -18,22 +16,17 @@ use process::RcProcess;
 pub fn is_error(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+                instruction: &Instruction) {
     let register = instruction.arg(0);
-    let obj_ptr = process.get_register(instruction.arg(1));
+    let ptr = process.get_register(instruction.arg(1));
 
-    let obj = obj_ptr.get();
-
-    let result = if obj.value.is_error() {
+    let result = if ptr.error_value().is_ok() {
         machine.state.true_object.clone()
     } else {
         machine.state.false_object.clone()
     };
 
     process.set_register(register, result);
-
-    Ok(Action::None)
 }
 
 /// Converts an error object to an integer.
@@ -46,15 +39,12 @@ pub fn is_error(machine: &Machine,
 pub fn error_to_integer(_: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let error_ptr = process.get_register(instruction.arg(1));
 
-    let integer = error_ptr.error_value()? as i64;
+    let integer = error_ptr.error_value().unwrap() as i64;
     let result = ObjectPointer::integer(integer);
 
     process.set_register(register, result);
-
-    Ok(Action::None)
 }

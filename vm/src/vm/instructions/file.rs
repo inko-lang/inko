@@ -2,9 +2,7 @@
 use std::io::{Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -53,15 +51,13 @@ const NEWLINE_BYTE: u8 = 0xA;
 pub fn file_open(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let path_ptr = process.get_register(instruction.arg(1));
     let mode_ptr = process.get_register(instruction.arg(2));
 
-    let path = path_ptr.string_value()?;
-    let mode = mode_ptr.integer_value()?;
-
+    let path = path_ptr.string_value().unwrap();
+    let mode = mode_ptr.integer_value().unwrap();
     let mut open_opts = OpenOptions::new();
 
     match mode {
@@ -89,8 +85,6 @@ pub fn file_open(_: &Machine,
     };
 
     process.set_register(register, object);
-
-    Ok(Action::None)
 }
 
 /// Writes a string to a file.
@@ -107,14 +101,13 @@ pub fn file_open(_: &Machine,
 pub fn file_write(_: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let string_ptr = process.get_register(instruction.arg(2));
 
-    let mut file = file_ptr.file_value_mut()?;
-    let bytes = string_ptr.string_value()?.as_bytes();
+    let mut file = file_ptr.file_value_mut().unwrap();
+    let bytes = string_ptr.string_value().unwrap().as_bytes();
 
     let obj = match file.write(bytes) {
         Ok(num_bytes) => ObjectPointer::integer(num_bytes as i64),
@@ -122,8 +115,6 @@ pub fn file_write(_: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Reads the all data from a file.
@@ -139,12 +130,11 @@ pub fn file_write(_: &Machine,
 pub fn file_read(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
 
-    let mut file = file_ptr.file_value_mut()?;
+    let mut file = file_ptr.file_value_mut().unwrap();
     let mut buffer = String::new();
 
     let obj = match file.read_to_string(&mut buffer) {
@@ -156,8 +146,6 @@ pub fn file_read(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Reads a given number of bytes from a file.
@@ -175,14 +163,13 @@ pub fn file_read(machine: &Machine,
 pub fn file_read_exact(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let size_ptr = process.get_register(instruction.arg(2));
 
-    let mut file = file_ptr.file_value_mut()?;
-    let size = size_ptr.integer_value()? as usize;
+    let mut file = file_ptr.file_value_mut().unwrap();
+    let size = size_ptr.integer_value().unwrap() as usize;
     let mut buffer = String::with_capacity(size);
 
     let obj = match file.take(size as u64).read_to_string(&mut buffer) {
@@ -194,8 +181,6 @@ pub fn file_read_exact(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Reads an entire line from a file.
@@ -211,12 +196,11 @@ pub fn file_read_exact(machine: &Machine,
 pub fn file_read_line(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,
-                      instruction: &Instruction)
-                      -> InstructionResult {
+                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
 
-    let mut file = file_ptr.file_value_mut()?;
+    let mut file = file_ptr.file_value_mut().unwrap();
     let mut buffer = Vec::new();
 
     for result in file.bytes() {
@@ -231,7 +215,7 @@ pub fn file_read_line(machine: &Machine,
             Err(error) => {
                 process.set_register(register, io_error_code!(process, error));
 
-                return Ok(Action::None);
+                return;
             }
         }
     }
@@ -249,8 +233,6 @@ pub fn file_read_line(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Flushes a file.
@@ -266,12 +248,11 @@ pub fn file_read_line(machine: &Machine,
 pub fn file_flush(_: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
 
-    let mut file = file_ptr.file_value_mut()?;
+    let mut file = file_ptr.file_value_mut().unwrap();
 
     let obj = match file.flush() {
         Ok(_) => file_ptr,
@@ -279,8 +260,6 @@ pub fn file_flush(_: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Returns the size of a file in bytes.
@@ -296,11 +275,10 @@ pub fn file_flush(_: &Machine,
 pub fn file_size(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
-    let file = file_ptr.file_value()?;
+    let file = file_ptr.file_value().unwrap();
 
     let obj = match file.metadata() {
         Ok(meta) => ObjectPointer::integer(meta.len() as i64),
@@ -308,8 +286,6 @@ pub fn file_size(_: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Sets a file cursor to the given offset in bytes.
@@ -326,14 +302,13 @@ pub fn file_size(_: &Machine,
 pub fn file_seek(_: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let file_ptr = process.get_register(instruction.arg(1));
     let offset_ptr = process.get_register(instruction.arg(2));
 
-    let mut file = file_ptr.file_value_mut()?;
-    let offset = offset_ptr.integer_value()?;
+    let mut file = file_ptr.file_value_mut().unwrap();
+    let offset = offset_ptr.integer_value().unwrap();
 
     let obj = match file.seek(SeekFrom::Start(offset as u64)) {
         Ok(new_offset) => ObjectPointer::integer(new_offset as i64),
@@ -341,6 +316,4 @@ pub fn file_seek(_: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

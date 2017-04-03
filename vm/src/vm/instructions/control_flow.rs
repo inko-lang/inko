@@ -1,7 +1,5 @@
 //! VM instruction handlers for flow control related operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -19,17 +17,15 @@ pub fn goto_if_false(machine: &Machine,
                      _: &RcCompiledCode,
                      instruction: &Instruction,
                      index: usize)
-                     -> Result<usize, String> {
+                     -> usize {
     let go_to = instruction.arg(0);
     let value_reg = instruction.arg(1);
 
-    let result = if is_false!(machine, process.get_register(value_reg)) {
+    if is_false!(machine, process.get_register(value_reg)) {
         go_to
     } else {
         index
-    };
-
-    Ok(result)
+    }
 }
 
 /// Jumps to an instruction if a register is set.
@@ -44,17 +40,15 @@ pub fn goto_if_true(machine: &Machine,
                     _: &RcCompiledCode,
                     instruction: &Instruction,
                     index: usize)
-                    -> Result<usize, String> {
+                    -> usize {
     let go_to = instruction.arg(0);
     let value_reg = instruction.arg(1);
 
-    let result = if is_false!(machine, process.get_register(value_reg)) {
+    if is_false!(machine, process.get_register(value_reg)) {
         index
     } else {
         go_to
-    };
-
-    Ok(result)
+    }
 }
 
 /// Jumps to a specific instruction.
@@ -65,10 +59,8 @@ pub fn goto(_: &Machine,
             _: &RcProcess,
             _: &RcCompiledCode,
             instruction: &Instruction)
-            -> Result<usize, String> {
-    let go_to = instruction.arg(0);
-
-    Ok(go_to)
+            -> usize {
+    instruction.arg(0)
 }
 
 /// Returns the value in the given register.
@@ -79,8 +71,7 @@ pub fn goto(_: &Machine,
 pub fn return_value(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let object = process.get_register(instruction.arg(0));
     let current_context = process.context_mut();
 
@@ -89,6 +80,4 @@ pub fn return_value(_: &Machine,
             parent_context.set_register(register, object);
         }
     }
-
-    Ok(Action::Return)
 }

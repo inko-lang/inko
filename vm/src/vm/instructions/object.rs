@@ -1,9 +1,7 @@
 //! VM instruction handlers for regular object operations.
 use immix::copy_object::CopyObject;
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -22,8 +20,7 @@ use process::RcProcess;
 pub fn set_object(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let is_permanent_ptr = process.get_register(instruction.arg(1));
     let is_permanent = is_permanent_ptr != machine.state.false_object;
@@ -48,8 +45,6 @@ pub fn set_object(machine: &Machine,
     }
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Sets an attribute of an object.
@@ -64,25 +59,22 @@ pub fn set_object(machine: &Machine,
 pub fn set_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+                instruction: &Instruction) {
     let target_ptr = process.get_register(instruction.arg(0));
     let name_ptr = process.get_register(instruction.arg(1));
     let value_ptr = process.get_register(instruction.arg(2));
 
     if target_ptr.is_tagged_integer() {
-        return Err("attributes can not be set for integers".to_string());
+        panic!("attributes can not be set for integers");
     }
 
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let value = copy_if_permanent!(machine.state.permanent_allocator,
                                    value_ptr,
                                    target_ptr);
 
     target_ptr.add_attribute(&process, name.clone(), value);
-
-    Ok(Action::None)
 }
 
 /// Gets an attribute from an object and stores it in a register.
@@ -93,26 +85,22 @@ pub fn set_attr(machine: &Machine,
 /// 2. The register containing the object from which to retrieve the
 ///    attribute.
 /// 3. The register containing the attribute name as a string.
+///
+/// If the attribute does not exist the target register is set to nil.
 #[inline(always)]
 pub fn get_attr(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+                instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let attr = source.lookup_attribute(&name)
-        .ok_or_else(|| {
-            attribute_error!(instruction.arguments[1],
-                             name.string_value().unwrap())
-        })?;
+        .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, attr);
-
-    Ok(Action::None)
 }
 
 /// Checks if an attribute exists in an object.
@@ -126,13 +114,12 @@ pub fn get_attr(machine: &Machine,
 pub fn attr_exists(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let source_ptr = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
 
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let obj = if source_ptr.lookup_attribute(&name).is_some() {
         machine.state.true_object.clone()
@@ -141,8 +128,6 @@ pub fn attr_exists(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Checks if two objects are equal.
@@ -161,8 +146,7 @@ pub fn attr_exists(machine: &Machine,
 pub fn object_equals(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let compare = process.get_register(instruction.arg(1));
     let compare_with = process.get_register(instruction.arg(2));
@@ -174,8 +158,6 @@ pub fn object_equals(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Sets the top-level object in a register.
@@ -186,13 +168,10 @@ pub fn object_equals(machine: &Machine,
 pub fn get_toplevel(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.top_level.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.top_level);
 }
 
 /// Removes a attribute from an object.
@@ -208,15 +187,14 @@ pub fn get_toplevel(machine: &Machine,
 pub fn remove_attribute(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     if rec_ptr.is_tagged_integer() {
-        return Err("attributes can not be removed for integers".to_string());
+        panic!("attributes can not be removed for integers");
     }
 
     let obj = if let Some(attribute) = rec_ptr.get_mut()
@@ -227,8 +205,6 @@ pub fn remove_attribute(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Gets all the attributes available on an object.
@@ -241,8 +217,7 @@ pub fn remove_attribute(machine: &Machine,
 pub fn get_attributes(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,
-                      instruction: &Instruction)
-                      -> InstructionResult {
+                      instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let attributes = rec_ptr.attributes();
@@ -251,8 +226,6 @@ pub fn get_attributes(machine: &Machine,
                                machine.state.array_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Gets all the attributes names available on an object.
@@ -265,8 +238,7 @@ pub fn get_attributes(machine: &Machine,
 pub fn get_attribute_names(machine: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
+                           instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let attributes = rec_ptr.attribute_names();
@@ -275,6 +247,4 @@ pub fn get_attribute_names(machine: &Machine,
                                machine.state.array_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

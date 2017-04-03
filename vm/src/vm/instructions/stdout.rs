@@ -1,9 +1,7 @@
 //! VM instruction handlers for writing to STDOUT.
 use std::io::{self, Write};
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -23,11 +21,10 @@ use process::RcProcess;
 pub fn stdout_write(_: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let string_ptr = process.get_register(instruction.arg(1));
-    let string = string_ptr.string_value()?;
+    let string = string_ptr.string_value().unwrap();
     let mut stdout = io::stdout();
 
     let obj = match stdout.write(string.as_bytes()) {
@@ -41,6 +38,4 @@ pub fn stdout_write(_: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

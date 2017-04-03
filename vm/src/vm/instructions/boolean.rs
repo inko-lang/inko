@@ -1,7 +1,5 @@
 //! VM instruction handlers for boolean operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -15,13 +13,10 @@ use process::RcProcess;
 pub fn get_true(machine: &Machine,
                 process: &RcProcess,
                 _: &RcCompiledCode,
-                instruction: &Instruction)
-                -> InstructionResult {
+                instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.true_object.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.true_object);
 }
 
 /// Sets a "false" value in a register.
@@ -32,11 +27,8 @@ pub fn get_true(machine: &Machine,
 pub fn get_false(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
 
-    process.set_register(register, machine.state.false_object.clone());
-
-    Ok(Action::None)
+    process.set_register(register, machine.state.false_object);
 }

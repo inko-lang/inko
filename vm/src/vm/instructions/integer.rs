@@ -1,7 +1,5 @@
 //! VM instruction handlers for integer operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -19,14 +17,11 @@ use process::RcProcess;
 pub fn set_integer(_: &Machine,
                    process: &RcProcess,
                    code: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let index = instruction.arg(1);
 
     process.set_register(register, code.integer(index));
-
-    Ok(Action::None)
 }
 
 /// Adds two integers
@@ -40,9 +35,8 @@ pub fn set_integer(_: &Machine,
 pub fn integer_add(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
-    integer_op!(process, instruction, +)
+                   instruction: &Instruction) {
+    integer_op!(process, instruction, +);
 }
 
 /// Divides an integer
@@ -56,9 +50,8 @@ pub fn integer_add(_: &Machine,
 pub fn integer_div(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
-    integer_op!(process, instruction, /)
+                   instruction: &Instruction) {
+    integer_op!(process, instruction, /);
 }
 
 /// Multiplies an integer
@@ -72,9 +65,8 @@ pub fn integer_div(_: &Machine,
 pub fn integer_mul(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
-    integer_op!(process, instruction, *)
+                   instruction: &Instruction) {
+    integer_op!(process, instruction, *);
 }
 
 /// Subtracts an integer
@@ -88,9 +80,8 @@ pub fn integer_mul(_: &Machine,
 pub fn integer_sub(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
-    integer_op!(process, instruction, -)
+                   instruction: &Instruction) {
+    integer_op!(process, instruction, -);
 }
 
 /// Gets the modulo of an integer
@@ -104,9 +95,8 @@ pub fn integer_sub(_: &Machine,
 pub fn integer_mod(_: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
-    integer_op!(process, instruction, %)
+                   instruction: &Instruction) {
+    integer_op!(process, instruction, %);
 }
 
 /// Converts an integer to a float
@@ -119,18 +109,15 @@ pub fn integer_mod(_: &Machine,
 pub fn integer_to_float(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let integer_ptr = process.get_register(instruction.arg(1));
-    let result = integer_ptr.integer_value()? as f64;
+    let result = integer_ptr.integer_value().unwrap() as f64;
 
     let obj = process.allocate(object_value::float(result),
-                               machine.state.float_prototype.clone());
+                               machine.state.float_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Converts an integer to a string
@@ -143,18 +130,16 @@ pub fn integer_to_float(machine: &Machine,
 pub fn integer_to_string(machine: &Machine,
                          process: &RcProcess,
                          _: &RcCompiledCode,
-                         instruction: &Instruction)
-                         -> InstructionResult {
+                         instruction: &Instruction) {
     let register = instruction.arg(0);
     let integer_ptr = process.get_register(instruction.arg(1));
-    let result = integer_ptr.integer_value()?.to_string();
+    let result = integer_ptr.integer_value().unwrap().to_string();
 
-    let obj = process.allocate(object_value::string(result),
-                               machine.state.string_prototype.clone());
+    let obj =
+        process.allocate(object_value::string(result),
+                         machine.state.string_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Performs an integer bitwise AND.
@@ -168,9 +153,8 @@ pub fn integer_to_string(machine: &Machine,
 pub fn integer_bitwise_and(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
-    integer_op!(process, instruction, &)
+                           instruction: &Instruction) {
+    integer_op!(process, instruction, &);
 }
 
 /// Performs an integer bitwise OR.
@@ -184,9 +168,8 @@ pub fn integer_bitwise_and(_: &Machine,
 pub fn integer_bitwise_or(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
-                          instruction: &Instruction)
-                          -> InstructionResult {
-    integer_op!(process, instruction, |)
+                          instruction: &Instruction) {
+    integer_op!(process, instruction, |);
 }
 
 /// Performs an integer bitwise XOR.
@@ -200,9 +183,8 @@ pub fn integer_bitwise_or(_: &Machine,
 pub fn integer_bitwise_xor(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
-    integer_op!(process, instruction, ^)
+                           instruction: &Instruction) {
+    integer_op!(process, instruction, ^);
 }
 
 /// Shifts an integer to the left.
@@ -216,9 +198,8 @@ pub fn integer_bitwise_xor(_: &Machine,
 pub fn integer_shift_left(_: &Machine,
                           process: &RcProcess,
                           _: &RcCompiledCode,
-                          instruction: &Instruction)
-                          -> InstructionResult {
-    integer_op!(process, instruction, <<)
+                          instruction: &Instruction) {
+    integer_op!(process, instruction, <<);
 }
 
 /// Shifts an integer to the right.
@@ -232,9 +213,8 @@ pub fn integer_shift_left(_: &Machine,
 pub fn integer_shift_right(_: &Machine,
                            process: &RcProcess,
                            _: &RcCompiledCode,
-                           instruction: &Instruction)
-                           -> InstructionResult {
-    integer_op!(process, instruction, >>)
+                           instruction: &Instruction) {
+    integer_op!(process, instruction, >>);
 }
 
 /// Checks if one integer is smaller than the other.
@@ -250,9 +230,8 @@ pub fn integer_shift_right(_: &Machine,
 pub fn integer_smaller(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
-    integer_bool_op!(machine, process, instruction, <)
+                       instruction: &Instruction) {
+    integer_bool_op!(machine, process, instruction, <);
 }
 
 /// Checks if one integer is greater than the other.
@@ -268,9 +247,8 @@ pub fn integer_smaller(machine: &Machine,
 pub fn integer_greater(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
-    integer_bool_op!(machine, process, instruction, >)
+                       instruction: &Instruction) {
+    integer_bool_op!(machine, process, instruction, >);
 }
 
 /// Checks if two integers are equal.
@@ -286,9 +264,8 @@ pub fn integer_greater(machine: &Machine,
 pub fn integer_equals(machine: &Machine,
                       process: &RcProcess,
                       _: &RcCompiledCode,
-                      instruction: &Instruction)
-                      -> InstructionResult {
-    integer_bool_op!(machine, process, instruction, ==)
+                      instruction: &Instruction) {
+    integer_bool_op!(machine, process, instruction, ==);
 }
 
 #[cfg(test)]

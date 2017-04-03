@@ -1,7 +1,5 @@
 //! VM instruction handlers for method operations.
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -22,19 +20,16 @@ use process::RcProcess;
 pub fn lookup_method(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let method = rec_ptr.lookup_method(&machine.state, &name)
         .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, method);
-
-    Ok(Action::None)
 }
 
 /// Defines a method for an object.
@@ -50,26 +45,23 @@ pub fn lookup_method(machine: &Machine,
 pub fn def_method(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let receiver_ptr = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
     let block_ptr = process.get_register(instruction.arg(3));
 
     if receiver_ptr.is_tagged_integer() {
-        return Err("methods can not be defined on integers".to_string());
+        panic!("methods can not be defined on integers");
     }
 
-    let name = machine.state.intern_pointer(&name_ptr)?;
-    let block = block_ptr.block_value()?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
+    let block = block_ptr.block_value().unwrap();
     let method = machine.allocate_method(&process, &receiver_ptr, block);
 
     receiver_ptr.add_method(&process, name.clone(), method);
 
     process.set_register(register, method);
-
-    Ok(Action::None)
 }
 
 /// Checks if an object responds to a message.
@@ -83,13 +75,12 @@ pub fn def_method(machine: &Machine,
 pub fn responds_to(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
 
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let result = if source.lookup_method(&machine.state, &name).is_some() {
         machine.state.true_object.clone()
@@ -98,8 +89,6 @@ pub fn responds_to(machine: &Machine,
     };
 
     process.set_register(register, result);
-
-    Ok(Action::None)
 }
 
 /// Removes a method from an object.
@@ -115,15 +104,14 @@ pub fn responds_to(machine: &Machine,
 pub fn remove_method(machine: &Machine,
                      process: &RcProcess,
                      _: &RcCompiledCode,
-                     instruction: &Instruction)
-                     -> InstructionResult {
+                     instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     if rec_ptr.is_tagged_integer() {
-        return Err("methods can not be removed from integers".to_string());
+        panic!("methods can not be removed from integers");
     }
 
     let obj = if let Some(method) = rec_ptr.get_mut().remove_method(&name) {
@@ -133,8 +121,6 @@ pub fn remove_method(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Gets all the methods available on an object.
@@ -147,8 +133,7 @@ pub fn remove_method(machine: &Machine,
 pub fn get_methods(machine: &Machine,
                    process: &RcProcess,
                    _: &RcCompiledCode,
-                   instruction: &Instruction)
-                   -> InstructionResult {
+                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let methods = rec_ptr.methods();
@@ -158,8 +143,6 @@ pub fn get_methods(machine: &Machine,
                          machine.state.array_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Gets all the method names available on an object.
@@ -172,8 +155,7 @@ pub fn get_methods(machine: &Machine,
 pub fn get_method_names(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let rec_ptr = process.get_register(instruction.arg(1));
     let methods = rec_ptr.method_names();
@@ -183,6 +165,4 @@ pub fn get_method_names(machine: &Machine,
                          machine.state.array_prototype);
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }

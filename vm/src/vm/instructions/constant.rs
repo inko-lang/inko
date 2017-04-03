@@ -1,9 +1,7 @@
 //! VM instruction handlers for constant operations.
 use immix::copy_object::CopyObject;
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -20,15 +18,14 @@ use process::RcProcess;
 pub fn set_const(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let target_ptr = process.get_register(instruction.arg(0));
     let name_ptr = process.get_register(instruction.arg(1));
     let source_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     if source_ptr.is_tagged_integer() {
-        return Err("constants can not be added to integers".to_string());
+        panic!("constants can not be added to integers");
     }
 
     let source = copy_if_permanent!(machine.state.permanent_allocator,
@@ -36,8 +33,6 @@ pub fn set_const(machine: &Machine,
                                     target_ptr);
 
     target_ptr.add_constant(&process, name, source);
-
-    Ok(Action::None)
 }
 
 /// Looks up a constant and stores it in a register.
@@ -48,26 +43,22 @@ pub fn set_const(machine: &Machine,
 /// 2. The register pointing to an object in which to look for the
 ///    constant.
 /// 3. The register containing the name of the constant as a string.
+///
+/// If the constant does not exist the target register is set to nil instead.
 #[inline(always)]
 pub fn get_const(machine: &Machine,
                  process: &RcProcess,
                  _: &RcCompiledCode,
-                 instruction: &Instruction)
-                 -> InstructionResult {
+                 instruction: &Instruction) {
     let register = instruction.arg(0);
     let src = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     let object = src.lookup_constant(&machine.state, &name)
-        .ok_or_else(|| {
-            constant_error!(instruction.arguments[1],
-                            name.string_value().unwrap())
-        })?;
+        .unwrap_or_else(|| machine.state.nil_object);
 
     process.set_register(register, object);
-
-    Ok(Action::None)
 }
 
 /// Returns true if a constant exists, false otherwise.
@@ -81,18 +72,15 @@ pub fn get_const(machine: &Machine,
 pub fn const_exists(machine: &Machine,
                     process: &RcProcess,
                     _: &RcCompiledCode,
-                    instruction: &Instruction)
-                    -> InstructionResult {
+                    instruction: &Instruction) {
     let register = instruction.arg(0);
     let source = process.get_register(instruction.arg(1));
     let name_ptr = process.get_register(instruction.arg(2));
-    let name = machine.state.intern_pointer(&name_ptr)?;
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
 
     if source.lookup_constant(&machine.state, &name).is_some() {
-        process.set_register(register, machine.state.true_object.clone());
+        process.set_register(register, machine.state.true_object);
     } else {
-        process.set_register(register, machine.state.false_object.clone());
+        process.set_register(register, machine.state.false_object);
     }
-
-    Ok(Action::None)
 }

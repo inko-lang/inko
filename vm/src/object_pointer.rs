@@ -384,6 +384,14 @@ impl ObjectPointer {
         }
     }
 
+    pub fn prototype(&self, state: &RcState) -> Option<ObjectPointer> {
+        if self.is_tagged_integer() {
+            Some(state.integer_prototype)
+        } else {
+            self.get().prototype()
+        }
+    }
+
     /// Returns a pointer to this pointer.
     pub fn pointer(&self) -> ObjectPointerPointer {
         ObjectPointerPointer::new(self)

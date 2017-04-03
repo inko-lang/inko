@@ -1,9 +1,7 @@
 //! VM instruction handlers for reading from STDIN.
 use std::io::{self, Read};
 
-use vm::action::Action;
 use vm::instruction::Instruction;
-use vm::instructions::result::InstructionResult;
 use vm::machine::Machine;
 
 use compiled_code::RcCompiledCode;
@@ -22,8 +20,7 @@ use process::RcProcess;
 pub fn stdin_read(machine: &Machine,
                   process: &RcProcess,
                   _: &RcCompiledCode,
-                  instruction: &Instruction)
-                  -> InstructionResult {
+                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let mut buffer = String::new();
 
@@ -36,8 +33,6 @@ pub fn stdin_read(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Reads a given number of bytes from STDIN.
@@ -54,12 +49,11 @@ pub fn stdin_read(machine: &Machine,
 pub fn stdin_read_exact(machine: &Machine,
                         process: &RcProcess,
                         _: &RcCompiledCode,
-                        instruction: &Instruction)
-                        -> InstructionResult {
+                        instruction: &Instruction) {
     let register = instruction.arg(0);
     let size_ptr = process.get_register(instruction.arg(1));
 
-    let size = size_ptr.integer_value()? as usize;
+    let size = size_ptr.integer_value().unwrap() as usize;
     let mut buffer = String::with_capacity(size);
     let stdin = io::stdin();
 
@@ -72,8 +66,6 @@ pub fn stdin_read_exact(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
 
 /// Reads an entire line from STDIN into a string.
@@ -87,8 +79,7 @@ pub fn stdin_read_exact(machine: &Machine,
 pub fn stdin_read_line(machine: &Machine,
                        process: &RcProcess,
                        _: &RcCompiledCode,
-                       instruction: &Instruction)
-                       -> InstructionResult {
+                       instruction: &Instruction) {
     let register = instruction.arg(0);
     let mut buffer = String::new();
 
@@ -101,6 +92,4 @@ pub fn stdin_read_line(machine: &Machine,
     };
 
     process.set_register(register, obj);
-
-    Ok(Action::None)
 }
