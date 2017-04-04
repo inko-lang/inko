@@ -117,6 +117,12 @@ impl CompiledCode {
     pub fn code_object(&self, index: usize) -> &RcCompiledCode {
         &self.code_objects[index]
     }
+
+    /// Returns the instruction at the given index, without checking for bounds.
+    #[inline(always)]
+    pub fn instruction(&self, index: usize) -> &Instruction {
+        unsafe { &self.instructions.get_unchecked(index) }
+    }
 }
 
 #[cfg(test)]

@@ -249,10 +249,6 @@ impl Process {
         self.context().code.clone()
     }
 
-    pub fn instruction_index(&self) -> usize {
-        self.context().instruction_index
-    }
-
     pub fn available_for_execution(&self) -> bool {
         match *lock!(self.status) {
             ProcessStatus::Scheduled => true,

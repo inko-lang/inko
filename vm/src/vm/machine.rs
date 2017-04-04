@@ -168,7 +168,6 @@ impl Machine {
 
         'exec_loop: loop {
             let code = process.compiled_code();
-            let mut index = process.instruction_index();
             let count = code.instructions.len();
 
             // We're storing a &mut ExecutionContext here instead of using &mut
@@ -176,9 +175,10 @@ impl Machine {
             // returned by context()/context_mut()) will become invalid once an
             // instruction changes the current execution context.
             let mut context = &mut **process.context_mut();
+            let mut index = context.instruction_index;
 
             while index < count {
-                let ref instruction = code.instructions[index];
+                let instruction = code.instruction(index);
 
                 index += 1;
 
@@ -561,11 +561,7 @@ impl Machine {
             } // while
 
             // Make sure that we update the stored instruction index in case we
-            // need to suspend for garbage collection.
-            //
-            // This is important as the collector may reschedule an already
-            // finished process. In that case we don't want to re-run any
-            // previously executed instructions.
+            // need to suspend the process and resume it later.
             context.instruction_index = index;
 
             // Once we're at the top-level _and_ we have no more instructions to
