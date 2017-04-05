@@ -218,6 +218,7 @@ pub fn binding(value: RcBinding) -> ObjectValue {
 mod tests {
     use super::*;
     use std::fs::File;
+    use deref_pointer::DerefPointer;
     use block::Block;
     use binding::Binding;
     use compiled_code::CompiledCode;
@@ -283,14 +284,16 @@ mod tests {
 
     #[test]
     fn test_is_block() {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.inko".to_string(),
-                                         1,
-                                         Vec::new());
+        let code = CompiledCode::new("a".to_string(),
+                                     "a.inko".to_string(),
+                                     1,
+                                     Vec::new());
 
         let binding = Binding::new();
         let scope = GlobalScope::new();
-        let block = Block::new(code, binding, GlobalScopeReference::new(&scope));
+        let block = Block::new(DerefPointer::new(&code),
+                               binding,
+                               GlobalScopeReference::new(&scope));
 
         assert!(ObjectValue::Block(Box::new(block)).is_block());
         assert_eq!(ObjectValue::None.is_block(), false);
@@ -412,13 +415,16 @@ mod tests {
 
     #[test]
     fn test_as_block_with_block() {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.inko".to_string(),
-                                         1,
-                                         Vec::new());
+        let code = CompiledCode::new("a".to_string(),
+                                     "a.inko".to_string(),
+                                     1,
+                                     Vec::new());
         let binding = Binding::new();
         let scope = GlobalScope::new();
-        let block = Block::new(code, binding, GlobalScopeReference::new(&scope));
+        let block = Block::new(DerefPointer::new(&code),
+                               binding,
+                               GlobalScopeReference::new(&scope));
+
         let value = ObjectValue::Block(Box::new(block));
         let result = value.as_block();
 
@@ -488,14 +494,17 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.inko".to_string(),
-                                         1,
-                                         Vec::new());
+        let code = CompiledCode::new("a".to_string(),
+                                     "a.inko".to_string(),
+                                     1,
+                                     Vec::new());
 
         let binding = Binding::new();
         let scope = GlobalScope::new();
-        let blk = Block::new(code, binding, GlobalScopeReference::new(&scope));
+
+        let blk = Block::new(DerefPointer::new(&code),
+                             binding,
+                             GlobalScopeReference::new(&scope));
 
         assert!(block(blk).is_block());
     }

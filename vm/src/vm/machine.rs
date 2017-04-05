@@ -130,7 +130,7 @@ impl Machine {
                 .map_err(|err| err.message())
                 .unwrap();
 
-            let block = Block::new(module.code.clone(),
+            let block = Block::new(module.code(),
                                    Binding::new(),
                                    module.global_scope_ref());
 

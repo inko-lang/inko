@@ -134,7 +134,7 @@ pub fn parse_file(machine: &Machine,
             .map_err(|err| err.message())
             .unwrap();
 
-        Block::new(module.code.clone(),
+        Block::new(module.code(),
                    Binding::with_capacity(module.code.locals as usize),
                    module.global_scope_ref())
     };
@@ -218,11 +218,10 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_with_not_enough_arguments() {
-            let (machine, block, process) = setup();
-            let code = block.code.clone();
+            let (machine, mut block, process) = setup();
 
-            arc_mut(&code).arguments = 2;
-            arc_mut(&code).required_arguments = 2;
+            block.code.arguments = 2;
+            block.code.required_arguments = 2;
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -238,9 +237,9 @@ mod tests {
 
         #[test]
         fn test_with_enough_arguments() {
-            let (machine, block, process) = setup();
+            let (machine, mut block, process) = setup();
 
-            arc_mut(&block.code).arguments = 2;
+            block.code.arguments = 2;
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));

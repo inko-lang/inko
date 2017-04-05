@@ -21,6 +21,7 @@ pub mod bytecode_parser;
 pub mod compiled_code;
 pub mod config;
 pub mod errors;
+pub mod deref_pointer;
 pub mod execution_context;
 pub mod gc;
 pub mod global_scope;

@@ -5,7 +5,7 @@
 
 use binding::{Binding, RcBinding};
 use block::Block;
-use compiled_code::RcCompiledCode;
+use compiled_code::CompiledCodePointer;
 use global_scope::GlobalScopeReference;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use register::Register;
@@ -18,7 +18,7 @@ pub struct ExecutionContext {
     pub binding: RcBinding,
 
     /// The CompiledCodea object associated with this context.
-    pub code: RcCompiledCode,
+    pub code: CompiledCodePointer,
 
     /// The parent execution context.
     pub parent: Option<Box<ExecutionContext>>,
@@ -169,29 +169,13 @@ impl<'a> Iterator for ExecutionContextIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
-    use block::Block;
-    use compiled_code::CompiledCode;
-    use global_scope::{GlobalScope, GlobalScopeReference};
     use object_pointer::{ObjectPointer, RawObjectPointer};
-
-    fn setup() -> (GlobalScope, Block, ExecutionContext) {
-        let code = CompiledCode::with_rc("a".to_string(),
-                                         "a.inko".to_string(),
-                                         1,
-                                         Vec::new());
-
-        let scope = GlobalScope::new();
-        let scope_ref = GlobalScopeReference::new(&scope);
-        let block = Block::new(code, Binding::new(), scope_ref);
-        let context = ExecutionContext::from_block(&block, None);
-
-        (scope, block, context)
-    }
+    use vm::instructions::test::*;
 
     #[test]
     fn test_set_parent() {
-        let (_scope, block, context1) = setup();
+        let (_machine, block, _) = setup();
+        let context1 = ExecutionContext::from_block(&block, None);
         let mut context2 = ExecutionContext::from_block(&block, None);
 
         context2.set_parent(Box::new(context1));
@@ -201,7 +185,8 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let (_scope, _block, mut context) = setup();
+        let (_machine, block, _) = setup();
+        let mut context = ExecutionContext::from_block(&block, None);
 
         assert!(context.parent().is_none());
         assert!(context.parent_mut().is_none());
@@ -210,15 +195,16 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_get_register_invalid() {
-        let (_scope, _block, context) = setup();
+        let (_machine, block, _) = setup();
+        let context = ExecutionContext::from_block(&block, None);
 
         context.get_register(0);
     }
 
     #[test]
     fn test_get_set_register_valid() {
-        let (_scope, _block, mut context) = setup();
-
+        let (_machine, block, _) = setup();
+        let mut context = ExecutionContext::from_block(&block, None);
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         context.set_register(0, pointer);
@@ -229,15 +215,16 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_get_local_invalid() {
-        let (_scope, _block, context) = setup();
+        let (_machine, block, _) = setup();
+        let context = ExecutionContext::from_block(&block, None);
 
         context.get_local(0);
     }
 
     #[test]
     fn test_get_set_local_valid() {
-        let (_scope, _block, mut context) = setup();
-
+        let (_machine, block, _) = setup();
+        let mut context = ExecutionContext::from_block(&block, None);
         let pointer = ObjectPointer::null();
 
         context.set_local(0, pointer);
@@ -247,8 +234,9 @@ mod tests {
 
     #[test]
     fn test_find_parent() {
-        let (_scope, block, context1) = setup();
+        let (_machine, block, _) = setup();
 
+        let context1 = ExecutionContext::from_block(&block, None);
         let mut context2 = ExecutionContext::from_block(&block, None);
         let mut context3 = ExecutionContext::from_block(&block, None);
 
@@ -264,8 +252,9 @@ mod tests {
 
     #[test]
     fn test_contexts() {
-        let (_scope, block, context1) = setup();
+        let (_machine, block, _) = setup();
 
+        let context1 = ExecutionContext::from_block(&block, None);
         let mut context2 = ExecutionContext::from_block(&block, None);
         let mut context3 = ExecutionContext::from_block(&block, None);
 
@@ -282,8 +271,8 @@ mod tests {
 
     #[test]
     fn test_pointers() {
-        let (_scope, _block, mut context) = setup();
-
+        let (_machine, block, _) = setup();
+        let mut context = ExecutionContext::from_block(&block, None);
         let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
 
         context.register.set(0, pointer);

@@ -2,7 +2,7 @@
 use vm::instruction::Instruction;
 use vm::machine::Machine;
 
-use compiled_code::RcCompiledCode;
+use compiled_code::CompiledCodePointer;
 use object_value;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
@@ -15,7 +15,7 @@ use process::RcProcess;
 /// 2. The index of the float literals to use for the value.
 #[inline(always)]
 pub fn set_float(process: &RcProcess,
-                 code: &RcCompiledCode,
+                 code: &CompiledCodePointer,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let index = instruction.arg(1);
@@ -240,12 +240,12 @@ mod tests {
 
     #[test]
     fn test_set_float() {
-        let (machine, block, process) = setup();
+        let (machine, mut block, process) = setup();
         let instruction = new_instruction(InstructionType::SetFloat, vec![0, 0]);
 
         let float = machine.state.allocate_permanent_float(10.0);
 
-        arc_mut(&block.code).float_literals.push(float);
+        block.code.float_literals.push(float);
 
         set_float(&process, &block.code, &instruction);
 

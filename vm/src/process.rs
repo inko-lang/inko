@@ -6,7 +6,7 @@ use std::cell::UnsafeCell;
 
 use binding::RcBinding;
 use block::Block;
-use compiled_code::RcCompiledCode;
+use compiled_code::CompiledCodePointer;
 use config::Config;
 use execution_context::ExecutionContext;
 use global_scope::GlobalScopeReference;
@@ -245,7 +245,7 @@ impl Process {
         self.context().parent.is_none()
     }
 
-    pub fn compiled_code(&self) -> RcCompiledCode {
+    pub fn compiled_code(&self) -> CompiledCodePointer {
         self.context().code.clone()
     }
 

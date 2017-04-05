@@ -2,7 +2,7 @@
 use vm::instruction::Instruction;
 use vm::machine::Machine;
 
-use compiled_code::RcCompiledCode;
+use compiled_code::CompiledCodePointer;
 use errors;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -19,7 +19,7 @@ use process::RcProcess;
 /// strings.
 #[inline(always)]
 pub fn set_string(process: &RcProcess,
-                  code: &RcCompiledCode,
+                  code: &CompiledCodePointer,
                   instruction: &Instruction) {
     let register = instruction.arg(0);
     let index = instruction.arg(1);

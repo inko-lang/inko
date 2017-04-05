@@ -80,11 +80,12 @@ pub trait CopyObject: Sized {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
     use binding::Binding;
     use compiled_code::CompiledCode;
+    use deref_pointer::DerefPointer;
     use global_scope::{GlobalScope, GlobalScopeReference};
+    use immix::global_allocator::GlobalAllocator;
+    use immix::local_allocator::LocalAllocator;
     use object::Object;
     use object_pointer::ObjectPointer;
     use object_value;
@@ -207,15 +208,14 @@ mod tests {
     #[test]
     fn test_copy_block() {
         let mut dummy = DummyAllocator::new();
-        let cc = CompiledCode::with_rc("a".to_string(),
-                                       "a".to_string(),
-                                       1,
-                                       Vec::new());
+        let cc =
+            CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
 
         let scope = GlobalScope::new();
 
-        let block =
-            Block::new(cc, Binding::new(), GlobalScopeReference::new(&scope));
+        let block = Block::new(DerefPointer::new(&cc),
+                               Binding::new(),
+                               GlobalScopeReference::new(&scope));
 
         let ptr = dummy.allocator
             .allocate_without_prototype(object_value::block(block));

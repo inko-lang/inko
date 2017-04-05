@@ -1,6 +1,6 @@
 //! VM instruction handlers for Block operations.
 use block::Block;
-use compiled_code::RcCompiledCode;
+use compiled_code::CompiledCodePointer;
 use object_value;
 use process::RcProcess;
 use vm::instruction::Instruction;
@@ -16,7 +16,7 @@ use vm::machine::Machine;
 #[inline(always)]
 pub fn set_block(machine: &Machine,
                  process: &RcProcess,
-                 code: &RcCompiledCode,
+                 code: &CompiledCodePointer,
                  instruction: &Instruction) {
     let register = instruction.arg(0);
     let cc_index = instruction.arg(1);

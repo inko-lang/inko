@@ -16,9 +16,8 @@ use std::io::prelude::*;
 use std::io::Bytes;
 use std::fs::File;
 use std::mem;
-use std::sync::Arc;
 
-use compiled_code::{CompiledCode, RcCompiledCode};
+use compiled_code::CompiledCode;
 use object_pointer::ObjectPointer;
 use vm::instruction::{InstructionType, Instruction};
 use vm::state::RcState;
@@ -76,7 +75,7 @@ macro_rules! read_instruction_vector {
 
 macro_rules! read_code_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<RcCompiledCode, $byte_type>($bytes,
+        try!(read_vector::<CompiledCode, $byte_type>($bytes,
                                                        read_compiled_code));
     );
 }
@@ -97,7 +96,7 @@ pub enum ParserError {
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
-pub type BytecodeResult = ParserResult<RcCompiledCode>;
+pub type BytecodeResult = ParserResult<CompiledCode>;
 
 /// Parses a file
 ///
@@ -219,7 +218,7 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
 
 fn read_code_vector<T: Read>(state: &RcState,
                              bytes: &mut Bytes<T>)
-                             -> ParserResult<Vec<RcCompiledCode>> {
+                             -> ParserResult<Vec<CompiledCode>> {
     let amount = try!(read_u64(bytes));
 
     let mut buff = Vec::new();
@@ -244,7 +243,7 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
 
 fn read_compiled_code<T: Read>(state: &RcState,
                                bytes: &mut Bytes<T>)
-                               -> ParserResult<RcCompiledCode> {
+                               -> ParserResult<CompiledCode> {
     let name = try!(read_string(bytes));
     let file = try!(read_string(bytes));
     let line = try!(read_u16(bytes));
@@ -272,7 +271,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
 
     let code_objects = try!(read_code_vector(state, bytes));
 
-    let code_obj = CompiledCode {
+    Ok(CompiledCode {
         name: name,
         file: file,
         line: line,
@@ -285,9 +284,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
         float_literals: float_literals,
         string_literals: str_literals,
         code_objects: code_objects,
-    };
-
-    Ok(Arc::new(code_obj))
+    })
 }
 
 #[cfg(test)]

@@ -57,7 +57,7 @@ impl ModuleRegistry {
     ///
     /// If a module has already been parsed for the given path it's returned
     /// directly, otherwise this method will attempt to parse it.
-    pub fn get_or_set(&mut self, path: &String) -> Result<&Module, ModuleError> {
+    pub fn get_or_set(&mut self, path: &str) -> Result<&Module, ModuleError> {
         if !self.parsed.contains_key(path) {
             self.parse_module(path)
         } else {
@@ -66,7 +66,7 @@ impl ModuleRegistry {
     }
 
     /// Parses a module.
-    fn parse_module(&mut self, path: &String) -> Result<&Module, ModuleError> {
+    fn parse_module(&mut self, path: &str) -> Result<&Module, ModuleError> {
         let mut input_path = PathBuf::from(path);
 
         if input_path.is_relative() {
@@ -84,7 +84,7 @@ impl ModuleRegistry {
             }
 
             if !found {
-                return Err(ModuleError::ModuleDoesNotExist(path.clone()));
+                return Err(ModuleError::ModuleDoesNotExist(path.to_string()));
             }
         }
 

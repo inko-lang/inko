@@ -1,13 +1,14 @@
 //! Modules containing bytecode objects and global variables.
 
-use compiled_code::RcCompiledCode;
+use compiled_code::{CompiledCode, CompiledCodePointer};
+use deref_pointer::DerefPointer;
 use global_scope::{GlobalScope, GlobalScopeReference};
 
 /// A module is a single file containing bytecode and an associated global
 /// scope.
 pub struct Module {
     /// The code to execute for this module.
-    pub code: RcCompiledCode,
+    pub code: Box<CompiledCode>,
 
     /// The global scope of this module.
     ///
@@ -22,11 +23,15 @@ unsafe impl Sync for Module {}
 unsafe impl Send for Module {}
 
 impl Module {
-    pub fn new(code: RcCompiledCode) -> Self {
+    pub fn new(code: CompiledCode) -> Self {
         Module {
-            code: code,
+            code: Box::new(code),
             global_scope: Box::new(GlobalScope::new()),
         }
+    }
+
+    pub fn code(&self) -> CompiledCodePointer {
+        DerefPointer::new(&*self.code)
     }
 
     pub fn global_scope_ref(&self) -> GlobalScopeReference {

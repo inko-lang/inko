@@ -1,25 +1,11 @@
-//! A CompiledCode contains all information required to run a block of code.
-//!
-//! This includes methods, classes, blocks/closures (e.g. in a language such as
-//! Ruby) and so on. Basically anything that should be executed is a
-//! CompiledCode.
-//!
-//! A CompiledCode object should contain everything that is needed to run it
-//! including any literals such as integers, floats, strings as well as other
-//! metadata such as the amount of required arguments.
-//!
-//! CompiledCode objects should not be mutated after they have been fully set
-//! up. If a method is modified this should result in a completely new
-//! CompiledCode replacing the old version instead of patching an existing
-//! CompiledCode.
+//! Sequences of bytecode instructions with associated literal values.
 
-use std::sync::Arc;
-
+use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
 use vm::instruction::Instruction;
 
 /// An immutable, reference counted CompiledCode.
-pub type RcCompiledCode = Arc<CompiledCode>;
+pub type CompiledCodePointer = DerefPointer<CompiledCode>;
 
 /// Structure for storing compiled code information.
 pub struct CompiledCode {
@@ -56,13 +42,9 @@ pub struct CompiledCode {
     /// Any literal strings appearing in the source code.
     pub string_literals: Vec<ObjectPointer>,
 
-    /// Extra CompiledCode objects to associate with the current one. This can
-    /// be used to store CompiledCode objects for every method in a class in the
-    /// CompiledCode object of said class.
-    pub code_objects: Vec<RcCompiledCode>,
+    /// Any compiled code objects stored directly inside the current one.
+    pub code_objects: Vec<CompiledCode>,
 }
-
-unsafe impl Sync for CompiledCode {}
 
 impl CompiledCode {
     /// Creates a basic CompiledCode with a set of instructions. Other data such
@@ -93,15 +75,6 @@ impl CompiledCode {
         }
     }
 
-    /// Creates a new reference counted CompiledCode.
-    pub fn with_rc(name: String,
-                   file: String,
-                   line: u16,
-                   instructions: Vec<Instruction>)
-                   -> RcCompiledCode {
-        Arc::new(CompiledCode::new(name, file, line, instructions))
-    }
-
     pub fn integer(&self, index: usize) -> ObjectPointer {
         self.integer_literals[index]
     }
@@ -114,8 +87,8 @@ impl CompiledCode {
         self.string_literals[index]
     }
 
-    pub fn code_object(&self, index: usize) -> &RcCompiledCode {
-        &self.code_objects[index]
+    pub fn code_object(&self, index: usize) -> CompiledCodePointer {
+        DerefPointer::new(&self.code_objects[index])
     }
 
     /// Returns the instruction at the given index, without checking for bounds.
@@ -128,7 +101,6 @@ impl CompiledCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use object_pointer::ObjectPointer;
     use config::Config;
     use vm::instruction::{Instruction, InstructionType};
@@ -207,10 +179,10 @@ mod tests {
     #[test]
     fn test_code_object_valid() {
         let mut code = new_compiled_code();
-        let code_rc = Arc::new(new_compiled_code());
+        let child = new_compiled_code();
 
-        code.code_objects.push(code_rc.clone());
+        code.code_objects.push(child);
 
-        assert_eq!(code.code_object(0).name, code_rc.name);
+        assert_eq!(code.code_object(0).name, code.name);
     }
 }
