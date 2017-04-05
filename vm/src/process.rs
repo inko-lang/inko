@@ -36,8 +36,8 @@ pub enum ProcessStatus {
 
 impl ProcessStatus {
     pub fn is_running(&self) -> bool {
-        match *self {
-            ProcessStatus::Running => true,
+        match self {
+            &ProcessStatus::Running => true,
             _ => false,
         }
     }

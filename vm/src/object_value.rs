@@ -25,85 +25,85 @@ pub enum ObjectValue {
 
 impl ObjectValue {
     pub fn is_none(&self) -> bool {
-        match *self {
-            ObjectValue::None => true,
+        match self {
+            &ObjectValue::None => true,
             _ => false,
         }
     }
 
     pub fn is_float(&self) -> bool {
-        match *self {
-            ObjectValue::Float(_) => true,
+        match self {
+            &ObjectValue::Float(_) => true,
             _ => false,
         }
     }
 
     pub fn is_array(&self) -> bool {
-        match *self {
-            ObjectValue::Array(_) => true,
+        match self {
+            &ObjectValue::Array(_) => true,
             _ => false,
         }
     }
 
     pub fn is_string(&self) -> bool {
-        match *self {
-            ObjectValue::String(_) => true,
+        match self {
+            &ObjectValue::String(_) => true,
             _ => false,
         }
     }
 
     pub fn is_file(&self) -> bool {
-        match *self {
-            ObjectValue::File(_) => true,
+        match self {
+            &ObjectValue::File(_) => true,
             _ => false,
         }
     }
 
     pub fn is_error(&self) -> bool {
-        match *self {
-            ObjectValue::Error(_) => true,
+        match self {
+            &ObjectValue::Error(_) => true,
             _ => false,
         }
     }
 
     pub fn is_block(&self) -> bool {
-        match *self {
-            ObjectValue::Block(_) => true,
+        match self {
+            &ObjectValue::Block(_) => true,
             _ => false,
         }
     }
 
     pub fn is_binding(&self) -> bool {
-        match *self {
-            ObjectValue::Binding(_) => true,
+        match self {
+            &ObjectValue::Binding(_) => true,
             _ => false,
         }
     }
 
     pub fn as_float(&self) -> Result<f64, String> {
-        match *self {
-            ObjectValue::Float(val) => Ok(val),
+        match self {
+            &ObjectValue::Float(val) => Ok(val),
             _ => Err("as_float called non a non float value".to_string()),
         }
     }
 
     pub fn as_array(&self) -> Result<&Vec<ObjectPointer>, String> {
-        match *self {
-            ObjectValue::Array(ref val) => Ok(val),
+        match self {
+            &ObjectValue::Array(ref val) => Ok(val),
             _ => Err("as_array called non a non array value".to_string()),
         }
     }
 
     pub fn as_array_mut(&mut self) -> Result<&mut Vec<ObjectPointer>, String> {
-        match *self {
-            ObjectValue::Array(ref mut val) => Ok(val),
+        match self {
+            &mut ObjectValue::Array(ref mut val) => Ok(val),
             _ => Err("as_array_mut called on a non array".to_string()),
         }
     }
 
     pub fn as_string(&self) -> Result<&String, String> {
-        match *self {
-            ObjectValue::String(ref val) => Ok(val),
+        match self {
+            &ObjectValue::String(ref val) => Ok(val),
             _ => {
                 Err("ObjectValue::as_string() called on a non string".to_string())
             }
@@ -111,15 +111,15 @@ impl ObjectValue {
     }
 
     pub fn as_file(&self) -> Result<&fs::File, String> {
-        match *self {
-            ObjectValue::File(ref val) => Ok(val),
+        match self {
+            &ObjectValue::File(ref val) => Ok(val),
             _ => Err("ObjectValue::as_file() called on a non file".to_string()),
         }
     }
 
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
-        match *self {
-            ObjectValue::File(ref mut val) => Ok(val),
+        match self {
+            &mut ObjectValue::File(ref mut val) => Ok(val),
             _ => {
                 Err("ObjectValue::as_file_mut() called on a non file".to_string())
             }
@@ -127,8 +127,8 @@ impl ObjectValue {
     }
 
     pub fn as_error(&self) -> Result<u16, String> {
-        match *self {
-            ObjectValue::Error(val) => Ok(val),
+        match self {
+            &ObjectValue::Error(val) => Ok(val),
             _ => {
                 Err("ObjectValue::as_error() called non a non error".to_string())
             }
@@ -136,8 +136,8 @@ impl ObjectValue {
     }
 
     pub fn as_block(&self) -> Result<&Box<Block>, String> {
-        match *self {
-            ObjectValue::Block(ref val) => Ok(val),
+        match self {
+            &ObjectValue::Block(ref val) => Ok(val),
             _ => {
                 Err("ObjectValue::as_block() called on a non block object"
                     .to_string())
@@ -146,8 +146,8 @@ impl ObjectValue {
     }
 
     pub fn as_binding(&self) -> Result<RcBinding, String> {
-        match *self {
-            ObjectValue::Binding(ref val) => Ok(val.clone()),
+        match self {
+            &ObjectValue::Binding(ref val) => Ok(val.clone()),
             _ => {
                 Err("ObjectValue::as_binding() called non a non Binding"
                     .to_string())
