@@ -164,7 +164,7 @@ impl State {
     pub fn intern_pointer(&self,
                           pointer: &ObjectPointer)
                           -> Result<ObjectPointer, String> {
-        if pointer.is_permanent() && pointer.get().value.is_string() {
+        if pointer.get().value.is_interned_string() {
             Ok(*pointer)
         } else {
             Ok(self.intern(pointer.string_value()?))
@@ -183,7 +183,7 @@ impl State {
 
         let ptr = {
             let mut alloc = self.permanent_allocator.lock();
-            let value = object_value::string(string.clone());
+            let value = object_value::interned_string(string.clone());
 
             alloc.allocate_with_prototype(value, self.string_prototype)
         };

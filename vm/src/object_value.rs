@@ -16,6 +16,7 @@ pub enum ObjectValue {
     None,
     Float(f64),
     String(Box<String>),
+    InternedString(Box<String>),
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
     Error(u16),
@@ -47,7 +48,15 @@ impl ObjectValue {
 
     pub fn is_string(&self) -> bool {
         match self {
-            &ObjectValue::String(_) => true,
+            &ObjectValue::String(_) |
+            &ObjectValue::InternedString(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_interned_string(&self) -> bool {
+        match self {
+            &ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }
@@ -103,7 +112,8 @@ impl ObjectValue {
 
     pub fn as_string(&self) -> Result<&String, String> {
         match self {
-            &ObjectValue::String(ref val) => Ok(val),
+            &ObjectValue::String(ref val) |
+            &ObjectValue::InternedString(ref val) => Ok(val),
             _ => {
                 Err("ObjectValue::as_string() called on a non string".to_string())
             }
@@ -180,6 +190,10 @@ pub fn string(value: String) -> ObjectValue {
     ObjectValue::String(Box::new(value))
 }
 
+pub fn interned_string(value: String) -> ObjectValue {
+    ObjectValue::InternedString(Box::new(value))
+}
+
 pub fn array(value: Vec<ObjectPointer>) -> ObjectValue {
     ObjectValue::Array(Box::new(value))
 }
@@ -232,6 +246,24 @@ mod tests {
     fn test_is_string() {
         assert!(ObjectValue::String(Box::new(String::new())).is_string());
         assert_eq!(ObjectValue::None.is_string(), false);
+    }
+
+    #[test]
+    fn test_is_string_with_interned_string() {
+        assert!(ObjectValue::InternedString(Box::new(String::new)).is_string());
+    }
+
+    #[test]
+    fn test_is_interned_string() {
+        assert!(ObjectValue::InternedString(Box::new(String::new))
+            .is_interned_string());
+    }
+
+    #[test]
+    fn test_is_interned_string_with_regular_string() {
+        assert_eq!(ObjectValue::String(Box::new(String::new))
+                       .is_interned_string(),
+                   false);
     }
 
     #[test]

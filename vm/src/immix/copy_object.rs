@@ -30,6 +30,9 @@ pub trait CopyObject: Sized {
             ObjectValue::String(ref string) => {
                 object_value::string(*string.clone())
             }
+            ObjectValue::InternedString(ref string) => {
+                object_value::interned_string(*string.clone())
+            }
             ObjectValue::Array(ref raw_vec) => {
                 let new_map = raw_vec.iter()
                     .map(|val_ptr| self.copy_object(*val_ptr));
