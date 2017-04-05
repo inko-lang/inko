@@ -225,7 +225,7 @@ mod tests {
         let state = State::new(Config::new());
         let string = state.permanent_allocator
             .lock()
-            .allocate_without_prototype(object_value::string("hello"
+            .allocate_without_prototype(object_value::interned_string("hello"
                 .to_string()));
 
         assert!(state.intern_pointer(&string).unwrap() == string);

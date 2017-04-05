@@ -182,8 +182,7 @@ mod tests {
 
         #[test]
         fn test_without_arguments() {
-            let (machine, block, process) = setup();
-            let code = block.code.clone();
+            let (_machine, block, process) = setup();
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -193,7 +192,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![1, 0]);
 
-            run_block(&machine, &process, &code, &instruction);
+            run_block(&process, &instruction);
 
             assert!(process.context().parent.is_some());
             assert!(process.binding().locals().is_empty());
@@ -203,7 +202,6 @@ mod tests {
         #[should_panic]
         fn test_with_too_many_arguments() {
             let (machine, block, process) = setup();
-            let code = block.code.clone();
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -214,7 +212,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1]);
 
-            run_block(&machine, &process, &code, &instruction);
+            run_block(&process, &instruction);
         }
 
         #[test]
@@ -235,15 +233,14 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![2, 0, 1]);
 
-            run_block(&machine, &process, &code, &instruction);
+            run_block(&process, &instruction);
         }
 
         #[test]
         fn test_with_enough_arguments() {
             let (machine, block, process) = setup();
-            let code = block.code.clone();
 
-            arc_mut(&code).arguments = 2;
+            arc_mut(&block.code).arguments = 2;
 
             let block_ptr =
                 process.allocate_without_prototype(object_value::block(block));
@@ -255,7 +252,7 @@ mod tests {
             let instruction = new_instruction(InstructionType::RunBlock,
                                               vec![3, 0, 1, 2]);
 
-            run_block(&machine, &process, &code, &instruction);
+            run_block(&process, &instruction);
 
             assert_eq!(process.binding().locals().len(), 2);
 

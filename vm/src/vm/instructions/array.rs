@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_set_array() {
-        let (machine, block, process) = setup();
+        let (machine, _block, process) = setup();
 
         let instruction = new_instruction(InstructionType::SetArray,
                                           vec![2, 0, 1]);
@@ -181,7 +181,7 @@ mod tests {
         process.set_register(0, value1);
         process.set_register(1, value2);
 
-        set_array(&machine, &process, &block.code, &instruction);
+        set_array(&machine, &process, &instruction);
 
         let pointer = process.get_register(2);
         let object = pointer.get();
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_array_insert() {
-        let (machine, block, process) = setup();
+        let (machine, _block, process) = setup();
         let instruction = new_instruction(InstructionType::ArrayInsert,
                                           vec![3, 0, 1, 2]);
 
@@ -212,7 +212,7 @@ mod tests {
         process.set_register(1, index);
         process.set_register(2, value);
 
-        array_insert(&machine, &process, &block.code, &instruction);
+        array_insert(&machine, &process, &instruction);
 
         let pointer = process.get_register(3);
 
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_array_at() {
-        let (machine, block, process) = setup();
+        let (machine, _block, process) = setup();
         let instruction = new_instruction(InstructionType::ArrayAt,
                                           vec![2, 0, 1]);
 
@@ -235,7 +235,7 @@ mod tests {
         process.set_register(0, array);
         process.set_register(1, index);
 
-        array_at(&machine, &process, &block.code, &instruction);
+        array_at(&machine, &process, &instruction);
 
         let pointer = process.get_register(2);
 
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_array_remove() {
-        let (machine, block, process) = setup();
+        let (machine, _block, process) = setup();
         let instruction = new_instruction(InstructionType::ArrayRemove,
                                           vec![2, 0, 1]);
 
@@ -258,7 +258,7 @@ mod tests {
         process.set_register(0, array);
         process.set_register(1, index);
 
-        array_remove(&machine, &process, &block.code, &instruction);
+        array_remove(&machine, &process, &instruction);
 
         let removed_pointer = process.get_register(2);
 
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_array_length() {
-        let (machine, block, process) = setup();
+        let (_machine, _block, process) = setup();
         let instruction = new_instruction(InstructionType::ArrayLength,
                                           vec![1, 0]);
 
@@ -285,7 +285,7 @@ mod tests {
 
         process.set_register(0, array);
 
-        array_length(&machine, &process, &block.code, &instruction);
+        array_length(&process, &instruction);
 
         let pointer = process.get_register(1);
 
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_array_clear() {
-        let (machine, block, process) = setup();
+        let (_machine, _block, process) = setup();
         let instruction = new_instruction(InstructionType::ArrayClear, vec![0]);
 
         let value = process.allocate_empty();
@@ -304,7 +304,7 @@ mod tests {
 
         process.set_register(0, array);
 
-        array_clear(&machine, &process, &block.code, &instruction);
+        array_clear(&process, &instruction);
 
         let object = array.get();
 

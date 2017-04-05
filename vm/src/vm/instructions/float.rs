@@ -188,7 +188,7 @@ mod tests {
         ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: expr) => (
             #[test]
             fn $test_func() {
-                let (machine, block, process) = setup();
+                let (machine, _block, process) = setup();
 
                 let instruction = new_instruction(InstructionType::$ins_type,
                                                   vec![2, 0, 1]);
@@ -202,7 +202,7 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                $ins_func(&machine, &process, &block.code, &instruction);
+                $ins_func(&machine, &process, &instruction);
 
                 let pointer = process.get_register(2);
 
@@ -215,7 +215,7 @@ mod tests {
         ($ins_type: ident, $test_func: ident, $ins_func: ident, $expected: ident) => (
             #[test]
             fn $test_func() {
-                let (machine, block, process) = setup();
+                let (machine, _block, process) = setup();
 
                 let instruction = new_instruction(InstructionType::$ins_type,
                                                   vec![2, 0, 1]);
@@ -229,34 +229,11 @@ mod tests {
                 process.set_register(0, left);
                 process.set_register(1, right);
 
-                $ins_func(&machine, &process, &block.code, &instruction);
+                $ins_func(&machine, &process, &instruction);
 
                 let pointer = process.get_register(2);
 
                 assert!(pointer == machine.state.$expected);
-            }
-        );
-    }
-
-    macro_rules! test_cast_op {
-        ($ins_type: ident, $test_func: ident, $ins_func: ident, $target_type: ident, $target_val: expr) => (
-            #[test]
-            fn $test_func() {
-                let (machine, block, process) = setup();
-
-                let instruction = new_instruction(InstructionType::$ins_type,
-                                                  vec![1, 0]);
-
-                let original = process
-                    .allocate_without_prototype(object_value::float(5.5));
-
-                process.set_register(0, original);
-
-                $ins_func(&machine, &process, &block.code, &instruction);
-
-                let pointer = process.get_register(1);
-
-                assert!(pointer.$target_type().unwrap() == $target_val);
             }
         );
     }
@@ -270,11 +247,49 @@ mod tests {
 
         arc_mut(&block.code).float_literals.push(float);
 
-        set_float(&machine, &process, &block.code, &instruction);
+        set_float(&process, &block.code, &instruction);
 
         let pointer = process.get_register(0);
 
         assert!(pointer == float);
+    }
+
+    #[test]
+    fn test_float_to_integer() {
+        let (_machine, _block, process) = setup();
+
+        let instruction = new_instruction(InstructionType::FloatToInteger,
+                                          vec![1, 0]);
+
+        let original =
+            process.allocate_without_prototype(object_value::float(5.5));
+
+        process.set_register(0, original);
+
+        float_to_integer(&process, &instruction);
+
+        let pointer = process.get_register(1);
+
+        assert!(pointer.integer_value().unwrap() == 5);
+    }
+
+    #[test]
+    fn test_float_to_string() {
+        let (machine, _block, process) = setup();
+
+        let instruction = new_instruction(InstructionType::FloatToString,
+                                          vec![1, 0]);
+
+        let original =
+            process.allocate_without_prototype(object_value::float(5.5));
+
+        process.set_register(0, original);
+
+        float_to_string(&machine, &process, &instruction);
+
+        let pointer = process.get_register(1);
+
+        assert!(pointer.string_value().unwrap() == &"5.5".to_string());
     }
 
     test_op!(FloatAdd, test_float_add, float_add, 7.0);
@@ -290,16 +305,4 @@ mod tests {
 
     test_bool_op!(FloatGreater, test_float_greater, float_greater, true_object);
     test_bool_op!(FloatEquals, test_float_equals, float_equals, false_object);
-
-    test_cast_op!(FloatToInteger,
-                  test_float_to_integer,
-                  float_to_integer,
-                  integer_value,
-                  5);
-
-    test_cast_op!(FloatToString,
-                  test_float_to_string,
-                  float_to_string,
-                  string_value,
-                  &"5.5".to_string());
 }

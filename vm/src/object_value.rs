@@ -250,18 +250,18 @@ mod tests {
 
     #[test]
     fn test_is_string_with_interned_string() {
-        assert!(ObjectValue::InternedString(Box::new(String::new)).is_string());
+        assert!(ObjectValue::InternedString(Box::new(String::new())).is_string());
     }
 
     #[test]
     fn test_is_interned_string() {
-        assert!(ObjectValue::InternedString(Box::new(String::new))
+        assert!(ObjectValue::InternedString(Box::new(String::new()))
             .is_interned_string());
     }
 
     #[test]
     fn test_is_interned_string_with_regular_string() {
-        assert_eq!(ObjectValue::String(Box::new(String::new))
+        assert_eq!(ObjectValue::String(Box::new(String::new()))
                        .is_interned_string(),
                    false);
     }
