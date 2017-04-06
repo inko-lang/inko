@@ -193,15 +193,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_get_register_invalid() {
-        let (_machine, block, _) = setup();
-        let context = ExecutionContext::from_block(&block, None);
-
-        context.get_register(0);
-    }
-
-    #[test]
     fn test_get_set_register_valid() {
         let (_machine, block, _) = setup();
         let mut context = ExecutionContext::from_block(&block, None);
@@ -210,15 +201,6 @@ mod tests {
         context.set_register(0, pointer);
 
         assert!(context.get_register(0) == pointer);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_get_local_invalid() {
-        let (_machine, block, _) = setup();
-        let context = ExecutionContext::from_block(&block, None);
-
-        context.get_local(0);
     }
 
     #[test]

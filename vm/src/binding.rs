@@ -59,7 +59,7 @@ impl Binding {
 
     /// Returns the value of a local variable.
     pub fn get_local(&self, index: usize) -> ObjectPointer {
-        self.locals()[index]
+        unsafe { *self.locals().get_unchecked(index) }
     }
 
     /// Sets a local variable.
@@ -187,14 +187,6 @@ mod tests {
 
         assert!(binding2.parent.is_some());
         assert_eq!(binding2.locals().capacity(), 1);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_get_local_invalid() {
-        let binding = Binding::new();
-
-        binding.get_local(0);
     }
 
     #[test]
