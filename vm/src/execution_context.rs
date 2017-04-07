@@ -59,7 +59,7 @@ impl ExecutionContext {
         let binding = Binding::with_parent(parent_binding, block.locals());
 
         ExecutionContext {
-            register: Register::new(),
+            register: Register::new(code.registers as usize),
             binding: binding,
             code: code,
             parent: None,

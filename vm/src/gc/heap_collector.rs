@@ -129,7 +129,6 @@ pub fn trace_mailbox_locals_with_moving(process: &RcProcess,
 pub fn trace_without_moving(process: &RcProcess, mature: bool) -> TraceResult {
     process.contexts()
         .par_iter()
-        .weight_max()
         .map(|context| {
             collector::trace_pointers_without_moving(context.pointers(), mature)
         })
@@ -141,7 +140,6 @@ pub fn trace_without_moving(process: &RcProcess, mature: bool) -> TraceResult {
 pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
     process.contexts()
         .par_iter()
-        .weight_max()
         .map(|context| {
             collector::trace_pointers_with_moving(process,
                                                   context.pointers(),

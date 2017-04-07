@@ -252,6 +252,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
     let rest_arg = try!(read_u8(bytes)) == 1;
 
     let locals = try!(read_u16(bytes));
+    let registers = try!(read_u16(bytes));
     let instructions = read_instruction_vector!(T, bytes);
 
     let int_literals = read_i64_vector!(T, bytes)
@@ -279,6 +280,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
         required_arguments: req_args,
         rest_argument: rest_arg,
         locals: locals,
+        registers: registers,
         instructions: instructions,
         integer_literals: int_literals,
         float_literals: float_literals,

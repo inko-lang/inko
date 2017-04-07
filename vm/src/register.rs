@@ -13,21 +13,14 @@ pub struct PointerIterator<'a> {
     index: usize,
 }
 
-/// The extra number of slots that should be made available whenever resizing.
-const RESIZE_PADDING: usize = 32;
-
 impl Register {
     /// Creates a new Register.
-    pub fn new() -> Register {
-        Register { values: Vec::new() }
+    pub fn new(amount: usize) -> Register {
+        Register { values: vec![ObjectPointer::null(); amount] }
     }
 
     /// Sets the value of the given register.
     pub fn set(&mut self, register: usize, value: ObjectPointer) {
-        if register >= self.values.len() {
-            self.values.resize(register + RESIZE_PADDING, ObjectPointer::null());
-        }
-
         self.values[register] = value;
     }
 
@@ -77,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut register = Register::new();
+        let mut register = Register::new(6);
         let pointer = ObjectPointer::new(0x4 as RawObjectPointer);
 
         register.set(0, pointer);
@@ -90,14 +83,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_get_invalid() {
-        let register = Register::new();
+        let register = Register::new(0);
 
         register.get(2);
     }
 
     #[test]
     fn test_push_pointers() {
-        let mut register = Register::new();
+        let mut register = Register::new(2);
 
         let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let pointer2 = ObjectPointer::new(0x2 as RawObjectPointer);
@@ -125,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_pointers() {
-        let mut register = Register::new();
+        let mut register = Register::new(2);
 
         let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
         let pointer2 = ObjectPointer::new(0x2 as RawObjectPointer);

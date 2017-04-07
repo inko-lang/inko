@@ -30,6 +30,9 @@ pub struct CompiledCode {
     /// The number of local variables defined.
     pub locals: u16,
 
+    /// The number of registers required.
+    pub registers: u16,
+
     /// The instructions to execute.
     pub instructions: Vec<Instruction>,
 
@@ -67,6 +70,7 @@ impl CompiledCode {
             required_arguments: 0,
             rest_argument: false,
             locals: 0,
+            registers: 0,
             instructions: instructions,
             integer_literals: Vec::new(),
             float_literals: Vec::new(),
