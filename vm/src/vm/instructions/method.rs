@@ -57,7 +57,11 @@ pub fn def_method(machine: &Machine,
     let block = block_ptr.block_value().unwrap();
 
     let global_scope = block.global_scope.clone();
-    let new_block = Block::new(block.code.clone(), Binding::new(), global_scope);
+
+    let new_block = Block::new(block.code.clone(),
+                               Binding::new(block.locals()),
+                               global_scope);
+
     let value = object_value::block(new_block);
     let proto = machine.state.method_prototype;
 

@@ -79,6 +79,10 @@ impl CompiledCode {
         }
     }
 
+    pub fn locals(&self) -> usize {
+        self.locals as usize
+    }
+
     pub fn integer(&self, index: usize) -> ObjectPointer {
         self.integer_literals[index]
     }

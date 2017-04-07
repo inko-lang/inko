@@ -27,19 +27,9 @@ pub type RcBinding = Rc<Binding>;
 
 impl Binding {
     /// Returns a new binding.
-    pub fn new() -> RcBinding {
+    pub fn new(amount: usize) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(Vec::new()),
-            parent: None,
-        };
-
-        Rc::new(bind)
-    }
-
-    /// Returns a new binding with space reserved for a number of locals.
-    pub fn with_capacity(capacity: usize) -> RcBinding {
-        let bind = Binding {
-            locals: UnsafeCell::new(Vec::with_capacity(capacity)),
+            locals: UnsafeCell::new(vec![ObjectPointer::null(); amount]),
             parent: None,
         };
 
@@ -48,9 +38,9 @@ impl Binding {
 
     /// Returns a new binding with a parent binding and a defalt capacity for
     /// the local variables.
-    pub fn with_parent(parent_binding: RcBinding, capacity: usize) -> RcBinding {
+    pub fn with_parent(parent_binding: RcBinding, amount: usize) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(Vec::with_capacity(capacity)),
+            locals: UnsafeCell::new(vec![ObjectPointer::null(); amount]),
             parent: Some(parent_binding),
         };
 
@@ -64,19 +54,12 @@ impl Binding {
 
     /// Sets a local variable.
     pub fn set_local(&self, index: usize, value: ObjectPointer) {
-        let mut locals = self.locals_mut();
-
-        if locals.get(index).is_some() {
-            // Existing locals should be overwritten without shifting values.
-            locals[index] = value;
-        } else {
-            locals.insert(index, value);
-        }
+        self.locals_mut()[index] = value;
     }
 
     /// Returns true if the local variable exists.
     pub fn local_exists(&self, index: usize) -> bool {
-        self.locals().get(index).is_some()
+        !self.get_local(index).is_null()
     }
 
     /// Returns the parent binding.
@@ -134,11 +117,20 @@ impl Binding {
             None
         };
 
-        let locals =
-            self.locals().iter().map(|val| heap.copy_object(*val)).collect();
+        let locals = self.locals();
+        let mut new_locals = Vec::with_capacity(locals.len());
+
+        for pointer in locals {
+            if pointer.is_null() {
+                // The new locals Vec must be the same size
+                new_locals.push(*pointer);
+            } else {
+                new_locals.push(heap.copy_object(*pointer));
+            }
+        }
 
         Rc::new(Binding {
-            locals: UnsafeCell::new(locals),
+            locals: UnsafeCell::new(new_locals),
             parent: parent,
         })
     }
@@ -151,6 +143,10 @@ impl<'a> Iterator for PointerIterator<'a> {
         loop {
             if let Some(local) = self.binding.locals().get(self.local_index) {
                 self.local_index += 1;
+
+                if local.is_null() {
+                    continue;
+                }
 
                 return Some(local.pointer());
             }
@@ -168,21 +164,22 @@ impl<'a> Iterator for PointerIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::{ObjectPointer, RawObjectPointer};
+    use object_pointer::ObjectPointer;
     use object_value;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
 
     #[test]
-    fn test_with_capacity() {
-        let binding = Binding::with_capacity(2);
+    fn test_new() {
+        let binding = Binding::new(2);
 
+        assert_eq!(binding.locals().len(), 2);
         assert_eq!(binding.locals().capacity(), 2);
     }
 
     #[test]
     fn test_with_parent() {
-        let binding1 = Binding::new();
+        let binding1 = Binding::new(0);
         let binding2 = Binding::with_parent(binding1.clone(), 1);
 
         assert!(binding2.parent.is_some());
@@ -191,8 +188,8 @@ mod tests {
 
     #[test]
     fn test_get_local_valid() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new();
+        let ptr = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, ptr);
 
@@ -201,8 +198,8 @@ mod tests {
 
     #[test]
     fn test_set_local() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new();
+        let ptr = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, ptr);
 
@@ -211,15 +208,15 @@ mod tests {
 
     #[test]
     fn test_local_exists_non_existing_local() {
-        let binding = Binding::new();
+        let binding = Binding::new(1);
 
         assert_eq!(binding.local_exists(0), false);
     }
 
     #[test]
     fn test_local_exists_existing_local() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new();
+        let ptr = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, ptr);
 
@@ -228,14 +225,14 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let binding = Binding::new();
+        let binding = Binding::new(0);
 
         assert!(binding.parent().is_none());
     }
 
     #[test]
     fn test_parent_with_parent() {
-        let binding1 = Binding::new();
+        let binding1 = Binding::new(0);
         let binding2 = Binding::with_parent(binding1, 0);
 
         assert!(binding2.parent().is_some());
@@ -243,14 +240,14 @@ mod tests {
 
     #[test]
     fn test_find_parent_without_parent() {
-        let binding = Binding::new();
+        let binding = Binding::new(0);
 
         assert!(binding.find_parent(1).is_none());
     }
 
     #[test]
     fn test_find_parent_with_parent() {
-        let binding1 = Binding::new();
+        let binding1 = Binding::new(0);
         let binding2 = Binding::with_parent(binding1, 0);
         let binding3 = Binding::with_parent(binding2, 0);
         let binding4 = Binding::with_parent(binding3, 0);
@@ -263,8 +260,8 @@ mod tests {
 
     #[test]
     fn test_locals() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new();
+        let ptr = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, ptr);
 
@@ -273,8 +270,8 @@ mod tests {
 
     #[test]
     fn test_locals_mut() {
-        let ptr = ObjectPointer::null();
-        let binding = Binding::new();
+        let ptr = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, ptr);
 
@@ -283,13 +280,15 @@ mod tests {
 
     #[test]
     fn test_push_pointers() {
-        let local1 = ObjectPointer::new(0x2 as RawObjectPointer);
-        let binding1 = Binding::new();
+        let mut alloc = LocalAllocator::new(GlobalAllocator::new());
+
+        let local1 = alloc.allocate_empty();
+        let binding1 = Binding::new(1);
 
         binding1.set_local(0, local1);
 
-        let local2 = ObjectPointer::new(0x4 as RawObjectPointer);
-        let binding2 = Binding::with_parent(binding1.clone(), 0);
+        let local2 = alloc.allocate_empty();
+        let binding2 = Binding::with_parent(binding1.clone(), 1);
 
         binding2.set_local(0, local2);
 
@@ -305,16 +304,18 @@ mod tests {
 
     #[test]
     fn test_pointers() {
-        let b1_local1 = ObjectPointer::new(0x2 as RawObjectPointer);
-        let b1_local2 = ObjectPointer::new(0x3 as RawObjectPointer);
-        let b1 = Binding::new();
+        let mut alloc = LocalAllocator::new(GlobalAllocator::new());
+
+        let b1_local1 = alloc.allocate_empty();
+        let b1_local2 = alloc.allocate_empty();
+        let b1 = Binding::new(2);
 
         b1.set_local(0, b1_local1);
         b1.set_local(1, b1_local2);
 
-        let b2_local1 = ObjectPointer::new(0x5 as RawObjectPointer);
-        let b2_local2 = ObjectPointer::new(0x6 as RawObjectPointer);
-        let b2 = Binding::with_parent(b1.clone(), 0);
+        let b2_local1 = alloc.allocate_empty();
+        let b2_local2 = alloc.allocate_empty();
+        let b2 = Binding::with_parent(b1.clone(), 2);
 
         b2.set_local(0, b2_local1);
         b2.set_local(1, b2_local2);
@@ -339,8 +340,8 @@ mod tests {
         let ptr1 = alloc1.allocate_without_prototype(object_value::float(5.0));
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
 
-        let src_bind1 = Binding::new();
-        let src_bind2 = Binding::with_parent(src_bind1.clone(), 0);
+        let src_bind1 = Binding::new(1);
+        let src_bind2 = Binding::with_parent(src_bind1.clone(), 1);
 
         src_bind1.set_local(0, ptr1);
         src_bind2.set_local(0, ptr2);

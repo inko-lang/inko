@@ -130,8 +130,9 @@ impl Machine {
                 .map_err(|err| err.message())
                 .unwrap();
 
-            let block = Block::new(module.code(),
-                                   Binding::new(),
+            let code = module.code();
+            let block = Block::new(code,
+                                   Binding::new(code.locals()),
                                    module.global_scope_ref());
 
             self.allocate_process(PRIMARY_POOL, &block).unwrap()

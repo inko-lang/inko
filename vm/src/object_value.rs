@@ -289,7 +289,7 @@ mod tests {
                                      1,
                                      Vec::new());
 
-        let binding = Binding::new();
+        let binding = Binding::new(0);
         let scope = GlobalScope::new();
         let block = Block::new(DerefPointer::new(&code),
                                binding,
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_is_binding() {
-        let binding = Binding::new();
+        let binding = Binding::new(0);
 
         assert!(ObjectValue::Binding(binding).is_binding());
         assert_eq!(ObjectValue::None.is_binding(), false);
@@ -419,7 +419,7 @@ mod tests {
                                      "a.inko".to_string(),
                                      1,
                                      Vec::new());
-        let binding = Binding::new();
+        let binding = Binding::new(0);
         let scope = GlobalScope::new();
         let block = Block::new(DerefPointer::new(&code),
                                binding,
@@ -438,8 +438,8 @@ mod tests {
 
     #[test]
     fn test_as_binding_with_binding() {
-        let pointer = ObjectPointer::null();
-        let binding = Binding::new();
+        let pointer = ObjectPointer::integer(5);
+        let binding = Binding::new(1);
 
         binding.set_local(0, pointer);
 
@@ -499,7 +499,7 @@ mod tests {
                                      1,
                                      Vec::new());
 
-        let binding = Binding::new();
+        let binding = Binding::new(0);
         let scope = GlobalScope::new();
 
         let blk = Block::new(DerefPointer::new(&code),
@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn test_binding() {
-        let b = Binding::new();
+        let b = Binding::new(0);
 
         assert!(binding(b).is_binding());
     }

@@ -214,7 +214,7 @@ mod tests {
         let scope = GlobalScope::new();
 
         let block = Block::new(DerefPointer::new(&cc),
-                               Binding::new(),
+                               Binding::new(0),
                                GlobalScopeReference::new(&scope));
 
         let ptr = dummy.allocator
@@ -229,8 +229,8 @@ mod tests {
     fn test_copy_binding() {
         let mut dummy = DummyAllocator::new();
 
-        let binding1 = Binding::new();
-        let binding2 = Binding::with_parent(binding1.clone(), 0);
+        let binding1 = Binding::new(1);
+        let binding2 = Binding::with_parent(binding1.clone(), 1);
 
         let local1 = dummy.allocator
             .allocate_without_prototype(object_value::float(15.0));

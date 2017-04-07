@@ -46,14 +46,13 @@ pub fn run_block(process: &RcProcess, instruction: &Instruction) {
     let context = ExecutionContext::from_block(block_val, Some(register));
 
     {
-        // Add the arguments to the binding. Since arguments are the first
-        // locals we can just push them in-order.
+        // Add the arguments to the binding
         let mut locals = context.binding.locals_mut();
 
         for index in arg_offset..(arg_offset + arg_count) {
-            let register = instruction.arg(index);
+            let local_index = index - arg_offset;
 
-            locals.push(process.get_register(register));
+            locals[local_index] = process.get_register(instruction.arg(index));
         }
     }
 
@@ -135,7 +134,7 @@ pub fn parse_file(machine: &Machine,
             .unwrap();
 
         Block::new(module.code(),
-                   Binding::with_capacity(module.code.locals as usize),
+                   Binding::new(module.code.locals()),
                    module.global_scope_ref())
     };
 
@@ -195,7 +194,7 @@ mod tests {
             run_block(&process, &instruction);
 
             assert!(process.context().parent.is_some());
-            assert!(process.binding().locals().is_empty());
+            assert_eq!(process.binding().local_exists(0), false);
         }
 
         #[test]
@@ -253,7 +252,8 @@ mod tests {
 
             run_block(&process, &instruction);
 
-            assert_eq!(process.binding().locals().len(), 2);
+            assert!(process.binding().local_exists(0));
+            assert!(process.binding().local_exists(1));
 
             assert!(process.binding().get_local(0) == machine.state.true_object);
             assert!(process.binding().get_local(1) == machine.state.false_object);

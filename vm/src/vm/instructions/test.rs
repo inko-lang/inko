@@ -13,7 +13,12 @@ use vm::state::State;
 pub fn setup() -> (Machine, Block, RcProcess) {
     let state = State::new(Config::new());
     let machine = Machine::default(state);
-    let code = CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
+    let mut code =
+        CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
+
+    // Reserve enough space for registers/locals for most tests.
+    code.locals = 32;
+    code.registers = 1024;
 
     let (block, process) = {
         let mut registry = write_lock!(machine.module_registry);
@@ -29,7 +34,9 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 
         let scope = module.global_scope_ref();
 
-        let block = Block::new(module.code(), Binding::new(), scope);
+        let block =
+            Block::new(module.code(), Binding::new(module.code.locals()), scope);
+
         let process = machine.allocate_process(0, &block);
 
         (block, process.unwrap())

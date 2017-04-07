@@ -416,6 +416,7 @@ mod tests {
         pack_u8!(0, buffer); // required arguments
         pack_u8!(0, buffer); // rest argument
         pack_u16!(0, buffer); // locals
+        pack_u16!(0, buffer); // registers
         pack_u64!(0, buffer); // instructions
         pack_u64!(0, buffer); // integer literals
         pack_u64!(0, buffer); // float literals
@@ -613,7 +614,8 @@ mod tests {
         pack_u8!(3, buffer); // arguments
         pack_u8!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
-        pack_u16!(0, buffer); // locals
+        pack_u16!(1, buffer); // locals
+        pack_u16!(2, buffer); // registers
 
         pack_u64!(1, buffer); // instructions
         pack_u16!(0, buffer); // type
@@ -637,12 +639,11 @@ mod tests {
         assert_eq!(object.name, "main".to_string());
         assert_eq!(object.file, "test.inko".to_string());
         assert_eq!(object.line, 4);
+        assert_eq!(object.locals, 1);
+        assert_eq!(object.registers, 2);
         assert_eq!(object.arguments, 3);
         assert_eq!(object.required_arguments, 2);
         assert_eq!(object.rest_argument, true);
-
-        assert_eq!(object.locals, 0);
-
         assert_eq!(object.instructions.len(), 1);
 
         let ref ins = object.instructions[0];

@@ -436,7 +436,7 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(), block.global_scope);
+        let new_block = Block::new(code, Binding::new(0), block.global_scope);
 
         process.set_register(0, pointer1);
 
@@ -469,7 +469,7 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(), block.global_scope);
+        let new_block = Block::new(code, Binding::new(0), block.global_scope);
 
         process.set_register(0, pointer1);
 
@@ -502,7 +502,7 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(), block.global_scope);
+        let new_block = Block::new(code, Binding::new(0), block.global_scope);
 
         process.set_register(0, pointer1);
 
@@ -535,7 +535,7 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(), block.global_scope);
+        let new_block = Block::new(code, Binding::new(0), block.global_scope);
 
         process.set_register(0, pointer1);
 
