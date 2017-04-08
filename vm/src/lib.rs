@@ -20,6 +20,7 @@ pub mod block;
 pub mod bytecode_parser;
 pub mod compiled_code;
 pub mod config;
+pub mod chunk;
 pub mod errors;
 pub mod deref_pointer;
 pub mod execution_context;

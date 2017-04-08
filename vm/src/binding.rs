@@ -4,6 +4,7 @@
 use std::rc::Rc;
 use std::cell::UnsafeCell;
 
+use chunk::Chunk;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
@@ -12,7 +13,7 @@ pub struct Binding {
     ///
     /// Local variables must **not** be modified concurrently as access is not
     /// synchronized due to 99% of all operations being process-local.
-    pub locals: UnsafeCell<Vec<ObjectPointer>>,
+    pub locals: UnsafeCell<Chunk<ObjectPointer>>,
 
     /// The parent binding, if any.
     pub parent: Option<RcBinding>,
@@ -29,7 +30,7 @@ impl Binding {
     /// Returns a new binding.
     pub fn new(amount: usize) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(vec![ObjectPointer::null(); amount]),
+            locals: UnsafeCell::new(Chunk::new(amount)),
             parent: None,
         };
 
@@ -40,7 +41,7 @@ impl Binding {
     /// the local variables.
     pub fn with_parent(parent_binding: RcBinding, amount: usize) -> RcBinding {
         let bind = Binding {
-            locals: UnsafeCell::new(vec![ObjectPointer::null(); amount]),
+            locals: UnsafeCell::new(Chunk::new(amount)),
             parent: Some(parent_binding),
         };
 
@@ -49,7 +50,7 @@ impl Binding {
 
     /// Returns the value of a local variable.
     pub fn get_local(&self, index: usize) -> ObjectPointer {
-        unsafe { *self.locals().get_unchecked(index) }
+        self.locals()[index]
     }
 
     /// Sets a local variable.
@@ -84,12 +85,12 @@ impl Binding {
     }
 
     /// Returns an immutable reference to this binding's local variables.
-    pub fn locals(&self) -> &Vec<ObjectPointer> {
+    pub fn locals(&self) -> &Chunk<ObjectPointer> {
         unsafe { &*self.locals.get() }
     }
 
     /// Returns a mutable reference to this binding's local variables.
-    pub fn locals_mut(&self) -> &mut Vec<ObjectPointer> {
+    pub fn locals_mut(&self) -> &mut Chunk<ObjectPointer> {
         unsafe { &mut *self.locals.get() }
     }
 
@@ -118,14 +119,13 @@ impl Binding {
         };
 
         let locals = self.locals();
-        let mut new_locals = Vec::with_capacity(locals.len());
+        let mut new_locals = Chunk::new(locals.len());
 
-        for pointer in locals {
-            if pointer.is_null() {
-                // The new locals Vec must be the same size
-                new_locals.push(*pointer);
-            } else {
-                new_locals.push(heap.copy_object(*pointer));
+        for index in 0..locals.len() {
+            let pointer = locals[index];
+
+            if !pointer.is_null() {
+                new_locals[index] = heap.copy_object(pointer);
             }
         }
 
@@ -141,7 +141,9 @@ impl<'a> Iterator for PointerIterator<'a> {
 
     fn next(&mut self) -> Option<ObjectPointerPointer> {
         loop {
-            if let Some(local) = self.binding.locals().get(self.local_index) {
+            while self.local_index < self.binding.locals().len() {
+                let ref local = self.binding.locals()[self.local_index];
+
                 self.local_index += 1;
 
                 if local.is_null() {
@@ -174,7 +176,6 @@ mod tests {
         let binding = Binding::new(2);
 
         assert_eq!(binding.locals().len(), 2);
-        assert_eq!(binding.locals().capacity(), 2);
     }
 
     #[test]
@@ -183,7 +184,7 @@ mod tests {
         let binding2 = Binding::with_parent(binding1.clone(), 1);
 
         assert!(binding2.parent.is_some());
-        assert_eq!(binding2.locals().capacity(), 1);
+        assert_eq!(binding2.locals().len(), 1);
     }
 
     #[test]

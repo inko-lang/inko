@@ -1,11 +1,14 @@
 //! Struct used for storing values in registers.
 //!
-//! Registers can be set in any particular order.
+//! Registers can be set in any particular order. However, reading from a
+//! register that is not set can lead to bogus data being returned.
+
+use chunk::Chunk;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
-    pub values: Vec<ObjectPointer>,
+    pub values: Chunk<ObjectPointer>,
 }
 
 pub struct PointerIterator<'a> {
@@ -16,7 +19,7 @@ pub struct PointerIterator<'a> {
 impl Register {
     /// Creates a new Register.
     pub fn new(amount: usize) -> Register {
-        Register { values: vec![ObjectPointer::null(); amount] }
+        Register { values: Chunk::new(amount) }
     }
 
     /// Sets the value of the given register.
@@ -49,17 +52,17 @@ impl<'a> Iterator for PointerIterator<'a> {
     type Item = ObjectPointerPointer;
 
     fn next(&mut self) -> Option<ObjectPointerPointer> {
-        loop {
-            if let Some(local) = self.register.values.get(self.index) {
-                self.index += 1;
+        while self.index < self.register.values.len() {
+            let ref local = self.register.values[self.index];
 
-                if !local.is_null() {
-                    return Some(local.pointer());
-                }
-            } else {
-                return None;
+            self.index += 1;
+
+            if !local.is_null() {
+                return Some(local.pointer());
             }
         }
+
+        None
     }
 }
 
@@ -78,14 +81,6 @@ mod tests {
 
         register.set(5, pointer);
         assert!(register.get(5) == pointer);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_get_invalid() {
-        let register = Register::new(0);
-
-        register.get(2);
     }
 
     #[test]
