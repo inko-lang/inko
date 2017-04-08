@@ -145,10 +145,8 @@ impl Instruction {
     }
 
     /// Returns the value of an argument without performing any bounds checking.
-    ///
-    /// This method will panic when trying to access an out of bounds index.
     pub fn arg(&self, index: usize) -> usize {
-        self.arguments[index] as usize
+        unsafe { *self.arguments.get_unchecked(index) as usize }
     }
 
     /// Returns the value of an argument as an Option.
@@ -180,15 +178,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_arg_invalid() {
-        let ins = new_instruction();
-
-        ins.arg(5);
-    }
-
-    #[test]
-    fn test_arg_valid() {
+    fn test_arg() {
         let ins = new_instruction();
 
         assert_eq!(ins.arg(0), 1);
