@@ -558,6 +558,11 @@ impl Machine {
                     InstructionType::SetGlobal => {
                         globals::set_global(process, instruction);
                     }
+                    InstructionType::SendMessage => {
+                        code_execution::send_message(self, process, instruction);
+
+                        enter_context!(context, index, 'exec_loop);
+                    }
                 };
             } // while
 

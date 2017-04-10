@@ -116,6 +116,7 @@ pub enum InstructionType {
     RunBlockWithRest,
     GetGlobal,
     SetGlobal,
+    SendMessage,
 }
 
 /// Struct for storing information about a single instruction.

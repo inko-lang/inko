@@ -7,6 +7,32 @@ use process::RcProcess;
 use vm::instruction::Instruction;
 use vm::machine::Machine;
 
+/// Sends a message to an object.
+///
+/// This instruction takes the following arguments:
+///
+/// 1. The register to store the method's return value in.
+/// 2. The register containing the receiver.
+/// 3. The register containing the message name as a string.
+///
+/// Any additional arguments are passed as arguments to the method.
+#[inline(always)]
+pub fn send_message(machine: &Machine,
+                    process: &RcProcess,
+                    instruction: &Instruction) {
+    process.advance_line(instruction.line);
+
+    let register = instruction.arg(0);
+    let rec_ptr = process.get_register(instruction.arg(1));
+    let name_ptr = process.get_register(instruction.arg(2));
+    let name = machine.state.intern_pointer(&name_ptr).unwrap();
+
+    let method = rec_ptr.lookup_method(&machine.state, &name).unwrap();
+    let block = method.block_value().unwrap();
+
+    schedule_block(&block, register, 3, process, instruction);
+}
+
 /// Executes a Block object.
 ///
 /// This instruction takes the following arguments:
@@ -14,49 +40,16 @@ use vm::machine::Machine;
 /// 1. The register to store the return value in.
 /// 2. The register containing the Block object to run.
 ///
-/// Any extra arguments passed are passed as arguments to the CompiledCode
-/// object.
+/// Any extra arguments passed are passed as arguments to the block.
 #[inline(always)]
 pub fn run_block(process: &RcProcess, instruction: &Instruction) {
     process.advance_line(instruction.line);
 
     let register = instruction.arg(0);
     let block_ptr = process.get_register(instruction.arg(1));
-    let block_val = block_ptr.block_value().unwrap();
+    let block = block_ptr.block_value().unwrap();
 
-    let arg_offset = 2;
-    let arg_count = instruction.arguments.len() - arg_offset;
-    let tot_args = block_val.arguments();
-    let req_args = block_val.required_arguments();
-
-    if arg_count > tot_args {
-        panic!("{} accepts up to {} arguments, but {} arguments were given",
-               block_val.name(),
-               tot_args,
-               arg_count);
-    }
-
-    if arg_count < req_args {
-        panic!("{} requires {} arguments, but {} arguments were given",
-               block_val.name(),
-               req_args,
-               arg_count);
-    }
-
-    let context = ExecutionContext::from_block(block_val, Some(register));
-
-    {
-        // Add the arguments to the binding
-        let mut locals = context.binding.locals_mut();
-
-        for index in arg_offset..(arg_offset + arg_count) {
-            let local_index = index - arg_offset;
-
-            locals[local_index] = process.get_register(instruction.arg(index));
-        }
-    }
-
-    process.push_context(context);
+    schedule_block(&block, register, 2, process, instruction);
 }
 
 /// Executes a Block object with a rest argument.
@@ -167,6 +160,45 @@ pub fn file_parsed(machine: &Machine,
     };
 
     process.set_register(register, ptr);
+}
+
+fn schedule_block(block: &Box<Block>,
+                  return_register: usize,
+                  arg_offset: usize,
+                  process: &RcProcess,
+                  instruction: &Instruction) {
+    let arg_count = instruction.arguments.len() - arg_offset;
+    let tot_args = block.arguments();
+    let req_args = block.required_arguments();
+
+    if arg_count > tot_args {
+        panic!("{} accepts up to {} arguments, but {} arguments were given",
+               block.name(),
+               tot_args,
+               arg_count);
+    }
+
+    if arg_count < req_args {
+        panic!("{} requires {} arguments, but {} arguments were given",
+               block.name(),
+               req_args,
+               arg_count);
+    }
+
+    let context = ExecutionContext::from_block(block, Some(return_register));
+
+    {
+        // Add the arguments to the binding
+        let mut locals = context.binding.locals_mut();
+
+        for index in arg_offset..(arg_offset + arg_count) {
+            let local_index = index - arg_offset;
+
+            locals[local_index] = process.get_register(instruction.arg(index));
+        }
+    }
+
+    process.push_context(context);
 }
 
 #[cfg(test)]
