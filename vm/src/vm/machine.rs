@@ -563,6 +563,9 @@ impl Machine {
 
                         enter_context!(context, index, 'exec_loop);
                     }
+                    InstructionType::ArrayPush => {
+                        array::array_push(self, process, instruction);
+                    }
                 };
             } // while
 

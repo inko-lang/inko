@@ -74,6 +74,32 @@ pub fn array_insert(machine: &Machine,
     process.set_register(register, value);
 }
 
+/// Pushes a value to the end of an array.
+///
+/// This instruction requires 3 arguments:
+///
+/// 1. The register to store the result in.
+/// 2. The register containing the array.
+/// 3. The register containing the value to push.
+#[inline(always)]
+pub fn array_push(machine: &Machine,
+                  process: &RcProcess,
+                  instruction: &Instruction) {
+    let register = instruction.arg(0);
+    let array_ptr = process.get_register(instruction.arg(1));
+    let value_ptr = process.get_register(instruction.arg(2));
+
+    let mut vector = array_ptr.array_value_mut().unwrap();
+
+    let value = copy_if_permanent!(machine.state.permanent_allocator,
+                                   value_ptr,
+                                   array_ptr);
+
+    vector.push(value);
+
+    process.set_register(register, value);
+}
+
 /// Gets the value of an array index.
 ///
 /// This instruction requires 3 arguments:
