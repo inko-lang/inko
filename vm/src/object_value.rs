@@ -222,7 +222,7 @@ mod tests {
     use block::Block;
     use binding::Binding;
     use compiled_code::CompiledCode;
-    use global_scope::{GlobalScope, GlobalScopeReference};
+    use global_scope::{GlobalScope, GlobalScopePointer};
     use object_pointer::ObjectPointer;
 
     #[test]
@@ -293,7 +293,7 @@ mod tests {
         let scope = GlobalScope::new();
         let block = Block::new(DerefPointer::new(&code),
                                binding,
-                               GlobalScopeReference::new(&scope));
+                               GlobalScopePointer::new(&scope));
 
         assert!(ObjectValue::Block(Box::new(block)).is_block());
         assert_eq!(ObjectValue::None.is_block(), false);
@@ -423,7 +423,7 @@ mod tests {
         let scope = GlobalScope::new();
         let block = Block::new(DerefPointer::new(&code),
                                binding,
-                               GlobalScopeReference::new(&scope));
+                               GlobalScopePointer::new(&scope));
 
         let value = ObjectValue::Block(Box::new(block));
         let result = value.as_block();
@@ -504,7 +504,7 @@ mod tests {
 
         let blk = Block::new(DerefPointer::new(&code),
                              binding,
-                             GlobalScopeReference::new(&scope));
+                             GlobalScopePointer::new(&scope));
 
         assert!(block(blk).is_block());
     }

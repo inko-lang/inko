@@ -4,7 +4,7 @@
 //! with binding of the scope the block was created in.
 use binding::RcBinding;
 use compiled_code::CompiledCodePointer;
-use global_scope::GlobalScopeReference;
+use global_scope::GlobalScopePointer;
 
 #[derive(Clone)]
 pub struct Block {
@@ -15,13 +15,13 @@ pub struct Block {
     pub binding: RcBinding,
 
     /// The global scope this block belongs to.
-    pub global_scope: GlobalScopeReference,
+    pub global_scope: GlobalScopePointer,
 }
 
 impl Block {
     pub fn new(code: CompiledCodePointer,
                binding: RcBinding,
-               global_scope: GlobalScopeReference)
+               global_scope: GlobalScopePointer)
                -> Self {
         Block {
             code: code,

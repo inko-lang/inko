@@ -1,7 +1,7 @@
 //! Scopes for module-local global variables.
-use std::ops::Deref;
 use std::cell::UnsafeCell;
 
+use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
 
 /// A GlobalScope contains all the global variables defined in a module.
@@ -17,16 +17,7 @@ pub struct GlobalScope {
     variables: UnsafeCell<Vec<ObjectPointer>>,
 }
 
-/// A pointer to a global scope.
-///
-/// Because a GlobalScope sticks around forever (as modules are not removed
-/// until the VM terminates) there is no need for reference counting (e.g. using
-/// Arc). A GlobalScopeReference allows one to store many references to a global
-/// scope without having to add lifetimes all over the place.
-#[derive(Clone, Copy)]
-pub struct GlobalScopeReference {
-    pointer: *const GlobalScope,
-}
+pub type GlobalScopePointer = DerefPointer<GlobalScope>;
 
 impl GlobalScope {
     pub fn new() -> GlobalScope {
@@ -65,20 +56,6 @@ impl GlobalScope {
     }
 }
 
-impl GlobalScopeReference {
-    pub fn new(scope: &GlobalScope) -> Self {
-        GlobalScopeReference { pointer: scope as *const GlobalScope }
-    }
-}
-
-impl Deref for GlobalScopeReference {
-    type Target = GlobalScope;
-
-    fn deref(&self) -> &GlobalScope {
-        unsafe { &*self.pointer }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,21 +89,6 @@ mod tests {
             scope.set(0, ObjectPointer::integer(5));
 
             assert!(scope.get(0) == ObjectPointer::integer(5));
-        }
-    }
-
-    mod global_scope_reference {
-        use super::*;
-
-        #[test]
-        fn test_deref() {
-            let scope = GlobalScope::new();
-
-            scope.set(0, ObjectPointer::integer(5));
-
-            let scope_ref = GlobalScopeReference::new(&scope);
-
-            assert!(scope_ref.get(0) == ObjectPointer::integer(5));
         }
     }
 }

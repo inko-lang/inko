@@ -2,7 +2,7 @@
 
 use compiled_code::{CompiledCode, CompiledCodePointer};
 use deref_pointer::DerefPointer;
-use global_scope::{GlobalScope, GlobalScopeReference};
+use global_scope::{GlobalScope, GlobalScopePointer};
 
 /// A module is a single file containing bytecode and an associated global
 /// scope.
@@ -13,7 +13,7 @@ pub struct Module {
     /// The global scope of this module.
     ///
     /// The scope is stored as a Box so that moving around a Module won't
-    /// invalidate any GlobalScopeReference instances.
+    /// invalidate any GlobalScopePointer instances.
     pub global_scope: Box<GlobalScope>,
 }
 
@@ -34,7 +34,7 @@ impl Module {
         DerefPointer::new(&*self.code)
     }
 
-    pub fn global_scope_ref(&self) -> GlobalScopeReference {
-        GlobalScopeReference::new(&self.global_scope)
+    pub fn global_scope_ref(&self) -> GlobalScopePointer {
+        GlobalScopePointer::new(&self.global_scope)
     }
 }

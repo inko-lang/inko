@@ -83,7 +83,7 @@ mod tests {
     use binding::Binding;
     use compiled_code::CompiledCode;
     use deref_pointer::DerefPointer;
-    use global_scope::{GlobalScope, GlobalScopeReference};
+    use global_scope::{GlobalScope, GlobalScopePointer};
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
     use object::Object;
@@ -215,7 +215,7 @@ mod tests {
 
         let block = Block::new(DerefPointer::new(&cc),
                                Binding::new(0),
-                               GlobalScopeReference::new(&scope));
+                               GlobalScopePointer::new(&scope));
 
         let ptr = dummy.allocator
             .allocate_without_prototype(object_value::block(block));

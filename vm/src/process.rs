@@ -9,7 +9,7 @@ use block::Block;
 use compiled_code::CompiledCodePointer;
 use config::Config;
 use execution_context::ExecutionContext;
-use global_scope::GlobalScopeReference;
+use global_scope::GlobalScopePointer;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
@@ -229,7 +229,7 @@ impl Process {
         self.context().binding()
     }
 
-    pub fn global_scope(&self) -> &GlobalScopeReference {
+    pub fn global_scope(&self) -> &GlobalScopePointer {
         &self.context().global_scope
     }
 

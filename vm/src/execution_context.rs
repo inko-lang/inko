@@ -6,7 +6,7 @@
 use binding::{Binding, RcBinding};
 use block::Block;
 use compiled_code::CompiledCodePointer;
-use global_scope::GlobalScopeReference;
+use global_scope::GlobalScopePointer;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use register::Register;
 
@@ -33,7 +33,7 @@ pub struct ExecutionContext {
     pub line: u16,
 
     /// The current global scope.
-    pub global_scope: GlobalScopeReference,
+    pub global_scope: GlobalScopePointer,
 }
 
 // While an ExecutionContext is not thread-safe we need to implement Sync/Send
