@@ -161,6 +161,14 @@ fn read_u8<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u8> {
     Ok(u8::from_be(value))
 }
 
+fn read_bool<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<bool> {
+    let byte = try_byte!(bytes.next(), InvalidInteger);
+
+    let value: u8 = unsafe { mem::transmute([byte]) };
+
+    Ok(u8::from_be(value) == 1)
+}
+
 fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     let mut buff: [u8; 2] = [0, 0];
 
@@ -249,10 +257,11 @@ fn read_compiled_code<T: Read>(state: &RcState,
     let line = try!(read_u16(bytes));
     let args = try!(read_u8(bytes));
     let req_args = try!(read_u8(bytes));
-    let rest_arg = try!(read_u8(bytes)) == 1;
+    let rest_arg = try!(read_bool(bytes));
 
     let locals = try!(read_u16(bytes));
     let registers = try!(read_u16(bytes));
+    let captures = try!(read_bool(bytes));
     let instructions = read_instruction_vector!(T, bytes);
 
     let int_literals = read_i64_vector!(T, bytes)
@@ -281,6 +290,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
         rest_argument: rest_arg,
         locals: locals,
         registers: registers,
+        captures: captures,
         instructions: instructions,
         integer_literals: int_literals,
         float_literals: float_literals,

@@ -33,6 +33,10 @@ pub struct CompiledCode {
     /// The number of registers required.
     pub registers: u16,
 
+    /// Boolean indicating if this code object captures any variables from its
+    /// enclosing scope.
+    pub captures: bool,
+
     /// The instructions to execute.
     pub instructions: Vec<Instruction>,
 
@@ -71,6 +75,7 @@ impl CompiledCode {
             rest_argument: false,
             locals: 0,
             registers: 0,
+            captures: false,
             instructions: instructions,
             integer_literals: Vec::new(),
             float_literals: Vec::new(),

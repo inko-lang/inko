@@ -53,10 +53,16 @@ impl ExecutionContext {
     pub fn from_block(block: &Block,
                       return_register: Option<usize>)
                       -> ExecutionContext {
-        let parent_binding = block.binding.clone();
+        let binding = if block.code.captures {
+            let parent = block.binding.clone();
+
+            Binding::with_parent(parent, block.locals())
+        } else {
+            Binding::new(block.locals())
+        };
+
         let code = block.code.clone();
         let scope = block.global_scope.clone();
-        let binding = Binding::with_parent(parent_binding, block.locals());
 
         ExecutionContext {
             register: Register::new(code.registers as usize),
