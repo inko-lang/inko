@@ -64,8 +64,4 @@ impl Mailbox {
     pub fn local_pointers(&self) -> Vec<ObjectPointerPointer> {
         self.locals.iter().map(|pointer| pointer.pointer()).collect()
     }
-
-    pub fn should_collect(&self) -> bool {
-        self.allocator.allocation_threshold_exceeded()
-    }
 }

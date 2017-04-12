@@ -48,6 +48,12 @@ pub struct LocalAllocator {
     /// The number of blocks that need to be allocated for the mature generation
     /// before a garbage collection occurs.
     pub mature_block_allocation_threshold: usize,
+
+    /// Boolean indicating if the young generation should be collected.
+    pub collect_young: bool,
+
+    /// Boolean indicating if the mature generation should be collected.
+    pub collect_mature: bool,
 }
 
 impl LocalAllocator {
@@ -64,6 +70,8 @@ impl LocalAllocator {
             young_block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
             mature_block_allocations: 0,
             mature_block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
+            collect_young: false,
+            collect_mature: false,
         }
     }
 
@@ -152,7 +160,7 @@ impl LocalAllocator {
         let (new_block, pointer) = self.allocate_eden_raw(object);
 
         if new_block {
-            self.young_block_allocations += 1;
+            self.increment_young_block_allocations();
         }
 
         pointer
@@ -162,7 +170,7 @@ impl LocalAllocator {
         let (new_block, pointer) = self.allocate_mature_raw(object);
 
         if new_block {
-            self.mature_block_allocations += 1;
+            self.increment_mature_block_allocations();
         }
 
         pointer
@@ -194,6 +202,24 @@ impl LocalAllocator {
     /// exceeds its threshold.
     pub fn mature_block_allocation_threshold_exceeded(&self) -> bool {
         self.mature_block_allocations >= self.mature_block_allocation_threshold
+    }
+
+    pub fn increment_young_block_allocations(&mut self) {
+        self.young_block_allocations += 1;
+
+        if self.young_block_allocation_threshold_exceeded() &&
+           !self.collect_young {
+            self.collect_young = true;
+        }
+    }
+
+    pub fn increment_mature_block_allocations(&mut self) {
+        self.mature_block_allocations += 1;
+
+        if self.mature_block_allocation_threshold_exceeded() &&
+           !self.collect_mature {
+            self.collect_mature = true;
+        }
     }
 
     /// Increments the young generation allocation threshold.
@@ -441,6 +467,40 @@ mod tests {
                                         1;
 
         assert!(alloc.young_block_allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_increment_young_block_allocations() {
+        let mut alloc = local_allocator();
+
+        alloc.young_block_allocation_threshold = 2;
+
+        alloc.increment_young_block_allocations();
+
+        assert_eq!(alloc.young_block_allocations, 1);
+        assert_eq!(alloc.collect_young, false);
+
+        alloc.increment_young_block_allocations();
+
+        assert_eq!(alloc.young_block_allocations, 2);
+        assert_eq!(alloc.collect_young, true);
+    }
+
+    #[test]
+    fn test_increment_mature_block_allocations() {
+        let mut alloc = local_allocator();
+
+        alloc.mature_block_allocation_threshold = 2;
+
+        alloc.increment_mature_block_allocations();
+
+        assert_eq!(alloc.mature_block_allocations, 1);
+        assert_eq!(alloc.collect_mature, false);
+
+        alloc.increment_mature_block_allocations();
+
+        assert_eq!(alloc.mature_block_allocations, 2);
+        assert_eq!(alloc.collect_mature, true);
     }
 
     #[test]

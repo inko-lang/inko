@@ -634,17 +634,14 @@ impl Machine {
     ///
     /// Returns true if a process should be suspended for garbage collection.
     fn gc_safepoint(&self, process: &RcProcess) -> bool {
-        let request_opt = if process.should_collect_young_generation() {
-            Some(GcRequest::heap(self.state.clone(), process.clone()))
-        } else if process.should_collect_mailbox() {
-            Some(GcRequest::mailbox(self.state.clone(), process.clone()))
-        } else {
-            None
-        };
+        if process.should_collect_young_generation() {
+            self.schedule_gc_request(GcRequest::heap(self.state.clone(),
+                                                     process.clone()));
 
-        if let Some(request) = request_opt {
-            process.suspend_for_gc();
-            self.state.gc_pool.schedule(request);
+            true
+        } else if process.should_collect_mailbox() {
+            self.schedule_gc_request(GcRequest::mailbox(self.state.clone(),
+                                                        process.clone()));
 
             true
         } else {
@@ -655,5 +652,10 @@ impl Machine {
     /// Reschedules a process.
     fn reschedule(&self, process: RcProcess) {
         self.state.process_pools.schedule(process);
+    }
+
+    fn schedule_gc_request(&self, request: GcRequest) {
+        request.process.suspend_for_gc();
+        self.state.gc_pool.schedule(request);
     }
 }

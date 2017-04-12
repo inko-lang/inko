@@ -279,21 +279,15 @@ impl Process {
     }
 
     pub fn should_collect_young_generation(&self) -> bool {
-        self.local_data()
-            .allocator
-            .young_block_allocation_threshold_exceeded()
+        self.local_data().allocator.collect_young
     }
 
     pub fn should_collect_mature_generation(&self) -> bool {
-        self.local_data()
-            .allocator
-            .mature_block_allocation_threshold_exceeded()
+        self.local_data().allocator.collect_mature
     }
 
     pub fn should_collect_mailbox(&self) -> bool {
-        self.local_data()
-            .mailbox
-            .should_collect()
+        self.local_data().mailbox.allocator.collect
     }
 
     pub fn contexts(&self) -> Vec<&ExecutionContext> {
@@ -327,8 +321,10 @@ impl Process {
     pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
         let mut local_data = self.local_data_mut();
 
-        local_data.allocator.increment_young_ages();
+        local_data.allocator.collect_young = false;
+        local_data.allocator.collect_mature = false;
 
+        local_data.allocator.increment_young_ages();
         local_data.allocator.young_block_allocations = 0;
 
         local_data.allocator
@@ -350,6 +346,8 @@ impl Process {
         let mut local_data = self.local_data_mut();
 
         local_data.mailbox_collections += 1;
+
+        local_data.mailbox.allocator.collect = false;
         local_data.mailbox.allocator.block_allocations = 0;
 
         local_data.mailbox

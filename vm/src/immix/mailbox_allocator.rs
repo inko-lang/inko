@@ -25,6 +25,9 @@ pub struct MailboxAllocator {
     /// The number of blocks that can be allocated before garbage collection
     /// is triggered.
     pub block_allocation_threshold: usize,
+
+    /// Boolean that indicates if a mailbox should be collected.
+    pub collect: bool,
 }
 
 impl MailboxAllocator {
@@ -34,6 +37,7 @@ impl MailboxAllocator {
             bucket: Bucket::with_age(MAILBOX),
             block_allocations: 0,
             block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
+            collect: false,
         }
     }
 
@@ -42,7 +46,7 @@ impl MailboxAllocator {
             .allocate(&self.global_allocator, object);
 
         if new_block {
-            self.block_allocations += 1;
+            self.increment_block_allocations();
         }
 
         pointer
@@ -63,6 +67,14 @@ impl MailboxAllocator {
 
     pub fn allocation_threshold_exceeded(&self) -> bool {
         self.block_allocations >= self.block_allocation_threshold
+    }
+
+    pub fn increment_block_allocations(&mut self) {
+        self.block_allocations += 1;
+
+        if self.allocation_threshold_exceeded() && !self.collect {
+            self.collect = true;
+        }
     }
 
     /// Increments the allocation threshold by the given factor.
@@ -150,6 +162,23 @@ mod tests {
         alloc.block_allocations = 1;
 
         assert!(alloc.allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_increment_block_allocations() {
+        let mut alloc = mailbox_allocator();
+
+        alloc.block_allocation_threshold = 2;
+
+        alloc.increment_block_allocations();
+
+        assert_eq!(alloc.block_allocations, 1);
+        assert_eq!(alloc.collect, false);
+
+        alloc.increment_block_allocations();
+
+        assert_eq!(alloc.block_allocations, 2);
+        assert_eq!(alloc.collect, true);
     }
 
     #[test]
