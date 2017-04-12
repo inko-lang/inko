@@ -146,11 +146,19 @@ impl Process {
         target.set_parent(boxed);
     }
 
-    pub fn pop_context(&self) {
+    /// Pops an execution context.
+    ///
+    /// This method returns true if we're at the top of the execution context
+    /// stack.
+    pub fn pop_context(&self) -> bool {
         let mut local_data = self.local_data_mut();
 
         if let Some(parent) = local_data.context.parent.take() {
             local_data.context = parent;
+
+            false
+        } else {
+            true
         }
     }
 
@@ -239,10 +247,6 @@ impl Process {
 
     pub fn context_mut(&self) -> &mut Box<ExecutionContext> {
         &mut self.local_data_mut().context
-    }
-
-    pub fn at_top_level(&self) -> bool {
-        self.context().parent.is_none()
     }
 
     pub fn compiled_code(&self) -> CompiledCodePointer {

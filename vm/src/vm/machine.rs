@@ -575,13 +575,9 @@ impl Machine {
 
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
-            if process.at_top_level() {
+            if process.pop_context() {
                 break;
             }
-
-            // We're not yet at the top level but we did finish running an
-            // entire execution context.
-            process.pop_context();
 
             // The underlying ExecutionContext is no longer available at this
             // point. Rust however is not aware of this due to the use of the
