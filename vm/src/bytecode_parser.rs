@@ -214,8 +214,7 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
                            reader: fn(&mut Bytes<T>) -> ParserResult<V>)
                            -> ParserResult<Vec<V>> {
     let amount = try!(read_u64(bytes));
-
-    let mut buff: Vec<V> = Vec::new();
+    let mut buff: Vec<V> = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
         buff.push(try!(reader(bytes)));
@@ -228,8 +227,7 @@ fn read_code_vector<T: Read>(state: &RcState,
                              bytes: &mut Bytes<T>)
                              -> ParserResult<Vec<CompiledCode>> {
     let amount = try!(read_u64(bytes));
-
-    let mut buff = Vec::new();
+    let mut buff = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
         buff.push(try!(read_compiled_code(state, bytes)));
