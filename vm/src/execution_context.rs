@@ -71,7 +71,7 @@ impl ExecutionContext {
             parent: None,
             instruction_index: 0,
             return_register: return_register,
-            line: block.code.line,
+            line: code.line,
             global_scope: scope,
         }
     }

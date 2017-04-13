@@ -569,10 +569,6 @@ impl Machine {
                 };
             } // while
 
-            // Make sure that we update the stored instruction index in case we
-            // need to suspend the process and resume it later.
-            context.instruction_index = index;
-
             // Once we're at the top-level _and_ we have no more instructions to
             // process we'll bail out of the main execution loop.
             if process.pop_context() {
