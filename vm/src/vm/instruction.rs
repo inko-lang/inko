@@ -1,7 +1,7 @@
 //! Structures for encoding virtual machine instructions.
 
 /// Enum containing all possible instruction types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(u16)]
 pub enum InstructionType {
     SetInteger,
@@ -121,7 +121,7 @@ pub enum InstructionType {
 }
 
 /// Struct for storing information about a single instruction.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Instruction {
     /// The type of instruction.
     pub instruction_type: InstructionType,
