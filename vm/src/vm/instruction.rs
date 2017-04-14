@@ -127,7 +127,7 @@ pub struct Instruction {
     pub instruction_type: InstructionType,
 
     /// The arguments of the instruction.
-    pub arguments: Vec<u16>,
+    pub arguments: Vec<usize>,
 
     /// The line from which the instruction originated.
     pub line: u16,
@@ -136,7 +136,7 @@ pub struct Instruction {
 impl Instruction {
     /// Returns a new Instruction.
     pub fn new(ins_type: InstructionType,
-               arguments: Vec<u16>,
+               arguments: Vec<usize>,
                line: u16)
                -> Instruction {
         Instruction {
@@ -148,12 +148,12 @@ impl Instruction {
 
     /// Returns the value of an argument without performing any bounds checking.
     pub fn arg(&self, index: usize) -> usize {
-        unsafe { *self.arguments.get_unchecked(index) as usize }
+        unsafe { *self.arguments.get_unchecked(index) }
     }
 
     /// Returns the value of an argument as an Option.
     pub fn arg_opt(&self, index: usize) -> Option<usize> {
-        self.arguments.get(index).cloned().map(|val| val as usize)
+        self.arguments.get(index).cloned()
     }
 }
 

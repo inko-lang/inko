@@ -46,7 +46,9 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 }
 
 /// Creates a new instruction.
-pub fn new_instruction(ins_type: InstructionType, args: Vec<u16>) -> Instruction {
+pub fn new_instruction(ins_type: InstructionType,
+                       args: Vec<usize>)
+                       -> Instruction {
     Instruction::new(ins_type, args, 1)
 }
 

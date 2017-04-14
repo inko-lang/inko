@@ -48,9 +48,9 @@ macro_rules! read_string_vector {
     );
 }
 
-macro_rules! read_u16_vector {
+macro_rules! read_u16_to_usize_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<u16, $byte_type>($bytes, read_u16));
+        try!(read_vector::<usize, $byte_type>($bytes, read_u16_as_usize));
     );
 }
 
@@ -181,6 +181,18 @@ fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     Ok(u16::from_be(value))
 }
 
+fn read_u16_as_usize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<usize> {
+    let mut buff: [u8; 2] = [0, 0];
+
+    for index in 0..2 {
+        buff[index] = try_byte!(bytes.next(), InvalidInteger);
+    }
+
+    let value: u16 = unsafe { mem::transmute(buff) };
+
+    Ok(u16::from_be(value) as usize)
+}
+
 fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -217,7 +229,7 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
     let mut buff: Vec<V> = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
-        buff.push(try!(reader(bytes)));
+        buff.push(try!(reader(bytes)) as V);
     }
 
     Ok(buff)
@@ -240,7 +252,7 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
     let ins_type: InstructionType =
         unsafe { mem::transmute(try!(read_u16(bytes))) };
 
-    let args = read_u16_vector!(T, bytes);
+    let args = read_u16_to_usize_vector!(T, bytes);
     let line = try!(read_u16(bytes));
     let ins = Instruction::new(ins_type, args, line);
 
