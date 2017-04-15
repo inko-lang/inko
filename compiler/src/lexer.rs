@@ -36,14 +36,15 @@ pub enum TokenType {
     ColonColon,
     Comma,
     Comment,
-    Constant,
     Const,
+    Constant,
     CurlyClose,
     CurlyOpen,
     Def,
     Div,
     DivAssign,
     Dot,
+    Else,
     Equal,
     ExclusiveRange,
     Float,
@@ -71,6 +72,7 @@ pub enum TokenType {
     ParenOpen,
     Pow,
     PowAssign,
+    Requires,
     Return,
     SelfObject,
     ShiftLeft,
@@ -80,7 +82,10 @@ pub enum TokenType {
     String,
     Sub,
     SubAssign,
+    Throw,
+    Throws,
     Trait,
+    Try,
     Type,
     TypeArgsOpen,
     Var,
@@ -119,7 +124,12 @@ impl<'a> Lexer<'a> {
                 "fn" => TokenType::Func,
                 "def" => TokenType::Def,
                 "type" => TokenType::Type,
-                "as" => TokenType::As
+                "as" => TokenType::As,
+                "throw" => TokenType::Throw,
+                "throws" => TokenType::Throws,
+                "else" => TokenType::Else,
+                "try" => TokenType::Try,
+                "requires" => TokenType::Requires
             ),
             specials: hash_set!['!', '@', '#', '$', '%', '^', '&', '*', '(',
                                 ')', '-', '+', '=', '\\', ':', ';', '"', '\'',
@@ -1011,6 +1021,11 @@ mod tests {
         test!(test_def, identifier_or_keyword, Def, "def");
         test!(test_type, identifier_or_keyword, Type, "type");
         test!(test_as, identifier_or_keyword, As, "as");
+        test!(test_try, identifier_or_keyword, Try, "try");
+        test!(test_throws, identifier_or_keyword, Throws, "throws");
+        test!(test_throw, identifier_or_keyword, Throw, "throw");
+        test!(test_else, identifier_or_keyword, Else, "else");
+        test!(test_requires, identifier_or_keyword, Requires, "requires");
 
         test!(test_bracket_open, bracket_open, BracketOpen, "[");
         test!(test_bracket_close, bracket_close, BracketClose, "]");

@@ -272,6 +272,8 @@ pub enum Node {
         arguments: Vec<Node>,
         type_arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
+        throw_type: Option<Box<Node>>,
+        requirements: Vec<Node>,
         nodes: Vec<Node>,
         line: usize,
         column: usize,
@@ -363,6 +365,20 @@ pub enum Node {
         line: usize,
         column: usize,
     },
+
+    Try {
+        body: Vec<Node>,
+        else_body: Option<Vec<Node>>,
+        else_arg: Option<Box<Node>>,
+        line: usize,
+        column: usize,
+    },
+
+    Throw {
+        value: Box<Node>,
+        line: usize,
+        column: usize,
+    },
 }
 
 pub type ParseResult = Result<Node, String>;
@@ -402,7 +418,11 @@ impl<'a> Parser<'a> {
                                       TokenType::Sub,
                                       TokenType::Trait,
                                       TokenType::Var,
-                                      TokenType::BracketOpen],
+                                      TokenType::BracketOpen,
+                                      TokenType::Throws,
+                                      TokenType::Requires,
+                                      TokenType::Throw,
+                                      TokenType::Else],
             value_start: hash_set![TokenType::String,
                                    TokenType::Integer,
                                    TokenType::Float,
@@ -426,7 +446,9 @@ impl<'a> Parser<'a> {
                                    TokenType::Colon,
                                    TokenType::Type,
                                    TokenType::Attribute,
-                                   TokenType::SelfObject],
+                                   TokenType::SelfObject,
+                                   TokenType::Try,
+                                   TokenType::Throw],
         }
     }
 
@@ -737,6 +759,8 @@ impl<'a> Parser<'a> {
             TokenType::Type => self.def_type(start),
             TokenType::Attribute => self.attribute(start),
             TokenType::SelfObject => self.self_object(start),
+            TokenType::Throw => self.throw(start),
+            TokenType::Try => self.try(start),
             _ => {
                 parse_error!("An expression can not start with {:?}",
                              start.token_type)
@@ -936,16 +960,7 @@ impl<'a> Parser<'a> {
             };
 
             // Parse the argument's type, if any.
-            let arg_type = if self.lexer.next_type_is(&TokenType::Colon) {
-                self.lexer.next();
-
-                let start = next_or_error!(self);
-                let vtype = self.type_name(start)?;
-
-                Some(Box::new(vtype))
-            } else {
-                None
-            };
+            let arg_type = self.def_argument_type()?;
 
             // Parse the default value, if any.
             let default = if self.lexer.next_type_is(&TokenType::Assign) {
@@ -970,6 +985,19 @@ impl<'a> Parser<'a> {
         }
 
         Ok(args)
+    }
+
+    fn def_argument_type(&mut self) -> Result<Option<Box<Node>>, String> {
+        if self.lexer.next_type_is(&TokenType::Colon) {
+            self.lexer.next();
+
+            let start = next_or_error!(self);
+            let vtype = self.type_name(start)?;
+
+            Ok(Some(Box::new(vtype)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn optional_type_arguments(&mut self) -> Result<Vec<Node>, String> {
@@ -1114,6 +1142,8 @@ impl<'a> Parser<'a> {
         let type_arguments = self.optional_type_arguments()?;
         let arguments = self.optional_arguments()?;
         let return_type = self.optional_return_type()?;
+        let throw_type = self.optional_throw_type()?;
+        let requirements = self.method_requirements()?;
 
         if self.lexer.next_type_is(&TokenType::CurlyOpen) {
             next_of_type!(self, TokenType::CurlyOpen);
@@ -1123,6 +1153,8 @@ impl<'a> Parser<'a> {
                 arguments: arguments,
                 type_arguments: type_arguments,
                 return_type: return_type,
+                throw_type: throw_type,
+                requirements: requirements,
                 nodes: self.block()?,
                 line: start.line,
                 column: start.column,
@@ -1442,8 +1474,80 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
+    fn block_with_optional_curly_braces(&mut self) -> Result<Vec<Node>, String> {
+        if self.lexer.next_type_is(&TokenType::CurlyOpen) {
+            next_or_error!(self);
+
+            self.block()
+        } else {
+            let start = next_or_error!(self);
+
+            Ok(vec![self.expression(start)?])
+        }
+    }
+
     fn self_object(&mut self, start: Token) -> ParseResult {
         Ok(self.self_from_token(&start))
+    }
+
+    /// Parses the "try" keyword.
+    fn try(&mut self, start: Token) -> ParseResult {
+        let body = self.block_with_optional_curly_braces()?;
+
+        let (else_arg, else_body) = if self.lexer
+            .next_type_is(&TokenType::Else) {
+            next_or_error!(self);
+
+            let else_arg = self.optional_else_arg()?;
+
+            (else_arg, Some(self.block_with_optional_curly_braces()?))
+        } else {
+            (None, None)
+        };
+
+        Ok(Node::Try {
+            body: body,
+            else_body: else_body,
+            else_arg: else_arg,
+            line: start.line,
+            column: start.column,
+        })
+    }
+
+    /// Parses an optional argument for the "else" keyword.
+    fn optional_else_arg(&mut self) -> Result<Option<Box<Node>>, String> {
+        if self.lexer.next_type_is(&TokenType::ParenOpen) {
+            // Consume the opening parenthesis
+            next_or_error!(self);
+
+            let name = next_of_type!(self, TokenType::Identifier);
+            let value_type = self.def_argument_type()?;
+
+            // Consume the closing parenthesis
+            next_of_type!(self, TokenType::ParenClose);
+
+            Ok(Some(Box::new(Node::ArgumentDefine {
+                name: name.value,
+                value_type: value_type,
+                default: None,
+                line: name.line,
+                column: name.column,
+            })))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Parses the "throw" keyword.
+    fn throw(&mut self, start: Token) -> ParseResult {
+        let expr_start = next_or_error!(self);
+        let value = self.expression(expr_start)?;
+
+        Ok(Node::Throw {
+            value: Box::new(value),
+            line: start.line,
+            column: start.column,
+        })
     }
 
     fn optional_arguments(&mut self) -> Result<Vec<Node>, String> {
@@ -1466,6 +1570,33 @@ impl<'a> Parser<'a> {
         } else {
             Ok(None)
         }
+    }
+
+    fn optional_throw_type(&mut self) -> Result<Option<Box<Node>>, String> {
+        if self.lexer.next_type_is(&TokenType::Throws) {
+            self.lexer.next();
+
+            let start = next_or_error!(self);
+            let ret = self.type_name(start)?;
+
+            Ok(Some(Box::new(ret)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn method_requirements(&mut self) -> Result<Vec<Node>, String> {
+        let mut nodes = Vec::new();
+
+        while self.lexer.next_type_is(&TokenType::Requires) {
+            next_or_error!(self);
+
+            let start = next_or_error!(self);
+
+            nodes.push(self.expression(start)?);
+        }
+
+        Ok(nodes)
     }
 
     /// Returns the name for a message for the given token, if any.
