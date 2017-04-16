@@ -1,5 +1,6 @@
 //! Sequences of bytecode instructions with associated literal values.
 
+use catch_table::CatchTable;
 use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
 use vm::instruction::Instruction;
@@ -51,6 +52,9 @@ pub struct CompiledCode {
 
     /// Any compiled code objects stored directly inside the current one.
     pub code_objects: Vec<CompiledCode>,
+
+    /// The table to use for catching values.
+    pub catch_table: CatchTable,
 }
 
 impl CompiledCode {
@@ -81,6 +85,7 @@ impl CompiledCode {
             float_literals: Vec::new(),
             string_literals: Vec::new(),
             code_objects: Vec::new(),
+            catch_table: CatchTable::new(),
         }
     }
 

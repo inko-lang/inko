@@ -17,6 +17,7 @@ use std::io::Bytes;
 use std::fs::File;
 use std::mem;
 
+use catch_table::{CatchTable, CatchEntry, ThrowReason};
 use compiled_code::CompiledCode;
 use object_pointer::ObjectPointer;
 use vm::instruction::{InstructionType, Instruction};
@@ -290,6 +291,7 @@ fn read_compiled_code<T: Read>(state: &RcState,
         .collect();
 
     let code_objects = try!(read_code_vector(state, bytes));
+    let catch_table = try!(read_catch_table(bytes));
 
     Ok(CompiledCode {
         name: name,
@@ -306,7 +308,29 @@ fn read_compiled_code<T: Read>(state: &RcState,
         float_literals: float_literals,
         string_literals: str_literals,
         code_objects: code_objects,
+        catch_table: catch_table,
     })
+}
+
+fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
+    let amount = try!(read_u64(bytes)) as usize;
+    let mut entries = Vec::with_capacity(amount);
+
+    for _ in 0..amount {
+        entries.push(try!(read_catch_entry(bytes)));
+    }
+
+    Ok(CatchTable { entries: entries })
+}
+
+fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
+    let reason = ThrowReason::from_u8(try!(read_u8(bytes)));
+    let start = try!(read_u16_as_usize(bytes));
+    let end = try!(read_u16_as_usize(bytes));
+    let jump_to = try!(read_u16_as_usize(bytes));
+    let register = try!(read_u16_as_usize(bytes));
+
+    Ok(CatchEntry::new(reason, start, end, jump_to, register))
 }
 
 #[cfg(test)]
@@ -443,6 +467,7 @@ mod tests {
         pack_u64!(0, buffer); // float literals
         pack_u64!(0, buffer); // string literals
         pack_u64!(0, buffer); // code objects
+        pack_u64!(0, buffer); // catch table entries
 
         let object = unwrap!(parse(&state, &mut buffer.bytes()));
 
@@ -656,6 +681,13 @@ mod tests {
 
         pack_u64!(0, buffer); // code objects
 
+        pack_u64!(1, buffer); // catch table entries
+        pack_u8!(0, buffer); // reason
+        pack_u16!(4, buffer); // start
+        pack_u16!(6, buffer); // end
+        pack_u16!(8, buffer); // jump-to
+        pack_u16!(10, buffer); // register
+
         let object = unwrap!(read_compiled_code(&state, &mut buffer.bytes()));
 
         assert_eq!(object.name, "main".to_string());
@@ -689,5 +721,15 @@ mod tests {
         assert!(object.string_literals[0] == state.intern(&"foo".to_string()));
 
         assert_eq!(object.code_objects.len(), 0);
+
+        assert_eq!(object.catch_table.entries.len(), 1);
+
+        let ref entry = object.catch_table.entries[0];
+
+        assert_eq!(entry.reason, ThrowReason::Return);
+        assert_eq!(entry.start, 4);
+        assert_eq!(entry.end, 6);
+        assert_eq!(entry.jump_to, 8);
+        assert_eq!(entry.register, 10);
     }
 }

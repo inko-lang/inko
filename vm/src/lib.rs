@@ -18,6 +18,7 @@ pub mod tagged_pointer;
 pub mod binding;
 pub mod block;
 pub mod bytecode_parser;
+pub mod catch_table;
 pub mod compiled_code;
 pub mod config;
 pub mod chunk;

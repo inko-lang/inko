@@ -118,6 +118,7 @@ pub enum InstructionType {
     SetGlobal,
     SendMessage,
     ArrayPush,
+    Throw,
 }
 
 /// Struct for storing information about a single instruction.
