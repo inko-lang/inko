@@ -33,6 +33,14 @@ use vm::instructions::string;
 use vm::instructions::time;
 use vm::state::RcState;
 
+macro_rules! dispatch {
+    ($instruction: expr, $expected: ident, $body: expr) => ({
+        if $instruction.instruction_type == InstructionType::$expected {
+            $body;
+        }
+    })
+}
+
 macro_rules! suspend_retry {
     ($machine: expr, $context: expr, $process: expr, $index: expr) => ({
         $context.instruction_index = $index - 1;
@@ -183,397 +191,598 @@ impl Machine {
 
                 index += 1;
 
-                match instruction.instruction_type {
-                    InstructionType::SetInteger => {
-                        integer::set_integer(process, &code, instruction);
-                    }
-                    InstructionType::SetFloat => {
-                        float::set_float(process, &code, instruction);
-                    }
-                    InstructionType::SetString => {
-                        string::set_string(process, &code, instruction);
-                    }
-                    InstructionType::SetObject => {
-                        object::set_object(self, process, instruction);
-                    }
-                    InstructionType::SetArray => {
-                        array::set_array(self, process, instruction);
-                    }
-                    InstructionType::GetIntegerPrototype => {
-                        prototype::get_integer_prototype(self,
-                                                         process,
-                                                         instruction);
-                    }
-                    InstructionType::GetFloatPrototype => {
-                        prototype::get_float_prototype(self,
-                                                       process,
-                                                       instruction);
-                    }
-                    InstructionType::GetStringPrototype => {
-                        prototype::get_string_prototype(self,
+                dispatch!(instruction, SetInteger, {
+                    integer::set_integer(process, &code, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetFloat, {
+                    float::set_float(process, &code, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetString, {
+                    string::set_string(process, &code, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetObject, {
+                    object::set_object(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetArray, {
+                    array::set_array(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetIntegerPrototype, {
+                    prototype::get_integer_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetFloatPrototype, {
+                    prototype::get_float_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetStringPrototype, {
+                    prototype::get_string_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetArrayPrototype, {
+                    prototype::get_array_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetTruePrototype, {
+                    prototype::get_true_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetFalsePrototype, {
+                    prototype::get_false_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetMethodPrototype, {
+                    prototype::get_method_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetBlockPrototype, {
+                    prototype::get_block_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetTrue, {
+                    boolean::get_true(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetFalse, {
+                    boolean::get_false(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetLocal, {
+                    local_variable::set_local(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetLocal, {
+                    local_variable::get_local(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetBlock, {
+                    block::set_block(self, process, &code, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, Return, {
+                    control_flow::return_value(process, instruction);
+
+                    break;
+                });
+
+                dispatch!(instruction, GotoIfFalse, {
+                    index = control_flow::goto_if_false(self,
                                                         process,
-                                                        instruction);
-                    }
-                    InstructionType::GetArrayPrototype => {
-                        prototype::get_array_prototype(self,
+                                                        instruction,
+                                                        index);
+                    continue;
+                });
+
+                dispatch!(instruction, GotoIfTrue, {
+                    index = control_flow::goto_if_true(self,
                                                        process,
-                                                       instruction);
-                    }
-                    InstructionType::GetTruePrototype => {
-                        prototype::get_true_prototype(self, process, instruction);
-                    }
-                    InstructionType::GetFalsePrototype => {
-                        prototype::get_false_prototype(self,
-                                                       process,
-                                                       instruction);
-                    }
-                    InstructionType::GetMethodPrototype => {
-                        prototype::get_method_prototype(self,
-                                                        process,
-                                                        instruction);
-                    }
-                    InstructionType::GetBlockPrototype => {
-                        prototype::get_block_prototype(self,
-                                                       process,
-                                                       instruction);
-                    }
-                    InstructionType::GetTrue => {
-                        boolean::get_true(self, process, instruction);
-                    }
-                    InstructionType::GetFalse => {
-                        boolean::get_false(self, process, instruction);
-                    }
-                    InstructionType::SetLocal => {
-                        local_variable::set_local(process, instruction);
-                    }
-                    InstructionType::GetLocal => {
-                        local_variable::get_local(process, instruction);
-                    }
-                    InstructionType::SetBlock => {
-                        block::set_block(self, process, &code, instruction);
-                    }
-                    InstructionType::Return => {
-                        control_flow::return_value(process, instruction);
+                                                       instruction,
+                                                       index);
+                    continue;
+                });
 
-                        break;
-                    }
-                    InstructionType::GotoIfFalse => {
-                        index = control_flow::goto_if_false(self,
-                                                            process,
-                                                            instruction,
-                                                            index);
-                    }
-                    InstructionType::GotoIfTrue => {
-                        index = control_flow::goto_if_true(self,
-                                                           process,
-                                                           instruction,
-                                                           index);
-                    }
-                    InstructionType::Goto => {
-                        index = control_flow::goto(instruction);
-                    }
-                    InstructionType::DefMethod => {
-                        method::def_method(self, process, instruction);
-                    }
-                    InstructionType::IsError => {
-                        error::is_error(self, process, instruction);
-                    }
-                    InstructionType::IntegerAdd => {
-                        integer::integer_add(process, instruction);
-                    }
-                    InstructionType::IntegerDiv => {
-                        integer::integer_div(process, instruction);
-                    }
-                    InstructionType::IntegerMul => {
-                        integer::integer_mul(process, instruction);
-                    }
-                    InstructionType::IntegerSub => {
-                        integer::integer_sub(process, instruction);
-                    }
-                    InstructionType::IntegerMod => {
-                        integer::integer_mod(process, instruction);
-                    }
-                    InstructionType::IntegerToFloat => {
-                        integer::integer_to_float(self, process, instruction);
-                    }
-                    InstructionType::IntegerToString => {
-                        integer::integer_to_string(self, process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseAnd => {
-                        integer::integer_bitwise_and(process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseOr => {
-                        integer::integer_bitwise_or(process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseXor => {
-                        integer::integer_bitwise_xor(process, instruction);
-                    }
-                    InstructionType::IntegerShiftLeft => {
-                        integer::integer_shift_left(process, instruction);
-                    }
-                    InstructionType::IntegerShiftRight => {
-                        integer::integer_shift_right(process, instruction);
-                    }
-                    InstructionType::IntegerSmaller => {
-                        integer::integer_smaller(self, process, instruction);
-                    }
-                    InstructionType::IntegerGreater => {
-                        integer::integer_greater(self, process, instruction);
-                    }
-                    InstructionType::IntegerEquals => {
-                        integer::integer_equals(self, process, instruction);
-                    }
-                    InstructionType::FloatAdd => {
-                        float::float_add(self, process, instruction);
-                    }
-                    InstructionType::FloatMul => {
-                        float::float_mul(self, process, instruction);
-                    }
-                    InstructionType::FloatDiv => {
-                        float::float_div(self, process, instruction);
-                    }
-                    InstructionType::FloatSub => {
-                        float::float_sub(self, process, instruction);
-                    }
-                    InstructionType::FloatMod => {
-                        float::float_mod(self, process, instruction);
-                    }
-                    InstructionType::FloatToInteger => {
-                        float::float_to_integer(process, instruction);
-                    }
-                    InstructionType::FloatToString => {
-                        float::float_to_string(self, process, instruction);
-                    }
-                    InstructionType::FloatSmaller => {
-                        float::float_smaller(self, process, instruction);
-                    }
-                    InstructionType::FloatGreater => {
-                        float::float_greater(self, process, instruction);
-                    }
-                    InstructionType::FloatEquals => {
-                        float::float_equals(self, process, instruction);
-                    }
-                    InstructionType::ArrayInsert => {
-                        array::array_insert(self, process, instruction);
-                    }
-                    InstructionType::ArrayAt => {
-                        array::array_at(self, process, instruction);
-                    }
-                    InstructionType::ArrayRemove => {
-                        array::array_remove(self, process, instruction);
-                    }
-                    InstructionType::ArrayLength => {
-                        array::array_length(process, instruction);
-                    }
-                    InstructionType::ArrayClear => {
-                        array::array_clear(process, instruction);
-                    }
-                    InstructionType::StringToLower => {
-                        string::string_to_lower(self, process, instruction);
-                    }
-                    InstructionType::StringToUpper => {
-                        string::string_to_upper(self, process, instruction);
-                    }
-                    InstructionType::StringEquals => {
-                        string::string_equals(self, process, instruction);
-                    }
-                    InstructionType::StringToBytes => {
-                        string::string_to_bytes(self, process, instruction);
-                    }
-                    InstructionType::StringFromBytes => {
-                        string::string_from_bytes(self, process, instruction);
-                    }
-                    InstructionType::StringLength => {
-                        string::string_length(process, instruction);
-                    }
-                    InstructionType::StringSize => {
-                        string::string_size(process, instruction);
-                    }
-                    InstructionType::StdoutWrite => {
-                        stdout::stdout_write(process, instruction);
-                    }
-                    InstructionType::StderrWrite => {
-                        stderr::stderr_write(process, instruction);
-                    }
-                    InstructionType::StdinRead => {
-                        stdin::stdin_read(self, process, instruction);
-                    }
-                    InstructionType::StdinReadLine => {
-                        stdin::stdin_read_line(self, process, instruction);
-                    }
-                    InstructionType::FileOpen => {
-                        file::file_open(process, instruction);
-                    }
-                    InstructionType::FileWrite => {
-                        file::file_write(process, instruction);
-                    }
-                    InstructionType::FileRead => {
-                        file::file_read(self, process, instruction);
-                    }
-                    InstructionType::FileReadLine => {
-                        file::file_read_line(self, process, instruction);
-                    }
-                    InstructionType::FileFlush => {
-                        file::file_flush(process, instruction);
-                    }
-                    InstructionType::FileSize => {
-                        file::file_size(process, instruction);
-                    }
-                    InstructionType::FileSeek => {
-                        file::file_seek(process, instruction);
-                    }
-                    InstructionType::ParseFile => {
-                        code_execution::parse_file(self, process, instruction);
-                    }
-                    InstructionType::FileParsed => {
-                        code_execution::file_parsed(self, process, instruction);
-                    }
-                    InstructionType::GetBindingPrototype => {
-                        prototype::get_binding_prototype(self,
-                                                         process,
-                                                         instruction);
-                    }
-                    InstructionType::GetBinding => {
-                        binding::get_binding(self, process, instruction);
-                    }
-                    InstructionType::SetConstant => {
-                        constant::set_const(self, process, instruction);
-                    }
-                    InstructionType::GetConstant => {
-                        constant::get_const(self, process, instruction);
-                    }
-                    InstructionType::SetAttribute => {
-                        object::set_attr(self, process, instruction);
-                    }
-                    InstructionType::GetAttribute => {
-                        object::get_attr(self, process, instruction);
-                    }
-                    InstructionType::SetPrototype => {
-                        prototype::set_prototype(process, instruction);
-                    }
-                    InstructionType::GetPrototype => {
-                        prototype::get_prototype(self, process, instruction);
-                    }
-                    InstructionType::LocalExists => {
-                        local_variable::local_exists(self, process, instruction);
-                    }
-                    InstructionType::RespondsTo => {
-                        method::responds_to(self, process, instruction);
-                    }
-                    InstructionType::SpawnProcess => {
-                        process::spawn_process(self, process, instruction);
-                    }
-                    InstructionType::SendProcessMessage => {
-                        process::send_process_message(self, process, instruction);
-                    }
-                    InstructionType::ReceiveProcessMessage => {
-                        let suspend =
-                            process::receive_process_message(process,
-                                                             instruction);
+                dispatch!(instruction, Goto, {
+                    index = control_flow::goto(instruction);
+                    continue;
+                });
 
-                        if suspend {
-                            suspend_retry!(self, context, process, index);
-                        }
-                    }
-                    InstructionType::GetCurrentPid => {
-                        process::get_current_pid(process, instruction);
-                    }
-                    InstructionType::SetParentLocal => {
-                        local_variable::set_parent_local(process, instruction);
-                    }
-                    InstructionType::GetParentLocal => {
-                        local_variable::get_parent_local(process, instruction);
-                    }
-                    InstructionType::ErrorToInteger => {
-                        error::error_to_integer(process, instruction);
-                    }
-                    InstructionType::FileReadExact => {
-                        file::file_read_exact(self, process, instruction);
-                    }
-                    InstructionType::StdinReadExact => {
-                        stdin::stdin_read_exact(self, process, instruction);
-                    }
-                    InstructionType::ObjectEquals => {
-                        object::object_equals(self, process, instruction);
-                    }
-                    InstructionType::GetToplevel => {
-                        object::get_toplevel(self, process, instruction);
-                    }
-                    InstructionType::GetNilPrototype => {
-                        prototype::get_nil_prototype(self, process, instruction);
-                    }
-                    InstructionType::GetNil => {
-                        nil::get_nil(self, process, instruction);
-                    }
-                    InstructionType::LookupMethod => {
-                        method::lookup_method(self, process, instruction);
-                    }
-                    InstructionType::AttrExists => {
-                        object::attr_exists(self, process, instruction);
-                    }
-                    InstructionType::ConstExists => {
-                        constant::const_exists(self, process, instruction);
-                    }
-                    InstructionType::RemoveMethod => {
-                        method::remove_method(self, process, instruction);
-                    }
-                    InstructionType::RemoveAttribute => {
-                        object::remove_attribute(self, process, instruction);
-                    }
-                    InstructionType::GetMethods => {
-                        method::get_methods(self, process, instruction);
-                    }
-                    InstructionType::GetMethodNames => {
-                        method::get_method_names(self, process, instruction);
-                    }
-                    InstructionType::GetAttributes => {
-                        object::get_attributes(self, process, instruction);
-                    }
-                    InstructionType::GetAttributeNames => {
-                        object::get_attribute_names(self, process, instruction);
-                    }
-                    InstructionType::MonotonicTimeNanoseconds => {
-                        time::monotonic_time_nanoseconds(self,
-                                                         process,
-                                                         instruction);
-                    }
-                    InstructionType::MonotonicTimeMilliseconds => {
-                        time::monotonic_time_milliseconds(self,
-                                                          process,
-                                                          instruction);
-                    }
-                    InstructionType::RunBlock => {
-                        code_execution::run_block(process, instruction);
+                dispatch!(instruction, DefMethod, {
+                    method::def_method(self, process, instruction);
+                    continue;
+                });
 
-                        enter_context!(context, index, 'exec_loop);
-                    }
-                    InstructionType::RunBlockWithRest => {
-                        code_execution::run_block_with_rest();
+                dispatch!(instruction, IsError, {
+                    error::is_error(self, process, instruction);
+                    continue;
+                });
 
-                        enter_context!(context, index, 'exec_loop);
-                    }
-                    InstructionType::GetGlobal => {
-                        globals::get_global(process, instruction);
-                    }
-                    InstructionType::SetGlobal => {
-                        globals::set_global(process, instruction);
-                    }
-                    InstructionType::SendMessage => {
-                        code_execution::send_message(self, process, instruction);
+                dispatch!(instruction, IntegerAdd, {
+                    integer::integer_add(process, instruction);
+                    continue;
+                });
 
-                        enter_context!(context, index, 'exec_loop);
-                    }
-                    InstructionType::ArrayPush => {
-                        array::array_push(self, process, instruction);
-                    }
-                    InstructionType::Throw => {
-                        context.instruction_index = index;
+                dispatch!(instruction, IntegerDiv, {
+                    integer::integer_div(process, instruction);
+                    continue;
+                });
 
-                        error::throw(process, instruction);
+                dispatch!(instruction, IntegerMul, {
+                    integer::integer_mul(process, instruction);
+                    continue;
+                });
 
-                        continue 'exec_loop;
+                dispatch!(instruction, IntegerSub, {
+                    integer::integer_sub(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerMod, {
+                    integer::integer_mod(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerToFloat, {
+                    integer::integer_to_float(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerToString, {
+                    integer::integer_to_string(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerBitwiseAnd, {
+                    integer::integer_bitwise_and(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerBitwiseOr, {
+                    integer::integer_bitwise_or(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerBitwiseXor, {
+                    integer::integer_bitwise_xor(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerShiftLeft, {
+                    integer::integer_shift_left(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerShiftRight, {
+                    integer::integer_shift_right(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerSmaller, {
+                    integer::integer_smaller(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerGreater, {
+                    integer::integer_greater(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, IntegerEquals, {
+                    integer::integer_equals(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatAdd, {
+                    float::float_add(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatMul, {
+                    float::float_mul(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatDiv, {
+                    float::float_div(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatSub, {
+                    float::float_sub(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatMod, {
+                    float::float_mod(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatToInteger, {
+                    float::float_to_integer(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatToString, {
+                    float::float_to_string(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatSmaller, {
+                    float::float_smaller(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatGreater, {
+                    float::float_greater(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FloatEquals, {
+                    float::float_equals(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ArrayInsert, {
+                    array::array_insert(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ArrayAt, {
+                    array::array_at(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ArrayRemove, {
+                    array::array_remove(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ArrayLength, {
+                    array::array_length(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ArrayClear, {
+                    array::array_clear(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringToLower, {
+                    string::string_to_lower(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringToUpper, {
+                    string::string_to_upper(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringEquals, {
+                    string::string_equals(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringToBytes, {
+                    string::string_to_bytes(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringFromBytes, {
+                    string::string_from_bytes(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringLength, {
+                    string::string_length(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StringSize, {
+                    string::string_size(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StdoutWrite, {
+                    stdout::stdout_write(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StderrWrite, {
+                    stderr::stderr_write(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StdinRead, {
+                    stdin::stdin_read(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StdinReadLine, {
+                    stdin::stdin_read_line(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileOpen, {
+                    file::file_open(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileWrite, {
+                    file::file_write(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileRead, {
+                    file::file_read(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileReadLine, {
+                    file::file_read_line(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileFlush, {
+                    file::file_flush(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileSize, {
+                    file::file_size(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileSeek, {
+                    file::file_seek(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ParseFile, {
+                    code_execution::parse_file(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileParsed, {
+                    code_execution::file_parsed(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetBindingPrototype, {
+                    prototype::get_binding_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetBinding, {
+                    binding::get_binding(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetConstant, {
+                    constant::set_const(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetConstant, {
+                    constant::get_const(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetAttribute, {
+                    object::set_attr(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetAttribute, {
+                    object::get_attr(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetPrototype, {
+                    prototype::set_prototype(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetPrototype, {
+                    prototype::get_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, LocalExists, {
+                    local_variable::local_exists(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, RespondsTo, {
+                    method::responds_to(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SpawnProcess, {
+                    process::spawn_process(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SendProcessMessage, {
+                    process::send_process_message(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ReceiveProcessMessage, {
+                    let suspend = process::receive_process_message(process,
+                                                                   instruction);
+
+                    if suspend {
+                        suspend_retry!(self, context, process, index);
                     }
-                };
+                    continue;
+                });
+
+                dispatch!(instruction, GetCurrentPid, {
+                    process::get_current_pid(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetParentLocal, {
+                    local_variable::set_parent_local(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetParentLocal, {
+                    local_variable::get_parent_local(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ErrorToInteger, {
+                    error::error_to_integer(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, FileReadExact, {
+                    file::file_read_exact(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, StdinReadExact, {
+                    stdin::stdin_read_exact(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ObjectEquals, {
+                    object::object_equals(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetToplevel, {
+                    object::get_toplevel(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetNilPrototype, {
+                    prototype::get_nil_prototype(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetNil, {
+                    nil::get_nil(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, LookupMethod, {
+                    method::lookup_method(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, AttrExists, {
+                    object::attr_exists(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, ConstExists, {
+                    constant::const_exists(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, RemoveMethod, {
+                    method::remove_method(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, RemoveAttribute, {
+                    object::remove_attribute(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetMethods, {
+                    method::get_methods(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetMethodNames, {
+                    method::get_method_names(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetAttributes, {
+                    object::get_attributes(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, GetAttributeNames, {
+                    object::get_attribute_names(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, MonotonicTimeNanoseconds, {
+                    time::monotonic_time_nanoseconds(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, MonotonicTimeMilliseconds, {
+                    time::monotonic_time_milliseconds(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, RunBlock, {
+                    code_execution::run_block(process, instruction);
+
+                    enter_context!(context, index, 'exec_loop);
+                });
+
+                dispatch!(instruction, RunBlockWithRest, {
+                    code_execution::run_block_with_rest();
+
+                    enter_context!(context, index, 'exec_loop);
+                });
+
+                dispatch!(instruction, GetGlobal, {
+                    globals::get_global(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SetGlobal, {
+                    globals::set_global(process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, SendMessage, {
+                    code_execution::send_message(self, process, instruction);
+
+                    enter_context!(context, index, 'exec_loop);
+                });
+
+                dispatch!(instruction, ArrayPush, {
+                    array::array_push(self, process, instruction);
+                    continue;
+                });
+
+                dispatch!(instruction, Throw, {
+                    context.instruction_index = index;
+
+                    error::throw(process, instruction);
+
+                    continue 'exec_loop;
+                });
             } // while
 
             // Once we're at the top-level _and_ we have no more instructions to
