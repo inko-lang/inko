@@ -251,7 +251,7 @@ fn read_code_vector<T: Read>(state: &RcState,
 
 fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> {
     let ins_type: InstructionType =
-        unsafe { mem::transmute(try!(read_u16(bytes))) };
+        unsafe { mem::transmute(try!(read_u8(bytes))) };
 
     let args = read_u16_to_usize_vector!(T, bytes);
     let line = try!(read_u16(bytes));

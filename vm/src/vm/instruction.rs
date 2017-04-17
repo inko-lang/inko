@@ -2,7 +2,7 @@
 
 /// Enum containing all possible instruction types.
 #[derive(Debug, PartialEq, Eq)]
-#[repr(u16)]
+#[repr(u8)]
 pub enum InstructionType {
     SetInteger,
     SetFloat,
