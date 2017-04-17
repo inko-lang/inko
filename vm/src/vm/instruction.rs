@@ -4,9 +4,7 @@
 #[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum InstructionType {
-    SetInteger,
-    SetFloat,
-    SetString,
+    SetLiteral,
     SetObject,
     SetArray,
     GetIntegerPrototype,
@@ -163,18 +161,14 @@ mod tests {
     use super::*;
 
     fn new_instruction() -> Instruction {
-        Instruction::new(InstructionType::SetInteger, vec![1, 2], 3)
+        Instruction::new(InstructionType::SetLiteral, vec![1, 2], 3)
     }
 
     #[test]
     fn test_new() {
         let ins = new_instruction();
 
-        assert!(match ins.instruction_type {
-            InstructionType::SetInteger => true,
-            _ => false,
-        });
-
+        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
         assert_eq!(ins.arguments[0], 1);
         assert_eq!(ins.arguments[1], 2);
         assert_eq!(ins.line, 3);

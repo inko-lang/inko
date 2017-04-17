@@ -85,6 +85,10 @@ const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
 const VERSION: u8 = 1;
 
+const LITERAL_INTEGER: u8 = 0;
+const LITERAL_FLOAT: u8 = 1;
+const LITERAL_STRING: u8 = 2;
+
 #[derive(Debug)]
 pub enum ParserError {
     InvalidFile,
@@ -94,6 +98,7 @@ pub enum ParserError {
     InvalidInteger,
     InvalidFloat,
     MissingByte,
+    InvalidLiteralType(u8),
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -226,8 +231,8 @@ fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
 fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
                            reader: fn(&mut Bytes<T>) -> ParserResult<V>)
                            -> ParserResult<Vec<V>> {
-    let amount = try!(read_u64(bytes));
-    let mut buff: Vec<V> = Vec::with_capacity(amount as usize);
+    let amount = try!(read_u64(bytes)) as usize;
+    let mut buff: Vec<V> = Vec::with_capacity(amount);
 
     for _ in 0..amount {
         buff.push(try!(reader(bytes)) as V);
@@ -239,8 +244,8 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
 fn read_code_vector<T: Read>(state: &RcState,
                              bytes: &mut Bytes<T>)
                              -> ParserResult<Vec<CompiledCode>> {
-    let amount = try!(read_u64(bytes));
-    let mut buff = Vec::with_capacity(amount as usize);
+    let amount = try!(read_u64(bytes)) as usize;
+    let mut buff = Vec::with_capacity(amount);
 
     for _ in 0..amount {
         buff.push(try!(read_compiled_code(state, bytes)));
@@ -269,27 +274,11 @@ fn read_compiled_code<T: Read>(state: &RcState,
     let args = try!(read_u8(bytes));
     let req_args = try!(read_u8(bytes));
     let rest_arg = try!(read_bool(bytes));
-
     let locals = try!(read_u16(bytes));
     let registers = try!(read_u16(bytes));
     let captures = try!(read_bool(bytes));
     let instructions = read_instruction_vector!(T, bytes);
-
-    let int_literals = read_i64_vector!(T, bytes)
-        .iter()
-        .map(|integer| ObjectPointer::integer(*integer))
-        .collect();
-
-    let float_literals = read_f64_vector!(T, bytes)
-        .iter()
-        .map(|float| state.allocate_permanent_float(*float))
-        .collect();
-
-    let str_literals = read_string_vector!(T, bytes)
-        .iter()
-        .map(|string| state.intern(string))
-        .collect();
-
+    let literals = try!(read_literals_vector(state, bytes));
     let code_objects = try!(read_code_vector(state, bytes));
     let catch_table = try!(read_catch_table(bytes));
 
@@ -304,12 +293,38 @@ fn read_compiled_code<T: Read>(state: &RcState,
         registers: registers,
         captures: captures,
         instructions: instructions,
-        integer_literals: int_literals,
-        float_literals: float_literals,
-        string_literals: str_literals,
+        literals: literals,
         code_objects: code_objects,
         catch_table: catch_table,
     })
+}
+
+fn read_literals_vector<T: Read>(state: &RcState,
+                                 bytes: &mut Bytes<T>)
+                                 -> ParserResult<Vec<ObjectPointer>> {
+    let amount = try!(read_u64(bytes));
+    let mut buff = Vec::with_capacity(amount as usize);
+
+    for _ in 0..amount {
+        buff.push(try!(read_literal(state, bytes)));
+    }
+
+    Ok(buff)
+}
+
+fn read_literal<T: Read>(state: &RcState,
+                         bytes: &mut Bytes<T>)
+                         -> ParserResult<ObjectPointer> {
+    let literal_type = try!(read_u8(bytes));
+
+    let literal = match literal_type {
+        LITERAL_INTEGER => ObjectPointer::integer(try!(read_i64(bytes))),
+        LITERAL_FLOAT => state.allocate_permanent_float(try!(read_f64(bytes))),
+        LITERAL_STRING => state.intern(&try!(read_string(bytes))),
+        _ => return Err(ParserError::InvalidLiteralType(literal_type)),
+    };
+
+    Ok(literal)
 }
 
 fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
@@ -463,9 +478,7 @@ mod tests {
         pack_u16!(0, buffer); // registers
         pack_u8!(0, buffer); // captures
         pack_u64!(0, buffer); // instructions
-        pack_u64!(0, buffer); // integer literals
-        pack_u64!(0, buffer); // float literals
-        pack_u64!(0, buffer); // string literals
+        pack_u64!(0, buffer); // literals
         pack_u64!(0, buffer); // code objects
         pack_u64!(0, buffer); // catch table entries
 
@@ -633,18 +646,14 @@ mod tests {
     fn test_read_instruction() {
         let mut buffer = Vec::new();
 
-        pack_u16!(0, buffer); // type
+        pack_u8!(0, buffer); // type
         pack_u64!(1, buffer); // args
         pack_u16!(6, buffer);
         pack_u16!(2, buffer); // line
 
         let ins = unwrap!(read_instruction(&mut buffer.bytes()));
 
-        match ins.instruction_type {
-            InstructionType::SetInteger => {}
-            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type),
-        };
-
+        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
         assert_eq!(ins.arguments[0], 6);
         assert_eq!(ins.line, 2);
     }
@@ -664,24 +673,33 @@ mod tests {
         pack_u16!(2, buffer); // registers
         pack_u8!(1, buffer); // captures
 
-        pack_u64!(1, buffer); // instructions
-        pack_u16!(0, buffer); // type
-        pack_u64!(1, buffer); // args
-        pack_u16!(6, buffer);
-        pack_u16!(2, buffer); // line
+        // instructions
+        pack_u64!(1, buffer);
+        pack_u8!(0, buffer); // type
+        pack_u64!(1, buffer); // args count
+        pack_u16!(6, buffer); // arg 1
+        pack_u16!(2, buffer); // line number
 
-        pack_u64!(1, buffer); // integer literals
+        // literals
+        pack_u64!(3, buffer);
+
+        // integer
+        pack_u8!(0, buffer);
         pack_u64!(10, buffer);
 
-        pack_u64!(1, buffer); // float literals
+        // float
+        pack_u8!(1, buffer);
         pack_f64!(1.2, buffer);
 
-        pack_u64!(1, buffer); // string literals
+        // string
+        pack_u8!(2, buffer);
         pack_string!("foo", buffer);
 
-        pack_u64!(0, buffer); // code objects
+        // code objects
+        pack_u64!(0, buffer);
 
-        pack_u64!(1, buffer); // catch table entries
+        // catch table entries
+        pack_u64!(1, buffer);
         pack_u8!(0, buffer); // reason
         pack_u16!(4, buffer); // start
         pack_u16!(6, buffer); // end
@@ -703,25 +721,17 @@ mod tests {
 
         let ref ins = object.instructions[0];
 
-        match ins.instruction_type {
-            InstructionType::SetInteger => {}
-            _ => panic!("expected SetInteger, not {:?}", ins.instruction_type),
-        };
-
+        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
         assert_eq!(ins.arguments[0], 6);
         assert_eq!(ins.line, 2);
 
-        assert_eq!(object.integer_literals.len(), 1);
-        assert!(object.integer_literals[0] == ObjectPointer::integer(10));
+        assert_eq!(object.literals.len(), 3);
 
-        assert_eq!(object.float_literals.len(), 1);
-        assert_eq!(object.float_literals[0].float_value().unwrap(), 1.2);
-
-        assert_eq!(object.string_literals.len(), 1);
-        assert!(object.string_literals[0] == state.intern(&"foo".to_string()));
+        assert!(object.literals[0] == ObjectPointer::integer(10));
+        assert_eq!(object.literals[1].float_value().unwrap(), 1.2);
+        assert!(object.literals[2] == state.intern(&"foo".to_string()));
 
         assert_eq!(object.code_objects.len(), 0);
-
         assert_eq!(object.catch_table.entries.len(), 1);
 
         let ref entry = object.catch_table.entries[0];

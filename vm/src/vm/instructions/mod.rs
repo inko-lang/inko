@@ -10,6 +10,7 @@ pub mod float;
 pub mod control_flow;
 pub mod globals;
 pub mod integer;
+pub mod literals;
 pub mod local_variable;
 pub mod method;
 pub mod nil;

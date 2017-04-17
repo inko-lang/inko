@@ -1,31 +1,10 @@
 //! VM instruction handlers for string operations.
-use vm::instruction::Instruction;
-use vm::machine::Machine;
-
-use compiled_code::CompiledCodePointer;
 use errors;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
-
-/// Sets a string literal in a register.
-///
-/// This instruction requires two arguments:
-///
-/// 1. The register to store the float in.
-/// 2. The index of the string literal to use for the value.
-///
-/// String literals are interned to prevent allocating objects for identical
-/// strings.
-#[inline(always)]
-pub fn set_string(process: &RcProcess,
-                  code: &CompiledCodePointer,
-                  instruction: &Instruction) {
-    let register = instruction.arg(0);
-    let index = instruction.arg(1);
-
-    process.set_register(register, code.string(index));
-}
+use vm::instruction::Instruction;
+use vm::machine::Machine;
 
 /// Returns the lowercase equivalent of a string.
 ///

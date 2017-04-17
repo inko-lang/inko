@@ -41,14 +41,9 @@ pub struct CompiledCode {
     /// The instructions to execute.
     pub instructions: Vec<Instruction>,
 
-    /// Any literal integers appearing in the source code.
-    pub integer_literals: Vec<ObjectPointer>,
-
-    /// Any literal floats appearing in the source code.
-    pub float_literals: Vec<ObjectPointer>,
-
-    /// Any literal strings appearing in the source code.
-    pub string_literals: Vec<ObjectPointer>,
+    /// The literals (e.g. integers or floats) defined in this compiled code
+    /// object.
+    pub literals: Vec<ObjectPointer>,
 
     /// Any compiled code objects stored directly inside the current one.
     pub code_objects: Vec<CompiledCode>,
@@ -81,9 +76,7 @@ impl CompiledCode {
             registers: 0,
             captures: false,
             instructions: instructions,
-            integer_literals: Vec::new(),
-            float_literals: Vec::new(),
-            string_literals: Vec::new(),
+            literals: Vec::new(),
             code_objects: Vec::new(),
             catch_table: CatchTable::new(),
         }
@@ -93,18 +86,12 @@ impl CompiledCode {
         self.locals as usize
     }
 
-    pub fn integer(&self, index: usize) -> ObjectPointer {
-        self.integer_literals[index]
+    #[inline(always)]
+    pub fn literal(&self, index: usize) -> ObjectPointer {
+        unsafe { *self.literals.get_unchecked(index) }
     }
 
-    pub fn float(&self, index: usize) -> ObjectPointer {
-        self.float_literals[index]
-    }
-
-    pub fn string(&self, index: usize) -> ObjectPointer {
-        self.string_literals[index]
-    }
-
+    #[inline(always)]
     pub fn code_object(&self, index: usize) -> CompiledCodePointer {
         DerefPointer::new(&self.code_objects[index])
     }
@@ -120,9 +107,7 @@ impl CompiledCode {
 mod tests {
     use super::*;
     use object_pointer::ObjectPointer;
-    use config::Config;
     use vm::instruction::{Instruction, InstructionType};
-    use vm::state::State;
 
     fn new_compiled_code() -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1);
@@ -141,51 +126,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_integer_invalid() {
-        new_compiled_code().integer(0);
-    }
-
-    #[test]
-    fn test_integer_valid() {
+    fn test_literal() {
         let mut code = new_compiled_code();
+        let pointer = ObjectPointer::integer(5);
 
-        code.integer_literals.push(ObjectPointer::integer(10));
+        code.literals.push(pointer);
 
-        assert!(code.integer(0) == ObjectPointer::integer(10));
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_float_invalid() {
-        new_compiled_code().float(0);
-    }
-
-    #[test]
-    fn test_float_valid() {
-        let mut code = new_compiled_code();
-        let state = State::new(Config::new());
-        let float = state.allocate_permanent_float(10.5);
-
-        code.float_literals.push(float);
-
-        assert_eq!(code.float(0).float_value().unwrap(), 10.5);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_string_invalid() {
-        new_compiled_code().string(0);
-    }
-
-    #[test]
-    fn test_string_valid() {
-        let mut code = new_compiled_code();
-        let pointer = ObjectPointer::integer(42);
-
-        code.string_literals.push(pointer);
-
-        assert!(code.string(0) == pointer);
+        assert!(code.literal(0) == pointer);
     }
 
     #[test]

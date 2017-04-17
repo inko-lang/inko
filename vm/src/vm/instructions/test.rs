@@ -59,9 +59,9 @@ mod tests {
 
     #[test]
     fn test_new_instruction() {
-        let ins = new_instruction(InstructionType::SetInteger, vec![1, 2]);
+        let ins = new_instruction(InstructionType::SetLiteral, vec![1, 2]);
 
-        assert_eq!(ins.instruction_type, InstructionType::SetInteger);
+        assert_eq!(ins.instruction_type, InstructionType::SetLiteral);
         assert_eq!(ins.arguments, vec![1, 2]);
         assert_eq!(ins.line, 1);
     }

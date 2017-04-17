@@ -20,6 +20,7 @@ use vm::instructions::file;
 use vm::instructions::float;
 use vm::instructions::globals;
 use vm::instructions::integer;
+use vm::instructions::literals;
 use vm::instructions::local_variable;
 use vm::instructions::method;
 use vm::instructions::nil;
@@ -191,18 +192,8 @@ impl Machine {
 
                 index += 1;
 
-                dispatch!(instruction, SetInteger, {
-                    integer::set_integer(process, &code, instruction);
-                    continue;
-                });
-
-                dispatch!(instruction, SetFloat, {
-                    float::set_float(process, &code, instruction);
-                    continue;
-                });
-
-                dispatch!(instruction, SetString, {
-                    string::set_string(process, &code, instruction);
+                dispatch!(instruction, SetLiteral, {
+                    literals::set_literal(process, &code, instruction);
                     continue;
                 });
 
