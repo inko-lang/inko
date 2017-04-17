@@ -117,6 +117,7 @@ pub enum InstructionType {
     SendMessage,
     ArrayPush,
     Throw,
+    SetRegister,
 }
 
 /// Struct for storing information about a single instruction.

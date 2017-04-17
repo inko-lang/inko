@@ -27,6 +27,7 @@ use vm::instructions::nil;
 use vm::instructions::object;
 use vm::instructions::process;
 use vm::instructions::prototype;
+use vm::instructions::register;
 use vm::instructions::stderr;
 use vm::instructions::stdin;
 use vm::instructions::stdout;
@@ -567,6 +568,9 @@ impl Machine {
                         error::throw(process, instruction);
 
                         continue 'exec_loop;
+                    }
+                    InstructionType::SetRegister => {
+                        register::set_register(process, instruction);
                     }
                 };
             } // while

@@ -17,6 +17,7 @@ pub mod nil;
 pub mod object;
 pub mod process;
 pub mod prototype;
+pub mod register;
 pub mod stderr;
 pub mod stdin;
 pub mod stdout;
