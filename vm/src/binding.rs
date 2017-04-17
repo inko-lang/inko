@@ -4,6 +4,7 @@
 use std::rc::Rc;
 use std::cell::UnsafeCell;
 
+use block::Block;
 use chunk::Chunk;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
@@ -46,6 +47,15 @@ impl Binding {
         };
 
         Rc::new(bind)
+    }
+
+    #[inline(always)]
+    pub fn from_block(block: &Block) -> RcBinding {
+        if block.code.captures {
+            Binding::with_parent(block.binding.clone(), block.locals())
+        } else {
+            Binding::new(block.locals())
+        }
     }
 
     /// Returns the value of a local variable.

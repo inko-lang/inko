@@ -50,29 +50,19 @@ pub struct ExecutionContextIterator<'a> {
 
 impl ExecutionContext {
     /// Creates a new execution context using an existing bock.
+    #[inline(always)]
     pub fn from_block(block: &Block,
                       return_register: Option<usize>)
                       -> ExecutionContext {
-        let binding = if block.code.captures {
-            let parent = block.binding.clone();
-
-            Binding::with_parent(parent, block.locals())
-        } else {
-            Binding::new(block.locals())
-        };
-
-        let code = block.code.clone();
-        let scope = block.global_scope.clone();
-
         ExecutionContext {
-            register: Register::new(code.registers as usize),
-            binding: binding,
-            code: code,
+            register: Register::new(block.code.registers as usize),
+            binding: Binding::from_block(block),
+            code: block.code,
             parent: None,
             instruction_index: 0,
             return_register: return_register,
-            line: code.line,
-            global_scope: scope,
+            line: block.code.line,
+            global_scope: block.global_scope,
         }
     }
 
