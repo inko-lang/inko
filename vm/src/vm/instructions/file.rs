@@ -2,7 +2,6 @@
 use std::io::{Write, Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 
-use errors;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
@@ -214,11 +213,7 @@ pub fn file_read_line(machine: &Machine,
             process.allocate(object_value::string(string),
                              machine.state.string_prototype)
         }
-        Err(_) => {
-            let code = errors::string::invalid_utf8();
-
-            process.allocate_without_prototype(object_value::error(code))
-        }
+        Err(_) => invalid_utf8_error_code!(process),
     };
 
     process.set_register(register, obj);

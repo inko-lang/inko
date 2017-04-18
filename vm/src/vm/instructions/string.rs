@@ -1,5 +1,4 @@
 //! VM instruction handlers for string operations.
-use errors;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
@@ -129,11 +128,7 @@ pub fn string_from_bytes(machine: &Machine,
             process.allocate(object_value::string(string),
                              machine.state.string_prototype)
         }
-        Err(_) => {
-            let code = errors::string::invalid_utf8();
-
-            process.allocate_without_prototype(object_value::error(code))
-        }
+        Err(_) => invalid_utf8_error_code!(process),
     };
 
     process.set_register(register, obj);
