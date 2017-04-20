@@ -99,6 +99,8 @@ pub enum ParserError {
     InvalidFloat,
     MissingByte,
     InvalidLiteralType(u8),
+    MissingReturnInstruction(String, u16),
+    MissingInstructions(String, u16),
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -278,6 +280,16 @@ fn read_compiled_code<T: Read>(state: &RcState,
     let registers = try!(read_u16(bytes));
     let captures = try!(read_bool(bytes));
     let instructions = read_instruction_vector!(T, bytes);
+
+    // Make sure we always have a return at the end.
+    if let Some(ins) = instructions.last() {
+        if ins.instruction_type != InstructionType::Return {
+            return Err(ParserError::MissingReturnInstruction(file, line));
+        }
+    } else {
+        return Err(ParserError::MissingInstructions(file, line));
+    }
+
     let literals = try!(read_literals_vector(state, bytes));
     let code_objects = try!(read_code_vector(state, bytes));
     let catch_table = try!(read_catch_table(bytes));
@@ -477,7 +489,14 @@ mod tests {
         pack_u16!(0, buffer); // locals
         pack_u16!(0, buffer); // registers
         pack_u8!(0, buffer); // captures
-        pack_u64!(0, buffer); // instructions
+
+        pack_u64!(1, buffer); // instructions
+
+        pack_u8!(InstructionType::Return as u8, buffer);
+        pack_u64!(1, buffer); // args count
+        pack_u16!(6, buffer); // arg 1
+        pack_u16!(2, buffer); // line number
+
         pack_u64!(0, buffer); // literals
         pack_u64!(0, buffer); // code objects
         pack_u64!(0, buffer); // catch table entries
@@ -674,8 +693,13 @@ mod tests {
         pack_u8!(1, buffer); // captures
 
         // instructions
-        pack_u64!(1, buffer);
-        pack_u8!(0, buffer); // type
+        pack_u64!(2, buffer);
+        pack_u8!(InstructionType::SetLiteral as u8, buffer); // type
+        pack_u64!(1, buffer); // args count
+        pack_u16!(6, buffer); // arg 1
+        pack_u16!(2, buffer); // line number
+
+        pack_u8!(InstructionType::Return as u8, buffer); // type
         pack_u64!(1, buffer); // args count
         pack_u16!(6, buffer); // arg 1
         pack_u16!(2, buffer); // line number
@@ -716,7 +740,7 @@ mod tests {
         assert_eq!(object.arguments, 3);
         assert_eq!(object.required_arguments, 2);
         assert_eq!(object.rest_argument, true);
-        assert_eq!(object.instructions.len(), 1);
+        assert_eq!(object.instructions.len(), 2);
         assert!(object.captures);
 
         let ref ins = object.instructions[0];
@@ -741,5 +765,69 @@ mod tests {
         assert_eq!(entry.end, 6);
         assert_eq!(entry.jump_to, 8);
         assert_eq!(entry.register, 10);
+    }
+
+    #[test]
+    fn test_read_compiled_code_without_return() {
+        let mut buffer = Vec::new();
+        let state = state();
+
+        pack_string!("main", buffer); // name
+        pack_string!("test.inko", buffer); // file
+        pack_u16!(4, buffer); // line
+        pack_u8!(3, buffer); // arguments
+        pack_u8!(2, buffer); // required args
+        pack_u8!(1, buffer); // rest argument
+        pack_u16!(1, buffer); // locals
+        pack_u16!(2, buffer); // registers
+        pack_u8!(1, buffer); // captures
+
+        // instructions
+        pack_u64!(1, buffer);
+        pack_u8!(InstructionType::SetLiteral as u8, buffer); // type
+        pack_u64!(1, buffer); // args count
+        pack_u16!(6, buffer); // arg 1
+        pack_u16!(2, buffer); // line number
+
+        // literals
+        pack_u64!(0, buffer);
+
+        // code objects
+        pack_u64!(0, buffer);
+
+        // catch table entries
+        pack_u64!(0, buffer);
+
+        assert!(read_compiled_code(&state, &mut buffer.bytes()).is_err());
+    }
+
+    #[test]
+    fn test_read_compiled_code_without_instructions() {
+        let mut buffer = Vec::new();
+        let state = state();
+
+        pack_string!("main", buffer); // name
+        pack_string!("test.inko", buffer); // file
+        pack_u16!(4, buffer); // line
+        pack_u8!(3, buffer); // arguments
+        pack_u8!(2, buffer); // required args
+        pack_u8!(1, buffer); // rest argument
+        pack_u16!(1, buffer); // locals
+        pack_u16!(2, buffer); // registers
+        pack_u8!(1, buffer); // captures
+
+        // instructions
+        pack_u64!(0, buffer);
+
+        // literals
+        pack_u64!(0, buffer);
+
+        // code objects
+        pack_u64!(0, buffer);
+
+        // catch table entries
+        pack_u64!(0, buffer);
+
+        assert!(read_compiled_code(&state, &mut buffer.bytes()).is_err());
     }
 }

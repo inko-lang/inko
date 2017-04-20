@@ -113,8 +113,7 @@ impl Machine {
         let process = {
             let mut registry = write_lock!(self.module_registry);
 
-            let module = registry
-                .parse_path(file)
+            let module = registry.parse_path(file)
                 .map_err(|err| err.message())
                 .unwrap();
 
@@ -136,8 +135,7 @@ impl Machine {
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
-        let pid = process_table
-            .reserve()
+        let pid = process_table.reserve()
             .ok_or_else(|| "No PID could be reserved".to_string())?;
 
         let process = Process::from_block(pid,
@@ -234,15 +232,13 @@ impl Machine {
                         let register = instruction.arg(0);
                         let val_count = instruction.arguments.len() - 1;
 
-                        let values =
-                            self.collect_arguments(&process,
-                                                   instruction,
-                                                   1,
-                                                   val_count);
+                        let values = self.collect_arguments(&process,
+                                                            instruction,
+                                                            1,
+                                                            val_count);
 
-                        let obj =
-                            process.allocate(object_value::array(values),
-                                             self.state.array_prototype);
+                        let obj = process.allocate(object_value::array(values),
+                                                   self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -337,9 +333,8 @@ impl Machine {
                                                binding,
                                                process.global_scope().clone());
 
-                        let obj =
-                            process.allocate(object_value::block(block),
-                                             self.state.block_prototype);
+                        let obj = process.allocate(object_value::block(block),
+                                                   self.state.block_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -420,10 +415,9 @@ impl Machine {
 
                         let global_scope = block.global_scope.clone();
 
-                        let new_block =
-                            Block::new(block.code.clone(),
-                                       Binding::new(block.locals()),
-                                       global_scope);
+                        let new_block = Block::new(block.code.clone(),
+                                                   Binding::new(block.locals()),
+                                                   global_scope);
 
                         let value = object_value::block(new_block);
                         let proto = self.state.method_prototype;
@@ -521,9 +515,8 @@ impl Machine {
                             process.get_register(instruction.arg(1));
                         let result = integer_ptr.integer_value().unwrap() as f64;
 
-                        let obj =
-                            process.allocate(object_value::float(result),
-                                             self.state.float_prototype);
+                        let obj = process.allocate(object_value::float(result),
+                                                   self.state.float_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -540,9 +533,8 @@ impl Machine {
                         let result =
                             integer_ptr.integer_value().unwrap().to_string();
 
-                        let obj =
-                            process.allocate(object_value::string(result),
-                                             self.state.string_prototype);
+                        let obj = process.allocate(object_value::string(result),
+                                                   self.state.string_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -710,9 +702,8 @@ impl Machine {
                         let float_ptr = process.get_register(instruction.arg(1));
                         let result = float_ptr.float_value().unwrap().to_string();
 
-                        let obj =
-                            process.allocate(object_value::string(result),
-                                             self.state.string_prototype);
+                        let obj = process.allocate(object_value::string(result),
+                                                   self.state.string_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -776,8 +767,7 @@ impl Machine {
                         let value_ptr = process.get_register(instruction.arg(3));
 
                         let mut vector = array_ptr.array_value_mut().unwrap();
-                        let index =
-                            int_to_vector_index!(vector,
+                        let index = int_to_vector_index!(vector,
                                                          index_ptr.integer_value()
                                                              .unwrap());
 
@@ -811,13 +801,11 @@ impl Machine {
                         let index_ptr = process.get_register(instruction.arg(2));
 
                         let vector = array_ptr.array_value().unwrap();
-                        let index =
-                            int_to_vector_index!(vector,
+                        let index = int_to_vector_index!(vector,
                                                          index_ptr.integer_value()
                                                              .unwrap());
 
-                        let value = vector
-                            .get(index)
+                        let value = vector.get(index)
                             .cloned()
                             .unwrap_or_else(|| self.state.nil_object);
 
@@ -841,8 +829,7 @@ impl Machine {
                         let index_ptr = process.get_register(instruction.arg(2));
 
                         let mut vector = array_ptr.array_value_mut().unwrap();
-                        let index =
-                            int_to_vector_index!(vector,
+                        let index = int_to_vector_index!(vector,
                                                          index_ptr.integer_value()
                                                              .unwrap());
 
@@ -891,9 +878,8 @@ impl Machine {
                         let lower =
                             source_ptr.string_value().unwrap().to_lowercase();
 
-                        let obj =
-                            process.allocate(object_value::string(lower),
-                                             self.state.string_prototype);
+                        let obj = process.allocate(object_value::string(lower),
+                                                   self.state.string_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -909,9 +895,8 @@ impl Machine {
                         let upper =
                             source_ptr.string_value().unwrap().to_uppercase();
 
-                        let obj =
-                            process.allocate(object_value::string(upper),
-                                             self.state.string_prototype);
+                        let obj = process.allocate(object_value::string(upper),
+                                                   self.state.string_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -948,17 +933,15 @@ impl Machine {
                         let register = instruction.arg(0);
                         let string_ptr = process.get_register(instruction.arg(1));
 
-                        let array = string_ptr
-                            .string_value()
+                        let array = string_ptr.string_value()
                             .unwrap()
                             .as_bytes()
                             .iter()
                             .map(|&b| ObjectPointer::integer(b as i64))
                             .collect::<Vec<_>>();
 
-                        let obj =
-                            process.allocate(object_value::array(array),
-                                             self.state.array_prototype);
+                        let obj = process.allocate(object_value::array(array),
+                                                   self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -1350,8 +1333,7 @@ impl Machine {
                         let block = {
                             let mut registry = write_lock!(self.module_registry);
 
-                            let module = registry
-                                .get_or_set(path_str)
+                            let module = registry.get_or_set(path_str)
                                 .map_err(|err| err.message())
                                 .unwrap();
 
@@ -1360,9 +1342,9 @@ impl Machine {
                                        module.global_scope_ref())
                         };
 
-                        let block_ptr = process
-                            .allocate(object_value::block(block),
-                                      self.state.block_prototype);
+                        let block_ptr =
+                            process.allocate(object_value::block(block),
+                                             self.state.block_prototype);
 
                         process.set_register(register, block_ptr);
                     }
@@ -1381,7 +1363,7 @@ impl Machine {
                         let path_str = path_ptr.string_value().unwrap();
 
                         let ptr = if read_lock!(self.module_registry)
-                               .contains_path(path_str) {
+                            .contains_path(path_str) {
                             self.state.true_object
                         } else {
                             self.state.false_object
@@ -1402,8 +1384,7 @@ impl Machine {
                         let register = instruction.arg(0);
                         let binding = process.binding();
 
-                        let obj = process
-                            .allocate(object_value::binding(binding),
+                        let obj = process.allocate(object_value::binding(binding),
                                       self.state.binding_prototype);
 
                         process.set_register(register, obj);
@@ -1451,9 +1432,8 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let object =
-                            src.lookup_constant(&self.state, &name)
-                                .unwrap_or_else(|| self.state.nil_object);
+                        let object = src.lookup_constant(&self.state, &name)
+                            .unwrap_or_else(|| self.state.nil_object);
 
                         process.set_register(register, object);
                     }
@@ -1478,7 +1458,8 @@ impl Machine {
 
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let value = copy_if_permanent!(self.state.permanent_allocator,
+                        let value =
+                            copy_if_permanent!(self.state.permanent_allocator,
                                    value_ptr,
                                    target_ptr);
 
@@ -1503,8 +1484,7 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let attr = source
-                            .lookup_attribute(&name)
+                        let attr = source.lookup_attribute(&name)
                             .unwrap_or_else(|| self.state.nil_object);
 
                         process.set_register(register, attr);
@@ -1538,8 +1518,7 @@ impl Machine {
                         let register = instruction.arg(0);
                         let source = process.get_register(instruction.arg(1));
 
-                        let proto = source
-                            .prototype(&self.state)
+                        let proto = source.prototype(&self.state)
                             .unwrap_or_else(|| self.state.nil_object);
 
                         process.set_register(register, proto);
@@ -1577,9 +1556,8 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let result = if source
-                               .lookup_method(&self.state, &name)
-                               .is_some() {
+                        let result = if source.lookup_method(&self.state, &name)
+                            .is_some() {
                             self.state.true_object.clone()
                         } else {
                             self.state.false_object.clone()
@@ -1599,8 +1577,8 @@ impl Machine {
                         let register = instruction.arg(0);
                         let block_ptr = process.get_register(instruction.arg(1));
 
-                        let pool_id = if let Some(pool_reg) = instruction
-                               .arg_opt(2) {
+                        let pool_id = if let Some(pool_reg) =
+                            instruction.arg_opt(2) {
                             let ptr = process.get_register(pool_reg);
 
                             ptr.integer_value().unwrap() as usize
@@ -1682,9 +1660,8 @@ impl Machine {
                         let depth = instruction.arg(1);
                         let value = process.get_register(instruction.arg(2));
 
-                        if let Some(binding) = process
-                               .binding()
-                               .find_parent(depth) {
+                        if let Some(binding) = process.binding()
+                            .find_parent(depth) {
                             binding.set_local(index, value);
                         } else {
                             panic!("No binding for depth {}", depth);
@@ -1703,9 +1680,8 @@ impl Machine {
                         let depth = instruction.arg(1);
                         let index = instruction.arg(2);
 
-                        if let Some(binding) = process
-                               .binding()
-                               .find_parent(depth) {
+                        if let Some(binding) = process.binding()
+                            .find_parent(depth) {
                             process.set_register(reg, binding.get_local(index));
                         } else {
                             panic!("No binding for depth {}", depth);
@@ -1746,7 +1722,7 @@ impl Machine {
                         let mut buffer = String::with_capacity(size);
 
                         let obj = match file.take(size as u64)
-                                  .read_to_string(&mut buffer) {
+                            .read_to_string(&mut buffer) {
                             Ok(_) => {
                                 process.allocate(object_value::string(buffer),
                                                  self.state.string_prototype)
@@ -1774,9 +1750,8 @@ impl Machine {
                         let mut buffer = String::with_capacity(size);
                         let stdin = io::stdin();
 
-                        let obj = match stdin
-                                  .take(size as u64)
-                                  .read_to_string(&mut buffer) {
+                        let obj = match stdin.take(size as u64)
+                            .read_to_string(&mut buffer) {
                             Ok(_) => {
                                 process.allocate(object_value::string(buffer),
                                                  self.state.string_prototype)
@@ -1850,10 +1825,8 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let method =
-                            rec_ptr
-                                .lookup_method(&self.state, &name)
-                                .unwrap_or_else(|| self.state.nil_object);
+                        let method = rec_ptr.lookup_method(&self.state, &name)
+                            .unwrap_or_else(|| self.state.nil_object);
 
                         process.set_register(register, method);
                     }
@@ -1871,12 +1844,12 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let obj =
-                            if source_ptr.lookup_attribute(&name).is_some() {
-                                self.state.true_object.clone()
-                            } else {
-                                self.state.false_object.clone()
-                            };
+                        let obj = if source_ptr.lookup_attribute(&name)
+                            .is_some() {
+                            self.state.true_object.clone()
+                        } else {
+                            self.state.false_object.clone()
+                        };
 
                         process.set_register(register, obj);
                     }
@@ -1922,8 +1895,8 @@ impl Machine {
                             panic!("methods can not be removed from integers");
                         }
 
-                        let obj = if let Some(method) =
-                            rec_ptr.get_mut().remove_method(&name) {
+                        let obj = if let Some(method) = rec_ptr.get_mut()
+                            .remove_method(&name) {
                             method
                         } else {
                             self.state.nil_object
@@ -1952,8 +1925,8 @@ impl Machine {
                             panic!("attributes can not be removed for integers");
                         }
 
-                        let obj = if let Some(attribute) =
-                            rec_ptr.get_mut().remove_attribute(&name) {
+                        let obj = if let Some(attribute) = rec_ptr.get_mut()
+                            .remove_attribute(&name) {
                             attribute
                         } else {
                             self.state.nil_object
@@ -1973,9 +1946,8 @@ impl Machine {
                         let rec_ptr = process.get_register(instruction.arg(1));
                         let methods = rec_ptr.methods();
 
-                        let obj =
-                            process.allocate(object_value::array(methods),
-                                             self.state.array_prototype);
+                        let obj = process.allocate(object_value::array(methods),
+                                                   self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -1991,9 +1963,8 @@ impl Machine {
                         let rec_ptr = process.get_register(instruction.arg(1));
                         let methods = rec_ptr.method_names();
 
-                        let obj =
-                            process.allocate(object_value::array(methods),
-                                             self.state.array_prototype);
+                        let obj = process.allocate(object_value::array(methods),
+                                                   self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -2009,9 +1980,9 @@ impl Machine {
                         let rec_ptr = process.get_register(instruction.arg(1));
                         let attributes = rec_ptr.attributes();
 
-                        let obj = process
-                            .allocate(object_value::array(attributes),
-                                      self.state.array_prototype);
+                        let obj =
+                            process.allocate(object_value::array(attributes),
+                                             self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -2027,9 +1998,9 @@ impl Machine {
                         let rec_ptr = process.get_register(instruction.arg(1));
                         let attributes = rec_ptr.attribute_names();
 
-                        let obj = process
-                            .allocate(object_value::array(attributes),
-                                      self.state.array_prototype);
+                        let obj =
+                            process.allocate(object_value::array(attributes),
+                                             self.state.array_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -2059,9 +2030,8 @@ impl Machine {
                         let msec = (duration.as_secs() * 1_000) as f64 +
                                    duration.subsec_nanos() as f64 / 1_000_000.0;
 
-                        let obj =
-                            process.allocate(object_value::float(msec),
-                                             self.state.float_prototype);
+                        let obj = process.allocate(object_value::float(msec),
+                                                   self.state.float_prototype);
 
                         process.set_register(register, obj);
                     }
@@ -2136,8 +2106,8 @@ impl Machine {
                         let name_ptr = process.get_register(instruction.arg(2));
                         let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                        let method =
-                            rec_ptr.lookup_method(&self.state, &name).unwrap();
+                        let method = rec_ptr.lookup_method(&self.state, &name)
+                            .unwrap();
 
                         let block = method.block_value().unwrap();
 
