@@ -1,6 +1,5 @@
 //! Virtual Machine for running instructions
 use std::io::{self, Write, Read, Seek, SeekFrom};
-use std::fs::OpenOptions;
 
 use binding::Binding;
 use block::Block;
@@ -14,6 +13,7 @@ use object_value;
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{RcProcess, Process};
+use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
@@ -35,24 +35,6 @@ macro_rules! int_to_vector_index {
         }
     });
 }
-
-/// File opened for reading, equal to fopen's "r" mode.
-const READ: i64 = 0;
-
-/// File opened for writing, equal to fopen's "w" mode.
-const WRITE: i64 = 1;
-
-/// File opened for appending, equal to fopen's "a" mode.
-const APPEND: i64 = 2;
-
-/// File opened for both reading and writing, equal to fopen's "w+" mode.
-const READ_WRITE: i64 = 3;
-
-/// File opened for reading and appending, equal to fopen's "a+" mode.
-const READ_APPEND: i64 = 4;
-
-/// The byte indicating the end of a line.
-const NEWLINE_BYTE: u8 = 0xA;
 
 #[derive(Clone)]
 pub struct Machine {
@@ -1176,30 +1158,8 @@ impl Machine {
 
                         let path = path_ptr.string_value().unwrap();
                         let mode = mode_ptr.integer_value().unwrap();
-                        let mut open_opts = OpenOptions::new();
-
-                        match mode {
-                            READ => {
-                                open_opts.read(true);
-                            }
-                            WRITE => {
-                                open_opts.write(true).truncate(true).create(true);
-                            }
-                            APPEND => {
-                                open_opts
-                                    .read(true)
-                                    .write(true)
-                                    .truncate(true)
-                                    .create(true);
-                            }
-                            READ_WRITE => {
-                                open_opts.append(true).create(true);
-                            }
-                            READ_APPEND => {
-                                open_opts.read(true).append(true).create(true);
-                            }
-                            _ => {}
-                        };
+                        let open_opts = file_open_mode::options_for_integer(mode)
+                            .unwrap();
 
                         let object = match open_opts.open(path) {
                             Ok(file) => process.allocate_without_prototype(object_value::file(file)),
@@ -1280,7 +1240,7 @@ impl Machine {
                                 Ok(byte) => {
                                     buffer.push(byte);
 
-                                    if byte == NEWLINE_BYTE {
+                                    if byte == 0xA {
                                         break;
                                     }
                                 }
