@@ -166,7 +166,7 @@ impl<'a> Iterator for ExecutionContextIterator<'a> {
 mod tests {
     use super::*;
     use object_pointer::{ObjectPointer, RawObjectPointer};
-    use vm::instructions::test::*;
+    use vm::test::*;
 
     #[test]
     fn test_set_parent() {

@@ -99,8 +99,8 @@ impl State {
 
         // Boxed since moving around the allocator can break pointers from the
         // blocks back to the allocator's bucket.
-        let mut perm_alloc =
-            Box::new(PermanentAllocator::new(global_alloc.clone()));
+        let mut perm_alloc = Box::new(PermanentAllocator::new(global_alloc
+                                                                  .clone()));
 
         let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
@@ -234,9 +234,7 @@ mod tests {
     #[test]
     fn test_intern_pointer_without_string() {
         let state = State::new(Config::new());
-        let string = state.permanent_allocator
-            .lock()
-            .allocate_empty();
+        let string = state.permanent_allocator.lock().allocate_empty();
 
         assert!(state.intern_pointer(&string).is_err());
     }

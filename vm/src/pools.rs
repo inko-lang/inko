@@ -45,7 +45,7 @@ impl Pools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vm::instructions::test::setup;
+    use vm::test::setup;
 
     #[test]
     fn test_new() {

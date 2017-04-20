@@ -381,7 +381,7 @@ impl Hash for Process {
 #[cfg(test)]
 mod tests {
     use config::Config;
-    use vm::instructions::test::setup;
+    use vm::test::setup;
 
     #[test]
     fn test_contexts() {

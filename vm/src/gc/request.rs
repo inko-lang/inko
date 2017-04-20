@@ -68,7 +68,7 @@ mod tests {
     use super::*;
     use config::Config;
     use vm::state::State;
-    use vm::instructions::test::setup;
+    use vm::test::setup;
 
     #[test]
     fn test_new() {

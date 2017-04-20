@@ -157,7 +157,7 @@ mod tests {
     use execution_context::ExecutionContext;
     use object::Object;
     use object_value;
-    use vm::instructions::test::setup;
+    use vm::test::setup;
     use vm::state::State;
 
     #[test]

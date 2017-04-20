@@ -1,48 +1,21 @@
 //! Virtual Machine for running instructions
+use std::io::{self, Write, Read, Seek, SeekFrom};
+use std::fs::OpenOptions;
+
 use binding::Binding;
 use block::Block;
+use catch_table::ThrowReason;
+use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
+use immix::copy_object::CopyObject;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
 use object_pointer::ObjectPointer;
+use object_value;
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{RcProcess, Process};
 use vm::instruction::{Instruction, InstructionType};
-use vm::instructions::array;
-use vm::instructions::binding;
-use vm::instructions::block;
-use vm::instructions::boolean;
-use vm::instructions::code_execution;
-use vm::instructions::constant;
-use vm::instructions::control_flow;
-use vm::instructions::error;
-use vm::instructions::file;
-use vm::instructions::float;
-use vm::instructions::globals;
-use vm::instructions::integer;
-use vm::instructions::literals;
-use vm::instructions::local_variable;
-use vm::instructions::method;
-use vm::instructions::nil;
-use vm::instructions::object;
-use vm::instructions::process;
-use vm::instructions::prototype;
-use vm::instructions::register;
-use vm::instructions::stderr;
-use vm::instructions::stdin;
-use vm::instructions::stdout;
-use vm::instructions::string;
-use vm::instructions::time;
 use vm::state::RcState;
-
-macro_rules! suspend_retry {
-    ($machine: expr, $context: expr, $process: expr, $index: expr) => ({
-        $context.instruction_index = $index - 1;
-        $machine.reschedule($process.clone());
-
-        return;
-    })
-}
 
 macro_rules! enter_context {
     ($context: expr, $index: expr, $label: tt) => ({
@@ -50,6 +23,36 @@ macro_rules! enter_context {
         continue $label;
     })
 }
+
+/// Returns a vector index for an i64
+macro_rules! int_to_vector_index {
+    ($vec: expr, $index: expr) => ({
+        if $index >= 0 as i64 {
+            $index as usize
+        }
+        else {
+            ($vec.len() as i64 + $index) as usize
+        }
+    });
+}
+
+/// File opened for reading, equal to fopen's "r" mode.
+const READ: i64 = 0;
+
+/// File opened for writing, equal to fopen's "w" mode.
+const WRITE: i64 = 1;
+
+/// File opened for appending, equal to fopen's "a" mode.
+const APPEND: i64 = 2;
+
+/// File opened for both reading and writing, equal to fopen's "w+" mode.
+const READ_WRITE: i64 = 3;
+
+/// File opened for reading and appending, equal to fopen's "a+" mode.
+const READ_APPEND: i64 = 4;
+
+/// The byte indicating the end of a line.
+const NEWLINE_BYTE: u8 = 0xA;
 
 #[derive(Clone)]
 pub struct Machine {
@@ -128,7 +131,8 @@ impl Machine {
         let process = {
             let mut registry = write_lock!(self.module_registry);
 
-            let module = registry.parse_path(file)
+            let module = registry
+                .parse_path(file)
                 .map_err(|err| err.message())
                 .unwrap();
 
@@ -150,7 +154,8 @@ impl Machine {
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
-        let pid = process_table.reserve()
+        let pid = process_table
+            .reserve()
             .ok_or_else(|| "No PID could be reserved".to_string())?;
 
         let process = Process::from_block(pid,
@@ -164,7 +169,7 @@ impl Machine {
     }
 
     /// Executes a single process.
-    fn run(&self, process: &RcProcess) {
+    pub fn run(&self, process: &RcProcess) {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -186,391 +191,2078 @@ impl Machine {
                 index += 1;
 
                 match instruction.instruction_type {
+                    // Sets a literal value in a register.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the literal value in.
+                    // 2. The index to the value in the literals table of the
+                    //    current compiled code object.
                     InstructionType::SetLiteral => {
-                        literals::set_literal(process, &code, instruction);
+                        let register = instruction.arg(0);
+                        let index = instruction.arg(1);
+
+                        process.set_register(register, code.literal(index));
                     }
+                    // Sets an object in a register.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the object in.
+                    // 2. A register containing a truthy/falsy object. When the
+                    //    register contains a truthy object the new object will
+                    //    be a global object.
+                    // 3. An optional register containing the prototype for the
+                    //    object.
                     InstructionType::SetObject => {
-                        object::set_object(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let is_permanent_ptr =
+                            process.get_register(instruction.arg(1));
+                        let is_permanent = is_permanent_ptr !=
+                                           self.state.false_object;
+
+                        let obj = if is_permanent {
+                            self.state.permanent_allocator.lock().allocate_empty()
+                        } else {
+                            process.allocate_empty()
+                        };
+
+                        if let Some(proto_index) = instruction.arg_opt(2) {
+                            let mut proto = process.get_register(proto_index);
+
+                            if is_permanent && !proto.is_permanent() {
+                                proto = self.state
+                                    .permanent_allocator
+                                    .lock()
+                                    .copy_object(proto);
+                            }
+
+                            obj.get_mut().set_prototype(proto);
+                        }
+
+                        process.set_register(register, obj);
                     }
+                    // Sets an array in a register.
+                    //
+                    // This instruction requires at least one argument: the
+                    // register to store the resulting array in. Any extra
+                    // instruction arguments should point to registers
+                    // containing objects to store in the array.
                     InstructionType::SetArray => {
-                        array::set_array(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let val_count = instruction.arguments.len() - 1;
+
+                        let values =
+                            self.collect_arguments(&process,
+                                                   instruction,
+                                                   1,
+                                                   val_count);
+
+                        let obj =
+                            process.allocate(object_value::array(values),
+                                             self.state.array_prototype);
+
+                        process.set_register(register, obj);
                     }
                     InstructionType::GetIntegerPrototype => {
-                        prototype::get_integer_prototype(self,
-                                                         process,
-                                                         instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.integer_prototype);
                     }
                     InstructionType::GetFloatPrototype => {
-                        prototype::get_float_prototype(self,
-                                                       process,
-                                                       instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.float_prototype);
                     }
                     InstructionType::GetStringPrototype => {
-                        prototype::get_string_prototype(self,
-                                                        process,
-                                                        instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.string_prototype);
                     }
                     InstructionType::GetArrayPrototype => {
-                        prototype::get_array_prototype(self,
-                                                       process,
-                                                       instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.array_prototype);
                     }
                     InstructionType::GetTruePrototype => {
-                        prototype::get_true_prototype(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.true_prototype);
                     }
                     InstructionType::GetFalsePrototype => {
-                        prototype::get_false_prototype(self,
-                                                       process,
-                                                       instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.false_prototype);
                     }
                     InstructionType::GetMethodPrototype => {
-                        prototype::get_method_prototype(self,
-                                                        process,
-                                                        instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.method_prototype);
                     }
                     InstructionType::GetBlockPrototype => {
-                        prototype::get_block_prototype(self,
-                                                       process,
-                                                       instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.block_prototype);
                     }
+                    // Sets a "true" value in a register.
+                    //
+                    // This instruction requires only one argument: the register
+                    // to store the object in.
                     InstructionType::GetTrue => {
-                        boolean::get_true(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.true_object);
                     }
+                    // Sets a "false" value in a register.
+                    //
+                    // This instruction requires only one argument: the register
+                    // to store the object in.
                     InstructionType::GetFalse => {
-                        boolean::get_false(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.false_object);
                     }
+                    // Sets a local variable to a given register's value.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The local variable index to set.
+                    // 2. The register containing the object to store in the
+                    //    variable.
                     InstructionType::SetLocal => {
-                        local_variable::set_local(process, instruction);
+                        let local_index = instruction.arg(0);
+                        let object = process.get_register(instruction.arg(1));
+
+                        process.set_local(local_index, object);
                     }
+                    // Gets a local variable and stores it in a register.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the local's value in.
+                    // 2. The local variable index to get the value from.
                     InstructionType::GetLocal => {
-                        local_variable::get_local(process, instruction);
+                        let register = instruction.arg(0);
+                        let local_index = instruction.arg(1);
+                        let object = process.get_local(local_index);
+
+                        process.set_register(register, object);
                     }
+                    // Sets a Block in a register.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the object in.
+                    // 2. The index of the CompiledCode object literal to use
+                    //    for creating the Block.
                     InstructionType::SetBlock => {
-                        block::set_block(self, process, &code, instruction);
+                        let register = instruction.arg(0);
+                        let cc_index = instruction.arg(1);
+
+                        let cc = code.code_object(cc_index);
+                        let binding = process.binding();
+                        let block = Block::new(cc.clone(),
+                                               binding,
+                                               process.global_scope().clone());
+
+                        let obj =
+                            process.allocate(object_value::block(block),
+                                             self.state.block_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Returns the value in the given register.
+                    //
+                    // This instruction takes a single argument: the register
+                    // containing the value to return.
                     InstructionType::Return => {
-                        control_flow::return_value(process, instruction);
+                        let object = process.get_register(instruction.arg(0));
+
+                        if let Some(register) = context.return_register {
+                            if let Some(parent_context) = context.parent_mut() {
+                                parent_context.set_register(register, object);
+                            }
+                        }
 
                         break;
                     }
+                    // Jumps to an instruction if a register is not set or set
+                    // to false.
+                    //
+                    // This instruction takes two arguments:
+                    //
+                    // 1. The instruction index to jump to if a register is not
+                    //    set.
+                    // 2. The register to check.
                     InstructionType::GotoIfFalse => {
-                        index = control_flow::goto_if_false(self,
-                                                            process,
-                                                            instruction,
-                                                            index);
-                    }
-                    InstructionType::GotoIfTrue => {
-                        index = control_flow::goto_if_true(self,
-                                                           process,
-                                                           instruction,
-                                                           index);
-                    }
-                    InstructionType::Goto => {
-                        index = control_flow::goto(instruction);
-                    }
-                    InstructionType::DefMethod => {
-                        method::def_method(self, process, instruction);
-                    }
-                    InstructionType::IsError => {
-                        error::is_error(self, process, instruction);
-                    }
-                    InstructionType::IntegerAdd => {
-                        integer::integer_add(process, instruction);
-                    }
-                    InstructionType::IntegerDiv => {
-                        integer::integer_div(process, instruction);
-                    }
-                    InstructionType::IntegerMul => {
-                        integer::integer_mul(process, instruction);
-                    }
-                    InstructionType::IntegerSub => {
-                        integer::integer_sub(process, instruction);
-                    }
-                    InstructionType::IntegerMod => {
-                        integer::integer_mod(process, instruction);
-                    }
-                    InstructionType::IntegerToFloat => {
-                        integer::integer_to_float(self, process, instruction);
-                    }
-                    InstructionType::IntegerToString => {
-                        integer::integer_to_string(self, process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseAnd => {
-                        integer::integer_bitwise_and(process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseOr => {
-                        integer::integer_bitwise_or(process, instruction);
-                    }
-                    InstructionType::IntegerBitwiseXor => {
-                        integer::integer_bitwise_xor(process, instruction);
-                    }
-                    InstructionType::IntegerShiftLeft => {
-                        integer::integer_shift_left(process, instruction);
-                    }
-                    InstructionType::IntegerShiftRight => {
-                        integer::integer_shift_right(process, instruction);
-                    }
-                    InstructionType::IntegerSmaller => {
-                        integer::integer_smaller(self, process, instruction);
-                    }
-                    InstructionType::IntegerGreater => {
-                        integer::integer_greater(self, process, instruction);
-                    }
-                    InstructionType::IntegerEquals => {
-                        integer::integer_equals(self, process, instruction);
-                    }
-                    InstructionType::FloatAdd => {
-                        float::float_add(self, process, instruction);
-                    }
-                    InstructionType::FloatMul => {
-                        float::float_mul(self, process, instruction);
-                    }
-                    InstructionType::FloatDiv => {
-                        float::float_div(self, process, instruction);
-                    }
-                    InstructionType::FloatSub => {
-                        float::float_sub(self, process, instruction);
-                    }
-                    InstructionType::FloatMod => {
-                        float::float_mod(self, process, instruction);
-                    }
-                    InstructionType::FloatToInteger => {
-                        float::float_to_integer(process, instruction);
-                    }
-                    InstructionType::FloatToString => {
-                        float::float_to_string(self, process, instruction);
-                    }
-                    InstructionType::FloatSmaller => {
-                        float::float_smaller(self, process, instruction);
-                    }
-                    InstructionType::FloatGreater => {
-                        float::float_greater(self, process, instruction);
-                    }
-                    InstructionType::FloatEquals => {
-                        float::float_equals(self, process, instruction);
-                    }
-                    InstructionType::ArrayInsert => {
-                        array::array_insert(self, process, instruction);
-                    }
-                    InstructionType::ArrayAt => {
-                        array::array_at(self, process, instruction);
-                    }
-                    InstructionType::ArrayRemove => {
-                        array::array_remove(self, process, instruction);
-                    }
-                    InstructionType::ArrayLength => {
-                        array::array_length(process, instruction);
-                    }
-                    InstructionType::ArrayClear => {
-                        array::array_clear(process, instruction);
-                    }
-                    InstructionType::StringToLower => {
-                        string::string_to_lower(self, process, instruction);
-                    }
-                    InstructionType::StringToUpper => {
-                        string::string_to_upper(self, process, instruction);
-                    }
-                    InstructionType::StringEquals => {
-                        string::string_equals(self, process, instruction);
-                    }
-                    InstructionType::StringToBytes => {
-                        string::string_to_bytes(self, process, instruction);
-                    }
-                    InstructionType::StringFromBytes => {
-                        string::string_from_bytes(self, process, instruction);
-                    }
-                    InstructionType::StringLength => {
-                        string::string_length(process, instruction);
-                    }
-                    InstructionType::StringSize => {
-                        string::string_size(process, instruction);
-                    }
-                    InstructionType::StdoutWrite => {
-                        stdout::stdout_write(process, instruction);
-                    }
-                    InstructionType::StderrWrite => {
-                        stderr::stderr_write(process, instruction);
-                    }
-                    InstructionType::StdinRead => {
-                        stdin::stdin_read(self, process, instruction);
-                    }
-                    InstructionType::StdinReadLine => {
-                        stdin::stdin_read_line(self, process, instruction);
-                    }
-                    InstructionType::FileOpen => {
-                        file::file_open(process, instruction);
-                    }
-                    InstructionType::FileWrite => {
-                        file::file_write(process, instruction);
-                    }
-                    InstructionType::FileRead => {
-                        file::file_read(self, process, instruction);
-                    }
-                    InstructionType::FileReadLine => {
-                        file::file_read_line(self, process, instruction);
-                    }
-                    InstructionType::FileFlush => {
-                        file::file_flush(process, instruction);
-                    }
-                    InstructionType::FileSize => {
-                        file::file_size(process, instruction);
-                    }
-                    InstructionType::FileSeek => {
-                        file::file_seek(process, instruction);
-                    }
-                    InstructionType::ParseFile => {
-                        code_execution::parse_file(self, process, instruction);
-                    }
-                    InstructionType::FileParsed => {
-                        code_execution::file_parsed(self, process, instruction);
-                    }
-                    InstructionType::GetBindingPrototype => {
-                        prototype::get_binding_prototype(self,
-                                                         process,
-                                                         instruction);
-                    }
-                    InstructionType::GetBinding => {
-                        binding::get_binding(self, process, instruction);
-                    }
-                    InstructionType::SetConstant => {
-                        constant::set_const(self, process, instruction);
-                    }
-                    InstructionType::GetConstant => {
-                        constant::get_const(self, process, instruction);
-                    }
-                    InstructionType::SetAttribute => {
-                        object::set_attr(self, process, instruction);
-                    }
-                    InstructionType::GetAttribute => {
-                        object::get_attr(self, process, instruction);
-                    }
-                    InstructionType::SetPrototype => {
-                        prototype::set_prototype(process, instruction);
-                    }
-                    InstructionType::GetPrototype => {
-                        prototype::get_prototype(self, process, instruction);
-                    }
-                    InstructionType::LocalExists => {
-                        local_variable::local_exists(self, process, instruction);
-                    }
-                    InstructionType::RespondsTo => {
-                        method::responds_to(self, process, instruction);
-                    }
-                    InstructionType::SpawnProcess => {
-                        process::spawn_process(self, process, instruction);
-                    }
-                    InstructionType::SendProcessMessage => {
-                        process::send_process_message(self, process, instruction);
-                    }
-                    InstructionType::ReceiveProcessMessage => {
-                        let suspend =
-                            process::receive_process_message(process,
-                                                             instruction);
+                        let value_reg = instruction.arg(1);
 
-                        if suspend {
-                            suspend_retry!(self, context, process, index);
+                        if is_false!(self, process.get_register(value_reg)) {
+                            index = instruction.arg(0);
                         }
                     }
+                    // Jumps to an instruction if a register is set.
+                    //
+                    // This instruction takes two arguments:
+                    //
+                    // 1. The instruction index to jump to if a register is set.
+                    // 2. The register to check.
+                    InstructionType::GotoIfTrue => {
+                        let value_reg = instruction.arg(1);
+
+                        if !is_false!(self, process.get_register(value_reg)) {
+                            index = instruction.arg(0);
+                        }
+                    }
+                    // Jumps to a specific instruction.
+                    //
+                    // This instruction takes one argument: the instruction
+                    // index to jump to.
+                    InstructionType::Goto => {
+                        index = instruction.arg(0);
+                    }
+                    // Defines a method for an object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the method object in.
+                    // 2. The register pointing to a specific object to define
+                    //    the method on.
+                    // 3. The register containing a String to use as the method
+                    //    name.
+                    // 4. The register containing the Block to use for the
+                    //    method.
+                    InstructionType::DefMethod => {
+                        let register = instruction.arg(0);
+                        let receiver_ptr =
+                            process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let block_ptr = process.get_register(instruction.arg(3));
+
+                        if receiver_ptr.is_tagged_integer() {
+                            panic!("methods can not be defined on integers");
+                        }
+
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+                        let block = block_ptr.block_value().unwrap();
+
+                        let global_scope = block.global_scope.clone();
+
+                        let new_block =
+                            Block::new(block.code.clone(),
+                                       Binding::new(block.locals()),
+                                       global_scope);
+
+                        let value = object_value::block(new_block);
+                        let proto = self.state.method_prototype;
+
+                        let method = if receiver_ptr.is_permanent() {
+                            self.state
+                                .permanent_allocator
+                                .lock()
+                                .allocate_with_prototype(value, proto)
+                        } else {
+                            process.allocate(value, proto)
+                        };
+
+                        receiver_ptr.add_method(&process, name, method);
+
+                        process.set_register(register, method);
+                    }
+                    // Checks if a given object is an error object.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the boolean result in.
+                    // 2. The register of the object to check.
+                    InstructionType::IsError => {
+                        let register = instruction.arg(0);
+                        let ptr = process.get_register(instruction.arg(1));
+
+                        let result = if ptr.error_value().is_ok() {
+                            self.state.true_object.clone()
+                        } else {
+                            self.state.false_object.clone()
+                        };
+
+                        process.set_register(register, result);
+                    }
+                    // Adds two integers
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the left-hand side object.
+                    // 3. The register of the right-hand side object.
+                    InstructionType::IntegerAdd => {
+                        integer_op!(process, instruction, +);
+                    }
+                    // Divides an integer
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the left-hand side object.
+                    // 3. The register of the right-hand side object.
+                    InstructionType::IntegerDiv => {
+                        integer_op!(process, instruction, /);
+                    }
+                    // Multiplies an integer
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the left-hand side object.
+                    // 3. The register of the right-hand side object.
+                    InstructionType::IntegerMul => {
+                        integer_op!(process, instruction, *);
+                    }
+                    // Subtracts an integer
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the left-hand side object.
+                    // 3. The register of the right-hand side object.
+                    InstructionType::IntegerSub => {
+                        integer_op!(process, instruction, -);
+                    }
+                    // Gets the modulo of an integer
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the left-hand side object.
+                    // 3. The register of the right-hand side object.
+                    InstructionType::IntegerMod => {
+                        integer_op!(process, instruction, %);
+                    }
+                    // Converts an integer to a float
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to convert.
+                    InstructionType::IntegerToFloat => {
+                        let register = instruction.arg(0);
+                        let integer_ptr =
+                            process.get_register(instruction.arg(1));
+                        let result = integer_ptr.integer_value().unwrap() as f64;
+
+                        let obj =
+                            process.allocate(object_value::float(result),
+                                             self.state.float_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Converts an integer to a string
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to convert.
+                    InstructionType::IntegerToString => {
+                        let register = instruction.arg(0);
+                        let integer_ptr =
+                            process.get_register(instruction.arg(1));
+                        let result =
+                            integer_ptr.integer_value().unwrap().to_string();
+
+                        let obj =
+                            process.allocate(object_value::string(result),
+                                             self.state.string_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Performs an integer bitwise AND.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to operate on.
+                    // 3. The register of the integer to use as the operand.
+                    InstructionType::IntegerBitwiseAnd => {
+                        integer_op!(process, instruction, &);
+                    }
+                    // Performs an integer bitwise OR.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to operate on.
+                    // 3. The register of the integer to use as the operand.
+                    InstructionType::IntegerBitwiseOr => {
+                        integer_op!(process, instruction, |);
+                    }
+                    // Performs an integer bitwise XOR.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to operate on.
+                    // 3. The register of the integer to use as the operand.
+                    InstructionType::IntegerBitwiseXor => {
+                        integer_op!(process, instruction, ^);
+                    }
+                    // Shifts an integer to the left.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to operate on.
+                    // 3. The register of the integer to use as the operand.
+                    InstructionType::IntegerShiftLeft => {
+                        integer_op!(process, instruction, <<);
+                    }
+                    // Shifts an integer to the right.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the integer to operate on.
+                    // 3. The register of the integer to use as the operand.
+                    InstructionType::IntegerShiftRight => {
+                        integer_op!(process, instruction, >>);
+                    }
+                    // Checks if one integer is smaller than the other.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the integer to compare.
+                    // 3. The register containing the integer to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::IntegerSmaller => {
+                        integer_bool_op!(self, process, instruction, <);
+                    }
+                    // Checks if one integer is greater than the other.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the integer to compare.
+                    // 3. The register containing the integer to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::IntegerGreater => {
+                        integer_bool_op!(self, process, instruction, >);
+                    }
+                    // Checks if two integers are equal.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the integer to compare.
+                    // 3. The register containing the integer to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::IntegerEquals => {
+                        integer_bool_op!(self, process, instruction, ==);
+                    }
+                    // Adds two floats
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the receiver.
+                    // 3. The register of the float to add.
+                    InstructionType::FloatAdd => {
+                        float_op!(self, process, instruction, +);
+                    }
+                    // Multiplies two floats
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the receiver.
+                    // 3. The register of the float to multiply with.
+                    InstructionType::FloatMul => {
+                        float_op!(self, process, instruction, *);
+                    }
+                    // Divides two floats
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the receiver.
+                    // 3. The register of the float to divide with.
+                    InstructionType::FloatDiv => {
+                        float_op!(self, process, instruction, /);
+                    }
+                    // Subtracts two floats
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the receiver.
+                    // 3. The register of the float to subtract.
+                    InstructionType::FloatSub => {
+                        float_op!(self, process, instruction, -);
+                    }
+                    // Gets the modulo of a float
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the receiver.
+                    // 3. The register of the float argument.
+                    InstructionType::FloatMod => {
+                        float_op!(self, process, instruction, %);
+                    }
+                    // Converts a float to an integer
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the float to convert.
+                    InstructionType::FloatToInteger => {
+                        let register = instruction.arg(0);
+                        let float_ptr = process.get_register(instruction.arg(1));
+                        let result = float_ptr.float_value().unwrap() as i64;
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(result));
+                    }
+                    // Converts a float to a string
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the float to convert.
+                    InstructionType::FloatToString => {
+                        let register = instruction.arg(0);
+                        let float_ptr = process.get_register(instruction.arg(1));
+                        let result = float_ptr.float_value().unwrap().to_string();
+
+                        let obj =
+                            process.allocate(object_value::string(result),
+                                             self.state.string_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Checks if one float is smaller than the other.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the float to compare.
+                    // 3. The register containing the float to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::FloatSmaller => {
+                        float_bool_op!(self, process, instruction, <);
+                    }
+                    // Checks if one float is greater than the other.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the float to compare.
+                    // 3. The register containing the float to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::FloatGreater => {
+                        float_bool_op!(self, process, instruction, >);
+                    }
+                    // Checks if two floats are equal.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the float to compare.
+                    // 3. The register containing the float to compare with.
+                    //
+                    // The result of this instruction is either boolean true or
+                    // false.
+                    InstructionType::FloatEquals => {
+                        float_bool_op!(self, process, instruction, ==);
+                    }
+                    // Inserts a value in an array.
+                    //
+                    // This instruction requires 4 arguments:
+                    //
+                    // 1. The register to store the result (the inserted value)
+                    //    in.
+                    // 2. The register containing the array to insert into.
+                    // 3. The register containing the index (as an integer) to
+                    //    insert at.
+                    // 4. The register containing the value to insert.
+                    //
+                    // If an index is out of bounds the array is filled with nil
+                    // values. A negative index can be used to indicate a
+                    // position from the end of the array.
+                    InstructionType::ArrayInsert => {
+                        let register = instruction.arg(0);
+                        let array_ptr = process.get_register(instruction.arg(1));
+                        let index_ptr = process.get_register(instruction.arg(2));
+                        let value_ptr = process.get_register(instruction.arg(3));
+
+                        let mut vector = array_ptr.array_value_mut().unwrap();
+                        let index =
+                            int_to_vector_index!(vector,
+                                                         index_ptr.integer_value()
+                                                             .unwrap());
+
+                        let value = copy_if_permanent!(self.state
+                                                           .permanent_allocator,
+                                                       value_ptr,
+                                                       array_ptr);
+
+                        if index >= vector.len() {
+                            vector.resize(index + 1, self.state.nil_object);
+                        }
+
+                        vector[index] = value;
+
+                        process.set_register(register, value);
+                    }
+                    // Gets the value of an array index.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the value in.
+                    // 2. The register containing the array.
+                    // 3. The register containing the index.
+                    //
+                    // This instruction will set nil in the target register if
+                    // the array index is out of bounds. A negative index can be
+                    // used to indicate a position from the end of the array.
+                    InstructionType::ArrayAt => {
+                        let register = instruction.arg(0);
+                        let array_ptr = process.get_register(instruction.arg(1));
+                        let index_ptr = process.get_register(instruction.arg(2));
+
+                        let vector = array_ptr.array_value().unwrap();
+                        let index =
+                            int_to_vector_index!(vector,
+                                                         index_ptr.integer_value()
+                                                             .unwrap());
+
+                        let value = vector
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_else(|| self.state.nil_object);
+
+                        process.set_register(register, value);
+                    }
+                    // Removes a value from an array.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the removed value in.
+                    // 2. The register containing the array to remove a value
+                    //    from.
+                    // 3. The register containing the index.
+                    //
+                    // This instruction sets nil in the target register if the
+                    // index is out of bounds. A negative index can be used to
+                    // indicate a position from the end of the array.
+                    InstructionType::ArrayRemove => {
+                        let register = instruction.arg(0);
+                        let array_ptr = process.get_register(instruction.arg(1));
+                        let index_ptr = process.get_register(instruction.arg(2));
+
+                        let mut vector = array_ptr.array_value_mut().unwrap();
+                        let index =
+                            int_to_vector_index!(vector,
+                                                         index_ptr.integer_value()
+                                                             .unwrap());
+
+                        let value = if index > vector.len() {
+                            self.state.nil_object
+                        } else {
+                            vector.remove(index)
+                        };
+
+                        process.set_register(register, value);
+                    }
+                    // Gets the amount of elements in an array.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the length in.
+                    // 2. The register containing the array.
+                    InstructionType::ArrayLength => {
+                        let register = instruction.arg(0);
+                        let array_ptr = process.get_register(instruction.arg(1));
+                        let vector = array_ptr.array_value().unwrap();
+                        let length = vector.len() as i64;
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(length));
+                    }
+                    // Removes all elements from an array.
+                    //
+                    // This instruction requires 1 argument: the register of the
+                    // array.
+                    InstructionType::ArrayClear => {
+                        let array_ptr = process.get_register(instruction.arg(0));
+                        let mut vector = array_ptr.array_value_mut().unwrap();
+
+                        vector.clear();
+                    }
+                    // Returns the lowercase equivalent of a string.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the new string in.
+                    // 2. The register containing the input string.
+                    InstructionType::StringToLower => {
+                        let register = instruction.arg(0);
+                        let source_ptr = process.get_register(instruction.arg(1));
+                        let lower =
+                            source_ptr.string_value().unwrap().to_lowercase();
+
+                        let obj =
+                            process.allocate(object_value::string(lower),
+                                             self.state.string_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Returns the uppercase equivalent of a string.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the new string in.
+                    // 2. The register containing the input string.
+                    InstructionType::StringToUpper => {
+                        let register = instruction.arg(0);
+                        let source_ptr = process.get_register(instruction.arg(1));
+                        let upper =
+                            source_ptr.string_value().unwrap().to_uppercase();
+
+                        let obj =
+                            process.allocate(object_value::string(upper),
+                                             self.state.string_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Checks if two strings are equal.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the string to compare.
+                    // 3. The register of the string to compare with.
+                    InstructionType::StringEquals => {
+                        let register = instruction.arg(0);
+                        let receiver_ptr =
+                            process.get_register(instruction.arg(1));
+                        let arg_ptr = process.get_register(instruction.arg(2));
+
+                        let boolean = if receiver_ptr.string_value().unwrap() ==
+                                         arg_ptr.string_value().unwrap() {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        };
+
+                        process.set_register(register, boolean);
+                    }
+                    // Returns an array containing the bytes of a string.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the string to get the bytes
+                    //    from.
+                    InstructionType::StringToBytes => {
+                        let register = instruction.arg(0);
+                        let string_ptr = process.get_register(instruction.arg(1));
+
+                        let array = string_ptr
+                            .string_value()
+                            .unwrap()
+                            .as_bytes()
+                            .iter()
+                            .map(|&b| ObjectPointer::integer(b as i64))
+                            .collect::<Vec<_>>();
+
+                        let obj =
+                            process.allocate(object_value::array(array),
+                                             self.state.array_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Creates a string from an array of bytes
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the array of bytes.
+                    //
+                    // The result of this instruction is either a string based
+                    // on the given bytes, or an error object.
+                    InstructionType::StringFromBytes => {
+                        let register = instruction.arg(0);
+                        let arg_ptr = process.get_register(instruction.arg(1));
+
+                        let array = arg_ptr.array_value().unwrap();
+                        let mut bytes = Vec::with_capacity(array.len());
+
+                        for ptr in array.iter() {
+                            let integer = ptr.integer_value().unwrap();
+
+                            bytes.push(integer as u8);
+                        }
+
+                        let obj = match String::from_utf8(bytes) {
+                            Ok(string) => {
+                                process.allocate(object_value::string(string),
+                                                 self.state.string_prototype)
+                            }
+                            Err(_) => invalid_utf8_error_code!(process),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Returns the amount of characters in a string.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the string.
+                    InstructionType::StringLength => {
+                        let register = instruction.arg(0);
+                        let arg_ptr = process.get_register(instruction.arg(1));
+
+                        let length =
+                            arg_ptr.string_value().unwrap().chars().count() as
+                            i64;
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(length));
+                    }
+                    // Returns the amount of bytes in a string.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register of the string.
+                    InstructionType::StringSize => {
+                        let register = instruction.arg(0);
+                        let arg_ptr = process.get_register(instruction.arg(1));
+
+                        let size = arg_ptr.string_value().unwrap().len() as i64;
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(size));
+                    }
+                    // Writes a string to STDOUT and returns the amount of
+                    // written bytes.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the string to write.
+                    //
+                    // The result of this instruction is either an integer
+                    // indicating the amount of bytes written, or an error
+                    // object.
+                    InstructionType::StdoutWrite => {
+                        let register = instruction.arg(0);
+                        let string_ptr = process.get_register(instruction.arg(1));
+                        let string = string_ptr.string_value().unwrap();
+                        let mut stdout = io::stdout();
+
+                        let obj = match stdout.write(string.as_bytes()) {
+                            Ok(num_bytes) => {
+                                match stdout.flush() {
+                                    Ok(_) => {
+                                        ObjectPointer::integer(num_bytes as i64)
+                                    }
+                                    Err(error) => io_error_code!(process, error),
+                                }
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Writes a string to STDERR and returns the amount of
+                    // written bytes.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the string to write.
+                    //
+                    // The result of this instruction is either an integer
+                    // indicating the amount of bytes written, or an error
+                    // object.
+                    InstructionType::StderrWrite => {
+                        let register = instruction.arg(0);
+                        let string_ptr = process.get_register(instruction.arg(1));
+                        let string = string_ptr.string_value().unwrap();
+                        let mut stderr = io::stderr();
+
+                        let obj = match stderr.write(string.as_bytes()) {
+                            Ok(num_bytes) => {
+                                match stderr.flush() {
+                                    Ok(_) => {
+                                        ObjectPointer::integer(num_bytes as i64)
+                                    }
+                                    Err(error) => io_error_code!(process, error),
+                                }
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Reads all the data from STDIN.
+                    //
+                    // This instruction requires only one argument:
+                    //
+                    // 1. The register to store the resulting object in.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the data read, or an error object.
+                    InstructionType::StdinRead => {
+                        let register = instruction.arg(0);
+                        let mut buffer = String::new();
+
+                        let obj = match io::stdin().read_to_string(&mut buffer) {
+                            Ok(_) => {
+                                process.allocate(object_value::string(buffer),
+                                                 self.state.string_prototype)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Reads an entire line from STDIN into a string.
+                    //
+                    // This instruction requires 1 argument: the register to
+                    // store the resulting object in.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the read data, or an error object.
+                    InstructionType::StdinReadLine => {
+                        let register = instruction.arg(0);
+                        let mut buffer = String::new();
+
+                        let obj = match io::stdin().read_line(&mut buffer) {
+                            Ok(_) => {
+                                process.allocate(object_value::string(buffer),
+                                                 self.state.string_prototype)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Opens a file handle in a particular mode (read-only,
+                    // write-only, etc).
+                    //
+                    // This instruction requires X arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The path to the file to open.
+                    // 3. The register containing an integer that specifies the
+                    //    file open mode.
+                    //
+                    // The result of this instruction is either a file object or
+                    // an error object.
+                    //
+                    // The available file modes supported are as follows:
+                    //
+                    // * 0: read-only
+                    // * 1: write-only
+                    // * 2: append-only
+                    // * 3: read+write
+                    // * 4: read+append
+                    InstructionType::FileOpen => {
+                        let register = instruction.arg(0);
+                        let path_ptr = process.get_register(instruction.arg(1));
+                        let mode_ptr = process.get_register(instruction.arg(2));
+
+                        let path = path_ptr.string_value().unwrap();
+                        let mode = mode_ptr.integer_value().unwrap();
+                        let mut open_opts = OpenOptions::new();
+
+                        match mode {
+                            READ => {
+                                open_opts.read(true);
+                            }
+                            WRITE => {
+                                open_opts.write(true).truncate(true).create(true);
+                            }
+                            APPEND => {
+                                open_opts
+                                    .read(true)
+                                    .write(true)
+                                    .truncate(true)
+                                    .create(true);
+                            }
+                            READ_WRITE => {
+                                open_opts.append(true).create(true);
+                            }
+                            READ_APPEND => {
+                                open_opts.read(true).append(true).create(true);
+                            }
+                            _ => {}
+                        };
+
+                        let object = match open_opts.open(path) {
+                            Ok(file) => process.allocate_without_prototype(object_value::file(file)),
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, object);
+                    }
+                    // Writes a string to a file.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the amount of written bytes in.
+                    // 2. The register containing the file object to write to.
+                    // 3. The register containing the string to write.
+                    //
+                    // The result of this instruction is either the amount of
+                    // written bytes or an error object.
+                    InstructionType::FileWrite => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let string_ptr = process.get_register(instruction.arg(2));
+
+                        let mut file = file_ptr.file_value_mut().unwrap();
+                        let bytes = string_ptr.string_value().unwrap().as_bytes();
+
+                        let obj = match file.write(bytes) {
+                            Ok(num_bytes) => {
+                                ObjectPointer::integer(num_bytes as i64)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Reads the all data from a file.
+                    //
+                    // This instruction takes 2 arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the file to read from.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the data read, or an error object.
+                    InstructionType::FileRead => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let mut file = file_ptr.file_value_mut().unwrap();
+                        let mut buffer = String::new();
+
+                        let obj = match file.read_to_string(&mut buffer) {
+                            Ok(_) => {
+                                process.allocate(object_value::string(buffer),
+                                                 self.state.string_prototype)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Reads an entire line from a file.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the file to read from.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the read line, or an error object.
+                    InstructionType::FileReadLine => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let mut file = file_ptr.file_value_mut().unwrap();
+                        let mut buffer = Vec::new();
+
+                        for result in file.bytes() {
+                            match result {
+                                Ok(byte) => {
+                                    buffer.push(byte);
+
+                                    if byte == NEWLINE_BYTE {
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    process.set_register(register,
+                                                         io_error_code!(process,
+                                                                        error));
+
+                                    return;
+                                }
+                            }
+                        }
+
+                        let obj = match String::from_utf8(buffer) {
+                            Ok(string) => {
+                                process.allocate(object_value::string(string),
+                                                 self.state.string_prototype)
+                            }
+                            Err(_) => invalid_utf8_error_code!(process),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Flushes a file.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. the register containing the file to flush.
+                    //
+                    // The resulting object is either the file itself upon
+                    // success, or an error object.
+                    InstructionType::FileFlush => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let mut file = file_ptr.file_value_mut().unwrap();
+
+                        let obj = match file.flush() {
+                            Ok(_) => file_ptr,
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Returns the size of a file in bytes.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the file.
+                    //
+                    // The resulting object is either an integer representing
+                    // the amount of bytes, or an error object.
+                    InstructionType::FileSize => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let file = file_ptr.file_value().unwrap();
+
+                        let obj = match file.metadata() {
+                            Ok(meta) => ObjectPointer::integer(meta.len() as i64),
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
+                    }
+                    // Sets a file cursor to the given offset in bytes.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the input file.
+                    // 3. The offset to seek to as an integer. This integer must
+                    //    be greater than 0.
+                    //
+                    // The resulting object is either an integer representing
+                    // the new cursor position, or an error object.
+                    InstructionType::FileSeek => {
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let offset_ptr = process.get_register(instruction.arg(2));
+                        let mut file = file_ptr.file_value_mut().unwrap();
+                        let offset = offset_ptr.integer_value().unwrap();
+
+                        let obj =
+                            match file.seek(SeekFrom::Start(offset as u64)) {
+                                Ok(new_offset) => {
+                                    ObjectPointer::integer(new_offset as i64)
+                                }
+                                Err(error) => io_error_code!(process, error),
+                            };
+
+                        process.set_register(register, obj);
+                    }
+                    // Parses a bytecode file and stores the resulting Block in
+                    // the register.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the resulting Block in.
+                    // 2. The register containing the file path to open, as a
+                    //    string.
+                    InstructionType::ParseFile => {
+                        let register = instruction.arg(0);
+                        let path_ptr = process.get_register(instruction.arg(1));
+                        let path_str = path_ptr.string_value().unwrap();
+
+                        let block = {
+                            let mut registry = write_lock!(self.module_registry);
+
+                            let module = registry
+                                .get_or_set(path_str)
+                                .map_err(|err| err.message())
+                                .unwrap();
+
+                            Block::new(module.code(),
+                                       Binding::new(module.code.locals()),
+                                       module.global_scope_ref())
+                        };
+
+                        let block_ptr = process
+                            .allocate(object_value::block(block),
+                                      self.state.block_prototype);
+
+                        process.set_register(register, block_ptr);
+                    }
+                    // Sets the target register to true if the given file path
+                    // has been parsed.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the resulting boolean in.
+                    // 2. The register containing the file path to check.
+                    //
+                    // The result of this instruction is true or false.
+                    InstructionType::FileParsed => {
+                        let register = instruction.arg(0);
+                        let path_ptr = process.get_register(instruction.arg(1));
+                        let path_str = path_ptr.string_value().unwrap();
+
+                        let ptr = if read_lock!(self.module_registry)
+                               .contains_path(path_str) {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        };
+
+                        process.set_register(register, ptr);
+                    }
+                    InstructionType::GetBindingPrototype => {
+                        process.set_register(instruction.arg(0),
+                                             self.state.binding_prototype);
+                    }
+                    // Gets the Binding of the current scope and sets it in a
+                    // register
+                    //
+                    // This instruction requires only one argument: the register
+                    // to store the object in.
+                    InstructionType::GetBinding => {
+                        let register = instruction.arg(0);
+                        let binding = process.binding();
+
+                        let obj = process
+                            .allocate(object_value::binding(binding),
+                                      self.state.binding_prototype);
+
+                        process.set_register(register, obj);
+                    }
+                    // Sets a constant in a given object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register pointing to the object to store the
+                    //    constant in.
+                    // 2. The register containing the constant name as a string.
+                    // 3. The register pointing to the object to store.
+                    InstructionType::SetConstant => {
+                        let target_ptr = process.get_register(instruction.arg(0));
+                        let name_ptr = process.get_register(instruction.arg(1));
+                        let source_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        if source_ptr.is_tagged_integer() {
+                            panic!("constants can not be added to integers");
+                        }
+
+                        let source = copy_if_permanent!(self.state
+                                                            .permanent_allocator,
+                                                        source_ptr,
+                                                        target_ptr);
+
+                        target_ptr.add_constant(&process, name, source);
+                    }
+                    // Looks up a constant and stores it in a register.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the constant in.
+                    // 2. The register pointing to an object in which to look for the
+                    //    constant.
+                    // 3. The register containing the name of the constant as a
+                    //    string.
+                    //
+                    // If the constant does not exist the target register is set
+                    // to nil instead.
+                    InstructionType::GetConstant => {
+                        let register = instruction.arg(0);
+                        let src = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let object =
+                            src.lookup_constant(&self.state, &name)
+                                .unwrap_or_else(|| self.state.nil_object);
+
+                        process.set_register(register, object);
+                    }
+                    // Sets an attribute of an object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register containing the object for which to set
+                    //    the attribute.
+                    // 2. The register containing the attribute name as a
+                    //    string.
+                    // 3. The register containing the object to set as the
+                    //    value.
+                    InstructionType::SetAttribute => {
+                        let target_ptr = process.get_register(instruction.arg(0));
+                        let name_ptr = process.get_register(instruction.arg(1));
+                        let value_ptr = process.get_register(instruction.arg(2));
+
+                        if target_ptr.is_tagged_integer() {
+                            panic!("attributes can not be set for integers");
+                        }
+
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let value = copy_if_permanent!(self.state.permanent_allocator,
+                                   value_ptr,
+                                   target_ptr);
+
+                        target_ptr.add_attribute(&process, name.clone(), value);
+                    }
+                    // Gets an attribute from an object and stores it in a
+                    // register.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the attribute's value in.
+                    // 2. The register containing the object from which to
+                    //    retrieve the attribute.
+                    // 3. The register containing the attribute name as a
+                    //    string.
+                    //
+                    // If the attribute does not exist the target register is
+                    // set to nil.
+                    InstructionType::GetAttribute => {
+                        let register = instruction.arg(0);
+                        let source = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let attr = source
+                            .lookup_attribute(&name)
+                            .unwrap_or_else(|| self.state.nil_object);
+
+                        process.set_register(register, attr);
+                    }
+                    // Sets the prototype of an object.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register containing the object for which to set
+                    //    the prototype.
+                    // 2. The register containing the object to use as the
+                    //    prototype.
+                    InstructionType::SetPrototype => {
+                        let source = process.get_register(instruction.arg(0));
+                        let proto = process.get_register(instruction.arg(1));
+
+                        source.get_mut().set_prototype(proto);
+
+                    }
+                    // Gets the prototype of an object.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the prototype in.
+                    // 2. The register containing the object to get the
+                    //    prototype from.
+                    //
+                    // If no prototype was found, nil is set in the register
+                    // instead.
+                    InstructionType::GetPrototype => {
+                        let register = instruction.arg(0);
+                        let source = process.get_register(instruction.arg(1));
+
+                        let proto = source
+                            .prototype(&self.state)
+                            .unwrap_or_else(|| self.state.nil_object);
+
+                        process.set_register(register, proto);
+                    }
+                    // Checks if a local variable exists.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the result in (true or false).
+                    // 2. The local variable index to check.
+                    InstructionType::LocalExists => {
+                        let register = instruction.arg(0);
+                        let local_index = instruction.arg(1);
+
+                        let value = if process.local_exists(local_index) {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        };
+
+                        process.set_register(register, value);
+                    }
+                    // Checks if an object responds to a message.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in (either true or
+                    //    false)
+                    // 2. The register containing the object to check.
+                    // 3. The register containing the name to look up, as a
+                    //    string.
+                    InstructionType::RespondsTo => {
+                        let register = instruction.arg(0);
+                        let source = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let result = if source
+                               .lookup_method(&self.state, &name)
+                               .is_some() {
+                            self.state.true_object.clone()
+                        } else {
+                            self.state.false_object.clone()
+                        };
+
+                        process.set_register(register, result);
+                    }
+                    // Spawns a new process.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the PID in.
+                    // 2. The register containing the Block to run in the process.
+                    // 3. The register containing the ID of the process pool to schedule the
+                    //    process on. Defaults to the ID of the primary pool.
+                    InstructionType::SpawnProcess => {
+                        let register = instruction.arg(0);
+                        let block_ptr = process.get_register(instruction.arg(1));
+
+                        let pool_id = if let Some(pool_reg) = instruction
+                               .arg_opt(2) {
+                            let ptr = process.get_register(pool_reg);
+
+                            ptr.integer_value().unwrap() as usize
+                        } else {
+                            PRIMARY_POOL
+                        };
+
+                        let block_obj = block_ptr.block_value().unwrap();
+                        let new_proc = self.allocate_process(pool_id, block_obj)
+                            .unwrap();
+                        let new_pid = new_proc.pid;
+
+                        self.state.process_pools.schedule(new_proc);
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(new_pid as
+                                                                    i64));
+                    }
+                    // Sends a message to a process.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the message in.
+                    // 2. The register containing the PID to send the message
+                    //    to.
+                    // 3. The register containing the message (an object) to
+                    //    send to the process.
+                    InstructionType::SendProcessMessage => {
+                        let register = instruction.arg(0);
+                        let pid_ptr = process.get_register(instruction.arg(1));
+                        let msg_ptr = process.get_register(instruction.arg(2));
+                        let pid = pid_ptr.integer_value().unwrap() as usize;
+
+                        if let Some(receiver) =
+                            read_lock!(self.state.process_table).get(&pid) {
+                            receiver.send_message(&process, msg_ptr);
+                        }
+
+                        process.set_register(register, msg_ptr);
+                    }
+                    // Receives a message for the current process.
+                    //
+                    // This instruction takes 1 argument: the register to store
+                    // the resulting message in.
+                    //
+                    // If no messages are available the current process will be
+                    // suspended, and the instruction will be retried the next
+                    // time the process is executed.
+                    InstructionType::ReceiveProcessMessage => {
+                        if let Some(msg_ptr) = process.receive_message() {
+                            process.set_register(instruction.arg(0), msg_ptr);
+                        } else {
+                            context.instruction_index = index - 1;
+                            self.reschedule(process.clone());
+
+                            return;
+                        }
+                    }
+                    // Gets the PID of the currently running process.
+                    //
+                    // This instruction requires one argument: the register to
+                    // store the PID in (as an integer).
                     InstructionType::GetCurrentPid => {
-                        process::get_current_pid(process, instruction);
+                        let register = instruction.arg(0);
+                        let pid = ObjectPointer::integer(process.pid as i64);
+
+                        process.set_register(register, pid);
                     }
+                    // Sets a local variable in one of the parent bindings.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The local variable index to set.
+                    // 2. The number of parent bindings to traverse in order to
+                    //    find the binding to set the variable in.
+                    // 3. The register containing the value to set.
                     InstructionType::SetParentLocal => {
-                        local_variable::set_parent_local(process, instruction);
+                        let index = instruction.arg(0);
+                        let depth = instruction.arg(1);
+                        let value = process.get_register(instruction.arg(2));
+
+                        if let Some(binding) = process
+                               .binding()
+                               .find_parent(depth) {
+                            binding.set_local(index, value);
+                        } else {
+                            panic!("No binding for depth {}", depth);
+                        }
                     }
+                    // Gets a local variable in one of the parent bindings.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the local variable in.
+                    // 2. The number of parent bindings to traverse in order to
+                    //    find the binding to get the variable from.
+                    // 3. The local variable index to get.
                     InstructionType::GetParentLocal => {
-                        local_variable::get_parent_local(process, instruction);
+                        let reg = instruction.arg(0);
+                        let depth = instruction.arg(1);
+                        let index = instruction.arg(2);
+
+                        if let Some(binding) = process
+                               .binding()
+                               .find_parent(depth) {
+                            process.set_register(reg, binding.get_local(index));
+                        } else {
+                            panic!("No binding for depth {}", depth);
+                        }
                     }
+                    // Converts an error object to an integer.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the integer in.
+                    // 2. The register containing the error.
                     InstructionType::ErrorToInteger => {
-                        error::error_to_integer(process, instruction);
+                        let register = instruction.arg(0);
+                        let error_ptr = process.get_register(instruction.arg(1));
+                        let integer = error_ptr.error_value().unwrap() as i64;
+                        let result = ObjectPointer::integer(integer);
+
+                        process.set_register(register, result);
                     }
+                    // Reads a given number of bytes from a file.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 2. The register containing the file to read from.
+                    // 3. The register containing the number of bytes to read,
+                    //    as a positive integer.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the data read, or an error object.
                     InstructionType::FileReadExact => {
-                        file::file_read_exact(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let file_ptr = process.get_register(instruction.arg(1));
+                        let size_ptr = process.get_register(instruction.arg(2));
+
+                        let mut file = file_ptr.file_value_mut().unwrap();
+                        let size = size_ptr.integer_value().unwrap() as usize;
+                        let mut buffer = String::with_capacity(size);
+
+                        let obj = match file.take(size as u64)
+                                  .read_to_string(&mut buffer) {
+                            Ok(_) => {
+                                process.allocate(object_value::string(buffer),
+                                                 self.state.string_prototype)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
                     }
+                    // Reads a given number of bytes from STDIN.
+                    //
+                    // This instruction takes 2 arguments:
+                    //
+                    // 1. The register to store the resulting object in.
+                    // 1. The register containing the number of bytes to read,
+                    //    as a positive integer.
+                    //
+                    // The result of this instruction is either a string
+                    // containing the data read, or an error object.
                     InstructionType::StdinReadExact => {
-                        stdin::stdin_read_exact(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let size_ptr = process.get_register(instruction.arg(1));
+
+                        let size = size_ptr.integer_value().unwrap() as usize;
+                        let mut buffer = String::with_capacity(size);
+                        let stdin = io::stdin();
+
+                        let obj = match stdin
+                                  .take(size as u64)
+                                  .read_to_string(&mut buffer) {
+                            Ok(_) => {
+                                process.allocate(object_value::string(buffer),
+                                                 self.state.string_prototype)
+                            }
+                            Err(error) => io_error_code!(process, error),
+                        };
+
+                        process.set_register(register, obj);
                     }
+                    // Checks if two objects are equal.
+                    //
+                    // Comparing equality is done by simply comparing the
+                    // addresses of both pointers: if they're equal then the
+                    // objects are also considered to be equal.
+                    //
+                    // This instruction takes 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the object to compare.
+                    // 3. The register containing the object to compare with.
+                    //
+                    // The result of this instruction is either boolean true, or
+                    // false.
                     InstructionType::ObjectEquals => {
-                        object::object_equals(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let compare = process.get_register(instruction.arg(1));
+                        let compare_with =
+                            process.get_register(instruction.arg(2));
+
+                        let obj = if compare == compare_with {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        };
+
+                        process.set_register(register, obj);
                     }
+                    // Sets the top-level object in a register.
+                    //
+                    // This instruction requires one argument: the register to
+                    // store the object in.
                     InstructionType::GetToplevel => {
-                        object::get_toplevel(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.top_level);
                     }
                     InstructionType::GetNilPrototype => {
-                        prototype::get_nil_prototype(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.nil_prototype);
                     }
+                    // Sets the nil singleton in a register.
+                    //
+                    // This instruction requires only one argument: the register
+                    // to store the object in.
                     InstructionType::GetNil => {
-                        nil::get_nil(self, process, instruction);
+                        process.set_register(instruction.arg(0),
+                                             self.state.nil_object);
                     }
+                    // Looks up a method and sets it in the target register.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the method in.
+                    // 2. The register containing the object containing the method.
+                    // 3. The register containing the method name as a String.
+                    //
+                    // If a method could not be found the target register will
+                    // be set to nil instead.
                     InstructionType::LookupMethod => {
-                        method::lookup_method(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let method =
+                            rec_ptr
+                                .lookup_method(&self.state, &name)
+                                .unwrap_or_else(|| self.state.nil_object);
+
+                        process.set_register(register, method);
                     }
+                    // Checks if an attribute exists in an object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in (true or false).
+                    // 2. The register containing the object to check.
+                    // 3. The register containing the attribute name as a
+                    //    string.
                     InstructionType::AttrExists => {
-                        object::attr_exists(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let source_ptr = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let obj =
+                            if source_ptr.lookup_attribute(&name).is_some() {
+                                self.state.true_object.clone()
+                            } else {
+                                self.state.false_object.clone()
+                            };
+
+                        process.set_register(register, obj);
                     }
+                    // Returns true if a constant exists, false otherwise.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the resulting boolean in.
+                    // 2. The register containing the source object to check.
+                    // 3. The register containing the constant name as a string.
                     InstructionType::ConstExists => {
-                        constant::const_exists(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let source = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        if source.lookup_constant(&self.state, &name).is_some() {
+                            process.set_register(register,
+                                                 self.state.true_object);
+                        } else {
+                            process.set_register(register,
+                                                 self.state.false_object);
+                        }
                     }
+                    // Removes a method from an object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the removed method in.
+                    // 2. The register containing the object from which to
+                    //    remove the method.
+                    // 3. The register containing the method name as a string.
+                    //
+                    // If the method did not exist the target register is set to
+                    // nil instead.
                     InstructionType::RemoveMethod => {
-                        method::remove_method(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        if rec_ptr.is_tagged_integer() {
+                            panic!("methods can not be removed from integers");
+                        }
+
+                        let obj = if let Some(method) =
+                            rec_ptr.get_mut().remove_method(&name) {
+                            method
+                        } else {
+                            self.state.nil_object
+                        };
+
+                        process.set_register(register, obj);
                     }
+                    // Removes a attribute from an object.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the removed attribute in.
+                    // 2. The register containing the object from which to
+                    //    remove the attribute.
+                    // 3. The register containing the attribute name as a string.
+                    //
+                    // If the attribute did not exist the target register is set
+                    // to nil instead.
                     InstructionType::RemoveAttribute => {
-                        object::remove_attribute(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        if rec_ptr.is_tagged_integer() {
+                            panic!("attributes can not be removed for integers");
+                        }
+
+                        let obj = if let Some(attribute) =
+                            rec_ptr.get_mut().remove_attribute(&name) {
+                            attribute
+                        } else {
+                            self.state.nil_object
+                        };
+
+                        process.set_register(register, obj);
                     }
+                    // Gets all the methods available on an object.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the methods in.
+                    // 2. The register containing the object for which to get
+                    //    all methods.
                     InstructionType::GetMethods => {
-                        method::get_methods(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let methods = rec_ptr.methods();
+
+                        let obj =
+                            process.allocate(object_value::array(methods),
+                                             self.state.array_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Gets all the method names available on an object.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the method names in.
+                    // 2. The register containing the object for which to get
+                    //    all method names.
                     InstructionType::GetMethodNames => {
-                        method::get_method_names(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let methods = rec_ptr.method_names();
+
+                        let obj =
+                            process.allocate(object_value::array(methods),
+                                             self.state.array_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Gets all the attributes available on an object.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the attributes in.
+                    // 2. The register containing the object for which to get
+                    //    all attributes.
                     InstructionType::GetAttributes => {
-                        object::get_attributes(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let attributes = rec_ptr.attributes();
+
+                        let obj = process
+                            .allocate(object_value::array(attributes),
+                                      self.state.array_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Gets all the attributes names available on an object.
+                    //
+                    // This instruction requires 2 arguments:
+                    //
+                    // 1. The register to store the attribute names in.
+                    // 2. The register containing the object for which to get
+                    //    all attributes names.
                     InstructionType::GetAttributeNames => {
-                        object::get_attribute_names(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let attributes = rec_ptr.attribute_names();
+
+                        let obj = process
+                            .allocate(object_value::array(attributes),
+                                      self.state.array_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Gets the current value of a monotonic clock in
+                    // nanoseconds.
+                    //
+                    // This instruction requires one argument: the register to
+                    // set the time in, as an integer.
                     InstructionType::MonotonicTimeNanoseconds => {
-                        time::monotonic_time_nanoseconds(self,
-                                                         process,
-                                                         instruction);
+                        let register = instruction.arg(0);
+                        let duration = self.state.start_time.elapsed();
+                        let nsec = (duration.as_secs() * 1000000000) +
+                                   duration.subsec_nanos() as u64;
+
+                        process.set_register(register,
+                                             ObjectPointer::integer(nsec as i64));
                     }
+                    // Gets the current value of a monotonic clock in
+                    // milliseconds.
+                    //
+                    // This instruction requires one argument: the register to
+                    // set the time in, as a float.
                     InstructionType::MonotonicTimeMilliseconds => {
-                        time::monotonic_time_milliseconds(self,
-                                                          process,
-                                                          instruction);
+                        let register = instruction.arg(0);
+                        let duration = self.state.start_time.elapsed();
+
+                        let msec = (duration.as_secs() * 1_000) as f64 +
+                                   duration.subsec_nanos() as f64 / 1_000_000.0;
+
+                        let obj =
+                            process.allocate(object_value::float(msec),
+                                             self.state.float_prototype);
+
+                        process.set_register(register, obj);
                     }
+                    // Executes a Block object.
+                    //
+                    // This instruction takes the following arguments:
+                    //
+                    // 1. The register to store the return value in.
+                    // 2. The register containing the Block object to run.
+                    //
+                    // Any extra arguments passed are passed as arguments to the
+                    // block.
                     InstructionType::RunBlock => {
-                        code_execution::run_block(process, instruction);
+                        context.line = instruction.line;
+
+                        let register = instruction.arg(0);
+                        let block_ptr = process.get_register(instruction.arg(1));
+                        let block = block_ptr.block_value().unwrap();
+
+                        self.schedule_block(&block,
+                                            register,
+                                            2,
+                                            process,
+                                            instruction);
 
                         enter_context!(context, index, 'exec_loop);
                     }
                     InstructionType::RunBlockWithRest => {
-                        code_execution::run_block_with_rest();
-
-                        enter_context!(context, index, 'exec_loop);
+                        panic!("run_block_with_rest is not yet implemented");
                     }
-                    InstructionType::GetGlobal => {
-                        globals::get_global(process, instruction);
-                    }
+                    // Sets a global variable to a given register's value.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The global variable index to set.
+                    // 2. The register containing the object to store in the
+                    //    variable.
                     InstructionType::SetGlobal => {
-                        globals::set_global(process, instruction);
+                        let index = instruction.arg(0);
+                        let object = process.get_register(instruction.arg(1));
+
+                        process.set_global(index, object);
                     }
+                    // Gets a global variable and stores it in a register.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to store the global's value in.
+                    // 2. The global variable index to get the value from.
+                    InstructionType::GetGlobal => {
+                        let register = instruction.arg(0);
+                        let index = instruction.arg(1);
+                        let object = process.get_global(index);
+
+                        process.set_register(register, object);
+                    }
+                    // Sends a message to an object.
+                    //
+                    // This instruction takes the following arguments:
+                    //
+                    // 1. The register to store the method's return value in.
+                    // 2. The register containing the receiver.
+                    // 3. The register containing the message name as a string.
+                    //
+                    // Any additional arguments are passed as arguments to the
+                    // method.
                     InstructionType::SendMessage => {
-                        code_execution::send_message(self, process, instruction);
+                        context.line = instruction.line;
+
+                        let register = instruction.arg(0);
+                        let rec_ptr = process.get_register(instruction.arg(1));
+                        let name_ptr = process.get_register(instruction.arg(2));
+                        let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                        let method =
+                            rec_ptr.lookup_method(&self.state, &name).unwrap();
+
+                        let block = method.block_value().unwrap();
+
+                        self.schedule_block(&block,
+                                            register,
+                                            3,
+                                            process,
+                                            instruction);
 
                         enter_context!(context, index, 'exec_loop);
                     }
+                    // Pushes a value to the end of an array.
+                    //
+                    // This instruction requires 3 arguments:
+                    //
+                    // 1. The register to store the result in.
+                    // 2. The register containing the array.
+                    // 3. The register containing the value to push.
                     InstructionType::ArrayPush => {
-                        array::array_push(self, process, instruction);
+                        let register = instruction.arg(0);
+                        let array_ptr = process.get_register(instruction.arg(1));
+                        let value_ptr = process.get_register(instruction.arg(2));
+
+                        let mut vector = array_ptr.array_value_mut().unwrap();
+
+                        let value = copy_if_permanent!(self.state
+                                                           .permanent_allocator,
+                                                       value_ptr,
+                                                       array_ptr);
+
+                        vector.push(value);
+
+                        process.set_register(register, value);
                     }
+                    // Throws a value
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The reason for throwing the value as a value in the
+                    //    ThrowReason enum.
+                    // 2. The register containing the value to throw.
+                    //
+                    // This method will unwind the call stack until either the
+                    // value is caught, or until we reach the top level (at
+                    // which point we terminate the VM).
                     InstructionType::Throw => {
                         context.instruction_index = index;
 
-                        error::throw(process, instruction);
+                        let reason = ThrowReason::from_u8(instruction.arg(0) as
+                                                          u8);
+                        let value = process.get_register(instruction.arg(1));
 
-                        continue 'exec_loop;
+                        loop {
+                            let code = process.compiled_code();
+                            let mut context = process.context_mut();
+                            let index = context.instruction_index;
+
+                            for entry in code.catch_table.entries.iter() {
+                                if entry.reason == reason &&
+                                   entry.start < index &&
+                                   entry.end >= index {
+                                    context.instruction_index = entry.jump_to;
+                                    context.set_register(entry.register, value);
+
+                                    continue 'exec_loop;
+                                }
+                            }
+
+                            if process.pop_context() {
+                                panic!("A thrown value reached the top-level \
+                                        in process {}",
+                                       process.pid);
+                            }
+                        }
                     }
+                    // Sets a register to the value of another register.
+                    //
+                    // This instruction requires two arguments:
+                    //
+                    // 1. The register to set.
+                    // 2. The register to get the value from.
                     InstructionType::SetRegister => {
-                        register::set_register(process, instruction);
+                        let value = process.get_register(instruction.arg(1));
+
+                        process.set_register(instruction.arg(0), value);
                     }
                 };
             } // while
@@ -655,5 +2347,46 @@ impl Machine {
     fn schedule_gc_request(&self, request: GcRequest) {
         request.process.suspend_for_gc();
         self.state.gc_pool.schedule(request);
+    }
+
+    fn schedule_block(&self,
+                      block: &Box<Block>,
+                      return_register: usize,
+                      arg_offset: usize,
+                      process: &RcProcess,
+                      instruction: &Instruction) {
+        let arg_count = instruction.arguments.len() - arg_offset;
+        let tot_args = block.arguments();
+        let req_args = block.required_arguments();
+
+        if arg_count > tot_args {
+            panic!("{} accepts up to {} arguments, but {} arguments were given",
+                   block.name(),
+                   tot_args,
+                   arg_count);
+        }
+
+        if arg_count < req_args {
+            panic!("{} requires {} arguments, but {} arguments were given",
+                   block.name(),
+                   req_args,
+                   arg_count);
+        }
+
+        let context = ExecutionContext::from_block(block, Some(return_register));
+
+        {
+            // Add the arguments to the binding
+            let mut locals = context.binding.locals_mut();
+
+            for index in arg_offset..(arg_offset + arg_count) {
+                let local_index = index - arg_offset;
+
+                locals[local_index] =
+                    process.get_register(instruction.arg(index));
+            }
+        }
+
+        process.push_context(context);
     }
 }

@@ -148,7 +148,7 @@ mod tests {
     use super::*;
     use object::Object;
     use object_value;
-    use vm::instructions::test::setup;
+    use vm::test::setup;
 
     #[test]
     fn test_promote_mature() {
