@@ -198,7 +198,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let index = instruction.arg(1);
 
-                    process.set_register(register, code.literal(index));
+                    context.set_register(register, code.literal(index));
                 }
                 // Sets an object in a register.
                 //
@@ -213,7 +213,7 @@ impl Machine {
                 InstructionType::SetObject => {
                     let register = instruction.arg(0);
                     let is_permanent_ptr =
-                        process.get_register(instruction.arg(1));
+                        context.get_register(instruction.arg(1));
 
                     let is_permanent = is_permanent_ptr !=
                                        self.state.false_object;
@@ -225,7 +225,7 @@ impl Machine {
                     };
 
                     if let Some(proto_index) = instruction.arg_opt(2) {
-                        let mut proto = process.get_register(proto_index);
+                        let mut proto = context.get_register(proto_index);
 
                         if is_permanent && !proto.is_permanent() {
                             proto = self.state
@@ -237,7 +237,7 @@ impl Machine {
                         obj.get_mut().set_prototype(proto);
                     }
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Sets an array in a register.
                 //
@@ -258,38 +258,38 @@ impl Machine {
                         process.allocate(object_value::array(values),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 InstructionType::GetIntegerPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.integer_prototype);
                 }
                 InstructionType::GetFloatPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.float_prototype);
                 }
                 InstructionType::GetStringPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.string_prototype);
                 }
                 InstructionType::GetArrayPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.array_prototype);
                 }
                 InstructionType::GetTruePrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.true_prototype);
                 }
                 InstructionType::GetFalsePrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.false_prototype);
                 }
                 InstructionType::GetMethodPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.method_prototype);
                 }
                 InstructionType::GetBlockPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.block_prototype);
                 }
                 // Sets a "true" value in a register.
@@ -297,7 +297,7 @@ impl Machine {
                 // This instruction requires only one argument: the register to
                 // store the object in.
                 InstructionType::GetTrue => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.true_object);
                 }
                 // Sets a "false" value in a register.
@@ -305,7 +305,7 @@ impl Machine {
                 // This instruction requires only one argument: the register to
                 // store the object in.
                 InstructionType::GetFalse => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.false_object);
                 }
                 // Sets a local variable to a given register's value.
@@ -317,9 +317,9 @@ impl Machine {
                 //    variable.
                 InstructionType::SetLocal => {
                     let local_index = instruction.arg(0);
-                    let object = process.get_register(instruction.arg(1));
+                    let object = context.get_register(instruction.arg(1));
 
-                    process.set_local(local_index, object);
+                    context.set_local(local_index, object);
                 }
                 // Gets a local variable and stores it in a register.
                 //
@@ -330,9 +330,9 @@ impl Machine {
                 InstructionType::GetLocal => {
                     let register = instruction.arg(0);
                     let local_index = instruction.arg(1);
-                    let object = process.get_local(local_index);
+                    let object = context.get_local(local_index);
 
-                    process.set_register(register, object);
+                    context.set_register(register, object);
                 }
                 // Sets a Block in a register.
                 //
@@ -346,7 +346,7 @@ impl Machine {
                     let cc_index = instruction.arg(1);
 
                     let cc = code.code_object(cc_index);
-                    let binding = process.binding();
+                    let binding = context.binding.clone();
                     let block = Block::new(cc.clone(),
                                            binding,
                                            process.global_scope().clone());
@@ -355,14 +355,14 @@ impl Machine {
                         process.allocate(object_value::block(block),
                                          self.state.block_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Returns the value in the given register.
                 //
                 // This instruction takes a single argument: the register
                 // containing the value to return.
                 InstructionType::Return => {
-                    let object = process.get_register(instruction.arg(0));
+                    let object = context.get_register(instruction.arg(0));
 
                     if let Some(register) = context.return_register {
                         if let Some(parent_context) = context.parent_mut() {
@@ -404,7 +404,7 @@ impl Machine {
                 InstructionType::GotoIfFalse => {
                     let value_reg = instruction.arg(1);
 
-                    if is_false!(self, process.get_register(value_reg)) {
+                    if is_false!(self, context.get_register(value_reg)) {
                         index = instruction.arg(0);
                     }
                 }
@@ -417,7 +417,7 @@ impl Machine {
                 InstructionType::GotoIfTrue => {
                     let value_reg = instruction.arg(1);
 
-                    if !is_false!(self, process.get_register(value_reg)) {
+                    if !is_false!(self, context.get_register(value_reg)) {
                         index = instruction.arg(0);
                     }
                 }
@@ -440,9 +440,9 @@ impl Machine {
                 // 4. The register containing the Block to use for the method.
                 InstructionType::DefMethod => {
                     let register = instruction.arg(0);
-                    let receiver_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
-                    let block_ptr = process.get_register(instruction.arg(3));
+                    let receiver_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
+                    let block_ptr = context.get_register(instruction.arg(3));
 
                     if receiver_ptr.is_tagged_integer() {
                         panic!("methods can not be defined on integers");
@@ -471,7 +471,7 @@ impl Machine {
 
                     receiver_ptr.add_method(&process, name, method);
 
-                    process.set_register(register, method);
+                    context.set_register(register, method);
                 }
                 // Checks if a given object is an error object.
                 //
@@ -481,7 +481,7 @@ impl Machine {
                 // 2. The register of the object to check.
                 InstructionType::IsError => {
                     let register = instruction.arg(0);
-                    let ptr = process.get_register(instruction.arg(1));
+                    let ptr = context.get_register(instruction.arg(1));
 
                     let result = if ptr.error_value().is_ok() {
                         self.state.true_object.clone()
@@ -489,7 +489,7 @@ impl Machine {
                         self.state.false_object.clone()
                     };
 
-                    process.set_register(register, result);
+                    context.set_register(register, result);
                 }
                 // Adds two integers
                 //
@@ -549,14 +549,14 @@ impl Machine {
                 // 2. The register of the integer to convert.
                 InstructionType::IntegerToFloat => {
                     let register = instruction.arg(0);
-                    let integer_ptr = process.get_register(instruction.arg(1));
+                    let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap() as f64;
 
                     let obj =
                         process.allocate(object_value::float(result),
                                          self.state.float_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Converts an integer to a string
                 //
@@ -566,14 +566,14 @@ impl Machine {
                 // 2. The register of the integer to convert.
                 InstructionType::IntegerToString => {
                     let register = instruction.arg(0);
-                    let integer_ptr = process.get_register(instruction.arg(1));
+                    let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap().to_string();
 
                     let obj =
                         process.allocate(object_value::string(result),
                                          self.state.string_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Performs an integer bitwise AND.
                 //
@@ -722,10 +722,10 @@ impl Machine {
                 // 2. The register of the float to convert.
                 InstructionType::FloatToInteger => {
                     let register = instruction.arg(0);
-                    let float_ptr = process.get_register(instruction.arg(1));
+                    let float_ptr = context.get_register(instruction.arg(1));
                     let result = float_ptr.float_value().unwrap() as i64;
 
-                    process.set_register(register,
+                    context.set_register(register,
                                          ObjectPointer::integer(result));
                 }
                 // Converts a float to a string
@@ -736,14 +736,14 @@ impl Machine {
                 // 2. The register of the float to convert.
                 InstructionType::FloatToString => {
                     let register = instruction.arg(0);
-                    let float_ptr = process.get_register(instruction.arg(1));
+                    let float_ptr = context.get_register(instruction.arg(1));
                     let result = float_ptr.float_value().unwrap().to_string();
 
                     let obj =
                         process.allocate(object_value::string(result),
                                          self.state.string_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Checks if one float is smaller than the other.
                 //
@@ -800,9 +800,9 @@ impl Machine {
                 // position from the end of the array.
                 InstructionType::ArrayInsert => {
                     let register = instruction.arg(0);
-                    let array_ptr = process.get_register(instruction.arg(1));
-                    let index_ptr = process.get_register(instruction.arg(2));
-                    let value_ptr = process.get_register(instruction.arg(3));
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
+                    let value_ptr = context.get_register(instruction.arg(3));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
                     let index =
@@ -819,7 +819,7 @@ impl Machine {
 
                     vector[index] = value;
 
-                    process.set_register(register, value);
+                    context.set_register(register, value);
                 }
                 // Gets the value of an array index.
                 //
@@ -834,8 +834,8 @@ impl Machine {
                 // used to indicate a position from the end of the array.
                 InstructionType::ArrayAt => {
                     let register = instruction.arg(0);
-                    let array_ptr = process.get_register(instruction.arg(1));
-                    let index_ptr = process.get_register(instruction.arg(2));
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
                     let vector = array_ptr.array_value().unwrap();
 
                     let index =
@@ -847,7 +847,7 @@ impl Machine {
                         .cloned()
                         .unwrap_or_else(|| self.state.nil_object);
 
-                    process.set_register(register, value);
+                    context.set_register(register, value);
                 }
                 // Removes a value from an array.
                 //
@@ -863,8 +863,8 @@ impl Machine {
                 // indicate a position from the end of the array.
                 InstructionType::ArrayRemove => {
                     let register = instruction.arg(0);
-                    let array_ptr = process.get_register(instruction.arg(1));
-                    let index_ptr = process.get_register(instruction.arg(2));
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
                     let index =
@@ -877,7 +877,7 @@ impl Machine {
                         vector.remove(index)
                     };
 
-                    process.set_register(register, value);
+                    context.set_register(register, value);
                 }
                 // Gets the amount of elements in an array.
                 //
@@ -887,11 +887,11 @@ impl Machine {
                 // 2. The register containing the array.
                 InstructionType::ArrayLength => {
                     let register = instruction.arg(0);
-                    let array_ptr = process.get_register(instruction.arg(1));
+                    let array_ptr = context.get_register(instruction.arg(1));
                     let vector = array_ptr.array_value().unwrap();
                     let length = vector.len() as i64;
 
-                    process.set_register(register,
+                    context.set_register(register,
                                          ObjectPointer::integer(length));
                 }
                 // Removes all elements from an array.
@@ -899,7 +899,7 @@ impl Machine {
                 // This instruction requires 1 argument: the register of the
                 // array.
                 InstructionType::ArrayClear => {
-                    let array_ptr = process.get_register(instruction.arg(0));
+                    let array_ptr = context.get_register(instruction.arg(0));
                     let mut vector = array_ptr.array_value_mut().unwrap();
 
                     vector.clear();
@@ -912,14 +912,14 @@ impl Machine {
                 // 2. The register containing the input string.
                 InstructionType::StringToLower => {
                     let register = instruction.arg(0);
-                    let source_ptr = process.get_register(instruction.arg(1));
+                    let source_ptr = context.get_register(instruction.arg(1));
                     let lower = source_ptr.string_value().unwrap().to_lowercase();
 
                     let obj =
                         process.allocate(object_value::string(lower),
                                          self.state.string_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Returns the uppercase equivalent of a string.
                 //
@@ -929,14 +929,14 @@ impl Machine {
                 // 2. The register containing the input string.
                 InstructionType::StringToUpper => {
                     let register = instruction.arg(0);
-                    let source_ptr = process.get_register(instruction.arg(1));
+                    let source_ptr = context.get_register(instruction.arg(1));
                     let upper = source_ptr.string_value().unwrap().to_uppercase();
 
                     let obj =
                         process.allocate(object_value::string(upper),
                                          self.state.string_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Checks if two strings are equal.
                 //
@@ -947,8 +947,8 @@ impl Machine {
                 // 3. The register of the string to compare with.
                 InstructionType::StringEquals => {
                     let register = instruction.arg(0);
-                    let receiver_ptr = process.get_register(instruction.arg(1));
-                    let arg_ptr = process.get_register(instruction.arg(2));
+                    let receiver_ptr = context.get_register(instruction.arg(1));
+                    let arg_ptr = context.get_register(instruction.arg(2));
 
                     let boolean = if receiver_ptr.string_value().unwrap() ==
                                      arg_ptr.string_value().unwrap() {
@@ -957,7 +957,7 @@ impl Machine {
                         self.state.false_object
                     };
 
-                    process.set_register(register, boolean);
+                    context.set_register(register, boolean);
                 }
                 // Returns an array containing the bytes of a string.
                 //
@@ -968,7 +968,7 @@ impl Machine {
                 //    from.
                 InstructionType::StringToBytes => {
                     let register = instruction.arg(0);
-                    let string_ptr = process.get_register(instruction.arg(1));
+                    let string_ptr = context.get_register(instruction.arg(1));
 
                     let array = string_ptr
                         .string_value()
@@ -982,7 +982,7 @@ impl Machine {
                         process.allocate(object_value::array(array),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Creates a string from an array of bytes
                 //
@@ -995,7 +995,7 @@ impl Machine {
                 // on the given bytes, or an error object.
                 InstructionType::StringFromBytes => {
                     let register = instruction.arg(0);
-                    let arg_ptr = process.get_register(instruction.arg(1));
+                    let arg_ptr = context.get_register(instruction.arg(1));
 
                     let array = arg_ptr.array_value().unwrap();
                     let mut bytes = Vec::with_capacity(array.len());
@@ -1014,7 +1014,7 @@ impl Machine {
                         Err(_) => invalid_utf8_error_code!(process),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Returns the amount of characters in a string.
                 //
@@ -1024,12 +1024,12 @@ impl Machine {
                 // 2. The register of the string.
                 InstructionType::StringLength => {
                     let register = instruction.arg(0);
-                    let arg_ptr = process.get_register(instruction.arg(1));
+                    let arg_ptr = context.get_register(instruction.arg(1));
 
                     let length =
                         arg_ptr.string_value().unwrap().chars().count() as i64;
 
-                    process.set_register(register,
+                    context.set_register(register,
                                          ObjectPointer::integer(length));
                 }
                 // Returns the amount of bytes in a string.
@@ -1040,10 +1040,10 @@ impl Machine {
                 // 2. The register of the string.
                 InstructionType::StringSize => {
                     let register = instruction.arg(0);
-                    let arg_ptr = process.get_register(instruction.arg(1));
+                    let arg_ptr = context.get_register(instruction.arg(1));
                     let size = arg_ptr.string_value().unwrap().len() as i64;
 
-                    process.set_register(register, ObjectPointer::integer(size));
+                    context.set_register(register, ObjectPointer::integer(size));
                 }
                 // Writes a string to STDOUT and returns the amount of
                 // written bytes.
@@ -1058,7 +1058,7 @@ impl Machine {
                 // object.
                 InstructionType::StdoutWrite => {
                     let register = instruction.arg(0);
-                    let string_ptr = process.get_register(instruction.arg(1));
+                    let string_ptr = context.get_register(instruction.arg(1));
                     let string = string_ptr.string_value().unwrap();
                     let mut stdout = io::stdout();
 
@@ -1072,7 +1072,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Writes a string to STDERR and returns the amount of
                 // written bytes.
@@ -1087,7 +1087,7 @@ impl Machine {
                 // object.
                 InstructionType::StderrWrite => {
                     let register = instruction.arg(0);
-                    let string_ptr = process.get_register(instruction.arg(1));
+                    let string_ptr = context.get_register(instruction.arg(1));
                     let string = string_ptr.string_value().unwrap();
                     let mut stderr = io::stderr();
 
@@ -1101,7 +1101,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Reads all the data from STDIN.
                 //
@@ -1123,7 +1123,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Reads an entire line from STDIN into a string.
                 //
@@ -1144,7 +1144,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Opens a file handle in a particular mode (read-only,
                 // write-only, etc).
@@ -1168,8 +1168,8 @@ impl Machine {
                 // * 4: read+append
                 InstructionType::FileOpen => {
                     let register = instruction.arg(0);
-                    let path_ptr = process.get_register(instruction.arg(1));
-                    let mode_ptr = process.get_register(instruction.arg(2));
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let mode_ptr = context.get_register(instruction.arg(2));
 
                     let path = path_ptr.string_value().unwrap();
                     let mode = mode_ptr.integer_value().unwrap();
@@ -1181,7 +1181,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, object);
+                    context.set_register(register, object);
                 }
                 // Writes a string to a file.
                 //
@@ -1195,8 +1195,8 @@ impl Machine {
                 // written bytes or an error object.
                 InstructionType::FileWrite => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
-                    let string_ptr = process.get_register(instruction.arg(2));
+                    let file_ptr = context.get_register(instruction.arg(1));
+                    let string_ptr = context.get_register(instruction.arg(2));
 
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let bytes = string_ptr.string_value().unwrap().as_bytes();
@@ -1206,7 +1206,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Reads the all data from a file.
                 //
@@ -1219,7 +1219,7 @@ impl Machine {
                 // containing the data read, or an error object.
                 InstructionType::FileRead => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
+                    let file_ptr = context.get_register(instruction.arg(1));
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let mut buffer = String::new();
 
@@ -1231,7 +1231,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Reads an entire line from a file.
                 //
@@ -1244,7 +1244,7 @@ impl Machine {
                 // containing the read line, or an error object.
                 InstructionType::FileReadLine => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
+                    let file_ptr = context.get_register(instruction.arg(1));
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let mut buffer = Vec::new();
 
@@ -1258,11 +1258,11 @@ impl Machine {
                                 }
                             }
                             Err(error) => {
-                                process.set_register(register,
+                                context.set_register(register,
                                                      io_error_code!(process,
                                                                         error));
 
-                                return;
+                                continue 'exec_loop;
                             }
                         }
                     }
@@ -1275,7 +1275,7 @@ impl Machine {
                         Err(_) => invalid_utf8_error_code!(process),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Flushes a file.
                 //
@@ -1288,7 +1288,7 @@ impl Machine {
                 // success, or an error object.
                 InstructionType::FileFlush => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
+                    let file_ptr = context.get_register(instruction.arg(1));
                     let mut file = file_ptr.file_value_mut().unwrap();
 
                     let obj = match file.flush() {
@@ -1296,7 +1296,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Returns the size of a file in bytes.
                 //
@@ -1309,7 +1309,7 @@ impl Machine {
                 // the amount of bytes, or an error object.
                 InstructionType::FileSize => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
+                    let file_ptr = context.get_register(instruction.arg(1));
                     let file = file_ptr.file_value().unwrap();
 
                     let obj = match file.metadata() {
@@ -1317,7 +1317,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Sets a file cursor to the given offset in bytes.
                 //
@@ -1332,8 +1332,8 @@ impl Machine {
                 // the new cursor position, or an error object.
                 InstructionType::FileSeek => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
-                    let offset_ptr = process.get_register(instruction.arg(2));
+                    let file_ptr = context.get_register(instruction.arg(1));
+                    let offset_ptr = context.get_register(instruction.arg(2));
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let offset = offset_ptr.integer_value().unwrap();
 
@@ -1344,7 +1344,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Parses a bytecode file and stores the resulting Block in
                 // the register.
@@ -1356,7 +1356,7 @@ impl Machine {
                 //    string.
                 InstructionType::ParseFile => {
                     let register = instruction.arg(0);
-                    let path_ptr = process.get_register(instruction.arg(1));
+                    let path_ptr = context.get_register(instruction.arg(1));
                     let path_str = path_ptr.string_value().unwrap();
 
                     let block = {
@@ -1376,7 +1376,7 @@ impl Machine {
                         process.allocate(object_value::block(block),
                                          self.state.block_prototype);
 
-                    process.set_register(register, block_ptr);
+                    context.set_register(register, block_ptr);
                 }
                 // Sets the target register to true if the given file path
                 // has been parsed.
@@ -1389,7 +1389,7 @@ impl Machine {
                 // The result of this instruction is true or false.
                 InstructionType::FileParsed => {
                     let register = instruction.arg(0);
-                    let path_ptr = process.get_register(instruction.arg(1));
+                    let path_ptr = context.get_register(instruction.arg(1));
                     let path_str = path_ptr.string_value().unwrap();
 
                     let ptr = if read_lock!(self.module_registry)
@@ -1399,10 +1399,10 @@ impl Machine {
                         self.state.false_object
                     };
 
-                    process.set_register(register, ptr);
+                    context.set_register(register, ptr);
                 }
                 InstructionType::GetBindingPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.binding_prototype);
                 }
                 // Gets the Binding of the current scope and sets it in a
@@ -1412,13 +1412,13 @@ impl Machine {
                 // to store the object in.
                 InstructionType::GetBinding => {
                     let register = instruction.arg(0);
-                    let binding = process.binding();
+                    let binding = context.binding.clone();
 
                     let obj =
                         process.allocate(object_value::binding(binding),
                                          self.state.binding_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Sets a constant in a given object.
                 //
@@ -1429,9 +1429,9 @@ impl Machine {
                 // 2. The register containing the constant name as a string.
                 // 3. The register pointing to the object to store.
                 InstructionType::SetConstant => {
-                    let target_ptr = process.get_register(instruction.arg(0));
-                    let name_ptr = process.get_register(instruction.arg(1));
-                    let source_ptr = process.get_register(instruction.arg(2));
+                    let target_ptr = context.get_register(instruction.arg(0));
+                    let name_ptr = context.get_register(instruction.arg(1));
+                    let source_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     if source_ptr.is_tagged_integer() {
@@ -1459,14 +1459,14 @@ impl Machine {
                 // to nil instead.
                 InstructionType::GetConstant => {
                     let register = instruction.arg(0);
-                    let src = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let src = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let object = src.lookup_constant(&self.state, &name)
                         .unwrap_or_else(|| self.state.nil_object);
 
-                    process.set_register(register, object);
+                    context.set_register(register, object);
                 }
                 // Sets an attribute of an object.
                 //
@@ -1479,9 +1479,9 @@ impl Machine {
                 // 3. The register containing the object to set as the
                 //    value.
                 InstructionType::SetAttribute => {
-                    let target_ptr = process.get_register(instruction.arg(0));
-                    let name_ptr = process.get_register(instruction.arg(1));
-                    let value_ptr = process.get_register(instruction.arg(2));
+                    let target_ptr = context.get_register(instruction.arg(0));
+                    let name_ptr = context.get_register(instruction.arg(1));
+                    let value_ptr = context.get_register(instruction.arg(2));
 
                     if target_ptr.is_tagged_integer() {
                         panic!("attributes can not be set for integers");
@@ -1510,15 +1510,15 @@ impl Machine {
                 // set to nil.
                 InstructionType::GetAttribute => {
                     let register = instruction.arg(0);
-                    let source = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let source = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let attr = source
                         .lookup_attribute(&name)
                         .unwrap_or_else(|| self.state.nil_object);
 
-                    process.set_register(register, attr);
+                    context.set_register(register, attr);
                 }
                 // Sets the prototype of an object.
                 //
@@ -1529,8 +1529,8 @@ impl Machine {
                 // 2. The register containing the object to use as the
                 //    prototype.
                 InstructionType::SetPrototype => {
-                    let source = process.get_register(instruction.arg(0));
-                    let proto = process.get_register(instruction.arg(1));
+                    let source = context.get_register(instruction.arg(0));
+                    let proto = context.get_register(instruction.arg(1));
 
                     source.get_mut().set_prototype(proto);
 
@@ -1547,13 +1547,13 @@ impl Machine {
                 // instead.
                 InstructionType::GetPrototype => {
                     let register = instruction.arg(0);
-                    let source = process.get_register(instruction.arg(1));
+                    let source = context.get_register(instruction.arg(1));
 
                     let proto = source
                         .prototype(&self.state)
                         .unwrap_or_else(|| self.state.nil_object);
 
-                    process.set_register(register, proto);
+                    context.set_register(register, proto);
                 }
                 // Checks if a local variable exists.
                 //
@@ -1571,7 +1571,7 @@ impl Machine {
                         self.state.false_object
                     };
 
-                    process.set_register(register, value);
+                    context.set_register(register, value);
                 }
                 // Checks if an object responds to a message.
                 //
@@ -1584,8 +1584,8 @@ impl Machine {
                 //    string.
                 InstructionType::RespondsTo => {
                     let register = instruction.arg(0);
-                    let source = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let source = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let result =
@@ -1595,7 +1595,7 @@ impl Machine {
                             self.state.false_object.clone()
                         };
 
-                    process.set_register(register, result);
+                    context.set_register(register, result);
                 }
                 // Spawns a new process.
                 //
@@ -1607,11 +1607,11 @@ impl Machine {
                 //    process on. Defaults to the ID of the primary pool.
                 InstructionType::SpawnProcess => {
                     let register = instruction.arg(0);
-                    let block_ptr = process.get_register(instruction.arg(1));
+                    let block_ptr = context.get_register(instruction.arg(1));
 
                     let pool_id = if let Some(pool_reg) = instruction
                            .arg_opt(2) {
-                        let ptr = process.get_register(pool_reg);
+                        let ptr = context.get_register(pool_reg);
 
                         ptr.integer_value().unwrap() as usize
                     } else {
@@ -1625,7 +1625,7 @@ impl Machine {
 
                     self.state.process_pools.schedule(new_proc);
 
-                    process.set_register(register,
+                    context.set_register(register,
                                          ObjectPointer::integer(new_pid as i64));
                 }
                 // Sends a message to a process.
@@ -1639,8 +1639,8 @@ impl Machine {
                 //    send to the process.
                 InstructionType::SendProcessMessage => {
                     let register = instruction.arg(0);
-                    let pid_ptr = process.get_register(instruction.arg(1));
-                    let msg_ptr = process.get_register(instruction.arg(2));
+                    let pid_ptr = context.get_register(instruction.arg(1));
+                    let msg_ptr = context.get_register(instruction.arg(2));
                     let pid = pid_ptr.integer_value().unwrap() as usize;
 
                     if let Some(receiver) = read_lock!(self.state.process_table)
@@ -1648,7 +1648,7 @@ impl Machine {
                         receiver.send_message(&process, msg_ptr);
                     }
 
-                    process.set_register(register, msg_ptr);
+                    context.set_register(register, msg_ptr);
                 }
                 // Receives a message for the current process.
                 //
@@ -1660,7 +1660,7 @@ impl Machine {
                 // time the process is executed.
                 InstructionType::ReceiveProcessMessage => {
                     if let Some(msg_ptr) = process.receive_message() {
-                        process.set_register(instruction.arg(0), msg_ptr);
+                        context.set_register(instruction.arg(0), msg_ptr);
                     } else {
                         context.instruction_index = index - 1;
                         self.reschedule(process.clone());
@@ -1676,7 +1676,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let pid = ObjectPointer::integer(process.pid as i64);
 
-                    process.set_register(register, pid);
+                    context.set_register(register, pid);
                 }
                 // Sets a local variable in one of the parent bindings.
                 //
@@ -1689,9 +1689,9 @@ impl Machine {
                 InstructionType::SetParentLocal => {
                     let index = instruction.arg(0);
                     let depth = instruction.arg(1);
-                    let value = process.get_register(instruction.arg(2));
+                    let value = context.get_register(instruction.arg(2));
 
-                    if let Some(binding) = process.binding().find_parent(depth) {
+                    if let Some(binding) = context.binding.find_parent(depth) {
                         binding.set_local(index, value);
                     } else {
                         panic!("No binding for depth {}", depth);
@@ -1710,8 +1710,8 @@ impl Machine {
                     let depth = instruction.arg(1);
                     let index = instruction.arg(2);
 
-                    if let Some(binding) = process.binding().find_parent(depth) {
-                        process.set_register(reg, binding.get_local(index));
+                    if let Some(binding) = context.binding.find_parent(depth) {
+                        context.set_register(reg, binding.get_local(index));
                     } else {
                         panic!("No binding for depth {}", depth);
                     }
@@ -1724,11 +1724,11 @@ impl Machine {
                 // 2. The register containing the error.
                 InstructionType::ErrorToInteger => {
                     let register = instruction.arg(0);
-                    let error_ptr = process.get_register(instruction.arg(1));
+                    let error_ptr = context.get_register(instruction.arg(1));
                     let integer = error_ptr.error_value().unwrap() as i64;
                     let result = ObjectPointer::integer(integer);
 
-                    process.set_register(register, result);
+                    context.set_register(register, result);
                 }
                 // Reads a given number of bytes from a file.
                 //
@@ -1743,8 +1743,8 @@ impl Machine {
                 // containing the data read, or an error object.
                 InstructionType::FileReadExact => {
                     let register = instruction.arg(0);
-                    let file_ptr = process.get_register(instruction.arg(1));
-                    let size_ptr = process.get_register(instruction.arg(2));
+                    let file_ptr = context.get_register(instruction.arg(1));
+                    let size_ptr = context.get_register(instruction.arg(2));
 
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let size = size_ptr.integer_value().unwrap() as usize;
@@ -1759,7 +1759,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Reads a given number of bytes from STDIN.
                 //
@@ -1773,7 +1773,7 @@ impl Machine {
                 // containing the data read, or an error object.
                 InstructionType::StdinReadExact => {
                     let register = instruction.arg(0);
-                    let size_ptr = process.get_register(instruction.arg(1));
+                    let size_ptr = context.get_register(instruction.arg(1));
 
                     let size = size_ptr.integer_value().unwrap() as usize;
                     let mut buffer = String::with_capacity(size);
@@ -1789,7 +1789,7 @@ impl Machine {
                         Err(error) => io_error_code!(process, error),
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Checks if two objects are equal.
                 //
@@ -1807,8 +1807,8 @@ impl Machine {
                 // false.
                 InstructionType::ObjectEquals => {
                     let register = instruction.arg(0);
-                    let compare = process.get_register(instruction.arg(1));
-                    let compare_with = process.get_register(instruction.arg(2));
+                    let compare = context.get_register(instruction.arg(1));
+                    let compare_with = context.get_register(instruction.arg(2));
 
                     let obj = if compare == compare_with {
                         self.state.true_object
@@ -1816,18 +1816,18 @@ impl Machine {
                         self.state.false_object
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Sets the top-level object in a register.
                 //
                 // This instruction requires one argument: the register to
                 // store the object in.
                 InstructionType::GetToplevel => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.top_level);
                 }
                 InstructionType::GetNilPrototype => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.nil_prototype);
                 }
                 // Sets the nil singleton in a register.
@@ -1835,7 +1835,7 @@ impl Machine {
                 // This instruction requires only one argument: the register
                 // to store the object in.
                 InstructionType::GetNil => {
-                    process.set_register(instruction.arg(0),
+                    context.set_register(instruction.arg(0),
                                          self.state.nil_object);
                 }
                 // Looks up a method and sets it in the target register.
@@ -1850,15 +1850,15 @@ impl Machine {
                 // be set to nil instead.
                 InstructionType::LookupMethod => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let rec_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let method = rec_ptr
                         .lookup_method(&self.state, &name)
                         .unwrap_or_else(|| self.state.nil_object);
 
-                    process.set_register(register, method);
+                    context.set_register(register, method);
                 }
                 // Checks if an attribute exists in an object.
                 //
@@ -1870,8 +1870,8 @@ impl Machine {
                 //    string.
                 InstructionType::AttrExists => {
                     let register = instruction.arg(0);
-                    let source_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let source_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let obj = if source_ptr.lookup_attribute(&name).is_some() {
@@ -1880,7 +1880,7 @@ impl Machine {
                         self.state.false_object.clone()
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Returns true if a constant exists, false otherwise.
                 //
@@ -1891,14 +1891,14 @@ impl Machine {
                 // 3. The register containing the constant name as a string.
                 InstructionType::ConstExists => {
                     let register = instruction.arg(0);
-                    let source = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let source = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     if source.lookup_constant(&self.state, &name).is_some() {
-                        process.set_register(register, self.state.true_object);
+                        context.set_register(register, self.state.true_object);
                     } else {
-                        process.set_register(register, self.state.false_object);
+                        context.set_register(register, self.state.false_object);
                     }
                 }
                 // Removes a method from an object.
@@ -1914,8 +1914,8 @@ impl Machine {
                 // nil instead.
                 InstructionType::RemoveMethod => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let rec_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     if rec_ptr.is_tagged_integer() {
@@ -1930,7 +1930,7 @@ impl Machine {
                         self.state.nil_object
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Removes a attribute from an object.
                 //
@@ -1945,8 +1945,8 @@ impl Machine {
                 // to nil instead.
                 InstructionType::RemoveAttribute => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let rec_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     if rec_ptr.is_tagged_integer() {
@@ -1960,7 +1960,7 @@ impl Machine {
                         self.state.nil_object
                     };
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Gets all the methods available on an object.
                 //
@@ -1971,14 +1971,14 @@ impl Machine {
                 //    all methods.
                 InstructionType::GetMethods => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let methods = rec_ptr.methods();
 
                     let obj =
                         process.allocate(object_value::array(methods),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Gets all the method names available on an object.
                 //
@@ -1989,14 +1989,14 @@ impl Machine {
                 //    all method names.
                 InstructionType::GetMethodNames => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let methods = rec_ptr.method_names();
 
                     let obj =
                         process.allocate(object_value::array(methods),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Gets all the attributes available on an object.
                 //
@@ -2007,14 +2007,14 @@ impl Machine {
                 //    all attributes.
                 InstructionType::GetAttributes => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attributes();
 
                     let obj =
                         process.allocate(object_value::array(attributes),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Gets all the attributes names available on an object.
                 //
@@ -2025,14 +2025,14 @@ impl Machine {
                 //    all attributes names.
                 InstructionType::GetAttributeNames => {
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attribute_names();
 
                     let obj =
                         process.allocate(object_value::array(attributes),
                                          self.state.array_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Gets the current value of a monotonic clock in
                 // nanoseconds.
@@ -2045,7 +2045,7 @@ impl Machine {
                     let nsec = (duration.as_secs() * 1000000000) +
                                duration.subsec_nanos() as u64;
 
-                    process.set_register(register,
+                    context.set_register(register,
                                          ObjectPointer::integer(nsec as i64));
                 }
                 // Gets the current value of a monotonic clock in
@@ -2064,7 +2064,7 @@ impl Machine {
                         process.allocate(object_value::float(msec),
                                          self.state.float_prototype);
 
-                    process.set_register(register, obj);
+                    context.set_register(register, obj);
                 }
                 // Executes a Block object.
                 //
@@ -2079,7 +2079,7 @@ impl Machine {
                     context.line = instruction.line;
 
                     let register = instruction.arg(0);
-                    let block_ptr = process.get_register(instruction.arg(1));
+                    let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value().unwrap();
 
                     self.schedule_block(&block,
@@ -2102,7 +2102,7 @@ impl Machine {
                 //    variable.
                 InstructionType::SetGlobal => {
                     let index = instruction.arg(0);
-                    let object = process.get_register(instruction.arg(1));
+                    let object = context.get_register(instruction.arg(1));
 
                     process.set_global(index, object);
                 }
@@ -2117,7 +2117,7 @@ impl Machine {
                     let index = instruction.arg(1);
                     let object = process.get_global(index);
 
-                    process.set_register(register, object);
+                    context.set_register(register, object);
                 }
                 // Sends a message to an object.
                 //
@@ -2133,8 +2133,8 @@ impl Machine {
                     context.line = instruction.line;
 
                     let register = instruction.arg(0);
-                    let rec_ptr = process.get_register(instruction.arg(1));
-                    let name_ptr = process.get_register(instruction.arg(2));
+                    let rec_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let method =
@@ -2159,8 +2159,8 @@ impl Machine {
                 // 3. The register containing the value to push.
                 InstructionType::ArrayPush => {
                     let register = instruction.arg(0);
-                    let array_ptr = process.get_register(instruction.arg(1));
-                    let value_ptr = process.get_register(instruction.arg(2));
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let value_ptr = context.get_register(instruction.arg(2));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
 
@@ -2171,7 +2171,7 @@ impl Machine {
 
                     vector.push(value);
 
-                    process.set_register(register, value);
+                    context.set_register(register, value);
                 }
                 // Throws a value
                 //
@@ -2188,7 +2188,7 @@ impl Machine {
                     context.instruction_index = index;
 
                     let reason = ThrowReason::from_u8(instruction.arg(0) as u8);
-                    let value = process.get_register(instruction.arg(1));
+                    let value = context.get_register(instruction.arg(1));
 
                     'unwind: loop {
                         let code = process.compiled_code();
@@ -2221,9 +2221,9 @@ impl Machine {
                 // 1. The register to set.
                 // 2. The register to get the value from.
                 InstructionType::SetRegister => {
-                    let value = process.get_register(instruction.arg(1));
+                    let value = context.get_register(instruction.arg(1));
 
-                    process.set_register(instruction.arg(0), value);
+                    context.set_register(instruction.arg(0), value);
                 }
             };
         }
