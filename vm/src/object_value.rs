@@ -19,7 +19,6 @@ pub enum ObjectValue {
     InternedString(Box<String>),
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
-    Error(u16),
     Block(Box<Block>),
     Binding(RcBinding),
 }
@@ -64,13 +63,6 @@ impl ObjectValue {
     pub fn is_file(&self) -> bool {
         match self {
             &ObjectValue::File(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_error(&self) -> bool {
-        match self {
-            &ObjectValue::Error(_) => true,
             _ => false,
         }
     }
@@ -136,15 +128,6 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_error(&self) -> Result<u16, String> {
-        match self {
-            &ObjectValue::Error(val) => Ok(val),
-            _ => {
-                Err("ObjectValue::as_error() called non a non error".to_string())
-            }
-        }
-    }
-
     pub fn as_block(&self) -> Result<&Box<Block>, String> {
         match self {
             &ObjectValue::Block(ref val) => Ok(val),
@@ -200,10 +183,6 @@ pub fn array(value: Vec<ObjectPointer>) -> ObjectValue {
 
 pub fn file(value: fs::File) -> ObjectValue {
     ObjectValue::File(Box::new(value))
-}
-
-pub fn error(value: u16) -> ObjectValue {
-    ObjectValue::Error(value)
 }
 
 pub fn block(value: Block) -> ObjectValue {
@@ -274,12 +253,6 @@ mod tests {
 
         assert!(ObjectValue::File(file).is_file());
         assert_eq!(ObjectValue::None.is_file(), false);
-    }
-
-    #[test]
-    fn test_is_error() {
-        assert!(ObjectValue::Error(2).is_error());
-        assert_eq!(ObjectValue::None.is_error(), false);
     }
 
     #[test]
@@ -396,19 +369,6 @@ mod tests {
     }
 
     #[test]
-    fn test_as_error_without_error() {
-        assert!(ObjectValue::None.as_error().is_err());
-    }
-
-    #[test]
-    fn test_as_error_with_error() {
-        let result = ObjectValue::Error(2).as_error();
-
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2);
-    }
-
-    #[test]
     fn test_as_block_without_block() {
         assert!(ObjectValue::None.as_block().is_err());
     }
@@ -485,11 +445,6 @@ mod tests {
         let f = File::open("/dev/null").unwrap();
 
         assert!(file(f).is_file());
-    }
-
-    #[test]
-    fn test_error() {
-        assert!(error(2).is_error());
     }
 
     #[test]

@@ -29,6 +29,38 @@ macro_rules! reset_context {
     });
 }
 
+macro_rules! throw_value {
+    ($machine: expr, $process: expr, $reason: expr, $value: expr, $context: ident, $code: ident, $index: ident) => ({
+        $context.instruction_index = $index;
+
+        $machine.throw($process, $reason, $value);
+
+        reset_context!($process, $context, $code, $index);
+    })
+}
+
+macro_rules! throw_io_error {
+    ($machine: expr, $process: expr, $error: expr, $context: ident, $code: ident, $index: ident) => ({
+        let reason = ThrowReason::Throw;
+        let code = $crate::error_codes::from_io_error($error);
+        let value = ObjectPointer::integer(code);
+
+        throw_value!($machine, $process, reason, value, $context, $code,
+                     $index);
+    });
+}
+
+macro_rules! throw_invalid_utf8_error {
+    ($machine: expr, $process: expr, $context: ident, $code: ident, $index: ident) => ({
+        let reason = ThrowReason::Throw;
+        let code = $crate::error_codes::STRING_INVALID_UTF8;
+        let value = ObjectPointer::integer(code);
+
+        throw_value!($machine, $process, reason, value, $context, $code,
+                     $index);
+    })
+}
+
 macro_rules! enter_context {
     ($process: expr, $context: ident, $code: ident, $index: ident) => ({
         $context.instruction_index = $index;
@@ -126,8 +158,7 @@ impl Machine {
         let process = {
             let mut registry = write_lock!(self.module_registry);
 
-            let module = registry
-                .parse_path(file)
+            let module = registry.parse_path(file)
                 .map_err(|err| err.message())
                 .unwrap();
 
@@ -149,8 +180,7 @@ impl Machine {
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
-        let pid = process_table
-            .reserve()
+        let pid = process_table.reserve()
             .ok_or_else(|| "No PID could be reserved".to_string())?;
 
         let process = Process::from_block(pid,
@@ -249,14 +279,14 @@ impl Machine {
                     let register = instruction.arg(0);
                     let val_count = instruction.arguments.len() - 1;
 
-                    let values = self.collect_arguments(&process,
-                                                        instruction,
-                                                        1,
-                                                        val_count);
+                    let values =
+                        self.collect_arguments(&process,
+                                               instruction,
+                                               1,
+                                               val_count);
 
-                    let obj =
-                        process.allocate(object_value::array(values),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(values),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -351,9 +381,8 @@ impl Machine {
                                            binding,
                                            process.global_scope().clone());
 
-                    let obj =
-                        process.allocate(object_value::block(block),
-                                         self.state.block_prototype);
+                    let obj = process.allocate(object_value::block(block),
+                                               self.state.block_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -473,24 +502,6 @@ impl Machine {
 
                     context.set_register(register, method);
                 }
-                // Checks if a given object is an error object.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the boolean result in.
-                // 2. The register of the object to check.
-                InstructionType::IsError => {
-                    let register = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-
-                    let result = if ptr.error_value().is_ok() {
-                        self.state.true_object.clone()
-                    } else {
-                        self.state.false_object.clone()
-                    };
-
-                    context.set_register(register, result);
-                }
                 // Adds two integers
                 //
                 // This instruction requires 3 arguments:
@@ -552,9 +563,8 @@ impl Machine {
                     let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap() as f64;
 
-                    let obj =
-                        process.allocate(object_value::float(result),
-                                         self.state.float_prototype);
+                    let obj = process.allocate(object_value::float(result),
+                                               self.state.float_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -569,9 +579,8 @@ impl Machine {
                     let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap().to_string();
 
-                    let obj =
-                        process.allocate(object_value::string(result),
-                                         self.state.string_prototype);
+                    let obj = process.allocate(object_value::string(result),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -739,9 +748,8 @@ impl Machine {
                     let float_ptr = context.get_register(instruction.arg(1));
                     let result = float_ptr.float_value().unwrap().to_string();
 
-                    let obj =
-                        process.allocate(object_value::string(result),
-                                         self.state.string_prototype);
+                    let obj = process.allocate(object_value::string(result),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -805,8 +813,7 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(3));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
-                    let index =
-                        int_to_vector_index!(vector,
+                    let index = int_to_vector_index!(vector,
                                              index_ptr.integer_value().unwrap());
 
                     let value = copy_if_permanent!(self.state.permanent_allocator,
@@ -838,12 +845,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let vector = array_ptr.array_value().unwrap();
 
-                    let index =
-                        int_to_vector_index!(vector,
+                    let index = int_to_vector_index!(vector,
                                              index_ptr.integer_value().unwrap());
 
-                    let value = vector
-                        .get(index)
+                    let value = vector.get(index)
                         .cloned()
                         .unwrap_or_else(|| self.state.nil_object);
 
@@ -867,8 +872,7 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
-                    let index =
-                        int_to_vector_index!(vector,
+                    let index = int_to_vector_index!(vector,
                                              index_ptr.integer_value().unwrap());
 
                     let value = if index > vector.len() {
@@ -915,9 +919,8 @@ impl Machine {
                     let source_ptr = context.get_register(instruction.arg(1));
                     let lower = source_ptr.string_value().unwrap().to_lowercase();
 
-                    let obj =
-                        process.allocate(object_value::string(lower),
-                                         self.state.string_prototype);
+                    let obj = process.allocate(object_value::string(lower),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -932,9 +935,8 @@ impl Machine {
                     let source_ptr = context.get_register(instruction.arg(1));
                     let upper = source_ptr.string_value().unwrap().to_uppercase();
 
-                    let obj =
-                        process.allocate(object_value::string(upper),
-                                         self.state.string_prototype);
+                    let obj = process.allocate(object_value::string(upper),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -970,17 +972,15 @@ impl Machine {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
 
-                    let array = string_ptr
-                        .string_value()
+                    let array = string_ptr.string_value()
                         .unwrap()
                         .as_bytes()
                         .iter()
                         .map(|&b| ObjectPointer::integer(b as i64))
                         .collect::<Vec<_>>();
 
-                    let obj =
-                        process.allocate(object_value::array(array),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(array),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1001,20 +1001,18 @@ impl Machine {
                     let mut bytes = Vec::with_capacity(array.len());
 
                     for ptr in array.iter() {
-                        let integer = ptr.integer_value().unwrap();
-
-                        bytes.push(integer as u8);
+                        bytes.push(ptr.integer_value().unwrap() as u8);
                     }
 
-                    let obj = match String::from_utf8(bytes) {
-                        Ok(string) => {
-                            process.allocate(object_value::string(string),
-                                             self.state.string_prototype)
-                        }
-                        Err(_) => invalid_utf8_error_code!(process),
-                    };
+                    if let Ok(string) = String::from_utf8(bytes) {
+                        let obj = process.allocate(object_value::string(string),
+                                                   self.state.string_prototype);
 
-                    context.set_register(register, obj);
+                        context.set_register(register, obj);
+                    } else {
+                        throw_invalid_utf8_error!(self, process, context, code,
+                                                  index);
+                    }
                 }
                 // Returns the amount of characters in a string.
                 //
@@ -1050,99 +1048,98 @@ impl Machine {
                 //
                 // This instruction requires two arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the amount of written bytes in.
                 // 2. The register containing the string to write.
                 //
-                // The result of this instruction is either an integer
-                // indicating the amount of bytes written, or an error
-                // object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::StdoutWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
                     let string = string_ptr.string_value().unwrap();
                     let mut stdout = io::stdout();
 
-                    let obj = match stdout.write(string.as_bytes()) {
-                        Ok(num_bytes) => {
-                            match stdout.flush() {
-                                Ok(_) => ObjectPointer::integer(num_bytes as i64),
-                                Err(error) => io_error_code!(process, error),
-                            }
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    let result = stdout.write(string.as_bytes())
+                        .and_then(|size| stdout.flush().and_then(|_| Ok(size)));
 
-                    context.set_register(register, obj);
+                    match result {
+                        Ok(size) => {
+                            let obj = ObjectPointer::integer(size as i64);
+
+                            context.set_register(register, obj);
+                        }
+                        Err(error) => {
+                            throw_io_error!(self, process, error, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Writes a string to STDERR and returns the amount of
                 // written bytes.
                 //
                 // This instruction requires two arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the amount of written bytes in.
                 // 2. The register containing the string to write.
                 //
-                // The result of this instruction is either an integer
-                // indicating the amount of bytes written, or an error
-                // object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::StderrWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
                     let string = string_ptr.string_value().unwrap();
                     let mut stderr = io::stderr();
 
-                    let obj = match stderr.write(string.as_bytes()) {
-                        Ok(num_bytes) => {
-                            match stderr.flush() {
-                                Ok(_) => ObjectPointer::integer(num_bytes as i64),
-                                Err(error) => io_error_code!(process, error),
-                            }
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    let result = stderr.write(string.as_bytes())
+                        .and_then(|size| stderr.flush().and_then(|_| Ok(size)));
 
-                    context.set_register(register, obj);
+                    match result {
+                        Ok(size) => {
+                            let obj = ObjectPointer::integer(size as i64);
+
+                            context.set_register(register, obj);
+                        }
+                        Err(error) => {
+                            throw_io_error!(self, process, error, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Reads all the data from STDIN.
                 //
-                // This instruction requires only one argument:
+                // This instruction requires only one argument: the register to
+                // store the read data in as a string.
                 //
-                // 1. The register to store the resulting object in.
-                //
-                // The result of this instruction is either a string
-                // containing the data read, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::StdinRead => {
                     let register = instruction.arg(0);
                     let mut buffer = String::new();
 
-                    let obj = match io::stdin().read_to_string(&mut buffer) {
-                        Ok(_) => {
-                            process.allocate(object_value::string(buffer),
-                                             self.state.string_prototype)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    if let Err(err) = io::stdin().read_to_string(&mut buffer) {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
+
+                    let obj = process.allocate(object_value::string(buffer),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
                 // Reads an entire line from STDIN into a string.
                 //
-                // This instruction requires 1 argument: the register to
-                // store the resulting object in.
+                // This instruction requires only one argument: the register to
+                // store the read data in as a string.
                 //
-                // The result of this instruction is either a string
-                // containing the read data, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::StdinReadLine => {
                     let register = instruction.arg(0);
                     let mut buffer = String::new();
 
-                    let obj = match io::stdin().read_line(&mut buffer) {
-                        Ok(_) => {
-                            process.allocate(object_value::string(buffer),
-                                             self.state.string_prototype)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    if let Err(err) = io::stdin().read_line(&mut buffer) {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
+
+                    let obj = process.allocate(object_value::string(buffer),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1151,13 +1148,10 @@ impl Machine {
                 //
                 // This instruction requires X arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the file object in.
                 // 2. The path to the file to open.
-                // 3. The register containing an integer that specifies the
-                //    file open mode.
-                //
-                // The result of this instruction is either a file object or
-                // an error object.
+                // 3. The register containing an integer that specifies the file
+                //    open mode.
                 //
                 // The available file modes supported are as follows:
                 //
@@ -1166,6 +1160,8 @@ impl Machine {
                 // * 2: append-only
                 // * 3: read+write
                 // * 4: read+append
+                //
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileOpen => {
                     let register = instruction.arg(0);
                     let path_ptr = context.get_register(instruction.arg(1));
@@ -1176,12 +1172,18 @@ impl Machine {
                     let open_opts = file_open_mode::options_for_integer(mode)
                         .unwrap();
 
-                    let object = match open_opts.open(path) {
-                        Ok(file) => process.allocate_without_prototype(object_value::file(file)),
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    match open_opts.open(path) {
+                        Ok(file) => {
+                            let obj = process
+                                .allocate_without_prototype(object_value::file(file));
 
-                    context.set_register(register, object);
+                            context.set_register(register, obj);
+                        }
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Writes a string to a file.
                 //
@@ -1191,8 +1193,7 @@ impl Machine {
                 // 2. The register containing the file object to write to.
                 // 3. The register containing the string to write.
                 //
-                // The result of this instruction is either the amount of
-                // written bytes or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileWrite => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
@@ -1201,35 +1202,39 @@ impl Machine {
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let bytes = string_ptr.string_value().unwrap().as_bytes();
 
-                    let obj = match file.write(bytes) {
-                        Ok(num_bytes) => ObjectPointer::integer(num_bytes as i64),
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    match file.write(bytes) {
+                        Ok(num_bytes) => {
+                            let obj = ObjectPointer::integer(num_bytes as i64);
 
-                    context.set_register(register, obj);
+                            context.set_register(register, obj);
+                        }
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Reads the all data from a file.
                 //
-                // This instruction takes 2 arguments:
+                // This instruction requires two arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the read data in as a string.
                 // 2. The register containing the file to read from.
                 //
-                // The result of this instruction is either a string
-                // containing the data read, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileRead => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let mut buffer = String::new();
 
-                    let obj = match file.read_to_string(&mut buffer) {
-                        Ok(_) => {
-                            process.allocate(object_value::string(buffer),
-                                             self.state.string_prototype)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    if let Err(err) = file.read_to_string(&mut buffer) {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
+
+                    let obj = process.allocate(object_value::string(buffer),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1237,11 +1242,10 @@ impl Machine {
                 //
                 // This instruction requires two arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the read data in as a string.
                 // 2. The register containing the file to read from.
                 //
-                // The result of this instruction is either a string
-                // containing the read line, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileReadLine => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
@@ -1249,87 +1253,84 @@ impl Machine {
                     let mut buffer = Vec::new();
 
                     for result in file.bytes() {
-                        match result {
-                            Ok(byte) => {
-                                buffer.push(byte);
+                        if let Ok(byte) = result {
+                            buffer.push(byte);
 
-                                if byte == 0xA {
-                                    break;
-                                }
+                            if byte == 0xA {
+                                break;
                             }
-                            Err(error) => {
-                                context.set_register(register,
-                                                     io_error_code!(process,
-                                                                        error));
+                        } else {
+                            throw_io_error!(self, process, result.unwrap_err(),
+                                            context, code, index);
 
-                                continue 'exec_loop;
-                            }
+                            continue 'exec_loop;
                         }
                     }
 
-                    let obj = match String::from_utf8(buffer) {
-                        Ok(string) => {
-                            process.allocate(object_value::string(string),
-                                             self.state.string_prototype)
-                        }
-                        Err(_) => invalid_utf8_error_code!(process),
-                    };
+                    // Shrink the buffer so we don't waste any additional memory
+                    // that was allocated when pushing bytes.
+                    buffer.shrink_to_fit();
 
-                    context.set_register(register, obj);
+                    if let Ok(string) = String::from_utf8(buffer) {
+                        let obj = process.allocate(object_value::string(string),
+                                                   self.state.string_prototype);
+
+                        context.set_register(register, obj);
+                    } else {
+                        throw_invalid_utf8_error!(self, process, context, code,
+                                                  index);
+                    }
                 }
                 // Flushes a file.
                 //
-                // This instruction requires two arguments:
+                // This instruction requires one argument: the register
+                // containing the file to flush.
                 //
-                // 1. The register to store the result in.
-                // 2. the register containing the file to flush.
-                //
-                // The resulting object is either the file itself upon
-                // success, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileFlush => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
+                    let file_ptr = context.get_register(instruction.arg(0));
                     let mut file = file_ptr.file_value_mut().unwrap();
 
-                    let obj = match file.flush() {
-                        Ok(_) => file_ptr,
-                        Err(error) => io_error_code!(process, error),
-                    };
-
-                    context.set_register(register, obj);
+                    if let Err(err) = file.flush() {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
                 }
                 // Returns the size of a file in bytes.
                 //
                 // This instruction requires two arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the size of the file in.
                 // 2. The register containing the file.
                 //
-                // The resulting object is either an integer representing
-                // the amount of bytes, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileSize => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
                     let file = file_ptr.file_value().unwrap();
 
-                    let obj = match file.metadata() {
-                        Ok(meta) => ObjectPointer::integer(meta.len() as i64),
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    match file.metadata() {
+                        Ok(meta) => {
+                            let obj = ObjectPointer::integer(meta.len() as i64);
 
-                    context.set_register(register, obj);
+                            context.set_register(register, obj);
+                        }
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Sets a file cursor to the given offset in bytes.
                 //
                 // This instruction requires 3 arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the new cursor position in.
                 // 2. The register containing the input file.
-                // 3. The offset to seek to as an integer. This integer must
-                //    be greater than 0.
+                // 3. The offset to seek to as an integer. This integer must be
+                //    greater than 0.
                 //
-                // The resulting object is either an integer representing
-                // the new cursor position, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileSeek => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
@@ -1337,14 +1338,17 @@ impl Machine {
                     let mut file = file_ptr.file_value_mut().unwrap();
                     let offset = offset_ptr.integer_value().unwrap();
 
-                    let obj = match file.seek(SeekFrom::Start(offset as u64)) {
-                        Ok(new_offset) => {
-                            ObjectPointer::integer(new_offset as i64)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    match file.seek(SeekFrom::Start(offset as u64)) {
+                        Ok(cursor) => {
+                            let obj = ObjectPointer::integer(cursor as i64);
 
-                    context.set_register(register, obj);
+                            context.set_register(register, obj);
+                        }
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, code,
+                                            index);
+                        }
+                    }
                 }
                 // Parses a bytecode file and stores the resulting Block in
                 // the register.
@@ -1362,8 +1366,7 @@ impl Machine {
                     let block = {
                         let mut registry = write_lock!(self.module_registry);
 
-                        let module = registry
-                            .get_or_set(path_str)
+                        let module = registry.get_or_set(path_str)
                             .map_err(|err| err.message())
                             .unwrap();
 
@@ -1372,9 +1375,8 @@ impl Machine {
                                    module.global_scope_ref())
                     };
 
-                    let block_ptr =
-                        process.allocate(object_value::block(block),
-                                         self.state.block_prototype);
+                    let block_ptr = process.allocate(object_value::block(block),
+                                                     self.state.block_prototype);
 
                     context.set_register(register, block_ptr);
                 }
@@ -1393,7 +1395,7 @@ impl Machine {
                     let path_str = path_ptr.string_value().unwrap();
 
                     let ptr = if read_lock!(self.module_registry)
-                           .contains_path(path_str) {
+                        .contains_path(path_str) {
                         self.state.true_object
                     } else {
                         self.state.false_object
@@ -1414,9 +1416,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let binding = context.binding.clone();
 
-                    let obj =
-                        process.allocate(object_value::binding(binding),
-                                         self.state.binding_prototype);
+                    let obj = process.allocate(object_value::binding(binding),
+                                               self.state.binding_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1514,8 +1515,7 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let attr = source
-                        .lookup_attribute(&name)
+                    let attr = source.lookup_attribute(&name)
                         .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, attr);
@@ -1549,8 +1549,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let source = context.get_register(instruction.arg(1));
 
-                    let proto = source
-                        .prototype(&self.state)
+                    let proto = source.prototype(&self.state)
                         .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, proto);
@@ -1588,12 +1587,12 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let result =
-                        if source.lookup_method(&self.state, &name).is_some() {
-                            self.state.true_object.clone()
-                        } else {
-                            self.state.false_object.clone()
-                        };
+                    let result = if source.lookup_method(&self.state, &name)
+                        .is_some() {
+                        self.state.true_object.clone()
+                    } else {
+                        self.state.false_object.clone()
+                    };
 
                     context.set_register(register, result);
                 }
@@ -1609,8 +1608,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
 
-                    let pool_id = if let Some(pool_reg) = instruction
-                           .arg_opt(2) {
+                    let pool_id = if let Some(pool_reg) =
+                        instruction.arg_opt(2) {
                         let ptr = context.get_register(pool_reg);
 
                         ptr.integer_value().unwrap() as usize
@@ -1644,7 +1643,7 @@ impl Machine {
                     let pid = pid_ptr.integer_value().unwrap() as usize;
 
                     if let Some(receiver) = read_lock!(self.state.process_table)
-                           .get(&pid) {
+                        .get(&pid) {
                         receiver.send_message(&process, msg_ptr);
                     }
 
@@ -1716,31 +1715,16 @@ impl Machine {
                         panic!("No binding for depth {}", depth);
                     }
                 }
-                // Converts an error object to an integer.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the integer in.
-                // 2. The register containing the error.
-                InstructionType::ErrorToInteger => {
-                    let register = instruction.arg(0);
-                    let error_ptr = context.get_register(instruction.arg(1));
-                    let integer = error_ptr.error_value().unwrap() as i64;
-                    let result = ObjectPointer::integer(integer);
-
-                    context.set_register(register, result);
-                }
                 // Reads a given number of bytes from a file.
                 //
                 // This instruction takes 3 arguments:
                 //
-                // 1. The register to store the resulting object in.
+                // 1. The register to store the read data in as a string.
                 // 2. The register containing the file to read from.
-                // 3. The register containing the number of bytes to read,
-                //    as a positive integer.
+                // 3. The register containing the number of bytes to read, as a
+                //    positive integer.
                 //
-                // The result of this instruction is either a string
-                // containing the data read, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::FileReadExact => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
@@ -1750,14 +1734,14 @@ impl Machine {
                     let size = size_ptr.integer_value().unwrap() as usize;
                     let mut buffer = String::with_capacity(size);
 
-                    let obj = match file.take(size as u64)
-                              .read_to_string(&mut buffer) {
-                        Ok(_) => {
-                            process.allocate(object_value::string(buffer),
-                                             self.state.string_prototype)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    if let Err(err) = file.take(size as u64)
+                        .read_to_string(&mut buffer) {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
+
+                    let obj = process.allocate(object_value::string(buffer),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1765,12 +1749,11 @@ impl Machine {
                 //
                 // This instruction takes 2 arguments:
                 //
-                // 1. The register to store the resulting object in.
-                // 1. The register containing the number of bytes to read,
-                //    as a positive integer.
+                // 1. The register to store the read data in as a string.
+                // 1. The register containing the number of bytes to read, as a
+                //    positive integer.
                 //
-                // The result of this instruction is either a string
-                // containing the data read, or an error object.
+                // This instruction will throw when encountering an IO error.
                 InstructionType::StdinReadExact => {
                     let register = instruction.arg(0);
                     let size_ptr = context.get_register(instruction.arg(1));
@@ -1779,15 +1762,14 @@ impl Machine {
                     let mut buffer = String::with_capacity(size);
                     let stdin = io::stdin();
 
-                    let obj = match stdin
-                              .take(size as u64)
-                              .read_to_string(&mut buffer) {
-                        Ok(_) => {
-                            process.allocate(object_value::string(buffer),
-                                             self.state.string_prototype)
-                        }
-                        Err(error) => io_error_code!(process, error),
-                    };
+                    if let Err(err) = stdin.take(size as u64)
+                        .read_to_string(&mut buffer) {
+                        throw_io_error!(self, process, err, context, code, index);
+                        continue;
+                    }
+
+                    let obj = process.allocate(object_value::string(buffer),
+                                               self.state.string_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1854,8 +1836,7 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method = rec_ptr
-                        .lookup_method(&self.state, &name)
+                    let method = rec_ptr.lookup_method(&self.state, &name)
                         .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, method);
@@ -1922,9 +1903,8 @@ impl Machine {
                         panic!("methods can not be removed from integers");
                     }
 
-                    let obj = if let Some(method) = rec_ptr
-                           .get_mut()
-                           .remove_method(&name) {
+                    let obj = if let Some(method) = rec_ptr.get_mut()
+                        .remove_method(&name) {
                         method
                     } else {
                         self.state.nil_object
@@ -1953,8 +1933,8 @@ impl Machine {
                         panic!("attributes can not be removed for integers");
                     }
 
-                    let obj = if let Some(attribute) =
-                        rec_ptr.get_mut().remove_attribute(&name) {
+                    let obj = if let Some(attribute) = rec_ptr.get_mut()
+                        .remove_attribute(&name) {
                         attribute
                     } else {
                         self.state.nil_object
@@ -1974,9 +1954,8 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let methods = rec_ptr.methods();
 
-                    let obj =
-                        process.allocate(object_value::array(methods),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(methods),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -1992,9 +1971,8 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let methods = rec_ptr.method_names();
 
-                    let obj =
-                        process.allocate(object_value::array(methods),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(methods),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -2010,9 +1988,8 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attributes();
 
-                    let obj =
-                        process.allocate(object_value::array(attributes),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(attributes),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -2028,9 +2005,8 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attribute_names();
 
-                    let obj =
-                        process.allocate(object_value::array(attributes),
-                                         self.state.array_prototype);
+                    let obj = process.allocate(object_value::array(attributes),
+                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -2060,9 +2036,8 @@ impl Machine {
                     let msec = (duration.as_secs() * 1_000) as f64 +
                                duration.subsec_nanos() as f64 / 1_000_000.0;
 
-                    let obj =
-                        process.allocate(object_value::float(msec),
-                                         self.state.float_prototype);
+                    let obj = process.allocate(object_value::float(msec),
+                                               self.state.float_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -2137,8 +2112,8 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method =
-                        rec_ptr.lookup_method(&self.state, &name).unwrap();
+                    let method = rec_ptr.lookup_method(&self.state, &name)
+                        .unwrap();
 
                     let block = method.block_value().unwrap();
 
@@ -2185,34 +2160,11 @@ impl Machine {
                 // value is caught, or until we reach the top level (at
                 // which point we terminate the VM).
                 InstructionType::Throw => {
-                    context.instruction_index = index;
-
                     let reason = ThrowReason::from_u8(instruction.arg(0) as u8);
                     let value = context.get_register(instruction.arg(1));
 
-                    'unwind: loop {
-                        let code = process.compiled_code();
-                        let mut context = process.context_mut();
-                        let index = context.instruction_index;
-
-                        for entry in code.catch_table.entries.iter() {
-                            if entry.reason == reason && entry.start < index &&
-                               entry.end >= index {
-                                context.instruction_index = entry.jump_to;
-                                context.set_register(entry.register, value);
-
-                                break 'unwind;
-                            }
-                        }
-
-                        if process.pop_context() {
-                            panic!("A thrown value reached the top-level \
-                                        in process {}",
-                                       process.pid);
-                        }
-                    }
-
-                    reset_context!(process, context, code, index);
+                    throw_value!(self, process, reason, value, context,
+                                 code, index);
                 }
                 // Sets a register to the value of another register.
                 //
@@ -2325,5 +2277,32 @@ impl Machine {
         }
 
         process.push_context(context);
+    }
+
+    fn throw(&self,
+             process: &RcProcess,
+             reason: ThrowReason,
+             value: ObjectPointer) {
+        loop {
+            let code = process.compiled_code();
+            let mut context = process.context_mut();
+            let index = context.instruction_index;
+
+            for entry in code.catch_table.entries.iter() {
+                if entry.reason == reason && entry.start < index &&
+                   entry.end >= index {
+                    context.instruction_index = entry.jump_to;
+                    context.set_register(entry.register, value);
+
+                    return;
+                }
+            }
+
+            if process.pop_context() {
+                panic!("A thrown value reached the top-level \
+                                        in process {}",
+                                       process.pid);
+            }
+        }
     }
 }

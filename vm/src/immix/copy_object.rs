@@ -42,7 +42,6 @@ pub trait CopyObject: Sized {
             ObjectValue::File(_) => {
                 panic!("ObjectValue::File can not be cloned");
             }
-            ObjectValue::Error(num) => object_value::error(num),
             ObjectValue::Block(ref block) => {
                 let new_binding = block.binding.clone_to(self);
                 let new_scope = block.global_scope.clone();
@@ -192,17 +191,6 @@ mod tests {
 
         assert!(copy.get().value.is_array());
         assert_eq!(copy.get().value.as_array().unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_copy_error() {
-        let mut dummy = DummyAllocator::new();
-        let ptr = dummy.allocator
-            .allocate_without_prototype(object_value::error(2));
-
-        let copy = dummy.copy_object(ptr);
-
-        assert!(copy.get().value.is_error());
     }
 
     #[test]

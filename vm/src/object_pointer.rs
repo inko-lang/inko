@@ -419,7 +419,6 @@ impl ObjectPointer {
     def_value_getter!(file_value, get, as_file, &fs::File);
     def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut fs::File);
 
-    def_value_getter!(error_value, get, as_error, u16);
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
 }
