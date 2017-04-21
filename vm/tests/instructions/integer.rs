@@ -7,10 +7,10 @@ macro_rules! test_op {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
-            let instruction = new_instruction(InstructionType::$ins_type,
-                                              vec![2, 0, 1]);
 
-            block.code.instructions.push(instruction);
+            block.code.instructions =
+                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                     new_instruction(InstructionType::Return, vec![2])];
 
             let left = ObjectPointer::integer(5);
             let right = ObjectPointer::integer(2);
@@ -32,10 +32,10 @@ macro_rules! test_bool_op {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
-            let instruction = new_instruction(InstructionType::$ins_type,
-                                              vec![2, 0, 1]);
 
-            block.code.instructions.push(instruction);
+            block.code.instructions =
+                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                     new_instruction(InstructionType::Return, vec![2])];
 
             let left = ObjectPointer::integer(5);
             let right = ObjectPointer::integer(2);
@@ -57,10 +57,10 @@ macro_rules! test_cast_op {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
-            let instruction = new_instruction(InstructionType::$ins_type,
-                                              vec![1, 0]);
 
-            block.code.instructions.push(instruction);
+            block.code.instructions =
+                vec![new_instruction(InstructionType::$ins_type, vec![1, 0]),
+                     new_instruction(InstructionType::Return, vec![1])];
 
             let original = ObjectPointer::integer(5);
 

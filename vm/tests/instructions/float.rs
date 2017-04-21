@@ -7,10 +7,10 @@ macro_rules! test_op {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
-            let instruction = new_instruction(InstructionType::$ins_type,
-                                              vec![2, 0, 1]);
 
-            block.code.instructions.push(instruction);
+            block.code.instructions =
+                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                     new_instruction(InstructionType::Return, vec![2])];
 
             let left = process
                 .allocate_without_prototype(object_value::float(5.0));
@@ -35,10 +35,9 @@ macro_rules! test_bool_op {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
-            let instruction = new_instruction(InstructionType::$ins_type,
-                                              vec![2, 0, 1]);
-
-            block.code.instructions.push(instruction);
+            block.code.instructions =
+                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                     new_instruction(InstructionType::Return, vec![2])];
 
             let left = process
                 .allocate_without_prototype(object_value::float(5.0));
@@ -61,10 +60,10 @@ macro_rules! test_bool_op {
 #[test]
 fn test_float_to_integer() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::FloatToInteger,
-                                      vec![1, 0]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::FloatToInteger, vec![1, 0]),
+             new_instruction(InstructionType::Return, vec![1])];
 
     let original = process.allocate_without_prototype(object_value::float(5.5));
 
@@ -80,9 +79,10 @@ fn test_float_to_integer() {
 #[test]
 fn test_float_to_string() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::FloatToString, vec![1, 0]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::FloatToString, vec![1, 0]),
+             new_instruction(InstructionType::Return, vec![1])];
 
     let original = process.allocate_without_prototype(object_value::float(5.5));
 

@@ -6,9 +6,10 @@ use libinko::vm::test::*;
 #[test]
 fn test_set_array() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::SetArray, vec![2, 0, 1]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::SetArray, vec![2, 0, 1]),
+             new_instruction(InstructionType::Return, vec![2])];
 
     let value1 = process.allocate_empty();
     let value2 = process.allocate_empty();
@@ -34,13 +35,13 @@ fn test_set_array() {
 #[test]
 fn test_array_insert() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::ArrayInsert,
-                                      vec![3, 0, 1, 2]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::ArrayInsert, vec![3, 0, 1, 2]),
+             new_instruction(InstructionType::Return, vec![3])];
 
-    let array = process
-        .allocate_without_prototype(object_value::array(Vec::new()));
+    let array =
+        process.allocate_without_prototype(object_value::array(Vec::new()));
 
     let index = ObjectPointer::integer(0);
     let value = ObjectPointer::integer(5);
@@ -59,14 +60,15 @@ fn test_array_insert() {
 #[test]
 fn test_array_at() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]),
+             new_instruction(InstructionType::Return, vec![2])];
 
     let value = ObjectPointer::integer(5);
 
-    let array = process
-        .allocate_without_prototype(object_value::array(vec![value]));
+    let array =
+        process.allocate_without_prototype(object_value::array(vec![value]));
 
     let index = ObjectPointer::integer(0);
 
@@ -83,15 +85,15 @@ fn test_array_at() {
 #[test]
 fn test_array_remove() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::ArrayRemove,
-                                      vec![2, 0, 1]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::ArrayRemove, vec![2, 0, 1]),
+             new_instruction(InstructionType::Return, vec![2])];
 
     let value = ObjectPointer::integer(5);
 
-    let array = process
-        .allocate_without_prototype(object_value::array(vec![value]));
+    let array =
+        process.allocate_without_prototype(object_value::array(vec![value]));
 
     let index = ObjectPointer::integer(0);
 
@@ -110,13 +112,14 @@ fn test_array_remove() {
 #[test]
 fn test_array_length() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::ArrayLength, vec![1, 0]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::ArrayLength, vec![1, 0]),
+             new_instruction(InstructionType::Return, vec![1])];
 
     let value = process.allocate_empty();
-    let array = process
-        .allocate_without_prototype(object_value::array(vec![value]));
+    let array =
+        process.allocate_without_prototype(object_value::array(vec![value]));
 
     process.set_register(0, array);
 
@@ -130,14 +133,15 @@ fn test_array_length() {
 #[test]
 fn test_array_clear() {
     let (machine, mut block, process) = setup();
-    let instruction = new_instruction(InstructionType::ArrayClear, vec![0]);
 
-    block.code.instructions.push(instruction);
+    block.code.instructions =
+        vec![new_instruction(InstructionType::ArrayClear, vec![0]),
+             new_instruction(InstructionType::Return, vec![0])];
 
     let value = process.allocate_empty();
 
-    let array = process
-        .allocate_without_prototype(object_value::array(vec![value]));
+    let array =
+        process.allocate_without_prototype(object_value::array(vec![value]));
 
     process.set_register(0, array);
 
