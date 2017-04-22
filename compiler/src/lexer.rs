@@ -32,6 +32,7 @@ pub enum TokenType {
     BitwiseXorAssign,
     BracketClose,
     BracketOpen,
+    Closure,
     Colon,
     ColonColon,
     Comma,
@@ -48,7 +49,6 @@ pub enum TokenType {
     Equal,
     ExclusiveRange,
     Float,
-    Func,
     Greater,
     GreaterEqual,
     HashOpen,
@@ -121,7 +121,7 @@ impl<'a> Lexer<'a> {
                 "import" => TokenType::Import,
                 "return" => TokenType::Return,
                 "self" => TokenType::SelfObject,
-                "fn" => TokenType::Func,
+                "do" => TokenType::Closure,
                 "def" => TokenType::Def,
                 "type" => TokenType::Type,
                 "as" => TokenType::As,
@@ -1017,7 +1017,7 @@ mod tests {
         test!(test_import, identifier_or_keyword, Import, "import");
         test!(test_return, identifier_or_keyword, Return, "return");
         test!(test_self, identifier_or_keyword, SelfObject, "self");
-        test!(test_func, identifier_or_keyword, Func, "fn");
+        test!(test_closure, identifier_or_keyword, Closure, "do");
         test!(test_def, identifier_or_keyword, Def, "def");
         test!(test_type, identifier_or_keyword, Type, "type");
         test!(test_as, identifier_or_keyword, As, "as");
