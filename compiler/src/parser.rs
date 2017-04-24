@@ -1228,6 +1228,10 @@ impl<'a> Parser<'a> {
         loop {
             let expr_start = next_or_error!(self);
 
+            if expr_start.token_type == TokenType::BracketClose {
+                break;
+            }
+
             values.push(self.expression(expr_start)?);
 
             comma_or_break_on!(self, TokenType::BracketClose);
@@ -1250,6 +1254,11 @@ impl<'a> Parser<'a> {
 
         loop {
             let key_start = next_or_error!(self);
+
+            if key_start.token_type == TokenType::CurlyClose {
+                break;
+            }
+
             let key = self.expression(key_start)?;
 
             next_of_type!(self, TokenType::Colon);
