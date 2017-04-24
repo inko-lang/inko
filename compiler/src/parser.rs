@@ -3,16 +3,8 @@
 use std::collections::HashSet;
 use lexer::{Lexer, Token, TokenType};
 
-/// Macro for parsing a operator expression into a method call.
-///
-/// In Inko all operators are implemented as methods. This means that this:
-///
-///     x < y
-///
-/// Is parsed as:
-///
-///     x.<(y)
-macro_rules! send_op {
+/// Macro for parsing a binary operation such as `x < y`.
+macro_rules! binary_op {
     ($rec: expr, $start: expr, $child: ident, $($token_type: ident),+) => ({
         let mut node = $rec.$child($start)?;
 
@@ -30,10 +22,9 @@ macro_rules! send_op {
                         let start = $rec.lexer.next().unwrap();
                         let rhs = $rec.$child(start)?;
 
-                        node = Node::Send {
-                            name: operator.value,
-                            receiver: Box::new(node),
-                            arguments: vec![rhs],
+                        node = Node::$token_type {
+                            left: Box::new(node),
+                            right: Box::new(rhs),
                             line: operator.line,
                             column: operator.column
                         };
@@ -379,6 +370,153 @@ pub enum Node {
         line: usize,
         column: usize,
     },
+
+    Or {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    And {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Equal {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    NotEqual {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Lower {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    LowerEqual {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Greater {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    GreaterEqual {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    BitwiseOr {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    BitwiseXor {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    BitwiseAnd {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    ShiftLeft {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    ShiftRight {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Add {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Sub {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Div {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Mod {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Mul {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    Pow {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    InclusiveRange {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
+
+    ExclusiveRange {
+        left: Box<Node>,
+        right: Box<Node>,
+        line: usize,
+        column: usize,
+    },
 }
 
 pub type ParseResult = Result<Node, String>;
@@ -480,53 +618,53 @@ impl<'a> Parser<'a> {
     }
 
     fn binary_or(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, binary_and, Or)
+        binary_op!(self, start, binary_and, Or)
     }
 
     fn binary_and(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, equality, And)
+        binary_op!(self, start, equality, And)
     }
 
     fn equality(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, compare, Equal, NotEqual)
+        binary_op!(self, start, compare, Equal, NotEqual)
     }
 
     fn compare(&mut self, start: Token) -> ParseResult {
-        send_op!(self,
-                 start,
-                 bitwise_or,
-                 Lower,
-                 LowerEqual,
-                 Greater,
-                 GreaterEqual)
+        binary_op!(self,
+                   start,
+                   bitwise_or,
+                   Lower,
+                   LowerEqual,
+                   Greater,
+                   GreaterEqual)
     }
 
     fn bitwise_or(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, bitwise_and, BitwiseOr, BitwiseXor)
+        binary_op!(self, start, bitwise_and, BitwiseOr, BitwiseXor)
     }
 
     fn bitwise_and(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, bitwise_shift, BitwiseAnd)
+        binary_op!(self, start, bitwise_shift, BitwiseAnd)
     }
 
     fn bitwise_shift(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, add_subtract, ShiftLeft, ShiftRight)
+        binary_op!(self, start, add_subtract, ShiftLeft, ShiftRight)
     }
 
     fn add_subtract(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, div_mod_mul, Add, Sub)
+        binary_op!(self, start, div_mod_mul, Add, Sub)
     }
 
     fn div_mod_mul(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, pow, Div, Mod, Mul)
+        binary_op!(self, start, pow, Div, Mod, Mul)
     }
 
     fn pow(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, range, Pow)
+        binary_op!(self, start, range, Pow)
     }
 
     fn range(&mut self, start: Token) -> ParseResult {
-        send_op!(self, start, bracket_send, InclusiveRange, ExclusiveRange)
+        binary_op!(self, start, bracket_send, InclusiveRange, ExclusiveRange)
     }
 
     /// Parses an expression such as `X[Y]` and `X[Y] = Z`.
