@@ -279,7 +279,7 @@ pub enum Node {
         column: usize,
     },
 
-    Object {
+    Class {
         name: String,
         type_arguments: Vec<Node>,
         nodes: Vec<Node>,
@@ -546,7 +546,7 @@ impl<'a> Parser<'a> {
                                       TokenType::Mod,
                                       TokenType::Mul,
                                       TokenType::NotEqual,
-                                      TokenType::Object,
+                                      TokenType::Class,
                                       TokenType::Or,
                                       TokenType::Pow,
                                       TokenType::Return,
@@ -575,7 +575,7 @@ impl<'a> Parser<'a> {
                                    TokenType::Let,
                                    TokenType::Let,
                                    TokenType::Const,
-                                   TokenType::Object,
+                                   TokenType::Class,
                                    TokenType::Trait,
                                    TokenType::Return,
                                    TokenType::Impl,
@@ -888,7 +888,7 @@ impl<'a> Parser<'a> {
             TokenType::Let => self.let_define(start),
             TokenType::Var => self.var_define(start),
             TokenType::Const => self.const_define(start),
-            TokenType::Object => self.def_object(start),
+            TokenType::Class => self.class(start),
             TokenType::Trait => self.def_trait(start),
             TokenType::Return => self.return_value(start),
             TokenType::Impl => self.implement_trait(start),
@@ -1385,13 +1385,13 @@ impl<'a> Parser<'a> {
         self.expression(start)
     }
 
-    /// Parses an object definition.
-    fn def_object(&mut self, start: Token) -> ParseResult {
+    /// Parses a class definition.
+    fn class(&mut self, start: Token) -> ParseResult {
         let name = next_of_type!(self, TokenType::Constant);
         let type_args = self.optional_type_arguments()?;
         let nodes = self.block()?;
 
-        Ok(Node::Object {
+        Ok(Node::Class {
             name: name.value,
             type_arguments: type_args,
             nodes: nodes,

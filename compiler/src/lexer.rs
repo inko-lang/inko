@@ -32,6 +32,7 @@ pub enum TokenType {
     BitwiseXorAssign,
     BracketClose,
     BracketOpen,
+    Class,
     Closure,
     Colon,
     ColonColon,
@@ -65,7 +66,6 @@ pub enum TokenType {
     Mul,
     MulAssign,
     NotEqual,
-    Object,
     Or,
     OrAssign,
     ParenClose,
@@ -115,7 +115,7 @@ impl<'a> Lexer<'a> {
                 "let" => TokenType::Let,
                 "var" => TokenType::Var,
                 "const" => TokenType::Const,
-                "object" => TokenType::Object,
+                "class" => TokenType::Class,
                 "trait" => TokenType::Trait,
                 "impl" => TokenType::Impl,
                 "import" => TokenType::Import,
@@ -1011,7 +1011,7 @@ mod tests {
         test!(test_let, identifier_or_keyword, Let, "let");
         test!(test_var, identifier_or_keyword, Var, "var");
         test!(test_const, identifier_or_keyword, Const, "const");
-        test!(test_object, identifier_or_keyword, Object, "object");
+        test!(test_class, identifier_or_keyword, Class, "class");
         test!(test_trait, identifier_or_keyword, Trait, "trait");
         test!(test_impl, identifier_or_keyword, Impl, "impl");
         test!(test_import, identifier_or_keyword, Import, "import");
