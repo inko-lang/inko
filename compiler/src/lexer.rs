@@ -285,7 +285,11 @@ impl<'a> Lexer<'a> {
 
         loop {
             match self.input.get(position) {
-                Some(&'\r') | Some(&'\n') | None => break,
+                Some(&'\r') | Some(&'\n') => {
+                    position += 1;
+                    break;
+                }
+                None => break,
                 _ => position += 1,
             }
         }

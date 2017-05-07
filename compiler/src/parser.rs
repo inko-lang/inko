@@ -106,12 +106,11 @@ macro_rules! comma_or_break_on {
 macro_rules! send_or {
     ($parser: expr, $start: expr, $alternative: expr) => ({
         if $parser.lexer.next_type_is(&TokenType::ParenOpen) {
-            let rec = $parser.self_from_token(&$start);
             let args = $parser.arguments_with_parenthesis()?;
 
             Ok(Node::Send {
                 name: $start.value,
-                receiver: Box::new(rec),
+                receiver: None,
                 arguments: args,
                 line: $start.line,
                 column: $start.column,
@@ -121,12 +120,11 @@ macro_rules! send_or {
             // line we'll treat said expression as the start of an argument
             // list.
             if $parser.next_expression_is_argument($start.line) {
-                let rec = $parser.self_from_token(&$start);
                 let args = $parser.arguments_without_parenthesis()?;
 
                 Ok(Node::Send {
                     name: $start.value,
-                    receiver: Box::new(rec),
+                    receiver: None,
                     arguments: args,
                     line: $start.line,
                     column: $start.column,
@@ -165,7 +163,7 @@ pub enum Node {
 
     Send {
         name: String,
-        receiver: Box<Node>,
+        receiver: Option<Box<Node>>,
         arguments: Vec<Node>,
         line: usize,
         column: usize,
@@ -231,6 +229,8 @@ pub enum Node {
         name: Box<Node>,
         arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
+        line: usize,
+        column: usize,
     },
 
     Path { steps: Vec<Node> },
@@ -265,16 +265,7 @@ pub enum Node {
         return_type: Option<Box<Node>>,
         throw_type: Option<Box<Node>>,
         requirements: Vec<Node>,
-        nodes: Vec<Node>,
-        line: usize,
-        column: usize,
-    },
-
-    RequiredMethod {
-        name: String,
-        arguments: Vec<Node>,
-        type_arguments: Vec<Node>,
-        return_type: Option<Box<Node>>,
+        body: Option<Vec<Node>>,
         line: usize,
         column: usize,
     },
@@ -295,7 +286,7 @@ pub enum Node {
         column: usize,
     },
 
-    TraitImplementation {
+    Implement {
         name: Box<Node>,
         type_arguments: Vec<Node>,
         renames: Vec<(Node, Node)>,
@@ -325,7 +316,7 @@ pub enum Node {
     },
 
     ConstDefine {
-        name: Box<Node>,
+        name: String,
         value: Box<Node>,
         line: usize,
         column: usize,
@@ -342,6 +333,8 @@ pub enum Node {
         symbol: Box<Node>,
         alias: Option<Box<Node>>,
     },
+
+    ImportWildcard { line: usize, column: usize },
 
     TypeCast {
         value: Box<Node>,
@@ -517,6 +510,13 @@ pub enum Node {
         line: usize,
         column: usize,
     },
+
+    Reassign {
+        variable: Box<Node>,
+        value: Box<Node>,
+        line: usize,
+        column: usize,
+    },
 }
 
 pub type ParseResult = Result<Node, String>;
@@ -580,7 +580,6 @@ impl<'a> Parser<'a> {
                                    TokenType::Return,
                                    TokenType::Impl,
                                    TokenType::Comment,
-                                   TokenType::Import,
                                    TokenType::Colon,
                                    TokenType::Type,
                                    TokenType::Attribute,
@@ -607,10 +606,18 @@ impl<'a> Parser<'a> {
         let mut children = Vec::new();
 
         while let Some(token) = self.lexer.next() {
-            children.push(self.expression(token)?);
+            children.push(self.import_or_expression(token)?);
         }
 
         Ok(Node::Expressions { nodes: children })
+    }
+
+    fn import_or_expression(&mut self, start: Token) -> ParseResult {
+        if start.token_type == TokenType::Import {
+            self.import(start)
+        } else {
+            self.expression(start)
+        }
     }
 
     fn expression(&mut self, start: Token) -> ParseResult {
@@ -685,7 +692,7 @@ impl<'a> Parser<'a> {
 
             node = Node::Send {
                 name: name,
-                receiver: Box::new(node),
+                receiver: Some(Box::new(node)),
                 arguments: args,
                 line: bracket.line,
                 column: bracket.column,
@@ -761,7 +768,7 @@ impl<'a> Parser<'a> {
 
             node = Node::Send {
                 name: name,
-                receiver: Box::new(node),
+                receiver: Some(Box::new(node)),
                 arguments: args,
                 line: line,
                 column: column,
@@ -893,7 +900,6 @@ impl<'a> Parser<'a> {
             TokenType::Return => self.return_value(start),
             TokenType::Impl => self.implement_trait(start),
             TokenType::Comment => self.comment(start),
-            TokenType::Import => self.import(start),
             TokenType::Type => self.def_type(start),
             TokenType::Attribute => self.attribute(start),
             TokenType::SelfObject => self.self_object(start),
@@ -917,7 +923,11 @@ impl<'a> Parser<'a> {
     ///     foo(bar, baz)
     ///     foo bar, baz
     fn identifier(&mut self, start: Token) -> ParseResult {
-        send_or!(self, start, self.identifier_from_token(start))
+        if self.lexer.next_type_is(&TokenType::Assign) {
+            self.reassign_local(start)
+        } else {
+            send_or!(self, start, self.identifier_from_token(start))
+        }
     }
 
     /// Parses an attribute
@@ -926,7 +936,53 @@ impl<'a> Parser<'a> {
     ///
     ///     @foo
     fn attribute(&mut self, start: Token) -> ParseResult {
-        Ok(self.attribute_from_token(start))
+        if self.lexer.next_type_is(&TokenType::Assign) {
+            self.reassign_attribute(start)
+        } else {
+            Ok(self.attribute_from_token(start))
+        }
+    }
+
+    /// Parses the reassignment of a local variable.
+    fn reassign_local(&mut self, start: Token) -> ParseResult {
+        self.lexer.next();
+
+        let line = start.line;
+        let column = start.column;
+        let local = self.identifier_from_token(start);
+        let value = {
+            let token = next_or_error!(self);
+
+            self.expression(token)?
+        };
+
+        Ok(Node::Reassign {
+            variable: Box::new(local),
+            value: Box::new(value),
+            line: line,
+            column: column,
+        })
+    }
+
+    /// Parses the reassignment of an attribute.
+    fn reassign_attribute(&mut self, start: Token) -> ParseResult {
+        self.lexer.next();
+
+        let line = start.line;
+        let column = start.column;
+        let attr = self.attribute_from_token(start);
+        let value = {
+            let token = next_or_error!(self);
+
+            self.expression(token)?
+        };
+
+        Ok(Node::Reassign {
+            variable: Box::new(attr),
+            value: Box::new(value),
+            line: line,
+            column: column,
+        })
     }
 
     /// Parses a constant or a path.
@@ -983,6 +1039,9 @@ impl<'a> Parser<'a> {
 
     /// Parses a single step in a type name/path.
     fn type_name_step(&mut self, start: Token) -> ParseResult {
+        let line = start.line;
+        let column = start.column;
+
         match start.token_type {
             TokenType::Identifier => {
                 let ident = self.identifier_from_token(start);
@@ -992,6 +1051,8 @@ impl<'a> Parser<'a> {
                     name: Box::new(ident),
                     arguments: Vec::new(),
                     return_type: rtype,
+                    line: line,
+                    column: column,
                 })
             }
             TokenType::Constant => {
@@ -1003,6 +1064,8 @@ impl<'a> Parser<'a> {
                     name: Box::new(constant),
                     arguments: args,
                     return_type: rtype,
+                    line: line,
+                    column: column,
                 })
             }
             _ => {
@@ -1292,30 +1355,25 @@ impl<'a> Parser<'a> {
         let throw_type = self.optional_throw_type()?;
         let requirements = self.method_requirements()?;
 
-        if self.lexer.next_type_is(&TokenType::CurlyOpen) {
+        let body = if self.lexer.next_type_is(&TokenType::CurlyOpen) {
             next_of_type!(self, TokenType::CurlyOpen);
 
-            Ok(Node::Method {
-                name: name,
-                arguments: arguments,
-                type_arguments: type_arguments,
-                return_type: return_type,
-                throw_type: throw_type,
-                requirements: requirements,
-                nodes: self.block()?,
-                line: start.line,
-                column: start.column,
-            })
+            Some(self.block()?)
         } else {
-            Ok(Node::RequiredMethod {
-                name: name,
-                arguments: arguments,
-                type_arguments: type_arguments,
-                return_type: return_type,
-                line: start.line,
-                column: start.column,
-            })
-        }
+            None
+        };
+
+        Ok(Node::Method {
+            name: name,
+            arguments: arguments,
+            type_arguments: type_arguments,
+            return_type: return_type,
+            throw_type: throw_type,
+            requirements: requirements,
+            body: body,
+            line: start.line,
+            column: start.column,
+        })
     }
 
     /// Defines an immutable variable.
@@ -1349,13 +1407,13 @@ impl<'a> Parser<'a> {
         let name = {
             let start = next_of_type!(self, TokenType::Constant);
 
-            self.constant_from_token(start)
+            start.value
         };
 
         let value = self.variable_value()?;
 
         Ok(Node::ConstDefine {
-            name: Box::new(name),
+            name: name,
             value: Box::new(value),
             line: start.line,
             column: start.column,
@@ -1458,7 +1516,7 @@ impl<'a> Parser<'a> {
             Vec::new()
         };
 
-        Ok(Node::TraitImplementation {
+        Ok(Node::Implement {
             name: Box::new(name),
             type_arguments: type_args,
             renames: renames,
@@ -1479,7 +1537,7 @@ impl<'a> Parser<'a> {
                 self.identifier_from_token(token)
             };
 
-            next_of_type!(self, TokenType::Colon);
+            next_of_type!(self, TokenType::As);
 
             let new_name = {
                 let token = next_of_type!(self, TokenType::Identifier);
@@ -1513,9 +1571,10 @@ impl<'a> Parser<'a> {
     /// Examples:
     ///
     ///     import foo::bar::Baz
-    ///     import foo::bar::(Baz, Quix: Foo)
+    ///     import foo::bar::(Baz, Quix as Foo)
     fn import(&mut self, start: Token) -> ParseResult {
         let mut steps = Vec::new();
+        let mut symbols = Vec::new();
 
         loop {
             let step = ident_or_constant!(self);
@@ -1529,16 +1588,11 @@ impl<'a> Parser<'a> {
             }
 
             if self.lexer.next_type_is(&TokenType::ParenOpen) {
+                self.lexer.next();
+                symbols = self.import_symbols()?;
                 break;
             }
         }
-
-        let symbols = if self.lexer.next_type_is(&TokenType::ParenOpen) {
-            self.lexer.next();
-            self.import_symbols()?
-        } else {
-            Vec::new()
-        };
 
         Ok(Node::Import {
             steps: steps,
@@ -1555,7 +1609,7 @@ impl<'a> Parser<'a> {
         loop {
             let symbol = ident_or_constant!(self);
 
-            let alias = if self.lexer.next_type_is(&TokenType::Colon) {
+            let alias = if self.lexer.next_type_is(&TokenType::As) {
                 self.lexer.next();
 
                 Some(Box::new(ident_or_constant!(self)))
@@ -1634,7 +1688,10 @@ impl<'a> Parser<'a> {
     }
 
     fn self_object(&mut self, start: Token) -> ParseResult {
-        Ok(self.self_from_token(&start))
+        Ok(Node::SelfObject {
+            line: start.line,
+            column: start.column,
+        })
     }
 
     /// Parses the "try" keyword.
@@ -1767,13 +1824,6 @@ impl<'a> Parser<'a> {
         } else {
             parse_error!("Tokens of type {:?} are not valid for method names",
                          start.token_type)
-        }
-    }
-
-    fn self_from_token(&self, token: &Token) -> Node {
-        Node::SelfObject {
-            line: token.line,
-            column: token.column,
         }
     }
 

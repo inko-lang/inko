@@ -1,13 +1,22 @@
 extern crate getopts;
+extern crate ansi_term;
 
 pub mod macros;
+
+pub mod compiler;
+pub mod config;
+pub mod formatter;
 pub mod lexer;
 pub mod parser;
+pub mod tir;
 
-use std::io::{self, Write, Read};
-use std::fs::File;
 use std::env;
+use std::io::{self, Write};
+use std::path::PathBuf;
 use std::process;
+
+use formatter::Formatter;
+use formatter::pretty::Pretty as PrettyFormatter;
 
 fn print_usage(options: &getopts::Options) -> ! {
     print_stderr(format!("{}", options.usage("Usage: inkoc FILE [OPTIONS]")));
@@ -30,6 +39,23 @@ fn main() {
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
 
+    options.optmulti("S",
+                     "source",
+                     "Directories to search for source files",
+                     "DIR");
+
+    options.optmulti("B",
+                     "bytecode",
+                     "Directories to search for pre-compiled bytecode files",
+                     "DIR");
+
+    options.optmulti("T",
+                     "target",
+                     "The directory to store compiled bytecode files in",
+                     "DIR");
+
+    options.optflag("", "release", "Compiles a release build");
+
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(error) => {
@@ -50,23 +76,44 @@ fn main() {
     if matches.free.is_empty() {
         print_usage(&options);
     } else {
-        let ref path = matches.free[0];
-        let mut file = File::open(path).unwrap();
-        let mut buffer = String::new();
-
-        file.read_to_string(&mut buffer).unwrap();
-
-        let mut parser = parser::Parser::new(&buffer);
-        let ast = parser.parse();
-
-        match ast {
-            Ok(node) => println!("{:?}", node),
-            Err(err) => {
-                println!("{} on line {}, column {}",
-                         err.to_string(),
-                         parser.line(),
-                         parser.column())
-            }
+        let target = if let Some(path) = matches.opt_str("T") {
+            PathBuf::from(path)
+        } else {
+            env::current_dir().unwrap()
         };
+
+        let mut config = config::Config::new(target);
+
+        if matches.opt_present("release") {
+            config.set_release_mode();
+        }
+
+        if matches.opt_present("S") {
+            for dir in matches.opt_strs("S") {
+                config.add_source_directory(dir);
+            }
+        }
+
+        if matches.opt_present("B") {
+            for dir in matches.opt_strs("B") {
+                config.add_bytecode_directory(dir);
+            }
+        }
+
+        let mut compiler = compiler::Compiler::new(config);
+
+        for path in matches.free.iter() {
+            compiler.compile(path.to_string());
+
+            if compiler.has_diagnostics() {
+                let formatter = PrettyFormatter::new();
+
+                print_stderr(formatter.format(compiler.diagnostics()));
+            }
+
+            if compiler.has_errors() {
+                process::exit(1);
+            }
+        }
     }
 }
