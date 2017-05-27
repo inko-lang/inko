@@ -1,7 +1,6 @@
 //! Object Metadata
 //!
-//! The ObjectHeader struct stores metadata associated with an Object, such as
-//! the name, attributes, constants and methods.
+//! The ObjectHeader struct stores object data such as attributes and methods.
 use fnv::FnvHashMap;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
@@ -20,9 +19,6 @@ pub struct ObjectHeader {
     /// The attributes defined in an object.
     pub attributes: FnvHashMap<ObjectPointer, ObjectPointer>,
 
-    /// The constants defined in an object.
-    pub constants: FnvHashMap<ObjectPointer, ObjectPointer>,
-
     /// The methods defined in an object.
     pub methods: FnvHashMap<ObjectPointer, ObjectPointer>,
 }
@@ -31,7 +27,6 @@ impl ObjectHeader {
     pub fn new() -> ObjectHeader {
         ObjectHeader {
             attributes: FnvHashMap::default(),
-            constants: FnvHashMap::default(),
             methods: FnvHashMap::default(),
         }
     }
@@ -39,10 +34,6 @@ impl ObjectHeader {
     /// Pushes all pointers in this header into the given Vec.
     pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
         for (_, pointer) in self.attributes.iter() {
-            pointers.push(pointer.pointer());
-        }
-
-        for (_, pointer) in self.constants.iter() {
             pointers.push(pointer.pointer());
         }
 
@@ -59,12 +50,6 @@ impl ObjectHeader {
             let value_copy = allocator.copy_object(*value);
 
             copy.add_attribute(*key, value_copy);
-        }
-
-        for (key, value) in self.constants.iter() {
-            let value_copy = allocator.copy_object(*value);
-
-            copy.add_constant(*key, value_copy);
         }
 
         for (key, value) in self.methods.iter() {
@@ -84,10 +69,6 @@ impl ObjectHeader {
         self.attributes.insert(key, value);
     }
 
-    pub fn add_constant(&mut self, key: ObjectPointer, value: ObjectPointer) {
-        self.constants.insert(key, value);
-    }
-
     pub fn get_method(&self, key: &ObjectPointer) -> Option<ObjectPointer> {
         self.methods.get(key).cloned()
     }
@@ -96,16 +77,8 @@ impl ObjectHeader {
         self.attributes.get(key).cloned()
     }
 
-    pub fn get_constant(&self, key: &ObjectPointer) -> Option<ObjectPointer> {
-        self.constants.get(key).cloned()
-    }
-
     pub fn has_method(&self, key: &ObjectPointer) -> bool {
         self.methods.contains_key(key)
-    }
-
-    pub fn has_constant(&self, key: &ObjectPointer) -> bool {
-        self.constants.contains_key(key)
     }
 
     pub fn remove_method(&mut self,
@@ -151,7 +124,6 @@ mod tests {
         let header = ObjectHeader::new();
 
         assert_eq!(header.attributes.len(), 0);
-        assert_eq!(header.constants.len(), 0);
         assert_eq!(header.methods.len(), 0);
     }
 
@@ -163,11 +135,10 @@ mod tests {
 
         header.add_method(name, ObjectPointer::null());
         header.add_attribute(name, ObjectPointer::null());
-        header.add_constant(name, ObjectPointer::null());
 
         header.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 3);
+        assert_eq!(pointers.len(), 2);
 
         // Make sure that updating the pointers also updates those stored in the
         // header.
@@ -179,7 +150,6 @@ mod tests {
 
         assert_eq!(header.get_method(&name).unwrap().raw.raw as usize, 0x4);
         assert_eq!(header.get_attribute(&name).unwrap().raw.raw as usize, 0x4);
-        assert_eq!(header.get_constant(&name).unwrap().raw.raw as usize, 0x4);
     }
 
     #[test]
@@ -230,39 +200,6 @@ mod tests {
         let header = ObjectHeader::new();
 
         assert!(header.get_attribute(&fake_pointer()).is_none());
-    }
-
-    #[test]
-    fn test_add_constant() {
-        let mut header = ObjectHeader::new();
-        let name = fake_pointer();
-
-        header.add_constant(name, ObjectPointer::null());
-
-        assert!(header.get_constant(&name).is_some());
-    }
-
-    #[test]
-    fn test_get_constant_without_constant() {
-        let header = ObjectHeader::new();
-
-        assert!(header.get_constant(&fake_pointer()).is_none());
-    }
-
-    #[test]
-    fn test_has_constant_without_constant() {
-        let header = ObjectHeader::new();
-
-        assert_eq!(header.has_constant(&fake_pointer()), false);
-    }
-
-    #[test]
-    fn test_has_constant_with_constant() {
-        let mut header = ObjectHeader::new();
-        let name = fake_pointer();
-
-        header.add_constant(name, ObjectPointer::null());
-        assert!(header.has_constant(&name));
     }
 
     #[test]

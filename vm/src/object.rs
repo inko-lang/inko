@@ -2,7 +2,7 @@
 //!
 //! The Object struct is used to represent an object created during runtime. It
 //! can be used to wrap native values (e.g. an integer or a string), look up
-//! methods, add constants, etc.
+//! methods, add attributes, etc.
 use std::ops::Drop;
 use std::ptr;
 
@@ -28,9 +28,7 @@ pub enum ObjectStatus {
 
 /// Structure containing data of a single object.
 pub struct Object {
-    /// The prototype of this object. Method and constant lookups use the
-    /// prototype chain in case a method/constant couldn't be found in the
-    /// current object.
+    /// The prototype of this object.
     ///
     /// This pointer may be tagged to store extra information. The following
     /// bits can be set:
@@ -204,33 +202,6 @@ impl Object {
 
                 opt_parent = parent.prototype();
             }
-        }
-
-        None
-    }
-
-    /// Adds a new constant to the current object.
-    pub fn add_constant(&mut self, name: ObjectPointer, value: ObjectPointer) {
-        self.allocate_header();
-
-        let mut header_ref = self.header_mut().unwrap();
-
-        header_ref.add_constant(name, value);
-    }
-
-    /// Looks up a constant.
-    pub fn lookup_constant(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
-        if let Some(header) = self.header() {
-            let got = header.get_constant(name);
-
-            if got.is_some() {
-                return got;
-            }
-        }
-
-        // Look up the constant in one of the parents.
-        if let Some(proto) = self.prototype() {
-            return proto.get().lookup_constant(name);
         }
 
         None
@@ -541,46 +512,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_add_constant() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_constant(name.clone(), fake_pointer());
-
-        assert!(obj.lookup_constant(&name).is_some());
-    }
-
-    #[test]
-    fn test_object_lookup_constant_without_constant() {
-        let obj = new_object();
-        let name = fake_pointer();
-
-        assert!(obj.lookup_constant(&name).is_none());
-    }
-
-    #[test]
-    fn test_object_lookup_constant_with_constant_defined_in_receiver() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_constant(name.clone(), fake_pointer());
-
-        assert!(obj.lookup_constant(&name).is_some());
-    }
-
-    #[test]
-    fn test_object_lookup_constant_with_constant_defined_in_prototype() {
-        let mut proto = new_object();
-        let mut child = new_object();
-        let name = fake_pointer();
-
-        proto.add_constant(name.clone(), fake_pointer());
-        child.set_prototype(object_pointer_for(&proto));
-
-        assert!(child.lookup_constant(&name).is_some());
-    }
-
-    #[test]
     fn test_object_add_attribute() {
         let mut obj = new_object();
         let name = fake_pointer();
@@ -653,11 +584,10 @@ mod tests {
 
         obj.add_method(name, fake_pointer());
         obj.add_attribute(name, fake_pointer());
-        obj.add_constant(name, fake_pointer());
 
         obj.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 3);
+        assert_eq!(pointers.len(), 2);
     }
 
     #[test]

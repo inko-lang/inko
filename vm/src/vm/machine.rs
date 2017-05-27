@@ -1421,54 +1421,6 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
-                // Sets a constant in a given object.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register pointing to the object to store the
-                //    constant in.
-                // 2. The register containing the constant name as a string.
-                // 3. The register pointing to the object to store.
-                InstructionType::SetConstant => {
-                    let target_ptr = context.get_register(instruction.arg(0));
-                    let name_ptr = context.get_register(instruction.arg(1));
-                    let source_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    if source_ptr.is_tagged_integer() {
-                        panic!("constants can not be added to integers");
-                    }
-
-                    let source = copy_if_permanent!(self.state
-                                                            .permanent_allocator,
-                                                        source_ptr,
-                                                        target_ptr);
-
-                    target_ptr.add_constant(&process, name, source);
-                }
-                // Looks up a constant and stores it in a register.
-                //
-                // This instruction takes 3 arguments:
-                //
-                // 1. The register to store the constant in.
-                // 2. The register pointing to an object in which to look for the
-                //    constant.
-                // 3. The register containing the name of the constant as a
-                //    string.
-                //
-                // If the constant does not exist the target register is set
-                // to nil instead.
-                InstructionType::GetConstant => {
-                    let register = instruction.arg(0);
-                    let src = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    let object = src.lookup_constant(&self.state, &name)
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, object);
-                }
                 // Sets an attribute of an object.
                 //
                 // This instruction requires 3 arguments:
@@ -1862,25 +1814,6 @@ impl Machine {
                     };
 
                     context.set_register(register, obj);
-                }
-                // Returns true if a constant exists, false otherwise.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the resulting boolean in.
-                // 2. The register containing the source object to check.
-                // 3. The register containing the constant name as a string.
-                InstructionType::ConstExists => {
-                    let register = instruction.arg(0);
-                    let source = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    if source.lookup_constant(&self.state, &name).is_some() {
-                        context.set_register(register, self.state.true_object);
-                    } else {
-                        context.set_register(register, self.state.false_object);
-                    }
                 }
                 // Removes a method from an object.
                 //

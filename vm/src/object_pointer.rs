@@ -303,17 +303,6 @@ impl ObjectPointer {
                       attr);
     }
 
-    /// Adds a constant to the object this pointer points to.
-    pub fn add_constant(&self,
-                        process: &RcProcess,
-                        name: ObjectPointer,
-                        constant: ObjectPointer) {
-        write_object!(self,
-                      process,
-                      self.get_mut().add_constant(name, constant),
-                      constant);
-    }
-
     /// Looks up a method.
     pub fn lookup_method(&self,
                          state: &RcState,
@@ -337,18 +326,6 @@ impl ObjectPointer {
             None
         } else {
             self.get().lookup_attribute(name)
-        }
-    }
-
-    /// Looks up a constant.
-    pub fn lookup_constant(&self,
-                           state: &RcState,
-                           name: &ObjectPointer)
-                           -> Option<ObjectPointer> {
-        if self.is_tagged_integer() {
-            state.integer_prototype.get().lookup_constant(name)
-        } else {
-            self.get().lookup_constant(name)
         }
     }
 
@@ -896,30 +873,6 @@ mod tests {
         ptr.get_mut().add_attribute(name, value);
 
         assert!(ptr.lookup_attribute(&name).unwrap() == value);
-    }
-
-    #[test]
-    fn test_object_pointer_lookup_constant_with_integer() {
-        let state = State::new(Config::new());
-        let ptr = ObjectPointer::integer(5);
-        let name = state.intern(&"foo".to_string());
-        let constant = state.permanent_allocator.lock().allocate_empty();
-
-        state.integer_prototype.get_mut().add_constant(name, constant);
-
-        assert!(ptr.lookup_constant(&state, &name).unwrap() == constant);
-    }
-
-    #[test]
-    fn test_object_pointer_lookup_constant_with_object() {
-        let state = State::new(Config::new());
-        let ptr = state.permanent_allocator.lock().allocate_empty();
-        let name = state.intern(&"foo".to_string());
-        let constant = state.permanent_allocator.lock().allocate_empty();
-
-        ptr.get_mut().add_constant(name, constant);
-
-        assert!(ptr.lookup_constant(&state, &name).unwrap() == constant);
     }
 
     #[test]
