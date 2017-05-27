@@ -3,12 +3,23 @@
 //! The Object struct is used to represent an object created during runtime. It
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add attributes, etc.
+use fnv::FnvHashMap;
+
 use std::ops::Drop;
 use std::ptr;
 
-use object_header::ObjectHeader;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object_value::ObjectValue;
+
+macro_rules! push_collection {
+    ($map: expr, $what: ident, $vec: expr) => ({
+        $vec.reserve($map.len());
+
+        for thing in $map.$what() {
+            $vec.push(*thing);
+        }
+    })
+}
 
 /// The status of an object.
 pub enum ObjectStatus {
@@ -26,6 +37,8 @@ pub enum ObjectStatus {
     Evacuate,
 }
 
+pub type AttributesMap = FnvHashMap<ObjectPointer, ObjectPointer>;
+
 /// Structure containing data of a single object.
 pub struct Object {
     /// The prototype of this object.
@@ -37,10 +50,9 @@ pub struct Object {
     ///     10: this field contains a forwarding pointer
     pub prototype: ObjectPointer,
 
-    /// A pointer to a header storing the methods, attributes, and other data of
-    /// this object. Headers are allocated on demand and default to null
-    /// pointers.
-    pub header: *const ObjectHeader,
+    /// A pointer to the attributes of this object. Attributes are allocated
+    /// on-demand and default to a NULL pointer.
+    pub attributes: *const AttributesMap,
 
     /// A native Rust value (e.g. a String) that belongs to this object.
     pub value: ObjectValue,
@@ -54,7 +66,7 @@ impl Object {
     pub fn new(value: ObjectValue) -> Object {
         Object {
             prototype: ObjectPointer::null(),
-            header: ptr::null::<ObjectHeader>(),
+            attributes: ptr::null::<AttributesMap>(),
             value: value,
         }
     }
@@ -63,7 +75,7 @@ impl Object {
     pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
         Object {
             prototype: proto,
-            header: ptr::null::<ObjectHeader>(),
+            attributes: ptr::null::<AttributesMap>(),
             value: value,
         }
     }
@@ -82,61 +94,23 @@ impl Object {
         }
     }
 
-    /// Adds a new method to this object.
-    pub fn add_method(&mut self, name: ObjectPointer, method: ObjectPointer) {
-        self.allocate_header();
-
-        let mut header_ref = self.header_mut().unwrap();
-
-        header_ref.add_method(name, method);
-    }
-
-    /// Removes a method and returns it.
-    pub fn remove_method(&mut self,
-                         name: &ObjectPointer)
-                         -> Option<ObjectPointer> {
-        if let Some(header) = self.header_mut() {
-            header.remove_method(name)
-        } else {
-            None
-        }
-    }
-
     /// Removes an attribute and returns it.
     pub fn remove_attribute(&mut self,
                             name: &ObjectPointer)
                             -> Option<ObjectPointer> {
-        if let Some(header) = self.header_mut() {
-            header.remove_attribute(name)
+        if let Some(map) = self.attributes_map_mut() {
+            map.remove(name)
         } else {
             None
         }
-    }
-
-    /// Returns all the methods available to this object.
-    pub fn methods(&self) -> Vec<ObjectPointer> {
-        let mut methods = Vec::new();
-
-        self.each_header(|header| header.push_methods(&mut methods));
-
-        methods
-    }
-
-    /// Returns all the method names available to this object.
-    pub fn method_names(&self) -> Vec<ObjectPointer> {
-        let mut names = Vec::new();
-
-        self.each_header(|header| header.push_method_names(&mut names));
-
-        names
     }
 
     /// Returns all the attributes available to this object.
     pub fn attributes(&self) -> Vec<ObjectPointer> {
         let mut attributes = Vec::new();
 
-        if let Some(header) = self.header() {
-            header.push_attributes(&mut attributes);
+        if let Some(map) = self.attributes_map() {
+            push_collection!(map, values, attributes);
         }
 
         attributes
@@ -146,43 +120,21 @@ impl Object {
     pub fn attribute_names(&self) -> Vec<ObjectPointer> {
         let mut attributes = Vec::new();
 
-        if let Some(header) = self.header() {
-            header.push_attribute_names(&mut attributes);
+        if let Some(map) = self.attributes_map() {
+            push_collection!(map, keys, attributes);
         }
 
         attributes
     }
 
-    /// Calls the supplied closure for the current object's header, and for each
-    /// header in the prototype chain.
-    pub fn each_header<F>(&self, mut func: F)
-        where F: FnMut(&ObjectHeader)
-    {
-        if let Some(header) = self.header() {
-            func(header);
-        }
+    /// Looks up an attribute in either the current object or a parent object.
+    pub fn lookup_attribute_chain(&self,
+                                  name: &ObjectPointer)
+                                  -> Option<ObjectPointer> {
+        let got = self.lookup_attribute(name);
 
-        let mut proto = self.prototype();
-
-        while let Some(pointer) = proto {
-            let object = pointer.get();
-
-            if let Some(header) = object.header() {
-                func(header);
-            }
-
-            proto = object.prototype();
-        }
-    }
-
-    /// Looks up a method.
-    pub fn lookup_method(&self, name: &ObjectPointer) -> Option<ObjectPointer> {
-        if let Some(header) = self.header() {
-            let got = header.get_method(name);
-
-            if got.is_some() {
-                return got;
-            }
+        if got.is_some() {
+            return got;
         }
 
         // Method defined somewhere in the object hierarchy
@@ -191,13 +143,10 @@ impl Object {
 
             while let Some(parent_ptr) = opt_parent {
                 let parent = parent_ptr.get();
+                let got = parent.lookup_attribute(name);
 
-                if let Some(header) = parent.header() {
-                    let got = header.get_method(name);
-
-                    if got.is_some() {
-                        return got;
-                    }
+                if got.is_some() {
+                    return got;
                 }
 
                 opt_parent = parent.prototype();
@@ -209,45 +158,41 @@ impl Object {
 
     /// Adds a new attribute to the current object.
     pub fn add_attribute(&mut self, name: ObjectPointer, object: ObjectPointer) {
-        self.allocate_header();
+        self.allocate_attributes_map();
 
-        let mut header = self.header_mut().unwrap();
-
-        header.add_attribute(name, object.clone());
+        self.attributes_map_mut().unwrap().insert(name, object);
     }
 
     /// Looks up an attribute.
     pub fn lookup_attribute(&self,
                             name: &ObjectPointer)
                             -> Option<ObjectPointer> {
-        if let Some(header) = self.header() {
-            header.get_attribute(name)
+        if let Some(map) = self.attributes_map() {
+            map.get(name).cloned()
         } else {
             None
         }
     }
 
-    /// Returns an immutable reference to the object header.
-    pub fn header(&self) -> Option<&ObjectHeader> {
-        if self.header.is_null() {
+    /// Returns an immutable reference to the attributes.
+    pub fn attributes_map(&self) -> Option<&AttributesMap> {
+        if self.attributes.is_null() {
             None
         } else {
-            Some(unsafe { &*self.header })
+            Some(unsafe { &*self.attributes })
         }
     }
 
-    /// Returns a mutable reference to the object header.
-    pub fn header_mut(&self) -> Option<&mut ObjectHeader> {
-        if self.header.is_null() {
+    pub fn attributes_map_mut(&self) -> Option<&mut AttributesMap> {
+        if self.attributes.is_null() {
             None
         } else {
-            Some(unsafe { &mut *(self.header as *mut ObjectHeader) })
+            Some(unsafe { &mut *(self.attributes as *mut AttributesMap) })
         }
     }
 
-    /// Sets the object header to the given header.
-    pub fn set_header(&mut self, header: ObjectHeader) {
-        self.header = Box::into_raw(Box::new(header));
+    pub fn set_attributes_map(&mut self, attrs: AttributesMap) {
+        self.attributes = Box::into_raw(Box::new(attrs));
     }
 
     /// Pushes all pointers in this object into the given Vec.
@@ -256,8 +201,12 @@ impl Object {
             pointers.push(self.prototype.pointer());
         }
 
-        if let Some(header) = self.header() {
-            header.push_pointers(pointers);
+        if let Some(map) = self.attributes_map() {
+            // Attribute keys are interned strings, which don't need to be
+            // marked.
+            for (_, pointer) in map.iter() {
+                pointers.push(pointer.pointer());
+            }
         }
 
         match self.value {
@@ -279,8 +228,8 @@ impl Object {
         let mut new_obj = Object::with_prototype(self.value.take(),
                                                  self.prototype);
 
-        new_obj.header = self.header;
-        self.header = ptr::null::<ObjectHeader>();
+        new_obj.attributes = self.attributes;
+        self.attributes = ptr::null::<AttributesMap>();
 
         new_obj
     }
@@ -292,26 +241,26 @@ impl Object {
 
     /// Returns true if this object should be finalized.
     pub fn is_finalizable(&self) -> bool {
-        self.value.should_deallocate_native() || self.has_header()
+        self.value.should_deallocate_native() || self.has_attributes()
     }
 
-    /// Returns true if an object header has been allocated.
-    pub fn has_header(&self) -> bool {
-        !self.header.is_null()
+    /// Returns true if an attributes map has been allocated.
+    pub fn has_attributes(&self) -> bool {
+        !self.attributes.is_null()
     }
 
-    /// Allocates an object header if needed.
-    fn allocate_header(&mut self) {
-        if !self.has_header() {
-            self.set_header(ObjectHeader::new());
+    /// Allocates an attribute map if needed.
+    fn allocate_attributes_map(&mut self) {
+        if !self.has_attributes() {
+            self.set_attributes_map(AttributesMap::default());
         }
     }
 }
 
 impl Drop for Object {
     fn drop(&mut self) {
-        if self.has_header() {
-            drop(unsafe { Box::from_raw(self.header as *mut ObjectHeader) });
+        if self.has_attributes() {
+            drop(unsafe { Box::from_raw(self.attributes as *mut AttributesMap) });
         }
     }
 }
@@ -320,7 +269,6 @@ impl Drop for Object {
 mod tests {
     use super::*;
     use std::mem;
-    use object_header::ObjectHeader;
     use object_value::ObjectValue;
     use object_pointer::{ObjectPointer, RawObjectPointer};
 
@@ -341,7 +289,7 @@ mod tests {
         let obj = new_object();
 
         assert!(obj.prototype.is_null());
-        assert!(obj.header.is_null());
+        assert!(obj.attributes.is_null());
         assert!(obj.value.is_none());
     }
 
@@ -350,7 +298,7 @@ mod tests {
         let obj = Object::with_prototype(ObjectValue::None, fake_pointer());
 
         assert_eq!(obj.prototype.is_null(), false);
-        assert!(obj.header.is_null());
+        assert!(obj.attributes.is_null());
     }
 
     #[test]
@@ -376,29 +324,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_add_method() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_method(name, fake_pointer());
-
-        assert!(obj.lookup_method(&name).is_some());
-    }
-
-    #[test]
-    fn test_object_remove_method() {
-        let mut obj = new_object();
-        let name = fake_pointer();
-
-        obj.add_method(name, fake_pointer());
-
-        let method = obj.remove_method(&name);
-
-        assert!(method.is_some());
-        assert!(obj.lookup_method(&name).is_none());
-    }
-
-    #[test]
     fn test_object_remove_attribute() {
         let mut obj = new_object();
         let name = fake_pointer();
@@ -409,32 +334,6 @@ mod tests {
 
         assert!(attr.is_some());
         assert!(obj.lookup_attribute(&name).is_none());
-    }
-
-    #[test]
-    fn test_object_methods() {
-        let mut child = new_object();
-        let mut parent = new_object();
-
-        child.set_prototype(object_pointer_for(&parent));
-
-        child.add_method(fake_pointer(), fake_pointer());
-        parent.add_method(fake_pointer(), fake_pointer());
-
-        assert_eq!(child.methods().len(), 2);
-    }
-
-    #[test]
-    fn test_object_method_names() {
-        let mut child = new_object();
-        let mut parent = new_object();
-
-        child.set_prototype(object_pointer_for(&parent));
-
-        child.add_method(fake_pointer(), fake_pointer());
-        parent.add_method(fake_pointer(), fake_pointer());
-
-        assert_eq!(child.method_names().len(), 2);
     }
 
     #[test]
@@ -456,59 +355,43 @@ mod tests {
     }
 
     #[test]
-    fn test_object_each_header() {
-        let mut child = new_object();
-        let mut parent = new_object();
-        let mut counter = 0;
-
-        child.set_prototype(object_pointer_for(&parent));
-
-        child.add_method(fake_pointer(), fake_pointer());
-        parent.add_method(fake_pointer(), fake_pointer());
-
-        child.each_header(|_| counter += 1);
-
-        assert_eq!(counter, 2);
-    }
-
-    #[test]
-    fn test_object_lookup_method() {
+    fn test_object_lookup_attribute_chain() {
         let obj = new_object();
 
-        assert!(obj.lookup_method(&fake_pointer()).is_none());
+        assert!(obj.lookup_attribute_chain(&fake_pointer()).is_none());
     }
 
     #[test]
-    fn test_object_lookup_method_defined_in_receiver() {
+    fn test_object_lookup_attribute_chain_defined_in_receiver() {
         let mut obj = new_object();
         let name = fake_pointer();
 
-        obj.add_method(name.clone(), fake_pointer());
+        obj.add_attribute(name.clone(), fake_pointer());
 
-        assert!(obj.lookup_method(&name).is_some());
+        assert!(obj.lookup_attribute_chain(&name).is_some());
     }
 
     #[test]
-    fn test_object_lookup_method_defined_in_prototype() {
+    fn test_object_lookup_attribute_chain_defined_in_prototype() {
         let mut proto = new_object();
         let mut child = new_object();
         let name = fake_pointer();
 
-        proto.add_method(name.clone(), fake_pointer());
+        proto.add_attribute(name.clone(), fake_pointer());
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_method(&name).is_some());
+        assert!(child.lookup_attribute_chain(&name).is_some());
     }
 
     #[test]
-    fn test_object_lookup_method_with_prototype_without_method() {
+    fn test_object_lookup_attribute_chain_with_prototype_without_method() {
         let proto = new_object();
         let mut child = new_object();
         let name = fake_pointer();
 
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_method(&name).is_none());
+        assert!(child.lookup_attribute_chain(&name).is_none());
     }
 
     #[test]
@@ -540,30 +423,30 @@ mod tests {
     }
 
     #[test]
-    fn test_object_header_without_header() {
+    fn test_object_attributes_map_without_map() {
         let obj = new_object();
 
-        assert!(obj.header().is_none());
+        assert!(obj.attributes_map().is_none());
     }
 
     #[test]
-    fn test_object_header_with_header() {
+    fn test_object_attributes_map_with_map() {
         let mut obj = new_object();
 
         obj.add_attribute(fake_pointer(), fake_pointer());
 
-        assert!(obj.header().is_some());
-        assert!(obj.header_mut().is_some());
+        assert!(obj.attributes_map().is_some());
+        assert!(obj.attributes_map_mut().is_some());
     }
 
     #[test]
-    fn test_object_header_set_header() {
+    fn test_object_attributes_map_set_map() {
         let mut obj = new_object();
-        let header = ObjectHeader::new();
+        let map = AttributesMap::default();
 
-        obj.set_header(header);
+        obj.set_attributes_map(map);
 
-        assert!(obj.header().is_some());
+        assert!(obj.attributes_map().is_some());
     }
 
     #[test]
@@ -582,27 +465,26 @@ mod tests {
         let name = fake_pointer();
         let mut pointers = Vec::new();
 
-        obj.add_method(name, fake_pointer());
         obj.add_attribute(name, fake_pointer());
 
         obj.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 2);
+        assert_eq!(pointers.len(), 1);
     }
 
     #[test]
     fn test_object_take() {
         let mut obj = Object::new(ObjectValue::Float(10.0));
-        let header = ObjectHeader::new();
+        let map = AttributesMap::default();
 
-        obj.set_header(header);
+        obj.set_attributes_map(map);
 
         let new_obj = obj.take();
 
-        assert!(obj.header().is_none());
+        assert!(obj.attributes_map().is_none());
         assert!(obj.value.is_none());
 
-        assert!(new_obj.header().is_some());
+        assert!(new_obj.attributes_map().is_some());
         assert!(new_obj.value.is_float());
     }
 

@@ -17,7 +17,7 @@ use vm::state::RcState;
 /// Performs a write to an object and tracks it in the write barrier.
 macro_rules! write_object {
     ($receiver: expr, $process: expr, $action: expr, $value: expr) => ({
-        let track = !$receiver.get().has_header();
+        let track = !$receiver.get().has_attributes();
         let pointer = *$receiver;
 
         $action;
@@ -281,17 +281,6 @@ impl ObjectPointer {
         self.get().is_finalizable()
     }
 
-    /// Adds a method to the object this pointer points to.
-    pub fn add_method(&self,
-                      process: &RcProcess,
-                      name: ObjectPointer,
-                      method: ObjectPointer) {
-        write_object!(self,
-                      process,
-                      self.get_mut().add_method(name, method),
-                      method);
-    }
-
     /// Adds an attribute to the object this pointer points to.
     pub fn add_attribute(&self,
                          process: &RcProcess,
@@ -304,14 +293,14 @@ impl ObjectPointer {
     }
 
     /// Looks up a method.
-    pub fn lookup_method(&self,
-                         state: &RcState,
-                         name: &ObjectPointer)
-                         -> Option<ObjectPointer> {
+    pub fn lookup_attribute_chain(&self,
+                                  state: &RcState,
+                                  name: &ObjectPointer)
+                                  -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
-            state.integer_prototype.get().lookup_method(name)
+            state.integer_prototype.get().lookup_attribute_chain(name)
         } else {
-            self.get().lookup_method(name)
+            self.get().lookup_attribute_chain(name)
         }
     }
 
@@ -342,22 +331,6 @@ impl ObjectPointer {
             Vec::new()
         } else {
             self.get().attribute_names()
-        }
-    }
-
-    pub fn methods(&self) -> Vec<ObjectPointer> {
-        if self.is_tagged_integer() {
-            Vec::new()
-        } else {
-            self.get().methods()
-        }
-    }
-
-    pub fn method_names(&self) -> Vec<ObjectPointer> {
-        if self.is_tagged_integer() {
-            Vec::new()
-        } else {
-            self.get().method_names()
         }
     }
 
@@ -831,27 +804,27 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_lookup_method_with_integer() {
+    fn test_object_pointer_lookup_attribute_chain_with_integer() {
         let state = State::new(Config::new());
         let ptr = ObjectPointer::integer(5);
         let name = state.intern(&"foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
-        state.integer_prototype.get_mut().add_method(name, method);
+        state.integer_prototype.get_mut().add_attribute(name, method);
 
-        assert!(ptr.lookup_method(&state, &name).unwrap() == method);
+        assert!(ptr.lookup_attribute_chain(&state, &name).unwrap() == method);
     }
 
     #[test]
-    fn test_object_pointer_lookup_method_with_object() {
+    fn test_object_pointer_lookup_attribute_chain_with_object() {
         let state = State::new(Config::new());
         let ptr = state.permanent_allocator.lock().allocate_empty();
         let name = state.intern(&"foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
-        ptr.get_mut().add_method(name, method);
+        ptr.get_mut().add_attribute(name, method);
 
-        assert!(ptr.lookup_method(&state, &name).unwrap() == method);
+        assert!(ptr.lookup_attribute_chain(&state, &name).unwrap() == method);
     }
 
     #[test]

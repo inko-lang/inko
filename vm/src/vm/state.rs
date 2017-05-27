@@ -99,8 +99,8 @@ impl State {
 
         // Boxed since moving around the allocator can break pointers from the
         // blocks back to the allocator's bucket.
-        let mut perm_alloc = Box::new(PermanentAllocator::new(global_alloc
-                                                                  .clone()));
+        let mut perm_alloc =
+            Box::new(PermanentAllocator::new(global_alloc.clone()));
 
         let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();

@@ -26,8 +26,7 @@ pub fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
             open_opts.write(true).truncate(true).create(true);
         }
         APPEND => {
-            open_opts
-                .read(true)
+            open_opts.read(true)
                 .write(true)
                 .truncate(true)
                 .create(true);

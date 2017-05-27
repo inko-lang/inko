@@ -29,7 +29,6 @@ pub mod mailbox;
 pub mod module;
 pub mod module_registry;
 pub mod object;
-pub mod object_header;
 pub mod object_pointer;
 pub mod object_value;
 pub mod pool;

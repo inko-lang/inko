@@ -498,7 +498,7 @@ impl Machine {
                         process.allocate(value, proto)
                     };
 
-                    receiver_ptr.add_method(&process, name, method);
+                    receiver_ptr.add_attribute(&process, name, method);
 
                     context.set_register(register, method);
                 }
@@ -1539,8 +1539,9 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let result = if source.lookup_method(&self.state, &name)
-                        .is_some() {
+                    let result = if 
+                        source.lookup_attribute_chain(&self.state, &name)
+                            .is_some() {
                         self.state.true_object.clone()
                     } else {
                         self.state.false_object.clone()
@@ -1772,24 +1773,26 @@ impl Machine {
                     context.set_register(instruction.arg(0),
                                          self.state.nil_object);
                 }
-                // Looks up a method and sets it in the target register.
+                // Looks up an attribute in an object, using the prototype chain
+                // as a fallback.
                 //
                 // This instruction requires 3 arguments:
                 //
-                // 1. The register to store the method in.
-                // 2. The register containing the object containing the method.
-                // 3. The register containing the method name as a String.
+                // 1. The register to store the attribute in.
+                // 2. The register containing the object to use for the lookup.
+                // 3. The register containing the attribute name as a String.
                 //
-                // If a method could not be found the target register will
+                // If the attribute could not be found the target register will
                 // be set to nil instead.
-                InstructionType::LookupMethod => {
+                InstructionType::LookupAttributeChain => {
                     let register = instruction.arg(0);
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method = rec_ptr.lookup_method(&self.state, &name)
-                        .unwrap_or_else(|| self.state.nil_object);
+                    let method =
+                        rec_ptr.lookup_attribute_chain(&self.state, &name)
+                            .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, method);
                 }
@@ -1811,36 +1814,6 @@ impl Machine {
                         self.state.true_object.clone()
                     } else {
                         self.state.false_object.clone()
-                    };
-
-                    context.set_register(register, obj);
-                }
-                // Removes a method from an object.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the removed method in.
-                // 2. The register containing the object from which to
-                //    remove the method.
-                // 3. The register containing the method name as a string.
-                //
-                // If the method did not exist the target register is set to
-                // nil instead.
-                InstructionType::RemoveMethod => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    if rec_ptr.is_tagged_integer() {
-                        panic!("methods can not be removed from integers");
-                    }
-
-                    let obj = if let Some(method) = rec_ptr.get_mut()
-                        .remove_method(&name) {
-                        method
-                    } else {
-                        self.state.nil_object
                     };
 
                     context.set_register(register, obj);
@@ -1872,40 +1845,6 @@ impl Machine {
                     } else {
                         self.state.nil_object
                     };
-
-                    context.set_register(register, obj);
-                }
-                // Gets all the methods available on an object.
-                //
-                // This instruction requires 2 arguments:
-                //
-                // 1. The register to store the methods in.
-                // 2. The register containing the object for which to get
-                //    all methods.
-                InstructionType::GetMethods => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let methods = rec_ptr.methods();
-
-                    let obj = process.allocate(object_value::array(methods),
-                                               self.state.array_prototype);
-
-                    context.set_register(register, obj);
-                }
-                // Gets all the method names available on an object.
-                //
-                // This instruction requires 2 arguments:
-                //
-                // 1. The register to store the method names in.
-                // 2. The register containing the object for which to get
-                //    all method names.
-                InstructionType::GetMethodNames => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let methods = rec_ptr.method_names();
-
-                    let obj = process.allocate(object_value::array(methods),
-                                               self.state.array_prototype);
 
                     context.set_register(register, obj);
                 }
@@ -2045,8 +1984,9 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method = rec_ptr.lookup_method(&self.state, &name)
-                        .unwrap();
+                    let method =
+                        rec_ptr.lookup_attribute_chain(&self.state, &name)
+                            .unwrap();
 
                     let block = method.block_value().unwrap();
 

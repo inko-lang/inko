@@ -4,7 +4,7 @@
 //! objects into a heap.
 
 use block::Block;
-use object::Object;
+use object::{Object, AttributesMap};
 use object_value;
 use object_value::ObjectValue;
 use object_pointer::ObjectPointer;
@@ -66,10 +66,17 @@ pub trait CopyObject: Sized {
             Object::new(value_copy)
         };
 
-        if let Some(header) = to_copy.header() {
-            let header_copy = header.copy_to(self);
+        if let Some(map) = to_copy.attributes_map() {
+            let mut map_copy = AttributesMap::default();
 
-            copy.set_header(header_copy);
+            for (key, val) in map.iter() {
+                let key_copy = self.copy_object(*key);
+                let val_copy = self.copy_object(*val);
+
+                map_copy.insert(key_copy, val_copy);
+            }
+
+            copy.set_attributes_map(map_copy);
         }
 
         self.allocate_copy(copy)
@@ -130,7 +137,7 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_with_header() {
+    fn test_copy_with_attributes() {
         let mut dummy = DummyAllocator::new();
         let ptr1 = dummy.allocator.allocate_empty();
         let ptr2 = dummy.allocator.allocate_empty();
@@ -140,7 +147,7 @@ mod tests {
 
         let copy = dummy.copy_object(ptr1);
 
-        assert!(copy.get().header().is_some());
+        assert!(copy.get().attributes_map().is_some());
     }
 
     #[test]
