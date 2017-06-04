@@ -12,7 +12,7 @@ use tir::code_object::CodeObject;
 use tir::expression::Expression;
 use tir::implement::{Implement, Rename};
 use tir::import::Symbol as ImportSymbol;
-use tir::method::MethodArgument;
+use tir::method::{MethodArgument, MethodType};
 use tir::module::Module;
 use tir::variable::{Mutability, Scope as VariableScope, Variable};
 
@@ -726,12 +726,16 @@ impl Builder {
                                                      locals,
                                                      context.globals);
 
-        let receiver_expr = receiver.as_ref()
-            .map(|ref r| Box::new(self.process_node(r, context)));
+        let (receiver_expr, method_type) = if let &Some(ref r) = receiver {
+            (self.process_node(r, context), MethodType::Method)
+        } else {
+            (self.get_self(line, col), MethodType::InstanceMethod)
+        };
 
         Expression::Method {
             name: name,
-            receiver: receiver_expr,
+            method_type: method_type,
+            receiver: Box::new(receiver_expr),
             arguments: arguments,
             body: body_expr,
             line: line,

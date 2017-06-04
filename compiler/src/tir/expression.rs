@@ -1,7 +1,7 @@
 use tir::code_object::CodeObject;
 use tir::implement::Implement;
 use tir::import::Symbol as ImportSymbol;
-use tir::method::MethodArgument;
+use tir::method::{MethodArgument, MethodType};
 use tir::variable::Variable;
 
 #[derive(Debug, Clone)]
@@ -117,8 +117,9 @@ pub enum Expression {
     },
 
     Method {
-        receiver: Option<Box<Expression>>,
+        receiver: Box<Expression>,
         name: String,
+        method_type: MethodType,
         arguments: Vec<MethodArgument>,
         requires: Vec<Expression>,
         body: CodeObject,
