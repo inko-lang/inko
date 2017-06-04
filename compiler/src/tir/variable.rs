@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use tir::types::Type;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Mutability {
     Immutable,
     Mutable,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VariableInfo {
     pub name: String,
     pub value_type: Type,
@@ -19,7 +19,7 @@ pub struct Variable {
     pub index: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scope {
     variables: Vec<VariableInfo>,
     mapping: HashMap<String, Variable>,

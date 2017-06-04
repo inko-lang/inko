@@ -2,8 +2,9 @@
 
 pub mod builder;
 pub mod code_object;
+pub mod expression;
+pub mod implement;
 pub mod import;
-pub mod instruction;
 pub mod method;
 pub mod module;
 pub mod registers;

@@ -1,149 +1,160 @@
 use tir::code_object::CodeObject;
-use tir::method::{MethodArgument, MethodRequirement};
-use tir::registers::Register;
+use tir::implement::Implement;
+use tir::import::Symbol as ImportSymbol;
+use tir::method::MethodArgument;
 use tir::variable::Variable;
 
-#[derive(Debug)]
-pub enum Instruction {
-    SetInteger {
-        register: Register,
+#[derive(Debug, Clone)]
+pub enum Expression {
+    Void,
+
+    Integer {
         value: i64,
         line: usize,
         column: usize,
     },
 
-    SetFloat {
-        register: Register,
+    Float {
         value: f64,
         line: usize,
         column: usize,
     },
 
-    SetString {
-        register: Register,
+    String {
         value: String,
         line: usize,
         column: usize,
     },
 
-    SetArray {
-        register: Register,
-        values: Vec<Register>,
+    Array {
+        values: Vec<Expression>,
         line: usize,
         column: usize,
     },
 
-    SetHash {
-        register: Register,
-        pairs: Vec<(Register, Register)>,
+    Hash {
+        pairs: Vec<(Expression, Expression)>,
         line: usize,
         column: usize,
     },
 
-    GetConstant {
-        register: Register,
-        receiver: Register,
-        name: String,
-        line: usize,
-        column: usize,
-    },
-
-    SetConstant {
-        register: Register,
-        receiver: Register,
-        name: String,
-        value: Register,
+    Closure {
+        arguments: Vec<MethodArgument>,
+        body: CodeObject,
         line: usize,
         column: usize,
     },
 
     GetLocal {
-        register: Register,
         variable: Variable,
         line: usize,
         column: usize,
     },
 
     SetLocal {
-        register: Register,
         variable: Variable,
-        value: Register,
+        value: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     GetGlobal {
-        register: Register,
         variable: Variable,
         line: usize,
         column: usize,
     },
 
     SetGlobal {
-        register: Register,
         variable: Variable,
-        value: Register,
+        value: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     SetAttribute {
-        register: Register,
-        receiver: Register,
+        receiver: Box<Expression>,
         name: String,
-        value: Register,
+        value: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     GetAttribute {
-        register: Register,
-        receiver: Register,
+        receiver: Box<Expression>,
         name: String,
         line: usize,
         column: usize,
     },
 
     SendObjectMessage {
-        register: Register,
-        receiver: Register,
+        receiver: Box<Expression>,
         name: String,
-        arguments: Vec<Register>,
+        arguments: Vec<Expression>,
         line: usize,
         column: usize,
     },
 
-    DefClass {
-        register: Register,
-        receiver: Register,
+    KeywordArgument {
+        name: String,
+        value: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    Class {
+        name: String,
+        implements: Vec<Implement>,
+        body: CodeObject,
+        line: usize,
+        column: usize,
+    },
+
+    Trait {
         name: String,
         body: CodeObject,
         line: usize,
         column: usize,
     },
 
-    DefTrait {
-        register: Register,
-        receiver: Register,
-        name: String,
-        body: CodeObject,
-        line: usize,
-        column: usize,
-    },
-
-    DefMethod {
-        register: Register,
-        receiver: Register,
+    Method {
+        receiver: Option<Box<Expression>>,
         name: String,
         arguments: Vec<MethodArgument>,
-        requires: Vec<MethodRequirement>,
+        requires: Vec<Expression>,
         body: CodeObject,
         line: usize,
         column: usize,
     },
 
-    GetSelf {
-        register: Register,
+    RequiredMethod {
+        name: String,
+        arguments: Vec<MethodArgument>,
+        requires: Vec<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    GetSelf { line: usize, column: usize },
+
+    ImportModule {
+        path: String,
+        line: usize,
+        column: usize,
+        symbols: Vec<ImportSymbol>,
+    },
+
+    Return {
+        value: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    Nil { line: usize, column: usize },
+
+    Try {
+        body: CodeObject,
+        else_body: Option<CodeObject>,
+        else_argument: Option<Variable>,
         line: usize,
         column: usize,
     },

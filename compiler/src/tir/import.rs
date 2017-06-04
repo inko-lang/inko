@@ -1,46 +1,47 @@
 //! Inko modules to import
+use tir::variable::Variable;
+
+/// The type of symbol to import.
+#[derive(Debug, Clone)]
+pub enum SymbolKind {
+    Module,
+    Constant,
+}
 
 /// A symbol to import.
-#[derive(Debug)]
-pub enum Symbol {
-    /// A single identifier to import.
-    Identifier {
-        name: String,
-        alias: Option<String>,
-        line: usize,
-        column: usize,
-    },
-    /// A single constant to import.
-    Constant {
-        name: String,
-        alias: Option<String>,
-        line: usize,
-        column: usize,
-    },
+#[derive(Debug, Clone)]
+pub struct Symbol {
+    kind: SymbolKind,
+    import_name: String,
+    global: Variable,
+    line: usize,
+    column: usize,
 }
 
 impl Symbol {
-    pub fn identifier(name: String,
-                      alias: Option<String>,
-                      line: usize,
-                      column: usize)
-                      -> Self {
-        Symbol::Identifier {
-            name: name,
-            alias: alias,
+    pub fn module(import_name: String,
+                  global: Variable,
+                  line: usize,
+                  column: usize)
+                  -> Self {
+        Symbol {
+            kind: SymbolKind::Module,
+            import_name: import_name,
+            global: global,
             line: line,
             column: column,
         }
     }
 
-    pub fn constant(name: String,
-                    alias: Option<String>,
+    pub fn constant(import_name: String,
+                    global: Variable,
                     line: usize,
                     column: usize)
                     -> Self {
-        Symbol::Constant {
-            name: name,
-            alias: alias,
+        Symbol {
+            kind: SymbolKind::Constant,
+            import_name: import_name,
+            global: global,
             line: line,
             column: column,
         }

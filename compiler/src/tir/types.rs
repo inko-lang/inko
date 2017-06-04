@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     /// The type is not yet known. This value should only be used when setting
     /// up TIR in its initial form, prior to performing type inference.

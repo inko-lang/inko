@@ -136,21 +136,6 @@ macro_rules! send_or {
     })
 }
 
-macro_rules! ident_or_constant {
-    ($parser: expr) => ({
-        let token = next_or_error!($parser);
-
-        match token.token_type {
-            TokenType::Identifier => $parser.identifier_from_token(token),
-            TokenType::Constant => $parser.constant_from_token(token),
-            _ => {
-                parse_error!("Unexpected {:?}, expected an identifier or constant",
-                             token.token_type)
-            }
-        }
-    })
-}
-
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
     message_tokens: HashSet<TokenType>,
@@ -214,6 +199,7 @@ pub enum Node {
     },
 
     Constant {
+        receiver: Option<Box<Node>>,
         name: String,
         line: usize,
         column: usize,
@@ -226,19 +212,17 @@ pub enum Node {
     },
 
     Type {
-        name: Box<Node>,
+        constant: Box<Node>,
         arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
         line: usize,
         column: usize,
     },
 
-    Path { steps: Vec<Node> },
-
     Closure {
         arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
-        nodes: Vec<Node>,
+        body: Box<Node>,
         line: usize,
         column: usize,
     },
@@ -249,9 +233,10 @@ pub enum Node {
         default: Option<Box<Node>>,
         line: usize,
         column: usize,
+        rest: bool,
     },
 
-    NamedArgument {
+    KeywordArgument {
         name: String,
         value: Box<Node>,
         line: usize,
@@ -259,13 +244,14 @@ pub enum Node {
     },
 
     Method {
+        receiver: Option<Box<Node>>,
         name: String,
         arguments: Vec<Node>,
         type_arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
         throw_type: Option<Box<Node>>,
         requirements: Vec<Node>,
-        body: Option<Vec<Node>>,
+        body: Option<Box<Node>>,
         line: usize,
         column: usize,
     },
@@ -273,7 +259,8 @@ pub enum Node {
     Class {
         name: String,
         type_arguments: Vec<Node>,
-        nodes: Vec<Node>,
+        implements: Vec<Node>,
+        body: Box<Node>,
         line: usize,
         column: usize,
     },
@@ -281,7 +268,7 @@ pub enum Node {
     Trait {
         name: String,
         type_arguments: Vec<Node>,
-        nodes: Vec<Node>,
+        body: Box<Node>,
         line: usize,
         column: usize,
     },
@@ -290,7 +277,6 @@ pub enum Node {
         name: Box<Node>,
         type_arguments: Vec<Node>,
         renames: Vec<(Node, Node)>,
-        nodes: Vec<Node>,
         line: usize,
         column: usize,
     },
@@ -304,6 +290,7 @@ pub enum Node {
     LetDefine {
         name: Box<Node>,
         value: Box<Node>,
+        value_type: Option<Box<Node>>,
         line: usize,
         column: usize,
     },
@@ -311,13 +298,7 @@ pub enum Node {
     VarDefine {
         name: Box<Node>,
         value: Box<Node>,
-        line: usize,
-        column: usize,
-    },
-
-    ConstDefine {
-        name: String,
-        value: Box<Node>,
+        value_type: Option<Box<Node>>,
         line: usize,
         column: usize,
     },
@@ -334,8 +315,6 @@ pub enum Node {
         alias: Option<Box<Node>>,
     },
 
-    ImportWildcard { line: usize, column: usize },
-
     TypeCast {
         value: Box<Node>,
         target_type: Box<Node>,
@@ -351,9 +330,9 @@ pub enum Node {
     },
 
     Try {
-        body: Vec<Node>,
-        else_body: Option<Vec<Node>>,
-        else_arg: Option<Box<Node>>,
+        body: Box<Node>,
+        else_body: Option<Box<Node>>,
+        else_argument: Option<Box<Node>>,
         line: usize,
         column: usize,
     },
@@ -557,8 +536,7 @@ impl<'a> Parser<'a> {
                                       TokenType::Trait,
                                       TokenType::Var,
                                       TokenType::BracketOpen,
-                                      TokenType::Throws,
-                                      TokenType::Requires,
+                                      TokenType::Require,
                                       TokenType::Throw,
                                       TokenType::Else],
             value_start: hash_set![TokenType::String,
@@ -570,11 +548,9 @@ impl<'a> Parser<'a> {
                                    TokenType::Sub,
                                    TokenType::BracketOpen,
                                    TokenType::CurlyOpen,
-                                   TokenType::Closure,
-                                   TokenType::Def,
+                                   TokenType::Function,
                                    TokenType::Let,
                                    TokenType::Let,
-                                   TokenType::Const,
                                    TokenType::Class,
                                    TokenType::Trait,
                                    TokenType::Return,
@@ -868,7 +844,7 @@ impl<'a> Parser<'a> {
                 self.expression(token)?
             };
 
-            Ok(Node::NamedArgument {
+            Ok(Node::KeywordArgument {
                 name: start.value,
                 value: Box::new(value),
                 line: start.line,
@@ -884,21 +860,18 @@ impl<'a> Parser<'a> {
             TokenType::String => self.string(start),
             TokenType::Integer => self.integer(start),
             TokenType::Float => self.float(start),
-            TokenType::Identifier => self.identifier_or_path(start),
-            TokenType::Constant => self.constant_or_path(start),
-            TokenType::Closure => self.closure(start),
+            TokenType::Identifier => self.identifier(start),
+            TokenType::Constant => self.constant(start),
             TokenType::CurlyOpen => self.closure_without_arguments(start),
             TokenType::Sub => self.negative_number(start),
             TokenType::BracketOpen => self.array(start),
             TokenType::HashOpen => self.hash(start),
-            TokenType::Def => self.def_method(start),
+            TokenType::Function => self.method_or_closure(start),
             TokenType::Let => self.let_define(start),
             TokenType::Var => self.var_define(start),
-            TokenType::Const => self.const_define(start),
             TokenType::Class => self.class(start),
             TokenType::Trait => self.def_trait(start),
             TokenType::Return => self.return_value(start),
-            TokenType::Impl => self.implement_trait(start),
             TokenType::Comment => self.comment(start),
             TokenType::Type => self.def_type(start),
             TokenType::Attribute => self.attribute(start),
@@ -985,124 +958,47 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// Parses a constant or a path.
+    /// Parses a constant.
     ///
     /// Examples:
     ///
-    ///     A<T>
-    ///     A::B
-    ///     A::b
-    fn constant_or_path(&mut self, start: Token) -> ParseResult {
-        let node = self.constant(start)?;
-
-        Ok(self.optionally_as_path(node)?)
-    }
-
-    /// Parses an identifier or a path.
-    ///
-    /// Examples:
-    ///
-    ///     foo::bar
-    ///     foo::Bar
-    fn identifier_or_path(&mut self, start: Token) -> ParseResult {
-        let node = self.identifier(start)?;
-
-        Ok(self.optionally_as_path(node)?)
-    }
-
-    /// Parses a single constant.
+    ///     Foo
+    ///     Foo::Bar
     fn constant(&mut self, start: Token) -> ParseResult {
-        send_or!(self, start, self.constant_from_token(start))
-    }
+        let mut node = self.constant_from_token(start, None);
 
-    /// Parses a type name/path.
-    fn type_name(&mut self, start: Token) -> ParseResult {
-        let mut node = self.type_name_step(start)?;
+        while self.lexer.next_type_is(&TokenType::ColonColon) {
+            self.lexer.next();
 
-        if self.lexer.next_type_is(&TokenType::ColonColon) {
-            let mut steps = vec![node];
+            let start = next_of_type!(self, TokenType::Constant);
 
-            while self.lexer.next_type_is(&TokenType::ColonColon) {
-                self.lexer.next();
-
-                let start = next_or_error!(self);
-                let step = self.type_name_step(start)?;
-
-                steps.push(step);
-            }
-
-            node = Node::Path { steps: steps };
+            node = self.constant_from_token(start, Some(Box::new(node)));
         }
 
         Ok(node)
     }
 
-    /// Parses a single step in a type name/path.
-    fn type_name_step(&mut self, start: Token) -> ParseResult {
+    /// Parses a type name.
+    ///
+    /// Examples:
+    ///
+    ///     Foo
+    ///     Foo!(Bar)
+    ///     Foo::Bar!(Baz)
+    fn type_name(&mut self, start: Token) -> ParseResult {
         let line = start.line;
         let column = start.column;
+        let node = self.constant(start)?;
+        let args = self.optional_type_arguments()?;
+        let rtype = self.optional_return_type()?;
 
-        match start.token_type {
-            TokenType::Identifier => {
-                let ident = self.identifier_from_token(start);
-                let rtype = self.optional_return_type()?;
-
-                Ok(Node::Type {
-                    name: Box::new(ident),
-                    arguments: Vec::new(),
-                    return_type: rtype,
-                    line: line,
-                    column: column,
-                })
-            }
-            TokenType::Constant => {
-                let args = self.optional_type_arguments()?;
-                let constant = self.constant_from_token(start);
-                let rtype = self.optional_return_type()?;
-
-                Ok(Node::Type {
-                    name: Box::new(constant),
-                    arguments: args,
-                    return_type: rtype,
-                    line: line,
-                    column: column,
-                })
-            }
-            _ => {
-                parse_error!("Unexpected {:?}, expected an identifier or \
-                              constant",
-                             start.token_type)
-            }
-        }
-    }
-
-    /// Turns the given node into a Path if needed.
-    fn optionally_as_path(&mut self, node: Node) -> Result<Node, String> {
-        if self.lexer.next_type_is(&TokenType::ColonColon) {
-            let mut steps = vec![node];
-
-            while self.lexer.next_type_is(&TokenType::ColonColon) {
-                self.lexer.next();
-
-                let start = next_or_error!(self);
-
-                let step = match start.token_type {
-                    TokenType::Identifier => self.identifier(start)?,
-                    TokenType::Constant => self.constant(start)?,
-                    _ => {
-                        parse_error!("Unexpected {:?}, expected an identifier \
-                                      or constant",
-                                     start.token_type)
-                    }
-                };
-
-                steps.push(step);
-            }
-
-            Ok(Node::Path { steps: steps })
-        } else {
-            Ok(node)
-        }
+        Ok(Node::Type {
+            constant: Box::new(node),
+            arguments: args,
+            return_type: rtype,
+            line: line,
+            column: column,
+        })
     }
 
     /// Parses a closure
@@ -1125,7 +1021,7 @@ impl<'a> Parser<'a> {
         Ok(Node::Closure {
             arguments: args,
             return_type: ret_type,
-            nodes: body,
+            body: Box::new(body),
             line: start.line,
             column: start.column,
         })
@@ -1142,7 +1038,7 @@ impl<'a> Parser<'a> {
         Ok(Node::Closure {
             arguments: Vec::new(),
             return_type: None,
-            nodes: body,
+            body: Box::new(body),
             line: start.line,
             column: start.column,
         })
@@ -1153,6 +1049,20 @@ impl<'a> Parser<'a> {
         let mut args = Vec::new();
 
         while self.lexer.peek().is_some() {
+            // Break out early if we're dealing with an empty arguments list.
+            if self.lexer.next_type_is(&TokenType::ParenClose) {
+                self.lexer.next();
+                break;
+            }
+
+            let rest = if self.lexer.next_type_is(&TokenType::Mul) {
+                self.lexer.next();
+
+                true
+            } else {
+                false
+            };
+
             // Parse the argument's name and position.
             let (name, line, column) = if let Some(token) = self.lexer.next() {
                 (token.value, token.line, token.column)
@@ -1180,6 +1090,7 @@ impl<'a> Parser<'a> {
                 default: default,
                 line: line,
                 column: column,
+                rest: rest,
             });
 
             comma_or_break_on!(self, TokenType::ParenClose);
@@ -1341,12 +1252,48 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// Parses a method or closure definition
+    fn method_or_closure(&mut self, start: Token) -> ParseResult {
+        let is_closure = if let Some(token) = self.lexer.peek() {
+            match token.token_type {
+                TokenType::ParenOpen | TokenType::CurlyOpen |
+                TokenType::Arrow => true,
+                _ => false,
+            }
+        } else {
+            parse_error!("Expected \"fn\" to be followed by an identifier or \
+                          an arguments list");
+        };
+
+        if is_closure {
+            self.closure(start)
+        } else {
+            self.def_method(start)
+        }
+    }
+
     /// Parses a method definition.
     fn def_method(&mut self, start: Token) -> ParseResult {
-        let name = {
-            let token = next_or_error!(self);
+        let (receiver, name) = {
+            let left = next_or_error!(self);
 
-            self.message_name_for_token(token)?
+            // "def foo.bar" means "define bar on whatever foo refers to"
+            if self.lexer.next_type_is(&TokenType::Dot) {
+                // Receivers can only be single values, not fully fledged
+                // expressions.
+                let receiver = self.value(left)?;
+
+                // Skip over the dot. We're using next_of_type! here to make
+                // sure the dot isn't consumed by accident when parsing the
+                // receiver.
+                next_of_type!(self, TokenType::Dot);
+
+                let right = next_or_error!(self);
+
+                (Some(Box::new(receiver)), self.message_name_for_token(right)?)
+            } else {
+                (None, self.message_name_for_token(left)?)
+            }
         };
 
         let type_arguments = self.optional_type_arguments()?;
@@ -1358,12 +1305,13 @@ impl<'a> Parser<'a> {
         let body = if self.lexer.next_type_is(&TokenType::CurlyOpen) {
             next_of_type!(self, TokenType::CurlyOpen);
 
-            Some(self.block()?)
+            Some(Box::new(self.block()?))
         } else {
             None
         };
 
         Ok(Node::Method {
+            receiver: receiver,
             name: name,
             arguments: arguments,
             type_arguments: type_arguments,
@@ -1379,11 +1327,13 @@ impl<'a> Parser<'a> {
     /// Defines an immutable variable.
     fn let_define(&mut self, start: Token) -> ParseResult {
         let name = self.variable_name()?;
+        let value_type = self.optional_variable_type()?;
         let value = self.variable_value()?;
 
         Ok(Node::LetDefine {
             name: Box::new(name),
             value: Box::new(value),
+            value_type: value_type,
             line: start.line,
             column: start.column,
         })
@@ -1392,29 +1342,13 @@ impl<'a> Parser<'a> {
     /// Defines a mutable variable.
     fn var_define(&mut self, start: Token) -> ParseResult {
         let name = self.variable_name()?;
+        let value_type = self.optional_variable_type()?;
         let value = self.variable_value()?;
 
         Ok(Node::VarDefine {
             name: Box::new(name),
             value: Box::new(value),
-            line: start.line,
-            column: start.column,
-        })
-    }
-
-    /// Defines an (immutable) constant.
-    fn const_define(&mut self, start: Token) -> ParseResult {
-        let name = {
-            let start = next_of_type!(self, TokenType::Constant);
-
-            start.value
-        };
-
-        let value = self.variable_value()?;
-
-        Ok(Node::ConstDefine {
-            name: name,
-            value: Box::new(value),
+            value_type: value_type,
             line: start.line,
             column: start.column,
         })
@@ -1426,6 +1360,7 @@ impl<'a> Parser<'a> {
         let name = match start.token_type {
             TokenType::Identifier => self.identifier_from_token(start),
             TokenType::Attribute => self.attribute_from_token(start),
+            TokenType::Constant => self.constant_from_token(start, None),
             _ => {
                 panic!("Unexpected {:?}, expected an identifier or attribute",
                        start.token_type)
@@ -1433,6 +1368,21 @@ impl<'a> Parser<'a> {
         };
 
         Ok(name)
+    }
+
+    fn optional_variable_type(&mut self) -> Result<Option<Box<Node>>, String> {
+        let mut var_type = None;
+
+        if self.lexer.next_type_is(&TokenType::Colon) {
+            self.lexer.next();
+
+            let start = next_of_type!(self, TokenType::Constant);
+            let constant = self.constant(start)?;
+
+            var_type = Some(Box::new(constant));
+        }
+
+        Ok(var_type)
     }
 
     fn variable_value(&mut self) -> Result<Node, String> {
@@ -1447,12 +1397,23 @@ impl<'a> Parser<'a> {
     fn class(&mut self, start: Token) -> ParseResult {
         let name = next_of_type!(self, TokenType::Constant);
         let type_args = self.optional_type_arguments()?;
-        let nodes = self.block()?;
+        let mut implements = Vec::new();
+
+        while self.lexer.next_type_is(&TokenType::Impl) {
+            let start = next_or_error!(self);
+
+            implements.push(self.implement_trait(start)?);
+        }
+
+        next_of_type!(self, TokenType::CurlyOpen);
+
+        let body = self.block()?;
 
         Ok(Node::Class {
             name: name.value,
             type_arguments: type_args,
-            nodes: nodes,
+            implements: implements,
+            body: Box::new(body),
             line: start.line,
             column: start.column,
         })
@@ -1462,12 +1423,12 @@ impl<'a> Parser<'a> {
     fn def_trait(&mut self, start: Token) -> ParseResult {
         let name = next_of_type!(self, TokenType::Constant);
         let type_args = self.optional_type_arguments()?;
-        let nodes = self.block()?;
+        let body = self.block()?;
 
         Ok(Node::Trait {
             name: name.value,
             type_arguments: type_args,
-            nodes: nodes,
+            body: Box::new(body),
             line: start.line,
             column: start.column,
         })
@@ -1500,18 +1461,10 @@ impl<'a> Parser<'a> {
 
         let type_args = self.optional_type_arguments()?;
 
-        let renames = if self.lexer.next_type_is(&TokenType::Comma) {
+        let renames = if self.lexer.next_type_is(&TokenType::ParenOpen) {
             self.lexer.next();
 
             self.trait_renames()?
-        } else {
-            Vec::new()
-        };
-
-        let nodes = if self.lexer.next_type_is(&TokenType::CurlyOpen) {
-            self.lexer.next();
-
-            self.block()?
         } else {
             Vec::new()
         };
@@ -1520,7 +1473,6 @@ impl<'a> Parser<'a> {
             name: Box::new(name),
             type_arguments: type_args,
             renames: renames,
-            nodes: nodes,
             line: start.line,
             column: start.column,
         })
@@ -1545,7 +1497,7 @@ impl<'a> Parser<'a> {
                 self.identifier_from_token(token)
             };
 
-            renames.push((new_name, src_name));
+            renames.push((src_name, new_name));
 
             if self.lexer.next_type_is(&TokenType::Comma) {
                 self.lexer.next();
@@ -1553,6 +1505,8 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
+
+        next_of_type!(self, TokenType::ParenClose);
 
         Ok(renames)
     }
@@ -1570,6 +1524,7 @@ impl<'a> Parser<'a> {
     ///
     /// Examples:
     ///
+    ///     import foo::bar
     ///     import foo::bar::Baz
     ///     import foo::bar::(Baz, Quix as Foo)
     fn import(&mut self, start: Token) -> ParseResult {
@@ -1577,9 +1532,27 @@ impl<'a> Parser<'a> {
         let mut symbols = Vec::new();
 
         loop {
-            let step = ident_or_constant!(self);
+            let step = next_or_error!(self);
 
-            steps.push(step);
+            match step.token_type {
+                TokenType::Identifier => {
+                    steps.push(self.identifier_from_token(step));
+                }
+                TokenType::Constant => {
+                    // We're importing a single constant, without an alias.
+                    symbols.push(Node::ImportSymbol {
+                        symbol: Box::new(self.constant_from_token(step, None)),
+                        alias: None,
+                    });
+
+                    break;
+                }
+                _ => {
+                    parse_error!("Unexpected {:?}, expected an identifier or \
+                                  constant",
+                                 step.token_type);
+                }
+            }
 
             if self.lexer.next_type_is(&TokenType::ColonColon) {
                 self.lexer.next();
@@ -1607,12 +1580,15 @@ impl<'a> Parser<'a> {
         let mut symbols = Vec::new();
 
         loop {
-            let symbol = ident_or_constant!(self);
+            let start = next_of_type!(self, TokenType::Constant);
+            let symbol = self.constant_from_token(start, None);
 
             let alias = if self.lexer.next_type_is(&TokenType::As) {
                 self.lexer.next();
 
-                Some(Box::new(ident_or_constant!(self)))
+                let start = next_of_type!(self, TokenType::Constant);
+
+                Some(Box::new(self.constant_from_token(start, None)))
             } else {
                 None
             };
@@ -1661,7 +1637,7 @@ impl<'a> Parser<'a> {
     /// Example:
     ///
     ///     { 10 }
-    fn block(&mut self) -> Result<Vec<Node>, String> {
+    fn block(&mut self) -> Result<Node, String> {
         let mut body = Vec::new();
 
         while let Some(token) = self.lexer.next() {
@@ -1672,10 +1648,10 @@ impl<'a> Parser<'a> {
             body.push(self.expression(token)?);
         }
 
-        Ok(body)
+        Ok(Node::Expressions { nodes: body })
     }
 
-    fn block_with_optional_curly_braces(&mut self) -> Result<Vec<Node>, String> {
+    fn block_with_optional_curly_braces(&mut self) -> Result<Node, String> {
         if self.lexer.next_type_is(&TokenType::CurlyOpen) {
             next_or_error!(self);
 
@@ -1683,7 +1659,7 @@ impl<'a> Parser<'a> {
         } else {
             let start = next_or_error!(self);
 
-            Ok(vec![self.expression(start)?])
+            Ok(Node::Expressions { nodes: vec![self.expression(start)?] })
         }
     }
 
@@ -1703,16 +1679,17 @@ impl<'a> Parser<'a> {
             next_or_error!(self);
 
             let else_arg = self.optional_else_arg()?;
+            let else_body = Box::new(self.block_with_optional_curly_braces()?);
 
-            (else_arg, Some(self.block_with_optional_curly_braces()?))
+            (else_arg, Some(else_body))
         } else {
             (None, None)
         };
 
         Ok(Node::Try {
-            body: body,
+            body: Box::new(body),
             else_body: else_body,
-            else_arg: else_arg,
+            else_argument: else_arg,
             line: start.line,
             column: start.column,
         })
@@ -1725,18 +1702,11 @@ impl<'a> Parser<'a> {
             next_or_error!(self);
 
             let name = next_of_type!(self, TokenType::Identifier);
-            let value_type = self.def_argument_type()?;
 
             // Consume the closing parenthesis
             next_of_type!(self, TokenType::ParenClose);
 
-            Ok(Some(Box::new(Node::ArgumentDefine {
-                name: name.value,
-                value_type: value_type,
-                default: None,
-                line: name.line,
-                column: name.column,
-            })))
+            Ok(Some(Box::new(self.identifier_from_token(name))))
         } else {
             Ok(None)
         }
@@ -1777,7 +1747,7 @@ impl<'a> Parser<'a> {
     }
 
     fn optional_throw_type(&mut self) -> Result<Option<Box<Node>>, String> {
-        if self.lexer.next_type_is(&TokenType::Throws) {
+        if self.lexer.next_type_is(&TokenType::Throw) {
             self.lexer.next();
 
             let start = next_or_error!(self);
@@ -1792,7 +1762,7 @@ impl<'a> Parser<'a> {
     fn method_requirements(&mut self) -> Result<Vec<Node>, String> {
         let mut nodes = Vec::new();
 
-        while self.lexer.next_type_is(&TokenType::Requires) {
+        while self.lexer.next_type_is(&TokenType::Require) {
             next_or_error!(self);
 
             let start = next_or_error!(self);
@@ -1843,8 +1813,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn constant_from_token(&self, token: Token) -> Node {
+    fn constant_from_token(&self,
+                           token: Token,
+                           receiver: Option<Box<Node>>)
+                           -> Node {
         Node::Constant {
+            receiver: receiver,
             name: token.value,
             line: token.line,
             column: token.column,

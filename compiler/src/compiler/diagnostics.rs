@@ -13,22 +13,24 @@ impl Diagnostics {
         Diagnostics { entries: Vec::new() }
     }
 
-    pub fn error(&mut self,
-                 path: &str,
-                 message: String,
-                 line: usize,
-                 column: usize) {
+    pub fn error<M>(&mut self, path: &str, message: M, line: usize, col: usize)
+        where M: ToString + Sized
+    {
         self.entries
-            .push(Diagnostic::error(path.to_string(), message, line, column));
+            .push(Diagnostic::error(path.to_string(),
+                                    message.to_string(),
+                                    line,
+                                    col));
     }
 
-    pub fn warn(&mut self,
-                path: &str,
-                message: String,
-                line: usize,
-                column: usize) {
+    pub fn warn<M>(&mut self, path: &str, message: M, line: usize, col: usize)
+        where M: ToString + Sized
+    {
         self.entries
-            .push(Diagnostic::warning(path.to_string(), message, line, column));
+            .push(Diagnostic::warning(path.to_string(),
+                                      message.to_string(),
+                                      line,
+                                      col));
     }
 
     pub fn append(&mut self, mut other: Diagnostics) {
@@ -40,10 +42,12 @@ impl Diagnostics {
     }
 
     pub fn has_errors(&self) -> bool {
-        self.entries.iter().any(|ref entry| match entry.level {
-            DiagnosticLevel::Error => true,
-            DiagnosticLevel::Warning => false,
-        })
+        self.entries
+            .iter()
+            .any(|ref entry| match entry.level {
+                DiagnosticLevel::Error => true,
+                DiagnosticLevel::Warning => false,
+            })
     }
 
     pub fn iter(&self) -> slice::Iter<Diagnostic> {

@@ -33,16 +33,14 @@ pub enum TokenType {
     BracketClose,
     BracketOpen,
     Class,
-    Closure,
     Colon,
     ColonColon,
     Comma,
     Comment,
-    Const,
     Constant,
     CurlyClose,
     CurlyOpen,
-    Def,
+    Function,
     Div,
     DivAssign,
     Dot,
@@ -72,7 +70,7 @@ pub enum TokenType {
     ParenOpen,
     Pow,
     PowAssign,
-    Requires,
+    Require,
     Return,
     SelfObject,
     ShiftLeft,
@@ -83,7 +81,6 @@ pub enum TokenType {
     Sub,
     SubAssign,
     Throw,
-    Throws,
     Trait,
     Try,
     Type,
@@ -114,22 +111,19 @@ impl<'a> Lexer<'a> {
             identifiers: hash_map!(
                 "let" => TokenType::Let,
                 "var" => TokenType::Var,
-                "const" => TokenType::Const,
                 "class" => TokenType::Class,
                 "trait" => TokenType::Trait,
                 "impl" => TokenType::Impl,
                 "import" => TokenType::Import,
                 "return" => TokenType::Return,
                 "self" => TokenType::SelfObject,
-                "do" => TokenType::Closure,
-                "def" => TokenType::Def,
+                "fn" => TokenType::Function,
                 "type" => TokenType::Type,
                 "as" => TokenType::As,
                 "throw" => TokenType::Throw,
-                "throws" => TokenType::Throws,
                 "else" => TokenType::Else,
                 "try" => TokenType::Try,
-                "requires" => TokenType::Requires
+                "require" => TokenType::Require
             ),
             specials: hash_set!['!', '@', '#', '$', '%', '^', '&', '*', '(',
                                 ')', '-', '+', '=', '\\', ':', ';', '"', '\'',
@@ -311,14 +305,20 @@ impl<'a> Lexer<'a> {
             if let Some(current) = self.input.get(position) {
                 match current {
                     &'.' => {
-                        match token_type {
-                            TokenType::Integer => {
-                                token_type = TokenType::Float;
-
-                                position += 1;
+                        if let Some(following) = self.input.get(position + 1) {
+                            match following {
+                                &'0'...'9' => {
+                                    if token_type == TokenType::Integer {
+                                        token_type = TokenType::Float;
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                                _ => break,
                             }
-                            _ => return None,
                         }
+
+                        position += 1;
                     }
                     &'0'...'9' | &'_' | &'x' => position += 1,
                     &'e' | &'E' => {
@@ -993,6 +993,15 @@ mod tests {
             assert_eq!(token.column, 1);
         }
 
+        #[test]
+        fn test_integer_followed_by_call() {
+            let mut lexer = Lexer::new("10.bar".chars().collect());
+
+            assert_eq!(lexer.next().unwrap().token_type, TokenType::Integer);
+            assert_eq!(lexer.next().unwrap().token_type, TokenType::Dot);
+            assert_eq!(lexer.next().unwrap().token_type, TokenType::Identifier);
+        }
+
         test!(test_number_with_exponent, number, Float, "10e+2");
         test!(test_number_with_upper_exponent, number, Float, "10E+2");
 
@@ -1014,22 +1023,19 @@ mod tests {
 
         test!(test_let, identifier_or_keyword, Let, "let");
         test!(test_var, identifier_or_keyword, Var, "var");
-        test!(test_const, identifier_or_keyword, Const, "const");
         test!(test_class, identifier_or_keyword, Class, "class");
         test!(test_trait, identifier_or_keyword, Trait, "trait");
         test!(test_impl, identifier_or_keyword, Impl, "impl");
         test!(test_import, identifier_or_keyword, Import, "import");
         test!(test_return, identifier_or_keyword, Return, "return");
         test!(test_self, identifier_or_keyword, SelfObject, "self");
-        test!(test_closure, identifier_or_keyword, Closure, "do");
-        test!(test_def, identifier_or_keyword, Def, "def");
+        test!(test_def, identifier_or_keyword, Function, "fn");
         test!(test_type, identifier_or_keyword, Type, "type");
         test!(test_as, identifier_or_keyword, As, "as");
         test!(test_try, identifier_or_keyword, Try, "try");
-        test!(test_throws, identifier_or_keyword, Throws, "throws");
         test!(test_throw, identifier_or_keyword, Throw, "throw");
         test!(test_else, identifier_or_keyword, Else, "else");
-        test!(test_requires, identifier_or_keyword, Requires, "requires");
+        test!(test_requires, identifier_or_keyword, Require, "require");
 
         test!(test_bracket_open, bracket_open, BracketOpen, "[");
         test!(test_bracket_close, bracket_close, BracketClose, "]");
