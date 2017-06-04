@@ -158,4 +158,10 @@ pub enum Expression {
         line: usize,
         column: usize,
     },
+
+    Throw {
+        value: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
 }

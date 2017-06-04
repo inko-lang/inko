@@ -53,6 +53,14 @@ impl Scope {
         self.mapping.get(name).cloned()
     }
 
+    pub fn is_mutable(&self, var: &Variable) -> bool {
+        if let Some(info) = self.variables.get(var.index) {
+            info.mutability == Mutability::Mutable
+        } else {
+            false
+        }
+    }
+
     pub fn define(&mut self, name: String, mutability: Mutability) -> Variable {
         let info = VariableInfo::new(name.clone(), Type::Unknown, mutability);
         let index = self.variables.len();

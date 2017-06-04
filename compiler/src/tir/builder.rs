@@ -231,6 +231,75 @@ impl Builder {
                          .. } => {
                 self.try(body, else_body, else_argument, line, column, context)
             }
+            &Node::Throw { ref value, line, column } => {
+                self.throw(value, line, column, context)
+            }
+            &Node::Add { ref left, ref right, line, column } => {
+                self.op_add(left, right, line, column, context)
+            }
+            &Node::And { ref left, ref right, line, column } => {
+                self.op_and(left, right, line, column, context)
+            }
+            &Node::BitwiseAnd { ref left, ref right, line, column } => {
+                self.op_bitwise_and(left, right, line, column, context)
+            }
+            &Node::BitwiseOr { ref left, ref right, line, column } => {
+                self.op_bitwise_or(left, right, line, column, context)
+            }
+            &Node::BitwiseXor { ref left, ref right, line, column } => {
+                self.op_bitwise_xor(left, right, line, column, context)
+            }
+            &Node::Div { ref left, ref right, line, column } => {
+                self.op_div(left, right, line, column, context)
+            }
+            &Node::Equal { ref left, ref right, line, column } => {
+                self.op_equal(left, right, line, column, context)
+            }
+            &Node::Greater { ref left, ref right, line, column } => {
+                self.op_greater(left, right, line, column, context)
+            }
+            &Node::GreaterEqual { ref left, ref right, line, column } => {
+                self.op_greater_equal(left, right, line, column, context)
+            }
+            &Node::Lower { ref left, ref right, line, column } => {
+                self.op_lower(left, right, line, column, context)
+            }
+            &Node::LowerEqual { ref left, ref right, line, column } => {
+                self.op_lower_equal(left, right, line, column, context)
+            }
+            &Node::Mod { ref left, ref right, line, column } => {
+                self.op_mod(left, right, line, column, context)
+            }
+            &Node::Mul { ref left, ref right, line, column } => {
+                self.op_mul(left, right, line, column, context)
+            }
+            &Node::NotEqual { ref left, ref right, line, column } => {
+                self.op_not_equal(left, right, line, column, context)
+            }
+            &Node::Or { ref left, ref right, line, column } => {
+                self.op_or(left, right, line, column, context)
+            }
+            &Node::Pow { ref left, ref right, line, column } => {
+                self.op_pow(left, right, line, column, context)
+            }
+            &Node::ShiftLeft { ref left, ref right, line, column } => {
+                self.op_shift_left(left, right, line, column, context)
+            }
+            &Node::ShiftRight { ref left, ref right, line, column } => {
+                self.op_shift_right(left, right, line, column, context)
+            }
+            &Node::Sub { ref left, ref right, line, column } => {
+                self.op_sub(left, right, line, column, context)
+            }
+            &Node::InclusiveRange { ref left, ref right, line, column } => {
+                self.op_inclusive_range(left, right, line, column, context)
+            }
+            &Node::ExclusiveRange { ref left, ref right, line, column } => {
+                self.op_exclusive_range(left, right, line, column, context)
+            }
+            &Node::Reassign { ref variable, ref value, line, column } => {
+                self.reassign(variable, value, line, column, context)
+            }
             _ => Expression::Void,
         }
     }
@@ -853,6 +922,297 @@ impl Builder {
             body: body,
             else_body: else_body,
             else_argument: else_arg,
+            line: line,
+            column: col,
+        }
+    }
+
+    fn throw(&mut self,
+             value_node: &Node,
+             line: usize,
+             col: usize,
+             context: &mut Context)
+             -> Expression {
+        let value = self.process_node(value_node, context);
+
+        Expression::Throw {
+            value: Box::new(value),
+            line: line,
+            column: col,
+        }
+    }
+
+    fn op_add(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "+", right, line, col, context)
+    }
+
+    fn op_and(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "&&", right, line, col, context)
+    }
+
+    fn op_bitwise_and(&mut self,
+                      left: &Node,
+                      right: &Node,
+                      line: usize,
+                      col: usize,
+                      context: &mut Context)
+                      -> Expression {
+        self.send_binary(left, "&", right, line, col, context)
+    }
+
+    fn op_bitwise_or(&mut self,
+                     left: &Node,
+                     right: &Node,
+                     line: usize,
+                     col: usize,
+                     context: &mut Context)
+                     -> Expression {
+        self.send_binary(left, "|", right, line, col, context)
+    }
+
+    fn op_bitwise_xor(&mut self,
+                      left: &Node,
+                      right: &Node,
+                      line: usize,
+                      col: usize,
+                      context: &mut Context)
+                      -> Expression {
+        self.send_binary(left, "^", right, line, col, context)
+    }
+
+    fn op_div(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "/", right, line, col, context)
+    }
+
+    fn op_equal(&mut self,
+                left: &Node,
+                right: &Node,
+                line: usize,
+                col: usize,
+                context: &mut Context)
+                -> Expression {
+        self.send_binary(left, "==", right, line, col, context)
+    }
+
+    fn op_greater(&mut self,
+                  left: &Node,
+                  right: &Node,
+                  line: usize,
+                  col: usize,
+                  context: &mut Context)
+                  -> Expression {
+        self.send_binary(left, ">", right, line, col, context)
+    }
+
+    fn op_greater_equal(&mut self,
+                        left: &Node,
+                        right: &Node,
+                        line: usize,
+                        col: usize,
+                        context: &mut Context)
+                        -> Expression {
+        self.send_binary(left, ">=", right, line, col, context)
+    }
+
+    fn op_lower(&mut self,
+                left: &Node,
+                right: &Node,
+                line: usize,
+                col: usize,
+                context: &mut Context)
+                -> Expression {
+        self.send_binary(left, "<", right, line, col, context)
+    }
+
+    fn op_lower_equal(&mut self,
+                      left: &Node,
+                      right: &Node,
+                      line: usize,
+                      col: usize,
+                      context: &mut Context)
+                      -> Expression {
+        self.send_binary(left, "<=", right, line, col, context)
+    }
+
+    fn op_mod(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "%", right, line, col, context)
+    }
+
+    fn op_mul(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "*", right, line, col, context)
+    }
+
+    fn op_not_equal(&mut self,
+                    left: &Node,
+                    right: &Node,
+                    line: usize,
+                    col: usize,
+                    context: &mut Context)
+                    -> Expression {
+        self.send_binary(left, "!=", right, line, col, context)
+    }
+
+    fn op_or(&mut self,
+             left: &Node,
+             right: &Node,
+             line: usize,
+             col: usize,
+             context: &mut Context)
+             -> Expression {
+        self.send_binary(left, "||", right, line, col, context)
+    }
+
+    fn op_pow(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "**", right, line, col, context)
+    }
+
+    fn op_shift_left(&mut self,
+                     left: &Node,
+                     right: &Node,
+                     line: usize,
+                     col: usize,
+                     context: &mut Context)
+                     -> Expression {
+        self.send_binary(left, "<<", right, line, col, context)
+    }
+
+    fn op_shift_right(&mut self,
+                      left: &Node,
+                      right: &Node,
+                      line: usize,
+                      col: usize,
+                      context: &mut Context)
+                      -> Expression {
+        self.send_binary(left, ">>", right, line, col, context)
+    }
+
+    fn op_sub(&mut self,
+              left: &Node,
+              right: &Node,
+              line: usize,
+              col: usize,
+              context: &mut Context)
+              -> Expression {
+        self.send_binary(left, "-", right, line, col, context)
+    }
+
+    fn op_inclusive_range(&mut self,
+                          left: &Node,
+                          right: &Node,
+                          line: usize,
+                          col: usize,
+                          context: &mut Context)
+                          -> Expression {
+        self.send_binary(left, "..", right, line, col, context)
+    }
+
+    fn op_exclusive_range(&mut self,
+                          left: &Node,
+                          right: &Node,
+                          line: usize,
+                          col: usize,
+                          context: &mut Context)
+                          -> Expression {
+        self.send_binary(left, "...", right, line, col, context)
+    }
+
+    fn reassign(&mut self,
+                var_node: &Node,
+                val_node: &Node,
+                line: usize,
+                col: usize,
+                context: &mut Context)
+                -> Expression {
+        let value = self.process_node(val_node, context);
+
+        match var_node {
+            &Node::Identifier { ref name, .. } => {
+                if let Some(var) = context.locals.lookup(name) {
+                    if context.locals.is_mutable(&var) {
+                        self.set_local(name.clone(),
+                                       value,
+                                       Mutability::Mutable,
+                                       line,
+                                       col,
+                                       context)
+                    } else {
+                        let msg = format!("cannot re-assign immutable local \
+                                           variable {:?}",
+                                          name);
+
+                        self.diagnostics.error(context.path, msg, line, col);
+
+                        Expression::Void
+                    }
+                } else {
+                    let msg = format!("cannot re-assign undefined local \
+                                       variable {:?}",
+                                      name);
+
+                    self.diagnostics.error(context.path, msg, line, col);
+
+                    Expression::Void
+                }
+            }
+            &Node::Attribute { ref name, .. } => {
+                // TODO: check for attribute existence
+                self.set_attribute(name.clone(), value, line, col)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn send_binary(&mut self,
+                   left_node: &Node,
+                   message: &str,
+                   right_node: &Node,
+                   line: usize,
+                   col: usize,
+                   context: &mut Context)
+                   -> Expression {
+        let left = Box::new(self.process_node(left_node, context));
+        let right = self.process_node(right_node, context);
+
+        Expression::SendObjectMessage {
+            receiver: left,
+            name: message.to_string(),
+            arguments: vec![right],
             line: line,
             column: col,
         }
