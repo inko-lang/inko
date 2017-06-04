@@ -55,4 +55,9 @@ impl Config {
     pub fn lookup_separator(&self) -> &'static str {
         "::"
     }
+
+    /// The name of the constant to use as the receiver for raw instructions.
+    pub fn raw_instruction_receiver(&self) -> &'static str {
+        "__IVM"
+    }
 }

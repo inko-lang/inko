@@ -219,6 +219,22 @@ impl<'a> Lexer<'a> {
                     return self.identifier_or_keyword()
                 }
                 Some(&c) if c.is_uppercase() => return self.constant(),
+                Some(&'_') => return self.starts_with_underscore(),
+                _ => return None,
+            }
+        }
+    }
+
+    fn starts_with_underscore(&mut self) -> Option<Token> {
+        let mut start = self.position + 1;
+
+        loop {
+            match self.input.get(start) {
+                Some(&'_') => start += 1,
+                Some(&c) if c.is_uppercase() => return self.constant(),
+                Some(&c) if c.is_lowercase() => {
+                    return self.identifier_or_keyword()
+                }
                 _ => return None,
             }
         }
@@ -1011,15 +1027,32 @@ mod tests {
               Identifier,
               "foo?");
 
-        test!(test_ident_underscore,
-              identifier_or_keyword,
+        test!(test_ident_underscore, next_raw, Identifier, "foo_bar");
+
+        test!(test_ident_starting_with_underscore,
+              next_raw,
               Identifier,
-              "foo_bar");
+              "_foo");
 
         test!(test_ident_underscore_number,
               identifier_or_keyword,
               Identifier,
               "foo_bar2");
+
+        test!(test_identifier_with_multiple_underscores,
+              next_raw,
+              Identifier,
+              "__foo");
+
+        test!(test_constant_starting_with_underscore,
+              next_raw,
+              Constant,
+              "_FOO");
+
+        test!(test_constant_with_multiple_underscores,
+              next_raw,
+              Constant,
+              "__FOO");
 
         test!(test_let, identifier_or_keyword, Let, "let");
         test!(test_var, identifier_or_keyword, Var, "var");

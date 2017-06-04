@@ -94,6 +94,13 @@ pub enum Expression {
         column: usize,
     },
 
+    RawInstruction {
+        name: String,
+        arguments: Vec<Expression>,
+        line: usize,
+        column: usize,
+    },
+
     KeywordArgument {
         name: String,
         value: Box<Expression>,

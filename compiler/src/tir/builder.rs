@@ -527,6 +527,23 @@ impl Builder {
         }
     }
 
+    fn raw_instruction(&mut self,
+                       name: String,
+                       arg_nodes: &Vec<Node>,
+                       line: usize,
+                       col: usize,
+                       context: &mut Context)
+                       -> Expression {
+        let args = self.process_nodes(arg_nodes, context);
+
+        Expression::RawInstruction {
+            name: name,
+            arguments: args,
+            line: line,
+            column: col,
+        }
+    }
+
     fn send_object_message(&mut self,
                            name: String,
                            receiver_node: &Option<Box<Node>>,
@@ -536,6 +553,17 @@ impl Builder {
                            context: &mut Context)
                            -> Expression {
         let receiver = if let &Some(ref rec) = receiver_node {
+            let raw_ins = match **rec {
+                Node::Constant { ref name, .. } => {
+                    name == self.config.raw_instruction_receiver()
+                }
+                _ => false,
+            };
+
+            if raw_ins {
+                return self.raw_instruction(name, arguments, line, col, context);
+            }
+
             self.process_node(rec, context)
         } else {
             self.get_self(line, col)
