@@ -1,2 +1,3 @@
 max_width = 82
 write_mode = "Overwrite"
+struct_lit_width = 32
