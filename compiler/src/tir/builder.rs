@@ -545,7 +545,7 @@ impl Builder {
     }
 
     fn send_object_message(&mut self,
-                           name: String,
+                           mut name: String,
                            receiver_node: &Option<Box<Node>>,
                            arguments: &Vec<Node>,
                            line: usize,
@@ -566,7 +566,13 @@ impl Builder {
 
             self.process_node(rec, context)
         } else {
-            self.get_self(line, col)
+            if let Some(local) = context.locals.lookup(&name) {
+                name = "call".to_string();
+
+                self.get_local(local, line, col)
+            } else {
+                self.get_self(line, col)
+            }
         };
 
         let mut args = vec![receiver.clone()];

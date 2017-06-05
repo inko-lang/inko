@@ -53,6 +53,10 @@ impl Scope {
         self.mapping.get(name).cloned()
     }
 
+    pub fn is_defined(&self, name: &String) -> bool {
+        self.lookup(name).is_some()
+    }
+
     pub fn is_mutable(&self, var: &Variable) -> bool {
         if let Some(info) = self.variables.get(var.index) {
             info.mutability == Mutability::Mutable

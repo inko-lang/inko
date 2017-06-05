@@ -219,6 +219,12 @@ pub enum Node {
         column: usize,
     },
 
+    UnionType {
+        types: Vec<Node>,
+        line: usize,
+        column: usize,
+    },
+
     Closure {
         arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
@@ -1001,6 +1007,32 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn type_name_or_union_type(&mut self, start: Token) -> ParseResult {
+        let line = start.line;
+        let col = start.column;
+        let node = self.type_name(start)?;
+
+        if self.lexer.next_type_is(&TokenType::BitwiseOr) {
+            let mut types = vec![node];
+
+            while self.lexer.next_type_is(&TokenType::BitwiseOr) {
+                self.lexer.next();
+
+                let start = next_or_error!(self);
+
+                types.push(self.type_name(start)?);
+            }
+
+            Ok(Node::UnionType {
+                types: types,
+                line: line,
+                column: col,
+            })
+        } else {
+            Ok(node)
+        }
+    }
+
     /// Parses a closure
     ///
     /// Examples:
@@ -1104,7 +1136,7 @@ impl<'a> Parser<'a> {
             self.lexer.next();
 
             let start = next_or_error!(self);
-            let vtype = self.type_name(start)?;
+            let vtype = self.type_name_or_union_type(start)?;
 
             Ok(Some(Box::new(vtype)))
         } else {
@@ -1621,7 +1653,7 @@ impl<'a> Parser<'a> {
         let value = {
             let token = next_or_error!(self);
 
-            self.type_name(token)?
+            self.type_name_or_union_type(token)?
         };
 
         Ok(Node::TypeDefine {
@@ -1738,7 +1770,7 @@ impl<'a> Parser<'a> {
             self.lexer.next();
 
             let start = next_or_error!(self);
-            let ret = self.type_name(start)?;
+            let ret = self.type_name_or_union_type(start)?;
 
             Ok(Some(Box::new(ret)))
         } else {
@@ -1751,7 +1783,7 @@ impl<'a> Parser<'a> {
             self.lexer.next();
 
             let start = next_or_error!(self);
-            let ret = self.type_name(start)?;
+            let ret = self.type_name_or_union_type(start)?;
 
             Ok(Some(Box::new(ret)))
         } else {
