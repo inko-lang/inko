@@ -389,9 +389,14 @@ impl Machine {
                 // Returns the value in the given register.
                 //
                 // This instruction takes a single argument: the register
-                // containing the value to return.
+                // containing the value to return. If this argument is not given
+                // a nil value is returned instead.
                 InstructionType::Return => {
-                    let object = context.get_register(instruction.arg(0));
+                    let object = if let Some(register) = instruction.arg_opt(0) {
+                        context.get_register(register)
+                    } else {
+                        self.state.nil_object
+                    };
 
                     if let Some(register) = context.return_register {
                         if let Some(parent_context) = context.parent_mut() {
