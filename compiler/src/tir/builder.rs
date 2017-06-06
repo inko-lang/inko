@@ -909,13 +909,13 @@ impl Builder {
                     context: &mut Context)
                     -> Expression {
         let ret_val = if let &Some(ref node) = value {
-            self.process_node(node, context)
+            Some(Box::new(self.process_node(node, context)))
         } else {
-            Expression::Nil { line: line, column: col }
+            None
         };
 
         Expression::Return {
-            value: Box::new(ret_val),
+            value: ret_val,
             line: line,
             column: col,
         }

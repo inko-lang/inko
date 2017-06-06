@@ -152,12 +152,10 @@ pub enum Expression {
     },
 
     Return {
-        value: Box<Expression>,
+        value: Option<Box<Expression>>,
         line: usize,
         column: usize,
     },
-
-    Nil { line: usize, column: usize },
 
     Try {
         body: CodeObject,
