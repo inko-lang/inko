@@ -110,6 +110,7 @@ pub enum Expression {
 
     Class {
         name: String,
+        receiver: Box<Expression>,
         implements: Vec<Implement>,
         body: CodeObject,
         line: usize,
@@ -118,6 +119,7 @@ pub enum Expression {
 
     Trait {
         name: String,
+        receiver: Box<Expression>,
         body: CodeObject,
         line: usize,
         column: usize,

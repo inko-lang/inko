@@ -845,6 +845,7 @@ impl Builder {
 
         Expression::Class {
             name: name,
+            receiver: Box::new(self.get_self(line, col)),
             body: code_object,
             implements: impl_exprs,
             line: line,
@@ -863,6 +864,7 @@ impl Builder {
 
         Expression::Trait {
             name: name,
+            receiver: Box::new(self.get_self(line, col)),
             body: code_object,
             line: line,
             column: col,
