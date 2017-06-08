@@ -1,7 +1,6 @@
 use tir::code_object::CodeObject;
-use tir::implement::Implement;
 use tir::import::Symbol as ImportSymbol;
-use tir::method::{MethodArgument, MethodType};
+use tir::method::MethodArgument;
 use tir::variable::Variable;
 
 #[derive(Debug, Clone)]
@@ -38,7 +37,7 @@ pub enum Expression {
         column: usize,
     },
 
-    Closure {
+    Block {
         arguments: Vec<MethodArgument>,
         body: CodeObject,
         line: usize,
@@ -73,7 +72,7 @@ pub enum Expression {
 
     SetAttribute {
         receiver: Box<Expression>,
-        name: String,
+        name: Box<Expression>,
         value: Box<Expression>,
         line: usize,
         column: usize,
@@ -81,7 +80,7 @@ pub enum Expression {
 
     GetAttribute {
         receiver: Box<Expression>,
-        name: String,
+        name: Box<Expression>,
         line: usize,
         column: usize,
     },
@@ -104,42 +103,6 @@ pub enum Expression {
     KeywordArgument {
         name: String,
         value: Box<Expression>,
-        line: usize,
-        column: usize,
-    },
-
-    Class {
-        name: String,
-        receiver: Box<Expression>,
-        implements: Vec<Implement>,
-        body: CodeObject,
-        line: usize,
-        column: usize,
-    },
-
-    Trait {
-        name: String,
-        receiver: Box<Expression>,
-        body: CodeObject,
-        line: usize,
-        column: usize,
-    },
-
-    Method {
-        receiver: Box<Expression>,
-        name: String,
-        method_type: MethodType,
-        arguments: Vec<MethodArgument>,
-        requires: Vec<Expression>,
-        body: CodeObject,
-        line: usize,
-        column: usize,
-    },
-
-    RequiredMethod {
-        name: String,
-        arguments: Vec<MethodArgument>,
-        requires: Vec<Expression>,
         line: usize,
         column: usize,
     },

@@ -1,11 +1,5 @@
 use tir::expression::Expression;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MethodType {
-    Method,
-    InstanceMethod,
-}
-
 #[derive(Debug, Clone)]
 pub struct MethodArgument {
     pub name: String,

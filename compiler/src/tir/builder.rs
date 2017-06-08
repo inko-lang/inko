@@ -12,7 +12,7 @@ use tir::code_object::CodeObject;
 use tir::expression::Expression;
 use tir::implement::{Implement, Rename};
 use tir::import::Symbol as ImportSymbol;
-use tir::method::{MethodArgument, MethodType};
+use tir::method::MethodArgument;
 use tir::module::Module;
 use tir::variable::{Mutability, Scope as VariableScope, Variable};
 
@@ -390,7 +390,7 @@ impl Builder {
     fn attribute(&mut self, name: String, line: usize, col: usize) -> Expression {
         Expression::GetAttribute {
             receiver: Box::new(self.get_self(line, col)),
-            name: name,
+            name: Box::new(self.string(name, line, col)),
             line: line,
             column: col,
         }
@@ -435,7 +435,7 @@ impl Builder {
 
         Expression::GetAttribute {
             receiver: Box::new(rec_expr),
-            name: name,
+            name: Box::new(self.string(name, line, col)),
             line: line,
             column: col,
         }
@@ -447,15 +447,7 @@ impl Builder {
                     line: usize,
                     col: usize)
                     -> Expression {
-        let self_expr = self.get_self(line, col);
-
-        Expression::SetAttribute {
-            receiver: Box::new(self_expr),
-            name: name,
-            value: Box::new(value),
-            line: line,
-            column: col,
-        }
+        self.set_attribute(name, value, line, col)
     }
 
     fn set_variable(&mut self,
@@ -520,7 +512,7 @@ impl Builder {
         // TODO: track mutability of attributes per receiver type
         Expression::SetAttribute {
             receiver: Box::new(self.get_self(line, col)),
-            name: name,
+            name: Box::new(self.string(name, line, col)),
             value: Box::new(value),
             line: line,
             column: col,
@@ -715,11 +707,27 @@ impl Builder {
                -> Expression {
         let body = self.code_object(&context.path, body_node, context.globals);
 
-        Expression::Closure {
+        Expression::Block {
             arguments: self.method_arguments(arg_nodes, context),
             body: body,
             line: line,
             column: col,
+        }
+    }
+
+    fn block_without_arguments(&mut self,
+                               node: &Node,
+                               line: usize,
+                               col: usize,
+                               context: &mut Context)
+                               -> Expression {
+        let body = self.code_object(&context.path, node, context.globals);
+
+        Expression::Block {
+            arguments: Vec::new(),
+            body: body,
+            line: line,
+            column: col
         }
     }
 
@@ -742,12 +750,13 @@ impl Builder {
               name: String,
               receiver: &Option<Box<Node>>,
               arg_nodes: &Vec<Node>,
-              requirements: &Vec<Node>,
+              _requirements: &Vec<Node>, // TODO: inject into body
               body: &Node,
               line: usize,
               col: usize,
               context: &mut Context)
               -> Expression {
+        let name_expr = self.string(name, line, col);
         let arguments = self.method_arguments(arg_nodes, context);
         let mut locals = VariableScope::new();
 
@@ -755,34 +764,38 @@ impl Builder {
             locals.define(arg.name.clone(), Mutability::Immutable);
         }
 
+        let (receiver_expr, ins_name) = if let &Some(ref r) = receiver {
+            (self.process_node(r, context), "define_method")
+        } else {
+            (self.get_self(line, col), "define_instance_method")
+        };
+
+        // TODO: inject requirements into the body.
         let body_expr = self.code_object_with_locals(&context.path,
                                                      body,
                                                      locals,
                                                      context.globals);
 
-        let (receiver_expr, method_type) = if let &Some(ref r) = receiver {
-            (self.process_node(r, context), MethodType::Method)
-        } else {
-            (self.get_self(line, col), MethodType::InstanceMethod)
-        };
-
-        Expression::Method {
-            name: name,
-            method_type: method_type,
-            receiver: Box::new(receiver_expr),
+        let block = Expression::Block {
             arguments: arguments,
             body: body_expr,
             line: line,
+            column: col
+        };
+
+        Expression::RawInstruction {
+            name: ins_name.to_string(),
+            arguments: vec![receiver_expr, name_expr, block],
+            line: line,
             column: col,
-            requires: self.process_nodes(requirements, context),
         }
     }
 
     fn required_method(&mut self,
                        name: String,
                        receiver: &Option<Box<Node>>,
-                       arguments: &Vec<Node>,
-                       requirements: &Vec<Node>,
+                       _arguments: &Vec<Node>, // TODO: use
+                       _requirements: &Vec<Node>, // TODO: use
                        line: usize,
                        col: usize,
                        context: &mut Context)
@@ -795,12 +808,14 @@ impl Builder {
                                    col);
         }
 
-        Expression::RequiredMethod {
-            name: name,
-            arguments: self.method_arguments(arguments, context),
+        let receiver = self.get_self(line, col);
+        let name_expr = self.string(name, line, col);
+
+        Expression::RawInstruction {
+            name: "define_required_method".to_string(),
+            arguments: vec![receiver, name_expr],
             line: line,
             column: col,
-            requires: self.process_nodes(requirements, context),
         }
     }
 
@@ -840,17 +855,17 @@ impl Builder {
              col: usize,
              context: &mut Context)
              -> Expression {
-        let code_object = self.code_object(&context.path, body, context.globals);
-        let impl_exprs = self.implements(implements, context);
-
-        Expression::Class {
-            name: name,
-            receiver: Box::new(self.get_self(line, col)),
-            body: code_object,
-            implements: impl_exprs,
+        let name_expr = self.string(name.clone(), line, col);
+        let block = self.block_without_arguments(body, line, col, context);
+        let _todo_impl_exprs = self.implements(implements, context);
+        let class_def = Expression::RawInstruction {
+            name: "new_class".to_string(),
+            arguments: vec![name_expr, block],
             line: line,
             column: col,
-        }
+        };
+
+        self.set_constant(name, class_def, line, col)
     }
 
     fn def_trait(&mut self,
@@ -860,15 +875,16 @@ impl Builder {
                  col: usize,
                  context: &mut Context)
                  -> Expression {
-        let code_object = self.code_object(&context.path, body, context.globals);
-
-        Expression::Trait {
-            name: name,
-            receiver: Box::new(self.get_self(line, col)),
-            body: code_object,
+        let name_expr = self.string(name.clone(), line, col);
+        let block = self.block_without_arguments(body, line, col, context);
+        let trait_def = Expression::RawInstruction {
+            name: "new_trait".to_string(),
+            arguments: vec![name_expr, block],
             line: line,
             column: col,
-        }
+        };
+
+        self.set_constant(name, trait_def, line, col)
     }
 
     fn implements(&mut self,
