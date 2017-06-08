@@ -43,27 +43,9 @@ macro_rules! try_byte {
     );
 }
 
-macro_rules! read_string_vector {
-    ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<String, $byte_type>($bytes, read_string));
-    );
-}
-
 macro_rules! read_u16_to_usize_vector {
     ($byte_type: ident, $bytes: expr) => (
         try!(read_vector::<usize, $byte_type>($bytes, read_u16_as_usize));
-    );
-}
-
-macro_rules! read_i64_vector {
-    ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<i64, $byte_type>($bytes, read_i64));
-    );
-}
-
-macro_rules! read_f64_vector {
-    ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<f64, $byte_type>($bytes, read_f64));
     );
 }
 
@@ -71,13 +53,6 @@ macro_rules! read_instruction_vector {
     ($byte_type: ident, $bytes: expr) => (
         try!(read_vector::<Instruction, $byte_type>($bytes,
                                                     read_instruction));
-    );
-}
-
-macro_rules! read_code_vector {
-    ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<CompiledCode, $byte_type>($bytes,
-                                                       read_compiled_code));
     );
 }
 
