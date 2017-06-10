@@ -56,7 +56,7 @@ impl Builder {
     pub fn build(&mut self, path: String) -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
             let mut globals = VariableScope::new();
-            let code_object = self.code_object(&path, &ast, &mut globals);
+            let code_object = self.module(&path, &ast, &mut globals);
             let mod_name = self.module_name_for_path(&path);
 
             let module = Module {
@@ -72,6 +72,14 @@ impl Builder {
         };
 
         module
+    }
+
+    fn module(&mut self,
+              path: &String,
+              node: &Node,
+              globals: &mut VariableScope)
+              -> CodeObject {
+        self.code_object(path, node, globals)
     }
 
     fn code_object(&mut self,
@@ -764,10 +772,18 @@ impl Builder {
             locals.define(arg.name.clone(), Mutability::Immutable);
         }
 
-        let (receiver_expr, ins_name) = if let &Some(ref r) = receiver {
-            (self.process_node(r, context), "define_method")
+        let receiver_expr = if let &Some(ref r) = receiver {
+            self.process_node(r, context)
         } else {
-            (self.get_self(line, col), "define_instance_method")
+            let proto_name = self
+                .string(self.config.instance_prototype().to_string(), line, col);
+
+            Expression::GetAttribute {
+                receiver: Box::new(self.get_self(line, col)),
+                name: Box::new(proto_name),
+                line: line,
+                column: col
+            }
         };
 
         // TODO: inject requirements into the body.
@@ -783,9 +799,10 @@ impl Builder {
             column: col
         };
 
-        Expression::RawInstruction {
-            name: ins_name.to_string(),
-            arguments: vec![receiver_expr, name_expr, block],
+        Expression::DefineMethod {
+            receiver: Box::new(receiver_expr),
+            name: Box::new(name_expr),
+            block: Box::new(block),
             line: line,
             column: col,
         }
@@ -811,9 +828,9 @@ impl Builder {
         let receiver = self.get_self(line, col);
         let name_expr = self.string(name, line, col);
 
-        Expression::RawInstruction {
-            name: "define_required_method".to_string(),
-            arguments: vec![receiver, name_expr],
+        Expression::DefineRequiredMethod {
+            receiver: Box::new(receiver),
+            name: Box::new(name_expr),
             line: line,
             column: col,
         }
@@ -858,9 +875,10 @@ impl Builder {
         let name_expr = self.string(name.clone(), line, col);
         let block = self.block_without_arguments(body, line, col, context);
         let _todo_impl_exprs = self.implements(implements, context);
-        let class_def = Expression::RawInstruction {
-            name: "new_class".to_string(),
-            arguments: vec![name_expr, block],
+
+        let class_def = Expression::DefineClass {
+            name: Box::new(name_expr),
+            block: Box::new(block),
             line: line,
             column: col,
         };
@@ -877,9 +895,10 @@ impl Builder {
                  -> Expression {
         let name_expr = self.string(name.clone(), line, col);
         let block = self.block_without_arguments(body, line, col, context);
-        let trait_def = Expression::RawInstruction {
-            name: "new_trait".to_string(),
-            arguments: vec![name_expr, block],
+
+        let trait_def = Expression::DefineTrait {
+            name: Box::new(name_expr),
+            block: Box::new(block),
             line: line,
             column: col,
         };

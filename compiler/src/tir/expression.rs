@@ -135,4 +135,33 @@ pub enum Expression {
         line: usize,
         column: usize,
     },
+
+    DefineMethod {
+        receiver: Box<Expression>,
+        name: Box<Expression>,
+        block: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    DefineRequiredMethod {
+        receiver: Box<Expression>,
+        name: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    DefineClass {
+        name: Box<Expression>,
+        block: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    DefineTrait {
+        name: Box<Expression>,
+        block: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
 }

@@ -60,4 +60,10 @@ impl Config {
     pub fn raw_instruction_receiver(&self) -> &'static str {
         "__IVM"
     }
+
+    /// The name of the attribute to store the prototype for a class' instance
+    /// in.
+    pub fn instance_prototype(&self) -> &'static str {
+        "__proto"
+    }
 }
