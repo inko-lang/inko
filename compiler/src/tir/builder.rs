@@ -53,9 +53,20 @@ impl Builder {
         }
     }
 
-    pub fn build(&mut self, path: String) -> Option<Module> {
+    /// Builds the main module that starts the application.
+    pub fn build_main(&mut self, path: String) -> Option<Module> {
+        self.build(Vec::new(), "main".to_string(), path)
+    }
+
+    pub fn build(&mut self,
+                 under: Vec<String>,
+                 name: String,
+                 path: String)
+                 -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
-            let module = self.module(path, ast);
+            let module = self.module(under, name, path, ast);
+
+            println!("{:#?}", module);
 
             Some(module)
         } else {
@@ -65,10 +76,12 @@ impl Builder {
         module
     }
 
-    fn module(&mut self, path: String, node: Node) -> Module {
-        // TODO: define the module
-        // TODO: set local 0 to the module
-
+    fn module(&mut self,
+              mut under: Vec<String>,
+              name: String,
+              path: String,
+              node: Node)
+              -> Module {
         let mut globals = VariableScope::new();
         let locals = self.variable_scope_with_self();
         let code_object = self.code_object_with_locals(&path,
@@ -76,12 +89,18 @@ impl Builder {
                                                        locals,
                                                        &mut globals);
 
-        let mod_name = self.module_name_for_path(&path);
+        let body = Expression::DefineModule {
+            name: Box::new(self.string(name.clone(), 1, 1)),
+            under: under.drain(0..).map(|s| self.string(s, 1, 1)).collect(),
+            body: code_object,
+            line: 1,
+            column: 1,
+        };
 
         Module {
             path: path,
-            name: mod_name,
-            code: code_object,
+            name: name,
+            body: body,
             globals: globals,
         }
     }
@@ -636,6 +655,28 @@ impl Builder {
         chunks.join(self.config.lookup_separator())
     }
 
+    /// Returns the fragments that make up the module namespace, excluding the
+    /// name of the module itself.
+    ///
+    /// For example, for an import of `foo::bar::baz` this will return
+    /// `["foo", "bar"]`.
+    fn module_fragments_for_import(&self, steps: &Vec<Node>) -> Vec<String> {
+        let mut chunks = Vec::new();
+        let amount = steps.len() - 1;
+
+        for step in steps.iter().take(amount) {
+            match step {
+                &Node::Identifier { ref name, .. } => {
+                    chunks.push(name.clone());
+                }
+                &Node::Constant { .. } => break,
+                _ => {}
+            }
+        }
+
+        chunks
+    }
+
     /// Returns a vector of symbols to import, based on a list of AST nodes
     /// describing the import steps.
     fn import_symbols(&self,
@@ -694,6 +735,7 @@ impl Builder {
               col: usize,
               context: &mut Context)
               -> Expression {
+        let under = self.module_fragments_for_import(step_nodes);
         let mod_name = self.module_name_for_import(step_nodes);
         let mod_path = self.module_path_for_name(&mod_name);
 
@@ -704,7 +746,7 @@ impl Builder {
 
             match self.find_module_path(&mod_path) {
                 Some(full_path) => {
-                    let module = self.build(full_path);
+                    let module = self.build(under, mod_name.clone(), full_path);
 
                     self.modules.insert(mod_name.clone(), module);
                 }
@@ -725,7 +767,7 @@ impl Builder {
         // Some(module) or None.
         if self.modules.get(&mod_name).unwrap().is_some() {
             Expression::ImportModule {
-                path: mod_path,
+                path: Box::new(self.string(mod_path, line, col)),
                 line: line,
                 column: col,
                 symbols: self.import_symbols(symbol_nodes, context),
@@ -1362,16 +1404,6 @@ impl Builder {
                 Err(())
             }
         }
-    }
-
-    fn module_name_for_path(&self, path: &String) -> String {
-        if let Some(file_with_ext) = path.split(MAIN_SEPARATOR).last() {
-            if let Some(file_name) = file_with_ext.split(".").next() {
-                return file_name.to_string();
-            }
-        }
-
-        String::new()
     }
 
     fn module_path_for_name(&self, name: &str) -> String {

@@ -108,10 +108,10 @@ pub enum Expression {
     },
 
     ImportModule {
-        path: String,
+        path: Box<Expression>,
+        symbols: Vec<ImportSymbol>,
         line: usize,
         column: usize,
-        symbols: Vec<ImportSymbol>,
     },
 
     Return {
@@ -161,6 +161,14 @@ pub enum Expression {
         receiver: Box<Expression>,
         name: Box<Expression>,
         body: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
+
+    DefineModule {
+        name: Box<Expression>,
+        under: Vec<Expression>,
+        body: CodeObject,
         line: usize,
         column: usize,
     },

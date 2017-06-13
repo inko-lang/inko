@@ -24,9 +24,7 @@ impl Compiler {
     pub fn compile(&mut self, path: String) {
         let mut builder = Builder::new(self.config.clone());
 
-        if let Some(module) = builder.build(path) {
-            println!("{:#?}", module);
-        }
+        builder.build_main(path).unwrap();
 
         self.diagnostics.append(builder.diagnostics);
     }

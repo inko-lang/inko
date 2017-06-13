@@ -1,5 +1,5 @@
 //! Modules containing source code.
-use tir::code_object::CodeObject;
+use tir::expression::Expression;
 use tir::variable::Scope as VariableScope;
 
 #[derive(Debug)]
@@ -11,7 +11,7 @@ pub struct Module {
     pub name: String,
 
     /// The body of the module.
-    pub code: CodeObject,
+    pub body: Expression,
 
     /// The global variables defined in this module.
     pub globals: VariableScope,
