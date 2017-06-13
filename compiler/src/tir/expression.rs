@@ -107,8 +107,6 @@ pub enum Expression {
         column: usize,
     },
 
-    GetSelf { line: usize, column: usize },
-
     ImportModule {
         path: String,
         line: usize,
@@ -152,15 +150,17 @@ pub enum Expression {
     },
 
     DefineClass {
+        receiver: Box<Expression>,
         name: Box<Expression>,
-        block: Box<Expression>,
+        body: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     DefineTrait {
+        receiver: Box<Expression>,
         name: Box<Expression>,
-        block: Box<Expression>,
+        body: Box<Expression>,
         line: usize,
         column: usize,
     },

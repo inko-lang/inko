@@ -58,12 +58,16 @@ impl Config {
 
     /// The name of the constant to use as the receiver for raw instructions.
     pub fn raw_instruction_receiver(&self) -> &'static str {
-        "__IVM"
+        "__INKOC"
     }
 
     /// The name of the attribute to store the prototype for a class' instance
     /// in.
-    pub fn instance_prototype(&self) -> &'static str {
-        "__proto"
+    pub fn instance_prototype(&self) -> String {
+        "__proto".to_string()
+    }
+
+    pub fn self_variable(&self) -> String {
+        "self".to_string()
     }
 }

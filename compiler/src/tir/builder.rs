@@ -55,16 +55,7 @@ impl Builder {
 
     pub fn build(&mut self, path: String) -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
-            let mut globals = VariableScope::new();
-            let code_object = self.module(&path, &ast, &mut globals);
-            let mod_name = self.module_name_for_path(&path);
-
-            let module = Module {
-                path: path,
-                name: mod_name,
-                code: code_object,
-                globals: globals,
-            };
+            let module = self.module(path, ast);
 
             Some(module)
         } else {
@@ -74,12 +65,25 @@ impl Builder {
         module
     }
 
-    fn module(&mut self,
-              path: &String,
-              node: &Node,
-              globals: &mut VariableScope)
-              -> CodeObject {
-        self.code_object(path, node, globals)
+    fn module(&mut self, path: String, node: Node) -> Module {
+        // TODO: define the module
+        // TODO: set local 0 to the module
+
+        let mut globals = VariableScope::new();
+        let locals = self.variable_scope_with_self();
+        let code_object = self.code_object_with_locals(&path,
+                                                       &node,
+                                                       locals,
+                                                       &mut globals);
+
+        let mod_name = self.module_name_for_path(&path);
+
+        Module {
+            path: path,
+            name: mod_name,
+            code: code_object,
+            globals: globals,
+        }
     }
 
     fn code_object(&mut self,
@@ -138,18 +142,20 @@ impl Builder {
             &Node::Hash { ref pairs, line, column } => {
                 self.hash(pairs, line, column, context)
             }
-            &Node::SelfObject { line, column } => self.get_self(line, column),
+            &Node::SelfObject { line, column } => {
+                self.get_self(line, column, context)
+            },
             &Node::Identifier { ref name, line, column } => {
                 self.identifier(name, line, column, context)
             }
             &Node::Attribute { ref name, line, column } => {
-                self.attribute(name.clone(), line, column)
+                self.attribute(name.clone(), line, column, context)
             }
             &Node::Constant { ref receiver, ref name, line, column } => {
                 self.get_constant(name.clone(), receiver, line, column, context)
             }
             &Node::Type { ref constant, .. } => {
-                // TODO: actually use type information
+                // TODO: actually use type info from Type nodes
                 self.process_node(constant, context)
             }
             &Node::LetDefine { ref name, ref value, line, column, .. } => {
@@ -370,8 +376,16 @@ impl Builder {
         }
     }
 
-    fn get_self(&self, line: usize, col: usize) -> Expression {
-        Expression::GetSelf { line: line, column: col }
+    fn get_self(&mut self,
+                line: usize,
+                col: usize,
+                context: &mut Context)
+                -> Expression {
+        let local = context.locals
+            .lookup(&self.config.self_variable())
+            .expect("self is not defined in this context");
+
+        self.get_local(local, line, col)
     }
 
     fn identifier(&mut self,
@@ -389,15 +403,20 @@ impl Builder {
             return self.get_global(global, line, col);
         }
 
-        // TODO: check if the method actually exists.
+        // TODO: check if method exists for identifiers without receivers
         let args = Vec::new();
 
         self.send_object_message(name.clone(), &None, &args, line, col, context)
     }
 
-    fn attribute(&mut self, name: String, line: usize, col: usize) -> Expression {
+    fn attribute(&mut self,
+                 name: String,
+                 line: usize,
+                 col: usize,
+                 context: &mut Context)
+                 -> Expression {
         Expression::GetAttribute {
-            receiver: Box::new(self.get_self(line, col)),
+            receiver: Box::new(self.get_self(line, col, context)),
             name: Box::new(self.string(name, line, col)),
             line: line,
             column: col,
@@ -438,7 +457,7 @@ impl Builder {
         let rec_expr = if let &Some(ref node) = receiver {
             self.process_node(node, context)
         } else {
-            self.get_self(line, col)
+            self.get_self(line, col, context)
         };
 
         Expression::GetAttribute {
@@ -453,9 +472,10 @@ impl Builder {
                     name: String,
                     value: Expression,
                     line: usize,
-                    col: usize)
+                    col: usize,
+                    context: &mut Context)
                     -> Expression {
-        self.set_attribute(name, value, line, col)
+        self.set_attribute(name, value, line, col, context)
     }
 
     fn set_variable(&mut self,
@@ -486,10 +506,18 @@ impl Builder {
                                            column);
                 }
 
-                self.set_constant(name.clone(), value_expr, line, column)
+                self.set_constant(name.clone(),
+                                  value_expr,
+                                  line,
+                                  column,
+                                  context)
             }
             &Node::Attribute { ref name, .. } => {
-                self.set_attribute(name.clone(), value_expr, line, column)
+                self.set_attribute(name.clone(),
+                                   value_expr,
+                                   line,
+                                   column,
+                                   context)
             }
             _ => unreachable!(),
         }
@@ -511,15 +539,16 @@ impl Builder {
         }
     }
 
-    fn set_attribute(&self,
+    fn set_attribute(&mut self,
                      name: String,
                      value: Expression,
                      line: usize,
-                     col: usize)
+                     col: usize,
+                     context: &mut Context)
                      -> Expression {
         // TODO: track mutability of attributes per receiver type
         Expression::SetAttribute {
-            receiver: Box::new(self.get_self(line, col)),
+            receiver: Box::new(self.get_self(line, col, context)),
             name: Box::new(self.string(name, line, col)),
             value: Box::new(value),
             line: line,
@@ -571,7 +600,7 @@ impl Builder {
 
                 self.get_local(local, line, col)
             } else {
-                self.get_self(line, col)
+                self.get_self(line, col, context)
             }
         };
 
@@ -723,22 +752,6 @@ impl Builder {
         }
     }
 
-    fn block_without_arguments(&mut self,
-                               node: &Node,
-                               line: usize,
-                               col: usize,
-                               context: &mut Context)
-                               -> Expression {
-        let body = self.code_object(&context.path, node, context.globals);
-
-        Expression::Block {
-            arguments: Vec::new(),
-            body: body,
-            line: line,
-            column: col
-        }
-    }
-
     fn keyword_argument(&mut self,
                         name: String,
                         value: &Node,
@@ -766,7 +779,7 @@ impl Builder {
               -> Expression {
         let name_expr = self.string(name, line, col);
         let arguments = self.method_arguments(arg_nodes, context);
-        let mut locals = VariableScope::new();
+        let mut locals = self.variable_scope_with_self();
 
         for arg in arguments.iter() {
             locals.define(arg.name.clone(), Mutability::Immutable);
@@ -776,10 +789,10 @@ impl Builder {
             self.process_node(r, context)
         } else {
             let proto_name = self
-                .string(self.config.instance_prototype().to_string(), line, col);
+                .string(self.config.instance_prototype(), line, col);
 
             Expression::GetAttribute {
-                receiver: Box::new(self.get_self(line, col)),
+                receiver: Box::new(self.get_self(line, col, context)),
                 name: Box::new(proto_name),
                 line: line,
                 column: col
@@ -825,7 +838,7 @@ impl Builder {
                                    col);
         }
 
-        let receiver = self.get_self(line, col);
+        let receiver = self.get_self(line, col, context);
         let name_expr = self.string(name, line, col);
 
         Expression::DefineRequiredMethod {
@@ -873,17 +886,28 @@ impl Builder {
              context: &mut Context)
              -> Expression {
         let name_expr = self.string(name.clone(), line, col);
-        let block = self.block_without_arguments(body, line, col, context);
+        let locals = self.variable_scope_with_self();
+        let code_obj = self.code_object_with_locals(&context.path,
+                                                    body,
+                                                    locals,
+                                                    context.globals);
+
         let _todo_impl_exprs = self.implements(implements, context);
 
-        let class_def = Expression::DefineClass {
-            name: Box::new(name_expr),
-            block: Box::new(block),
+        let block = Expression::Block {
+            arguments: vec![self.self_argument(line, col)],
+            body: code_obj,
             line: line,
             column: col,
         };
 
-        self.set_constant(name, class_def, line, col)
+        Expression::DefineClass {
+            receiver: Box::new(self.get_self(line, col, context)),
+            name: Box::new(name_expr),
+            body: Box::new(block),
+            line: line,
+            column: col,
+        }
     }
 
     fn def_trait(&mut self,
@@ -894,16 +918,26 @@ impl Builder {
                  context: &mut Context)
                  -> Expression {
         let name_expr = self.string(name.clone(), line, col);
-        let block = self.block_without_arguments(body, line, col, context);
+        let locals = self.variable_scope_with_self();
+        let code_obj = self.code_object_with_locals(&context.path,
+                                                    body,
+                                                    locals,
+                                                    context.globals);
 
-        let trait_def = Expression::DefineTrait {
-            name: Box::new(name_expr),
-            block: Box::new(block),
+        let block = Expression::Block {
+            arguments: vec![self.self_argument(line, col)],
+            body: code_obj,
             line: line,
             column: col,
         };
 
-        self.set_constant(name, trait_def, line, col)
+        Expression::DefineTrait {
+            receiver: Box::new(self.get_self(line, col, context)),
+            name: Box::new(name_expr),
+            body: Box::new(block),
+            line: line,
+            column: col,
+        }
     }
 
     fn implements(&mut self,
@@ -1267,7 +1301,7 @@ impl Builder {
             }
             &Node::Attribute { ref name, .. } => {
                 // TODO: check for attribute existence
-                self.set_attribute(name.clone(), value, line, col)
+                self.set_attribute(name.clone(), value, line, col, context)
             }
             _ => unreachable!(),
         }
@@ -1358,5 +1392,23 @@ impl Builder {
         }
 
         None
+    }
+
+    fn variable_scope_with_self(&self) -> VariableScope {
+        let mut scope = VariableScope::new();
+
+        scope.define(self.config.self_variable(), Mutability::Immutable);
+
+        scope
+    }
+
+    fn self_argument(&self, line: usize, col: usize) -> MethodArgument {
+        MethodArgument {
+            name: self.config.self_variable(),
+            default_value: None,
+            line: line,
+            column: col,
+            rest: false,
+        }
     }
 }
