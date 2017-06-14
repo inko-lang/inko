@@ -70,7 +70,6 @@ pub enum TokenType {
     ParenOpen,
     Pow,
     PowAssign,
-    Require,
     Return,
     SelfObject,
     ShiftLeft,
@@ -122,8 +121,7 @@ impl<'a> Lexer<'a> {
                 "as" => TokenType::As,
                 "throw" => TokenType::Throw,
                 "else" => TokenType::Else,
-                "try" => TokenType::Try,
-                "require" => TokenType::Require
+                "try" => TokenType::Try
             ),
             specials: hash_set!['!', '@', '#', '$', '%', '^', '&', '*', '(',
                                 ')', '-', '+', '=', '\\', ':', ';', '"', '\'',
@@ -1077,7 +1075,6 @@ mod tests {
         test!(test_try, identifier_or_keyword, Try, "try");
         test!(test_throw, identifier_or_keyword, Throw, "throw");
         test!(test_else, identifier_or_keyword, Else, "else");
-        test!(test_requires, identifier_or_keyword, Require, "require");
 
         test!(test_bracket_open, bracket_open, BracketOpen, "[");
         test!(test_bracket_close, bracket_close, BracketClose, "]");

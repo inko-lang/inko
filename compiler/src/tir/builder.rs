@@ -226,7 +226,6 @@ impl Builder {
                 ref receiver,
                 ref arguments,
                 ref body,
-                ref requirements,
                 line,
                 column,
                 ..
@@ -236,7 +235,6 @@ impl Builder {
                         name.clone(),
                         receiver,
                         arguments,
-                        requirements,
                         body,
                         line,
                         column,
@@ -247,7 +245,6 @@ impl Builder {
                         name.clone(),
                         receiver,
                         arguments,
-                        requirements,
                         line,
                         column,
                         context,
@@ -820,7 +817,6 @@ impl Builder {
               name: String,
               receiver: &Option<Box<Node>>,
               arg_nodes: &Vec<Node>,
-              _requirements: &Vec<Node>, // TODO: inject into body
               body: &Node,
               line: usize,
               col: usize,
@@ -848,7 +844,6 @@ impl Builder {
             }
         };
 
-        // TODO: inject requirements into the body.
         let body_expr = self.code_object_with_locals(
             &context.path,
             body,
@@ -876,7 +871,6 @@ impl Builder {
                        name: String,
                        receiver: &Option<Box<Node>>,
                        _arguments: &Vec<Node>, // TODO: use
-                       _requirements: &Vec<Node>, // TODO: use
                        line: usize,
                        col: usize,
                        context: &mut Context)
@@ -884,8 +878,7 @@ impl Builder {
         if receiver.is_some() {
             self.diagnostics.error(
                 context.path,
-                "methods required by a trait can not be \
-                                    defined on an explicit receiver",
+                "methods required by a trait can not be defined on an explicit receiver",
                 line,
                 col,
             );

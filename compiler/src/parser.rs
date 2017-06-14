@@ -256,7 +256,6 @@ pub enum Node {
         type_arguments: Vec<Node>,
         return_type: Option<Box<Node>>,
         throw_type: Option<Box<Node>>,
-        requirements: Vec<Node>,
         body: Option<Box<Node>>,
         line: usize,
         column: usize,
@@ -542,7 +541,6 @@ impl<'a> Parser<'a> {
                                       TokenType::Trait,
                                       TokenType::Var,
                                       TokenType::BracketOpen,
-                                      TokenType::Require,
                                       TokenType::Throw,
                                       TokenType::Else],
             value_start: hash_set![TokenType::String,
@@ -1341,7 +1339,6 @@ impl<'a> Parser<'a> {
         let arguments = self.optional_arguments()?;
         let return_type = self.optional_return_type()?;
         let throw_type = self.optional_throw_type()?;
-        let requirements = self.method_requirements()?;
 
         let body = if self.lexer.next_type_is(&TokenType::CurlyOpen) {
             next_of_type!(self, TokenType::CurlyOpen);
@@ -1358,7 +1355,6 @@ impl<'a> Parser<'a> {
             type_arguments: type_arguments,
             return_type: return_type,
             throw_type: throw_type,
-            requirements: requirements,
             body: body,
             line: start.line,
             column: start.column,
@@ -1800,20 +1796,6 @@ impl<'a> Parser<'a> {
         } else {
             Ok(None)
         }
-    }
-
-    fn method_requirements(&mut self) -> Result<Vec<Node>, String> {
-        let mut nodes = Vec::new();
-
-        while self.lexer.next_type_is(&TokenType::Require) {
-            next_or_error!(self);
-
-            let start = next_or_error!(self);
-
-            nodes.push(self.expression(start)?);
-        }
-
-        Ok(nodes)
     }
 
     /// Returns the name for a message for the given token, if any.
