@@ -143,8 +143,9 @@ mod tests {
             let mut pool = StringPool::new();
             let mut alloc = allocator();
 
-            let pointer = alloc
-                .allocate_without_prototype(object_value::string("a".to_string()));
+            let pointer = alloc.allocate_without_prototype(
+                object_value::string("a".to_string()),
+            );
 
             pool.add(pointer);
 

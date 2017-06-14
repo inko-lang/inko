@@ -79,10 +79,12 @@ impl Config {
         set_from_env!(self, young_growth_factor, "GC_YOUNG_GROWTH_FACTOR", f64);
         set_from_env!(self, mature_growth_factor, "GC_MATURE_GROWTH_FACTOR", f64);
 
-        set_from_env!(self,
-                      mailbox_growth_factor,
-                      "GC_MAILBOX_GROWTH_FACTOR",
-                      f64);
+        set_from_env!(
+            self,
+            mailbox_growth_factor,
+            "GC_MAILBOX_GROWTH_FACTOR",
+            f64
+        );
     }
 
     pub fn add_directory(&mut self, path: String) {

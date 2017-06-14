@@ -31,9 +31,11 @@ impl Add for TraceResult {
     type Output = TraceResult;
 
     fn add(self, other: Self::Output) -> Self::Output {
-        TraceResult::with(self.marked + other.marked,
-                          self.evacuated + other.evacuated,
-                          self.promoted + other.promoted)
+        TraceResult::with(
+            self.marked + other.marked,
+            self.evacuated + other.evacuated,
+            self.promoted + other.promoted,
+        )
     }
 }
 

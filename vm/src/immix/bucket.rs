@@ -152,7 +152,10 @@ impl Bucket {
             }
         }
 
-        (!found_hole, self.current_block_mut().unwrap().bump_allocate(object))
+        (
+            !found_hole,
+            self.current_block_mut().unwrap().bump_allocate(object),
+        )
     }
 
     /// Returns true if this bucket contains blocks that need to be evacuated.
@@ -183,9 +186,9 @@ impl Bucket {
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        for mut block in self.blocks
-            .drain(0..)
-            .chain(self.recyclable_blocks.drain(0..)) {
+        for mut block in self.blocks.drain(0..).chain(
+            self.recyclable_blocks.drain(0..),
+        ) {
             block.update_line_map();
             block.finalize();
 
@@ -196,8 +199,10 @@ impl Bucket {
                 block.update_hole_count();
 
                 if block.holes > 0 {
-                    self.mark_histogram
-                        .increment(block.holes, block.marked_lines_count());
+                    self.mark_histogram.increment(
+                        block.holes,
+                        block.marked_lines_count(),
+                    );
 
                     // Recyclable blocks should be stored separately.
                     if !block.fragmented {
@@ -230,9 +235,9 @@ impl Bucket {
         let mut required: isize = 0;
         let evacuate = self.should_evacuate();
 
-        for block in self.blocks
-            .iter_mut()
-            .chain(self.recyclable_blocks.iter_mut()) {
+        for block in self.blocks.iter_mut().chain(
+            self.recyclable_blocks.iter_mut(),
+        ) {
             if evacuate && block.holes > 0 {
                 let count = block.available_lines_count();
 
@@ -291,7 +296,9 @@ impl Bucket {
     /// Returns a mutable iterator for all blocks.
     pub fn all_blocks_mut(&mut self)
                           -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
-        self.blocks.iter_mut().chain(self.recyclable_blocks.iter_mut())
+        self.blocks.iter_mut().chain(
+            self.recyclable_blocks.iter_mut(),
+        )
     }
 }
 
@@ -471,8 +478,10 @@ mod tests {
         assert!(pointer.get().value.is_none());
         assert!(new_pointer.get().value.is_float());
 
-        assert!(bucket.blocks[0].free_pointer ==
-                unsafe { bucket.blocks[0].start_address().offset(5) });
+        assert!(
+            bucket.blocks[0].free_pointer ==
+            unsafe { bucket.blocks[0].start_address().offset(5) }
+        );
     }
 
     #[test]

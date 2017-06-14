@@ -69,7 +69,9 @@ mod tests {
 
         let mut local_data = process.local_data_mut();
 
-        local_data.mailbox.send_from_external(process.allocate_empty());
+        local_data.mailbox.send_from_external(
+            process.allocate_empty(),
+        );
 
         local_data.mailbox.allocator.prepare_for_collection();
 
@@ -88,7 +90,9 @@ mod tests {
 
         let mut local_data = process.local_data_mut();
 
-        local_data.mailbox.send_from_external(process.allocate_empty());
+        local_data.mailbox.send_from_external(
+            process.allocate_empty(),
+        );
 
         local_data.mailbox.allocator.prepare_for_collection();
 
@@ -105,7 +109,9 @@ mod tests {
 
         let mut local_data = process.local_data_mut();
 
-        local_data.mailbox.send_from_external(process.allocate_empty());
+        local_data.mailbox.send_from_external(
+            process.allocate_empty(),
+        );
 
         local_data.mailbox.external[0].block_mut().fragmented = true;
 

@@ -239,12 +239,17 @@ impl LocalAllocator {
     }
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.young_generation[self.eden_index]
-            .allocate(&self.global_allocator, object)
+        self.young_generation[self.eden_index].allocate(
+            &self.global_allocator,
+            object,
+        )
     }
 
     fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.mature_generation.allocate(&self.global_allocator, object)
+        self.mature_generation.allocate(
+            &self.global_allocator,
+            object,
+        )
     }
 }
 
@@ -378,7 +383,8 @@ mod tests {
         let ptr1 = alloc.allocate_eden(Object::new(object_value::none()));
 
         let ptr2 = alloc.allocate_eden(
-            Object::new(object_value::string("a".to_string())));
+            Object::new(object_value::string("a".to_string())),
+        );
 
         assert_eq!(alloc.young_block_allocations, 1);
 
@@ -392,7 +398,8 @@ mod tests {
         let ptr1 = alloc.allocate_mature(Object::new(object_value::none()));
 
         let ptr2 = alloc.allocate_mature(
-            Object::new(object_value::string("a".to_string())));
+            Object::new(object_value::string("a".to_string())),
+        );
 
         assert_eq!(alloc.mature_block_allocations, 1);
 

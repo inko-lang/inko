@@ -29,9 +29,11 @@ impl Pools {
             process.scheduled();
             pool.schedule(process);
         } else {
-            panic!("The pool ID ({}) for process {} is invalid",
-                   process.pool_id,
-                   process.pid);
+            panic!(
+                "The pool ID ({}) for process {} is invalid",
+                process.pool_id,
+                process.pid
+            );
         }
     }
 

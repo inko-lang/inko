@@ -28,7 +28,9 @@ impl Mailbox {
     pub fn send_from_external(&mut self, original: ObjectPointer) {
         let _lock = self.write_lock.lock();
 
-        self.external.push_back(self.allocator.copy_object(original));
+        self.external.push_back(
+            self.allocator.copy_object(original),
+        );
     }
 
     pub fn send_from_self(&mut self, pointer: ObjectPointer) {
@@ -43,7 +45,9 @@ impl Mailbox {
         if self.internal.len() == 0 {
             let _lock = self.write_lock.lock();
 
-            self.internal.append(&mut self.external.drain(0..).collect());
+            self.internal.append(
+                &mut self.external.drain(0..).collect(),
+            );
         }
 
         self.internal.pop_front()
@@ -62,6 +66,9 @@ impl Mailbox {
     }
 
     pub fn local_pointers(&self) -> Vec<ObjectPointerPointer> {
-        self.locals.iter().map(|pointer| pointer.pointer()).collect()
+        self.locals
+            .iter()
+            .map(|pointer| pointer.pointer())
+            .collect()
     }
 }

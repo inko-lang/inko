@@ -2,4 +2,5 @@ max_width = 82
 write_mode = "Overwrite"
 struct_lit_width = 40
 fn_args_paren_newline = false
-closure_block_indent_threshold = 0
+closure_block_indent_threshold = -1
+fn_call_style = "Block"

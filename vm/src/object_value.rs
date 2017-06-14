@@ -107,7 +107,9 @@ impl ObjectValue {
             &ObjectValue::String(ref val) |
             &ObjectValue::InternedString(ref val) => Ok(val),
             _ => {
-                Err("ObjectValue::as_string() called on a non string".to_string())
+                Err(
+                    "ObjectValue::as_string() called on a non string".to_string(),
+                )
             }
         }
     }
@@ -123,7 +125,9 @@ impl ObjectValue {
         match self {
             &mut ObjectValue::File(ref mut val) => Ok(val),
             _ => {
-                Err("ObjectValue::as_file_mut() called on a non file".to_string())
+                Err(
+                    "ObjectValue::as_file_mut() called on a non file".to_string(),
+                )
             }
         }
     }
@@ -132,8 +136,10 @@ impl ObjectValue {
         match self {
             &ObjectValue::Block(ref val) => Ok(val),
             _ => {
-                Err("ObjectValue::as_block() called on a non block object"
-                    .to_string())
+                Err(
+                    "ObjectValue::as_block() called on a non block object"
+                        .to_string(),
+                )
             }
         }
     }
@@ -142,8 +148,10 @@ impl ObjectValue {
         match self {
             &ObjectValue::Binding(ref val) => Ok(val.clone()),
             _ => {
-                Err("ObjectValue::as_binding() called non a non Binding"
-                    .to_string())
+                Err(
+                    "ObjectValue::as_binding() called non a non Binding"
+                        .to_string(),
+                )
             }
         }
     }
@@ -235,15 +243,18 @@ mod tests {
 
     #[test]
     fn test_is_interned_string() {
-        assert!(ObjectValue::InternedString(Box::new(String::new()))
-            .is_interned_string());
+        assert!(
+            ObjectValue::InternedString(Box::new(String::new()))
+                .is_interned_string()
+        );
     }
 
     #[test]
     fn test_is_interned_string_with_regular_string() {
-        assert_eq!(ObjectValue::String(Box::new(String::new()))
-                       .is_interned_string(),
-                   false);
+        assert_eq!(
+            ObjectValue::String(Box::new(String::new())).is_interned_string(),
+            false
+        );
     }
 
     #[test]
@@ -257,16 +268,20 @@ mod tests {
 
     #[test]
     fn test_is_block() {
-        let code = CompiledCode::new("a".to_string(),
-                                     "a.inko".to_string(),
-                                     1,
-                                     Vec::new());
+        let code = CompiledCode::new(
+            "a".to_string(),
+            "a.inko".to_string(),
+            1,
+            Vec::new(),
+        );
 
         let binding = Binding::new(0);
         let scope = GlobalScope::new();
-        let block = Block::new(DerefPointer::new(&code),
-                               binding,
-                               GlobalScopePointer::new(&scope));
+        let block = Block::new(
+            DerefPointer::new(&code),
+            binding,
+            GlobalScopePointer::new(&scope),
+        );
 
         assert!(ObjectValue::Block(Box::new(block)).is_block());
         assert_eq!(ObjectValue::None.is_block(), false);
@@ -375,15 +390,19 @@ mod tests {
 
     #[test]
     fn test_as_block_with_block() {
-        let code = CompiledCode::new("a".to_string(),
-                                     "a.inko".to_string(),
-                                     1,
-                                     Vec::new());
+        let code = CompiledCode::new(
+            "a".to_string(),
+            "a.inko".to_string(),
+            1,
+            Vec::new(),
+        );
         let binding = Binding::new(0);
         let scope = GlobalScope::new();
-        let block = Block::new(DerefPointer::new(&code),
-                               binding,
-                               GlobalScopePointer::new(&scope));
+        let block = Block::new(
+            DerefPointer::new(&code),
+            binding,
+            GlobalScopePointer::new(&scope),
+        );
 
         let value = ObjectValue::Block(Box::new(block));
         let result = value.as_block();
@@ -449,17 +468,21 @@ mod tests {
 
     #[test]
     fn test_block() {
-        let code = CompiledCode::new("a".to_string(),
-                                     "a.inko".to_string(),
-                                     1,
-                                     Vec::new());
+        let code = CompiledCode::new(
+            "a".to_string(),
+            "a.inko".to_string(),
+            1,
+            Vec::new(),
+        );
 
         let binding = Binding::new(0);
         let scope = GlobalScope::new();
 
-        let blk = Block::new(DerefPointer::new(&code),
-                             binding,
-                             GlobalScopePointer::new(&scope));
+        let blk = Block::new(
+            DerefPointer::new(&code),
+            binding,
+            GlobalScopePointer::new(&scope),
+        );
 
         assert!(block(blk).is_block());
     }

@@ -225,8 +225,8 @@ impl Object {
 
     /// Returns a new Object that takes over the data of the current object.
     pub fn take(&mut self) -> Object {
-        let mut new_obj = Object::with_prototype(self.value.take(),
-                                                 self.prototype);
+        let mut new_obj =
+            Object::with_prototype(self.value.take(), self.prototype);
 
         new_obj.attributes = self.attributes;
         self.attributes = ptr::null::<AttributesMap>();
@@ -260,7 +260,9 @@ impl Object {
 impl Drop for Object {
     fn drop(&mut self) {
         if self.has_attributes() {
-            drop(unsafe { Box::from_raw(self.attributes as *mut AttributesMap) });
+            drop(unsafe {
+                Box::from_raw(self.attributes as *mut AttributesMap)
+            });
         }
     }
 }

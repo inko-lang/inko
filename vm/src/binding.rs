@@ -113,10 +113,7 @@ impl Binding {
 
     /// Returns an iterator for traversing all pointers in this binding.
     pub fn pointers(&self) -> PointerIterator {
-        PointerIterator {
-            binding: self,
-            local_index: 0,
-        }
+        PointerIterator { binding: self, local_index: 0 }
     }
 
     /// Creates a new binding and recursively copies over all pointers to the
@@ -362,19 +359,13 @@ mod tests {
         assert_eq!(bind_copy.locals().len(), 1);
         assert!(bind_copy.parent.is_some());
 
-        assert_eq!(bind_copy.get_local(0)
-                       .float_value()
-                       .unwrap(),
-                   2.0);
+        assert_eq!(bind_copy.get_local(0).float_value().unwrap(), 2.0);
 
         let bind_copy_parent = bind_copy.parent.as_ref().unwrap();
 
         assert_eq!(bind_copy_parent.locals().len(), 1);
         assert!(bind_copy_parent.parent.is_none());
 
-        assert_eq!(bind_copy_parent.get_local(0)
-                       .float_value()
-                       .unwrap(),
-                   5.0);
+        assert_eq!(bind_copy_parent.get_local(0).float_value().unwrap(), 5.0);
     }
 }

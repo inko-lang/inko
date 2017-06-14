@@ -9,10 +9,7 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Self {
-        Timer {
-            start: None,
-            stop: None,
-        }
+        Timer { start: None, stop: None }
     }
 
     /// Returns the duration in nanoseconds.

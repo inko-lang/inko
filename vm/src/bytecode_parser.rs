@@ -619,8 +619,10 @@ mod tests {
         pack_string!("hello", buffer);
         pack_string!("world", buffer);
 
-        let output = unwrap!(read_vector::<String, &[u8]>(&mut buffer.bytes(),
-                                                          read_string));
+        let output = unwrap!(read_vector::<String, &[u8]>(
+            &mut buffer.bytes(),
+            read_string,
+        ));
 
         assert_eq!(output.len(), 2);
         assert_eq!(output[0], "hello".to_string());
@@ -630,8 +632,8 @@ mod tests {
     #[test]
     fn test_read_vector_empty() {
         let buffer = Vec::new();
-        let output = read_vector::<String, &[u8]>(&mut buffer.bytes(),
-                                                  read_string);
+        let output =
+            read_vector::<String, &[u8]>(&mut buffer.bytes(), read_string);
 
         assert!(output.is_err());
     }

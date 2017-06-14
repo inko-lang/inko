@@ -127,8 +127,8 @@ impl State {
 
         let gc_pool = Pool::new(config.gc_threads);
 
-        let process_pools = Pools::new(config.primary_threads,
-                                       config.secondary_threads);
+        let process_pools =
+            Pools::new(config.primary_threads, config.secondary_threads);
 
         let state = State {
             config: config,
@@ -223,10 +223,12 @@ mod tests {
     #[test]
     fn test_intern_pointer_with_string() {
         let state = State::new(Config::new());
-        let string = state.permanent_allocator
+        let string = state
+            .permanent_allocator
             .lock()
-            .allocate_without_prototype(object_value::interned_string("hello"
-                .to_string()));
+            .allocate_without_prototype(
+                object_value::interned_string("hello".to_string()),
+            );
 
         assert!(state.intern_pointer(&string).unwrap() == string);
     }

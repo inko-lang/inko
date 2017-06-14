@@ -41,10 +41,7 @@ impl Register {
 
     /// Returns an iterator for traversing all pointers in this register.
     pub fn pointers(&self) -> PointerIterator {
-        PointerIterator {
-            register: self,
-            index: 0,
-        }
+        PointerIterator { register: self, index: 0 }
     }
 }
 

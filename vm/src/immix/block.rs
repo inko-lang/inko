@@ -596,8 +596,10 @@ mod tests {
 
         block.find_available_hole_starting_at(1);
 
-        assert_eq!(block.free_pointer,
-                   unsafe { block.start_address().offset(8) });
+        assert_eq!(
+            block.free_pointer,
+            unsafe { block.start_address().offset(8) }
+        );
     }
 
     #[test]

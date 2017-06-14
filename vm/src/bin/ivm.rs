@@ -30,16 +30,17 @@ fn main() {
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
 
-    options.optmulti("I",
-                     "include",
-                     "A directory to search for bytecode files",
-                     "DIR");
+    options.optmulti(
+        "I",
+        "include",
+        "A directory to search for bytecode files",
+        "DIR",
+    );
 
-    let matches = options.parse(&args[1..])
-        .unwrap_or_else(|err| {
-            print_stderr(format!("{}\n", err));
-            print_usage(&options);
-        });
+    let matches = options.parse(&args[1..]).unwrap_or_else(|err| {
+        print_stderr(format!("{}\n", err));
+        print_usage(&options);
+    });
 
     if matches.opt_present("h") {
         print_usage(&options);

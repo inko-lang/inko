@@ -202,12 +202,12 @@ impl<'a> Lexer<'a> {
 
                     // If we're followed by a \n we'll just consume it so we
                     // don't advance the line twice.
-                    let advance = if let Some(curr) = self.input
-                        .get(self.position) {
-                        curr == &'\n'
-                    } else {
-                        false
-                    };
+                    let advance =
+                        if let Some(curr) = self.input.get(self.position) {
+                            curr == &'\n'
+                        } else {
+                            false
+                        };
 
                     if advance {
                         self.advance_one();
@@ -241,39 +241,36 @@ impl<'a> Lexer<'a> {
     }
 
     fn identifier_or_keyword(&mut self) -> Option<Token> {
-        self.advance_until_special()
-            .and_then(|(start, stop)| {
-                let mut token = self.token(TokenType::Identifier, start, stop);
+        self.advance_until_special().and_then(|(start, stop)| {
+            let mut token = self.token(TokenType::Identifier, start, stop);
 
-                if let Some(token_type) = self.identifiers
-                    .get(&token.value.as_ref())
-                    .cloned() {
-                    token.token_type = token_type;
-                }
+            if let Some(token_type) = self.identifiers
+                   .get(&token.value.as_ref())
+                   .cloned() {
+                token.token_type = token_type;
+            }
 
-                Some(token)
-            })
+            Some(token)
+        })
     }
 
     fn constant(&mut self) -> Option<Token> {
-        self.advance_until_special()
-            .and_then(|(start, stop)| {
-                Some(self.token(TokenType::Constant, start, stop))
-            })
+        self.advance_until_special().and_then(|(start, stop)| {
+            Some(self.token(TokenType::Constant, start, stop))
+        })
     }
 
     fn attribute(&mut self) -> Option<Token> {
         // Skip the "@" sign.
         self.position += 1;
 
-        self.advance_until_special()
-            .and_then(|(start, stop)| {
-                let token = self.token(TokenType::Attribute, start, stop);
+        self.advance_until_special().and_then(|(start, stop)| {
+            let token = self.token(TokenType::Attribute, start, stop);
 
-                self.advance_column(1);
+            self.advance_column(1);
 
-                Some(token)
-            })
+            Some(token)
+        })
     }
 
     fn comment(&mut self) -> Option<Token> {
@@ -1022,37 +1019,49 @@ mod tests {
         test!(test_number_with_upper_exponent, number, Float, "10E+2");
 
         test!(test_ident, identifier_or_keyword, Identifier, "foo");
-        test!(test_ident_with_question_mark,
-              identifier_or_keyword,
-              Identifier,
-              "foo?");
+        test!(
+            test_ident_with_question_mark,
+            identifier_or_keyword,
+            Identifier,
+            "foo?"
+        );
 
         test!(test_ident_underscore, next_raw, Identifier, "foo_bar");
 
-        test!(test_ident_starting_with_underscore,
-              next_raw,
-              Identifier,
-              "_foo");
+        test!(
+            test_ident_starting_with_underscore,
+            next_raw,
+            Identifier,
+            "_foo"
+        );
 
-        test!(test_ident_underscore_number,
-              identifier_or_keyword,
-              Identifier,
-              "foo_bar2");
+        test!(
+            test_ident_underscore_number,
+            identifier_or_keyword,
+            Identifier,
+            "foo_bar2"
+        );
 
-        test!(test_identifier_with_multiple_underscores,
-              next_raw,
-              Identifier,
-              "__foo");
+        test!(
+            test_identifier_with_multiple_underscores,
+            next_raw,
+            Identifier,
+            "__foo"
+        );
 
-        test!(test_constant_starting_with_underscore,
-              next_raw,
-              Constant,
-              "_FOO");
+        test!(
+            test_constant_starting_with_underscore,
+            next_raw,
+            Constant,
+            "_FOO"
+        );
 
-        test!(test_constant_with_multiple_underscores,
-              next_raw,
-              Constant,
-              "__FOO");
+        test!(
+            test_constant_with_multiple_underscores,
+            next_raw,
+            Constant,
+            "__FOO"
+        );
 
         test!(test_let, identifier_or_keyword, Let, "let");
         test!(test_var, identifier_or_keyword, Var, "var");
@@ -1093,36 +1102,46 @@ mod tests {
         test!(test_bitwise_xor, bitwise_xor, BitwiseXor, "^");
         test!(test_bitwise_xor_assign, bitwise_xor, BitwiseXorAssign, "^=");
 
-        test!(test_bitwise_and,
-              bitwise_and_or_boolean_and,
-              BitwiseAnd,
-              "&");
+        test!(
+            test_bitwise_and,
+            bitwise_and_or_boolean_and,
+            BitwiseAnd,
+            "&"
+        );
 
-        test!(test_bitwise_and_assign,
-              bitwise_and_or_boolean_and,
-              BitwiseAndAssign,
-              "&=");
+        test!(
+            test_bitwise_and_assign,
+            bitwise_and_or_boolean_and,
+            BitwiseAndAssign,
+            "&="
+        );
 
         test!(test_boolean_and, bitwise_and_or_boolean_and, And, "&&");
 
-        test!(test_boolean_and_assign,
-              bitwise_and_or_boolean_and,
-              AndAssign,
-              "&&=");
+        test!(
+            test_boolean_and_assign,
+            bitwise_and_or_boolean_and,
+            AndAssign,
+            "&&="
+        );
 
         test!(test_bitwise_or, bitwise_or_or_boolean_or, BitwiseOr, "|");
 
-        test!(test_bitwise_or_assign,
-              bitwise_or_or_boolean_or,
-              BitwiseOrAssign,
-              "|=");
+        test!(
+            test_bitwise_or_assign,
+            bitwise_or_or_boolean_or,
+            BitwiseOrAssign,
+            "|="
+        );
 
         test!(test_boolean_or, bitwise_or_or_boolean_or, Or, "||");
 
-        test!(test_boolean_or_assign,
-              bitwise_or_or_boolean_or,
-              OrAssign,
-              "||=");
+        test!(
+            test_boolean_or_assign,
+            bitwise_or_or_boolean_or,
+            OrAssign,
+            "||="
+        );
 
         test!(test_mul, mul_or_pow, Mul, "*");
         test!(test_mul_assign, mul_or_pow, MulAssign, "*=");
@@ -1142,10 +1161,12 @@ mod tests {
         test!(test_assign_or_equal_equal, assign_or_equal, Equal, "==");
 
         test!(test_not_equal, not_equal_or_type_args_open, NotEqual, "!=");
-        test!(test_type_args_open,
-              not_equal_or_type_args_open,
-              TypeArgsOpen,
-              "!(");
+        test!(
+            test_type_args_open,
+            not_equal_or_type_args_open,
+            TypeArgsOpen,
+            "!("
+        );
 
         test!(test_lower, lower_or_shift_left, Lower, "<");
         test!(test_lower_or_equal, lower_or_shift_left, LowerEqual, "<=");
@@ -1153,10 +1174,12 @@ mod tests {
 
         test!(test_greater, greater_or_shift_right, Greater, ">");
 
-        test!(test_greater_or_equal,
-              greater_or_shift_right,
-              GreaterEqual,
-              ">=");
+        test!(
+            test_greater_or_equal,
+            greater_or_shift_right,
+            GreaterEqual,
+            ">="
+        );
 
         test!(test_shift_right, greater_or_shift_right, ShiftRight, ">>");
 

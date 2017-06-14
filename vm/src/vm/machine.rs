@@ -158,14 +158,17 @@ impl Machine {
         let process = {
             let mut registry = write_lock!(self.module_registry);
 
-            let module = registry.parse_path(file)
+            let module = registry
+                .parse_path(file)
                 .map_err(|err| err.message())
                 .unwrap();
 
             let code = module.code();
-            let block = Block::new(code,
-                                   Binding::new(code.locals()),
-                                   module.global_scope_ref());
+            let block = Block::new(
+                code,
+                Binding::new(code.locals()),
+                module.global_scope_ref(),
+            );
 
             self.allocate_process(PRIMARY_POOL, &block).unwrap()
         };
@@ -180,13 +183,16 @@ impl Machine {
                             -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
-        let pid = process_table.reserve()
-            .ok_or_else(|| "No PID could be reserved".to_string())?;
+        let pid = process_table.reserve().ok_or_else(|| {
+            "No PID could be reserved".to_string()
+        })?;
 
-        let process = Process::from_block(pid,
-                                          pool_id,
-                                          block,
-                                          self.state.global_allocator.clone());
+        let process = Process::from_block(
+            pid,
+            pool_id,
+            block,
+            self.state.global_allocator.clone(),
+        );
 
         process_table.map(pid, process.clone());
 
@@ -279,64 +285,87 @@ impl Machine {
                     let register = instruction.arg(0);
                     let val_count = instruction.arguments.len() - 1;
 
-                    let values =
-                        self.collect_arguments(&process,
-                                               instruction,
-                                               1,
-                                               val_count);
+                    let values = self.collect_arguments(
+                        &process,
+                        instruction,
+                        1,
+                        val_count,
+                    );
 
-                    let obj = process.allocate(object_value::array(values),
-                                               self.state.array_prototype);
+                    let obj = process.allocate(
+                        object_value::array(values),
+                        self.state.array_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
                 InstructionType::GetIntegerPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.integer_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.integer_prototype,
+                    );
                 }
                 InstructionType::GetFloatPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.float_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.float_prototype,
+                    );
                 }
                 InstructionType::GetStringPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.string_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.string_prototype,
+                    );
                 }
                 InstructionType::GetArrayPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.array_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.array_prototype,
+                    );
                 }
                 InstructionType::GetTruePrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.true_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.true_prototype,
+                    );
                 }
                 InstructionType::GetFalsePrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.false_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.false_prototype,
+                    );
                 }
                 InstructionType::GetMethodPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.method_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.method_prototype,
+                    );
                 }
                 InstructionType::GetBlockPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.block_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.block_prototype,
+                    );
                 }
                 // Sets a "true" value in a register.
                 //
                 // This instruction requires only one argument: the register to
                 // store the object in.
                 InstructionType::GetTrue => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.true_object);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.true_object,
+                    );
                 }
                 // Sets a "false" value in a register.
                 //
                 // This instruction requires only one argument: the register to
                 // store the object in.
                 InstructionType::GetFalse => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.false_object);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.false_object,
+                    );
                 }
                 // Sets a local variable to a given register's value.
                 //
@@ -377,12 +406,16 @@ impl Machine {
 
                     let cc = code.code_object(cc_index);
                     let binding = context.binding.clone();
-                    let block = Block::new(cc.clone(),
-                                           binding,
-                                           process.global_scope().clone());
+                    let block = Block::new(
+                        cc.clone(),
+                        binding,
+                        process.global_scope().clone(),
+                    );
 
-                    let obj = process.allocate(object_value::block(block),
-                                               self.state.block_prototype);
+                    let obj = process.allocate(
+                        object_value::block(block),
+                        self.state.block_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -487,9 +520,11 @@ impl Machine {
 
                     let global_scope = block.global_scope.clone();
 
-                    let new_block = Block::new(block.code.clone(),
-                                               Binding::new(block.locals()),
-                                               global_scope);
+                    let new_block = Block::new(
+                        block.code.clone(),
+                        Binding::new(block.locals()),
+                        global_scope,
+                    );
 
                     let value = object_value::block(new_block);
                     let proto = self.state.method_prototype;
@@ -568,8 +603,10 @@ impl Machine {
                     let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap() as f64;
 
-                    let obj = process.allocate(object_value::float(result),
-                                               self.state.float_prototype);
+                    let obj = process.allocate(
+                        object_value::float(result),
+                        self.state.float_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -584,8 +621,10 @@ impl Machine {
                     let integer_ptr = context.get_register(instruction.arg(1));
                     let result = integer_ptr.integer_value().unwrap().to_string();
 
-                    let obj = process.allocate(object_value::string(result),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(result),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -739,8 +778,10 @@ impl Machine {
                     let float_ptr = context.get_register(instruction.arg(1));
                     let result = float_ptr.float_value().unwrap() as i64;
 
-                    context.set_register(register,
-                                         ObjectPointer::integer(result));
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(result),
+                    );
                 }
                 // Converts a float to a string
                 //
@@ -753,8 +794,10 @@ impl Machine {
                     let float_ptr = context.get_register(instruction.arg(1));
                     let result = float_ptr.float_value().unwrap().to_string();
 
-                    let obj = process.allocate(object_value::string(result),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(result),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -818,12 +861,16 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(3));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
-                    let index = int_to_vector_index!(vector,
-                                             index_ptr.integer_value().unwrap());
+                    let index = int_to_vector_index!(
+                        vector,
+                        index_ptr.integer_value().unwrap()
+                    );
 
-                    let value = copy_if_permanent!(self.state.permanent_allocator,
-                                           value_ptr,
-                                           array_ptr);
+                    let value = copy_if_permanent!(
+                        self.state.permanent_allocator,
+                        value_ptr,
+                        array_ptr
+                    );
 
                     if index >= vector.len() {
                         vector.resize(index + 1, self.state.nil_object);
@@ -850,12 +897,14 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let vector = array_ptr.array_value().unwrap();
 
-                    let index = int_to_vector_index!(vector,
-                                             index_ptr.integer_value().unwrap());
+                    let index = int_to_vector_index!(
+                        vector,
+                        index_ptr.integer_value().unwrap()
+                    );
 
-                    let value = vector.get(index)
-                        .cloned()
-                        .unwrap_or_else(|| self.state.nil_object);
+                    let value = vector.get(index).cloned().unwrap_or_else(|| {
+                        self.state.nil_object
+                    });
 
                     context.set_register(register, value);
                 }
@@ -877,8 +926,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
-                    let index = int_to_vector_index!(vector,
-                                             index_ptr.integer_value().unwrap());
+                    let index = int_to_vector_index!(
+                        vector,
+                        index_ptr.integer_value().unwrap()
+                    );
 
                     let value = if index > vector.len() {
                         self.state.nil_object
@@ -900,8 +951,10 @@ impl Machine {
                     let vector = array_ptr.array_value().unwrap();
                     let length = vector.len() as i64;
 
-                    context.set_register(register,
-                                         ObjectPointer::integer(length));
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(length),
+                    );
                 }
                 // Removes all elements from an array.
                 //
@@ -924,8 +977,10 @@ impl Machine {
                     let source_ptr = context.get_register(instruction.arg(1));
                     let lower = source_ptr.string_value().unwrap().to_lowercase();
 
-                    let obj = process.allocate(object_value::string(lower),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(lower),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -940,8 +995,10 @@ impl Machine {
                     let source_ptr = context.get_register(instruction.arg(1));
                     let upper = source_ptr.string_value().unwrap().to_uppercase();
 
-                    let obj = process.allocate(object_value::string(upper),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(upper),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -977,15 +1034,18 @@ impl Machine {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
 
-                    let array = string_ptr.string_value()
+                    let array = string_ptr
+                        .string_value()
                         .unwrap()
                         .as_bytes()
                         .iter()
                         .map(|&b| ObjectPointer::integer(b as i64))
                         .collect::<Vec<_>>();
 
-                    let obj = process.allocate(object_value::array(array),
-                                               self.state.array_prototype);
+                    let obj = process.allocate(
+                        object_value::array(array),
+                        self.state.array_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1010,13 +1070,20 @@ impl Machine {
                     }
 
                     if let Ok(string) = String::from_utf8(bytes) {
-                        let obj = process.allocate(object_value::string(string),
-                                                   self.state.string_prototype);
+                        let obj = process.allocate(
+                            object_value::string(string),
+                            self.state.string_prototype,
+                        );
 
                         context.set_register(register, obj);
                     } else {
-                        throw_invalid_utf8_error!(self, process, context, code,
-                                                  index);
+                        throw_invalid_utf8_error!(
+                            self,
+                            process,
+                            context,
+                            code,
+                            index
+                        );
                     }
                 }
                 // Returns the amount of characters in a string.
@@ -1032,8 +1099,10 @@ impl Machine {
                     let length =
                         arg_ptr.string_value().unwrap().chars().count() as i64;
 
-                    context.set_register(register,
-                                         ObjectPointer::integer(length));
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(length),
+                    );
                 }
                 // Returns the amount of bytes in a string.
                 //
@@ -1063,8 +1132,10 @@ impl Machine {
                     let string = string_ptr.string_value().unwrap();
                     let mut stdout = io::stdout();
 
-                    let result = stdout.write(string.as_bytes())
-                        .and_then(|size| stdout.flush().and_then(|_| Ok(size)));
+                    let result =
+                        stdout.write(string.as_bytes()).and_then(|size| {
+                            stdout.flush().and_then(|_| Ok(size))
+                        });
 
                     match result {
                         Ok(size) => {
@@ -1073,8 +1144,14 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(error) => {
-                            throw_io_error!(self, process, error, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1093,8 +1170,10 @@ impl Machine {
                     let string = string_ptr.string_value().unwrap();
                     let mut stderr = io::stderr();
 
-                    let result = stderr.write(string.as_bytes())
-                        .and_then(|size| stderr.flush().and_then(|_| Ok(size)));
+                    let result =
+                        stderr.write(string.as_bytes()).and_then(|size| {
+                            stderr.flush().and_then(|_| Ok(size))
+                        });
 
                     match result {
                         Ok(size) => {
@@ -1103,8 +1182,14 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(error) => {
-                            throw_io_error!(self, process, error, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1123,8 +1208,10 @@ impl Machine {
                         continue;
                     }
 
-                    let obj = process.allocate(object_value::string(buffer),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1143,8 +1230,10 @@ impl Machine {
                         continue;
                     }
 
-                    let obj = process.allocate(object_value::string(buffer),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1179,14 +1268,21 @@ impl Machine {
 
                     match open_opts.open(path) {
                         Ok(file) => {
-                            let obj = process
-                                .allocate_without_prototype(object_value::file(file));
+                            let obj = process.allocate_without_prototype(
+                                object_value::file(file),
+                            );
 
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                err,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1214,8 +1310,14 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                err,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1238,8 +1340,10 @@ impl Machine {
                         continue;
                     }
 
-                    let obj = process.allocate(object_value::string(buffer),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1265,8 +1369,14 @@ impl Machine {
                                 break;
                             }
                         } else {
-                            throw_io_error!(self, process, result.unwrap_err(),
-                                            context, code, index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                result.unwrap_err(),
+                                context,
+                                code,
+                                index
+                            );
 
                             continue 'exec_loop;
                         }
@@ -1277,13 +1387,20 @@ impl Machine {
                     buffer.shrink_to_fit();
 
                     if let Ok(string) = String::from_utf8(buffer) {
-                        let obj = process.allocate(object_value::string(string),
-                                                   self.state.string_prototype);
+                        let obj = process.allocate(
+                            object_value::string(string),
+                            self.state.string_prototype,
+                        );
 
                         context.set_register(register, obj);
                     } else {
-                        throw_invalid_utf8_error!(self, process, context, code,
-                                                  index);
+                        throw_invalid_utf8_error!(
+                            self,
+                            process,
+                            context,
+                            code,
+                            index
+                        );
                     }
                 }
                 // Flushes a file.
@@ -1321,8 +1438,14 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                err,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1350,8 +1473,14 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, code,
-                                            index);
+                            throw_io_error!(
+                                self,
+                                process,
+                                err,
+                                context,
+                                code,
+                                index
+                            );
                         }
                     }
                 }
@@ -1371,17 +1500,22 @@ impl Machine {
                     let block = {
                         let mut registry = write_lock!(self.module_registry);
 
-                        let module = registry.get_or_set(path_str)
+                        let module = registry
+                            .get_or_set(path_str)
                             .map_err(|err| err.message())
                             .unwrap();
 
-                        Block::new(module.code(),
-                                   Binding::new(module.code.locals()),
-                                   module.global_scope_ref())
+                        Block::new(
+                            module.code(),
+                            Binding::new(module.code.locals()),
+                            module.global_scope_ref(),
+                        )
                     };
 
-                    let block_ptr = process.allocate(object_value::block(block),
-                                                     self.state.block_prototype);
+                    let block_ptr = process.allocate(
+                        object_value::block(block),
+                        self.state.block_prototype,
+                    );
 
                     context.set_register(register, block_ptr);
                 }
@@ -1400,7 +1534,7 @@ impl Machine {
                     let path_str = path_ptr.string_value().unwrap();
 
                     let ptr = if read_lock!(self.module_registry)
-                        .contains_path(path_str) {
+                           .contains_path(path_str) {
                         self.state.true_object
                     } else {
                         self.state.false_object
@@ -1409,8 +1543,10 @@ impl Machine {
                     context.set_register(register, ptr);
                 }
                 InstructionType::GetBindingPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.binding_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.binding_prototype,
+                    );
                 }
                 // Gets the Binding of the current scope and sets it in a
                 // register
@@ -1421,8 +1557,10 @@ impl Machine {
                     let register = instruction.arg(0);
                     let binding = context.binding.clone();
 
-                    let obj = process.allocate(object_value::binding(binding),
-                                               self.state.binding_prototype);
+                    let obj = process.allocate(
+                        object_value::binding(binding),
+                        self.state.binding_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1447,9 +1585,11 @@ impl Machine {
 
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let value = copy_if_permanent!(self.state.permanent_allocator,
-                                   value_ptr,
-                                   target_ptr);
+                    let value = copy_if_permanent!(
+                        self.state.permanent_allocator,
+                        value_ptr,
+                        target_ptr
+                    );
 
                     target_ptr.add_attribute(&process, name.clone(), value);
                 }
@@ -1472,8 +1612,10 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let attr = source.lookup_attribute(&name)
-                        .unwrap_or_else(|| self.state.nil_object);
+                    let attr =
+                        source.lookup_attribute(&name).unwrap_or_else(
+                            || self.state.nil_object,
+                        );
 
                     context.set_register(register, attr);
                 }
@@ -1506,8 +1648,10 @@ impl Machine {
                     let register = instruction.arg(0);
                     let source = context.get_register(instruction.arg(1));
 
-                    let proto = source.prototype(&self.state)
-                        .unwrap_or_else(|| self.state.nil_object);
+                    let proto =
+                        source.prototype(&self.state).unwrap_or_else(
+                            || self.state.nil_object,
+                        );
 
                     context.set_register(register, proto);
                 }
@@ -1544,9 +1688,9 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let result = if 
-                        source.lookup_attribute_chain(&self.state, &name)
-                            .is_some() {
+                    let result = if source
+                           .lookup_attribute_chain(&self.state, &name)
+                           .is_some() {
                         self.state.true_object.clone()
                     } else {
                         self.state.false_object.clone()
@@ -1566,14 +1710,14 @@ impl Machine {
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
 
-                    let pool_id = if let Some(pool_reg) =
-                        instruction.arg_opt(2) {
-                        let ptr = context.get_register(pool_reg);
+                    let pool_id =
+                        if let Some(pool_reg) = instruction.arg_opt(2) {
+                            let ptr = context.get_register(pool_reg);
 
-                        ptr.integer_value().unwrap() as usize
-                    } else {
-                        PRIMARY_POOL
-                    };
+                            ptr.integer_value().unwrap() as usize
+                        } else {
+                            PRIMARY_POOL
+                        };
 
                     let block_obj = block_ptr.block_value().unwrap();
                     let new_proc = self.allocate_process(pool_id, block_obj)
@@ -1582,8 +1726,10 @@ impl Machine {
 
                     self.state.process_pools.schedule(new_proc);
 
-                    context.set_register(register,
-                                         ObjectPointer::integer(new_pid as i64));
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(new_pid as i64),
+                    );
                 }
                 // Sends a message to a process.
                 //
@@ -1601,7 +1747,7 @@ impl Machine {
                     let pid = pid_ptr.integer_value().unwrap() as usize;
 
                     if let Some(receiver) = read_lock!(self.state.process_table)
-                        .get(&pid) {
+                           .get(&pid) {
                         receiver.send_message(&process, msg_ptr);
                     }
 
@@ -1692,14 +1838,17 @@ impl Machine {
                     let size = size_ptr.integer_value().unwrap() as usize;
                     let mut buffer = String::with_capacity(size);
 
-                    if let Err(err) = file.take(size as u64)
-                        .read_to_string(&mut buffer) {
+                    if let Err(err) = file.take(size as u64).read_to_string(
+                        &mut buffer,
+                    ) {
                         throw_io_error!(self, process, err, context, code, index);
                         continue;
                     }
 
-                    let obj = process.allocate(object_value::string(buffer),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1720,14 +1869,17 @@ impl Machine {
                     let mut buffer = String::with_capacity(size);
                     let stdin = io::stdin();
 
-                    if let Err(err) = stdin.take(size as u64)
-                        .read_to_string(&mut buffer) {
+                    if let Err(err) = stdin.take(size as u64).read_to_string(
+                        &mut buffer,
+                    ) {
                         throw_io_error!(self, process, err, context, code, index);
                         continue;
                     }
 
-                    let obj = process.allocate(object_value::string(buffer),
-                                               self.state.string_prototype);
+                    let obj = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1763,20 +1915,26 @@ impl Machine {
                 // This instruction requires one argument: the register to
                 // store the object in.
                 InstructionType::GetToplevel => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.top_level);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.top_level,
+                    );
                 }
                 InstructionType::GetNilPrototype => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.nil_prototype);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.nil_prototype,
+                    );
                 }
                 // Sets the nil singleton in a register.
                 //
                 // This instruction requires only one argument: the register
                 // to store the object in.
                 InstructionType::GetNil => {
-                    context.set_register(instruction.arg(0),
-                                         self.state.nil_object);
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.nil_object,
+                    );
                 }
                 // Looks up an attribute in an object, using the prototype chain
                 // as a fallback.
@@ -1795,9 +1953,9 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method =
-                        rec_ptr.lookup_attribute_chain(&self.state, &name)
-                            .unwrap_or_else(|| self.state.nil_object);
+                    let method = rec_ptr
+                        .lookup_attribute_chain(&self.state, &name)
+                        .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, method);
                 }
@@ -1844,8 +2002,8 @@ impl Machine {
                         panic!("attributes can not be removed for integers");
                     }
 
-                    let obj = if let Some(attribute) = rec_ptr.get_mut()
-                        .remove_attribute(&name) {
+                    let obj = if let Some(attribute) =
+                        rec_ptr.get_mut().remove_attribute(&name) {
                         attribute
                     } else {
                         self.state.nil_object
@@ -1865,8 +2023,10 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attributes();
 
-                    let obj = process.allocate(object_value::array(attributes),
-                                               self.state.array_prototype);
+                    let obj = process.allocate(
+                        object_value::array(attributes),
+                        self.state.array_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1882,8 +2042,10 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let attributes = rec_ptr.attribute_names();
 
-                    let obj = process.allocate(object_value::array(attributes),
-                                               self.state.array_prototype);
+                    let obj = process.allocate(
+                        object_value::array(attributes),
+                        self.state.array_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1898,8 +2060,10 @@ impl Machine {
                     let nsec = (duration.as_secs() * 1000000000) +
                                duration.subsec_nanos() as u64;
 
-                    context.set_register(register,
-                                         ObjectPointer::integer(nsec as i64));
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(nsec as i64),
+                    );
                 }
                 // Gets the current value of a monotonic clock in
                 // milliseconds.
@@ -1913,8 +2077,10 @@ impl Machine {
                     let msec = (duration.as_secs() * 1_000) as f64 +
                                duration.subsec_nanos() as f64 / 1_000_000.0;
 
-                    let obj = process.allocate(object_value::float(msec),
-                                               self.state.float_prototype);
+                    let obj = process.allocate(
+                        object_value::float(msec),
+                        self.state.float_prototype,
+                    );
 
                     context.set_register(register, obj);
                 }
@@ -1934,11 +2100,13 @@ impl Machine {
                     let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value().unwrap();
 
-                    self.schedule_block(&block,
-                                        register,
-                                        2,
-                                        process,
-                                        instruction);
+                    self.schedule_block(
+                        &block,
+                        register,
+                        2,
+                        process,
+                        instruction,
+                    );
 
                     enter_context!(process, context, code, index);
                 }
@@ -1989,17 +2157,19 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method =
-                        rec_ptr.lookup_attribute_chain(&self.state, &name)
-                            .unwrap();
+                    let method = rec_ptr
+                        .lookup_attribute_chain(&self.state, &name)
+                        .unwrap();
 
                     let block = method.block_value().unwrap();
 
-                    self.schedule_block(&block,
-                                        register,
-                                        3,
-                                        process,
-                                        instruction);
+                    self.schedule_block(
+                        &block,
+                        register,
+                        3,
+                        process,
+                        instruction,
+                    );
 
                     enter_context!(process, context, code, index);
                 }
@@ -2017,10 +2187,11 @@ impl Machine {
 
                     let mut vector = array_ptr.array_value_mut().unwrap();
 
-                    let value = copy_if_permanent!(self.state
-                                                           .permanent_allocator,
-                                                       value_ptr,
-                                                       array_ptr);
+                    let value = copy_if_permanent!(
+                        self.state.permanent_allocator,
+                        value_ptr,
+                        array_ptr
+                    );
 
                     vector.push(value);
 
@@ -2041,8 +2212,15 @@ impl Machine {
                     let reason = ThrowReason::from_u8(instruction.arg(0) as u8);
                     let value = context.get_register(instruction.arg(1));
 
-                    throw_value!(self, process, reason, value, context,
-                                 code, index);
+                    throw_value!(
+                        self,
+                        process,
+                        reason,
+                        value,
+                        context,
+                        code,
+                        index
+                    );
                 }
                 // Sets a register to the value of another register.
                 //
@@ -2092,13 +2270,15 @@ impl Machine {
     /// Returns true if a process should be suspended for garbage collection.
     fn gc_safepoint(&self, process: &RcProcess) -> bool {
         if process.should_collect_young_generation() {
-            self.schedule_gc_request(GcRequest::heap(self.state.clone(),
-                                                     process.clone()));
+            self.schedule_gc_request(
+                GcRequest::heap(self.state.clone(), process.clone()),
+            );
 
             true
         } else if process.should_collect_mailbox() {
-            self.schedule_gc_request(GcRequest::mailbox(self.state.clone(),
-                                                        process.clone()));
+            self.schedule_gc_request(
+                GcRequest::mailbox(self.state.clone(), process.clone()),
+            );
 
             true
         } else {
@@ -2127,17 +2307,21 @@ impl Machine {
         let req_args = block.required_arguments();
 
         if arg_count > tot_args {
-            panic!("{} accepts up to {} arguments, but {} arguments were given",
-                   block.name(),
-                   tot_args,
-                   arg_count);
+            panic!(
+                "{} accepts up to {} arguments, but {} arguments were given",
+                block.name(),
+                tot_args,
+                arg_count
+            );
         }
 
         if arg_count < req_args {
-            panic!("{} requires {} arguments, but {} arguments were given",
-                   block.name(),
-                   req_args,
-                   arg_count);
+            panic!(
+                "{} requires {} arguments, but {} arguments were given",
+                block.name(),
+                req_args,
+                arg_count
+            );
         }
 
         let context = ExecutionContext::from_block(block, Some(return_register));
@@ -2177,9 +2361,11 @@ impl Machine {
             }
 
             if process.pop_context() {
-                panic!("A thrown value reached the top-level \
+                panic!(
+                    "A thrown value reached the top-level \
                                         in process {}",
-                                       process.pid);
+                    process.pid
+                );
             }
         }
     }

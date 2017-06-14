@@ -18,10 +18,7 @@ pub struct Registers {
 
 impl RegisterValue {
     pub fn new(index: usize, value_type: Type) -> Self {
-        RegisterValue {
-            index: index,
-            value_type: value_type,
-        }
+        RegisterValue { index: index, value_type: value_type }
     }
 }
 

@@ -140,7 +140,10 @@ impl ExecutionContext {
 
     /// Returns pointers to all pointers stored in this context.
     pub fn pointers(&self) -> Vec<ObjectPointerPointer> {
-        self.binding.pointers().chain(self.register.pointers()).collect()
+        self.binding
+            .pointers()
+            .chain(self.register.pointers())
+            .collect()
     }
 }
 

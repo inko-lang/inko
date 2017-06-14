@@ -39,20 +39,26 @@ fn main() {
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
 
-    options.optmulti("S",
-                     "source",
-                     "Directories to search for source files",
-                     "DIR");
+    options.optmulti(
+        "S",
+        "source",
+        "Directories to search for source files",
+        "DIR",
+    );
 
-    options.optmulti("B",
-                     "bytecode",
-                     "Directories to search for pre-compiled bytecode files",
-                     "DIR");
+    options.optmulti(
+        "B",
+        "bytecode",
+        "Directories to search for pre-compiled bytecode files",
+        "DIR",
+    );
 
-    options.optmulti("T",
-                     "target",
-                     "The directory to store compiled bytecode files in",
-                     "DIR");
+    options.optmulti(
+        "T",
+        "target",
+        "The directory to store compiled bytecode files in",
+        "DIR",
+    );
 
     options.optflag("", "release", "Compiles a release build");
 

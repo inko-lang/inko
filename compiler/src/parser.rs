@@ -619,13 +619,15 @@ impl<'a> Parser<'a> {
     }
 
     fn compare(&mut self, start: Token) -> ParseResult {
-        binary_op!(self,
-                   start,
-                   bitwise_or,
-                   Lower,
-                   LowerEqual,
-                   Greater,
-                   GreaterEqual)
+        binary_op!(
+            self,
+            start,
+            bitwise_or,
+            Lower,
+            LowerEqual,
+            Greater,
+            GreaterEqual
+        )
     }
 
     fn bitwise_or(&mut self, start: Token) -> ParseResult {
@@ -804,8 +806,10 @@ impl<'a> Parser<'a> {
                 self.lexer.next();
             } else if let Some(token) = self.lexer.peek() {
                 if token.token_type != TokenType::ParenClose {
-                    parse_error!("Expected a comma, not a {:?}",
-                                 token.token_type);
+                    parse_error!(
+                        "Expected a comma, not a {:?}",
+                        token.token_type
+                    );
                 }
             }
         }
@@ -885,8 +889,10 @@ impl<'a> Parser<'a> {
             TokenType::Throw => self.throw(start),
             TokenType::Try => self.try(start),
             _ => {
-                parse_error!("An expression can not start with {:?}",
-                             start.token_type)
+                parse_error!(
+                    "An expression can not start with {:?}",
+                    start.token_type
+                )
             }
         }
     }
@@ -1023,11 +1029,7 @@ impl<'a> Parser<'a> {
                 types.push(self.type_name(start)?);
             }
 
-            Ok(Node::UnionType {
-                types: types,
-                line: line,
-                column: col,
-            })
+            Ok(Node::UnionType { types: types, line: line, column: col })
         } else {
             Ok(node)
         }
@@ -1202,8 +1204,10 @@ impl<'a> Parser<'a> {
                 })
             }
             _ => {
-                parse_error!("Unexpected token {:?}, expected a number",
-                             following.token_type)
+                parse_error!(
+                    "Unexpected token {:?}, expected a number",
+                    following.token_type
+                )
             }
         }
     }
@@ -1293,8 +1297,10 @@ impl<'a> Parser<'a> {
                 _ => false,
             }
         } else {
-            parse_error!("Expected \"fn\" to be followed by an identifier or \
-                          an arguments list");
+            parse_error!(
+                "Expected \"fn\" to be followed by an identifier or \
+                          an arguments list"
+            );
         };
 
         if is_closure {
@@ -1322,7 +1328,10 @@ impl<'a> Parser<'a> {
 
                 let right = next_or_error!(self);
 
-                (Some(Box::new(receiver)), self.message_name_for_token(right)?)
+                (
+                    Some(Box::new(receiver)),
+                    self.message_name_for_token(right)?,
+                )
             } else {
                 (None, self.message_name_for_token(left)?)
             }
@@ -1394,8 +1403,10 @@ impl<'a> Parser<'a> {
             TokenType::Attribute => self.attribute_from_token(start),
             TokenType::Constant => self.constant_from_token(start, None),
             _ => {
-                panic!("Unexpected {:?}, expected an identifier or attribute",
-                       start.token_type)
+                panic!(
+                    "Unexpected {:?}, expected an identifier or attribute",
+                    start.token_type
+                )
             }
         };
 
@@ -1580,9 +1591,11 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 _ => {
-                    parse_error!("Unexpected {:?}, expected an identifier or \
+                    parse_error!(
+                        "Unexpected {:?}, expected an identifier or \
                                   constant",
-                                 step.token_type);
+                        step.token_type
+                    );
                 }
             }
 
@@ -1696,18 +1709,16 @@ impl<'a> Parser<'a> {
     }
 
     fn self_object(&mut self, start: Token) -> ParseResult {
-        Ok(Node::SelfObject {
-            line: start.line,
-            column: start.column,
-        })
+        Ok(Node::SelfObject { line: start.line, column: start.column })
     }
 
     /// Parses the "try" keyword.
     fn try(&mut self, start: Token) -> ParseResult {
         let body = self.block_with_optional_curly_braces()?;
 
-        let (else_arg, else_body) = if self.lexer
-            .next_type_is(&TokenType::Else) {
+        let (else_arg, else_body) = if self.lexer.next_type_is(
+            &TokenType::Else,
+        ) {
             next_or_error!(self);
 
             let else_arg = self.optional_else_arg()?;
@@ -1824,8 +1835,10 @@ impl<'a> Parser<'a> {
 
             Ok(name)
         } else {
-            parse_error!("Tokens of type {:?} are not valid for method names",
-                         start.token_type)
+            parse_error!(
+                "Tokens of type {:?} are not valid for method names",
+                start.token_type
+            )
         }
     }
 

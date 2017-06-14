@@ -34,8 +34,8 @@ pub trait CopyObject: Sized {
                 object_value::interned_string(*string.clone())
             }
             ObjectValue::Array(ref raw_vec) => {
-                let new_map = raw_vec.iter()
-                    .map(|val_ptr| self.copy_object(*val_ptr));
+                let new_map =
+                    raw_vec.iter().map(|val_ptr| self.copy_object(*val_ptr));
 
                 object_value::array(new_map.collect::<Vec<_>>())
             }
@@ -153,8 +153,9 @@ mod tests {
     #[test]
     fn test_copy_integer() {
         let mut dummy = DummyAllocator::new();
-        let pointer = dummy.allocator
-            .allocate_without_prototype(object_value::float(5.0));
+        let pointer = dummy.allocator.allocate_without_prototype(
+            object_value::float(5.0),
+        );
 
         let copy = dummy.copy_object(pointer);
 
@@ -165,8 +166,9 @@ mod tests {
     #[test]
     fn test_copy_float() {
         let mut dummy = DummyAllocator::new();
-        let pointer = dummy.allocator
-            .allocate_without_prototype(object_value::float(2.5));
+        let pointer = dummy.allocator.allocate_without_prototype(
+            object_value::float(2.5),
+        );
 
         let copy = dummy.copy_object(pointer);
 
@@ -177,8 +179,9 @@ mod tests {
     #[test]
     fn test_copy_string() {
         let mut dummy = DummyAllocator::new();
-        let pointer = dummy.allocator
-            .allocate_without_prototype(object_value::string("a".to_string()));
+        let pointer = dummy.allocator.allocate_without_prototype(
+            object_value::string("a".to_string()),
+        );
 
         let copy = dummy.copy_object(pointer);
 
@@ -191,8 +194,9 @@ mod tests {
         let mut dummy = DummyAllocator::new();
         let ptr1 = dummy.allocator.allocate_empty();
         let ptr2 = dummy.allocator.allocate_empty();
-        let array = dummy.allocator
-            .allocate_without_prototype(object_value::array(vec![ptr1, ptr2]));
+        let array = dummy.allocator.allocate_without_prototype(
+            object_value::array(vec![ptr1, ptr2]),
+        );
 
         let copy = dummy.copy_object(array);
 
@@ -208,12 +212,15 @@ mod tests {
 
         let scope = GlobalScope::new();
 
-        let block = Block::new(DerefPointer::new(&cc),
-                               Binding::new(0),
-                               GlobalScopePointer::new(&scope));
+        let block = Block::new(
+            DerefPointer::new(&cc),
+            Binding::new(0),
+            GlobalScopePointer::new(&scope),
+        );
 
-        let ptr = dummy.allocator
-            .allocate_without_prototype(object_value::block(block));
+        let ptr = dummy.allocator.allocate_without_prototype(
+            object_value::block(block),
+        );
 
         let copy = dummy.copy_object(ptr);
 
@@ -227,17 +234,20 @@ mod tests {
         let binding1 = Binding::new(1);
         let binding2 = Binding::with_parent(binding1.clone(), 1);
 
-        let local1 = dummy.allocator
-            .allocate_without_prototype(object_value::float(15.0));
+        let local1 = dummy.allocator.allocate_without_prototype(
+            object_value::float(15.0),
+        );
 
-        let local2 = dummy.allocator
-            .allocate_without_prototype(object_value::float(20.0));
+        let local2 = dummy.allocator.allocate_without_prototype(
+            object_value::float(20.0),
+        );
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);
 
-        let binding_ptr = dummy.allocator
-            .allocate_without_prototype(object_value::binding(binding2));
+        let binding_ptr = dummy.allocator.allocate_without_prototype(
+            object_value::binding(binding2),
+        );
 
         let binding_copy_ptr = dummy.copy_object(binding_ptr);
         let binding_copy_obj = binding_copy_ptr.get();

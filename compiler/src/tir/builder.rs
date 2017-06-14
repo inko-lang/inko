@@ -84,10 +84,8 @@ impl Builder {
               -> Module {
         let mut globals = VariableScope::new();
         let locals = self.variable_scope_with_self();
-        let code_object = self.code_object_with_locals(&path,
-                                                       &node,
-                                                       locals,
-                                                       &mut globals);
+        let code_object =
+            self.code_object_with_locals(&path, &node, locals, &mut globals);
 
         let body = Expression::DefineModule {
             name: Box::new(self.string(name.clone(), 1, 1)),
@@ -139,7 +137,8 @@ impl Builder {
                      nodes: &Vec<Node>,
                      context: &mut Context)
                      -> Vec<Expression> {
-        nodes.iter()
+        nodes
+            .iter()
             .map(|ref node| self.process_node(node, context))
             .collect()
     }
@@ -163,7 +162,7 @@ impl Builder {
             }
             &Node::SelfObject { line, column } => {
                 self.get_self(line, column, context)
-            },
+            }
             &Node::Identifier { ref name, line, column } => {
                 self.identifier(name, line, column, context)
             }
@@ -178,32 +177,40 @@ impl Builder {
                 self.process_node(constant, context)
             }
             &Node::LetDefine { ref name, ref value, line, column, .. } => {
-                self.set_variable(name,
-                                  value,
-                                  Mutability::Immutable,
-                                  line,
-                                  column,
-                                  context)
+                self.set_variable(
+                    name,
+                    value,
+                    Mutability::Immutable,
+                    line,
+                    column,
+                    context,
+                )
             }
             &Node::VarDefine { ref name, ref value, line, column, .. } => {
-                self.set_variable(name,
-                                  value,
-                                  Mutability::Mutable,
-                                  line,
-                                  column,
-                                  context)
+                self.set_variable(
+                    name,
+                    value,
+                    Mutability::Mutable,
+                    line,
+                    column,
+                    context,
+                )
             }
-            &Node::Send { ref name,
-                          ref receiver,
-                          ref arguments,
-                          line,
-                          column } => {
-                self.send_object_message(name.clone(),
-                                         receiver,
-                                         arguments,
-                                         line,
-                                         column,
-                                         context)
+            &Node::Send {
+                ref name,
+                ref receiver,
+                ref arguments,
+                line,
+                column,
+            } => {
+                self.send_object_message(
+                    name.clone(),
+                    receiver,
+                    arguments,
+                    line,
+                    column,
+                    context,
+                )
             }
             &Node::Import { ref steps, ref symbols, line, column } => {
                 self.import(steps, symbols, line, column, context)
@@ -214,39 +221,47 @@ impl Builder {
             &Node::KeywordArgument { ref name, ref value, line, column } => {
                 self.keyword_argument(name.clone(), value, line, column, context)
             }
-            &Node::Method { ref name,
-                            ref receiver,
-                            ref arguments,
-                            ref body,
-                            ref requirements,
-                            line,
-                            column,
-                            .. } => {
+            &Node::Method {
+                ref name,
+                ref receiver,
+                ref arguments,
+                ref body,
+                ref requirements,
+                line,
+                column,
+                ..
+            } => {
                 if let &Some(ref body) = body {
-                    self.method(name.clone(),
-                                receiver,
-                                arguments,
-                                requirements,
-                                body,
-                                line,
-                                column,
-                                context)
+                    self.method(
+                        name.clone(),
+                        receiver,
+                        arguments,
+                        requirements,
+                        body,
+                        line,
+                        column,
+                        context,
+                    )
                 } else {
-                    self.required_method(name.clone(),
-                                         receiver,
-                                         arguments,
-                                         requirements,
-                                         line,
-                                         column,
-                                         context)
+                    self.required_method(
+                        name.clone(),
+                        receiver,
+                        arguments,
+                        requirements,
+                        line,
+                        column,
+                        context,
+                    )
                 }
             }
-            &Node::Class { ref name,
-                           ref implements,
-                           ref body,
-                           line,
-                           column,
-                           .. } => {
+            &Node::Class {
+                ref name,
+                ref implements,
+                ref body,
+                line,
+                column,
+                ..
+            } => {
                 self.class(name.clone(), implements, body, line, column, context)
             }
             &Node::Trait { ref name, ref body, line, column, .. } => {
@@ -256,14 +271,14 @@ impl Builder {
                 self.return_value(value, line, column, context)
             }
             &Node::TypeCast { ref value, .. } => self.type_cast(value, context),
-            &Node::Try { ref body,
-                         ref else_body,
-                         ref else_argument,
-                         line,
-                         column,
-                         .. } => {
-                self.try(body, else_body, else_argument, line, column, context)
-            }
+            &Node::Try {
+                ref body,
+                ref else_body,
+                ref else_argument,
+                line,
+                column,
+                ..
+            } => self.try(body, else_body, else_argument, line, column, context),
             &Node::Throw { ref value, line, column } => {
                 self.throw(value, line, column, context)
             }
@@ -338,27 +353,15 @@ impl Builder {
     }
 
     fn integer(&self, val: i64, line: usize, col: usize) -> Expression {
-        Expression::Integer {
-            value: val,
-            line: line,
-            column: col,
-        }
+        Expression::Integer { value: val, line: line, column: col }
     }
 
     fn float(&self, val: f64, line: usize, col: usize) -> Expression {
-        Expression::Float {
-            value: val,
-            line: line,
-            column: col,
-        }
+        Expression::Float { value: val, line: line, column: col }
     }
 
     fn string(&self, val: String, line: usize, col: usize) -> Expression {
-        Expression::String {
-            value: val,
-            line: line,
-            column: col,
-        }
+        Expression::String { value: val, line: line, column: col }
     }
 
     fn array(&mut self,
@@ -369,11 +372,7 @@ impl Builder {
              -> Expression {
         let values = self.process_nodes(&value_nodes, context);
 
-        Expression::Array {
-            values: values,
-            line: line,
-            column: col,
-        }
+        Expression::Array { values: values, line: line, column: col }
     }
 
     fn hash(&mut self,
@@ -382,17 +381,14 @@ impl Builder {
             col: usize,
             context: &mut Context)
             -> Expression {
-        let pairs = pair_nodes.iter()
+        let pairs = pair_nodes
+            .iter()
             .map(|&(ref k, ref v)| {
                 (self.process_node(k, context), self.process_node(v, context))
             })
             .collect();
 
-        Expression::Hash {
-            pairs: pairs,
-            line: line,
-            column: col,
-        }
+        Expression::Hash { pairs: pairs, line: line, column: col }
     }
 
     fn get_self(&mut self,
@@ -400,9 +396,9 @@ impl Builder {
                 col: usize,
                 context: &mut Context)
                 -> Expression {
-        let local = context.locals
-            .lookup(&self.config.self_variable())
-            .expect("self is not defined in this context");
+        let local = context.locals.lookup(&self.config.self_variable()).expect(
+            "self is not defined in this context",
+        );
 
         self.get_local(local, line, col)
     }
@@ -509,34 +505,36 @@ impl Builder {
 
         match name_node {
             &Node::Identifier { ref name, .. } => {
-                self.set_local(name.clone(),
-                               value_expr,
-                               mutability,
-                               line,
-                               column,
-                               context)
+                self.set_local(
+                    name.clone(),
+                    value_expr,
+                    mutability,
+                    line,
+                    column,
+                    context,
+                )
             }
             &Node::Constant { ref name, .. } => {
                 if mutability == Mutability::Mutable {
-                    self.diagnostics.error(context.path,
-                                           "constants can not be declared as \
+                    self.diagnostics.error(
+                        context.path,
+                        "constants can not be declared as \
                                             mutable",
-                                           line,
-                                           column);
+                        line,
+                        column,
+                    );
                 }
 
-                self.set_constant(name.clone(),
-                                  value_expr,
-                                  line,
-                                  column,
-                                  context)
+                self.set_constant(name.clone(), value_expr, line, column, context)
             }
             &Node::Attribute { ref name, .. } => {
-                self.set_attribute(name.clone(),
-                                   value_expr,
-                                   line,
-                                   column,
-                                   context)
+                self.set_attribute(
+                    name.clone(),
+                    value_expr,
+                    line,
+                    column,
+                    context,
+                )
             }
             _ => unreachable!(),
         }
@@ -687,8 +685,10 @@ impl Builder {
 
         for node in nodes.iter() {
             match node {
-                &Node::ImportSymbol { symbol: ref symbol_node,
-                                      alias: ref alias_node } => {
+                &Node::ImportSymbol {
+                    symbol: ref symbol_node,
+                    alias: ref alias_node,
+                } => {
                     let alias = if let &Some(ref node) = alias_node {
                         self.name_of_node(node)
                     } else {
@@ -710,11 +710,15 @@ impl Builder {
                                 name.clone()
                             };
 
-                            func(name.clone(),
-                                 context.globals
-                                     .define(var_name, Mutability::Immutable),
-                                 line,
-                                 column)
+                            func(
+                                name.clone(),
+                                context.globals.define(
+                                    var_name,
+                                    Mutability::Immutable,
+                                ),
+                                line,
+                                column,
+                            )
                         }
                         _ => unreachable!(),
                     };
@@ -751,12 +755,15 @@ impl Builder {
                     self.modules.insert(mod_name.clone(), module);
                 }
                 None => {
-                    self.diagnostics
-                        .error(context.path,
-                               format!("The module {:?} could not be found",
-                                       mod_name),
-                               line,
-                               col);
+                    self.diagnostics.error(
+                        context.path,
+                        format!(
+                            "The module {:?} could not be found",
+                            mod_name
+                        ),
+                        line,
+                        col,
+                    );
 
                     return Expression::Void;
                 }
@@ -830,28 +837,30 @@ impl Builder {
         let receiver_expr = if let &Some(ref r) = receiver {
             self.process_node(r, context)
         } else {
-            let proto_name = self
-                .string(self.config.instance_prototype(), line, col);
+            let proto_name =
+                self.string(self.config.instance_prototype(), line, col);
 
             Expression::GetAttribute {
                 receiver: Box::new(self.get_self(line, col, context)),
                 name: Box::new(proto_name),
                 line: line,
-                column: col
+                column: col,
             }
         };
 
         // TODO: inject requirements into the body.
-        let body_expr = self.code_object_with_locals(&context.path,
-                                                     body,
-                                                     locals,
-                                                     context.globals);
+        let body_expr = self.code_object_with_locals(
+            &context.path,
+            body,
+            locals,
+            context.globals,
+        );
 
         let block = Expression::Block {
             arguments: arguments,
             body: body_expr,
             line: line,
-            column: col
+            column: col,
         };
 
         Expression::DefineMethod {
@@ -873,11 +882,13 @@ impl Builder {
                        context: &mut Context)
                        -> Expression {
         if receiver.is_some() {
-            self.diagnostics.error(context.path,
-                                   "methods required by a trait can not be \
+            self.diagnostics.error(
+                context.path,
+                "methods required by a trait can not be \
                                     defined on an explicit receiver",
-                                   line,
-                                   col);
+                line,
+                col,
+            );
         }
 
         let receiver = self.get_self(line, col, context);
@@ -895,16 +906,20 @@ impl Builder {
                         nodes: &Vec<Node>,
                         context: &mut Context)
                         -> Vec<MethodArgument> {
-        nodes.iter()
+        nodes
+            .iter()
             .map(|node| match node {
-                &Node::ArgumentDefine { ref name,
-                                        ref default,
-                                        line,
-                                        column,
-                                        rest,
-                                        .. } => {
-                    let default_val = default.as_ref()
-                        .map(|node| self.process_node(node, context));
+                &Node::ArgumentDefine {
+                    ref name,
+                    ref default,
+                    line,
+                    column,
+                    rest,
+                    ..
+                } => {
+                    let default_val = default.as_ref().map(|node| {
+                        self.process_node(node, context)
+                    });
 
                     MethodArgument {
                         name: name.clone(),
@@ -929,10 +944,12 @@ impl Builder {
              -> Expression {
         let name_expr = self.string(name.clone(), line, col);
         let locals = self.variable_scope_with_self();
-        let code_obj = self.code_object_with_locals(&context.path,
-                                                    body,
-                                                    locals,
-                                                    context.globals);
+        let code_obj = self.code_object_with_locals(
+            &context.path,
+            body,
+            locals,
+            context.globals,
+        );
 
         let _todo_impl_exprs = self.implements(implements, context);
 
@@ -961,10 +978,12 @@ impl Builder {
                  -> Expression {
         let name_expr = self.string(name.clone(), line, col);
         let locals = self.variable_scope_with_self();
-        let code_obj = self.code_object_with_locals(&context.path,
-                                                    body,
-                                                    locals,
-                                                    context.globals);
+        let code_obj = self.code_object_with_locals(
+            &context.path,
+            body,
+            locals,
+            context.globals,
+        );
 
         let block = Expression::Block {
             arguments: vec![self.self_argument(line, col)],
@@ -986,11 +1005,12 @@ impl Builder {
                   nodes: &Vec<Node>,
                   context: &mut Context)
                   -> Vec<Implement> {
-        nodes.iter()
+        nodes
+            .iter()
             .map(|node| match node {
-                &Node::Implement { ref name, ref renames, line, column, .. } => {
-                    self.implement(name, renames, line, column, context)
-                }
+                &Node::Implement {
+                    ref name, ref renames, line, column, ..
+                } => self.implement(name, renames, line, column, context),
                 _ => unreachable!(),
             })
             .collect()
@@ -1003,7 +1023,8 @@ impl Builder {
                  col: usize,
                  context: &mut Context)
                  -> Implement {
-        let renames = rename_nodes.iter()
+        let renames = rename_nodes
+            .iter()
             .map(|&(ref src, ref alias)| {
                 let src_name = self.name_of_node(src).unwrap();
                 let alias_name = self.name_of_node(alias).unwrap();
@@ -1027,11 +1048,7 @@ impl Builder {
             None
         };
 
-        Expression::Return {
-            value: ret_val,
-            line: line,
-            column: col,
-        }
+        Expression::Return { value: ret_val, line: line, column: col }
     }
 
     fn type_cast(&mut self, value: &Node, context: &mut Context) -> Expression {
@@ -1059,10 +1076,12 @@ impl Builder {
                 None
             };
 
-            let body = self.code_object_with_locals(&context.path,
-                                                    node,
-                                                    else_locals,
-                                                    context.globals);
+            let body = self.code_object_with_locals(
+                &context.path,
+                node,
+                else_locals,
+                context.globals,
+            );
 
             (Some(body), else_arg)
         } else {
@@ -1316,25 +1335,31 @@ impl Builder {
             &Node::Identifier { ref name, .. } => {
                 if let Some(var) = context.locals.lookup(name) {
                     if context.locals.is_mutable(&var) {
-                        self.set_local(name.clone(),
-                                       value,
-                                       Mutability::Mutable,
-                                       line,
-                                       col,
-                                       context)
+                        self.set_local(
+                            name.clone(),
+                            value,
+                            Mutability::Mutable,
+                            line,
+                            col,
+                            context,
+                        )
                     } else {
-                        let msg = format!("cannot re-assign immutable local \
+                        let msg = format!(
+                            "cannot re-assign immutable local \
                                            variable {:?}",
-                                          name);
+                            name
+                        );
 
                         self.diagnostics.error(context.path, msg, line, col);
 
                         Expression::Void
                     }
                 } else {
-                    let msg = format!("cannot re-assign undefined local \
+                    let msg = format!(
+                        "cannot re-assign undefined local \
                                        variable {:?}",
-                                      name);
+                        name
+                    );
 
                     self.diagnostics.error(context.path, msg, line, col);
 
@@ -1398,8 +1423,12 @@ impl Builder {
         match parser.parse() {
             Ok(ast) => Ok(ast),
             Err(err) => {
-                self.diagnostics
-                    .error(path, err, parser.line(), parser.column());
+                self.diagnostics.error(
+                    path,
+                    err,
+                    parser.line(),
+                    parser.column(),
+                );
 
                 Err(())
             }
@@ -1407,9 +1436,10 @@ impl Builder {
     }
 
     fn module_path_for_name(&self, name: &str) -> String {
-        let file_name =
-            name.replace(self.config.lookup_separator(),
-                         &MAIN_SEPARATOR.to_string());
+        let file_name = name.replace(
+            self.config.lookup_separator(),
+            &MAIN_SEPARATOR.to_string(),
+        );
 
         file_name + self.config.source_extension()
     }

@@ -42,10 +42,7 @@ impl ModuleRegistry {
     }
 
     pub fn new(state: RcState) -> Self {
-        ModuleRegistry {
-            state: state,
-            parsed: HashMap::new(),
-        }
+        ModuleRegistry { state: state, parsed: HashMap::new() }
     }
 
     /// Returns true if the given module has been parsed.
@@ -95,8 +92,11 @@ impl ModuleRegistry {
 
     /// Parses a full file path pointing to a module.
     pub fn parse_path(&mut self, path: &str) -> Result<&Module, ModuleError> {
-        let code = bytecode_parser::parse_file(&self.state, path)
-            .map_err(|err| ModuleError::FailedToParse(path.to_string(), err))?;
+        let code = bytecode_parser::parse_file(&self.state, path).map_err(
+            |err| {
+                ModuleError::FailedToParse(path.to_string(), err)
+            },
+        )?;
 
         self.add_module(path, Module::new(code));
 

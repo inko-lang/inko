@@ -95,8 +95,10 @@ impl ObjectPointer {
     /// Creates a new tagged integer.
     pub fn integer(value: i64) -> ObjectPointer {
         ObjectPointer {
-            raw: TaggedPointer::with_bit((value << 1) as RawObjectPointer,
-                                         INTEGER_BIT),
+            raw: TaggedPointer::with_bit(
+                (value << 1) as RawObjectPointer,
+                INTEGER_BIT,
+            ),
         }
     }
 
@@ -286,10 +288,12 @@ impl ObjectPointer {
                          process: &RcProcess,
                          name: ObjectPointer,
                          attr: ObjectPointer) {
-        write_object!(self,
-                      process,
-                      self.get_mut().add_attribute(name, attr),
-                      attr);
+        write_object!(
+            self,
+            process,
+            self.get_mut().add_attribute(name, attr),
+            attr
+        );
     }
 
     /// Looks up a method.
@@ -355,8 +359,10 @@ impl ObjectPointer {
         if self.is_tagged_integer() {
             Ok(self.raw.raw as i64 >> 1)
         } else {
-            Err("ObjectPointer::integer_value() called on a non integer object"
-                .to_string())
+            Err(
+                "ObjectPointer::integer_value() called on a non integer object"
+                    .to_string(),
+            )
         }
     }
 
@@ -452,9 +458,11 @@ mod tests {
             bucket.add_block(Block::new());
         }
 
-        bucket.current_block_mut()
-            .unwrap()
-            .bump_allocate(Object::new(ObjectValue::None))
+        bucket.current_block_mut().unwrap().bump_allocate(
+            Object::new(
+                ObjectValue::None,
+            ),
+        )
     }
 
     #[test]
@@ -597,8 +605,8 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_resolve_forwarding_pointer_in_vector_with_pointer_pointers
-        () {
+    fn test_object_pointer_resolve_forwarding_pointer_in_vector_with_pointer_pointers(
+        ) {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));
@@ -810,7 +818,10 @@ mod tests {
         let name = state.intern(&"foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
-        state.integer_prototype.get_mut().add_attribute(name, method);
+        state.integer_prototype.get_mut().add_attribute(
+            name,
+            method,
+        );
 
         assert!(ptr.lookup_attribute_chain(&state, &name).unwrap() == method);
     }

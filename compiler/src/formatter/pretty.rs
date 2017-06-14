@@ -18,28 +18,30 @@ impl Pretty {
         let level = Red.bold().paint("ERROR:");
         let text = Style::new().bold().paint(message.message.clone());
 
-        write!(output,
-               "{} {}\n File: {} line {}, column {}\n",
-               level,
-               text,
-               message.path,
-               message.line,
-               message.column)
-            .unwrap();
+        write!(
+            output,
+            "{} {}\n File: {} line {}, column {}\n",
+            level,
+            text,
+            message.path,
+            message.line,
+            message.column
+        ).unwrap();
     }
 
     fn format_warning(&self, message: &Diagnostic, output: &mut String) {
         let level = Yellow.bold().paint("WARNING:");
         let text = Style::new().bold().paint(message.message.clone());
 
-        write!(output,
-               "{} {}\n   File: {} line {}, column {}\n",
-               level,
-               text,
-               message.path,
-               message.line,
-               message.column)
-            .unwrap();
+        write!(
+            output,
+            "{} {}\n   File: {} line {}, column {}\n",
+            level,
+            text,
+            message.path,
+            message.line,
+            message.column
+        ).unwrap();
     }
 }
 

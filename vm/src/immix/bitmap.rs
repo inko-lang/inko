@@ -105,10 +105,7 @@ impl ObjectMap {
 impl LineMap {
     /// Returns a new, empty line bitmap.
     pub fn new() -> LineMap {
-        LineMap {
-            values: [0; LINE_ENTRIES],
-            mark_value: 1,
-        }
+        LineMap { values: [0; LINE_ENTRIES], mark_value: 1 }
     }
 
     pub fn set(&mut self, index: usize) {
