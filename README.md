@@ -371,8 +371,8 @@ Using dynamic typing, simply by leaving out type signatures:
     add(10.5, 5)
     add('foo', 'bar')
 
-Opening a file and reading data, without blocking the running thread (no
-asynchronous code necessary!):
+Opening a file and reading data, without blocking the running thread and without
+the need of nested callbacks:
 
     import std::file::File
 
