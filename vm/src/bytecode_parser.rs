@@ -205,9 +205,10 @@ fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
     Ok(float)
 }
 
-fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
-                           reader: fn(&mut Bytes<T>) -> ParserResult<V>)
-                           -> ParserResult<Vec<V>> {
+fn read_vector<V, T: Read>(
+    bytes: &mut Bytes<T>,
+    reader: fn(&mut Bytes<T>) -> ParserResult<V>,
+) -> ParserResult<Vec<V>> {
     let amount = try!(read_u64(bytes)) as usize;
     let mut buff: Vec<V> = Vec::with_capacity(amount);
 
@@ -218,9 +219,10 @@ fn read_vector<V, T: Read>(bytes: &mut Bytes<T>,
     Ok(buff)
 }
 
-fn read_code_vector<T: Read>(state: &RcState,
-                             bytes: &mut Bytes<T>)
-                             -> ParserResult<Vec<CompiledCode>> {
+fn read_code_vector<T: Read>(
+    state: &RcState,
+    bytes: &mut Bytes<T>,
+) -> ParserResult<Vec<CompiledCode>> {
     let amount = try!(read_u64(bytes)) as usize;
     let mut buff = Vec::with_capacity(amount);
 
@@ -242,9 +244,10 @@ fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> 
     Ok(ins)
 }
 
-fn read_compiled_code<T: Read>(state: &RcState,
-                               bytes: &mut Bytes<T>)
-                               -> ParserResult<CompiledCode> {
+fn read_compiled_code<T: Read>(
+    state: &RcState,
+    bytes: &mut Bytes<T>,
+) -> ParserResult<CompiledCode> {
     let name = try!(read_string(bytes));
     let file = try!(read_string(bytes));
     let line = try!(read_u16(bytes));
@@ -286,9 +289,10 @@ fn read_compiled_code<T: Read>(state: &RcState,
     })
 }
 
-fn read_literals_vector<T: Read>(state: &RcState,
-                                 bytes: &mut Bytes<T>)
-                                 -> ParserResult<Vec<ObjectPointer>> {
+fn read_literals_vector<T: Read>(
+    state: &RcState,
+    bytes: &mut Bytes<T>,
+) -> ParserResult<Vec<ObjectPointer>> {
     let amount = try!(read_u64(bytes));
     let mut buff = Vec::with_capacity(amount as usize);
 
@@ -299,9 +303,10 @@ fn read_literals_vector<T: Read>(state: &RcState,
     Ok(buff)
 }
 
-fn read_literal<T: Read>(state: &RcState,
-                         bytes: &mut Bytes<T>)
-                         -> ParserResult<ObjectPointer> {
+fn read_literal<T: Read>(
+    state: &RcState,
+    bytes: &mut Bytes<T>,
+) -> ParserResult<ObjectPointer> {
     let literal_type = try!(read_u8(bytes));
 
     let literal = match literal_type {

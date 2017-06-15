@@ -66,10 +66,11 @@ pub fn evacuate(process: &RcProcess, pointer: &mut ObjectPointer) {
 }
 
 /// Traces through the given pointers, and potentially moves objects around.
-pub fn trace_pointers_with_moving(process: &RcProcess,
-                                  mut objects: Vec<ObjectPointerPointer>,
-                                  mature: bool)
-                                  -> TraceResult {
+pub fn trace_pointers_with_moving(
+    process: &RcProcess,
+    mut objects: Vec<ObjectPointerPointer>,
+    mature: bool,
+) -> TraceResult {
     let local_data = process.local_data();
     let ref allocator = local_data.allocator;
     let mut marked = 0;
@@ -121,9 +122,10 @@ pub fn trace_pointers_with_moving(process: &RcProcess,
 
 /// Traces through the roots and all their child pointers, without moving
 /// objects around.
-pub fn trace_pointers_without_moving(mut objects: Vec<ObjectPointerPointer>,
-                                     mature: bool)
-                                     -> TraceResult {
+pub fn trace_pointers_without_moving(
+    mut objects: Vec<ObjectPointerPointer>,
+    mature: bool,
+) -> TraceResult {
     let mut marked = 0;
 
     while let Some(pointer_pointer) = objects.pop() {

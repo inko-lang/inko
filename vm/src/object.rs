@@ -95,9 +95,10 @@ impl Object {
     }
 
     /// Removes an attribute and returns it.
-    pub fn remove_attribute(&mut self,
-                            name: &ObjectPointer)
-                            -> Option<ObjectPointer> {
+    pub fn remove_attribute(
+        &mut self,
+        name: &ObjectPointer,
+    ) -> Option<ObjectPointer> {
         if let Some(map) = self.attributes_map_mut() {
             map.remove(name)
         } else {
@@ -128,9 +129,10 @@ impl Object {
     }
 
     /// Looks up an attribute in either the current object or a parent object.
-    pub fn lookup_attribute_chain(&self,
-                                  name: &ObjectPointer)
-                                  -> Option<ObjectPointer> {
+    pub fn lookup_attribute_chain(
+        &self,
+        name: &ObjectPointer,
+    ) -> Option<ObjectPointer> {
         let got = self.lookup_attribute(name);
 
         if got.is_some() {
@@ -164,9 +166,10 @@ impl Object {
     }
 
     /// Looks up an attribute.
-    pub fn lookup_attribute(&self,
-                            name: &ObjectPointer)
-                            -> Option<ObjectPointer> {
+    pub fn lookup_attribute(
+        &self,
+        name: &ObjectPointer,
+    ) -> Option<ObjectPointer> {
         if let Some(map) = self.attributes_map() {
             map.get(name).cloned()
         } else {

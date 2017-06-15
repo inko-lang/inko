@@ -127,10 +127,11 @@ pub struct Instruction {
 
 impl Instruction {
     /// Returns a new Instruction.
-    pub fn new(ins_type: InstructionType,
-               arguments: Vec<usize>,
-               line: u16)
-               -> Instruction {
+    pub fn new(
+        ins_type: InstructionType,
+        arguments: Vec<usize>,
+        line: u16,
+    ) -> Instruction {
         Instruction {
             instruction_type: ins_type,
             arguments: arguments,

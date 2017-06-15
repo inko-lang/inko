@@ -60,10 +60,12 @@ impl LocalAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
         LocalAllocator {
             global_allocator: global_allocator,
-            young_generation: [Bucket::with_age(0),
-                               Bucket::with_age(-1),
-                               Bucket::with_age(-2),
-                               Bucket::with_age(-3)],
+            young_generation: [
+                Bucket::with_age(0),
+                Bucket::with_age(-1),
+                Bucket::with_age(-2),
+                Bucket::with_age(-3),
+            ],
             eden_index: 0,
             mature_generation: Bucket::with_age(MATURE),
             young_block_allocations: 0,
@@ -134,18 +136,20 @@ impl LocalAllocator {
         }
     }
 
-    pub fn allocate_with_prototype(&mut self,
-                                   value: ObjectValue,
-                                   proto: ObjectPointer)
-                                   -> ObjectPointer {
+    pub fn allocate_with_prototype(
+        &mut self,
+        value: ObjectValue,
+        proto: ObjectPointer,
+    ) -> ObjectPointer {
         let object = Object::with_prototype(value, proto);
 
         self.allocate_eden(object)
     }
 
-    pub fn allocate_without_prototype(&mut self,
-                                      value: ObjectValue)
-                                      -> ObjectPointer {
+    pub fn allocate_without_prototype(
+        &mut self,
+        value: ObjectValue,
+    ) -> ObjectPointer {
         let object = Object::new(value);
 
         self.allocate_eden(object)
@@ -208,7 +212,8 @@ impl LocalAllocator {
         self.young_block_allocations += 1;
 
         if self.young_block_allocation_threshold_exceeded() &&
-           !self.collect_young {
+            !self.collect_young
+        {
             self.collect_young = true;
         }
     }
@@ -217,7 +222,8 @@ impl LocalAllocator {
         self.mature_block_allocations += 1;
 
         if self.mature_block_allocation_threshold_exceeded() &&
-           !self.collect_mature {
+            !self.collect_mature
+        {
             self.collect_mature = true;
         }
     }
@@ -471,7 +477,7 @@ mod tests {
         assert_eq!(alloc.young_block_allocation_threshold_exceeded(), false);
 
         alloc.young_block_allocations = alloc.young_block_allocation_threshold +
-                                        1;
+            1;
 
         assert!(alloc.young_block_allocation_threshold_exceeded());
     }
@@ -517,7 +523,7 @@ mod tests {
         assert_eq!(alloc.mature_block_allocation_threshold_exceeded(), false);
 
         alloc.mature_block_allocations = alloc.mature_block_allocation_threshold +
-                                         1;
+            1;
 
         assert!(alloc.mature_block_allocation_threshold_exceeded());
     }

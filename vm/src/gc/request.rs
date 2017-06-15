@@ -20,10 +20,11 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn new(collection_type: CollectionType,
-               vm_state: RcState,
-               process: RcProcess)
-               -> Self {
+    pub fn new(
+        collection_type: CollectionType,
+        vm_state: RcState,
+        process: RcProcess,
+    ) -> Self {
         Request {
             vm_state: vm_state,
             collection_type: collection_type,

@@ -14,11 +14,12 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn error(path: String,
-                 message: String,
-                 line: usize,
-                 column: usize)
-                 -> Self {
+    pub fn error(
+        path: String,
+        message: String,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Diagnostic {
             level: DiagnosticLevel::Error,
             path: path,
@@ -28,11 +29,12 @@ impl Diagnostic {
         }
     }
 
-    pub fn warning(path: String,
-                   message: String,
-                   line: usize,
-                   column: usize)
-                   -> Self {
+    pub fn warning(
+        path: String,
+        message: String,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Diagnostic {
             level: DiagnosticLevel::Warning,
             path: path,

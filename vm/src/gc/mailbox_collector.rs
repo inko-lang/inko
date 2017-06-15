@@ -42,10 +42,11 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
     profile
 }
 
-pub fn trace(process: &RcProcess,
-             mailbox: &Mailbox,
-             move_objects: bool)
-             -> TraceResult {
+pub fn trace(
+    process: &RcProcess,
+    mailbox: &Mailbox,
+    move_objects: bool,
+) -> TraceResult {
     let roots = mailbox.mailbox_pointers();
 
     if move_objects {

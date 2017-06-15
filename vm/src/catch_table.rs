@@ -43,12 +43,13 @@ impl ThrowReason {
 }
 
 impl CatchEntry {
-    pub fn new(reason: ThrowReason,
-               start: usize,
-               end: usize,
-               jump_to: usize,
-               register: usize)
-               -> Self {
+    pub fn new(
+        reason: ThrowReason,
+        start: usize,
+        end: usize,
+        jump_to: usize,
+        register: usize,
+    ) -> Self {
         CatchEntry {
             reason: reason,
             start: start,

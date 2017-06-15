@@ -177,10 +177,11 @@ impl Machine {
     }
 
     /// Allocates a new process and returns the PID and Process structure.
-    pub fn allocate_process(&self,
-                            pool_id: usize,
-                            block: &Block)
-                            -> Result<RcProcess, String> {
+    pub fn allocate_process(
+        &self,
+        pool_id: usize,
+        block: &Block,
+    ) -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
 
         let pid = process_table.reserve().ok_or_else(|| {
@@ -252,7 +253,7 @@ impl Machine {
                         context.get_register(instruction.arg(1));
 
                     let is_permanent = is_permanent_ptr !=
-                                       self.state.false_object;
+                        self.state.false_object;
 
                     let obj = if is_permanent {
                         self.state.permanent_allocator.lock().allocate_empty()
@@ -1015,7 +1016,8 @@ impl Machine {
                     let arg_ptr = context.get_register(instruction.arg(2));
 
                     let boolean = if receiver_ptr.string_value().unwrap() ==
-                                     arg_ptr.string_value().unwrap() {
+                        arg_ptr.string_value().unwrap()
+                    {
                         self.state.true_object
                     } else {
                         self.state.false_object
@@ -1534,7 +1536,8 @@ impl Machine {
                     let path_str = path_ptr.string_value().unwrap();
 
                     let ptr = if read_lock!(self.module_registry)
-                           .contains_path(path_str) {
+                        .contains_path(path_str)
+                    {
                         self.state.true_object
                     } else {
                         self.state.false_object
@@ -1689,8 +1692,9 @@ impl Machine {
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let result = if source
-                           .lookup_attribute_chain(&self.state, &name)
-                           .is_some() {
+                        .lookup_attribute_chain(&self.state, &name)
+                        .is_some()
+                    {
                         self.state.true_object.clone()
                     } else {
                         self.state.false_object.clone()
@@ -1747,7 +1751,8 @@ impl Machine {
                     let pid = pid_ptr.integer_value().unwrap() as usize;
 
                     if let Some(receiver) = read_lock!(self.state.process_table)
-                           .get(&pid) {
+                        .get(&pid)
+                    {
                         receiver.send_message(&process, msg_ptr);
                     }
 
@@ -1840,7 +1845,8 @@ impl Machine {
 
                     if let Err(err) = file.take(size as u64).read_to_string(
                         &mut buffer,
-                    ) {
+                    )
+                    {
                         throw_io_error!(self, process, err, context, code, index);
                         continue;
                     }
@@ -1871,7 +1877,8 @@ impl Machine {
 
                     if let Err(err) = stdin.take(size as u64).read_to_string(
                         &mut buffer,
-                    ) {
+                    )
+                    {
                         throw_io_error!(self, process, err, context, code, index);
                         continue;
                     }
@@ -2003,7 +2010,8 @@ impl Machine {
                     }
 
                     let obj = if let Some(attribute) =
-                        rec_ptr.get_mut().remove_attribute(&name) {
+                        rec_ptr.get_mut().remove_attribute(&name)
+                    {
                         attribute
                     } else {
                         self.state.nil_object
@@ -2058,7 +2066,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
                     let nsec = (duration.as_secs() * 1000000000) +
-                               duration.subsec_nanos() as u64;
+                        duration.subsec_nanos() as u64;
 
                     context.set_register(
                         register,
@@ -2075,7 +2083,7 @@ impl Machine {
                     let duration = self.state.start_time.elapsed();
 
                     let msec = (duration.as_secs() * 1_000) as f64 +
-                               duration.subsec_nanos() as f64 / 1_000_000.0;
+                        duration.subsec_nanos() as f64 / 1_000_000.0;
 
                     let obj = process.allocate(
                         object_value::float(msec),
@@ -2247,12 +2255,13 @@ impl Machine {
     }
 
     /// Collects a set of arguments from an instruction.
-    pub fn collect_arguments(&self,
-                             process: &RcProcess,
-                             instruction: &Instruction,
-                             offset: usize,
-                             amount: usize)
-                             -> Vec<ObjectPointer> {
+    pub fn collect_arguments(
+        &self,
+        process: &RcProcess,
+        instruction: &Instruction,
+        offset: usize,
+        amount: usize,
+    ) -> Vec<ObjectPointer> {
         let mut args: Vec<ObjectPointer> = Vec::with_capacity(amount);
 
         for index in offset..(offset + amount) {
@@ -2296,12 +2305,14 @@ impl Machine {
         self.state.gc_pool.schedule(request);
     }
 
-    fn schedule_block(&self,
-                      block: &Box<Block>,
-                      return_register: usize,
-                      arg_offset: usize,
-                      process: &RcProcess,
-                      instruction: &Instruction) {
+    fn schedule_block(
+        &self,
+        block: &Box<Block>,
+        return_register: usize,
+        arg_offset: usize,
+        process: &RcProcess,
+        instruction: &Instruction,
+    ) {
         let arg_count = instruction.arguments.len() - arg_offset;
         let tot_args = block.arguments();
         let req_args = block.required_arguments();
@@ -2341,10 +2352,12 @@ impl Machine {
         process.push_context(context);
     }
 
-    fn throw(&self,
-             process: &RcProcess,
-             reason: ThrowReason,
-             value: ObjectPointer) {
+    fn throw(
+        &self,
+        process: &RcProcess,
+        reason: ThrowReason,
+        value: ObjectPointer,
+    ) {
         loop {
             let code = process.compiled_code();
             let mut context = process.context_mut();
@@ -2352,7 +2365,8 @@ impl Machine {
 
             for entry in code.catch_table.entries.iter() {
                 if entry.reason == reason && entry.start < index &&
-                   entry.end >= index {
+                    entry.end >= index
+                {
                     context.instruction_index = entry.jump_to;
                     context.set_register(entry.register, value);
 

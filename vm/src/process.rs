@@ -93,11 +93,12 @@ unsafe impl Send for LocalData {}
 unsafe impl Sync for Process {}
 
 impl Process {
-    pub fn new(pid: PID,
-               pool_id: usize,
-               context: ExecutionContext,
-               global_allocator: RcGlobalAllocator)
-               -> RcProcess {
+    pub fn new(
+        pid: PID,
+        pool_id: usize,
+        context: ExecutionContext,
+        global_allocator: RcGlobalAllocator,
+    ) -> RcProcess {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone()),
             context: Box::new(context),
@@ -118,11 +119,12 @@ impl Process {
         Arc::new(process)
     }
 
-    pub fn from_block(pid: PID,
-                      pool_id: usize,
-                      block: &Block,
-                      global_allocator: RcGlobalAllocator)
-                      -> RcProcess {
+    pub fn from_block(
+        pid: PID,
+        pool_id: usize,
+        block: &Block,
+        global_allocator: RcGlobalAllocator,
+    ) -> RcProcess {
         let context = ExecutionContext::from_block(block, None);
 
         Process::new(pid, pool_id, context, global_allocator)
@@ -196,18 +198,20 @@ impl Process {
         self.local_data_mut().allocator.allocate_empty()
     }
 
-    pub fn allocate(&self,
-                    value: object_value::ObjectValue,
-                    proto: ObjectPointer)
-                    -> ObjectPointer {
+    pub fn allocate(
+        &self,
+        value: object_value::ObjectValue,
+        proto: ObjectPointer,
+    ) -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
         local_data.allocator.allocate_with_prototype(value, proto)
     }
 
-    pub fn allocate_without_prototype(&self,
-                                      value: object_value::ObjectValue)
-                                      -> ObjectPointer {
+    pub fn allocate_without_prototype(
+        &self,
+        value: object_value::ObjectValue,
+    ) -> ObjectPointer {
         let mut local_data = self.local_data_mut();
 
         local_data.allocator.allocate_without_prototype(value)
@@ -304,9 +308,11 @@ impl Process {
     ///
     /// This barrier is based on the Steele write barrier and tracks the object
     /// that is *written to*, not the object that is being written.
-    pub fn write_barrier(&self,
-                         written_to: ObjectPointer,
-                         written: ObjectPointer) {
+    pub fn write_barrier(
+        &self,
+        written_to: ObjectPointer,
+        written: ObjectPointer,
+    ) {
         if written_to.is_mature() && written.is_young() {
             self.local_data_mut().remembered_set.insert(written_to);
         }

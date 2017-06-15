@@ -188,7 +188,7 @@ impl ObjectPointer {
     /// Returns true if the current pointer points to a permanent object.
     pub fn is_permanent(&self) -> bool {
         self.is_tagged_integer() ||
-        self.block().bucket().unwrap().age == PERMANENT
+            self.block().bucket().unwrap().age == PERMANENT
     }
 
     /// Returns true if the current pointer points to a mature object.
@@ -204,7 +204,7 @@ impl ObjectPointer {
     /// Returns true if the current pointer points to a young object.
     pub fn is_young(&self) -> bool {
         !self.is_tagged_integer() &&
-        self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
+            self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
     pub fn mark_for_finalization(&self) {
@@ -284,10 +284,12 @@ impl ObjectPointer {
     }
 
     /// Adds an attribute to the object this pointer points to.
-    pub fn add_attribute(&self,
-                         process: &RcProcess,
-                         name: ObjectPointer,
-                         attr: ObjectPointer) {
+    pub fn add_attribute(
+        &self,
+        process: &RcProcess,
+        name: ObjectPointer,
+        attr: ObjectPointer,
+    ) {
         write_object!(
             self,
             process,
@@ -297,10 +299,11 @@ impl ObjectPointer {
     }
 
     /// Looks up a method.
-    pub fn lookup_attribute_chain(&self,
-                                  state: &RcState,
-                                  name: &ObjectPointer)
-                                  -> Option<ObjectPointer> {
+    pub fn lookup_attribute_chain(
+        &self,
+        state: &RcState,
+        name: &ObjectPointer,
+    ) -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
             state.integer_prototype.get().lookup_attribute_chain(name)
         } else {
@@ -312,9 +315,10 @@ impl ObjectPointer {
     ///
     /// For tagged integers this method will always return None as attributes
     /// can not be defined on an integer.
-    pub fn lookup_attribute(&self,
-                            name: &ObjectPointer)
-                            -> Option<ObjectPointer> {
+    pub fn lookup_attribute(
+        &self,
+        name: &ObjectPointer,
+    ) -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
             None
         } else {
@@ -606,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_resolve_forwarding_pointer_in_vector_with_pointer_pointers(
-        ) {
+){
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));

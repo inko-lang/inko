@@ -21,11 +21,12 @@ impl Rename {
 }
 
 impl Implement {
-    pub fn new(constant: Expression,
-               renames: Vec<Rename>,
-               line: usize,
-               column: usize)
-               -> Self {
+    pub fn new(
+        constant: Expression,
+        renames: Vec<Rename>,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Implement {
             constant: constant,
             renames: renames,

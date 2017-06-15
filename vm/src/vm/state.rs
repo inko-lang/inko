@@ -161,9 +161,10 @@ impl State {
     /// Interns a pointer pointing to a string.
     ///
     /// If the pointer is already interned it's simply returned.
-    pub fn intern_pointer(&self,
-                          pointer: &ObjectPointer)
-                          -> Result<ObjectPointer, String> {
+    pub fn intern_pointer(
+        &self,
+        pointer: &ObjectPointer,
+    ) -> Result<ObjectPointer, String> {
         if pointer.get().value.is_interned_string() {
             Ok(*pointer)
         } else {

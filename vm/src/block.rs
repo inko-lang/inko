@@ -19,10 +19,11 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(code: CompiledCodePointer,
-               binding: RcBinding,
-               global_scope: GlobalScopePointer)
-               -> Self {
+    pub fn new(
+        code: CompiledCodePointer,
+        binding: RcBinding,
+        global_scope: GlobalScopePointer,
+    ) -> Self {
         Block {
             code: code,
             binding: binding,

@@ -19,11 +19,12 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    pub fn module(import_name: String,
-                  global: Variable,
-                  line: usize,
-                  column: usize)
-                  -> Self {
+    pub fn module(
+        import_name: String,
+        global: Variable,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Symbol {
             kind: SymbolKind::Module,
             import_name: import_name,
@@ -33,11 +34,12 @@ impl Symbol {
         }
     }
 
-    pub fn constant(import_name: String,
-                    global: Variable,
-                    line: usize,
-                    column: usize)
-                    -> Self {
+    pub fn constant(
+        import_name: String,
+        global: Variable,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Symbol {
             kind: SymbolKind::Constant,
             import_name: import_name,

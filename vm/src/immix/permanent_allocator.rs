@@ -26,16 +26,18 @@ impl PermanentAllocator {
         }
     }
 
-    pub fn allocate_with_prototype(&mut self,
-                                   value: ObjectValue,
-                                   proto: ObjectPointer)
-                                   -> ObjectPointer {
+    pub fn allocate_with_prototype(
+        &mut self,
+        value: ObjectValue,
+        proto: ObjectPointer,
+    ) -> ObjectPointer {
         self.allocate(Object::with_prototype(value, proto))
     }
 
-    pub fn allocate_without_prototype(&mut self,
-                                      value: ObjectValue)
-                                      -> ObjectPointer {
+    pub fn allocate_without_prototype(
+        &mut self,
+        value: ObjectValue,
+    ) -> ObjectPointer {
         self.allocate(Object::new(value))
     }
 

@@ -60,11 +60,12 @@ impl Builder {
         self.build(Vec::new(), name, path)
     }
 
-    pub fn build(&mut self,
-                 under: Vec<String>,
-                 name: String,
-                 path: String)
-                 -> Option<Module> {
+    pub fn build(
+        &mut self,
+        under: Vec<String>,
+        name: String,
+        path: String,
+    ) -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
             let module = self.module(under, name, path, ast);
 
@@ -78,12 +79,13 @@ impl Builder {
         module
     }
 
-    fn module(&mut self,
-              mut under: Vec<String>,
-              name: String,
-              path: String,
-              node: Node)
-              -> Module {
+    fn module(
+        &mut self,
+        mut under: Vec<String>,
+        name: String,
+        path: String,
+        node: Node,
+    ) -> Module {
         let mut globals = VariableScope::new();
         let locals = self.variable_scope_with_self();
         let code_object =
@@ -105,20 +107,22 @@ impl Builder {
         }
     }
 
-    fn code_object(&mut self,
-                   path: &String,
-                   node: &Node,
-                   globals: &mut VariableScope)
-                   -> CodeObject {
+    fn code_object(
+        &mut self,
+        path: &String,
+        node: &Node,
+        globals: &mut VariableScope,
+    ) -> CodeObject {
         self.code_object_with_locals(path, node, VariableScope::new(), globals)
     }
 
-    fn code_object_with_locals(&mut self,
-                               path: &String,
-                               node: &Node,
-                               mut locals: VariableScope,
-                               globals: &mut VariableScope)
-                               -> CodeObject {
+    fn code_object_with_locals(
+        &mut self,
+        path: &String,
+        node: &Node,
+        mut locals: VariableScope,
+        globals: &mut VariableScope,
+    ) -> CodeObject {
         let body = match node {
             &Node::Expressions { ref nodes } => {
                 let mut context = Context {
@@ -135,10 +139,11 @@ impl Builder {
         CodeObject { locals: locals, body: body }
     }
 
-    fn process_nodes(&mut self,
-                     nodes: &Vec<Node>,
-                     context: &mut Context)
-                     -> Vec<Expression> {
+    fn process_nodes(
+        &mut self,
+        nodes: &Vec<Node>,
+        context: &mut Context,
+    ) -> Vec<Expression> {
         nodes
             .iter()
             .map(|ref node| self.process_node(node, context))
@@ -363,23 +368,25 @@ impl Builder {
         Expression::String { value: val, line: line, column: col }
     }
 
-    fn array(&mut self,
-             value_nodes: &Vec<Node>,
-             line: usize,
-             col: usize,
-             context: &mut Context)
-             -> Expression {
+    fn array(
+        &mut self,
+        value_nodes: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let values = self.process_nodes(&value_nodes, context);
 
         Expression::Array { values: values, line: line, column: col }
     }
 
-    fn hash(&mut self,
-            pair_nodes: &Vec<(Node, Node)>,
-            line: usize,
-            col: usize,
-            context: &mut Context)
-            -> Expression {
+    fn hash(
+        &mut self,
+        pair_nodes: &Vec<(Node, Node)>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let pairs = pair_nodes
             .iter()
             .map(|&(ref k, ref v)| {
@@ -390,11 +397,12 @@ impl Builder {
         Expression::Hash { pairs: pairs, line: line, column: col }
     }
 
-    fn get_self(&mut self,
-                line: usize,
-                col: usize,
-                context: &mut Context)
-                -> Expression {
+    fn get_self(
+        &mut self,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let local = context.locals.lookup(&self.config.self_variable()).expect(
             "self is not defined in this context",
         );
@@ -402,12 +410,13 @@ impl Builder {
         self.get_local(local, line, col)
     }
 
-    fn identifier(&mut self,
-                  name: &String,
-                  line: usize,
-                  col: usize,
-                  context: &mut Context)
-                  -> Expression {
+    fn identifier(
+        &mut self,
+        name: &String,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         // TODO: look up methods before looking up globals
         if let Some(local) = context.locals.lookup(name) {
             return self.get_local(local, line, col);
@@ -423,12 +432,13 @@ impl Builder {
         self.send_object_message(name.clone(), &None, &args, line, col, context)
     }
 
-    fn attribute(&mut self,
-                 name: String,
-                 line: usize,
-                 col: usize,
-                 context: &mut Context)
-                 -> Expression {
+    fn attribute(
+        &mut self,
+        name: String,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         Expression::GetAttribute {
             receiver: Box::new(self.get_self(line, col, context)),
             name: Box::new(self.string(name, line, col)),
@@ -437,11 +447,12 @@ impl Builder {
         }
     }
 
-    fn get_local(&mut self,
-                 variable: Variable,
-                 line: usize,
-                 col: usize)
-                 -> Expression {
+    fn get_local(
+        &mut self,
+        variable: Variable,
+        line: usize,
+        col: usize,
+    ) -> Expression {
         Expression::GetLocal {
             variable: variable,
             line: line,
@@ -449,11 +460,12 @@ impl Builder {
         }
     }
 
-    fn get_global(&mut self,
-                  variable: Variable,
-                  line: usize,
-                  col: usize)
-                  -> Expression {
+    fn get_global(
+        &mut self,
+        variable: Variable,
+        line: usize,
+        col: usize,
+    ) -> Expression {
         Expression::GetGlobal {
             variable: variable,
             line: line,
@@ -461,13 +473,14 @@ impl Builder {
         }
     }
 
-    fn get_constant(&mut self,
-                    name: String,
-                    receiver: &Option<Box<Node>>,
-                    line: usize,
-                    col: usize,
-                    context: &mut Context)
-                    -> Expression {
+    fn get_constant(
+        &mut self,
+        name: String,
+        receiver: &Option<Box<Node>>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let rec_expr = if let &Some(ref node) = receiver {
             self.process_node(node, context)
         } else {
@@ -482,24 +495,26 @@ impl Builder {
         }
     }
 
-    fn set_constant(&mut self,
-                    name: String,
-                    value: Expression,
-                    line: usize,
-                    col: usize,
-                    context: &mut Context)
-                    -> Expression {
+    fn set_constant(
+        &mut self,
+        name: String,
+        value: Expression,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.set_attribute(name, value, line, col, context)
     }
 
-    fn set_variable(&mut self,
-                    name_node: &Node,
-                    value_node: &Node,
-                    mutability: Mutability,
-                    line: usize,
-                    column: usize,
-                    context: &mut Context)
-                    -> Expression {
+    fn set_variable(
+        &mut self,
+        name_node: &Node,
+        value_node: &Node,
+        mutability: Mutability,
+        line: usize,
+        column: usize,
+        context: &mut Context,
+    ) -> Expression {
         let value_expr = self.process_node(value_node, context);
 
         match name_node {
@@ -539,14 +554,15 @@ impl Builder {
         }
     }
 
-    fn set_local(&mut self,
-                 name: String,
-                 value: Expression,
-                 mutability: Mutability,
-                 line: usize,
-                 col: usize,
-                 context: &mut Context)
-                 -> Expression {
+    fn set_local(
+        &mut self,
+        name: String,
+        value: Expression,
+        mutability: Mutability,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         Expression::SetLocal {
             variable: context.locals.define(name, mutability),
             value: Box::new(value),
@@ -555,13 +571,14 @@ impl Builder {
         }
     }
 
-    fn set_attribute(&mut self,
-                     name: String,
-                     value: Expression,
-                     line: usize,
-                     col: usize,
-                     context: &mut Context)
-                     -> Expression {
+    fn set_attribute(
+        &mut self,
+        name: String,
+        value: Expression,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         // TODO: track mutability of attributes per receiver type
         Expression::SetAttribute {
             receiver: Box::new(self.get_self(line, col, context)),
@@ -572,13 +589,14 @@ impl Builder {
         }
     }
 
-    fn raw_instruction(&mut self,
-                       name: String,
-                       arg_nodes: &Vec<Node>,
-                       line: usize,
-                       col: usize,
-                       context: &mut Context)
-                       -> Expression {
+    fn raw_instruction(
+        &mut self,
+        name: String,
+        arg_nodes: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let args = self.process_nodes(arg_nodes, context);
 
         Expression::RawInstruction {
@@ -589,14 +607,15 @@ impl Builder {
         }
     }
 
-    fn send_object_message(&mut self,
-                           mut name: String,
-                           receiver_node: &Option<Box<Node>>,
-                           arguments: &Vec<Node>,
-                           line: usize,
-                           col: usize,
-                           context: &mut Context)
-                           -> Expression {
+    fn send_object_message(
+        &mut self,
+        mut name: String,
+        receiver_node: &Option<Box<Node>>,
+        arguments: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let receiver = if let &Some(ref rec) = receiver_node {
             let raw_ins = match **rec {
                 Node::Constant { ref name, .. } => {
@@ -676,10 +695,11 @@ impl Builder {
 
     /// Returns a vector of symbols to import, based on a list of AST nodes
     /// describing the import steps.
-    fn import_symbols(&self,
-                      nodes: &Vec<Node>,
-                      context: &mut Context)
-                      -> Vec<ImportSymbol> {
+    fn import_symbols(
+        &self,
+        nodes: &Vec<Node>,
+        context: &mut Context,
+    ) -> Vec<ImportSymbol> {
         let mut symbols = Vec::new();
 
         for node in nodes.iter() {
@@ -731,13 +751,14 @@ impl Builder {
         symbols
     }
 
-    fn import(&mut self,
-              step_nodes: &Vec<Node>,
-              symbol_nodes: &Vec<Node>,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn import(
+        &mut self,
+        step_nodes: &Vec<Node>,
+        symbol_nodes: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let under = self.module_fragments_for_import(step_nodes);
         let mod_name = self.module_name_for_import(step_nodes);
         let mod_path = self.module_path_for_name(&mod_name);
@@ -783,13 +804,14 @@ impl Builder {
         }
     }
 
-    fn closure(&mut self,
-               arg_nodes: &Vec<Node>,
-               body_node: &Node,
-               line: usize,
-               col: usize,
-               context: &mut Context)
-               -> Expression {
+    fn closure(
+        &mut self,
+        arg_nodes: &Vec<Node>,
+        body_node: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let body = self.code_object(&context.path, body_node, context.globals);
 
         Expression::Block {
@@ -800,13 +822,14 @@ impl Builder {
         }
     }
 
-    fn keyword_argument(&mut self,
-                        name: String,
-                        value: &Node,
-                        line: usize,
-                        col: usize,
-                        context: &mut Context)
-                        -> Expression {
+    fn keyword_argument(
+        &mut self,
+        name: String,
+        value: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         Expression::KeywordArgument {
             name: name,
             value: Box::new(self.process_node(value, context)),
@@ -815,15 +838,16 @@ impl Builder {
         }
     }
 
-    fn method(&mut self,
-              name: String,
-              receiver: &Option<Box<Node>>,
-              arg_nodes: &Vec<Node>,
-              body: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn method(
+        &mut self,
+        name: String,
+        receiver: &Option<Box<Node>>,
+        arg_nodes: &Vec<Node>,
+        body: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let name_expr = self.string(name, line, col);
         let arguments = self.method_arguments(arg_nodes, context);
         let mut locals = self.variable_scope_with_self();
@@ -869,14 +893,15 @@ impl Builder {
         }
     }
 
-    fn required_method(&mut self,
-                       name: String,
-                       receiver: &Option<Box<Node>>,
-                       _arguments: &Vec<Node>, // TODO: use
-                       line: usize,
-                       col: usize,
-                       context: &mut Context)
-                       -> Expression {
+    fn required_method(
+        &mut self,
+        name: String,
+        receiver: &Option<Box<Node>>,
+        _arguments: &Vec<Node>, // TODO: use
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         if receiver.is_some() {
             self.diagnostics.error(
                 context.path,
@@ -897,10 +922,11 @@ impl Builder {
         }
     }
 
-    fn method_arguments(&mut self,
-                        nodes: &Vec<Node>,
-                        context: &mut Context)
-                        -> Vec<MethodArgument> {
+    fn method_arguments(
+        &mut self,
+        nodes: &Vec<Node>,
+        context: &mut Context,
+    ) -> Vec<MethodArgument> {
         nodes
             .iter()
             .map(|node| match node {
@@ -929,14 +955,15 @@ impl Builder {
             .collect()
     }
 
-    fn class(&mut self,
-             name: String,
-             implements: &Vec<Node>,
-             body: &Node,
-             line: usize,
-             col: usize,
-             context: &mut Context)
-             -> Expression {
+    fn class(
+        &mut self,
+        name: String,
+        implements: &Vec<Node>,
+        body: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let name_expr = self.string(name.clone(), line, col);
         let locals = self.variable_scope_with_self();
         let code_obj = self.code_object_with_locals(
@@ -964,13 +991,14 @@ impl Builder {
         }
     }
 
-    fn def_trait(&mut self,
-                 name: String,
-                 body: &Node,
-                 line: usize,
-                 col: usize,
-                 context: &mut Context)
-                 -> Expression {
+    fn def_trait(
+        &mut self,
+        name: String,
+        body: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let name_expr = self.string(name.clone(), line, col);
         let locals = self.variable_scope_with_self();
         let code_obj = self.code_object_with_locals(
@@ -996,10 +1024,11 @@ impl Builder {
         }
     }
 
-    fn implements(&mut self,
-                  nodes: &Vec<Node>,
-                  context: &mut Context)
-                  -> Vec<Implement> {
+    fn implements(
+        &mut self,
+        nodes: &Vec<Node>,
+        context: &mut Context,
+    ) -> Vec<Implement> {
         nodes
             .iter()
             .map(|node| match node {
@@ -1011,13 +1040,14 @@ impl Builder {
             .collect()
     }
 
-    fn implement(&mut self,
-                 name: &Node,
-                 rename_nodes: &Vec<(Node, Node)>,
-                 line: usize,
-                 col: usize,
-                 context: &mut Context)
-                 -> Implement {
+    fn implement(
+        &mut self,
+        name: &Node,
+        rename_nodes: &Vec<(Node, Node)>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Implement {
         let renames = rename_nodes
             .iter()
             .map(|&(ref src, ref alias)| {
@@ -1031,12 +1061,13 @@ impl Builder {
         Implement::new(self.process_node(name, context), renames, line, col)
     }
 
-    fn return_value(&mut self,
-                    value: &Option<Box<Node>>,
-                    line: usize,
-                    col: usize,
-                    context: &mut Context)
-                    -> Expression {
+    fn return_value(
+        &mut self,
+        value: &Option<Box<Node>>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let ret_val = if let &Some(ref node) = value {
             Some(Box::new(self.process_node(node, context)))
         } else {
@@ -1050,14 +1081,15 @@ impl Builder {
         self.process_node(value, context)
     }
 
-    fn try(&mut self,
-           body: &Node,
-           else_body: &Option<Box<Node>>,
-           else_arg: &Option<Box<Node>>,
-           line: usize,
-           col: usize,
-           context: &mut Context)
-           -> Expression {
+    fn try(
+        &mut self,
+        body: &Node,
+        else_body: &Option<Box<Node>>,
+        else_arg: &Option<Box<Node>>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let body = self.code_object(&context.path, body, context.globals);
 
         let (else_body, else_arg) = if let &Some(ref node) = else_body {
@@ -1092,12 +1124,13 @@ impl Builder {
         }
     }
 
-    fn throw(&mut self,
-             value_node: &Node,
-             line: usize,
-             col: usize,
-             context: &mut Context)
-             -> Expression {
+    fn throw(
+        &mut self,
+        value_node: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let value = self.process_node(value_node, context);
 
         Expression::Throw {
@@ -1107,223 +1140,245 @@ impl Builder {
         }
     }
 
-    fn op_add(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_add(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "+", right, line, col, context)
     }
 
-    fn op_and(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_and(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "&&", right, line, col, context)
     }
 
-    fn op_bitwise_and(&mut self,
-                      left: &Node,
-                      right: &Node,
-                      line: usize,
-                      col: usize,
-                      context: &mut Context)
-                      -> Expression {
+    fn op_bitwise_and(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "&", right, line, col, context)
     }
 
-    fn op_bitwise_or(&mut self,
-                     left: &Node,
-                     right: &Node,
-                     line: usize,
-                     col: usize,
-                     context: &mut Context)
-                     -> Expression {
+    fn op_bitwise_or(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "|", right, line, col, context)
     }
 
-    fn op_bitwise_xor(&mut self,
-                      left: &Node,
-                      right: &Node,
-                      line: usize,
-                      col: usize,
-                      context: &mut Context)
-                      -> Expression {
+    fn op_bitwise_xor(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "^", right, line, col, context)
     }
 
-    fn op_div(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_div(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "/", right, line, col, context)
     }
 
-    fn op_equal(&mut self,
-                left: &Node,
-                right: &Node,
-                line: usize,
-                col: usize,
-                context: &mut Context)
-                -> Expression {
+    fn op_equal(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "==", right, line, col, context)
     }
 
-    fn op_greater(&mut self,
-                  left: &Node,
-                  right: &Node,
-                  line: usize,
-                  col: usize,
-                  context: &mut Context)
-                  -> Expression {
+    fn op_greater(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, ">", right, line, col, context)
     }
 
-    fn op_greater_equal(&mut self,
-                        left: &Node,
-                        right: &Node,
-                        line: usize,
-                        col: usize,
-                        context: &mut Context)
-                        -> Expression {
+    fn op_greater_equal(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, ">=", right, line, col, context)
     }
 
-    fn op_lower(&mut self,
-                left: &Node,
-                right: &Node,
-                line: usize,
-                col: usize,
-                context: &mut Context)
-                -> Expression {
+    fn op_lower(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "<", right, line, col, context)
     }
 
-    fn op_lower_equal(&mut self,
-                      left: &Node,
-                      right: &Node,
-                      line: usize,
-                      col: usize,
-                      context: &mut Context)
-                      -> Expression {
+    fn op_lower_equal(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "<=", right, line, col, context)
     }
 
-    fn op_mod(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_mod(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "%", right, line, col, context)
     }
 
-    fn op_mul(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_mul(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "*", right, line, col, context)
     }
 
-    fn op_not_equal(&mut self,
-                    left: &Node,
-                    right: &Node,
-                    line: usize,
-                    col: usize,
-                    context: &mut Context)
-                    -> Expression {
+    fn op_not_equal(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "!=", right, line, col, context)
     }
 
-    fn op_or(&mut self,
-             left: &Node,
-             right: &Node,
-             line: usize,
-             col: usize,
-             context: &mut Context)
-             -> Expression {
+    fn op_or(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "||", right, line, col, context)
     }
 
-    fn op_pow(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_pow(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "**", right, line, col, context)
     }
 
-    fn op_shift_left(&mut self,
-                     left: &Node,
-                     right: &Node,
-                     line: usize,
-                     col: usize,
-                     context: &mut Context)
-                     -> Expression {
+    fn op_shift_left(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "<<", right, line, col, context)
     }
 
-    fn op_shift_right(&mut self,
-                      left: &Node,
-                      right: &Node,
-                      line: usize,
-                      col: usize,
-                      context: &mut Context)
-                      -> Expression {
+    fn op_shift_right(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, ">>", right, line, col, context)
     }
 
-    fn op_sub(&mut self,
-              left: &Node,
-              right: &Node,
-              line: usize,
-              col: usize,
-              context: &mut Context)
-              -> Expression {
+    fn op_sub(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "-", right, line, col, context)
     }
 
-    fn op_inclusive_range(&mut self,
-                          left: &Node,
-                          right: &Node,
-                          line: usize,
-                          col: usize,
-                          context: &mut Context)
-                          -> Expression {
+    fn op_inclusive_range(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "..", right, line, col, context)
     }
 
-    fn op_exclusive_range(&mut self,
-                          left: &Node,
-                          right: &Node,
-                          line: usize,
-                          col: usize,
-                          context: &mut Context)
-                          -> Expression {
+    fn op_exclusive_range(
+        &mut self,
+        left: &Node,
+        right: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         self.send_binary(left, "...", right, line, col, context)
     }
 
-    fn reassign(&mut self,
-                var_node: &Node,
-                val_node: &Node,
-                line: usize,
-                col: usize,
-                context: &mut Context)
-                -> Expression {
+    fn reassign(
+        &mut self,
+        var_node: &Node,
+        val_node: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let value = self.process_node(val_node, context);
 
         match var_node {
@@ -1369,14 +1424,15 @@ impl Builder {
         }
     }
 
-    fn send_binary(&mut self,
-                   left_node: &Node,
-                   message: &str,
-                   right_node: &Node,
-                   line: usize,
-                   col: usize,
-                   context: &mut Context)
-                   -> Expression {
+    fn send_binary(
+        &mut self,
+        left_node: &Node,
+        message: &str,
+        right_node: &Node,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let left = Box::new(self.process_node(left_node, context));
         let right = self.process_node(right_node, context);
 

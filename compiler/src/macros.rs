@@ -17,7 +17,7 @@ macro_rules! hash_map {
 }
 
 macro_rules! hash_set {
-    [ $($value: expr),+ ] => ({
+    [ $($value: expr),+, ] => ({
         let mut set = $crate::std::collections::HashSet::new();
 
         $(set.insert($value);)+

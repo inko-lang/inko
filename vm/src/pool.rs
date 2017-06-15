@@ -118,7 +118,8 @@ impl<T: Send + 'static> Pool<T> {
     /// Starts a number of threads, each calling the supplied closure for every
     /// job.
     pub fn run<F>(&self, closure: F) -> JoinGuard<()>
-        where F: Fn(T) + Sync + Send + 'static
+    where
+        F: Fn(T) + Sync + Send + 'static,
     {
         let arc_closure = Arc::new(closure);
         let amount = self.inner.queues.len();
@@ -179,7 +180,8 @@ impl<T: Send + 'static> PoolInner<T> {
 
     /// Processes jobs from a queue.
     pub fn process<F>(&self, index: usize, closure: Arc<F>)
-        where F: Fn(T) + Sync + Send + 'static
+    where
+        F: Fn(T) + Sync + Send + 'static,
     {
         let ref queue = self.queues[index];
 

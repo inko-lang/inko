@@ -138,10 +138,11 @@ impl Bucket {
     }
 
     /// Allocates an object into this bucket
-    pub fn allocate(&mut self,
-                    global_allocator: &RcGlobalAllocator,
-                    object: Object)
-                    -> (bool, ObjectPointer) {
+    pub fn allocate(
+        &mut self,
+        global_allocator: &RcGlobalAllocator,
+        object: Object,
+    ) -> (bool, ObjectPointer) {
         let found_hole = self.find_available_hole();
 
         if !found_hole {
@@ -188,7 +189,8 @@ impl Bucket {
 
         for mut block in self.blocks.drain(0..).chain(
             self.recyclable_blocks.drain(0..),
-        ) {
+        )
+        {
             block.update_line_map();
             block.finalize();
 
@@ -237,7 +239,8 @@ impl Bucket {
 
         for block in self.blocks.iter_mut().chain(
             self.recyclable_blocks.iter_mut(),
-        ) {
+        )
+        {
             if evacuate && block.holes > 0 {
                 let count = block.available_lines_count();
 
@@ -258,7 +261,7 @@ impl Bucket {
                     required += self.mark_histogram.get(bin).unwrap() as isize;
 
                     available -= self.available_histogram.get(bin).unwrap() as
-                                 isize;
+                        isize;
 
                     min_bin = Some(bin);
                 } else {
@@ -294,8 +297,9 @@ impl Bucket {
     }
 
     /// Returns a mutable iterator for all blocks.
-    pub fn all_blocks_mut(&mut self)
-                          -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
+    pub fn all_blocks_mut(
+        &mut self,
+    ) -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
         self.blocks.iter_mut().chain(
             self.recyclable_blocks.iter_mut(),
         )
@@ -480,7 +484,7 @@ mod tests {
 
         assert!(
             bucket.blocks[0].free_pointer ==
-            unsafe { bucket.blocks[0].start_address().offset(5) }
+                unsafe { bucket.blocks[0].start_address().offset(5) }
         );
     }
 

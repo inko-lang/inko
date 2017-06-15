@@ -44,16 +44,17 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
 }
 
 /// Traces through and marks all reachable objects.
-pub fn trace(process: &RcProcess,
-             move_objects: bool,
-             mature: bool)
-             -> TraceResult {
+pub fn trace(
+    process: &RcProcess,
+    move_objects: bool,
+    mature: bool,
+) -> TraceResult {
     let mut result = if move_objects {
         trace_mailbox_locals_with_moving(process, mature) +
-        trace_with_moving(process, mature)
+            trace_with_moving(process, mature)
     } else {
         trace_mailbox_locals_without_moving(process, mature) +
-        trace_without_moving(process, mature)
+            trace_without_moving(process, mature)
     };
 
     if mature {
@@ -72,9 +73,10 @@ pub fn trace(process: &RcProcess,
 /// remembered set for a potential long amount of time.
 ///
 /// Returns true if any objects were promoted.
-pub fn trace_remembered_set(process: &RcProcess,
-                            move_objects: bool)
-                            -> TraceResult {
+pub fn trace_remembered_set(
+    process: &RcProcess,
+    move_objects: bool,
+) -> TraceResult {
     let pointers = process
         .local_data_mut()
         .remembered_set
@@ -107,9 +109,10 @@ pub fn prune_remembered_set(process: &RcProcess) {
 }
 
 /// Traces through all local pointers in a mailbox, without moving objects.
-pub fn trace_mailbox_locals_without_moving(process: &RcProcess,
-                                           mature: bool)
-                                           -> TraceResult {
+pub fn trace_mailbox_locals_without_moving(
+    process: &RcProcess,
+    mature: bool,
+) -> TraceResult {
     let local_data = process.local_data_mut();
     let objects = local_data.mailbox.local_pointers();
 
@@ -118,9 +121,10 @@ pub fn trace_mailbox_locals_without_moving(process: &RcProcess,
 
 /// Traces through all local pointers in a mailbox, potentially moving
 /// objects.
-pub fn trace_mailbox_locals_with_moving(process: &RcProcess,
-                                        mature: bool)
-                                        -> TraceResult {
+pub fn trace_mailbox_locals_with_moving(
+    process: &RcProcess,
+    mature: bool,
+) -> TraceResult {
     let local_data = process.local_data_mut();
     let objects = local_data.mailbox.local_pointers();
 

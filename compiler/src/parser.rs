@@ -509,63 +509,67 @@ impl<'a> Parser<'a> {
     pub fn new(input: &str) -> Self {
         Parser {
             lexer: Lexer::new(input.chars().collect()),
-            message_tokens: hash_set![TokenType::Add,
-                                      TokenType::And,
-                                      TokenType::BitwiseAnd,
-                                      TokenType::BitwiseOr,
-                                      TokenType::BitwiseXor,
-                                      TokenType::Constant,
-                                      TokenType::Div,
-                                      TokenType::Equal,
-                                      TokenType::ExclusiveRange,
-                                      TokenType::Greater,
-                                      TokenType::GreaterEqual,
-                                      TokenType::Identifier,
-                                      TokenType::Impl,
-                                      TokenType::Import,
-                                      TokenType::InclusiveRange,
-                                      TokenType::Let,
-                                      TokenType::Lower,
-                                      TokenType::LowerEqual,
-                                      TokenType::Mod,
-                                      TokenType::Mul,
-                                      TokenType::NotEqual,
-                                      TokenType::Class,
-                                      TokenType::Or,
-                                      TokenType::Pow,
-                                      TokenType::Return,
-                                      TokenType::SelfObject,
-                                      TokenType::ShiftLeft,
-                                      TokenType::ShiftRight,
-                                      TokenType::Sub,
-                                      TokenType::Trait,
-                                      TokenType::Var,
-                                      TokenType::BracketOpen,
-                                      TokenType::Throw,
-                                      TokenType::Else],
-            value_start: hash_set![TokenType::String,
-                                   TokenType::Integer,
-                                   TokenType::Float,
-                                   TokenType::Identifier,
-                                   TokenType::Constant,
-                                   TokenType::HashOpen,
-                                   TokenType::Sub,
-                                   TokenType::BracketOpen,
-                                   TokenType::CurlyOpen,
-                                   TokenType::Function,
-                                   TokenType::Let,
-                                   TokenType::Let,
-                                   TokenType::Class,
-                                   TokenType::Trait,
-                                   TokenType::Return,
-                                   TokenType::Impl,
-                                   TokenType::Comment,
-                                   TokenType::Colon,
-                                   TokenType::Type,
-                                   TokenType::Attribute,
-                                   TokenType::SelfObject,
-                                   TokenType::Try,
-                                   TokenType::Throw],
+            message_tokens: hash_set![
+                TokenType::Add,
+                TokenType::And,
+                TokenType::BitwiseAnd,
+                TokenType::BitwiseOr,
+                TokenType::BitwiseXor,
+                TokenType::Constant,
+                TokenType::Div,
+                TokenType::Equal,
+                TokenType::ExclusiveRange,
+                TokenType::Greater,
+                TokenType::GreaterEqual,
+                TokenType::Identifier,
+                TokenType::Impl,
+                TokenType::Import,
+                TokenType::InclusiveRange,
+                TokenType::Let,
+                TokenType::Lower,
+                TokenType::LowerEqual,
+                TokenType::Mod,
+                TokenType::Mul,
+                TokenType::NotEqual,
+                TokenType::Class,
+                TokenType::Or,
+                TokenType::Pow,
+                TokenType::Return,
+                TokenType::SelfObject,
+                TokenType::ShiftLeft,
+                TokenType::ShiftRight,
+                TokenType::Sub,
+                TokenType::Trait,
+                TokenType::Var,
+                TokenType::BracketOpen,
+                TokenType::Throw,
+                TokenType::Else,
+            ],
+            value_start: hash_set![
+                TokenType::String,
+                TokenType::Integer,
+                TokenType::Float,
+                TokenType::Identifier,
+                TokenType::Constant,
+                TokenType::HashOpen,
+                TokenType::Sub,
+                TokenType::BracketOpen,
+                TokenType::CurlyOpen,
+                TokenType::Function,
+                TokenType::Let,
+                TokenType::Let,
+                TokenType::Class,
+                TokenType::Trait,
+                TokenType::Return,
+                TokenType::Impl,
+                TokenType::Comment,
+                TokenType::Colon,
+                TokenType::Type,
+                TokenType::Attribute,
+                TokenType::SelfObject,
+                TokenType::Try,
+                TokenType::Throw,
+            ],
         }
     }
 
@@ -1712,18 +1716,18 @@ impl<'a> Parser<'a> {
     fn try(&mut self, start: Token) -> ParseResult {
         let body = self.block_with_optional_curly_braces()?;
 
-        let (else_arg, else_body) = if self.lexer.next_type_is(
-            &TokenType::Else,
-        ) {
-            next_or_error!(self);
+        let (else_arg, else_body) =
+            if self.lexer.next_type_is(&TokenType::Else) {
+                next_or_error!(self);
 
-            let else_arg = self.optional_else_arg()?;
-            let else_body = Box::new(self.block_with_optional_curly_braces()?);
+                let else_arg = self.optional_else_arg()?;
+                let else_body =
+                    Box::new(self.block_with_optional_curly_braces()?);
 
-            (else_arg, Some(else_body))
-        } else {
-            (None, None)
-        };
+                (else_arg, Some(else_body))
+            } else {
+                (None, None)
+            };
 
         Ok(Node::Try {
             body: Box::new(body),
@@ -1840,10 +1844,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn constant_from_token(&self,
-                           token: Token,
-                           receiver: Option<Box<Node>>)
-                           -> Node {
+    fn constant_from_token(
+        &self,
+        token: Token,
+        receiver: Option<Box<Node>>,
+    ) -> Node {
         Node::Constant {
             receiver: receiver,
             name: token.value,
@@ -1855,7 +1860,7 @@ impl<'a> Parser<'a> {
     fn next_expression_is_argument(&mut self, current_line: usize) -> bool {
         if let Some(token) = self.lexer.peek() {
             self.value_start.contains(&token.token_type) &&
-            token.line == current_line
+                token.line == current_line
         } else {
             false
         }

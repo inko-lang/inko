@@ -60,11 +60,12 @@ impl CompiledCode {
     ///
     ///     let code = CompiledCode::new("(main)", "test.inko", 1, vec![...]);
     ///
-    pub fn new(name: String,
-               file: String,
-               line: u16,
-               instructions: Vec<Instruction>)
-               -> CompiledCode {
+    pub fn new(
+        name: String,
+        file: String,
+        line: u16,
+        instructions: Vec<Instruction>,
+    ) -> CompiledCode {
         CompiledCode {
             name: name,
             file: file,

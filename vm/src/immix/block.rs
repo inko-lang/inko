@@ -281,7 +281,8 @@ impl Block {
     pub fn finalize(&mut self) {
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
             if self.finalize_bitmap.is_set(index) &&
-               !self.marked_objects_bitmap.is_set(index) {
+                !self.marked_objects_bitmap.is_set(index)
+            {
                 unsafe {
                     let ptr = self.lines.offset(index as isize);
 
@@ -630,7 +631,7 @@ mod tests {
         };
 
         let end_pointer = (block.end_address() as usize - LINE_SIZE) as
-                          *mut Object;
+            *mut Object;
 
         assert!(block.free_pointer == start_pointer);
         assert!(block.end_pointer == end_pointer);

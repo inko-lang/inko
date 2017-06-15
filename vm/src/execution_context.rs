@@ -51,9 +51,10 @@ pub struct ExecutionContextIterator<'a> {
 impl ExecutionContext {
     /// Creates a new execution context using an existing bock.
     #[inline(always)]
-    pub fn from_block(block: &Block,
-                      return_register: Option<usize>)
-                      -> ExecutionContext {
+    pub fn from_block(
+        block: &Block,
+        return_register: Option<usize>,
+    ) -> ExecutionContext {
         ExecutionContext {
             register: Register::new(block.code.registers as usize),
             binding: Binding::from_block(block),

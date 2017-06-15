@@ -14,7 +14,8 @@ impl Diagnostics {
     }
 
     pub fn error<M>(&mut self, path: &str, message: M, line: usize, col: usize)
-        where M: ToString + Sized
+    where
+        M: ToString + Sized,
     {
         self.entries.push(Diagnostic::error(
             path.to_string(),
@@ -25,7 +26,8 @@ impl Diagnostics {
     }
 
     pub fn warn<M>(&mut self, path: &str, message: M, line: usize, col: usize)
-        where M: ToString + Sized
+    where
+        M: ToString + Sized,
     {
         self.entries.push(Diagnostic::warning(
             path.to_string(),

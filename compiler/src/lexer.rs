@@ -123,10 +123,37 @@ impl<'a> Lexer<'a> {
                 "else" => TokenType::Else,
                 "try" => TokenType::Try
             ),
-            specials: hash_set!['!', '@', '#', '$', '%', '^', '&', '*', '(',
-                                ')', '-', '+', '=', '\\', ':', ';', '"', '\'',
-                                '<', '>', '/', ',', '.', ' ', '\r', '\n', '|',
-                                '[', ']'],
+            specials: hash_set![
+                '!',
+                '@',
+                '#',
+                '$',
+                '%',
+                '^',
+                '&',
+                '*',
+                '(',
+                ')',
+                '-',
+                '+',
+                '=',
+                '\\',
+                ':',
+                ';',
+                '"',
+                '\'',
+                '<',
+                '>',
+                '/',
+                ',',
+                '.',
+                ' ',
+                '\r',
+                '\n',
+                '|',
+                '[',
+                ']',
+            ],
         }
     }
 
@@ -243,8 +270,9 @@ impl<'a> Lexer<'a> {
             let mut token = self.token(TokenType::Identifier, start, stop);
 
             if let Some(token_type) = self.identifiers
-                   .get(&token.value.as_ref())
-                   .cloned() {
+                .get(&token.value.as_ref())
+                .cloned()
+            {
                 token.token_type = token_type;
             }
 
@@ -617,11 +645,12 @@ impl<'a> Lexer<'a> {
         Some(token)
     }
 
-    fn operator(&mut self,
-                advance: usize,
-                mut token_type: TokenType,
-                assign_type: TokenType)
-                -> Option<Token> {
+    fn operator(
+        &mut self,
+        advance: usize,
+        mut token_type: TokenType,
+        assign_type: TokenType,
+    ) -> Option<Token> {
         let start = self.position;
         let mut position = self.position;
 
@@ -662,11 +691,12 @@ impl<'a> Lexer<'a> {
         String::from_iter(self.input[start..stop].to_vec())
     }
 
-    fn token(&mut self,
-             token_type: TokenType,
-             start: usize,
-             stop: usize)
-             -> Token {
+    fn token(
+        &mut self,
+        token_type: TokenType,
+        start: usize,
+        stop: usize,
+    ) -> Token {
         let token = Token {
             token_type: token_type,
             value: self.slice(start, stop),
@@ -710,11 +740,12 @@ impl<'a> Lexer<'a> {
         Some((start, self.position))
     }
 
-    fn string_with_quote(&mut self,
-                         escaped: &char,
-                         find: &str,
-                         replace: &str)
-                         -> Option<Token> {
+    fn string_with_quote(
+        &mut self,
+        escaped: &char,
+        find: &str,
+        replace: &str,
+    ) -> Option<Token> {
         // Skip the opening quote
         self.position += 1;
 
