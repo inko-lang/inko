@@ -55,7 +55,9 @@ impl Builder {
 
     /// Builds the main module that starts the application.
     pub fn build_main(&mut self, path: String) -> Option<Module> {
-        self.build(Vec::new(), "main".to_string(), path)
+        let name = self.module_name_for_path(&path);
+
+        self.build(Vec::new(), name, path)
     }
 
     pub fn build(&mut self,
@@ -1435,6 +1437,17 @@ impl Builder {
         );
 
         file_name + self.config.source_extension()
+    }
+
+
+    fn module_name_for_path(&self, path: &String) -> String {
+        if let Some(file_with_ext) = path.split(MAIN_SEPARATOR).last() {
+            if let Some(file_name) = file_with_ext.split(".").next() {
+                return file_name.to_string();
+            }
+        }
+
+        "main".to_string()
     }
 
     fn find_module_path(&self, path: &str) -> Option<String> {
