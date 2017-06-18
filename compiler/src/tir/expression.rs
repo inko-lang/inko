@@ -167,7 +167,6 @@ pub enum Expression {
 
     DefineModule {
         name: Box<Expression>,
-        under: Vec<Expression>,
         body: CodeObject,
         line: usize,
         column: usize,
