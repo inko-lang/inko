@@ -9,9 +9,6 @@ pub struct Config {
     /// The directories to search for source files.
     pub source_directories: Vec<PathBuf>,
 
-    /// The directories to search for pre-compiled bytecode files.
-    pub bytecode_directories: Vec<PathBuf>,
-
     /// The mode to use for compiling code.
     pub mode: Mode,
 
@@ -23,7 +20,6 @@ impl Config {
     pub fn new(target: PathBuf) -> Config {
         Config {
             source_directories: Vec::new(),
-            bytecode_directories: Vec::new(),
             mode: Mode::Debug,
             target: target,
         }
@@ -35,10 +31,6 @@ impl Config {
 
     pub fn add_source_directory(&mut self, dir: String) {
         self.source_directories.push(PathBuf::from(dir));
-    }
-
-    pub fn add_bytecode_directory(&mut self, dir: String) {
-        self.bytecode_directories.push(PathBuf::from(dir));
     }
 
     /// Returns the file extension to use for source files.

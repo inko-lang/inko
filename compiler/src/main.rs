@@ -40,16 +40,9 @@ fn main() {
     options.optflag("v", "version", "Prints the version number");
 
     options.optmulti(
-        "S",
-        "source",
+        "I",
+        "include",
         "Directories to search for source files",
-        "DIR",
-    );
-
-    options.optmulti(
-        "B",
-        "bytecode",
-        "Directories to search for pre-compiled bytecode files",
         "DIR",
     );
 
@@ -94,15 +87,9 @@ fn main() {
             config.set_release_mode();
         }
 
-        if matches.opt_present("S") {
-            for dir in matches.opt_strs("S") {
+        if matches.opt_present("I") {
+            for dir in matches.opt_strs("I") {
                 config.add_source_directory(dir);
-            }
-        }
-
-        if matches.opt_present("B") {
-            for dir in matches.opt_strs("B") {
-                config.add_bytecode_directory(dir);
             }
         }
 
