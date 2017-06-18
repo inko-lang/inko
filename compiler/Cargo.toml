@@ -6,3 +6,4 @@ authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 [dependencies]
 getopts = "^0.2"
 ansi_term = "^0.9"
+xdg = "^2.1"

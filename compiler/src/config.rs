@@ -1,4 +1,8 @@
+use xdg::BaseDirectories;
 use std::path::PathBuf;
+
+const PROGRAM_NAME: &'static str = "inkoc";
+const BYTECODE_DIR: &'static str = "bytecode";
 
 pub enum Mode {
     Debug,
@@ -14,15 +18,30 @@ pub struct Config {
 
     /// The directory to store bytecode files in.
     pub target: PathBuf,
+
+    base_directory: BaseDirectories,
 }
 
 impl Config {
-    pub fn new(target: PathBuf) -> Config {
+    pub fn new() -> Config {
+        let base_dir = BaseDirectories::with_prefix(PROGRAM_NAME).unwrap();
+
         Config {
             source_directories: Vec::new(),
             mode: Mode::Debug,
-            target: target,
+            target: base_dir.get_cache_home().join(BYTECODE_DIR),
+            base_directory: base_dir,
         }
+    }
+
+    pub fn create_directories(&self) {
+        self.base_directory
+            .create_cache_directory(BYTECODE_DIR)
+            .unwrap();
+    }
+
+    pub fn set_target(&mut self, path: PathBuf) {
+        self.target = path;
     }
 
     pub fn set_release_mode(&mut self) {

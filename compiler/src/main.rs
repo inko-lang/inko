@@ -1,5 +1,6 @@
 extern crate getopts;
 extern crate ansi_term;
+extern crate xdg;
 
 pub mod macros;
 
@@ -75,13 +76,11 @@ fn main() {
     if matches.free.is_empty() {
         print_usage(&options);
     } else {
-        let target = if let Some(path) = matches.opt_str("T") {
-            PathBuf::from(path)
-        } else {
-            env::current_dir().unwrap()
-        };
+        let mut config = config::Config::new();
 
-        let mut config = config::Config::new(target);
+        if let Some(path) = matches.opt_str("T") {
+            config.set_target(PathBuf::from(path));
+        };
 
         if matches.opt_present("release") {
             config.set_release_mode();
@@ -92,6 +91,8 @@ fn main() {
                 config.add_source_directory(dir);
             }
         }
+
+        config.create_directories();
 
         let mut compiler = compiler::Compiler::new(config);
 
