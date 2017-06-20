@@ -6,6 +6,7 @@ pub mod macros;
 
 pub mod compiler;
 pub mod config;
+pub mod default_globals;
 pub mod formatter;
 pub mod lexer;
 pub mod parser;

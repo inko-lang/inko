@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use compiler::diagnostics::Diagnostics;
 use config::Config;
+use default_globals::DEFAULT_GLOBALS;
 use parser::{Parser, Node};
 use tir::code_object::CodeObject;
 use tir::expression::Expression;
@@ -75,8 +76,9 @@ impl Builder {
     }
 
     fn module(&mut self, name: String, path: String, node: Node) -> Module {
-        let mut globals = VariableScope::new();
+        let mut globals = self.module_globals();
         let locals = self.variable_scope_with_self();
+
         let code_object =
             self.code_object_with_locals(&path, &node, locals, &mut globals);
 
@@ -1499,5 +1501,15 @@ impl Builder {
             column: col,
             rest: false,
         }
+    }
+
+    fn module_globals(&self) -> VariableScope {
+        let mut globals = VariableScope::new();
+
+        for &(_, global) in DEFAULT_GLOBALS.iter() {
+            globals.define(global.to_string(), Mutability::Immutable);
+        }
+
+        globals
     }
 }
