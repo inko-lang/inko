@@ -1,9 +1,18 @@
+use symbol::SymbolPointer;
+
 use tir::code_object::CodeObject;
 use tir::import::Symbol as ImportSymbol;
-use tir::method::MethodArgument;
-use tir::variable::Variable;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+pub struct Argument {
+    pub name: String,
+    pub default_value: Option<Expression>,
+    pub line: usize,
+    pub column: usize,
+    pub rest: bool,
+}
+
+#[derive(Debug)]
 pub enum Expression {
     Void,
 
@@ -38,33 +47,33 @@ pub enum Expression {
     },
 
     Block {
-        arguments: Vec<MethodArgument>,
+        arguments: Vec<Argument>,
         body: CodeObject,
         line: usize,
         column: usize,
     },
 
     GetLocal {
-        variable: Variable,
+        variable: SymbolPointer,
         line: usize,
         column: usize,
     },
 
     SetLocal {
-        variable: Variable,
+        variable: SymbolPointer,
         value: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     GetGlobal {
-        variable: Variable,
+        variable: SymbolPointer,
         line: usize,
         column: usize,
     },
 
     SetGlobal {
-        variable: Variable,
+        variable: SymbolPointer,
         value: Box<Expression>,
         line: usize,
         column: usize,
@@ -123,7 +132,7 @@ pub enum Expression {
     Try {
         body: CodeObject,
         else_body: Option<CodeObject>,
-        else_argument: Option<Variable>,
+        else_argument: Option<SymbolPointer>,
         line: usize,
         column: usize,
     },

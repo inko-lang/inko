@@ -1,6 +1,6 @@
 pub mod pretty;
 
-use compiler::diagnostics::Diagnostics;
+use diagnostics::Diagnostics;
 
 pub trait Formatter {
     /// Formats all the compiler messages and returns a String containing the

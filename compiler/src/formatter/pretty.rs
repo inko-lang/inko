@@ -3,8 +3,8 @@ use std::fmt::Write;
 use ansi_term::Colour::{Red, Yellow};
 use ansi_term::Style;
 
-use compiler::diagnostic::{Diagnostic, DiagnosticLevel};
-use compiler::diagnostics::Diagnostics;
+use diagnostic::{Diagnostic, DiagnosticLevel};
+use diagnostics::Diagnostics;
 use formatter::Formatter;
 
 pub struct Pretty;

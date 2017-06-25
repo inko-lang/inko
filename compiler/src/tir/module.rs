@@ -1,6 +1,6 @@
 //! Modules containing source code.
+use symbol_table::SymbolTable;
 use tir::expression::Expression;
-use tir::variable::Scope as VariableScope;
 
 #[derive(Debug)]
 pub struct Module {
@@ -14,5 +14,5 @@ pub struct Module {
     pub body: Expression,
 
     /// The global variables defined in this module.
-    pub globals: VariableScope,
+    pub globals: SymbolTable,
 }

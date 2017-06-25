@@ -1,19 +1,18 @@
-//! Inko modules to import
-use tir::variable::Variable;
+use symbol::SymbolPointer;
 
 /// The type of symbol to import.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SymbolKind {
     Module,
     Constant,
 }
 
 /// A symbol to import.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Symbol {
     kind: SymbolKind,
     import_name: String,
-    global: Variable,
+    global: SymbolPointer,
     line: usize,
     column: usize,
 }
@@ -21,7 +20,7 @@ pub struct Symbol {
 impl Symbol {
     pub fn module(
         import_name: String,
-        global: Variable,
+        global: SymbolPointer,
         line: usize,
         column: usize,
     ) -> Self {
@@ -36,7 +35,7 @@ impl Symbol {
 
     pub fn constant(
         import_name: String,
-        global: Variable,
+        global: SymbolPointer,
         line: usize,
         column: usize,
     ) -> Self {

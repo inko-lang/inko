@@ -5,17 +5,19 @@ use std::io::Read;
 use std::path::MAIN_SEPARATOR;
 use std::collections::HashMap;
 
-use compiler::diagnostics::Diagnostics;
+use diagnostics::Diagnostics;
 use config::Config;
 use default_globals::DEFAULT_GLOBALS;
+use mutability::Mutability;
 use parser::{Parser, Node};
+use symbol::SymbolPointer;
+use symbol_table::SymbolTable;
 use tir::code_object::CodeObject;
-use tir::expression::Expression;
+use tir::expression::{Argument, Expression};
 use tir::implement::{Implement, Rename};
 use tir::import::Symbol as ImportSymbol;
-use tir::method::MethodArgument;
 use tir::module::Module;
-use tir::variable::{Mutability, Scope as VariableScope, Variable};
+use types::Type;
 
 pub struct Builder {
     pub config: Rc<Config>,
@@ -39,10 +41,10 @@ struct Context<'a> {
     path: &'a String,
 
     /// The local variables for the current scope.
-    locals: &'a mut VariableScope,
+    locals: &'a mut SymbolTable,
 
     /// The module locals for the currently compiled module.
-    globals: &'a mut VariableScope,
+    globals: &'a mut SymbolTable,
 }
 
 impl Builder {
@@ -77,7 +79,7 @@ impl Builder {
 
     fn module(&mut self, name: String, path: String, node: Node) -> Module {
         let mut globals = self.module_globals();
-        let locals = self.variable_scope_with_self();
+        let locals = self.symbol_table_with_self();
 
         let code_object =
             self.code_object_with_locals(&path, &node, locals, &mut globals);
@@ -101,17 +103,17 @@ impl Builder {
         &mut self,
         path: &String,
         node: &Node,
-        globals: &mut VariableScope,
+        globals: &mut SymbolTable,
     ) -> CodeObject {
-        self.code_object_with_locals(path, node, VariableScope::new(), globals)
+        self.code_object_with_locals(path, node, SymbolTable::new(), globals)
     }
 
     fn code_object_with_locals(
         &mut self,
         path: &String,
         node: &Node,
-        mut locals: VariableScope,
-        globals: &mut VariableScope,
+        mut locals: SymbolTable,
+        globals: &mut SymbolTable,
     ) -> CodeObject {
         let body = match node {
             &Node::Expressions { ref nodes } => {
@@ -439,7 +441,7 @@ impl Builder {
 
     fn get_local(
         &mut self,
-        variable: Variable,
+        variable: SymbolPointer,
         line: usize,
         col: usize,
     ) -> Expression {
@@ -452,7 +454,7 @@ impl Builder {
 
     fn get_global(
         &mut self,
-        variable: Variable,
+        variable: SymbolPointer,
         line: usize,
         col: usize,
     ) -> Expression {
@@ -520,10 +522,8 @@ impl Builder {
             }
             &Node::Constant { ref name, .. } => {
                 if mutability == Mutability::Mutable {
-                    self.diagnostics.error(
+                    self.diagnostics.mutable_constant_error(
                         context.path,
-                        "constants can not be declared as \
-                                            mutable",
                         line,
                         column,
                     );
@@ -554,7 +554,7 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         Expression::SetLocal {
-            variable: context.locals.define(name, mutability),
+            variable: context.locals.define(name, Type::Dynamic, mutability),
             value: Box::new(value),
             line: line,
             column: col,
@@ -629,11 +629,10 @@ impl Builder {
             }
         };
 
-        let mut args = vec![receiver.clone()];
-
-        for arg in arguments.iter() {
-            args.push(self.process_node(arg, context));
-        }
+        let args = arguments
+            .iter()
+            .map(|arg| self.process_node(arg, context))
+            .collect();
 
         Expression::SendObjectMessage {
             receiver: Box::new(receiver),
@@ -701,6 +700,7 @@ impl Builder {
                                 name.clone(),
                                 context.globals.define(
                                     var_name,
+                                    Type::Dynamic,
                                     Mutability::Immutable,
                                 ),
                                 line,
@@ -742,12 +742,9 @@ impl Builder {
                     self.modules.insert(mod_name.clone(), module);
                 }
                 None => {
-                    self.diagnostics.error(
+                    self.diagnostics.module_not_found_error(
+                        &mod_name,
                         context.path,
-                        format!(
-                            "The module {:?} could not be found",
-                            mod_name
-                        ),
                         line,
                         col,
                     );
@@ -817,10 +814,10 @@ impl Builder {
     ) -> Expression {
         let name_expr = self.string(name, line, col);
         let arguments = self.method_arguments(arg_nodes, context);
-        let mut locals = self.variable_scope_with_self();
+        let mut locals = self.symbol_table_with_self();
 
         for arg in arguments.iter() {
-            locals.define(arg.name.clone(), Mutability::Immutable);
+            locals.define(arg.name.clone(), Type::Dynamic, Mutability::Immutable);
         }
 
         let receiver_expr = if let &Some(ref r) = receiver {
@@ -870,9 +867,8 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         if receiver.is_some() {
-            self.diagnostics.error(
+            self.diagnostics.required_method_with_receiver_error(
                 context.path,
-                "methods required by a trait can not be defined on an explicit receiver",
                 line,
                 col,
             );
@@ -893,7 +889,7 @@ impl Builder {
         &mut self,
         nodes: &Vec<Node>,
         context: &mut Context,
-    ) -> Vec<MethodArgument> {
+    ) -> Vec<Argument> {
         nodes
             .iter()
             .map(|node| match node {
@@ -909,7 +905,7 @@ impl Builder {
                         self.process_node(node, context)
                     });
 
-                    MethodArgument {
+                    Argument {
                         name: name.clone(),
                         default_value: default_val,
                         line: line,
@@ -932,7 +928,7 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         let name_expr = self.string(name.clone(), line, col);
-        let locals = self.variable_scope_with_self();
+        let locals = self.symbol_table_with_self();
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
@@ -967,7 +963,7 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         let name_expr = self.string(name.clone(), line, col);
-        let locals = self.variable_scope_with_self();
+        let locals = self.symbol_table_with_self();
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
@@ -1060,12 +1056,16 @@ impl Builder {
         let body = self.code_object(&context.path, body, context.globals);
 
         let (else_body, else_arg) = if let &Some(ref node) = else_body {
-            let mut else_locals = VariableScope::new();
+            let mut else_locals = SymbolTable::new();
 
             let else_arg = if let &Some(ref node) = else_arg {
                 let name = self.name_of_node(node).unwrap();
 
-                Some(else_locals.define(name, Mutability::Immutable))
+                Some(else_locals.define(
+                    name,
+                    Type::Dynamic,
+                    Mutability::Immutable,
+                ))
             } else {
                 None
             };
@@ -1351,7 +1351,7 @@ impl Builder {
         match var_node {
             &Node::Identifier { ref name, .. } => {
                 if let Some(var) = context.locals.lookup(name) {
-                    if context.locals.is_mutable(&var) {
+                    if var.is_mutable() {
                         self.set_local(
                             name.clone(),
                             value,
@@ -1361,24 +1361,22 @@ impl Builder {
                             context,
                         )
                     } else {
-                        let msg = format!(
-                            "cannot re-assign immutable local \
-                                           variable {:?}",
-                            name
+                        self.diagnostics.reassign_immutable_local_error(
+                            name,
+                            context.path,
+                            line,
+                            col,
                         );
-
-                        self.diagnostics.error(context.path, msg, line, col);
 
                         Expression::Void
                     }
                 } else {
-                    let msg = format!(
-                        "cannot re-assign undefined local \
-                                       variable {:?}",
-                        name
+                    self.diagnostics.reassign_undefined_local_error(
+                        name,
+                        context.path,
+                        line,
+                        col,
                     );
-
-                    self.diagnostics.error(context.path, msg, line, col);
 
                     Expression::Void
                 }
@@ -1485,16 +1483,20 @@ impl Builder {
         None
     }
 
-    fn variable_scope_with_self(&self) -> VariableScope {
-        let mut scope = VariableScope::new();
+    fn symbol_table_with_self(&self) -> SymbolTable {
+        let mut table = SymbolTable::new();
 
-        scope.define(self.config.self_variable(), Mutability::Immutable);
+        table.define(
+            self.config.self_variable(),
+            Type::Dynamic,
+            Mutability::Immutable,
+        );
 
-        scope
+        table
     }
 
-    fn self_argument(&self, line: usize, col: usize) -> MethodArgument {
-        MethodArgument {
+    fn self_argument(&self, line: usize, col: usize) -> Argument {
+        Argument {
             name: self.config.self_variable(),
             default_value: None,
             line: line,
@@ -1503,11 +1505,15 @@ impl Builder {
         }
     }
 
-    fn module_globals(&self) -> VariableScope {
-        let mut globals = VariableScope::new();
+    fn module_globals(&self) -> SymbolTable {
+        let mut globals = SymbolTable::new();
 
         for &(_, global) in DEFAULT_GLOBALS.iter() {
-            globals.define(global.to_string(), Mutability::Immutable);
+            globals.define(
+                global.to_string(),
+                Type::Dynamic,
+                Mutability::Immutable,
+            );
         }
 
         globals

@@ -1,11 +1,8 @@
 //! Compiler for generating bytecode and object files.
 use std::rc::Rc;
 
-pub mod diagnostic;
-pub mod diagnostics;
-
 use config::Config;
-use compiler::diagnostics::Diagnostics;
+use diagnostics::Diagnostics;
 use tir::builder::Builder;
 
 pub struct Compiler {

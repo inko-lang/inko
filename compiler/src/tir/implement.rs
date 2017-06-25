@@ -1,12 +1,12 @@
 use tir::expression::Expression;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Rename {
     pub original: String,
     pub alias: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Implement {
     pub constant: Expression,
     pub renames: Vec<Rename>,

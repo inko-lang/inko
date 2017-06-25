@@ -7,10 +7,17 @@ pub mod macros;
 pub mod compiler;
 pub mod config;
 pub mod default_globals;
+pub mod deref_pointer;
+pub mod diagnostic;
+pub mod diagnostics;
 pub mod formatter;
 pub mod lexer;
+pub mod mutability;
 pub mod parser;
+pub mod symbol;
+pub mod symbol_table;
 pub mod tir;
+pub mod types;
 
 use std::env;
 use std::io::{self, Write};

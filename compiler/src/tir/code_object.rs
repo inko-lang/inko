@@ -1,8 +1,8 @@
+use symbol_table::SymbolTable;
 use tir::expression::Expression;
-use tir::variable::Scope as VariableScope;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CodeObject {
-    pub locals: VariableScope,
+    pub locals: SymbolTable,
     pub body: Vec<Expression>,
 }
