@@ -13,7 +13,6 @@ pub enum InstructionType {
     GetArrayPrototype,
     GetTruePrototype,
     GetFalsePrototype,
-    GetMethodPrototype,
     GetBlockPrototype,
     GetTrue,
     GetFalse,

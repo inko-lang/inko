@@ -336,12 +336,6 @@ impl Machine {
                         self.state.false_prototype,
                     );
                 }
-                InstructionType::GetMethodPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.method_prototype,
-                    );
-                }
                 InstructionType::GetBlockPrototype => {
                     context.set_register(
                         instruction.arg(0),
@@ -528,7 +522,7 @@ impl Machine {
                     );
 
                     let value = object_value::block(new_block);
-                    let proto = self.state.method_prototype;
+                    let proto = self.state.block_prototype;
 
                     let method = if receiver_ptr.is_permanent() {
                         self.state
