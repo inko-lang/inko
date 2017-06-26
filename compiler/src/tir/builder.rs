@@ -5,19 +5,21 @@ use std::io::Read;
 use std::path::MAIN_SEPARATOR;
 use std::collections::HashMap;
 
-use diagnostics::Diagnostics;
 use config::Config;
 use default_globals::DEFAULT_GLOBALS;
+use diagnostics::Diagnostics;
 use mutability::Mutability;
 use parser::{Parser, Node};
-use symbol::SymbolPointer;
+use symbol::RcSymbol;
 use symbol_table::SymbolTable;
 use tir::code_object::CodeObject;
 use tir::expression::{Argument, Expression};
 use tir::implement::{Implement, Rename};
 use tir::import::Symbol as ImportSymbol;
 use tir::module::Module;
+use tir::raw_instructions::*;
 use types::Type;
+use types::database::Database as TypeDatabase;
 
 pub struct Builder {
     pub config: Rc<Config>,
@@ -34,6 +36,9 @@ pub struct Builder {
     /// This prevents recursive imports from causing the compiler to get stuck
     /// in a loop.
     pub modules: HashMap<String, Option<Module>>,
+
+    /// The database storing all type information.
+    pub typedb: TypeDatabase,
 }
 
 struct Context<'a> {
@@ -53,6 +58,7 @@ impl Builder {
             config: config,
             diagnostics: Diagnostics::new(),
             modules: HashMap::new(),
+            typedb: TypeDatabase::new(),
         }
     }
 
@@ -441,7 +447,7 @@ impl Builder {
 
     fn get_local(
         &mut self,
-        variable: SymbolPointer,
+        variable: RcSymbol,
         line: usize,
         col: usize,
     ) -> Expression {
@@ -454,7 +460,7 @@ impl Builder {
 
     fn get_global(
         &mut self,
-        variable: SymbolPointer,
+        variable: RcSymbol,
         line: usize,
         col: usize,
     ) -> Expression {
@@ -579,24 +585,6 @@ impl Builder {
         }
     }
 
-    fn raw_instruction(
-        &mut self,
-        name: String,
-        arg_nodes: &Vec<Node>,
-        line: usize,
-        col: usize,
-        context: &mut Context,
-    ) -> Expression {
-        let args = self.process_nodes(arg_nodes, context);
-
-        Expression::RawInstruction {
-            name: name,
-            arguments: args,
-            line: line,
-            column: col,
-        }
-    }
-
     fn send_object_message(
         &mut self,
         mut name: String,
@@ -640,6 +628,39 @@ impl Builder {
             arguments: args,
             line: line,
             column: col,
+        }
+    }
+
+    fn raw_instruction(
+        &mut self,
+        name: String,
+        _arg_nodes: &Vec<Node>, // TODO: use
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
+        match name.as_ref() {
+            GET_BLOCK_PROTOTYPE => self.get_block_prototype(line, col),
+            _ => {
+                self.diagnostics.unknown_raw_instruction_error(
+                    &name,
+                    context.path,
+                    line,
+                    col,
+                );
+
+                Expression::Void
+            }
+        }
+    }
+
+    fn get_block_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let vtype = Type::Object(self.typedb.block_prototype.clone());
+
+        Expression::GetBlockPrototype {
+            line: line,
+            column: col,
+            value_type: vtype,
         }
     }
 

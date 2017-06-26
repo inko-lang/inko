@@ -1,4 +1,4 @@
-use symbol::SymbolPointer;
+use symbol::RcSymbol;
 
 /// The type of symbol to import.
 #[derive(Debug)]
@@ -12,7 +12,7 @@ pub enum SymbolKind {
 pub struct Symbol {
     kind: SymbolKind,
     import_name: String,
-    global: SymbolPointer,
+    global: RcSymbol,
     line: usize,
     column: usize,
 }
@@ -20,7 +20,7 @@ pub struct Symbol {
 impl Symbol {
     pub fn module(
         import_name: String,
-        global: SymbolPointer,
+        global: RcSymbol,
         line: usize,
         column: usize,
     ) -> Self {
@@ -35,7 +35,7 @@ impl Symbol {
 
     pub fn constant(
         import_name: String,
-        global: SymbolPointer,
+        global: RcSymbol,
         line: usize,
         column: usize,
     ) -> Self {

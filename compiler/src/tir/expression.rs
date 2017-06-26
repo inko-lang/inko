@@ -1,7 +1,7 @@
-use symbol::SymbolPointer;
-
+use symbol::RcSymbol;
 use tir::code_object::CodeObject;
 use tir::import::Symbol as ImportSymbol;
+use types::Type;
 
 #[derive(Debug)]
 pub struct Argument {
@@ -54,26 +54,26 @@ pub enum Expression {
     },
 
     GetLocal {
-        variable: SymbolPointer,
+        variable: RcSymbol,
         line: usize,
         column: usize,
     },
 
     SetLocal {
-        variable: SymbolPointer,
+        variable: RcSymbol,
         value: Box<Expression>,
         line: usize,
         column: usize,
     },
 
     GetGlobal {
-        variable: SymbolPointer,
+        variable: RcSymbol,
         line: usize,
         column: usize,
     },
 
     SetGlobal {
-        variable: SymbolPointer,
+        variable: RcSymbol,
         value: Box<Expression>,
         line: usize,
         column: usize,
@@ -102,11 +102,10 @@ pub enum Expression {
         column: usize,
     },
 
-    RawInstruction {
-        name: String,
-        arguments: Vec<Expression>,
+    GetBlockPrototype {
         line: usize,
         column: usize,
+        value_type: Type,
     },
 
     KeywordArgument {
@@ -132,7 +131,7 @@ pub enum Expression {
     Try {
         body: CodeObject,
         else_body: Option<CodeObject>,
-        else_argument: Option<SymbolPointer>,
+        else_argument: Option<RcSymbol>,
         line: usize,
         column: usize,
     },

@@ -123,4 +123,19 @@ impl Diagnostics {
             col,
         );
     }
+
+    pub fn unknown_raw_instruction_error(
+        &mut self,
+        name: &String,
+        path: &str,
+        line: usize,
+        col: usize,
+    ) {
+        self.error(
+            path,
+            format!("the raw instruction {:?} does not exist", name),
+            line,
+            col,
+        );
+    }
 }

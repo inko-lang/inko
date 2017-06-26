@@ -1,4 +1,4 @@
-use deref_pointer::DerefPointer;
+use rc_cell::RcCell;
 use mutability::Mutability;
 use types::Type;
 
@@ -12,8 +12,8 @@ pub struct Symbol {
     pub mutability: Mutability,
 }
 
-/// A raw, automatically dereferencing pointer to a symbol.
-pub type SymbolPointer = DerefPointer<Symbol>;
+/// A reference counted symbol.
+pub type RcSymbol = RcCell<Symbol>;
 
 impl Symbol {
     /// Returns true if the symbol can be re-defined or if the value can be
