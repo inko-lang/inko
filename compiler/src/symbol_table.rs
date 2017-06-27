@@ -17,12 +17,12 @@ impl SymbolTable {
     pub fn define(
         &mut self,
         name: String,
-        vtype: Type,
+        kind: Type,
         mutability: Mutability,
     ) -> RcSymbol {
         let sym = RcSymbol::new(Symbol {
             name: name.clone(),
-            value_type: vtype,
+            kind: kind,
             index: self.map.len(),
             mutability: mutability,
         });

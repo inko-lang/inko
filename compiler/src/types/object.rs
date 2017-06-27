@@ -24,25 +24,25 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn new() -> Self {
-        Object {
+    pub fn new() -> RcCell<Object> {
+        RcCell::new(Object {
             name: None,
             attributes: SymbolTable::new(),
             methods: SymbolTable::new(),
             implemented_traits: Vec::new(),
             type_arguments: SymbolTable::new(),
             prototype: None,
-        }
+        })
     }
 
-    pub fn with_name(name: &str) -> Self {
-        Object {
+    pub fn with_name(name: &str) -> RcCell<Object> {
+        RcCell::new(Object {
             name: Some(name.to_string()),
             attributes: SymbolTable::new(),
             methods: SymbolTable::new(),
             implemented_traits: Vec::new(),
             type_arguments: SymbolTable::new(),
             prototype: None,
-        }
+        })
     }
 }

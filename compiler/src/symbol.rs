@@ -7,7 +7,7 @@ use types::Type;
 #[derive(Debug)]
 pub struct Symbol {
     pub name: String,
-    pub value_type: Type,
+    pub kind: Type,
     pub index: usize,
     pub mutability: Mutability,
 }

@@ -9,13 +9,17 @@ pub struct Database {
 
     /// The prototype to use for blocks.
     pub block_prototype: RcCell<Object>,
+
+    /// The prototype to use for integers.
+    pub integer_prototype: RcCell<Object>,
 }
 
 impl Database {
     pub fn new() -> Self {
         Database {
-            top_level: RcCell::new(Object::with_name("<top-level>")),
-            block_prototype: RcCell::new(Object::with_name("<block prototype>")),
+            top_level: Object::with_name("<top-level>"),
+            block_prototype: Object::with_name("<block prototype>"),
+            integer_prototype: Object::with_name("<integer prototype>"),
         }
     }
 }

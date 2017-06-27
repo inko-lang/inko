@@ -19,7 +19,9 @@ use tir::import::Symbol as ImportSymbol;
 use tir::module::Module;
 use tir::raw_instructions::*;
 use types::Type;
+use types::block::Block;
 use types::database::Database as TypeDatabase;
+use types::integer::Integer;
 
 pub struct Builder {
     pub config: Rc<Config>,
@@ -355,7 +357,14 @@ impl Builder {
     }
 
     fn integer(&self, val: i64, line: usize, col: usize) -> Expression {
-        Expression::Integer { value: val, line: line, column: col }
+        let kind = Integer::new(self.typedb.integer_prototype.clone());
+
+        Expression::Integer {
+            value: val,
+            line: line,
+            column: col,
+            kind: Type::Integer(kind),
+        }
     }
 
     fn float(&self, val: f64, line: usize, col: usize) -> Expression {
@@ -559,11 +568,14 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
+        let kind = value.kind();
+
         Expression::SetLocal {
-            variable: context.locals.define(name, Type::Dynamic, mutability),
+            variable: context.locals.define(name, kind.clone(), mutability),
             value: Box::new(value),
             line: line,
             column: col,
+            kind: kind,
         }
     }
 
@@ -641,6 +653,7 @@ impl Builder {
     ) -> Expression {
         match name.as_ref() {
             GET_BLOCK_PROTOTYPE => self.get_block_prototype(line, col),
+            GET_INTEGER_PROTOTYPE => self.get_integer_prototype(line, col),
             _ => {
                 self.diagnostics.unknown_raw_instruction_error(
                     &name,
@@ -655,13 +668,15 @@ impl Builder {
     }
 
     fn get_block_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let vtype = Type::Object(self.typedb.block_prototype.clone());
+        let kind = Type::Object(self.typedb.block_prototype.clone());
 
-        Expression::GetBlockPrototype {
-            line: line,
-            column: col,
-            value_type: vtype,
-        }
+        Expression::GetBlockPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn get_integer_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.integer_prototype.clone());
+
+        Expression::GetIntegerPrototype { line: line, column: col, kind: kind }
     }
 
     /// Converts the list of import steps to a module name.
@@ -797,13 +812,27 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
+        let arg_exprs = self.method_arguments(arg_nodes, context);
         let body = self.code_object(&context.path, body_node, context.globals);
 
+        self.block(arg_exprs, body, line, col)
+    }
+
+    fn block(
+        &self,
+        arguments: Vec<Argument>,
+        body: CodeObject,
+        line: usize,
+        col: usize,
+    ) -> Expression {
+        let kind = Block::new(self.typedb.block_prototype.clone());
+
         Expression::Block {
-            arguments: self.method_arguments(arg_nodes, context),
+            arguments: arguments,
             body: body,
             line: line,
             column: col,
+            kind: Type::Block(kind),
         }
     }
 
@@ -862,12 +891,7 @@ impl Builder {
             context.globals,
         );
 
-        let block = Expression::Block {
-            arguments: arguments,
-            body: body_expr,
-            line: line,
-            column: col,
-        };
+        let block = self.block(arguments, body_expr, line, col);
 
         Expression::DefineMethod {
             receiver: Box::new(receiver_expr),
@@ -959,12 +983,8 @@ impl Builder {
 
         let _todo_impl_exprs = self.implements(implements, context);
 
-        let block = Expression::Block {
-            arguments: vec![self.self_argument(line, col)],
-            body: code_obj,
-            line: line,
-            column: col,
-        };
+        let block =
+            self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
         Expression::DefineClass {
             receiver: Box::new(self.get_self(line, col, context)),
@@ -992,12 +1012,8 @@ impl Builder {
             context.globals,
         );
 
-        let block = Expression::Block {
-            arguments: vec![self.self_argument(line, col)],
-            body: code_obj,
-            line: line,
-            column: col,
-        };
+        let block =
+            self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
         Expression::DefineTrait {
             receiver: Box::new(self.get_self(line, col, context)),
@@ -1372,16 +1388,7 @@ impl Builder {
         match var_node {
             &Node::Identifier { ref name, .. } => {
                 if let Some(var) = context.locals.lookup(name) {
-                    if var.is_mutable() {
-                        self.set_local(
-                            name.clone(),
-                            value,
-                            Mutability::Mutable,
-                            line,
-                            col,
-                            context,
-                        )
-                    } else {
+                    if !var.is_mutable() {
                         self.diagnostics.reassign_immutable_local_error(
                             name,
                             context.path,
@@ -1389,8 +1396,17 @@ impl Builder {
                             col,
                         );
 
-                        Expression::Void
+                        return Expression::Void;
                     }
+
+                    self.set_local(
+                        name.clone(),
+                        value,
+                        Mutability::Mutable,
+                        line,
+                        col,
+                        context,
+                    )
                 } else {
                     self.diagnostics.reassign_undefined_local_error(
                         name,

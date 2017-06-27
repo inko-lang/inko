@@ -20,6 +20,7 @@ pub enum Expression {
         value: i64,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     Float {
@@ -51,6 +52,7 @@ pub enum Expression {
         body: CodeObject,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     GetLocal {
@@ -64,6 +66,7 @@ pub enum Expression {
         value: Box<Expression>,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     GetGlobal {
@@ -105,7 +108,13 @@ pub enum Expression {
     GetBlockPrototype {
         line: usize,
         column: usize,
-        value_type: Type,
+        kind: Type,
+    },
+
+    GetIntegerPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
     },
 
     KeywordArgument {
@@ -179,4 +188,19 @@ pub enum Expression {
         line: usize,
         column: usize,
     },
+}
+
+impl Expression {
+    /// Returns the type of the expression.
+    ///
+    /// Since "type" is a keyword this function is called "kind" instead.
+    pub fn kind<'a>(&self) -> Type {
+        match self {
+            &Expression::GetBlockPrototype { ref kind, .. } |
+            &Expression::GetIntegerPrototype { ref kind, .. } |
+            &Expression::Integer { ref kind, .. } |
+            &Expression::Block { ref kind, .. } => kind.clone(),
+            _ => Type::Dynamic,
+        }
+    }
 }
