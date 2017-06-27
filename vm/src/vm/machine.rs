@@ -324,16 +324,10 @@ impl Machine {
                         self.state.array_prototype,
                     );
                 }
-                InstructionType::GetTruePrototype => {
+                InstructionType::GetBooleanPrototype => {
                     context.set_register(
                         instruction.arg(0),
-                        self.state.true_prototype,
-                    );
-                }
-                InstructionType::GetFalsePrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.false_prototype,
+                        self.state.boolean_prototype,
                     );
                 }
                 InstructionType::GetBlockPrototype => {
