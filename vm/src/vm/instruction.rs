@@ -22,7 +22,6 @@ pub enum InstructionType {
     GotoIfFalse,
     GotoIfTrue,
     Goto,
-    DefMethod,
     RunBlock,
     IntegerAdd,
     IntegerDiv,

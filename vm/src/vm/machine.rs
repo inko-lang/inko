@@ -389,12 +389,27 @@ impl Machine {
                 // 1. The register to store the object in.
                 // 2. The index of the CompiledCode object literal to use for
                 //    creating the Block.
+                //
+                // If the underlying CompiledCode object captures any outer
+                // locals the block's binding will have its parent set to the
+                // binding of the current context.
+                //
+                // A block that captures local variables can not be safely
+                // stored in a global object as this can result in the captured
+                // locals outliving the process they were allocated in.
                 InstructionType::SetBlock => {
                     let register = instruction.arg(0);
                     let cc_index = instruction.arg(1);
 
                     let cc = code.code_object(cc_index);
-                    let binding = context.binding.clone();
+                    let locals = cc.locals as usize;
+
+                    let binding = if cc.captures {
+                        Binding::with_parent(context.binding.clone(), locals)
+                    } else {
+                        Binding::new(locals)
+                    };
+
                     let block = Block::new(
                         cc.clone(),
                         binding,
@@ -483,53 +498,6 @@ impl Machine {
                 // jump to.
                 InstructionType::Goto => {
                     index = instruction.arg(0);
-                }
-                // Defines a method for an object.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the method object in.
-                // 2. The register pointing to a specific object to define the
-                //    method on.
-                // 3. The register containing a String to use as the method
-                //    name.
-                // 4. The register containing the Block to use for the method.
-                InstructionType::DefMethod => {
-                    let register = instruction.arg(0);
-                    let receiver_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let block_ptr = context.get_register(instruction.arg(3));
-
-                    if receiver_ptr.is_tagged_integer() {
-                        panic!("methods can not be defined on integers");
-                    }
-
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-                    let block = block_ptr.block_value().unwrap();
-
-                    let global_scope = block.global_scope.clone();
-
-                    let new_block = Block::new(
-                        block.code.clone(),
-                        Binding::new(block.locals()),
-                        global_scope,
-                    );
-
-                    let value = object_value::block(new_block);
-                    let proto = self.state.block_prototype;
-
-                    let method = if receiver_ptr.is_permanent() {
-                        self.state
-                            .permanent_allocator
-                            .lock()
-                            .allocate_with_prototype(value, proto)
-                    } else {
-                        process.allocate(value, proto)
-                    };
-
-                    receiver_ptr.add_attribute(&process, name, method);
-
-                    context.set_register(register, method);
                 }
                 // Adds two integers
                 //
@@ -1559,16 +1527,18 @@ impl Machine {
                 //
                 // This instruction requires 3 arguments:
                 //
-                // 1. The register containing the object for which to set
+                // 1. The register to store the written value in
+                // 2. The register containing the object for which to set
                 //    the attribute.
-                // 2. The register containing the attribute name as a
+                // 3. The register containing the attribute name as a
                 //    string.
-                // 3. The register containing the object to set as the
+                // 4. The register containing the object to set as the
                 //    value.
                 InstructionType::SetAttribute => {
-                    let target_ptr = context.get_register(instruction.arg(0));
-                    let name_ptr = context.get_register(instruction.arg(1));
-                    let value_ptr = context.get_register(instruction.arg(2));
+                    let register = instruction.arg(0);
+                    let target_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
+                    let value_ptr = context.get_register(instruction.arg(3));
 
                     if target_ptr.is_tagged_integer() {
                         panic!("attributes can not be set for integers");
@@ -1583,6 +1553,8 @@ impl Machine {
                     );
 
                     target_ptr.add_attribute(&process, name.clone(), value);
+
+                    context.set_register(register, value);
                 }
                 // Gets an attribute from an object and stores it in a
                 // register.
