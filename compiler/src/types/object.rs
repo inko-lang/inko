@@ -1,6 +1,8 @@
+use mutability::Mutability;
 use rc_cell::RcCell;
 use symbol::RcSymbol;
 use symbol_table::SymbolTable;
+use types::Type;
 
 #[derive(Debug)]
 pub struct Object {
@@ -44,5 +46,13 @@ impl Object {
             type_arguments: SymbolTable::new(),
             prototype: None,
         })
+    }
+
+    pub fn define_immutable_attribute<T: ToString>(
+        &mut self,
+        name: T,
+        kind: Type,
+    ) {
+        self.attributes.define(name, kind, Mutability::Immutable);
     }
 }

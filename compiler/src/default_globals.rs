@@ -7,7 +7,7 @@ pub const DEFAULT_GLOBALS: [(&'static str, &'static str); 10] =
         ("core::object::Object", "Object"),
         ("core::class::Class", "Class"),
         ("core::trait::Trait", "Trait"),
-        ("core::nil::NilSingleton", "nil"),
-        ("core::boolean::TrueSingleton", "true"),
-        ("core::boolean::FalseSingleton", "false"),
+        ("core::nil::Nil", "Nil"),
+        ("core::boolean::True", "True"),
+        ("core::boolean::False", "False"),
     ];

@@ -261,7 +261,7 @@ pub enum Node {
         column: usize,
     },
 
-    Class {
+    Object {
         name: String,
         type_arguments: Vec<Node>,
         implements: Vec<Node>,
@@ -531,7 +531,7 @@ impl<'a> Parser<'a> {
                 TokenType::Mod,
                 TokenType::Mul,
                 TokenType::NotEqual,
-                TokenType::Class,
+                TokenType::Object,
                 TokenType::Or,
                 TokenType::Pow,
                 TokenType::Return,
@@ -558,7 +558,7 @@ impl<'a> Parser<'a> {
                 TokenType::Function,
                 TokenType::Let,
                 TokenType::Let,
-                TokenType::Class,
+                TokenType::Object,
                 TokenType::Trait,
                 TokenType::Return,
                 TokenType::Impl,
@@ -881,7 +881,7 @@ impl<'a> Parser<'a> {
             TokenType::Function => self.method_or_closure(start),
             TokenType::Let => self.let_define(start),
             TokenType::Var => self.var_define(start),
-            TokenType::Class => self.class(start),
+            TokenType::Object => self.object(start),
             TokenType::Trait => self.def_trait(start),
             TokenType::Return => self.return_value(start),
             TokenType::Comment => self.comment(start),
@@ -1436,8 +1436,8 @@ impl<'a> Parser<'a> {
         self.expression(start)
     }
 
-    /// Parses a class definition.
-    fn class(&mut self, start: Token) -> ParseResult {
+    /// Parses an object definition.
+    fn object(&mut self, start: Token) -> ParseResult {
         let name = next_of_type!(self, TokenType::Constant);
         let type_args = self.optional_type_arguments()?;
         let mut implements = Vec::new();
@@ -1452,7 +1452,7 @@ impl<'a> Parser<'a> {
 
         let body = self.block()?;
 
-        Ok(Node::Class {
+        Ok(Node::Object {
             name: name.value,
             type_arguments: type_args,
             implements: implements,

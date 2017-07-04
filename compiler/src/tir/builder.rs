@@ -19,9 +19,13 @@ use tir::import::Symbol as ImportSymbol;
 use tir::module::Module;
 use tir::raw_instructions::*;
 use types::Type;
+use types::array::Array;
 use types::block::Block;
 use types::database::Database as TypeDatabase;
+use types::float::Float;
 use types::integer::Integer;
+use types::object::Object;
+use types::string::String as StringType;
 
 pub struct Builder {
     pub config: Rc<Config>,
@@ -75,7 +79,7 @@ impl Builder {
         let module = if let Ok(ast) = self.parse_file(&path) {
             let module = self.module(name, path, ast);
 
-            println!("{:#?}", module);
+            println!("{:#?}", module.body);
 
             Some(module)
         } else {
@@ -87,7 +91,8 @@ impl Builder {
 
     fn module(&mut self, name: String, path: String, node: Node) -> Module {
         let mut globals = self.module_globals();
-        let locals = self.symbol_table_with_self();
+        let kind = Type::Object(Object::new());
+        let locals = self.symbol_table_with_self(kind.clone());
 
         let code_object =
             self.code_object_with_locals(&path, &node, locals, &mut globals);
@@ -97,6 +102,7 @@ impl Builder {
             body: code_object,
             line: 1,
             column: 1,
+            kind: kind,
         };
 
         Module {
@@ -258,7 +264,7 @@ impl Builder {
                     )
                 }
             }
-            &Node::Class {
+            &Node::Object {
                 ref name,
                 ref implements,
                 ref body,
@@ -266,7 +272,14 @@ impl Builder {
                 column,
                 ..
             } => {
-                self.class(name.clone(), implements, body, line, column, context)
+                self.def_object(
+                    name.clone(),
+                    implements,
+                    body,
+                    line,
+                    column,
+                    context,
+                )
             }
             &Node::Trait { ref name, ref body, line, column, .. } => {
                 self.def_trait(name.clone(), body, line, column, context)
@@ -368,11 +381,25 @@ impl Builder {
     }
 
     fn float(&self, val: f64, line: usize, col: usize) -> Expression {
-        Expression::Float { value: val, line: line, column: col }
+        let kind = Float::new(self.typedb.float_prototype.clone());
+
+        Expression::Float {
+            value: val,
+            line: line,
+            column: col,
+            kind: Type::Float(kind),
+        }
     }
 
     fn string(&self, val: String, line: usize, col: usize) -> Expression {
-        Expression::String { value: val, line: line, column: col }
+        let kind = StringType::new(self.typedb.string_prototype.clone());
+
+        Expression::String {
+            value: val,
+            line: line,
+            column: col,
+            kind: Type::String(kind),
+        }
     }
 
     fn array(
@@ -382,9 +409,15 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
+        let kind = Array::new(self.typedb.array_prototype.clone());
         let values = self.process_nodes(&value_nodes, context);
 
-        Expression::Array { values: values, line: line, column: col }
+        Expression::Array {
+            values: values,
+            line: line,
+            column: col,
+            kind: Type::Array(kind),
+        }
     }
 
     fn hash(
@@ -446,8 +479,10 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
+        let receiver = self.get_self(line, col, context);
+
         Expression::GetAttribute {
-            receiver: Box::new(self.get_self(line, col, context)),
+            receiver: Box::new(receiver),
             name: Box::new(self.string(name, line, col)),
             line: line,
             column: col,
@@ -460,10 +495,13 @@ impl Builder {
         line: usize,
         col: usize,
     ) -> Expression {
+        let kind = variable.kind.clone();
+
         Expression::GetLocal {
             variable: variable,
             line: line,
             column: col,
+            kind: kind,
         }
     }
 
@@ -473,10 +511,13 @@ impl Builder {
         line: usize,
         col: usize,
     ) -> Expression {
+        let kind = variable.kind.clone();
+
         Expression::GetGlobal {
             variable: variable,
             line: line,
             column: col,
+            kind: kind,
         }
     }
 
@@ -587,6 +628,8 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
+        let kind = value.kind().clone();
+
         // TODO: track mutability of attributes per receiver type
         Expression::SetAttribute {
             receiver: Box::new(self.get_self(line, col, context)),
@@ -594,6 +637,7 @@ impl Builder {
             value: Box::new(value),
             line: line,
             column: col,
+            kind: kind,
         }
     }
 
@@ -621,7 +665,7 @@ impl Builder {
             self.process_node(rec, context)
         } else {
             if let Some(local) = context.locals.lookup(&name) {
-                name = "call".to_string();
+                name = self.config.call_message();
 
                 self.get_local(local, line, col)
             } else {
@@ -636,7 +680,7 @@ impl Builder {
 
         Expression::SendObjectMessage {
             receiver: Box::new(receiver),
-            name: name,
+            name: Box::new(self.string(name, line, col)),
             arguments: args,
             line: line,
             column: col,
@@ -646,7 +690,7 @@ impl Builder {
     fn raw_instruction(
         &mut self,
         name: String,
-        _arg_nodes: &Vec<Node>, // TODO: use
+        arg_nodes: &Vec<Node>, // TODO: use
         line: usize,
         col: usize,
         context: &mut Context,
@@ -654,6 +698,14 @@ impl Builder {
         match name.as_ref() {
             GET_BLOCK_PROTOTYPE => self.get_block_prototype(line, col),
             GET_INTEGER_PROTOTYPE => self.get_integer_prototype(line, col),
+            GET_FLOAT_PROTOTYPE => self.get_float_prototype(line, col),
+            GET_STRING_PROTOTYPE => self.get_string_prototype(line, col),
+            GET_ARRAY_PROTOTYPE => self.get_array_prototype(line, col),
+            GET_BOOLEAN_PROTOTYPE => self.get_boolean_prototype(line, col),
+            SET_OBJECT => self.set_object(arg_nodes, line, col, context),
+            SET_ATTRIBUTE => {
+                self.set_raw_attribute(arg_nodes, line, col, context)
+            }
             _ => {
                 self.diagnostics.unknown_raw_instruction_error(
                     &name,
@@ -677,6 +729,76 @@ impl Builder {
         let kind = Type::Object(self.typedb.integer_prototype.clone());
 
         Expression::GetIntegerPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn get_float_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.float_prototype.clone());
+
+        Expression::GetFloatPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn get_string_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.string_prototype.clone());
+
+        Expression::GetStringPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn get_array_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.array_prototype.clone());
+
+        Expression::GetArrayPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn get_boolean_prototype(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.boolean_prototype.clone());
+
+        Expression::GetBooleanPrototype { line: line, column: col, kind: kind }
+    }
+
+    fn set_object(
+        &mut self,
+        arg_nodes: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
+        let args = self.process_nodes(arg_nodes, context);
+
+        Expression::SetObject {
+            arguments: args,
+            line: line,
+            column: col,
+            kind: Type::Object(Object::new()),
+        }
+    }
+
+    fn set_raw_attribute(
+        &mut self,
+        arg_nodes: &Vec<Node>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
+        if arg_nodes.len() != 3 {
+            panic!(
+                "set_attribute requires 3 arguments, but {} were given",
+                arg_nodes.len()
+            );
+        }
+
+        let receiver = self.process_node(&arg_nodes[0], context);
+        let attribute = self.process_node(&arg_nodes[1], context);
+        let value = self.process_node(&arg_nodes[2], context);
+        let kind = value.kind();
+
+        Expression::SetAttribute {
+            receiver: Box::new(receiver),
+            name: Box::new(attribute),
+            value: Box::new(value),
+            line: line,
+            column: col,
+            kind: kind,
+        }
     }
 
     /// Converts the list of import steps to a module name.
@@ -784,23 +906,15 @@ impl Builder {
                         line,
                         col,
                     );
-
-                    return Expression::Void;
                 }
             };
         }
 
-        // At this point the value for the current module path is either
-        // Some(module) or None.
-        if self.modules.get(&mod_name).unwrap().is_some() {
-            Expression::ImportModule {
-                path: Box::new(self.string(mod_path, line, col)),
-                line: line,
-                column: col,
-                symbols: self.import_symbols(symbol_nodes, context),
-            }
-        } else {
-            Expression::Void
+        Expression::ImportModule {
+            path: Box::new(self.string(mod_path, line, col)),
+            line: line,
+            column: col,
+            symbols: self.import_symbols(symbol_nodes, context),
         }
     }
 
@@ -862,9 +976,9 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let name_expr = self.string(name, line, col);
+        let method_name = self.string(name, line, col);
         let arguments = self.method_arguments(arg_nodes, context);
-        let mut locals = self.symbol_table_with_self();
+        let mut locals = self.symbol_table_with_self(Type::Dynamic);
 
         for arg in arguments.iter() {
             locals.define(arg.name.clone(), Type::Dynamic, Mutability::Immutable);
@@ -873,15 +987,7 @@ impl Builder {
         let receiver_expr = if let &Some(ref r) = receiver {
             self.process_node(r, context)
         } else {
-            let proto_name =
-                self.string(self.config.instance_prototype(), line, col);
-
-            Expression::GetAttribute {
-                receiver: Box::new(self.get_self(line, col, context)),
-                name: Box::new(proto_name),
-                line: line,
-                column: col,
-            }
+            self.get_self(line, col, context)
         };
 
         let body_expr = self.code_object_with_locals(
@@ -892,13 +998,15 @@ impl Builder {
         );
 
         let block = self.block(arguments, body_expr, line, col);
+        let vkind = block.kind();
 
-        Expression::DefineMethod {
+        Expression::SetAttribute {
             receiver: Box::new(receiver_expr),
-            name: Box::new(name_expr),
-            block: Box::new(block),
+            name: Box::new(method_name),
+            value: Box::new(block),
             line: line,
             column: col,
+            kind: vkind,
         }
     }
 
@@ -911,20 +1019,20 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        if receiver.is_some() {
-            self.diagnostics.required_method_with_receiver_error(
-                context.path,
-                line,
-                col,
-            );
-        }
+        let receiver = if let &Some(ref rec) = receiver {
+            self.process_node(rec, context)
+        } else {
+            self.get_self(line, col, context)
+        };
 
-        let receiver = self.get_self(line, col, context);
-        let name_expr = self.string(name, line, col);
+        let method_name = self.string(name, line, col);
+        let message_name =
+            self.string(self.config.define_required_method_message(), line, col);
 
-        Expression::DefineRequiredMethod {
+        Expression::SendObjectMessage {
             receiver: Box::new(receiver),
-            name: Box::new(name_expr),
+            name: Box::new(message_name),
+            arguments: vec![method_name],
             line: line,
             column: col,
         }
@@ -963,17 +1071,52 @@ impl Builder {
             .collect()
     }
 
-    fn class(
+    /// Generates the TIR for object definitions
+    ///
+    /// Object definitions are compiled down into simple message sends,
+    /// attribute assignments, and the execution of a block. Take for example
+    /// the following code:
+    ///
+    ///     object Person {
+    ///       fn init(name) {
+    ///         let @name = name
+    ///       }
+    ///     }
+    ///
+    /// This is compiled (roughly) into the following:
+    ///
+    ///     let Person = Object.new
+    ///
+    ///     fn(self) {
+    ///       fn self.init(name) {
+    ///         let @name = name
+    ///       }
+    ///
+    ///       ...
+    ///     }.call(Person)
+    fn def_object(
         &mut self,
         name: String,
-        implements: &Vec<Node>,
+        _implements: &Vec<Node>, // TODO: use
         body: &Node,
         line: usize,
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let name_expr = self.string(name.clone(), line, col);
-        let locals = self.symbol_table_with_self();
+        let locals = self.symbol_table_with_self(Type::Dynamic);
+        let global = self.lookup_object_constant(&context.globals);
+
+        let object_new = Expression::SendObjectMessage {
+            receiver: Box::new(self.get_global(global, line, col)),
+            name: Box::new(self.string(self.config.new_message(), line, col)),
+            arguments: Vec::new(),
+            line: line,
+            column: col,
+        };
+
+        let set_attr =
+            self.set_attribute(name.clone(), object_new, line, col, context);
+
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
@@ -981,18 +1124,20 @@ impl Builder {
             context.globals,
         );
 
-        let _todo_impl_exprs = self.implements(implements, context);
-
         let block =
             self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
-        Expression::DefineClass {
-            receiver: Box::new(self.get_self(line, col, context)),
-            name: Box::new(name_expr),
-            body: Box::new(block),
+        let block_arg = self.attribute(name, line, col, context);
+
+        let run_block = Expression::SendObjectMessage {
+            receiver: Box::new(block),
+            name: Box::new(self.string(self.config.call_message(), line, col)),
+            arguments: vec![block_arg],
             line: line,
             column: col,
-        }
+        };
+
+        Expression::Expressions { nodes: vec![set_attr, run_block] }
     }
 
     fn def_trait(
@@ -1003,8 +1148,20 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let name_expr = self.string(name.clone(), line, col);
-        let locals = self.symbol_table_with_self();
+        let locals = self.symbol_table_with_self(Type::Dynamic);
+        let global = self.lookup_trait_constant(&context.globals);
+
+        let object_new = Expression::SendObjectMessage {
+            receiver: Box::new(self.get_global(global, line, col)),
+            name: Box::new(self.string(self.config.new_message(), line, col)),
+            arguments: Vec::new(),
+            line: line,
+            column: col,
+        };
+
+        let set_attr =
+            self.set_attribute(name.clone(), object_new, line, col, context);
+
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
@@ -1015,13 +1172,17 @@ impl Builder {
         let block =
             self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
-        Expression::DefineTrait {
-            receiver: Box::new(self.get_self(line, col, context)),
-            name: Box::new(name_expr),
-            body: Box::new(block),
+        let block_arg = self.attribute(name, line, col, context);
+
+        let run_block = Expression::SendObjectMessage {
+            receiver: Box::new(block),
+            name: Box::new(self.string(self.config.call_message(), line, col)),
+            arguments: vec![block_arg],
             line: line,
             column: col,
-        }
+        };
+
+        Expression::Expressions { nodes: vec![set_attr, run_block] }
     }
 
     fn implements(
@@ -1395,18 +1556,7 @@ impl Builder {
                             line,
                             col,
                         );
-
-                        return Expression::Void;
                     }
-
-                    self.set_local(
-                        name.clone(),
-                        value,
-                        Mutability::Mutable,
-                        line,
-                        col,
-                        context,
-                    )
                 } else {
                     self.diagnostics.reassign_undefined_local_error(
                         name,
@@ -1414,9 +1564,16 @@ impl Builder {
                         line,
                         col,
                     );
-
-                    Expression::Void
                 }
+
+                self.set_local(
+                    name.clone(),
+                    value,
+                    Mutability::Mutable,
+                    line,
+                    col,
+                    context,
+                )
             }
             &Node::Attribute { ref name, .. } => {
                 // TODO: check for attribute existence
@@ -1440,7 +1597,7 @@ impl Builder {
 
         Expression::SendObjectMessage {
             receiver: left,
-            name: message.to_string(),
+            name: Box::new(self.string(message.to_string(), line, col)),
             arguments: vec![right],
             line: line,
             column: col,
@@ -1520,14 +1677,10 @@ impl Builder {
         None
     }
 
-    fn symbol_table_with_self(&self) -> SymbolTable {
+    fn symbol_table_with_self(&self, kind: Type) -> SymbolTable {
         let mut table = SymbolTable::new();
 
-        table.define(
-            self.config.self_variable(),
-            Type::Dynamic,
-            Mutability::Immutable,
-        );
+        table.define(self.config.self_variable(), kind, Mutability::Immutable);
 
         table
     }
@@ -1554,5 +1707,13 @@ impl Builder {
         }
 
         globals
+    }
+
+    fn lookup_object_constant(&self, symbols: &SymbolTable) -> RcSymbol {
+        symbols.lookup(self.config.object_constant()).unwrap()
+    }
+
+    fn lookup_trait_constant(&self, symbols: &SymbolTable) -> RcSymbol {
+        symbols.lookup(self.config.trait_constant()).unwrap()
     }
 }

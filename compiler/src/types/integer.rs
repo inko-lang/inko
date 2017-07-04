@@ -3,7 +3,6 @@ use types::object::Object;
 
 #[derive(Debug)]
 pub struct Integer {
-    /// The prototype of this integer.
     pub prototype: RcCell<Object>,
 }
 

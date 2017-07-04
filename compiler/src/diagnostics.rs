@@ -80,20 +80,6 @@ impl Diagnostics {
         );
     }
 
-    pub fn required_method_with_receiver_error(
-        &mut self,
-        path: &str,
-        line: usize,
-        col: usize,
-    ) {
-        self.error(
-            path,
-            "required methods can not be defined using an explicit receiver",
-            line,
-            col,
-        );
-    }
-
     pub fn reassign_immutable_local_error(
         &mut self,
         name: &String,

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use mutability::Mutability;
+use std::collections::HashMap;
 use symbol::{Symbol, RcSymbol};
 use types::Type;
 
@@ -14,25 +14,25 @@ impl SymbolTable {
         SymbolTable { map: HashMap::new() }
     }
 
-    pub fn define(
+    pub fn define<T: ToString>(
         &mut self,
-        name: String,
+        name: T,
         kind: Type,
         mutability: Mutability,
     ) -> RcSymbol {
         let sym = RcSymbol::new(Symbol {
-            name: name.clone(),
+            name: name.to_string(),
             kind: kind,
             index: self.map.len(),
             mutability: mutability,
         });
 
-        self.map.insert(name, sym.clone());
+        self.map.insert(name.to_string(), sym.clone());
 
         sym
     }
 
-    pub fn lookup(&self, name: &String) -> Option<RcSymbol> {
+    pub fn lookup(&self, name: &str) -> Option<RcSymbol> {
         self.map.get(name).cloned()
     }
 }

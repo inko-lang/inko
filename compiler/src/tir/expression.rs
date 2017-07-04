@@ -16,6 +16,8 @@ pub struct Argument {
 pub enum Expression {
     Void,
 
+    Expressions { nodes: Vec<Expression> },
+
     Integer {
         value: i64,
         line: usize,
@@ -27,18 +29,21 @@ pub enum Expression {
         value: f64,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     String {
         value: String,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     Array {
         values: Vec<Expression>,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     Hash {
@@ -59,6 +64,7 @@ pub enum Expression {
         variable: RcSymbol,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     SetLocal {
@@ -73,6 +79,7 @@ pub enum Expression {
         variable: RcSymbol,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     SetGlobal {
@@ -80,6 +87,7 @@ pub enum Expression {
         value: Box<Expression>,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     SetAttribute {
@@ -88,6 +96,7 @@ pub enum Expression {
         value: Box<Expression>,
         line: usize,
         column: usize,
+        kind: Type,
     },
 
     GetAttribute {
@@ -99,7 +108,7 @@ pub enum Expression {
 
     SendObjectMessage {
         receiver: Box<Expression>,
-        name: String,
+        name: Box<Expression>,
         arguments: Vec<Expression>,
         line: usize,
         column: usize,
@@ -112,6 +121,37 @@ pub enum Expression {
     },
 
     GetIntegerPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    GetFloatPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    GetStringPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    GetArrayPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    GetBooleanPrototype {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    SetObject {
+        arguments: Vec<Expression>,
         line: usize,
         column: usize,
         kind: Type,
@@ -151,42 +191,12 @@ pub enum Expression {
         column: usize,
     },
 
-    DefineMethod {
-        receiver: Box<Expression>,
-        name: Box<Expression>,
-        block: Box<Expression>,
-        line: usize,
-        column: usize,
-    },
-
-    DefineRequiredMethod {
-        receiver: Box<Expression>,
-        name: Box<Expression>,
-        line: usize,
-        column: usize,
-    },
-
-    DefineClass {
-        receiver: Box<Expression>,
-        name: Box<Expression>,
-        body: Box<Expression>,
-        line: usize,
-        column: usize,
-    },
-
-    DefineTrait {
-        receiver: Box<Expression>,
-        name: Box<Expression>,
-        body: Box<Expression>,
-        line: usize,
-        column: usize,
-    },
-
     DefineModule {
         name: Box<Expression>,
         body: CodeObject,
         line: usize,
         column: usize,
+        kind: Type,
     },
 }
 
@@ -194,12 +204,26 @@ impl Expression {
     /// Returns the type of the expression.
     ///
     /// Since "type" is a keyword this function is called "kind" instead.
-    pub fn kind<'a>(&self) -> Type {
+    pub fn kind(&self) -> Type {
         match self {
+            &Expression::Integer { ref kind, .. } |
+            &Expression::Float { ref kind, .. } |
+            &Expression::String { ref kind, .. } |
+            &Expression::Array { ref kind, .. } |
+            &Expression::Block { ref kind, .. } |
+            &Expression::GetLocal { ref kind, .. } |
+            &Expression::SetLocal { ref kind, .. } |
+            &Expression::GetGlobal { ref kind, .. } |
+            &Expression::SetGlobal { ref kind, .. } |
+            &Expression::SetAttribute { ref kind, .. } |
             &Expression::GetBlockPrototype { ref kind, .. } |
             &Expression::GetIntegerPrototype { ref kind, .. } |
-            &Expression::Integer { ref kind, .. } |
-            &Expression::Block { ref kind, .. } => kind.clone(),
+            &Expression::GetFloatPrototype { ref kind, .. } |
+            &Expression::GetStringPrototype { ref kind, .. } |
+            &Expression::GetArrayPrototype { ref kind, .. } |
+            &Expression::GetBooleanPrototype { ref kind, .. } |
+            &Expression::SetObject { ref kind, .. } |
+            &Expression::DefineModule { ref kind, .. } => kind.clone(),
             _ => Type::Dynamic,
         }
     }

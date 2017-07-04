@@ -23,9 +23,9 @@ a single thread performing all the work while the rest idles.
 
 Inko is a prototype-based object oriented programming language. Since
 prototype-based languages are a bit hard to work with Inko provides a simple
-class system, allowing you to organise your code similar to other languages.
-This means you will very rarely have to use prototypes directly, and you don't
-have to invent your own way of defining classes or similar structures.
+class-like object system, allowing you to organise your code similar to other
+languages.  This means you will very rarely have to use prototypes directly, and
+you don't have to invent your own way of defining classes or similar structures.
 
 Inko relies heavily on message passing and provides no traditional `if`, `while`
 and similar statements. Instead you send messages to objects. For example, a
@@ -216,26 +216,26 @@ data is currently not yet exposed but will be in the future.
 
 ## Code Organisation
 
-Organising logic is done by creating classes and traits, and by having classes
-implement these traits where necessary. Class inheritance is not supported as
-traits provide a better mechanism for code reuse. For example, instead of
-creating an (abstract) base class to provide reusable functionality you would
-define a trait instead.
+Organising logic is done by creating objects and traits, and by having objects
+implement these traits where necessary. Objects can be created either on the
+fly, or by using the `object` keyword. Using the `object` keyword allows you to
+define objects that can be re-used, similar to how one might define a class in
+other languages.
 
 As an example, instead of a base Object class providing a `to_string` method
-that is overwritten in child classes there is a ToString trait, defined as
+that is overwritten in child classes there is a ToString trait defined as
 follows:
 
     trait ToString {
       fn to_string -> String
     }
 
-Each class that wishes to provide a `to_string` method can then simply implement
+Each object that wishes to provide a `to_string` method can then simply implement
 the trait:
 
     import std::string::ToString
 
-    class MyClass impl ToString {
+    object MyObject impl ToString {
       fn to_string -> String {
         ...
       }
@@ -294,11 +294,11 @@ may not be clear otherwise:
     # In these cases using keyword arguments can make things more clear:
     Person.new(name: 'Alice', age: 24, address: '5th Street')
 
-Classes and traits are defined using the `class` and `trait` keywords
+Objects and traits are defined using the `object` and `trait` keywords
 respectively. The `impl` keyword can be used to implement a trait, and takes an
 optional list of methods to rename:
 
-    class Foo impl Bar(original_name as alias_name) {
+    object Foo impl Bar(original_name as alias_name) {
       # The method "original_name" is now available as "alias_name"
     }
 
@@ -350,11 +350,11 @@ Checking if a value is true or not:
       stdout.print('x is false!')
     }
 
-Defining a class:
+Defining an object that can be re-used, much like a class:
 
-    class Person {
-      # "init" is the constructor method, called whenever you initialize a
-      # class.
+    object Person {
+      # "init" is the constructor method, called whenever you create a new
+      # instance of this object.
       fn init(name: String, age: Integer) {
         let @name = name
         let @age = age

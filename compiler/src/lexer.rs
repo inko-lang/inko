@@ -32,7 +32,6 @@ pub enum TokenType {
     BitwiseXorAssign,
     BracketClose,
     BracketOpen,
-    Class,
     Colon,
     ColonColon,
     Comma,
@@ -40,7 +39,6 @@ pub enum TokenType {
     Constant,
     CurlyClose,
     CurlyOpen,
-    Function,
     Div,
     DivAssign,
     Dot,
@@ -48,6 +46,7 @@ pub enum TokenType {
     Equal,
     ExclusiveRange,
     Float,
+    Function,
     Greater,
     GreaterEqual,
     HashOpen,
@@ -64,6 +63,7 @@ pub enum TokenType {
     Mul,
     MulAssign,
     NotEqual,
+    Object,
     Or,
     OrAssign,
     ParenClose,
@@ -110,7 +110,7 @@ impl<'a> Lexer<'a> {
             identifiers: hash_map!(
                 "let" => TokenType::Let,
                 "var" => TokenType::Var,
-                "class" => TokenType::Class,
+                "object" => TokenType::Object,
                 "trait" => TokenType::Trait,
                 "impl" => TokenType::Impl,
                 "import" => TokenType::Import,
@@ -1094,7 +1094,7 @@ mod tests {
 
         test!(test_let, identifier_or_keyword, Let, "let");
         test!(test_var, identifier_or_keyword, Var, "var");
-        test!(test_class, identifier_or_keyword, Class, "class");
+        test!(test_object, identifier_or_keyword, Object, "object");
         test!(test_trait, identifier_or_keyword, Trait, "trait");
         test!(test_impl, identifier_or_keyword, Impl, "impl");
         test!(test_import, identifier_or_keyword, Import, "import");

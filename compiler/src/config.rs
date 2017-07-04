@@ -72,10 +72,24 @@ impl Config {
         "__INKOC"
     }
 
-    /// The name of the attribute to store the prototype for a class' instance
-    /// in.
-    pub fn instance_prototype(&self) -> String {
-        "__proto".to_string()
+    pub fn object_constant(&self) -> &'static str {
+        "Object"
+    }
+
+    pub fn trait_constant(&self) -> &'static str {
+        "Trait"
+    }
+
+    pub fn new_message(&self) -> String {
+        "new".to_string()
+    }
+
+    pub fn define_required_method_message(&self) -> String {
+        "define_required_method".to_string()
+    }
+
+    pub fn call_message(&self) -> String {
+        "call".to_string()
     }
 
     pub fn self_variable(&self) -> String {

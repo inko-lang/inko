@@ -6,12 +6,12 @@ use types::object::Object;
 pub struct Database {
     /// The top-level object in which all other objects are defined.
     pub top_level: RcCell<Object>,
-
-    /// The prototype to use for blocks.
     pub block_prototype: RcCell<Object>,
-
-    /// The prototype to use for integers.
     pub integer_prototype: RcCell<Object>,
+    pub float_prototype: RcCell<Object>,
+    pub string_prototype: RcCell<Object>,
+    pub array_prototype: RcCell<Object>,
+    pub boolean_prototype: RcCell<Object>,
 }
 
 impl Database {
@@ -20,6 +20,10 @@ impl Database {
             top_level: Object::with_name("<top-level>"),
             block_prototype: Object::with_name("<block prototype>"),
             integer_prototype: Object::with_name("<integer prototype>"),
+            float_prototype: Object::with_name("<float prototype>"),
+            string_prototype: Object::with_name("<string prototype>"),
+            array_prototype: Object::with_name("<array prototype>"),
+            boolean_prototype: Object::with_name("<boolean prototype>"),
         }
     }
 }
