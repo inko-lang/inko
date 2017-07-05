@@ -1442,64 +1442,53 @@ impl Machine {
                         }
                     }
                 }
-                // Parses a bytecode file and stores the resulting Block in
-                // the register.
+                // Loads a bytecode module and executes it.
+                //
+                // A module is only executed the first time it is loaded, after
+                // that this instruction acts like a no-op.
                 //
                 // This instruction requires 2 arguments:
                 //
-                // 1. The register to store the resulting Block in.
-                // 2. The register containing the file path to open, as a
+                // 1. The register to store the result in. The first time a
+                //    module is loaded this will be set to whatever the module
+                //    returned, after that it will be set to nil.
+                // 2. A register containing the file path to the module, as a
                 //    string.
-                InstructionType::ParseFile => {
+                InstructionType::LoadModule => {
                     let register = instruction.arg(0);
                     let path_ptr = context.get_register(instruction.arg(1));
                     let path_str = path_ptr.string_value().unwrap();
 
-                    let block = {
+                    let (block, execute) = {
                         let mut registry = write_lock!(self.module_registry);
-
+                        let execute = !registry.contains_path(path_str);
                         let module = registry
                             .get_or_set(path_str)
                             .map_err(|err| err.message())
                             .unwrap();
 
-                        Block::new(
+                        let block = Block::new(
                             module.code(),
                             Binding::new(module.code.locals()),
                             module.global_scope_ref(),
-                        )
+                        );
+
+                        (block, execute)
                     };
 
-                    let block_ptr = process.allocate(
-                        object_value::block(block),
-                        self.state.block_prototype,
-                    );
+                    if execute {
+                        self.schedule_block(
+                            &block,
+                            register,
+                            2,
+                            process,
+                            instruction,
+                        );
 
-                    context.set_register(register, block_ptr);
-                }
-                // Sets the target register to true if the given file path
-                // has been parsed.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the resulting boolean in.
-                // 2. The register containing the file path to check.
-                //
-                // The result of this instruction is true or false.
-                InstructionType::FileParsed => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path_str = path_ptr.string_value().unwrap();
-
-                    let ptr = if read_lock!(self.module_registry)
-                        .contains_path(path_str)
-                    {
-                        self.state.true_object
+                        enter_context!(process, context, code, index);
                     } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, ptr);
+                        context.set_register(register, self.state.nil_object);
+                    }
                 }
                 InstructionType::GetBindingPrototype => {
                     context.set_register(
@@ -2267,7 +2256,7 @@ impl Machine {
 
     fn schedule_block(
         &self,
-        block: &Box<Block>,
+        block: &Block,
         return_register: usize,
         arg_offset: usize,
         process: &RcProcess,
