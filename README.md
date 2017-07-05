@@ -374,9 +374,9 @@ Using dynamic typing, simply by leaving out type signatures:
 Opening a file and reading data, without blocking the running thread and without
 the need of nested callbacks:
 
-    import std::file::File
+    import std::file
 
-    let file = File.open('README.md')
+    let file = file.open('README.md')
 
     file.read_exact(6) # => "# Inko"
 
