@@ -1,48 +1,26 @@
-use symbol::RcSymbol;
-
-/// The type of symbol to import.
-#[derive(Debug)]
-pub enum SymbolKind {
-    Module,
-    Constant,
-}
-
 /// A symbol to import.
 #[derive(Debug)]
 pub struct Symbol {
-    kind: SymbolKind,
-    import_name: String,
-    global: RcSymbol,
-    line: usize,
-    column: usize,
+    /// The name of the symbol to import.
+    pub import_name: String,
+
+    /// The name to expose the symbol as.
+    pub import_as: String,
+
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Symbol {
-    pub fn module(
+    pub fn new(
         import_name: String,
-        global: RcSymbol,
+        import_as: String,
         line: usize,
         column: usize,
     ) -> Self {
         Symbol {
-            kind: SymbolKind::Module,
             import_name: import_name,
-            global: global,
-            line: line,
-            column: column,
-        }
-    }
-
-    pub fn constant(
-        import_name: String,
-        global: RcSymbol,
-        line: usize,
-        column: usize,
-    ) -> Self {
-        Symbol {
-            kind: SymbolKind::Constant,
-            import_name: import_name,
-            global: global,
+            import_as: import_as,
             line: line,
             column: column,
         }

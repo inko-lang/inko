@@ -6,3 +6,4 @@ pub const GET_ARRAY_PROTOTYPE: &'static str = "get_array_prototype";
 pub const GET_BOOLEAN_PROTOTYPE: &'static str = "get_boolean_prototype";
 pub const SET_OBJECT: &'static str = "set_object";
 pub const SET_ATTRIBUTE: &'static str = "set_attribute";
+pub const GET_TOPLEVEL: &'static str = "get_toplevel";

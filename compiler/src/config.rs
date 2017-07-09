@@ -62,11 +62,6 @@ impl Config {
         ".inkoc"
     }
 
-    /// Returns the separator used for module/method/constant lookups.
-    pub fn lookup_separator(&self) -> &'static str {
-        "::"
-    }
-
     /// The name of the constant to use as the receiver for raw instructions.
     pub fn raw_instruction_receiver(&self) -> &'static str {
         "__INKOC"
@@ -94,5 +89,17 @@ impl Config {
 
     pub fn self_variable(&self) -> String {
         "self".to_string()
+    }
+
+    pub fn load_module_message(&self) -> String {
+        "load_module".to_string()
+    }
+
+    pub fn symbol_message(&self) -> String {
+        "symbol".to_string()
+    }
+
+    pub fn define_module_message(&self) -> String {
+        "define_module".to_string()
     }
 }

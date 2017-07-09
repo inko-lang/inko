@@ -1573,10 +1573,9 @@ impl<'a> Parser<'a> {
     fn import(&mut self, start: Token) -> ParseResult {
         let mut steps = Vec::new();
         let mut symbols = Vec::new();
+        let mut step = next_of_type!(self, TokenType::Identifier);
 
         loop {
-            let step = next_or_error!(self);
-
             match step.token_type {
                 TokenType::Identifier => {
                     steps.push(self.identifier_from_token(step));
@@ -1610,6 +1609,8 @@ impl<'a> Parser<'a> {
                 symbols = self.import_symbols()?;
                 break;
             }
+
+            step = next_or_error!(self);
         }
 
         Ok(Node::Import {

@@ -6,3 +6,9 @@ pub struct CodeObject {
     pub locals: SymbolTable,
     pub body: Vec<Expression>,
 }
+
+impl CodeObject {
+    pub fn new(locals: SymbolTable, body: Vec<Expression>) -> Self {
+        CodeObject { locals: locals, body: body }
+    }
+}

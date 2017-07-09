@@ -56,6 +56,32 @@ struct Context<'a> {
 
     /// The module locals for the currently compiled module.
     globals: &'a mut SymbolTable,
+
+    /// The ID of the next temporary to set.
+    temporary_id: usize,
+}
+
+impl<'a> Context<'a> {
+    pub fn new(
+        path: &'a String,
+        locals: &'a mut SymbolTable,
+        globals: &'a mut SymbolTable,
+    ) -> Self {
+        Context {
+            path: path,
+            locals: locals,
+            globals: globals,
+            temporary_id: 0,
+        }
+    }
+
+    pub fn new_temporary(&mut self) -> usize {
+        let id = self.temporary_id;
+
+        self.temporary_id += 1;
+
+        id
+    }
 }
 
 impl Builder {
@@ -78,8 +104,6 @@ impl Builder {
     pub fn build(&mut self, name: String, path: String) -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
             let module = self.module(name, path, ast);
-
-            println!("{:#?}", module.body);
 
             Some(module)
         } else {
@@ -131,18 +155,14 @@ impl Builder {
     ) -> CodeObject {
         let body = match node {
             &Node::Expressions { ref nodes } => {
-                let mut context = Context {
-                    path: path,
-                    locals: &mut locals,
-                    globals: globals,
-                };
+                let mut context = Context::new(path, &mut locals, globals);
 
                 self.process_nodes(nodes, &mut context)
             }
             _ => Vec::new(),
         };
 
-        CodeObject { locals: locals, body: body }
+        CodeObject::new(locals, body)
     }
 
     fn process_nodes(
@@ -168,7 +188,7 @@ impl Builder {
                 self.string(value.clone(), line, column)
             }
             &Node::Array { ref values, line, column } => {
-                self.array(values, line, column, context)
+                self.array_from_ast(values, line, column, context)
             }
             &Node::Hash { ref pairs, line, column } => {
                 self.hash(pairs, line, column, context)
@@ -402,15 +422,25 @@ impl Builder {
         }
     }
 
-    fn array(
+    fn array_from_ast(
         &mut self,
         value_nodes: &Vec<Node>,
         line: usize,
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let kind = Array::new(self.typedb.array_prototype.clone());
         let values = self.process_nodes(&value_nodes, context);
+
+        self.array(values, line, col)
+    }
+
+    fn array(
+        &mut self,
+        values: Vec<Expression>,
+        line: usize,
+        col: usize,
+    ) -> Expression {
+        let kind = Array::new(self.typedb.array_prototype.clone());
 
         Expression::Array {
             values: values,
@@ -703,6 +733,7 @@ impl Builder {
             GET_ARRAY_PROTOTYPE => self.get_array_prototype(line, col),
             GET_BOOLEAN_PROTOTYPE => self.get_boolean_prototype(line, col),
             SET_OBJECT => self.set_object(arg_nodes, line, col, context),
+            GET_TOPLEVEL => self.get_toplevel(line, col),
             SET_ATTRIBUTE => {
                 self.set_raw_attribute(arg_nodes, line, col, context)
             }
@@ -755,6 +786,12 @@ impl Builder {
         Expression::GetBooleanPrototype { line: line, column: col, kind: kind }
     }
 
+    fn get_toplevel(&mut self, line: usize, col: usize) -> Expression {
+        let kind = Type::Object(self.typedb.top_level.clone());
+
+        Expression::GetTopLevel { line: line, column: col, kind: kind }
+    }
+
     fn set_object(
         &mut self,
         arg_nodes: &Vec<Node>,
@@ -802,7 +839,7 @@ impl Builder {
     }
 
     /// Converts the list of import steps to a module name.
-    fn module_name_for_import(&self, steps: &Vec<Node>) -> String {
+    fn module_steps_for_import(&self, steps: &Vec<Node>) -> Vec<String> {
         let mut chunks = Vec::new();
 
         for step in steps.iter() {
@@ -815,19 +852,15 @@ impl Builder {
             }
         }
 
-        chunks.join(self.config.lookup_separator())
+        chunks
     }
 
     /// Returns a vector of symbols to import, based on a list of AST nodes
     /// describing the import steps.
-    fn import_symbols(
-        &self,
-        nodes: &Vec<Node>,
-        context: &mut Context,
-    ) -> Vec<ImportSymbol> {
+    fn import_symbols(&self, symbol_nodes: &Vec<Node>) -> Vec<ImportSymbol> {
         let mut symbols = Vec::new();
 
-        for node in nodes.iter() {
+        for node in symbol_nodes.iter() {
             match node {
                 &Node::ImportSymbol {
                     symbol: ref symbol_node,
@@ -839,12 +872,6 @@ impl Builder {
                         None
                     };
 
-                    let func = match **symbol_node {
-                        Node::Identifier { .. } => ImportSymbol::module,
-                        Node::Constant { .. } => ImportSymbol::constant,
-                        _ => unreachable!(),
-                    };
-
                     let symbol = match **symbol_node {
                         Node::Identifier { ref name, line, column } |
                         Node::Constant { ref name, line, column, .. } => {
@@ -854,13 +881,9 @@ impl Builder {
                                 name.clone()
                             };
 
-                            func(
+                            ImportSymbol::new(
                                 name.clone(),
-                                context.globals.define(
-                                    var_name,
-                                    Type::Dynamic,
-                                    Mutability::Immutable,
-                                ),
+                                var_name,
                                 line,
                                 column,
                             )
@@ -885,23 +908,23 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let mod_name = self.module_name_for_import(step_nodes);
-        let mod_path = self.module_path_for_name(&mod_name);
+        let mod_steps = self.module_steps_for_import(step_nodes);
+        let mod_path = self.module_path(&mod_steps);
 
         // We insert the module name before processing it to prevent the
         // compiler from getting stuck in a recursive import.
-        if self.modules.get(&mod_name).is_none() {
-            self.modules.insert(mod_name.clone(), None);
+        if self.modules.get(&mod_path).is_none() {
+            self.modules.insert(mod_path.clone(), None);
 
             match self.find_module_path(&mod_path) {
                 Some(full_path) => {
-                    let module = self.build(mod_name.clone(), full_path);
+                    let module = self.build(mod_path.clone(), full_path);
 
-                    self.modules.insert(mod_name.clone(), module);
+                    self.modules.insert(mod_path.clone(), module);
                 }
                 None => {
                     self.diagnostics.module_not_found_error(
-                        &mod_name,
+                        &mod_path,
                         context.path,
                         line,
                         col,
@@ -910,12 +933,97 @@ impl Builder {
             };
         }
 
-        Expression::ImportModule {
-            path: Box::new(self.string(mod_path, line, col)),
+        let mut symbols = self.import_symbols(symbol_nodes);
+
+        let step_strings = mod_steps
+            .iter()
+            .map(|string| self.string(string.clone(), line, col))
+            .collect();
+
+        let temp = context.new_temporary();
+
+        // Example: get_toplevel.load_module(['std', 'string'])
+        let load_module = Expression::SendObjectMessage {
+            receiver: Box::new(self.get_toplevel(line, col)),
+            name: Box::new(
+                self.string(self.config.load_module_message(), line, col),
+            ),
+            arguments: vec![self.array(step_strings, line, col)],
             line: line,
             column: col,
-            symbols: self.import_symbols(symbol_nodes, context),
+        };
+
+        let set_temp = Expression::SetTemporary {
+            id: temp,
+            value: Box::new(load_module),
+            line: line,
+            column: col,
+        };
+
+        let mut expressions = vec![set_temp];
+
+        if symbols.is_empty() {
+            // If no symbols are given the module itself is to be imported under
+            // the same name.
+            let mod_name = mod_steps.last().unwrap();
+            let global = context.globals.define(
+                mod_name.clone(),
+                Type::Dynamic,
+                Mutability::Immutable,
+            );
+
+            let kind = global.kind.clone();
+
+            expressions.push(Expression::SetGlobal {
+                variable: global,
+                value: Box::new(Expression::GetTemporary {
+                    id: temp,
+                    line: line,
+                    column: col,
+                }),
+                line: line,
+                column: col,
+                kind: kind,
+            })
+        } else {
+            // If symbols _are_ given we will import the symbols into global
+            // variables.
+            for symbol in symbols.drain(0..) {
+                let global = context.globals.define(
+                    symbol.import_as,
+                    Type::Dynamic,
+                    Mutability::Immutable,
+                );
+
+                let global_kind = global.kind.clone();
+
+                let value = Expression::SendObjectMessage {
+                    receiver: Box::new(Expression::GetTemporary {
+                        id: temp,
+                        line: line,
+                        column: col,
+                    }),
+                    name: Box::new(
+                        self.string(self.config.symbol_message(), line, col),
+                    ),
+                    arguments: vec![self.string(symbol.import_name, line, col)],
+                    line: symbol.line,
+                    column: symbol.column,
+                };
+
+                expressions.push(Expression::SetGlobal {
+                    variable: global,
+                    value: Box::new(value),
+                    line: symbol.line,
+                    column: symbol.column,
+                    kind: global_kind,
+                });
+            }
         }
+
+        println!("{:#?}", expressions);
+
+        Expression::Expressions { nodes: expressions }
     }
 
     fn closure(
@@ -1645,13 +1753,8 @@ impl Builder {
         }
     }
 
-    fn module_path_for_name(&self, name: &str) -> String {
-        let file_name = name.replace(
-            self.config.lookup_separator(),
-            &MAIN_SEPARATOR.to_string(),
-        );
-
-        file_name + self.config.source_extension()
+    fn module_path(&self, steps: &Vec<String>) -> String {
+        steps.join(&MAIN_SEPARATOR.to_string()) + self.config.source_extension()
     }
 
 

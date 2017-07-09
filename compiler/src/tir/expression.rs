@@ -1,6 +1,5 @@
 use symbol::RcSymbol;
 use tir::code_object::CodeObject;
-use tir::import::Symbol as ImportSymbol;
 use types::Type;
 
 #[derive(Debug)]
@@ -164,13 +163,6 @@ pub enum Expression {
         column: usize,
     },
 
-    ImportModule {
-        path: Box<Expression>,
-        symbols: Vec<ImportSymbol>,
-        line: usize,
-        column: usize,
-    },
-
     Return {
         value: Option<Box<Expression>>,
         line: usize,
@@ -198,6 +190,25 @@ pub enum Expression {
         column: usize,
         kind: Type,
     },
+
+    GetTopLevel {
+        line: usize,
+        column: usize,
+        kind: Type,
+    },
+
+    GetTemporary {
+        id: usize,
+        line: usize,
+        column: usize,
+    },
+
+    SetTemporary {
+        id: usize,
+        value: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
 }
 
 impl Expression {
@@ -223,6 +234,7 @@ impl Expression {
             &Expression::GetArrayPrototype { ref kind, .. } |
             &Expression::GetBooleanPrototype { ref kind, .. } |
             &Expression::SetObject { ref kind, .. } |
+            &Expression::GetTopLevel { ref kind, .. } |
             &Expression::DefineModule { ref kind, .. } => kind.clone(),
             _ => Type::Dynamic,
         }
