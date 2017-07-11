@@ -12,6 +12,9 @@ pub const BYTECODE_EXT: &'static str = ".inkoc";
 /// The file extension of source files.
 pub const SOURCE_EXT: &'static str = ".inko";
 
+/// The name of the bootstrap module.
+pub const BOOTSTRAP_FILE: &'static str = "bootstrap";
+
 pub const OBJECT_CONST: &'static str = "Object";
 pub const TRAIT_CONST: &'static str = "Trait";
 

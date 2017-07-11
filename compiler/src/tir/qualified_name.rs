@@ -17,7 +17,7 @@ impl QualifiedName {
         self.parts.last().unwrap()
     }
 
-    pub fn path(&self) -> String {
+    pub fn source_path_with_extension(&self) -> String {
         self.parts.join(&MAIN_SEPARATOR.to_string()) + SOURCE_EXT
     }
 }

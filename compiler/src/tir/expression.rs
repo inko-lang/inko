@@ -201,6 +201,12 @@ pub enum Expression {
         line: usize,
         column: usize,
     },
+
+    LoadModule {
+        path: Box<Expression>,
+        line: usize,
+        column: usize,
+    },
 }
 
 impl Expression {

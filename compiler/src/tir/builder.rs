@@ -5,7 +5,8 @@ use std::io::Read;
 use std::path::MAIN_SEPARATOR;
 use std::collections::HashMap;
 
-use config::{Config, OBJECT_CONST, TRAIT_CONST, RAW_INSTRUCTION_RECEIVER};
+use config::{Config, OBJECT_CONST, TRAIT_CONST, RAW_INSTRUCTION_RECEIVER,
+             BOOTSTRAP_FILE};
 use default_globals::DEFAULT_GLOBALS;
 use diagnostics::Diagnostics;
 use mutability::Mutability;
@@ -174,7 +175,20 @@ impl Builder {
 
         let call_msg = self.string(self.config.call_message(), line, col);
 
-        self.send_object_message(block, call_msg, vec![def_mod], line, col)
+        let run_mod =
+            self.send_object_message(block, call_msg, vec![def_mod], line, col);
+
+        let load_bootstrap = self.load_bootstrap_module(line, col);
+
+        Expression::Expressions { nodes: vec![load_bootstrap, run_mod] }
+    }
+
+    fn load_bootstrap_module(&self, line: usize, col: usize) -> Expression {
+        Expression::LoadModule {
+            path: Box::new(self.string(BOOTSTRAP_FILE.to_string(), line, col)),
+            line: line,
+            column: col,
+        }
     }
 
     fn code_object(
@@ -286,7 +300,7 @@ impl Builder {
                 )
             }
             &Node::Import { ref steps, ref symbols, line, column } => {
-                self.import(steps, symbols, line, column, context)
+                self.import_from_ast(steps, symbols, line, column, context)
             }
             &Node::Closure { ref arguments, ref body, line, column, .. } => {
                 self.closure(arguments, body, line, column, context)
@@ -996,7 +1010,7 @@ impl Builder {
         symbols
     }
 
-    fn import(
+    fn import_from_ast(
         &mut self,
         qname_nodes: &Vec<Node>,
         symbol_nodes: &Vec<Node>,
@@ -1005,8 +1019,21 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         let qname = self.qualified_name_for_import(qname_nodes);
+        let symbols = self.import_symbols(symbol_nodes);
+
+        self.import(qname, symbols, line, col, context)
+    }
+
+    fn import(
+        &mut self,
+        qname: QualifiedName,
+        symbols: Vec<ImportSymbol>,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) -> Expression {
         let mod_name = qname.module_name().clone();
-        let mod_path = qname.path();
+        let mod_path = qname.source_path_with_extension();
         let qname_array = self.array_of_strings(&qname.parts, line, col);
 
         self.compile_module(qname, &mod_path, line, col, context);
@@ -1027,7 +1054,6 @@ impl Builder {
 
         let set_temp = self.set_temporary(temp, loaded_mod, line, col);
         let mut expressions = vec![set_temp];
-        let mut symbols = self.import_symbols(symbol_nodes);
 
         if symbols.is_empty() {
             // If no symbols are given the module itself is to be imported under
@@ -1044,7 +1070,7 @@ impl Builder {
         } else {
             // If symbols _are_ given we will import the symbols into global
             // variables.
-            for symbol in symbols.drain(0..) {
+            for symbol in symbols {
                 let global = context.globals.define(
                     symbol.import_as,
                     Type::Dynamic,
