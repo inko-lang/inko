@@ -183,14 +183,6 @@ pub enum Expression {
         column: usize,
     },
 
-    DefineModule {
-        name: Box<Expression>,
-        body: CodeObject,
-        line: usize,
-        column: usize,
-        kind: Type,
-    },
-
     GetTopLevel {
         line: usize,
         column: usize,
@@ -234,8 +226,7 @@ impl Expression {
             &Expression::GetArrayPrototype { ref kind, .. } |
             &Expression::GetBooleanPrototype { ref kind, .. } |
             &Expression::SetObject { ref kind, .. } |
-            &Expression::GetTopLevel { ref kind, .. } |
-            &Expression::DefineModule { ref kind, .. } => kind.clone(),
+            &Expression::GetTopLevel { ref kind, .. } => kind.clone(),
             _ => Type::Dynamic,
         }
     }

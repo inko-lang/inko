@@ -1,8 +1,22 @@
 use xdg::BaseDirectories;
 use std::path::PathBuf;
 
-const PROGRAM_NAME: &'static str = "inkoc";
-const BYTECODE_DIR: &'static str = "bytecode";
+pub const PROGRAM_NAME: &'static str = "inkoc";
+
+/// The name of the directory to store bytecode files in.
+pub const BYTECODE_DIR: &'static str = "bytecode";
+
+/// The file extension of bytecode files.
+pub const BYTECODE_EXT: &'static str = ".inkoc";
+
+/// The file extension of source files.
+pub const SOURCE_EXT: &'static str = ".inko";
+
+pub const OBJECT_CONST: &'static str = "Object";
+pub const TRAIT_CONST: &'static str = "Trait";
+
+/// The name of the constant to use as the receiver for raw instructions.
+pub const RAW_INSTRUCTION_RECEIVER: &'static str = "__INKOC";
 
 pub enum Mode {
     Debug,
@@ -50,29 +64,6 @@ impl Config {
 
     pub fn add_source_directory(&mut self, dir: String) {
         self.source_directories.push(PathBuf::from(dir));
-    }
-
-    /// Returns the file extension to use for source files.
-    pub fn source_extension(&self) -> &'static str {
-        ".inko"
-    }
-
-    /// Returns the file extension to use for bytecode files.
-    pub fn bytecode_extension(&self) -> &'static str {
-        ".inkoc"
-    }
-
-    /// The name of the constant to use as the receiver for raw instructions.
-    pub fn raw_instruction_receiver(&self) -> &'static str {
-        "__INKOC"
-    }
-
-    pub fn object_constant(&self) -> &'static str {
-        "Object"
-    }
-
-    pub fn trait_constant(&self) -> &'static str {
-        "Trait"
     }
 
     pub fn new_message(&self) -> String {

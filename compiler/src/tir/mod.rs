@@ -6,4 +6,5 @@ pub mod expression;
 pub mod implement;
 pub mod import;
 pub mod module;
+pub mod qualified_name;
 pub mod raw_instructions;

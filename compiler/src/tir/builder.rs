@@ -5,7 +5,7 @@ use std::io::Read;
 use std::path::MAIN_SEPARATOR;
 use std::collections::HashMap;
 
-use config::Config;
+use config::{Config, OBJECT_CONST, TRAIT_CONST, RAW_INSTRUCTION_RECEIVER};
 use default_globals::DEFAULT_GLOBALS;
 use diagnostics::Diagnostics;
 use mutability::Mutability;
@@ -17,6 +17,7 @@ use tir::expression::{Argument, Expression};
 use tir::implement::{Implement, Rename};
 use tir::import::Symbol as ImportSymbol;
 use tir::module::Module;
+use tir::qualified_name::QualifiedName;
 use tir::raw_instructions::*;
 use types::Type;
 use types::array::Array;
@@ -97,13 +98,18 @@ impl Builder {
     /// Builds the main module that starts the application.
     pub fn build_main(&mut self, path: String) -> Option<Module> {
         let name = self.module_name_for_path(&path);
+        let qname = QualifiedName::new(vec![name]);
 
-        self.build(name, path)
+        self.build(qname, path)
     }
 
-    pub fn build(&mut self, name: String, path: String) -> Option<Module> {
+    pub fn build(
+        &mut self,
+        qname: QualifiedName,
+        path: String,
+    ) -> Option<Module> {
         let module = if let Ok(ast) = self.parse_file(&path) {
-            let module = self.module(name, path, ast);
+            let module = self.module(qname, path, ast);
 
             Some(module)
         } else {
@@ -113,28 +119,62 @@ impl Builder {
         module
     }
 
-    fn module(&mut self, name: String, path: String, node: Node) -> Module {
+    fn module(
+        &mut self,
+        qname: QualifiedName,
+        path: String,
+        node: Node,
+    ) -> Module {
         let mut globals = self.module_globals();
-        let kind = Type::Object(Object::new());
-        let locals = self.symbol_table_with_self(kind.clone());
-
-        let code_object =
-            self.code_object_with_locals(&path, &node, locals, &mut globals);
-
-        let body = Expression::DefineModule {
-            name: Box::new(self.string(name.clone(), 1, 1)),
-            body: code_object,
-            line: 1,
-            column: 1,
-            kind: kind,
-        };
+        let body = self.module_body(&qname, &path, node, &mut globals);
 
         Module {
             path: path,
-            name: name,
+            name: qname,
             body: body,
             globals: globals,
         }
+    }
+
+    fn module_body(
+        &mut self,
+        qname: &QualifiedName,
+        path: &String,
+        node: Node,
+        globals: &mut SymbolTable,
+    ) -> Expression {
+        let kind = Type::Object(Object::new());
+        let locals = self.symbol_table_with_self(kind.clone());
+        let line = 1;
+        let col = 1;
+
+        let code_object =
+            self.code_object_with_locals(path, &node, locals, globals);
+
+        let qname_array = self.array_of_strings(&qname.parts, line, col);
+        let top = self.get_toplevel(line, col);
+
+        let def_mod_msg =
+            self.string(self.config.define_module_message(), line, col);
+
+        let def_mod = self.send_object_message(
+            top,
+            def_mod_msg,
+            vec![qname_array],
+            line,
+            col,
+        );
+
+        let block = self.block(
+            vec![self.self_argument(line, col)],
+            code_object,
+            line,
+            col,
+        );
+
+        let call_msg = self.string(self.config.call_message(), line, col);
+
+        self.send_object_message(block, call_msg, vec![def_mod], line, col)
     }
 
     fn code_object(
@@ -236,7 +276,7 @@ impl Builder {
                 line,
                 column,
             } => {
-                self.send_object_message(
+                self.send_object_message_from_ast(
                     name.clone(),
                     receiver,
                     arguments,
@@ -435,7 +475,7 @@ impl Builder {
     }
 
     fn array(
-        &mut self,
+        &self,
         values: Vec<Expression>,
         line: usize,
         col: usize,
@@ -499,7 +539,14 @@ impl Builder {
         // TODO: check if method exists for identifiers without receivers
         let args = Vec::new();
 
-        self.send_object_message(name.clone(), &None, &args, line, col, context)
+        self.send_object_message_from_ast(
+            name.clone(),
+            &None,
+            &args,
+            line,
+            col,
+            context,
+        )
     }
 
     fn attribute(
@@ -536,7 +583,7 @@ impl Builder {
     }
 
     fn get_global(
-        &mut self,
+        &self,
         variable: RcSymbol,
         line: usize,
         col: usize,
@@ -545,6 +592,24 @@ impl Builder {
 
         Expression::GetGlobal {
             variable: variable,
+            line: line,
+            column: col,
+            kind: kind,
+        }
+    }
+
+    pub fn set_global(
+        &self,
+        variable: RcSymbol,
+        value: Expression,
+        line: usize,
+        col: usize,
+    ) -> Expression {
+        let kind = value.kind();
+
+        Expression::SetGlobal {
+            variable: variable,
+            value: Box::new(value),
             line: line,
             column: col,
             kind: kind,
@@ -671,7 +736,26 @@ impl Builder {
         }
     }
 
-    fn send_object_message(
+    fn set_temporary(
+        &self,
+        id: usize,
+        value: Expression,
+        line: usize,
+        col: usize,
+    ) -> Expression {
+        Expression::SetTemporary {
+            id: id,
+            value: Box::new(value),
+            line: line,
+            column: col,
+        }
+    }
+
+    fn get_temporary(&self, id: usize, line: usize, col: usize) -> Expression {
+        Expression::GetTemporary { id: id, line: line, column: col }
+    }
+
+    fn send_object_message_from_ast(
         &mut self,
         mut name: String,
         receiver_node: &Option<Box<Node>>,
@@ -683,7 +767,7 @@ impl Builder {
         let receiver = if let &Some(ref rec) = receiver_node {
             let raw_ins = match **rec {
                 Node::Constant { ref name, .. } => {
-                    name == self.config.raw_instruction_receiver()
+                    name == RAW_INSTRUCTION_RECEIVER
                 }
                 _ => false,
             };
@@ -708,10 +792,23 @@ impl Builder {
             .map(|arg| self.process_node(arg, context))
             .collect();
 
+        let message = self.string(name, line, col);
+
+        self.send_object_message(receiver, message, args, line, col)
+    }
+
+    fn send_object_message(
+        &mut self,
+        receiver: Expression,
+        name: Expression,
+        arguments: Vec<Expression>,
+        line: usize,
+        col: usize,
+    ) -> Expression {
         Expression::SendObjectMessage {
             receiver: Box::new(receiver),
-            name: Box::new(self.string(name, line, col)),
-            arguments: args,
+            name: Box::new(name),
+            arguments: arguments,
             line: line,
             column: col,
         }
@@ -786,7 +883,7 @@ impl Builder {
         Expression::GetBooleanPrototype { line: line, column: col, kind: kind }
     }
 
-    fn get_toplevel(&mut self, line: usize, col: usize) -> Expression {
+    fn get_toplevel(&self, line: usize, col: usize) -> Expression {
         let kind = Type::Object(self.typedb.top_level.clone());
 
         Expression::GetTopLevel { line: line, column: col, kind: kind }
@@ -838,8 +935,7 @@ impl Builder {
         }
     }
 
-    /// Converts the list of import steps to a module name.
-    fn module_steps_for_import(&self, steps: &Vec<Node>) -> Vec<String> {
+    fn qualified_name_for_import(&self, steps: &Vec<Node>) -> QualifiedName {
         let mut chunks = Vec::new();
 
         for step in steps.iter() {
@@ -852,7 +948,7 @@ impl Builder {
             }
         }
 
-        chunks
+        QualifiedName::new(chunks)
     }
 
     /// Returns a vector of symbols to import, based on a list of AST nodes
@@ -902,89 +998,49 @@ impl Builder {
 
     fn import(
         &mut self,
-        step_nodes: &Vec<Node>,
+        qname_nodes: &Vec<Node>,
         symbol_nodes: &Vec<Node>,
         line: usize,
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let mod_steps = self.module_steps_for_import(step_nodes);
-        let mod_path = self.module_path(&mod_steps);
+        let qname = self.qualified_name_for_import(qname_nodes);
+        let mod_name = qname.module_name().clone();
+        let mod_path = qname.path();
+        let qname_array = self.array_of_strings(&qname.parts, line, col);
 
-        // We insert the module name before processing it to prevent the
-        // compiler from getting stuck in a recursive import.
-        if self.modules.get(&mod_path).is_none() {
-            self.modules.insert(mod_path.clone(), None);
-
-            match self.find_module_path(&mod_path) {
-                Some(full_path) => {
-                    let module = self.build(mod_path.clone(), full_path);
-
-                    self.modules.insert(mod_path.clone(), module);
-                }
-                None => {
-                    self.diagnostics.module_not_found_error(
-                        &mod_path,
-                        context.path,
-                        line,
-                        col,
-                    );
-                }
-            };
-        }
-
-        let mut symbols = self.import_symbols(symbol_nodes);
-
-        let step_strings = mod_steps
-            .iter()
-            .map(|string| self.string(string.clone(), line, col))
-            .collect();
+        self.compile_module(qname, &mod_path, line, col, context);
 
         let temp = context.new_temporary();
+        let top = self.get_toplevel(line, col);
 
-        // Example: get_toplevel.load_module(['std', 'string'])
-        let load_module = Expression::SendObjectMessage {
-            receiver: Box::new(self.get_toplevel(line, col)),
-            name: Box::new(
-                self.string(self.config.load_module_message(), line, col),
-            ),
-            arguments: vec![self.array(step_strings, line, col)],
-            line: line,
-            column: col,
-        };
+        let load_mod_msg =
+            self.string(self.config.load_module_message(), line, col);
 
-        let set_temp = Expression::SetTemporary {
-            id: temp,
-            value: Box::new(load_module),
-            line: line,
-            column: col,
-        };
+        let loaded_mod = self.send_object_message(
+            top,
+            load_mod_msg,
+            vec![qname_array],
+            line,
+            col,
+        );
 
+        let set_temp = self.set_temporary(temp, loaded_mod, line, col);
         let mut expressions = vec![set_temp];
+        let mut symbols = self.import_symbols(symbol_nodes);
 
         if symbols.is_empty() {
             // If no symbols are given the module itself is to be imported under
             // the same name.
-            let mod_name = mod_steps.last().unwrap();
             let global = context.globals.define(
                 mod_name.clone(),
                 Type::Dynamic,
                 Mutability::Immutable,
             );
 
-            let kind = global.kind.clone();
+            let get_temp = self.get_temporary(temp, line, col);
 
-            expressions.push(Expression::SetGlobal {
-                variable: global,
-                value: Box::new(Expression::GetTemporary {
-                    id: temp,
-                    line: line,
-                    column: col,
-                }),
-                line: line,
-                column: col,
-                kind: kind,
-            })
+            expressions.push(self.set_global(global, get_temp, line, col));
         } else {
             // If symbols _are_ given we will import the symbols into global
             // variables.
@@ -995,35 +1051,75 @@ impl Builder {
                     Mutability::Immutable,
                 );
 
-                let global_kind = global.kind.clone();
+                let symbol_msg =
+                    self.string(self.config.symbol_message(), line, col);
 
-                let value = Expression::SendObjectMessage {
-                    receiver: Box::new(Expression::GetTemporary {
-                        id: temp,
-                        line: line,
-                        column: col,
-                    }),
-                    name: Box::new(
-                        self.string(self.config.symbol_message(), line, col),
-                    ),
-                    arguments: vec![self.string(symbol.import_name, line, col)],
-                    line: symbol.line,
-                    column: symbol.column,
-                };
+                let get_temp = self.get_temporary(temp, line, col);
+                let symbol_str = self.string(symbol.import_name, line, col);
 
-                expressions.push(Expression::SetGlobal {
-                    variable: global,
-                    value: Box::new(value),
-                    line: symbol.line,
-                    column: symbol.column,
-                    kind: global_kind,
-                });
+                let value = self.send_object_message(
+                    get_temp,
+                    symbol_msg,
+                    vec![symbol_str],
+                    symbol.line,
+                    symbol.column,
+                );
+
+                expressions.push(self.set_global(
+                    global,
+                    value,
+                    symbol.line,
+                    symbol.column,
+                ));
             }
         }
 
-        println!("{:#?}", expressions);
-
         Expression::Expressions { nodes: expressions }
+    }
+
+    fn array_of_strings(
+        &self,
+        steps: &Vec<String>,
+        line: usize,
+        col: usize,
+    ) -> Expression {
+        let strings = steps
+            .iter()
+            .map(|string| self.string(string.clone(), line, col))
+            .collect();
+
+        self.array(strings, line, col)
+    }
+
+    fn compile_module(
+        &mut self,
+        qname: QualifiedName,
+        path: &String,
+        line: usize,
+        col: usize,
+        context: &mut Context,
+    ) {
+        // We insert the module name before processing it to prevent the
+        // compiler from getting stuck in a recursive import.
+        if self.modules.get(path).is_none() {
+            self.modules.insert(path.clone(), None);
+
+            match self.find_module_path(path) {
+                Some(full_path) => {
+                    let module = self.build(qname, full_path);
+
+                    self.modules.insert(path.clone(), module);
+                }
+                None => {
+                    self.diagnostics.module_not_found_error(
+                        path,
+                        context.path,
+                        line,
+                        col,
+                    );
+                }
+            };
+        }
     }
 
     fn closure(
@@ -1134,16 +1230,11 @@ impl Builder {
         };
 
         let method_name = self.string(name, line, col);
-        let message_name =
+
+        let message =
             self.string(self.config.define_required_method_message(), line, col);
 
-        Expression::SendObjectMessage {
-            receiver: Box::new(receiver),
-            name: Box::new(message_name),
-            arguments: vec![method_name],
-            line: line,
-            column: col,
-        }
+        self.send_object_message(receiver, message, vec![method_name], line, col)
     }
 
     fn method_arguments(
@@ -1213,14 +1304,12 @@ impl Builder {
     ) -> Expression {
         let locals = self.symbol_table_with_self(Type::Dynamic);
         let global = self.lookup_object_constant(&context.globals);
+        let get_global = self.get_global(global, line, col);
 
-        let object_new = Expression::SendObjectMessage {
-            receiver: Box::new(self.get_global(global, line, col)),
-            name: Box::new(self.string(self.config.new_message(), line, col)),
-            arguments: Vec::new(),
-            line: line,
-            column: col,
-        };
+        let new_msg = self.string(self.config.new_message(), line, col);
+
+        let object_new =
+            self.send_object_message(get_global, new_msg, Vec::new(), line, col);
 
         let set_attr =
             self.set_attribute(name.clone(), object_new, line, col, context);
@@ -1236,14 +1325,10 @@ impl Builder {
             self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
         let block_arg = self.attribute(name, line, col, context);
+        let call_msg = self.string(self.config.call_message(), line, col);
 
-        let run_block = Expression::SendObjectMessage {
-            receiver: Box::new(block),
-            name: Box::new(self.string(self.config.call_message(), line, col)),
-            arguments: vec![block_arg],
-            line: line,
-            column: col,
-        };
+        let run_block =
+            self.send_object_message(block, call_msg, vec![block_arg], line, col);
 
         Expression::Expressions { nodes: vec![set_attr, run_block] }
     }
@@ -1258,14 +1343,16 @@ impl Builder {
     ) -> Expression {
         let locals = self.symbol_table_with_self(Type::Dynamic);
         let global = self.lookup_trait_constant(&context.globals);
+        let get_global = self.get_global(global, line, col);
 
-        let object_new = Expression::SendObjectMessage {
-            receiver: Box::new(self.get_global(global, line, col)),
-            name: Box::new(self.string(self.config.new_message(), line, col)),
-            arguments: Vec::new(),
-            line: line,
-            column: col,
-        };
+        let new_message = self.string(self.config.new_message(), line, col);
+        let object_new = self.send_object_message(
+            get_global,
+            new_message,
+            Vec::new(),
+            line,
+            col,
+        );
 
         let set_attr =
             self.set_attribute(name.clone(), object_new, line, col, context);
@@ -1282,13 +1369,14 @@ impl Builder {
 
         let block_arg = self.attribute(name, line, col, context);
 
-        let run_block = Expression::SendObjectMessage {
-            receiver: Box::new(block),
-            name: Box::new(self.string(self.config.call_message(), line, col)),
-            arguments: vec![block_arg],
-            line: line,
-            column: col,
-        };
+        let call_message = self.string(self.config.call_message(), line, col);
+        let run_block = self.send_object_message(
+            block,
+            call_message,
+            vec![block_arg],
+            line,
+            col,
+        );
 
         Expression::Expressions { nodes: vec![set_attr, run_block] }
     }
@@ -1700,16 +1788,11 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let left = Box::new(self.process_node(left_node, context));
+        let left = self.process_node(left_node, context);
         let right = self.process_node(right_node, context);
+        let message = self.string(message.to_string(), line, col);
 
-        Expression::SendObjectMessage {
-            receiver: left,
-            name: Box::new(self.string(message.to_string(), line, col)),
-            arguments: vec![right],
-            line: line,
-            column: col,
-        }
+        self.send_object_message(left, message, vec![right], line, col)
     }
 
     fn name_of_node(&self, node: &Node) -> Option<String> {
@@ -1753,11 +1836,6 @@ impl Builder {
         }
     }
 
-    fn module_path(&self, steps: &Vec<String>) -> String {
-        steps.join(&MAIN_SEPARATOR.to_string()) + self.config.source_extension()
-    }
-
-
     fn module_name_for_path(&self, path: &String) -> String {
         if let Some(file_with_ext) = path.split(MAIN_SEPARATOR).last() {
             if let Some(file_name) = file_with_ext.split(".").next() {
@@ -1765,7 +1843,7 @@ impl Builder {
             }
         }
 
-        "main".to_string()
+        "<anonymous-module>".to_string()
     }
 
     fn find_module_path(&self, path: &str) -> Option<String> {
@@ -1813,10 +1891,10 @@ impl Builder {
     }
 
     fn lookup_object_constant(&self, symbols: &SymbolTable) -> RcSymbol {
-        symbols.lookup(self.config.object_constant()).unwrap()
+        symbols.lookup(OBJECT_CONST).unwrap()
     }
 
     fn lookup_trait_constant(&self, symbols: &SymbolTable) -> RcSymbol {
-        symbols.lookup(self.config.trait_constant()).unwrap()
+        symbols.lookup(TRAIT_CONST).unwrap()
     }
 }

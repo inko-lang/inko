@@ -1,6 +1,7 @@
 //! Modules containing source code.
 use symbol_table::SymbolTable;
 use tir::expression::Expression;
+use tir::qualified_name::QualifiedName;
 
 #[derive(Debug)]
 pub struct Module {
@@ -8,7 +9,7 @@ pub struct Module {
     pub path: String,
 
     /// The name of this module.
-    pub name: String,
+    pub name: QualifiedName,
 
     /// The body of the module.
     pub body: Expression,
