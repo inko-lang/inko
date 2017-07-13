@@ -15,7 +15,11 @@ pub struct Argument {
 pub enum Expression {
     Void,
 
-    Expressions { nodes: Vec<Expression> },
+    Expressions {
+        nodes: Vec<Expression>,
+        line: usize,
+        column: usize,
+    },
 
     Integer {
         value: i64,
@@ -53,7 +57,7 @@ pub enum Expression {
 
     Block {
         arguments: Vec<Argument>,
-        body: CodeObject,
+        body: Box<CodeObject>,
         line: usize,
         column: usize,
         kind: Type,
@@ -170,8 +174,8 @@ pub enum Expression {
     },
 
     Try {
-        body: CodeObject,
-        else_body: Option<CodeObject>,
+        body: Box<CodeObject>,
+        else_body: Option<Box<CodeObject>>,
         else_argument: Option<RcSymbol>,
         line: usize,
         column: usize,
@@ -234,6 +238,41 @@ impl Expression {
             &Expression::SetObject { ref kind, .. } |
             &Expression::GetTopLevel { ref kind, .. } => kind.clone(),
             _ => Type::Dynamic,
+        }
+    }
+
+    pub fn position(&self) -> (usize, usize) {
+        match self {
+            &Expression::Integer { line, column, .. } |
+            &Expression::Float { line, column, .. } |
+            &Expression::String { line, column, .. } |
+            &Expression::Array { line, column, .. } |
+            &Expression::Hash { line, column, .. } |
+            &Expression::Block { line, column, .. } |
+            &Expression::GetLocal { line, column, .. } |
+            &Expression::SetLocal { line, column, .. } |
+            &Expression::GetGlobal { line, column, .. } |
+            &Expression::SetGlobal { line, column, .. } |
+            &Expression::SetAttribute { line, column, .. } |
+            &Expression::GetAttribute { line, column, .. } |
+            &Expression::SendObjectMessage { line, column, .. } |
+            &Expression::GetBlockPrototype { line, column, .. } |
+            &Expression::GetIntegerPrototype { line, column, .. } |
+            &Expression::GetFloatPrototype { line, column, .. } |
+            &Expression::GetStringPrototype { line, column, .. } |
+            &Expression::GetArrayPrototype { line, column, .. } |
+            &Expression::GetBooleanPrototype { line, column, .. } |
+            &Expression::SetObject { line, column, .. } |
+            &Expression::KeywordArgument { line, column, .. } |
+            &Expression::Return { line, column, .. } |
+            &Expression::Try { line, column, .. } |
+            &Expression::Throw { line, column, .. } |
+            &Expression::GetTopLevel { line, column, .. } |
+            &Expression::GetTemporary { line, column, .. } |
+            &Expression::SetTemporary { line, column, .. } |
+            &Expression::LoadModule { line, column, .. } |
+            &Expression::Expressions { line, column, .. } => (line, column),
+            &Expression::Void => (1, 1),
         }
     }
 }

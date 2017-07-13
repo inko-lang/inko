@@ -4,6 +4,7 @@ extern crate xdg;
 
 pub mod macros;
 
+pub mod backend;
 pub mod compiler;
 pub mod config;
 pub mod default_globals;
@@ -14,6 +15,7 @@ pub mod lexer;
 pub mod mutability;
 pub mod parser;
 pub mod rc_cell;
+pub mod state;
 pub mod symbol;
 pub mod symbol_table;
 pub mod tir;

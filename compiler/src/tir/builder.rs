@@ -1,16 +1,13 @@
 //! Functions for converting an AST to TIR.
-use std::rc::Rc;
 use std::fs::File;
 use std::io::Read;
 use std::path::MAIN_SEPARATOR;
-use std::collections::HashMap;
 
-use config::{Config, OBJECT_CONST, TRAIT_CONST, RAW_INSTRUCTION_RECEIVER,
-             BOOTSTRAP_FILE};
+use config::{OBJECT_CONST, TRAIT_CONST, RAW_INSTRUCTION_RECEIVER, BOOTSTRAP_FILE};
 use default_globals::DEFAULT_GLOBALS;
-use diagnostics::Diagnostics;
 use mutability::Mutability;
 use parser::{Parser, Node};
+use state::State;
 use symbol::RcSymbol;
 use symbol_table::SymbolTable;
 use tir::code_object::CodeObject;
@@ -23,30 +20,13 @@ use tir::raw_instructions::*;
 use types::Type;
 use types::array::Array;
 use types::block::Block;
-use types::database::Database as TypeDatabase;
 use types::float::Float;
 use types::integer::Integer;
 use types::object::Object;
 use types::string::String as StringType;
 
-pub struct Builder {
-    pub config: Rc<Config>,
-
-    /// Any diagnostics that were produced when compiling modules.
-    pub diagnostics: Diagnostics,
-
-    /// All the compiled modules, mapped to their names. The values of this hash
-    /// are explicitly set to None when:
-    ///
-    /// * The module was found and is about to be processed for the first time
-    /// * The module could not be found
-    ///
-    /// This prevents recursive imports from causing the compiler to get stuck
-    /// in a loop.
-    pub modules: HashMap<String, Option<Module>>,
-
-    /// The database storing all type information.
-    pub typedb: TypeDatabase,
+pub struct Builder<'a> {
+    pub state: &'a mut State,
 }
 
 struct Context<'a> {
@@ -86,14 +66,9 @@ impl<'a> Context<'a> {
     }
 }
 
-impl Builder {
-    pub fn new(config: Rc<Config>) -> Self {
-        Builder {
-            config: config,
-            diagnostics: Diagnostics::new(),
-            modules: HashMap::new(),
-            typedb: TypeDatabase::new(),
-        }
+impl<'a> Builder<'a> {
+    pub fn new(state: &'a mut State) -> Self {
+        Builder { state: state }
     }
 
     /// Builds the main module that starts the application.
@@ -150,13 +125,13 @@ impl Builder {
         let col = 1;
 
         let code_object =
-            self.code_object_with_locals(path, &node, locals, globals);
+            self.code_object_with_locals(path, &node, line, col, locals, globals);
 
         let qname_array = self.array_of_strings(&qname.parts, line, col);
         let top = self.get_toplevel(line, col);
 
         let def_mod_msg =
-            self.string(self.config.define_module_message(), line, col);
+            self.string(self.state.config.define_module_message(), line, col);
 
         let def_mod = self.send_object_message(
             top,
@@ -173,14 +148,18 @@ impl Builder {
             col,
         );
 
-        let call_msg = self.string(self.config.call_message(), line, col);
+        let call_msg = self.string(self.state.config.call_message(), line, col);
 
         let run_mod =
             self.send_object_message(block, call_msg, vec![def_mod], line, col);
 
         let load_bootstrap = self.load_bootstrap_module(line, col);
 
-        Expression::Expressions { nodes: vec![load_bootstrap, run_mod] }
+        Expression::Expressions {
+            nodes: vec![load_bootstrap, run_mod],
+            line: line,
+            column: col,
+        }
     }
 
     fn load_bootstrap_module(&self, line: usize, col: usize) -> Expression {
@@ -195,19 +174,30 @@ impl Builder {
         &mut self,
         path: &String,
         node: &Node,
+        line: usize,
+        col: usize,
         globals: &mut SymbolTable,
     ) -> CodeObject {
-        self.code_object_with_locals(path, node, SymbolTable::new(), globals)
+        self.code_object_with_locals(
+            path,
+            node,
+            line,
+            col,
+            SymbolTable::new(),
+            globals,
+        )
     }
 
     fn code_object_with_locals(
         &mut self,
         path: &String,
         node: &Node,
+        line: usize,
+        col: usize,
         mut locals: SymbolTable,
         globals: &mut SymbolTable,
     ) -> CodeObject {
-        let body = match node {
+        let mut body = match node {
             &Node::Expressions { ref nodes } => {
                 let mut context = Context::new(path, &mut locals, globals);
 
@@ -216,7 +206,12 @@ impl Builder {
             _ => Vec::new(),
         };
 
-        CodeObject::new(locals, body)
+        self.add_explicit_return(&mut body);
+
+        CodeObject::new(
+            locals,
+            Expression::Expressions { nodes: body, line: line, column: col },
+        )
     }
 
     fn process_nodes(
@@ -444,7 +439,7 @@ impl Builder {
     }
 
     fn integer(&self, val: i64, line: usize, col: usize) -> Expression {
-        let kind = Integer::new(self.typedb.integer_prototype.clone());
+        let kind = Integer::new(self.state.typedb.integer_prototype.clone());
 
         Expression::Integer {
             value: val,
@@ -455,7 +450,7 @@ impl Builder {
     }
 
     fn float(&self, val: f64, line: usize, col: usize) -> Expression {
-        let kind = Float::new(self.typedb.float_prototype.clone());
+        let kind = Float::new(self.state.typedb.float_prototype.clone());
 
         Expression::Float {
             value: val,
@@ -466,7 +461,7 @@ impl Builder {
     }
 
     fn string(&self, val: String, line: usize, col: usize) -> Expression {
-        let kind = StringType::new(self.typedb.string_prototype.clone());
+        let kind = StringType::new(self.state.typedb.string_prototype.clone());
 
         Expression::String {
             value: val,
@@ -494,7 +489,7 @@ impl Builder {
         line: usize,
         col: usize,
     ) -> Expression {
-        let kind = Array::new(self.typedb.array_prototype.clone());
+        let kind = Array::new(self.state.typedb.array_prototype.clone());
 
         Expression::Array {
             values: values,
@@ -527,9 +522,10 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let local = context.locals.lookup(&self.config.self_variable()).expect(
-            "self is not defined in this context",
-        );
+        let local = context
+            .locals
+            .lookup(&self.state.config.self_variable())
+            .expect("self is not defined in this context");
 
         self.get_local(local, line, col)
     }
@@ -687,7 +683,7 @@ impl Builder {
             }
             &Node::Constant { ref name, .. } => {
                 if mutability == Mutability::Mutable {
-                    self.diagnostics.mutable_constant_error(
+                    self.state.diagnostics.mutable_constant_error(
                         context.path,
                         line,
                         column,
@@ -793,7 +789,7 @@ impl Builder {
             self.process_node(rec, context)
         } else {
             if let Some(local) = context.locals.lookup(&name) {
-                name = self.config.call_message();
+                name = self.state.config.call_message();
 
                 self.get_local(local, line, col)
             } else {
@@ -849,7 +845,7 @@ impl Builder {
                 self.set_raw_attribute(arg_nodes, line, col, context)
             }
             _ => {
-                self.diagnostics.unknown_raw_instruction_error(
+                self.state.diagnostics.unknown_raw_instruction_error(
                     &name,
                     context.path,
                     line,
@@ -862,43 +858,43 @@ impl Builder {
     }
 
     fn get_block_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.block_prototype.clone());
+        let kind = Type::Object(self.state.typedb.block_prototype.clone());
 
         Expression::GetBlockPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_integer_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.integer_prototype.clone());
+        let kind = Type::Object(self.state.typedb.integer_prototype.clone());
 
         Expression::GetIntegerPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_float_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.float_prototype.clone());
+        let kind = Type::Object(self.state.typedb.float_prototype.clone());
 
         Expression::GetFloatPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_string_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.string_prototype.clone());
+        let kind = Type::Object(self.state.typedb.string_prototype.clone());
 
         Expression::GetStringPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_array_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.array_prototype.clone());
+        let kind = Type::Object(self.state.typedb.array_prototype.clone());
 
         Expression::GetArrayPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_boolean_prototype(&mut self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.boolean_prototype.clone());
+        let kind = Type::Object(self.state.typedb.boolean_prototype.clone());
 
         Expression::GetBooleanPrototype { line: line, column: col, kind: kind }
     }
 
     fn get_toplevel(&self, line: usize, col: usize) -> Expression {
-        let kind = Type::Object(self.typedb.top_level.clone());
+        let kind = Type::Object(self.state.typedb.top_level.clone());
 
         Expression::GetTopLevel { line: line, column: col, kind: kind }
     }
@@ -1042,7 +1038,7 @@ impl Builder {
         let top = self.get_toplevel(line, col);
 
         let load_mod_msg =
-            self.string(self.config.load_module_message(), line, col);
+            self.string(self.state.config.load_module_message(), line, col);
 
         let loaded_mod = self.send_object_message(
             top,
@@ -1078,7 +1074,7 @@ impl Builder {
                 );
 
                 let symbol_msg =
-                    self.string(self.config.symbol_message(), line, col);
+                    self.string(self.state.config.symbol_message(), line, col);
 
                 let get_temp = self.get_temporary(temp, line, col);
                 let symbol_str = self.string(symbol.import_name, line, col);
@@ -1100,7 +1096,11 @@ impl Builder {
             }
         }
 
-        Expression::Expressions { nodes: expressions }
+        Expression::Expressions {
+            nodes: expressions,
+            line: line,
+            column: col,
+        }
     }
 
     fn array_of_strings(
@@ -1127,17 +1127,17 @@ impl Builder {
     ) {
         // We insert the module name before processing it to prevent the
         // compiler from getting stuck in a recursive import.
-        if self.modules.get(path).is_none() {
-            self.modules.insert(path.clone(), None);
+        if self.state.modules.get(path).is_none() {
+            self.state.modules.insert(path.clone(), None);
 
             match self.find_module_path(path) {
                 Some(full_path) => {
                     let module = self.build(qname, full_path);
 
-                    self.modules.insert(path.clone(), module);
+                    self.state.modules.insert(path.clone(), module);
                 }
                 None => {
-                    self.diagnostics.module_not_found_error(
+                    self.state.diagnostics.module_not_found_error(
                         path,
                         context.path,
                         line,
@@ -1157,7 +1157,13 @@ impl Builder {
         context: &mut Context,
     ) -> Expression {
         let arg_exprs = self.method_arguments(arg_nodes, context);
-        let body = self.code_object(&context.path, body_node, context.globals);
+        let body = self.code_object(
+            &context.path,
+            body_node,
+            line,
+            col,
+            context.globals,
+        );
 
         self.block(arg_exprs, body, line, col)
     }
@@ -1169,11 +1175,11 @@ impl Builder {
         line: usize,
         col: usize,
     ) -> Expression {
-        let kind = Block::new(self.typedb.block_prototype.clone());
+        let kind = Block::new(self.state.typedb.block_prototype.clone());
 
         Expression::Block {
             arguments: arguments,
-            body: body,
+            body: Box::new(body),
             line: line,
             column: col,
             kind: Type::Block(kind),
@@ -1223,6 +1229,8 @@ impl Builder {
         let body_expr = self.code_object_with_locals(
             &context.path,
             body,
+            line,
+            col,
             locals,
             context.globals,
         );
@@ -1257,8 +1265,11 @@ impl Builder {
 
         let method_name = self.string(name, line, col);
 
-        let message =
-            self.string(self.config.define_required_method_message(), line, col);
+        let message = self.string(
+            self.state.config.define_required_method_message(),
+            line,
+            col,
+        );
 
         self.send_object_message(receiver, message, vec![method_name], line, col)
     }
@@ -1332,7 +1343,7 @@ impl Builder {
         let global = self.lookup_object_constant(&context.globals);
         let get_global = self.get_global(global, line, col);
 
-        let new_msg = self.string(self.config.new_message(), line, col);
+        let new_msg = self.string(self.state.config.new_message(), line, col);
 
         let object_new =
             self.send_object_message(get_global, new_msg, Vec::new(), line, col);
@@ -1343,6 +1354,8 @@ impl Builder {
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
+            line,
+            col,
             locals,
             context.globals,
         );
@@ -1351,12 +1364,16 @@ impl Builder {
             self.block(vec![self.self_argument(line, col)], code_obj, line, col);
 
         let block_arg = self.attribute(name, line, col, context);
-        let call_msg = self.string(self.config.call_message(), line, col);
+        let call_msg = self.string(self.state.config.call_message(), line, col);
 
         let run_block =
             self.send_object_message(block, call_msg, vec![block_arg], line, col);
 
-        Expression::Expressions { nodes: vec![set_attr, run_block] }
+        Expression::Expressions {
+            nodes: vec![set_attr, run_block],
+            line: line,
+            column: col,
+        }
     }
 
     fn def_trait(
@@ -1371,7 +1388,7 @@ impl Builder {
         let global = self.lookup_trait_constant(&context.globals);
         let get_global = self.get_global(global, line, col);
 
-        let new_message = self.string(self.config.new_message(), line, col);
+        let new_message = self.string(self.state.config.new_message(), line, col);
         let object_new = self.send_object_message(
             get_global,
             new_message,
@@ -1386,6 +1403,8 @@ impl Builder {
         let code_obj = self.code_object_with_locals(
             &context.path,
             body,
+            line,
+            col,
             locals,
             context.globals,
         );
@@ -1395,7 +1414,8 @@ impl Builder {
 
         let block_arg = self.attribute(name, line, col, context);
 
-        let call_message = self.string(self.config.call_message(), line, col);
+        let call_message =
+            self.string(self.state.config.call_message(), line, col);
         let run_block = self.send_object_message(
             block,
             call_message,
@@ -1404,7 +1424,11 @@ impl Builder {
             col,
         );
 
-        Expression::Expressions { nodes: vec![set_attr, run_block] }
+        Expression::Expressions {
+            nodes: vec![set_attr, run_block],
+            line: line,
+            column: col,
+        }
     }
 
     fn implements(
@@ -1473,7 +1497,8 @@ impl Builder {
         col: usize,
         context: &mut Context,
     ) -> Expression {
-        let body = self.code_object(&context.path, body, context.globals);
+        let body =
+            self.code_object(&context.path, body, line, col, context.globals);
 
         let (else_body, else_arg) = if let &Some(ref node) = else_body {
             let mut else_locals = SymbolTable::new();
@@ -1493,17 +1518,19 @@ impl Builder {
             let body = self.code_object_with_locals(
                 &context.path,
                 node,
+                line,
+                col,
                 else_locals,
                 context.globals,
             );
 
-            (Some(body), else_arg)
+            (Some(Box::new(body)), else_arg)
         } else {
             (None, None)
         };
 
         Expression::Try {
-            body: body,
+            body: Box::new(body),
             else_body: else_body,
             else_argument: else_arg,
             line: line,
@@ -1772,7 +1799,7 @@ impl Builder {
             &Node::Identifier { ref name, .. } => {
                 if let Some(var) = context.locals.lookup(name) {
                     if !var.is_mutable() {
-                        self.diagnostics.reassign_immutable_local_error(
+                        self.state.diagnostics.reassign_immutable_local_error(
                             name,
                             context.path,
                             line,
@@ -1780,7 +1807,7 @@ impl Builder {
                         );
                     }
                 } else {
-                    self.diagnostics.reassign_undefined_local_error(
+                    self.state.diagnostics.reassign_undefined_local_error(
                         name,
                         context.path,
                         line,
@@ -1833,7 +1860,7 @@ impl Builder {
         let mut file = match File::open(path) {
             Ok(file) => file,
             Err(err) => {
-                self.diagnostics.error(path, err.to_string(), 1, 1);
+                self.state.diagnostics.error(path, err.to_string(), 1, 1);
                 return Err(());
             }
         };
@@ -1841,7 +1868,7 @@ impl Builder {
         let mut input = String::new();
 
         if let Err(err) = file.read_to_string(&mut input) {
-            self.diagnostics.error(path, err.to_string(), 1, 1);
+            self.state.diagnostics.error(path, err.to_string(), 1, 1);
             return Err(());
         }
 
@@ -1850,7 +1877,7 @@ impl Builder {
         match parser.parse() {
             Ok(ast) => Ok(ast),
             Err(err) => {
-                self.diagnostics.error(
+                self.state.diagnostics.error(
                     path,
                     err,
                     parser.line(),
@@ -1873,7 +1900,7 @@ impl Builder {
     }
 
     fn find_module_path(&self, path: &str) -> Option<String> {
-        for dir in self.config.source_directories.iter() {
+        for dir in self.state.config.source_directories.iter() {
             let full_path = dir.join(path);
 
             if full_path.exists() {
@@ -1887,14 +1914,18 @@ impl Builder {
     fn symbol_table_with_self(&self, kind: Type) -> SymbolTable {
         let mut table = SymbolTable::new();
 
-        table.define(self.config.self_variable(), kind, Mutability::Immutable);
+        table.define(
+            self.state.config.self_variable(),
+            kind,
+            Mutability::Immutable,
+        );
 
         table
     }
 
     fn self_argument(&self, line: usize, col: usize) -> Argument {
         Argument {
-            name: self.config.self_variable(),
+            name: self.state.config.self_variable(),
             default_value: None,
             line: line,
             column: col,
@@ -1922,5 +1953,31 @@ impl Builder {
 
     fn lookup_trait_constant(&self, symbols: &SymbolTable) -> RcSymbol {
         symbols.lookup(TRAIT_CONST).unwrap()
+    }
+
+    fn add_explicit_return(&self, body: &mut Vec<Expression>) {
+        if let Some(node) = body.last_mut() {
+            match node {
+                &mut Expression::Return { .. } => {
+                    return;
+                }
+                &mut Expression::Expressions { ref mut nodes, .. } => {
+                    self.add_explicit_return(nodes);
+
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(node) = body.pop() {
+            let (line, col) = node.position();
+
+            body.push(Expression::Return {
+                value: Some(Box::new(node)),
+                line: line,
+                column: col,
+            });
+        }
     }
 }
