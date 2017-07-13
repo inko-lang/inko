@@ -201,6 +201,56 @@ this you will need to use the `var` keyword:
     var x = 10
     x = 20
 
+## Optional Values
+
+Inko doesn't have an Option or Maybe type, instead it has "Nil" values. These
+are objects used to represent the lack of a value. Similar to Objective-C
+sending a message to Nil will simply return Nil, except for a few specific
+methods. This is incredibly important as it makes it trivial to deal with
+methods that return an optional value, and it greatly reduces the amount of
+conditionals necessary.
+
+As an example, let's say we have an array of users and each user responds to the
+"name" message:
+
+    object User {
+      fn init(name: String) {
+        let @name = name
+      }
+    }
+
+    let array = [User.new('Alice'), User.new('Bob')]
+
+In Inko the message used to access array values is `[]` and its signature is as
+follows:
+
+    fn [](index: Integer) -> T | Nil
+
+In other words, it takes an integer as the index and either returns a value `T`
+or Nil. In most other languages using such a method would require a conditional
+to figure out what you're dealing with. For example, in Ruby you might do the
+following:
+
+    value = array[4]
+
+    if value
+      value.name
+    end
+
+In Inko however you can just send the `name` message to Nil since it will
+respond to it and just return another Nil:
+
+    array[4].name # => Nil
+
+Nil defines a few methods on its own such as `to_integer` and `to_string` to
+make it easier to convert Nil values to other values. Some examples:
+
+    Nil.to_string  # => ''
+    Nil.to_integer # => 0
+    Nil.to_float   # => 0.0
+    Nil.to_array   # => []
+    Nil.to_hash    # => %{}
+
 ## Garbage Collection
 
 Inko is a garbage collected language and uses [Immix][immix] as the algorithm.
