@@ -103,7 +103,7 @@ bound by the rules above. This means that this code is invalid because the first
 method does not specify the type it may throw:
 
     fn foo {
-      ping
+      try ping
     }
 
     fn ping throw NetworkError {
