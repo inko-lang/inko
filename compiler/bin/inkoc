@@ -1,0 +1,60 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+gem_path = File.expand_path('../../lib', __FILE__)
+
+$LOAD_PATH.unshift(gem_path) unless $LOAD_PATH.include?(gem_path)
+
+require 'inkoc'
+require 'optparse'
+
+options = {
+  include: []
+}
+
+parser = OptionParser.new do |o|
+  o.banner = 'Usage: inkoc [OPTIONS] [FILE FILE ...]'
+
+  o.separator("\nOptions:")
+
+  o.on('-i', '--include [DIR]', 'Path to search for source files') do |path|
+    options[:include] << path
+  end
+
+  o.on('-t', '--target [DIR]', 'The path to store bytecode files in') do |path|
+    options[:target] = path
+  end
+
+  o.on('-r', '--release', 'Compiles a release build') do
+    options[:release] = true
+  end
+
+  o.on('-h', '--help', 'Shows this help message') do
+    puts(o)
+    exit
+  end
+end
+
+parser.parse!(ARGV)
+
+if ARGV.empty?
+  puts 'You must specify at least one source file to compile'
+  abort(parser.to_s)
+end
+
+config = Inkoc::Config.new
+
+config.target = options[:target] if options[:target]
+config.release_mode if options[:release]
+config.add_source_directories(options[:include])
+
+config.create_directories
+
+compiler = Inkoc::Compiler.new(config)
+
+ARGV.each { |path| compiler.compile(path) }
+
+if compiler.diagnostics?
+  compiler.display_diagnostics
+  exit(1)
+end

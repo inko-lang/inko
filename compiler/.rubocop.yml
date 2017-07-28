@@ -1,0 +1,31 @@
+---
+require:
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 2.4
+
+Documentation:
+  Enabled: false
+
+Metrics/MethodLength:
+  Max: 50
+
+Metrics/ClassLength:
+  Max: 1000
+
+Metrics/BlockLength:
+  Exclude:
+    - spec/**/*
+
+Metrics/AbcSize:
+  Max: 20
+
+Metrics/ParameterLists:
+  Max: 8
+
+RSpec/MultipleExpectations:
+  Max: 5
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented

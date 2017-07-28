@@ -1,0 +1,31 @@
+# frozen_string_literal: true
+
+module Inkoc
+  module Type
+    class Database
+      include Inspect
+
+      attr_reader :top_level, :block_prototype, :integer_prototype,
+                  :float_prototype, :string_prototype, :array_prototype,
+                  :boolean_prototype, :nil_prototype, :dynamic_type,
+                  :integer_type, :float_type, :string_type
+
+      def initialize
+        @top_level = Object.new('<top-level>')
+        @block_prototype = Object.new('<block prototype>')
+        @integer_prototype = Object.new('<integer prototype>')
+        @float_prototype = Object.new('<float prototype>')
+        @string_prototype = Object.new('<string prototype>')
+        @array_prototype = Object.new('<array prototype>')
+        @boolean_prototype = Object.new('<boolean prototype>')
+        @nil_prototype = Object.new('<nil prototype>')
+
+        # Instances of these types are immutable so we don't need to allocate
+        # new objects every time.
+        @integer_type = Integer.new(@integer_prototype).freeze
+        @float_type = Float.new(@float_prototype).freeze
+        @string_type = String.new(@string_prototype).freeze
+      end
+    end
+  end
+end

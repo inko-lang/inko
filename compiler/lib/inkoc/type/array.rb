@@ -1,0 +1,24 @@
+# frozen_string_literal: true
+
+module Inkoc
+  module Type
+    class Array
+      include Inspect
+      include ObjectOperations
+      include TypeCompatibility
+
+      attr_reader :prototype, :attributes, :implemented_traits, :type_arguments
+
+      def initialize(prototype)
+        @prototype = prototype
+        @attributes = SymbolTable.new
+        @implemented_traits = []
+        @type_arguments = SymbolTable.new
+      end
+
+      def block?
+        false
+      end
+    end
+  end
+end
