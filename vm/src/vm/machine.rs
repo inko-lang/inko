@@ -2072,16 +2072,28 @@ impl Machine {
                 }
                 // Sets a global variable to a given register's value.
                 //
-                // This instruction requires two arguments:
+                // This instruction requires 3 arguments:
                 //
-                // 1. The global variable index to set.
-                // 2. The register containing the object to store in the
+                // 1. The register to store the written value in.
+                // 2. The global variable index to set.
+                // 3. The register containing the object to store in the
                 //    variable.
+                //
+                // If the object being stored is not a permanent object it will
+                // be copied to the permanent generation.
                 InstructionType::SetGlobal => {
-                    let index = instruction.arg(0);
-                    let object = context.get_register(instruction.arg(1));
+                    let register = instruction.arg(0);
+                    let index = instruction.arg(1);
+                    let object = context.get_register(instruction.arg(2));
 
-                    process.set_global(index, object);
+                    let value = if object.is_permanent() {
+                        object
+                    } else {
+                        self.state.permanent_allocator.lock().copy_object(object)
+                    };
+
+                    process.set_global(index, value);
+                    context.set_register(register, value);
                 }
                 // Gets a global variable and stores it in a register.
                 //
