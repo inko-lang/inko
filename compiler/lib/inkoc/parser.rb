@@ -71,6 +71,32 @@ module Inkoc
 
     CLOSURE_START = Set.new(%i[paren_open curly_open arrow]).freeze
 
+    BINARY_OPERATORS = Set.new(
+      %i[
+        or
+        and
+        equal
+        not_equal
+        lower
+        lower_equal
+        greater
+        greater_equal
+        bitwise_or
+        bitwise_xor
+        bitwise_and
+        shift_left
+        shift_right
+        add
+        sub
+        div
+        mod
+        mul
+        pow
+        inclusive_range
+        exclusive_range
+      ]
+    )
+
     def initialize(input, file_path = nil)
       @lexer = Lexer.new(input, file_path)
     end
@@ -110,59 +136,79 @@ module Inkoc
       end
     end
 
+    # Parses an import statement.
+    #
+    # Examples:
+    #
+    #     import foo
+    #     import foo::bar
+    #     import foo::bar::(Baz as Bla)
+    def import(start)
+      steps = []
+      symbols = []
+      step = advance_and_expect!(:identifier)
+
+      loop do
+        case step.type
+        when :identifier
+          steps << identifier_from_token(step)
+        when :constant
+          symbols << AST::ImportSymbol.new(step.value, nil, step.location)
+          break
+        else
+          throw ParseError, "#{step.type} is not valid in import statements"
+        end
+
+        break unless @lexer.next_type_is?(:colon_colon)
+
+        skip_one
+
+        if @lexer.next_type_is?(:paren_open)
+          skip_one
+          symbols = import_symbols
+          break
+        end
+
+        step = advance!
+      end
+
+      AST::Import.new(steps, symbols, start.location)
+    end
+
+    def import_symbols
+      symbols = []
+
+      loop do
+        start = advance_and_expect!(:constant)
+        symbol = start.value
+
+        alias_name = if @lexer.next_type_is?(:as)
+                       skip_one
+                       advance_and_expect!(:constant).value
+                     end
+
+        symbols << AST::ImportSymbol.new(symbol, alias_name, start.location)
+
+        break if comma_or_break_on(:paren_close)
+      end
+
+      symbols
+    end
+
     def expression(start)
-      binary_or(start)
+      binary_send(start)
     end
 
-    def binary_or(start)
-      binary_op(start, :binary_and, :or)
-    end
+    def binary_send(start)
+      node = bracket_send(start)
 
-    def binary_and(start)
-      binary_op(start, :equality, :and)
-    end
+      while BINARY_OPERATORS.include?(@lexer.peek.type)
+        operator = @lexer.advance
+        rhs = bracket_send(@lexer.advance)
+        node = AST::Send.new(operator.value, node, [rhs], operator.location)
+      end
 
-    def equality(start)
-      binary_op(start, :compare, :equal, :not_equal)
-    end
-
-    def compare(start)
-      binary_op(
-        start,
-        :bitwise_or,
-        :lower,
-        :lower_equal,
-        :greater,
-        :greater_equal
-      )
-    end
-
-    def bitwise_or(start)
-      binary_op(start, :bitwise_and, :bitwise_or, :bitwise_xor)
-    end
-
-    def bitwise_and(start)
-      binary_op(start, :bitwise_shift, :bitwise_and)
-    end
-
-    def bitwise_shift(start)
-      binary_op(start, :add_subtract, :shift_left, :shift_right)
-    end
-
-    def add_subtract(start)
-      binary_op(start, :div_mod_mul, :add, :sub)
-    end
-
-    def div_mod_mul(start)
-      binary_op(start, :pow, :div, :mod, :mul)
-    end
-
-    def pow(start)
-      binary_op(start, :range, :pow)
-    end
-
-    def range(start)
-      binary_op(start, :bracket_send, :inclusive_range, :exclusive_range)
+      node
     end
 
     def bracket_send(start)
@@ -593,7 +639,7 @@ module Inkoc
         args << AST::DefineArgument
           .new(name.value, type, default, rest, name.location)
 
-        break if comma_or_break_on(:paren_close)
+        break if comma_or_break_on(:paren_close) || rest
       end
 
       args
@@ -968,19 +1014,6 @@ module Inkoc
       end
 
       name
-    end
-
-    # Parses a binary operation such as `x < y`
-    def binary_op(start, child_method, *match_types)
-      node = public_send(child_method, start)
-
-      while match_types.include?(@lexer.peek.type)
-        operator = @lexer.advance
-        rhs = public_send(child_method, @lexer.advance)
-        node = AST::Send.new(operator.value, node, [rhs], operator.location)
-      end
-
-      node
     end
 
     def starting_location

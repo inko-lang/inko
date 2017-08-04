@@ -30,8 +30,12 @@ module Inkoc
       location.column
     end
 
+    def file
+      location.file
+    end
+
     def path
-      location.file.path
+      file.path
     end
   end
 end

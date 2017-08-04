@@ -7,9 +7,9 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
 
-      attr_reader :name, :attributes, :implemented_traits, :type_arguments
+      attr_reader :attributes, :implemented_traits, :type_arguments
 
-      attr_accessor :prototype
+      attr_accessor :name, :prototype
 
       def initialize(name = nil)
         @name = name

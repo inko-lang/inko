@@ -7,24 +7,26 @@ module Inkoc
 
       attr_reader :top_level, :block_prototype, :integer_prototype,
                   :float_prototype, :string_prototype, :array_prototype,
-                  :boolean_prototype, :nil_prototype, :dynamic_type,
-                  :integer_type, :float_type, :string_type
+                  :boolean_prototype, :nil_prototype, :integer_type,
+                  :float_type, :string_type, :boolean_type, :nil_type
 
       def initialize
-        @top_level = Object.new('<top-level>')
-        @block_prototype = Object.new('<block prototype>')
-        @integer_prototype = Object.new('<integer prototype>')
-        @float_prototype = Object.new('<float prototype>')
-        @string_prototype = Object.new('<string prototype>')
-        @array_prototype = Object.new('<array prototype>')
-        @boolean_prototype = Object.new('<boolean prototype>')
-        @nil_prototype = Object.new('<nil prototype>')
+        @top_level = Object.new('Inko')
+        @block_prototype = Object.new('Block')
+        @integer_prototype = Object.new('Integer')
+        @float_prototype = Object.new('Float')
+        @string_prototype = Object.new('String')
+        @array_prototype = Object.new('Array')
+        @boolean_prototype = Object.new('Boolean')
+        @nil_prototype = Object.new('Nil')
 
         # Instances of these types are immutable so we don't need to allocate
         # new objects every time.
         @integer_type = Integer.new(@integer_prototype).freeze
         @float_type = Float.new(@float_prototype).freeze
         @string_type = String.new(@string_prototype).freeze
+        @boolean_type = Boolean.new(@boolean_prototype).freeze
+        @nil_type = Nil.new(@nil_prototype).freeze
       end
     end
   end

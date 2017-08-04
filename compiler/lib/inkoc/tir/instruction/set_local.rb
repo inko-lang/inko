@@ -13,6 +13,10 @@ module Inkoc
           @value = value
           @location = location
         end
+
+        def register
+          value
+        end
       end
     end
   end

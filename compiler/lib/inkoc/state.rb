@@ -26,5 +26,17 @@ module Inkoc
       @modules = {}
       @typedb = Type::Database.new
     end
+
+    def module_compiled?(name)
+      @modules.key?(name)
+    end
+
+    def track_module_before_compilation(name)
+      @modules[name] = nil unless @modules[name]
+    end
+
+    def store_module(name, mod)
+      @modules[name] = mod
+    end
   end
 end

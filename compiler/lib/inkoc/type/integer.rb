@@ -6,20 +6,7 @@ module Inkoc
       include Inspect
       include ObjectOperations
       include TypeCompatibility
-
-      attr_reader :prototype
-
-      def initialize(prototype)
-        @prototype = prototype
-      end
-
-      def attributes
-        @prototype.attributes
-      end
-
-      def block?
-        false
-      end
+      include ImmutableType
     end
   end
 end

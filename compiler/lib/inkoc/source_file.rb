@@ -7,5 +7,9 @@ module Inkoc
     def initialize(path)
       @path = path
     end
+
+    def lines
+      @lines ||= File.readlines(path)
+    end
   end
 end

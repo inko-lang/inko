@@ -26,6 +26,7 @@ module Inkoc
     RAW_INSTRUCTION_RECEIVER = '__INKOC'
 
     NEW_MESSAGE = 'new'
+    PERMANENT_MESSAGE = 'permanent'
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     CALL_MESSAGE = 'call'
     SELF_LOCAL = 'self'
@@ -46,6 +47,8 @@ module Inkoc
       'core::boolean::True' => 'True',
       'core::boolean::False' => 'False'
     }.freeze
+
+    attr_reader :source_directories, :mode, :target
 
     def initialize
       @source_directories = []

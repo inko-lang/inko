@@ -27,6 +27,21 @@ describe Inkoc::Lexer do
       expect(lexer.advance).to be_an_instance_of(Inkoc::Token)
       expect(lexer.advance).to be_an_instance_of(Inkoc::NullToken)
     end
+
+    it 'tokenizes a range' do
+      lexer = described_class.new('1..2')
+
+      [
+        [:integer, '1'],
+        [:inclusive_range, '..'],
+        [:integer, '2']
+      ].each do |(type, value)|
+        token = lexer.advance
+
+        expect(token.type).to eq(type)
+        expect(token.value).to eq(value)
+      end
+    end
   end
 
   describe '#peek' do

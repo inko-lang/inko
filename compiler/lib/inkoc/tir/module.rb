@@ -10,7 +10,7 @@ module Inkoc
       def initialize(name, location)
         @name = name
         @location = location
-        @body = CodeObject.new(location)
+        @body = CodeObject.new(name, location)
         @globals = SymbolTable.new
       end
     end

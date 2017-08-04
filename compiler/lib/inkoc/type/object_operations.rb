@@ -26,6 +26,20 @@ module Inkoc
         # which will be a NullSymbol.
         method
       end
+
+      def message_return_type(name)
+        type = lookup_method(name).type
+
+        type.block? ? type.return_type : type
+      end
+
+      def responds_to_message?(name)
+        lookup_method(name).type.block?
+      end
+
+      def has_attribute?(name)
+        lookup_attribute(name).any?
+      end
     end
   end
 end

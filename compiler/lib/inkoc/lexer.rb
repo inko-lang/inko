@@ -203,7 +203,7 @@ module Inkoc
         when '.'
           next_char = @input[@position + 1]
 
-          return NULL_TOKEN unless NUMBER_RANGE.cover?(next_char)
+          break unless NUMBER_RANGE.cover?(next_char)
 
           type = :float
 

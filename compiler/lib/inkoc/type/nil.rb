@@ -2,7 +2,7 @@
 
 module Inkoc
   module Type
-    class String
+    class Nil
       include Inspect
       include ObjectOperations
       include TypeCompatibility

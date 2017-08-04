@@ -3,14 +3,13 @@
 module Inkoc
   module TIR
     module Instruction
-      class SetBlock
+      class GetTrue
         include Inspect
 
-        attr_reader :register, :code_object, :location
+        attr_reader :register, :location
 
-        def initialize(register, code_object, location)
+        def initialize(register, location)
           @register = register
-          @code_object = code_object
           @location = location
         end
       end

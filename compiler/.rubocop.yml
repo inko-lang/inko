@@ -19,13 +19,16 @@ Metrics/BlockLength:
     - spec/**/*
 
 Metrics/AbcSize:
-  Max: 20
+  Max: 25
 
 Metrics/ParameterLists:
   Max: 8
 
 RSpec/MultipleExpectations:
   Max: 5
+
+RSpec/ExampleLength:
+  Max: 20
 
 Layout/MultilineMethodCallIndentation:
   EnforcedStyle: indented
