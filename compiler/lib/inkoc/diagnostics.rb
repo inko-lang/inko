@@ -79,7 +79,15 @@ module Inkoc
     end
 
     def reopen_invalid_object_error(name, location)
-      error("Cannot re-open #{name} since it's not an object", location)
+      error("Cannot reopen #{name} since it's not an object", location)
+    end
+
+    def redefine_trait_error(location)
+      error('Traits can not be reopened', location)
+    end
+
+    def define_required_method_on_non_trait_error(location)
+      error('Required methods can only be defined on traits', location)
     end
   end
 end

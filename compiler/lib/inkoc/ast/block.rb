@@ -5,16 +5,18 @@ module Inkoc
     class Block
       include Inspect
 
-      attr_reader :arguments, :body, :return_type, :location
+      attr_reader :arguments, :body, :throws, :returns, :location
 
       # arguments - The arguments of the block.
       # body - The body of the block as a Body node.
-      # return_type - The return type of the block.
+      # returns - The return type of the block.
+      # throws - The type that may be thrown.
       # location - The SourceLocation of the block.
-      def initialize(arguments, body, return_type, location)
+      def initialize(arguments, returns, throws, body, location)
         @arguments = arguments
+        @returns = returns
+        @throws = throws
         @body = body
-        @return_type = return_type
         @location = location
       end
 

@@ -20,6 +20,10 @@ module Inkoc
         @location = location
       end
 
+      def rest?
+        @rest
+      end
+
       def tir_process_node_method
         :on_define_argument
       end

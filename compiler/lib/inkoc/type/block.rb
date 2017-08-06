@@ -7,17 +7,15 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
 
-      attr_reader :arguments, :type_arguments, :throw_type, :return_type,
-                  :prototype, :attributes
-
-      attr_accessor :rest_argument
+      attr_reader :argument_types, :type_arguments, :prototype, :attributes
+      attr_accessor :rest_argument, :throws, :returns
 
       def initialize(prototype)
-        @arguments = []
+        @argument_types = []
         @rest_argument = false
         @type_arguments = SymbolTable.new
-        @throw_type = nil
-        @return_type = nil
+        @throws = nil
+        @returns = nil
         @prototype = prototype
         @attributes = SymbolTable.new
       end

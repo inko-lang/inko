@@ -110,7 +110,7 @@ module Inkoc
         when '>' then return greater_or_shift_right
         when '[' then return bracket_open
         when ']' then return bracket_close
-        when '!' then return not_equal_or_type_args_open
+        when '!' then return not_equal_or_type_args_open_or_throws
         when '.' then return dot_or_range
         when ',' then return comma
         when "\r" then carriage_return
@@ -367,12 +367,14 @@ module Inkoc
       operator(1, :assign, :equal)
     end
 
-    def not_equal_or_type_args_open
+    def not_equal_or_type_args_open_or_throws
       token_type = case @input[@position + 1]
                    when '='
                      :not_equal
                    when '('
                      :type_args_open
+                   when '!'
+                     :throws
                    else
                      return NULL_TOKEN
                    end

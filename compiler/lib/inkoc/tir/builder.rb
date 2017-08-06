@@ -65,8 +65,7 @@ module Inkoc
       end
 
       def define_module_object(mod)
-        type = Type::Object.new(mod.name.to_s)
-        self_local = mod.body.define_self_local(type)
+        self_local = mod.body.define_self_local(mod.type)
         body = mod.body
         location = mod.location
         qname_array = array_of_strings(mod.name.parts, body, location)
@@ -171,7 +170,7 @@ module Inkoc
         location = node.location
         receiver = get_self(body, node.location)
 
-        unless receiver.type.has_attribute?(name)
+        unless receiver.type.attribute?(name)
           diagnostics.undefined_attribute_error(name, location)
         end
 
@@ -185,7 +184,7 @@ module Inkoc
         if node.receiver
           receiver = process_node(node.receiver, body, mod)
 
-          unless receiver.type.has_attribute?(name)
+          unless receiver.type.attribute?(name)
             diagnostics.undefined_constant_error(name, location)
           end
 
@@ -234,7 +233,7 @@ module Inkoc
 
         diagnostics.mutable_constant_error(location) if node.mutable?
 
-        if receiver.type.has_attribute?(name)
+        if receiver.type.attribute?(name)
           diagnostics.redefine_existing_constant_error(name, location)
         end
 
@@ -332,15 +331,8 @@ module Inkoc
       def on_block(node, body, mod)
         location = node.location
 
-        block_code, type = new_block(
-          '<block>',
-          node.body,
-          node.arguments,
-          type_of_self(body),
-          body,
-          location,
-          mod
-        )
+        block_code, type =
+          new_block_from_block_ast('<body>', node, body, location, mod)
 
         set_block(block_code, type, body, location)
       end
@@ -353,6 +345,20 @@ module Inkoc
         register
       end
 
+      def new_block_from_block_ast(name, node, body, location, mod)
+        new_block(
+          name,
+          node.body,
+          node.arguments,
+          type_of_self(body),
+          body,
+          location,
+          mod,
+          throws: node.throws,
+          returns: node.returns
+        )
+      end
+
       # Creates a new block and returns the CodeObject and type object of the
       # block.
       #
@@ -363,6 +369,8 @@ module Inkoc
       # body - The CodeObject to use for generating instructions.
       # location - The SourceLocation to use for the instructions.
       # mod - The Module being compiled.
+      # throws - The AST node containing the type being thrown, if any.
+      # returns - The AST node containing the type returned, if any.
       def new_block(
         name,
         block_body,
@@ -370,31 +378,63 @@ module Inkoc
         self_type,
         body,
         location,
-        mod
+        mod,
+        throws: nil,
+        returns: nil
       )
         block_code = body.add_code_object(name, location)
         type = Type::Block.new(@state.typedb.block_prototype)
 
-        # TODO: process return/throw signature
-
-        type.arguments.insert(0, block_code.define_self_local(self_type))
-        define_block_arguments(block_args, block_code, type, mod)
+        define_arguments_for_block_type(block_args, self_type, type, mod)
+        define_block_arguments(block_args, block_code, self_type, type, mod)
+        define_throw_type(throws, self_type, type, mod)
+        define_return_type(returns, self_type, type, mod)
 
         on_body(block_body, block_code, mod)
 
         [block_code, type]
       end
 
-      def define_block_arguments(arguments, body, type, mod)
-        arguments.each do |arg|
-          # TODO: process argument type signatures.
-          local = body.locals.define(arg.name, dynamic_type)
+      def define_arguments_for_block_type(arguments, self_type, type, mod)
+        type.argument_types.insert(0, self_type)
 
-          type.arguments << local
-          type.rest_argument = true if arg.rest
+        arguments.each do |arg|
+          # TODO: infer type based on default value, if any
+          arg_type = if arg.type
+                       type_for_constant_node(arg.type, type, self_type, mod)
+                     else
+                       dynamic_type
+                     end
+
+          type.argument_types << arg_type
+          type.rest_argument = true if arg.rest?
+        end
+      end
+
+      def define_block_arguments(arguments, body, self_type, type, mod)
+        body.define_self_local(self_type)
+
+        arguments.each_with_index do |arg, index|
+          arg_type = type.argument_types[index]
+          local = body.locals.define(arg.name, arg_type)
 
           define_argument_default(arg, local, body, mod) if arg.default
         end
+      end
+
+      def define_throw_type(node, self_type, type, mod)
+        return unless node
+
+        type.throws = type_for_constant_node(node, self_type, type, mod)
+      end
+
+      def define_return_type(node, self_type, type, mod)
+        type.returns =
+          if node
+            type_for_constant_node(node, self_type, type, mod)
+          else
+            dynamic_type
+          end
       end
 
       # Generates the instructions necessary to set the default value of a block
@@ -459,51 +499,57 @@ module Inkoc
 
       def on_method(node, body, mod)
         location = node.location
-        name = node.name
-        self_reg = get_self(body, location)
-        type_name = "#{self_reg.type.name}.#{name}"
+        receiver = get_self(body, location)
 
-        block_code, type = new_block(
-          type_name,
-          node.body,
-          node.arguments,
-          type_of_self(body),
-          body,
-          location,
-          mod
-        )
+        if node.required?
+          define_required_method(node, receiver, location, mod)
+        else
+          define_method(node, receiver, body, location, mod)
+        end
+      end
+
+      def define_method(node, receiver, body, location, mod)
+        type_name = "#{receiver.type.name}.#{node.name}"
+
+        block_code, type =
+          new_block_from_block_ast(type_name, node, body, location, mod)
 
         block_reg = set_block(block_code, type, body, location)
 
-        set_attribute(self_reg, name, block_reg, body, location)
+        set_attribute(receiver, node.name, block_reg, body, location)
       end
 
-      # Compiles an object definition.
-      #
-      # Object definitions are compiled down to message sends and block
-      # evaluations to populate the object. For example, this:
-      #
-      #     object Person {
-      #       fn name {
-      #         @name
-      #       }
-      #     }
-      #
-      # Is (more or less) compiled to:
-      #
-      #     let Person = Object.new('Person')
-      #
-      #     {
-      #       fn name {
-      #         @name
-      #       }
-      #     }.call(Person)
+      def define_required_method(node, receiver, location, mod)
+        name = node.name
+        type = receiver.type
+
+        unless type.trait?
+          diagnostics.define_required_method_on_non_trait_error(location)
+          return
+        end
+
+        block_type = Type::Block.new(@state.typedb.block_prototype)
+
+        define_arguments_for_block_type(
+          node.arguments,
+          receiver.type,
+          block_type,
+          mod
+        )
+
+        define_throw_type(node.throws, type, block_type, mod)
+        define_return_type(node.returns, type, block_type, mod)
+
+        type.required_methods.define(name, block_type)
+      end
+
+      # Compiles a named object definition.
       def on_object(node, body, mod)
         receiver = get_self(body, node.location)
         symbol = receiver.type.lookup_attribute(node.name)
 
         if symbol.any?
-          unless symbol.type.is_a?(Type::Object)
+          unless symbol.type.regular_object?
             diagnostics.reopen_invalid_object_error(node.name, node.location)
           end
 
@@ -516,32 +562,18 @@ module Inkoc
       def define_new_object(node, receiver, body, mod)
         location = node.location
         name = node.name
+        object = new_named_object(name, body, location, mod)
 
-        object_global = mod.globals[Config::OBJECT_CONST]
-        object_global_reg = get_global(object_global, body, location)
-        object_name = set_string(name, body, location)
-
-        object = send_object_message(
-          object_global_reg,
-          Config::PERMANENT_MESSAGE,
-          [object_name],
-          body,
-          location
-        )
-
-        # Since "Object.permanent" returns "Object" the name would not be known.
-        # To make any warnings/errors more clear we manually assign the type
-        # name here.
-        object.type.name = name
+        # TODO: process trait implementations
+        define_type_arguments(node.type_arguments, object.type, mod)
 
         if module_scope?(body, mod)
           object = define_global(name, object, body, location, mod)
         end
 
-        object =
-          set_attribute(receiver, name, object, body, location)
+        set_attribute(receiver, name, object, body, location)
 
-        run_object_body(node, object, body, mod)
+        evaluate_object_body(node, object, body, mod)
       end
 
       def reopen_existing_object(node, receiver, body, mod)
@@ -549,10 +581,19 @@ module Inkoc
         name = node.name
         object = get_attribute(receiver, name, body, location)
 
-        run_object_body(node, object, body, mod)
+        evaluate_object_body(node, object, body, mod)
       end
 
-      def run_object_body(node, object_reg, body, mod)
+      def new_named_object(name, body, location, mod)
+        prototype =
+          get_global(mod.globals[Config::OBJECT_CONST], body, location)
+
+        global = get_true(body, location)
+
+        set_object(global, prototype, body, location, name: name)
+      end
+
+      def evaluate_object_body(node, object_reg, body, mod)
         location = node.location
 
         # Create a block for the object's body and execute it, with "self" set
@@ -568,16 +609,81 @@ module Inkoc
         )
 
         block_reg = set_block(block_code, block_type, body, location)
+        ret_reg = body.register(dynamic_type)
 
-        send_object_message(
-          block_reg,
-          Config::CALL_MESSAGE,
-          [object_reg],
-          body,
-          location
-        )
+        body.instruct(:RunBlock, ret_reg, block_reg, [object_reg], location)
 
         object_reg
+      end
+
+      def set_object(
+        global,
+        prototype,
+        body,
+        location,
+        name: nil,
+        type_class: Type::Object
+      )
+        type = type_class.new(name, prototype.type)
+        register = body.register(type)
+
+        body.instruct(:SetObject, register, global, prototype, location)
+
+        register
+      end
+
+      def on_trait(node, body, mod)
+        receiver = get_self(body, node.location)
+
+        if receiver.type.attribute?(node.name)
+          diagnostics.redefine_trait_error(node.location)
+        else
+          define_new_trait(node, receiver, body, mod)
+        end
+      end
+
+      def define_new_trait(node, receiver, body, mod)
+        location = node.location
+        name = node.name
+        trait = new_trait(name, body, location, mod)
+
+        define_type_arguments(node.type_arguments, trait.type, mod)
+
+        if module_scope?(body, mod)
+          trait = define_global(name, trait, body, location, mod)
+        end
+
+        set_attribute(receiver, name, trait, body, location)
+
+        evaluate_object_body(node, trait, body, mod)
+      end
+
+      def new_trait(name, body, location, mod)
+        prototype =
+          get_global(mod.globals[Config::TRAIT_CONST], body, location)
+
+        global = get_true(body, location)
+
+        set_object(
+          global,
+          prototype,
+          body,
+          location,
+          name: name,
+          type_class: Type::Trait
+        )
+      end
+
+      def define_type_arguments(arguments, type, mod)
+        arguments.each do |arg_node|
+          required_traits = arg_node.required_traits.map do |node|
+            type_for_constant_node(node, type, mod)
+          end
+
+          arg = Type::TypeArgument.new(arg_node.name, required_traits)
+
+          type.type_arguments.define(arg.name, arg)
+        end
       end
 
       def get_nil(body, location)
@@ -592,6 +698,14 @@ module Inkoc
         register = body.register(@state.typedb.boolean_type)
 
         body.instruct(:GetTrue, register, location)
+
+        register
+      end
+
+      def get_false(body, location)
+        register = body.register(@state.typedb.boolean_type)
+
+        body.instruct(:GetFalse, register, location)
 
         register
       end
@@ -759,6 +873,25 @@ module Inkoc
         body.instruct(:SetArray, register, value_regs, location)
 
         register
+      end
+
+      def type_for_constant_node(node, *sources)
+        name = node.name
+
+        if node.receiver
+          receiver = type_for_constant_node(node.receiver, *sources)
+          sources = [receiver, *sources]
+        end
+
+        sources.each do |source|
+          symbol = source.lookup_type(name)
+
+          return symbol.type if symbol.any?
+        end
+
+        diagnostics.undefined_constant_error(node.name, node.location)
+
+        dynamic_type
       end
 
       # Returns the type of "self" in the given CodeObject.

@@ -12,10 +12,6 @@ module Inkoc
       def attributes
         @prototype.attributes
       end
-
-      def block?
-        false
-      end
     end
   end
 end

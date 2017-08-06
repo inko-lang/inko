@@ -18,10 +18,6 @@ module Inkoc
         @prototype = nil
       end
 
-      def block?
-        false
-      end
-
       def responds_to_message?(*)
         true
       end

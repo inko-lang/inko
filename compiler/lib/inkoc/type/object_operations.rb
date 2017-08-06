@@ -3,12 +3,28 @@
 module Inkoc
   module Type
     module ObjectOperations
+      def block?
+        false
+      end
+
+      def regular_object?
+        false
+      end
+
+      def trait?
+        false
+      end
+
       def define_attribute(*args)
         attributes.define(*args)
       end
 
       def lookup_attribute(name)
         attributes[name]
+      end
+
+      def lookup_type(name)
+        lookup_attribute(name)
       end
 
       def lookup_method(name)
@@ -37,7 +53,7 @@ module Inkoc
         lookup_method(name).type.block?
       end
 
-      def has_attribute?(name)
+      def attribute?(name)
         lookup_attribute(name).any?
       end
     end

@@ -20,6 +20,10 @@ module Inkoc
     def mutable?
       @mutable
     end
+
+    def or_else
+      self
+    end
   end
 
   class NullSymbol < Symbol
@@ -33,6 +37,10 @@ module Inkoc
 
     def nil?
       true
+    end
+
+    def or_else
+      yield
     end
   end
 end

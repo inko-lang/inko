@@ -22,7 +22,7 @@ Metrics/AbcSize:
   Max: 25
 
 Metrics/ParameterLists:
-  Max: 8
+  Max: 10
 
 RSpec/MultipleExpectations:
   Max: 5

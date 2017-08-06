@@ -15,10 +15,6 @@ module Inkoc
         @implemented_traits = []
         @type_arguments = SymbolTable.new
       end
-
-      def block?
-        false
-      end
     end
   end
 end

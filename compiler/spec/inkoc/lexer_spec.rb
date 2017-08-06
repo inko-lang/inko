@@ -592,10 +592,10 @@ describe Inkoc::Lexer do
     end
   end
 
-  describe '#not_equal_or_type_args_open' do
+  describe '#not_equal_or_type_args_open_or_throws' do
     it 'tokenizes the not-equal operator' do
       lexer = described_class.new('!=')
-      token = lexer.not_equal_or_type_args_open
+      token = lexer.not_equal_or_type_args_open_or_throws
 
       expect(token.type).to eq(:not_equal)
       expect(token.value).to eq('!=')
@@ -603,10 +603,18 @@ describe Inkoc::Lexer do
 
     it 'tokenizes the type arguments open token' do
       lexer = described_class.new('!(')
-      token = lexer.not_equal_or_type_args_open
+      token = lexer.not_equal_or_type_args_open_or_throws
 
       expect(token.type).to eq(:type_args_open)
       expect(token.value).to eq('!(')
+    end
+
+    it 'tokenizes the throws token' do
+      lexer = described_class.new('!!')
+      token = lexer.not_equal_or_type_args_open_or_throws
+
+      expect(token.type).to eq(:throws)
+      expect(token.value).to eq('!!')
     end
   end
 

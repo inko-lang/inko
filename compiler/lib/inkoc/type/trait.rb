@@ -7,18 +7,23 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
 
-      attr_reader :name, :attributes, :type_arguments, :prototype
+      attr_reader :name, :attributes, :required_methods, :type_arguments,
+                  :prototype
 
       def initialize(name, prototype = nil)
         @name = name
         @attributes = SymbolTable.new
-        @methods = SymbolTable.new
         @type_arguments = SymbolTable.new
         @prototype = prototype
+        @required_methods = SymbolTable.new
       end
 
-      def block?
-        false
+      def trait?
+        true
+      end
+
+      def lookup_type(name)
+        super.or_else { @type_arguments[name] }
       end
     end
   end

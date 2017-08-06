@@ -5,21 +5,21 @@ module Inkoc
     class Method
       include Inspect
 
-      attr_reader :name, :arguments, :type_arguments, :return_type, :throw_type,
+      attr_reader :name, :arguments, :type_arguments, :returns, :throws,
                   :body, :location
 
       # name - The name of the method.
       # args - The arguments of the method.
-      # rtype - The return type of the method.
-      # throw_type - The type being thrown by this method.
+      # returns - The return type of the method.
+      # throws - The type being thrown by this method.
       # body - The body of the method.
       # loc - The SourceLocation of this method.
-      def initialize(name, args, targs, rtype, throw_type, body, loc)
+      def initialize(name, args, targs, returns, throws, body, loc)
         @name = name
         @arguments = args
         @type_arguments = targs
-        @return_type = rtype
-        @throw_type = throw_type
+        @returns = returns
+        @throws = throws
         @body = body
         @location = loc
       end

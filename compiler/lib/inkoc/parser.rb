@@ -69,7 +69,7 @@ module Inkoc
       ]
     ).freeze
 
-    CLOSURE_START = Set.new(%i[paren_open curly_open arrow]).freeze
+    CLOSURE_START = Set.new(%i[paren_open curly_open arrow throws]).freeze
 
     BINARY_OPERATORS = Set.new(
       %i[
@@ -156,7 +156,7 @@ module Inkoc
           symbols << AST::ImportSymbol.new(step.value, nil, step.location)
           break
         else
-          throw ParseError, "#{step.type} is not valid in import statements"
+          raise ParseError, "#{step.type} is not valid in import statements"
         end
 
         break unless @lexer.next_type_is?(:colon_colon)
@@ -289,6 +289,25 @@ module Inkoc
 
       node.type_arguments = optional_type_arguments
       node.return_type = optional_return_type
+
+      node
+    end
+
+    # Parses a type argument.
+    def def_type_argument(token)
+      node = AST::DefineTypeArgument.new(token.value, token.location)
+
+      if @lexer.next_type_is?(:colon)
+        skip_one
+
+        loop do
+          node.required_traits << type_name(advance_and_expect!(:constant))
+
+          break unless @lexer.next_type_is?(:add)
+
+          skip_one
+        end
+      end
 
       node
     end
@@ -481,7 +500,7 @@ module Inkoc
     #
     #     { body }
     def block_without_arguments(start)
-      AST::Block.new([], block_body(start), nil, start.location)
+      AST::Block.new([], nil, nil, block_body(start), start.location)
     end
 
     # Parses a block starting with the "fn" keyword.
@@ -495,9 +514,10 @@ module Inkoc
     def block(start)
       args = optional_arguments
       ret_type = optional_return_type
+      throw_type = optional_throw_type
       body = block_body(advance_and_expect!(:curly_open))
 
-      AST::Block.new(args, body, ret_type, start.location)
+      AST::Block.new(args, ret_type, throw_type, body, start.location)
     end
 
     # Parses the body of a block.
@@ -603,10 +623,11 @@ module Inkoc
     #     fn foo
     #     fn foo -> A { ... }
     #     fn foo!(T)(arg: T) -> T { ... }
+    #     fn foo -> A throw B { ... }
     def def_method(start)
       name_token = advance!
       name = message_name_for_token(name_token)
-      targs = optional_type_arguments
+      targs = optional_type_argument_definitions
       arguments = optional_arguments
       ret_type = optional_return_type
       throw_type = optional_throw_type
@@ -658,6 +679,18 @@ module Inkoc
       args = []
 
       while @lexer.peek.valid_but_not?(:paren_close)
+        args << def_type_argument(advance_and_expect!(:constant))
+
+        break if comma_or_break_on(:paren_close)
+      end
+
+      args
+    end
+
+    def type_arguments
+      args = []
+
+      while @lexer.peek.valid_but_not?(:paren_close)
         args << type_name(advance_and_expect!(:constant))
 
         break if comma_or_break_on(:paren_close)
@@ -675,10 +708,19 @@ module Inkoc
       end
     end
 
-    def optional_type_arguments
+    def optional_type_argument_definitions
       if @lexer.next_type_is?(:type_args_open)
         skip_one
         def_type_arguments
+      else
+        []
+      end
+    end
+
+    def optional_type_arguments
+      if @lexer.next_type_is?(:type_args_open)
+        skip_one
+        type_arguments
       else
         []
       end
@@ -693,7 +735,7 @@ module Inkoc
     end
 
     def optional_throw_type
-      return unless @lexer.next_type_is?(:throw)
+      return unless @lexer.next_type_is?(:throws)
 
       skip_one
 
@@ -735,7 +777,7 @@ module Inkoc
       when :attribute then attribute_from_token(start)
       when :constant then constant_from_token(start)
       else
-        throw(
+        raise(
           ParseError,
           "Unexpected #{start.type}, expected an identifier, " \
             'constant or attribute'
@@ -770,7 +812,7 @@ module Inkoc
     #     }
     def def_object(start)
       name = advance_and_expect!(:constant)
-      targs = optional_type_arguments
+      targs = optional_type_argument_definitions
       implements = []
 
       while @lexer.next_type_is?(:impl)
@@ -828,10 +870,10 @@ module Inkoc
     #     trait Foo!(T) { ... }
     def def_trait(start)
       name = advance_and_expect!(:constant)
-      targs = optional_type_arguments
+      targs = optional_type_argument_definitions
       body = block_body(advance_and_expect!(:curly_open))
 
-      AST::Trait.new(name, targs, body, start.location)
+      AST::Trait.new(name.value, targs, body, start.location)
     end
 
     # Parses a return statement.

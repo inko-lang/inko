@@ -5,7 +5,7 @@ module Inkoc
     class Trait
       include Inspect
 
-      attr_reader :name, :type_arguments, :body
+      attr_reader :name, :type_arguments, :body, :location
 
       # name - The name of the trait.
       # targs - The type arguments of the trait.

@@ -6,13 +6,17 @@ module Inkoc
       class SetObject
         include Inspect
 
-        attr_reader :register, :global, :prototype, :location
+        attr_reader :register, :prototype, :location
 
-        def initialize(register, global, prototype, location)
+        def initialize(register, permanent, prototype, location)
           @register = register
-          @global = global
+          @permanent = permanent
           @prototype = prototype
           @location = location
+        end
+
+        def permanent?
+          @permanent
         end
       end
     end
