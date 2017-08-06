@@ -60,7 +60,7 @@ For error handling Inko uses exceptions and is heavily inspired by the article
 Inko is a bit different and much more strict compared to other languages.
 
 First of all, any method that may throw an error _must_ specify this in the type
-signature:
+signature using `!!`:
 
     # This will produce a compile time error because the method's signature does
     # not specify what can be thrown.
@@ -69,21 +69,24 @@ signature:
     }
 
     # This however is valid.
-    fn ping throw NetworkTimeout {
+    fn ping !! NetworkTimeout {
       throw NetworkTimeout.new
     }
+
+Here `!! NetworkTimeout` is used to indicate that the `ping` method may throw an
+error of type `NetworkTimeout`.
 
 Second, a method that specifies it may throw an error must actually use the
 `throw` keyword. This means that the following code is invalid:
 
-    fn ping throw NetworkTimeout {
+    fn ping !! NetworkTimeout {
       'nope'
     }
 
 Third, a method can _only_ throw a single type. This means that the following is
 not valid:
 
-    fn ping throw Foo, Bar, Baz {
+    fn ping !! Foo, Bar, Baz {
       ...
     }
 
@@ -106,7 +109,7 @@ method does not specify the type it may throw:
       try ping
     }
 
-    fn ping throw NetworkError {
+    fn ping !! NetworkError {
       ...
     }
 
