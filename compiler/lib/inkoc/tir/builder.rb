@@ -263,6 +263,42 @@ module Inkoc
         set_attribute(rec_reg, name, value, body, location)
       end
 
+      def on_reassign_variable(node, body, mod)
+        method = node.variable.tir_reassign_variable_method
+
+        public_send(method, node, body, mod)
+      end
+
+      def on_reassign_local(node, body, mod)
+        name = node.variable.name
+        location = node.location
+        local = body.locals[name]
+
+        diagnostics.undefined_local_error(name, location) if local.nil?
+
+        # TODO: verify the type of the new value
+        value = process_node(node.value, body, mod)
+
+        set_local(local, value, body, location)
+
+        value
+      end
+
+      def on_reassign_attribute(node, body, mod)
+        name = node.variable.name
+        location = node.location
+        receiver = get_self(body, location)
+
+        if receiver.type.lookup_attribute(name).nil?
+          diagnostics.undefined_attribute_error(name, location)
+        end
+
+        # TODO: verify the type of the new value
+        value = process_node(node.value, body, mod)
+
+        set_attribute(receiver, name, value, body, location)
+      end
+
       def on_send(node, body, mod)
         name = node.name
         location = node.location

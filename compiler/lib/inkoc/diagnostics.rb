@@ -50,6 +50,10 @@ module Inkoc
       error("The local variable #{name} has already been defined", location)
     end
 
+    def undefined_local_error(name, location)
+      error("The local variable #{name} is undefined", location)
+    end
+
     def redefine_existing_attribute_error(name, location)
       error("The attribute #{name} has already been defined", location)
     end

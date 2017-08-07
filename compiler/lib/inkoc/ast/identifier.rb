@@ -21,6 +21,10 @@ module Inkoc
       def tir_define_variable_method
         :on_define_local
       end
+
+      def tir_reassign_variable_method
+        :on_reassign_local
+      end
     end
   end
 end

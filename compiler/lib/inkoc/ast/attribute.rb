@@ -21,6 +21,10 @@ module Inkoc
       def tir_define_variable_method
         :on_define_attribute
       end
+
+      def tir_reassign_variable_method
+        :on_reassign_attribute
+      end
     end
   end
 end
