@@ -452,14 +452,6 @@ describe Inkoc::Lexer do
       expect(token.type).to eq(:and)
       expect(token.value).to eq('&&')
     end
-
-    it 'tokenizes the AND-assign operator' do
-      lexer = described_class.new('&&=')
-      token = lexer.bitwise_and_or_boolean_and
-
-      expect(token.type).to eq(:and_assign)
-      expect(token.value).to eq('&&=')
-    end
   end
 
   describe '#bitwise_or_or_boolean_or' do
@@ -485,14 +477,6 @@ describe Inkoc::Lexer do
 
       expect(token.type).to eq(:or)
       expect(token.value).to eq('||')
-    end
-
-    it 'tokenizes the OR-assign operator' do
-      lexer = described_class.new('||=')
-      token = lexer.bitwise_or_or_boolean_or
-
-      expect(token.type).to eq(:or_assign)
-      expect(token.value).to eq('||=')
     end
   end
 

@@ -95,7 +95,23 @@ module Inkoc
         inclusive_range
         exclusive_range
       ]
-    )
+    ).freeze
+
+    BINARY_REASSIGN_OPERATORS = Set.new(
+      %i[
+        div_assign
+        mod_assign
+        bitwise_xor_assign
+        bitwise_and_assign
+        bitwise_or_assign
+        pow_assign
+        mul_assign
+        sub_assign
+        add_assign
+        shift_left_assign
+        shift_right_assign
+      ]
+    ).freeze
 
     def initialize(input, file_path = nil)
       @lexer = Lexer.new(input, file_path)
@@ -432,7 +448,7 @@ module Inkoc
       when :string then string(start)
       when :integer then integer(start)
       when :float then float(start)
-      when :identifier then identifier(start)
+      when :identifier then identifier_or_reassign(start)
       when :constant then constant(start)
       when :curly_open then block_without_arguments(start)
       when :sub then negative_number(start)
@@ -445,7 +461,7 @@ module Inkoc
       when :trait then def_trait(start)
       when :return then return_value(start)
       when :type then def_type_alias(start)
-      when :attribute then attribute(start)
+      when :attribute then attribute_or_reassign(start)
       when :self then self_object(start)
       when :throw then throw_value(start)
       when :try then try(start)
@@ -466,9 +482,19 @@ module Inkoc
       AST::Float.new(Float(start.value), start.location)
     end
 
-    def identifier(start)
+    def identifier_or_reassign(start)
       return reassign_local(start) if @lexer.next_type_is?(:assign)
 
+      node = identifier(start)
+
+      if next_is_binary_reassignment?
+        reassign_binary(node)
+      else
+        node
+      end
+    end
+
+    def identifier(start)
       if @lexer.next_type_is?(:paren_open)
         args = arguments_with_parenthesis
 
@@ -907,17 +933,25 @@ module Inkoc
       AST::DefineTypeAlias.new(name, value, start.location)
     end
 
+    def attribute_or_reassign(start)
+      return reassign_attribute(start) if @lexer.next_type_is?(:assign)
+
+      node = attribute(start)
+
+      if next_is_binary_reassignment?
+        reassign_binary(node)
+      else
+        node
+      end
+    end
+
     # Parses an attribute.
     #
     # Examples:
     #
     #     @foo
     def attribute(start)
-      if @lexer.next_type_is?(:assign)
-        reassign_attribute(start)
-      else
-        attribute_from_token(start)
-      end
+      attribute_from_token(start)
     end
 
     # Parses the re-assignment of a local variable.
@@ -942,12 +976,38 @@ module Inkoc
       reassign_variable(name, start.location)
     end
 
+    # Parses the reassignment of a variable.
+    #
+    # Examples:
+    #
+    #     a = 10
+    #     @a = 10
     def reassign_variable(name, location)
       advance_and_expect!(:assign)
 
       value = expression(advance!)
 
       AST::ReassignVariable.new(name, value, location)
+    end
+
+    # Parses a binary reassignment of a variable
+    #
+    # Examples:
+    #
+    #   a |= 10
+    #   @a <<= 20
+    def reassign_binary(variable)
+      operator = advance!
+      location = operator.location
+      message = operator.value[0..-2]
+      rhs = expression(advance!)
+      value = AST::Send.new(message, variable, [rhs], location)
+
+      AST::ReassignVariable.new(variable, value, location)
+    end
+
+    def next_is_binary_reassignment?
+      BINARY_REASSIGN_OPERATORS.include?(@lexer.peek.type)
     end
 
     def self_object(start)
