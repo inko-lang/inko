@@ -53,7 +53,7 @@ module Inkoc
         hash_open
         sub
         bracket_open
-        curlyopen
+        curly_open
         function
         let
         let
@@ -412,7 +412,16 @@ module Inkoc
 
         AST::KeywordArgument.new(start.value, value, start.location)
       else
-        expression(start)
+        # Blocks are parsed more "tightly" so that `foo { }.bar` translates into
+        # `foo({ }).bar`.
+        case start.type
+        when :curly_open
+          block_without_arguments(start)
+        when :function
+          block(start)
+        else
+          expression(start)
+        end
       end
     end
 
