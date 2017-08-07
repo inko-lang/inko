@@ -295,11 +295,11 @@ module Inkoc
       operator(1, :div, :div_assign)
     end
 
-    def operator(increment, type, assign_type)
+    def operator(increment, type, assign_type = nil)
       start = @position
       token_type = type
 
-      if @input[@position += increment] == '='
+      if @input[@position += increment] == '=' && assign_type
         @position += 1
         token_type = assign_type
       end
@@ -329,7 +329,7 @@ module Inkoc
 
     def bitwise_and_or_boolean_and
       if @input[@position + 1] == '&'
-        operator(2, :and, :and_assign)
+        operator(2, :and)
       else
         operator(1, :bitwise_and, :bitwise_and_assign)
       end
@@ -337,7 +337,7 @@ module Inkoc
 
     def bitwise_or_or_boolean_or
       if @input[@position + 1] == '|'
-        operator(2, :or, :or_assign)
+        operator(2, :or)
       else
         operator(1, :bitwise_or, :bitwise_or_assign)
       end
