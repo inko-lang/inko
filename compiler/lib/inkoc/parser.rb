@@ -755,7 +755,7 @@ module Inkoc
 
       skip_one
 
-      type_name(advance!)
+      type_name(advance_and_expect!(:constant))
     end
 
     # Parses a definition of an immutable variable.
