@@ -8,6 +8,7 @@ module Inkoc
       %i[
         add
         and
+        as
         bitwise_and
         bitwise_or
         bitwise_xor
