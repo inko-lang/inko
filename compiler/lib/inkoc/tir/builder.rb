@@ -198,10 +198,6 @@ module Inkoc
         end
       end
 
-      def on_define_type_alias(_node, _body, _mod)
-        raise NotImplementedError
-      end
-
       def on_define_variable(node, body, mod)
         value = process_node(node.value, body, mod)
         method = node.variable.tir_define_variable_method

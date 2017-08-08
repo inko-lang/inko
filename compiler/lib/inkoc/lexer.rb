@@ -15,7 +15,6 @@ module Inkoc
       'return' => :return,
       'self' => :self,
       'fn' => :function,
-      'type' => :type,
       'as' => :as,
       'throw' => :throw,
       'else' => :else,

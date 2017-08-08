@@ -61,7 +61,6 @@ module Inkoc
         trait
         return
         impl
-        type
         attribute
         self
         try
@@ -138,13 +137,13 @@ module Inkoc
       children = []
 
       while (token = @lexer.advance) && token.valid?
-        children << import_or_expression(token)
+        children << top_level(token)
       end
 
       AST::Body.new(children, location)
     end
 
-    def import_or_expression(start)
+    def top_level(start)
       if start.type == :import
         import(start)
       else
@@ -460,7 +459,6 @@ module Inkoc
       when :object then def_object(start)
       when :trait then def_trait(start)
       when :return then return_value(start)
-      when :type then def_type_alias(start)
       when :attribute then attribute_or_reassign(start)
       when :self then self_object(start)
       when :throw then throw_value(start)

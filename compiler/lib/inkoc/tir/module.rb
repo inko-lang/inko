@@ -15,8 +15,8 @@ module Inkoc
         @type = Type::Object.new(name.to_s)
       end
 
-      def lookup_type(*args)
-        @type.lookup_type(*args)
+      def lookup_type(name)
+        @type.lookup_type(name)
       end
     end
   end

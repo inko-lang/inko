@@ -27,5 +27,9 @@ module Inkoc
     def empty?
       @map.empty?
     end
+
+    def length
+      @map.length
+    end
   end
 end
