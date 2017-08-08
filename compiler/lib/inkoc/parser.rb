@@ -11,8 +11,10 @@ module Inkoc
         bitwise_and
         bitwise_or
         bitwise_xor
+        bracket_open
         constant
         div
+        else
         equal
         exclusive_range
         greater
@@ -35,36 +37,34 @@ module Inkoc
         shift_left
         shift_right
         sub
+        throw
         trait
         var
-        bracket_open
-        throw
-        else
       ]
     ).freeze
 
     VALUE_START = Set.new(
       %i[
-        string
-        integer
-        float
-        identifier
-        constant
-        hash_open
-        sub
+        attribute
         bracket_open
+        constant
         curly_open
+        float
         function
+        hash_open
+        identifier
+        impl
+        integer
         let
         let
         object
-        trait
         return
-        impl
-        attribute
         self
-        try
+        string
+        sub
         throw
+        trait
+        try
       ]
     ).freeze
 
@@ -228,7 +228,7 @@ module Inkoc
 
     def bracket_send(start)
       start_line = start.line
-      node = type_cast(start)
+      node = send_chain(start)
 
       while @lexer.next_type_is?(:bracket_open)
         # Only treat [x][y] as a send if [y] occurs on the same line. This
@@ -275,24 +275,7 @@ module Inkoc
       [name, args]
     end
 
-    # Parses a type cast.
-    #
-    # Example:
-    #
-    #     foo as String
-    def type_cast(start)
-      node = send_chain(start)
-
-      if @lexer.next_type_is?(:as)
-        op = advance!
-        cast_to = type_name(advance_and_expect!(:constant))
-        node = AST::TypeCast.new(node, cast_to, op.location)
-      end
-
-      node
-    end
-
-    # Parses a type name.
+    # Parses a type name or a nullable type.
     #
     # Examples:
     #
@@ -704,7 +687,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_union_type(advance!)
+      type_name_or_nullable_type(advance!)
     end
 
     # Parses a list of type argument definitions.
@@ -764,7 +747,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_union_type(advance!)
+      type_name_or_nullable_type(advance!)
     end
 
     def optional_throw_type
@@ -772,7 +755,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_union_type(advance!)
+      type_name(advance!)
     end
 
     # Parses a definition of an immutable variable.
@@ -827,7 +810,7 @@ module Inkoc
       return unless @lexer.next_type_is?(:colon)
 
       skip_one
-      type_name_or_union_type(advance_and_expect!(:constant))
+      type_name_or_nullable_type(advance!)
     end
 
     def variable_value
@@ -918,17 +901,6 @@ module Inkoc
       value = expression(advance!) if next_expression_is_argument?(start.line)
 
       AST::Return.new(value, start.location)
-    end
-
-    # Parses the definition of a type alias.
-    def def_type_alias(start)
-      name = type_name(advance_and_expect!(:constant))
-
-      advance_and_expect!(:assign)
-
-      value = type_name_or_union_type(advance_and_expect!(:constant))
-
-      AST::DefineTypeAlias.new(name, value, start.location)
     end
 
     def attribute_or_reassign(start)
@@ -1068,28 +1040,25 @@ module Inkoc
       name
     end
 
-    # Parses a single type name or a union type.
-    def type_name_or_union_type(start)
+    # Parses a single regular or nullable type.
+    #
+    # Examples:
+    #
+    #     fn foo -> Integer
+    #     fn foo -> ?Integer
+    def type_name_or_nullable_type(start)
+      optional =
+        if start.type == :question
+          start = advance_and_expect!(:constant)
+          true
+        else
+          false
+        end
+
       type = type_name(start)
+      type.optional = optional
 
-      if @lexer.next_type_is?(:bitwise_or)
-        union_type_start(type)
-      else
-        type
-      end
-    end
-
-    # Parses a union type containing at least `first_member`.
-    def union_type_start(first_member)
-      members = [first_member]
-
-      while @lexer.next_type_is?(:bitwise_or)
-        skip_one
-
-        members << type_name(advance_and_expect!(:constant))
-      end
-
-      AST::UnionType.new(members, first_member.location)
+      type
     end
 
     def constant_from_token(token, receiver = nil)

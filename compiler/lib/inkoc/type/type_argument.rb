@@ -13,6 +13,22 @@ module Inkoc
         @name = name
         @required_traits = required_traits
       end
+
+      def optional?
+        false
+      end
+
+      def block?
+        false
+      end
+
+      def regular_object?
+        false
+      end
+
+      def trait?
+        false
+      end
     end
   end
 end

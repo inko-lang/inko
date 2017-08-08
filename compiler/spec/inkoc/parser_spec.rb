@@ -105,22 +105,6 @@ describe Inkoc::Parser do
     end
   end
 
-  describe 'type casting' do
-    let(:node) { parse('10 as Foo').expressions[0] }
-
-    it 'is parsed as a TypeCast' do
-      expect(node).to be_an_instance_of(Inkoc::AST::TypeCast)
-    end
-
-    it 'sets the expression to cast' do
-      expect(node.expression).to be_an_instance_of(Inkoc::AST::Integer)
-    end
-
-    it 'sets the type to cast to' do
-      expect(node.cast_to).to be_an_instance_of(Inkoc::AST::Constant)
-    end
-  end
-
   describe 'send chains' do
     let(:node) { parse('foo.bar.baz').expressions[0] }
 

@@ -15,7 +15,6 @@ module Inkoc
       'return' => :return,
       'self' => :self,
       'fn' => :function,
-      'as' => :as,
       'throw' => :throw,
       'else' => :else,
       'try' => :try
@@ -116,6 +115,7 @@ module Inkoc
         when "\n" then advance_line
         when ' ', "\t" then advance_one
         when '_' then return starts_with_underscore
+        when '?' then return question_mark
         else
           return NULL_TOKEN if SPECIALS.include?(char)
           return identifier_or_keyword if char && char == char.downcase
@@ -419,6 +419,10 @@ module Inkoc
 
     def bracket_close
       new_token(:bracket_close, @position, @position += 1)
+    end
+
+    def question_mark
+      new_token(:question, @position, @position += 1)
     end
 
     def advance_line

@@ -726,6 +726,29 @@ describe Inkoc::Lexer do
     end
   end
 
+  describe '#question_mark' do
+    it 'tokenizes a question mark' do
+      lexer = described_class.new('?')
+      token = lexer.question_mark
+
+      expect(token.type).to eq(:question)
+      expect(token.value).to eq('?')
+    end
+
+    it 'tokenizes a question mark separately at the start of an identifier' do
+      lexer = described_class.new('?Foo')
+
+      token1 = lexer.advance
+      token2 = lexer.advance
+
+      expect(token1.type).to eq(:question)
+      expect(token1.value).to eq('?')
+
+      expect(token2.type).to eq(:constant)
+      expect(token2.value).to eq('Foo')
+    end
+  end
+
   it 'returns a null token for unrecognized input' do
     lexer = described_class.new(';')
 

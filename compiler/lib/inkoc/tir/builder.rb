@@ -381,6 +381,7 @@ module Inkoc
         new_block(
           name,
           node.body,
+          node.type_arguments,
           node.arguments,
           type_of_self(body),
           body,
@@ -396,7 +397,8 @@ module Inkoc
       #
       # name - The name of the block's CodeObject.
       # block_body - An instance of AST::Body containing.
-      # block_args - An Array of AST::DefineArgument instances.
+      # targs - An Array of AST::DefineTypeArgument instances.
+      # args - An Array of AST::DefineArgument instances.
       # self_type - The type of "self" in the block.
       # body - The CodeObject to use for generating instructions.
       # location - The SourceLocation to use for the instructions.
@@ -406,7 +408,8 @@ module Inkoc
       def new_block(
         name,
         block_body,
-        block_args,
+        targs,
+        args,
         self_type,
         body,
         location,
@@ -417,8 +420,9 @@ module Inkoc
         block_code = body.add_code_object(name, location)
         type = Type::Block.new(@state.typedb.block_prototype)
 
-        define_arguments_for_block_type(block_args, self_type, type, mod)
-        define_block_arguments(block_args, block_code, self_type, type, mod)
+        define_type_arguments(targs, type, mod)
+        define_arguments_for_block_type(args, self_type, type, mod)
+        define_block_arguments(args, block_code, self_type, type, mod)
         define_throw_type(throws, self_type, type, mod)
         define_return_type(returns, self_type, type, mod)
 
@@ -433,7 +437,10 @@ module Inkoc
         arguments.each do |arg|
           # TODO: infer type based on default value, if any
           arg_type = if arg.type
-                       type_for_constant_node(arg.type, type, self_type, mod)
+                       wrap_optional_type(
+                         arg.type,
+                         type_for_constant_node(arg.type, type, self_type, mod)
+                       )
                      else
                        dynamic_type
                      end
@@ -457,16 +464,26 @@ module Inkoc
       def define_throw_type(node, self_type, type, mod)
         return unless node
 
-        type.throws = type_for_constant_node(node, self_type, type, mod)
+        type.throws = wrap_optional_type(
+          node,
+          type_for_constant_node(node, self_type, type, mod)
+        )
       end
 
       def define_return_type(node, self_type, type, mod)
         type.returns =
           if node
-            type_for_constant_node(node, self_type, type, mod)
+            wrap_optional_type(
+              node,
+              type_for_constant_node(node, self_type, type, mod)
+            )
           else
             dynamic_type
           end
+      end
+
+      def wrap_optional_type(node, type)
+        node.optional? ? Type::Optional.new(type) : type
       end
 
       # Generates the instructions necessary to set the default value of a block
@@ -562,6 +579,7 @@ module Inkoc
 
         block_type = Type::Block.new(@state.typedb.block_prototype)
 
+        define_type_arguments(node.type_arguments, block_type, mod)
         define_arguments_for_block_type(
           node.arguments,
           receiver.type,
@@ -633,6 +651,7 @@ module Inkoc
         block_code, block_type = new_block(
           node.name,
           node.body,
+          [],
           [],
           object_reg.type,
           body,

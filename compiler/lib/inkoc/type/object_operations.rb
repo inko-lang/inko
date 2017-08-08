@@ -3,6 +3,10 @@
 module Inkoc
   module Type
     module ObjectOperations
+      def optional?
+        false
+      end
+
       def block?
         false
       end

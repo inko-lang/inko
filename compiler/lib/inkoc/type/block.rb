@@ -23,6 +23,10 @@ module Inkoc
       def block?
         true
       end
+
+      def lookup_type(name)
+        super.or_else { @type_arguments[name] }
+      end
     end
   end
 end
