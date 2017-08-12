@@ -8,7 +8,8 @@ module Inkoc
       attr_reader :top_level, :block_prototype, :integer_prototype,
                   :float_prototype, :string_prototype, :array_prototype,
                   :boolean_prototype, :nil_prototype, :integer_type,
-                  :float_type, :string_type, :boolean_type, :nil_type
+                  :float_type, :string_type, :boolean_type, :nil_type,
+                  :hash_map_prototype
 
       def initialize
         @top_level = Object.new('Inko')
@@ -19,6 +20,7 @@ module Inkoc
         @array_prototype = Object.new('Array')
         @boolean_prototype = Object.new('Boolean')
         @nil_prototype = Object.new('Nil')
+        @hash_map_prototype = Object.new('HashMap')
 
         # Instances of these types are immutable so we don't need to allocate
         # new objects every time.

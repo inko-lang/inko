@@ -432,20 +432,28 @@ module Inkoc
       end
 
       def define_arguments_for_block_type(arguments, self_type, type, mod)
-        type.argument_types.insert(0, self_type)
+        type.arguments.define(Config::SELF_LOCAL, self_type)
 
         arguments.each do |arg|
-          # TODO: infer type based on default value, if any
           arg_type = if arg.type
                        wrap_optional_type(
                          arg.type,
                          type_for_constant_node(arg.type, type, self_type, mod)
                        )
+                     elsif arg.default
+                       type_for_argument_default(
+                         arg.default,
+                         self_type,
+                         type,
+                         mod
+                       )
                      else
                        dynamic_type
                      end
 
-          type.argument_types << arg_type
+          p [arg.name, arg_type]
+
+          type.arguments.define(arg.name, arg_type)
           type.rest_argument = true if arg.rest?
         end
       end
@@ -453,8 +461,8 @@ module Inkoc
       def define_block_arguments(arguments, body, self_type, type, mod)
         body.define_self_local(self_type)
 
-        arguments.each_with_index do |arg, index|
-          arg_type = type.argument_types[index]
+        arguments.each do |arg|
+          arg_type = type.lookup_argument(arg.name)
           local = body.locals.define(arg.name, arg_type)
 
           define_argument_default(arg, local, body, mod) if arg.default
@@ -614,7 +622,6 @@ module Inkoc
         name = node.name
         object = new_named_object(name, body, location, mod)
 
-        # TODO: process trait implementations
         define_type_arguments(node.type_arguments, object.type, mod)
 
         if module_scope?(body, mod)
@@ -924,6 +931,48 @@ module Inkoc
         body.instruct(:SetArray, register, value_regs, location)
 
         register
+      end
+
+      def type_for_argument_default(node, self_type, block_type, mod)
+        case node
+        when AST::Integer
+          @state.typedb.integer_type
+        when AST::Float
+          @state.typedb.float_type
+        when AST::String
+          @state.typedb.string_type
+        when AST::Array
+          Type::Array.new(@state.typedb.array_prototype)
+        when AST::HashMap
+          Type::HashMap.new(@state.typedb.hash_map_prototype)
+        when AST::Attribute
+          self_type.lookup_attribute(node.name).type
+        when AST::Identifier
+          name = node.name
+
+          block_type.lookup_argument(name)
+            .or_else { self_type.lookup_type(name) }
+            .or_else { mod.lookup_type(name) }
+            .type
+            .return_type
+        when AST::Send
+          rec_node = node.receiver
+          rec_type =
+            if rec_node
+              type_for_argument_default(rec_node, self_type, block_type, mod)
+            else
+              self_type
+            end
+
+          rec_type
+            .lookup_method(node.name)
+            .type
+            .return_type
+        when AST::Constant
+          type_for_constant_node(node, self_type, block_type, mod)
+        else
+          dynamic_type
+        end
       end
 
       def type_for_constant_node(node, *sources)

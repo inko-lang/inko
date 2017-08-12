@@ -8,7 +8,6 @@ module Inkoc
       include TypeCompatibility
 
       attr_reader :attributes, :implemented_traits, :type_arguments
-
       attr_accessor :name, :prototype
 
       def initialize(name = nil, prototype = nil)

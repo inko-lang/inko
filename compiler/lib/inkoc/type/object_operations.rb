@@ -47,10 +47,12 @@ module Inkoc
         method
       end
 
-      def message_return_type(name)
-        type = lookup_method(name).type
+      def return_type
+        self
+      end
 
-        type.block? ? type.return_type : type
+      def message_return_type(name)
+        lookup_method(name).type.return_type
       end
 
       def responds_to_message?(name)

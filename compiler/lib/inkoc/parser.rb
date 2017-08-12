@@ -517,7 +517,7 @@ module Inkoc
     #
     #     { body }
     def block_without_arguments(start)
-      AST::Block.new([], nil, nil, block_body(start), start.location)
+      AST::Block.new([], [], nil, nil, block_body(start), start.location)
     end
 
     # Parses a block starting with the "fn" keyword.
@@ -529,12 +529,13 @@ module Inkoc
     #     fn(arg: T) { body }
     #     fn(arg: T) -> T { body }
     def block(start)
+      targs = optional_type_argument_definitions
       args = optional_arguments
       ret_type = optional_return_type
       throw_type = optional_throw_type
       body = block_body(advance_and_expect!(:curly_open))
 
-      AST::Block.new(args, ret_type, throw_type, body, start.location)
+      AST::Block.new(targs, args, ret_type, throw_type, body, start.location)
     end
 
     # Parses the body of a block.
