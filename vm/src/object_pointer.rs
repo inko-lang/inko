@@ -298,29 +298,14 @@ impl ObjectPointer {
         );
     }
 
-    /// Looks up a method.
-    pub fn lookup_attribute_chain(
+    /// Looks up an attribute.
+    pub fn lookup_attribute(
         &self,
         state: &RcState,
         name: &ObjectPointer,
     ) -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
-            state.integer_prototype.get().lookup_attribute_chain(name)
-        } else {
-            self.get().lookup_attribute_chain(name)
-        }
-    }
-
-    /// Looks up an attribute.
-    ///
-    /// For tagged integers this method will always return None as attributes
-    /// can not be defined on an integer.
-    pub fn lookup_attribute(
-        &self,
-        name: &ObjectPointer,
-    ) -> Option<ObjectPointer> {
-        if self.is_tagged_integer() {
-            None
+            state.integer_prototype.get().lookup_attribute(name)
         } else {
             self.get().lookup_attribute(name)
         }
@@ -816,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_lookup_attribute_chain_with_integer() {
+    fn test_object_pointer_lookup_attribute_with_integer() {
         let state = State::new(Config::new());
         let ptr = ObjectPointer::integer(5);
         let name = state.intern(&"foo".to_string());
@@ -827,28 +812,16 @@ mod tests {
             method,
         );
 
-        assert!(ptr.lookup_attribute_chain(&state, &name).unwrap() == method);
+        assert!(ptr.lookup_attribute(&state, &name).unwrap() == method);
     }
 
     #[test]
-    fn test_object_pointer_lookup_attribute_chain_with_object() {
-        let state = State::new(Config::new());
-        let ptr = state.permanent_allocator.lock().allocate_empty();
-        let name = state.intern(&"foo".to_string());
-        let method = state.permanent_allocator.lock().allocate_empty();
-
-        ptr.get_mut().add_attribute(name, method);
-
-        assert!(ptr.lookup_attribute_chain(&state, &name).unwrap() == method);
-    }
-
-    #[test]
-    fn test_object_pointer_lookup_attribute_with_integer() {
+    fn test_object_pointer_lookup_attribute_with_integer_without_attribute() {
         let state = State::new(Config::new());
         let ptr = ObjectPointer::integer(5);
         let name = state.intern(&"foo".to_string());
 
-        assert!(ptr.lookup_attribute(&name).is_none());
+        assert!(ptr.lookup_attribute(&state, &name).is_none());
     }
 
     #[test]
@@ -860,7 +833,7 @@ mod tests {
 
         ptr.get_mut().add_attribute(name, value);
 
-        assert!(ptr.lookup_attribute(&name).unwrap() == value);
+        assert!(ptr.lookup_attribute(&state, &name).unwrap() == value);
     }
 
     #[test]

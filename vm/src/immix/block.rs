@@ -5,7 +5,7 @@
 
 use std::ops::Drop;
 use std::ptr;
-use alloc::heap;
+use std::heap::{Alloc, Heap, Layout};
 
 use immix::bitmap::{Bitmap, ObjectMap, LineMap};
 use immix::bucket::Bucket;
@@ -47,6 +47,10 @@ pub const OBJECT_BITMAP_MASK: isize = !(BLOCK_SIZE as isize - 1);
 
 /// The mask to apply to go from a pointer to the line's start.
 pub const LINE_BITMAP_MASK: isize = !(LINE_SIZE as isize - 1);
+
+unsafe fn heap_layout_for_block() -> Layout {
+    Layout::from_size_align_unchecked(BLOCK_SIZE, BLOCK_SIZE)
+}
 
 /// Structure stored in the first line of a block, used to allow objects to
 /// retrieve data from the block they belong to.
@@ -114,12 +118,9 @@ impl BlockHeader {
 
 impl Block {
     pub fn new() -> Box<Block> {
-        let lines =
-            unsafe { heap::allocate(BLOCK_SIZE, BLOCK_SIZE) as RawObjectPointer };
-
-        if lines.is_null() {
-            panic!("Failed to allocate memory for a new Block");
-        }
+        let lines = unsafe {
+            Heap.alloc(heap_layout_for_block()).unwrap() as RawObjectPointer
+        };
 
         let mut block = Box::new(Block {
             lines: lines,
@@ -366,7 +367,7 @@ impl Drop for Block {
             self.marked_objects_bitmap.reset();
             self.finalize();
 
-            heap::deallocate(self.lines as *mut u8, BLOCK_SIZE, BLOCK_SIZE);
+            Heap.dealloc(self.lines as *mut u8, heap_layout_for_block());
         }
     }
 }

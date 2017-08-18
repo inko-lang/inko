@@ -129,11 +129,11 @@ impl Object {
     }
 
     /// Looks up an attribute in either the current object or a parent object.
-    pub fn lookup_attribute_chain(
+    pub fn lookup_attribute(
         &self,
         name: &ObjectPointer,
     ) -> Option<ObjectPointer> {
-        let got = self.lookup_attribute(name);
+        let got = self.lookup_attribute_in_self(name);
 
         if got.is_some() {
             return got;
@@ -145,7 +145,7 @@ impl Object {
 
             while let Some(parent_ptr) = opt_parent {
                 let parent = parent_ptr.get();
-                let got = parent.lookup_attribute(name);
+                let got = parent.lookup_attribute_in_self(name);
 
                 if got.is_some() {
                     return got;
@@ -165,8 +165,8 @@ impl Object {
         self.attributes_map_mut().unwrap().insert(name, object);
     }
 
-    /// Looks up an attribute.
-    pub fn lookup_attribute(
+    /// Looks up an attribute without walking the prototype chain.
+    pub fn lookup_attribute_in_self(
         &self,
         name: &ObjectPointer,
     ) -> Option<ObjectPointer> {
@@ -360,24 +360,17 @@ mod tests {
     }
 
     #[test]
-    fn test_object_lookup_attribute_chain() {
-        let obj = new_object();
-
-        assert!(obj.lookup_attribute_chain(&fake_pointer()).is_none());
-    }
-
-    #[test]
-    fn test_object_lookup_attribute_chain_defined_in_receiver() {
+    fn test_object_lookup_attribute_defined_in_receiver() {
         let mut obj = new_object();
         let name = fake_pointer();
 
         obj.add_attribute(name.clone(), fake_pointer());
 
-        assert!(obj.lookup_attribute_chain(&name).is_some());
+        assert!(obj.lookup_attribute(&name).is_some());
     }
 
     #[test]
-    fn test_object_lookup_attribute_chain_defined_in_prototype() {
+    fn test_object_lookup_attribute_defined_in_prototype() {
         let mut proto = new_object();
         let mut child = new_object();
         let name = fake_pointer();
@@ -385,18 +378,18 @@ mod tests {
         proto.add_attribute(name.clone(), fake_pointer());
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_attribute_chain(&name).is_some());
+        assert!(child.lookup_attribute(&name).is_some());
     }
 
     #[test]
-    fn test_object_lookup_attribute_chain_with_prototype_without_method() {
+    fn test_object_lookup_attribute_with_prototype_without_attribute() {
         let proto = new_object();
         let mut child = new_object();
         let name = fake_pointer();
 
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_attribute_chain(&name).is_none());
+        assert!(child.lookup_attribute(&name).is_none());
     }
 
     #[test]

@@ -1551,25 +1551,23 @@ impl Machine {
                 // This instruction requires 3 arguments:
                 //
                 // 1. The register to store the attribute's value in.
-                // 2. The register containing the object from which to
-                //    retrieve the attribute.
-                // 3. The register containing the attribute name as a
-                //    string.
+                // 2. The register containing the object from which to retrieve
+                //    the attribute.
+                // 3. The register containing the attribute name as a string.
                 //
                 // If the attribute does not exist the target register is
                 // set to nil.
                 InstructionType::GetAttribute => {
                     let register = instruction.arg(0);
-                    let source = context.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let attr =
-                        source.lookup_attribute(&name).unwrap_or_else(
-                            || self.state.nil_object,
-                        );
+                    let method = rec_ptr
+                        .lookup_attribute(&self.state, &name)
+                        .unwrap_or_else(|| self.state.nil_object);
 
-                    context.set_register(register, attr);
+                    context.set_register(register, method);
                 }
                 // Sets the prototype of an object.
                 //
@@ -1641,7 +1639,7 @@ impl Machine {
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
                     let result = if source
-                        .lookup_attribute_chain(&self.state, &name)
+                        .lookup_attribute(&self.state, &name)
                         .is_some()
                     {
                         self.state.true_object.clone()
@@ -1892,29 +1890,6 @@ impl Machine {
                         self.state.nil_object,
                     );
                 }
-                // Looks up an attribute in an object, using the prototype chain
-                // as a fallback.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the attribute in.
-                // 2. The register containing the object to use for the lookup.
-                // 3. The register containing the attribute name as a String.
-                //
-                // If the attribute could not be found the target register will
-                // be set to nil instead.
-                InstructionType::LookupAttributeChain => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    let method = rec_ptr
-                        .lookup_attribute_chain(&self.state, &name)
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, method);
-                }
                 // Checks if an attribute exists in an object.
                 //
                 // This instruction requires 3 arguments:
@@ -1929,7 +1904,10 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let obj = if source_ptr.lookup_attribute(&name).is_some() {
+                    let obj = if source_ptr
+                        .lookup_attribute(&self.state, &name)
+                        .is_some()
+                    {
                         self.state.true_object.clone()
                     } else {
                         self.state.false_object.clone()
@@ -2126,9 +2104,8 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    let method = rec_ptr
-                        .lookup_attribute_chain(&self.state, &name)
-                        .unwrap();
+                    let method =
+                        rec_ptr.lookup_attribute(&self.state, &name).unwrap();
 
                     let block = method.block_value().unwrap();
 

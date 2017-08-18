@@ -92,7 +92,6 @@ pub enum InstructionType {
     GetToplevel,
     GetNilPrototype,
     GetNil,
-    LookupAttributeChain,
     AttrExists,
     RemoveAttribute,
     GetAttributes,
