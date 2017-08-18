@@ -140,7 +140,7 @@ impl Process {
 
     pub fn push_context(&self, context: ExecutionContext) {
         let mut boxed = Box::new(context);
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
         let ref mut target = local_data.context;
 
         mem::swap(target, &mut boxed);
@@ -153,7 +153,7 @@ impl Process {
     /// This method returns true if we're at the top of the execution context
     /// stack.
     pub fn pop_context(&self) -> bool {
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
 
         if let Some(parent) = local_data.context.parent.take() {
             local_data.context = parent;
@@ -203,7 +203,7 @@ impl Process {
         value: object_value::ObjectValue,
         proto: ObjectPointer,
     ) -> ObjectPointer {
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
 
         local_data.allocator.allocate_with_prototype(value, proto)
     }
@@ -212,7 +212,7 @@ impl Process {
         &self,
         value: object_value::ObjectValue,
     ) -> ObjectPointer {
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
 
         local_data.allocator.allocate_without_prototype(value)
     }
@@ -329,7 +329,7 @@ impl Process {
     }
 
     pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
 
         local_data.allocator.collect_young = false;
         local_data.allocator.collect_mature = false;
@@ -355,7 +355,7 @@ impl Process {
     }
 
     pub fn update_mailbox_collection_statistics(&self, config: &Config) {
-        let mut local_data = self.local_data_mut();
+        let local_data = self.local_data_mut();
 
         local_data.mailbox_collections += 1;
 
@@ -427,7 +427,7 @@ mod tests {
         let config = Config::new();
 
         {
-            let mut local_data = process.local_data_mut();
+            let local_data = process.local_data_mut();
 
             local_data.allocator.young_block_allocations = 1;
             local_data.allocator.mature_block_allocations = 1;
@@ -467,7 +467,7 @@ mod tests {
         let config = Config::new();
 
         {
-            let mut local_data = process.local_data_mut();
+            let local_data = process.local_data_mut();
 
             local_data.mailbox.allocator.block_allocations = 1;
         }

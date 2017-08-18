@@ -99,7 +99,7 @@ mod tests {
         // The returned pointers should allow updating of what's stored in the
         // register without copying anything.
         for pointer_pointer in pointers {
-            let mut pointer = pointer_pointer.get_mut();
+            let pointer = pointer_pointer.get_mut();
 
             pointer.raw.raw = 0x4 as RawObjectPointer;
         }

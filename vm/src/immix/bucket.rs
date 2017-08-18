@@ -114,7 +114,7 @@ impl Bucket {
         self.blocks.push(block);
 
         let block_ptr = self as *mut Bucket;
-        let mut block = self.current_block_mut().unwrap();
+        let block = self.current_block_mut().unwrap();
 
         block.set_bucket(block_ptr);
     }
@@ -270,7 +270,7 @@ impl Bucket {
             }
 
             if let Some(bin) = min_bin {
-                for mut block in self.blocks.iter_mut() {
+                for block in self.blocks.iter_mut() {
                     if block.holes >= bin {
                         block.set_fragmented();
                     }

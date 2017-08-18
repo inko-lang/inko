@@ -160,7 +160,7 @@ impl ObjectPointer {
             // extra layer of indirection to update "self".
             unsafe {
                 let self_ptr = self as *const ObjectPointer as *mut ObjectPointer;
-                let mut self_ref = &mut *self_ptr;
+                let self_ref = &mut *self_ptr;
 
                 self_ref.raw = raw_proto.without_tags();
             };
@@ -208,14 +208,14 @@ impl ObjectPointer {
     }
 
     pub fn mark_for_finalization(&self) {
-        let mut block = self.block_mut();
+        let block = self.block_mut();
         let index = block.object_index_of_pointer(self.raw.untagged());
 
         block.finalize_bitmap.set(index);
     }
 
     pub fn unmark_for_finalization(&self) {
-        let mut block = self.block_mut();
+        let block = self.block_mut();
         let index = block.object_index_of_pointer(self.raw.untagged());
 
         block.finalize_bitmap.unset(index);
@@ -765,7 +765,7 @@ mod tests {
 
         // Using the raw pointer for any updates should result in the
         // ObjectPointer being updated properly.
-        let mut reference = raw_pointer.get_mut();
+        let reference = raw_pointer.get_mut();
 
         reference.raw.set_bit(0);
 

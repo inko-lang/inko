@@ -34,8 +34,8 @@ macro_rules! can_skip_pointer {
 pub fn promote_mature(process: &RcProcess, pointer: &mut ObjectPointer) {
     pointer.unmark_for_finalization();
 
-    let mut local_data = process.local_data_mut();
-    let mut old_obj = pointer.get_mut();
+    let local_data = process.local_data_mut();
+    let old_obj = pointer.get_mut();
     let new_pointer = local_data.allocator.allocate_mature(old_obj.take());
 
     old_obj.forward_to(new_pointer);
@@ -52,9 +52,9 @@ pub fn evacuate(process: &RcProcess, pointer: &mut ObjectPointer) {
     // When evacuating an object we must ensure we evacuate the object into
     // the same bucket.
     let local_data = process.local_data_mut();
-    let mut bucket = pointer.block_mut().bucket_mut().unwrap();
+    let bucket = pointer.block_mut().bucket_mut().unwrap();
 
-    let mut old_obj = pointer.get_mut();
+    let old_obj = pointer.get_mut();
     let new_obj = old_obj.take();
 
     let (_, new_pointer) =
@@ -78,7 +78,7 @@ pub fn trace_pointers_with_moving(
     let mut promoted = 0;
 
     while let Some(pointer_pointer) = objects.pop() {
-        let mut pointer = pointer_pointer.get_mut();
+        let pointer = pointer_pointer.get_mut();
 
         if can_skip_pointer!(pointer, mature) {
             continue;

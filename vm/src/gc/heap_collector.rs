@@ -97,7 +97,7 @@ pub fn trace_remembered_set(
 /// already traverse all mature objects. This allows us to remove any
 /// unmarked mature objects from the remembered set.
 pub fn prune_remembered_set(process: &RcProcess) {
-    let mut local_data = process.local_data_mut();
+    let local_data = process.local_data_mut();
 
     let keep = local_data
         .remembered_set
@@ -284,7 +284,7 @@ mod tests {
     fn test_trace_remembered_set_without_moving() {
         let (_machine, _block, process) = setup();
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let pointer1 = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -305,7 +305,7 @@ mod tests {
     fn test_trace_remembered_set_with_moving() {
         let (_machine, _block, process) = setup();
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let pointer1 = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -328,7 +328,7 @@ mod tests {
     fn test_prune_remembered_set() {
         let (_machine, _block, process) = setup();
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let pointer1 = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -353,7 +353,7 @@ mod tests {
     fn test_trace_mailbox_locals_with_moving_without_mature() {
         let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let mature = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -379,7 +379,7 @@ mod tests {
     fn test_trace_mailbox_locals_with_moving_with_mature() {
         let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let mature = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -405,7 +405,7 @@ mod tests {
     fn test_trace_mailbox_locals_without_moving_without_mature() {
         let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let mature = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),
@@ -430,7 +430,7 @@ mod tests {
     fn test_trace_mailbox_locals_without_moving_with_mature() {
         let (_machine, _block, process) = setup();
         let young = process.allocate_empty();
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         let mature = local_data.allocator.allocate_mature(
             Object::new(object_value::none()),

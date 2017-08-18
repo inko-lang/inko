@@ -12,7 +12,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
 
     profile.total.start();
 
-    let mut local_data = process.local_data_mut();
+    let local_data = process.local_data_mut();
     let ref mut mailbox = local_data.mailbox;
 
     profile.prepare.start();
@@ -68,7 +68,7 @@ mod tests {
         let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         local_data.mailbox.send_from_external(
             process.allocate_empty(),
@@ -89,7 +89,7 @@ mod tests {
     fn test_trace_without_moving() {
         let (_machine, _block, process) = setup();
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         local_data.mailbox.send_from_external(
             process.allocate_empty(),
@@ -108,7 +108,7 @@ mod tests {
     fn test_trace_with_moving() {
         let (_machine, _block, process) = setup();
 
-        let mut local_data = process.local_data_mut();
+        let local_data = process.local_data_mut();
 
         local_data.mailbox.send_from_external(
             process.allocate_empty(),

@@ -38,7 +38,7 @@ impl GlobalScope {
             panic!("Only permanent objects can be stored in a global scope");
         }
 
-        let mut locals = self.locals_mut();
+        let locals = self.locals_mut();
 
         if index >= locals.len() {
             locals.resize(index + 1, ObjectPointer::null());

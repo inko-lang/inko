@@ -109,7 +109,7 @@ impl LocalAllocator {
             // Since the write barrier may track mature objects we need to
             // always reset mature bitmaps. This ensures we can scan said mature
             // objects for child pointers
-            for mut block in self.mature_generation.all_blocks_mut() {
+            for block in self.mature_generation.all_blocks_mut() {
                 block.update_line_map();
             }
         }
@@ -130,7 +130,7 @@ impl LocalAllocator {
                 self.global_allocator.add_block(block);
             }
         } else {
-            for mut block in self.mature_generation.all_blocks_mut() {
+            for block in self.mature_generation.all_blocks_mut() {
                 block.update_line_map();
             }
         }

@@ -817,7 +817,7 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let value_ptr = context.get_register(instruction.arg(3));
 
-                    let mut vector = array_ptr.array_value_mut().unwrap();
+                    let vector = array_ptr.array_value_mut().unwrap();
                     let index = int_to_vector_index!(
                         vector,
                         index_ptr.integer_value().unwrap()
@@ -882,7 +882,7 @@ impl Machine {
                     let array_ptr = context.get_register(instruction.arg(1));
                     let index_ptr = context.get_register(instruction.arg(2));
 
-                    let mut vector = array_ptr.array_value_mut().unwrap();
+                    let vector = array_ptr.array_value_mut().unwrap();
                     let index = int_to_vector_index!(
                         vector,
                         index_ptr.integer_value().unwrap()
@@ -919,7 +919,7 @@ impl Machine {
                 // array.
                 InstructionType::ArrayClear => {
                     let array_ptr = context.get_register(instruction.arg(0));
-                    let mut vector = array_ptr.array_value_mut().unwrap();
+                    let vector = array_ptr.array_value_mut().unwrap();
 
                     vector.clear();
                 }
@@ -1258,7 +1258,7 @@ impl Machine {
                     let file_ptr = context.get_register(instruction.arg(1));
                     let string_ptr = context.get_register(instruction.arg(2));
 
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
                     let bytes = string_ptr.string_value().unwrap().as_bytes();
 
                     match file.write(bytes) {
@@ -1290,7 +1290,7 @@ impl Machine {
                 InstructionType::FileRead => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
                     let mut buffer = String::new();
 
                     if let Err(err) = file.read_to_string(&mut buffer) {
@@ -1316,7 +1316,7 @@ impl Machine {
                 InstructionType::FileReadLine => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
                     let mut buffer = Vec::new();
 
                     for result in file.bytes() {
@@ -1369,7 +1369,7 @@ impl Machine {
                 // This instruction will throw when encountering an IO error.
                 InstructionType::FileFlush => {
                     let file_ptr = context.get_register(instruction.arg(0));
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
 
                     if let Err(err) = file.flush() {
                         throw_io_error!(self, process, err, context, code, index);
@@ -1421,7 +1421,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
                     let offset_ptr = context.get_register(instruction.arg(2));
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
                     let offset = offset_ptr.integer_value().unwrap();
 
                     match file.seek(SeekFrom::Start(offset as u64)) {
@@ -1786,7 +1786,7 @@ impl Machine {
                     let file_ptr = context.get_register(instruction.arg(1));
                     let size_ptr = context.get_register(instruction.arg(2));
 
-                    let mut file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut().unwrap();
                     let size = size_ptr.integer_value().unwrap() as usize;
                     let mut buffer = String::with_capacity(size);
 
@@ -2131,7 +2131,7 @@ impl Machine {
                     let array_ptr = context.get_register(instruction.arg(1));
                     let value_ptr = context.get_register(instruction.arg(2));
 
-                    let mut vector = array_ptr.array_value_mut().unwrap();
+                    let vector = array_ptr.array_value_mut().unwrap();
 
                     let value = copy_if_permanent!(
                         self.state.permanent_allocator,
@@ -2277,7 +2277,7 @@ impl Machine {
 
         {
             // Add the arguments to the binding
-            let mut locals = context.binding.locals_mut();
+            let locals = context.binding.locals_mut();
 
             for index in arg_offset..(arg_offset + arg_count) {
                 let local_index = index - arg_offset;
@@ -2298,7 +2298,7 @@ impl Machine {
     ) {
         loop {
             let code = process.compiled_code();
-            let mut context = process.context_mut();
+            let context = process.context_mut();
             let index = context.instruction_index;
 
             for entry in code.catch_table.entries.iter() {
