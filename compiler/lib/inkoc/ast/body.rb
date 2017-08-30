@@ -17,6 +17,10 @@ module Inkoc
       def tir_process_node_method
         :on_body
       end
+
+      def last_expression
+        @expressions.last
+      end
     end
   end
 end

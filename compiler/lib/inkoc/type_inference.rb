@@ -80,15 +80,72 @@ module Inkoc
     end
 
     def on_attribute(node, self_type, *)
-      self_type.lookup_attribute(node.name).type
+      name = node.name
+      symbol = self_type.lookup_attribute(name)
+
+      diagnostics.undefined_attribute_error(name, node.location) if symbol.nil?
+
+      symbol.type
+    end
+
+    def on_constant(node, self_type, mod)
+      name = node.name
+      symbol = self_type.lookup_attribute(name)
+        .or_else { mod.lookup_attribute(name) }
+
+      diagnostics.undefined_attribute_error(name, node.location) if symbol.nil?
+
+      symbol.type
     end
 
     def on_identifier(node, self_type, mod)
-      # TODO: need local variable access.
+      name = node.name
+
+      symbol =
+        if self_type.block?
+          self_type.lookup_argument(name)
+            .or_else { self_type.lookup_method(name) }
+        else
+          self_type.lookup_method(name)
+        end
+
+      diagnostics.undefined_method_error(name, node.location) if symbol.nil?
+
+      symbol.type.return_type
     end
 
     def on_send(node, self_type, mod)
-      # TODO: implement
+      name = node.name
+      rec_type =
+        node.receiver ? infer(node.receiver, self_type, mod) : self_type
+
+      symbol = rec_type.lookup_method(node.name)
+
+      diagnostics.undefined_method_error(name, node.location) if symbol.nil?
+
+      symbol.type.return_type
+    end
+
+    def on_self(_, self_type, _)
+      self_type
+    end
+
+    def on_define_variable(node, self_type, mod)
+      infer(node.value, self_type, mod)
+    end
+
+    def on_return(node, self_type, mod)
+      node.value ? infer(node.value, self_type, mod) : typedb.nil_type
+    end
+
+    def on_throw(node, self_type, mod)
+      infer(node.value, self_type, mod)
+    end
+
+    def on_try(node, self_type, mod)
+      expression = node.expression.last_expression
+
+      infer(expression, self_type, mod)
     end
 
     def typedb

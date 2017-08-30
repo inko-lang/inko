@@ -82,6 +82,21 @@ module Inkoc
         end
       end
 
+      def on_define_variable(node, self_type, mod)
+        callback = node.variable.tir_define_variable_method
+
+        public_send(callback, node, self_type, mod) if respond_to?(callback)
+      end
+
+      def on_define_constant(node, self_type, mod)
+        name = node.variable.name
+        vtype = @type_inference.infer(node.value, self_type, mod)
+
+        store_type(vtype, self_type, mod, name)
+      end
+
+      alias_method :on_define_attribute, :on_define_constant
+
       def define_arguments(arguments, block_type, self_type, mod)
         block_type.arguments.define(Config::SELF_LOCAL, self_type)
 
@@ -141,9 +156,7 @@ module Inkoc
         defined_type && value_type && !defined_type.type_compatible?(value_type)
       end
 
-      def store_type(type, self_type, mod)
-        name = type.name
-
+      def store_type(type, self_type, mod, name = type.name)
         self_type.define_attribute(name, type)
 
         mod.globals.define(name, type) if module_scope?(self_type, mod)

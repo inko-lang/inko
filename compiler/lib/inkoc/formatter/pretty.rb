@@ -17,7 +17,7 @@ module Inkoc
 
       def format_diagnostic(diag)
         level = level_label(diag)
-        padding = diag.column.to_s.length + 3
+        padding = diag.line.to_s.length + 3
 
         output = Kernel.format(
           HEADER,
@@ -32,11 +32,11 @@ module Inkoc
         source_line = diag.file.lines[diag.line - 1]
 
         if source_line && !source_line.empty?
-          column = ANSI.cyan(diag.column.to_s)
+          line_num = ANSI.cyan(diag.line.to_s)
 
           # TODO: clean up this garbage
           output += '|'.rjust(padding)
-          output += "\n #{column} | #{source_line.chomp}\n"
+          output += "\n #{line_num} | #{source_line.chomp}\n"
           output += '|'.rjust(padding)
           output += ' ' * diag.column
           output += ANSI.bold(ANSI.yellow('^'))

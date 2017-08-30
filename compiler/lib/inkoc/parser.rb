@@ -145,8 +145,13 @@ module Inkoc
     end
 
     def top_level(start)
-      if start.type == :import
+      case start.type
+      when :import
         import(start)
+      when :object
+        def_object(start)
+      when :trait
+        def_trait(start)
       else
         expression(start)
       end
@@ -440,8 +445,6 @@ module Inkoc
       when :function then method_or_block(start)
       when :let then let_define(start)
       when :var then var_define(start)
-      when :object then def_object(start)
-      when :trait then def_trait(start)
       when :return then return_value(start)
       when :attribute then attribute_or_reassign(start)
       when :self then self_object(start)
@@ -840,9 +843,28 @@ module Inkoc
           []
         end
 
-      body = block_body(advance_and_expect!(:curly_open))
+      body = object_body(advance_and_expect!(:curly_open))
 
       AST::Object.new(name.value, targs, implements, body, start.location)
+    end
+
+    # Parses the body of an object definition.
+    def object_body(start)
+      nodes = []
+
+      while (token = @lexer.advance) && token.valid_but_not?(:curly_close)
+        nodes <<
+        case token.type
+        when :object
+          def_object(token)
+        when :trait
+          def_trait(token)
+        else
+          expression(token)
+        end
+      end
+
+      AST::Body.new(nodes, start.location)
     end
 
     # Parses a list of trait implementations
@@ -920,7 +942,7 @@ module Inkoc
           []
         end
 
-      body = block_body(advance_and_expect!(:curly_open))
+      body = object_body(advance_and_expect!(:curly_open))
 
       AST::Trait.new(name.value, targs, implements, body, start.location)
     end

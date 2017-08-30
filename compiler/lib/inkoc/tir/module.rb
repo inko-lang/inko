@@ -18,6 +18,10 @@ module Inkoc
       def lookup_type(name)
         @type.lookup_type(name)
       end
+
+      def lookup_attribute(name)
+        @type.lookup_attribute(name)
+      end
     end
   end
 end
