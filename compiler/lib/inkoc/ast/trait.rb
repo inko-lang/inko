@@ -5,15 +5,19 @@ module Inkoc
     class Trait
       include Inspect
 
-      attr_reader :name, :type_arguments, :body, :location
+      attr_reader :name, :type_parameters, :body, :location,
+                  :trait_implementations
 
       # name - The name of the trait.
       # targs - The type arguments of the trait.
+      # impl - The other traits that must be implemented by the object
+      #        implementing this trait.
       # body - The body of the trait.
       # location - The SourceLocation of the trait.
-      def initialize(name, targs, body, location)
+      def initialize(name, targs, impl, body, location)
         @name = name
-        @type_arguments = targs
+        @type_parameters = targs
+        @trait_implementations = impl
         @body = body
         @location = location
       end

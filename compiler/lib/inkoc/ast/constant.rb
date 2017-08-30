@@ -6,7 +6,7 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :receiver
-      attr_accessor :return_type, :type_arguments, :required_traits, :optional
+      attr_accessor :return_type, :type_parameters, :required_traits, :optional
 
       # name - The name of the constant as a String.
       # location - The SourceLocation of the constant.
@@ -16,7 +16,7 @@ module Inkoc
         @receiver = receiver
         @location = location
         @return_type = nil
-        @type_arguments = []
+        @type_parameters = []
         @required_traits = []
         @optional = false
       end

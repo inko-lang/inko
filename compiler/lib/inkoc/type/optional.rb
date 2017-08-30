@@ -31,6 +31,10 @@ module Inkoc
       def attributes
         type.attributes
       end
+
+      def type_name
+        "?#{type.type_name}"
+      end
     end
   end
 end

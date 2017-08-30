@@ -3,24 +3,41 @@
 module Inkoc
   # Compiler for translating Inko source files into IVM bytecode.
   class Compiler
-    def initialize(config)
-      @state = State.new(config)
+    BASE_PASSES = [
+      Pass::PathToSource,
+      Pass::SourceToAst,
+      Pass::AstToModule,
+      Pass::CompileImportedModules,
+      Pass::DefineTypes
+    ].freeze
+
+    def initialize(state)
+      @state = state
     end
 
-    # path - The file path of the module to compile, as a String.
+    # path - The absolute file path of the module to compile, as a String.
     def compile(path)
-      TIR::Builder.new(@state).build_main(path)
+      out = passes.reduce([path]) do |input, klass|
+        out = klass.new(@state).run(*input)
+
+        out ? out : break
+      end
     end
 
-    def diagnostics?
-      @state.diagnostics.any?
+    def passes
+      if @state.config.release_mode?
+        passes_for_release_mode
+      else
+        passes_for_debug_mode
+      end
     end
 
-    def display_diagnostics
-      formatter = Formatter::Pretty.new
-      output = formatter.format(@state.diagnostics)
+    def passes_for_debug_mode
+      BASE_PASSES
+    end
 
-      STDERR.puts(output)
+    def passes_for_release_mode
+      BASE_PASSES
     end
   end
 end

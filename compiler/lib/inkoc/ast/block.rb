@@ -6,7 +6,7 @@ module Inkoc
       include Inspect
 
       attr_reader :arguments, :body, :throws, :returns, :location,
-                  :type_arguments
+                  :type_parameters
 
       # targs - The type arguments of this block.
       # arguments - The arguments of the block.
@@ -15,7 +15,7 @@ module Inkoc
       # throws - The type that may be thrown.
       # location - The SourceLocation of the block.
       def initialize(targs, args, returns, throws, body, location)
-        @type_arguments = targs
+        @type_parameters = targs
         @arguments = args
         @returns = returns
         @throws = throws

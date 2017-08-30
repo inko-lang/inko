@@ -2,7 +2,7 @@
 
 module Inkoc
   module AST
-    class DefineTypeArgument
+    class DefineTypeParameter
       include Inspect
 
       attr_reader :name, :required_traits, :location

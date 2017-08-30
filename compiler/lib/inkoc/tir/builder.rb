@@ -381,7 +381,7 @@ module Inkoc
         new_block(
           name,
           node.body,
-          node.type_arguments,
+          node.type_parameters,
           node.arguments,
           type_of_self(body),
           body,
@@ -420,7 +420,7 @@ module Inkoc
         block_code = body.add_code_object(name, location)
         type = Type::Block.new(@state.typedb.block_prototype)
 
-        define_type_arguments(targs, type, mod)
+        define_type_parameters(targs, type, mod)
         define_arguments_for_block_type(args, self_type, type, mod)
         define_block_arguments(args, block_code, self_type, type, mod)
         define_throw_type(throws, self_type, type, mod)
@@ -438,7 +438,7 @@ module Inkoc
           arg_type = if arg.type
                        wrap_optional_type(
                          arg.type,
-                         type_for_constant_node(arg.type, type, self_type, mod)
+                         type_for_constant(arg.type, type, self_type, mod)
                        )
                      elsif arg.default
                        type_for_argument_default(
@@ -450,8 +450,6 @@ module Inkoc
                      else
                        dynamic_type
                      end
-
-          p [arg.name, arg_type]
 
           type.arguments.define(arg.name, arg_type)
           type.rest_argument = true if arg.rest?
@@ -474,7 +472,7 @@ module Inkoc
 
         type.throws = wrap_optional_type(
           node,
-          type_for_constant_node(node, self_type, type, mod)
+          type_for_constant(node, self_type, type, mod)
         )
       end
 
@@ -483,7 +481,7 @@ module Inkoc
           if node
             wrap_optional_type(
               node,
-              type_for_constant_node(node, self_type, type, mod)
+              type_for_constant(node, self_type, type, mod)
             )
           else
             dynamic_type
@@ -587,7 +585,7 @@ module Inkoc
 
         block_type = Type::Block.new(@state.typedb.block_prototype)
 
-        define_type_arguments(node.type_arguments, block_type, mod)
+        define_type_parameters(node.type_parameters, block_type, mod)
         define_arguments_for_block_type(
           node.arguments,
           receiver.type,
@@ -622,7 +620,7 @@ module Inkoc
         name = node.name
         object = new_named_object(name, body, location, mod)
 
-        define_type_arguments(node.type_arguments, object.type, mod)
+        define_type_parameters(node.type_parameters, object.type, mod)
 
         if module_scope?(body, mod)
           object = define_global(name, object, body, location, mod)
@@ -705,7 +703,7 @@ module Inkoc
         name = node.name
         trait = new_trait(name, body, location, mod)
 
-        define_type_arguments(node.type_arguments, trait.type, mod)
+        define_type_parameters(node.type_parameters, trait.type, mod)
 
         if module_scope?(body, mod)
           trait = define_global(name, trait, body, location, mod)
@@ -732,15 +730,15 @@ module Inkoc
         )
       end
 
-      def define_type_arguments(arguments, type, mod)
+      def define_type_parameters(arguments, type, mod)
         arguments.each do |arg_node|
           required_traits = arg_node.required_traits.map do |node|
-            type_for_constant_node(node, type, mod)
+            type_for_constant(node, type, mod)
           end
 
-          arg = Type::TypeArgument.new(arg_node.name, required_traits)
+          arg = Type::TypeParameter.new(arg_node.name, required_traits)
 
-          type.type_arguments.define(arg.name, arg)
+          type.type_parameters.define(arg.name, arg)
         end
       end
 
@@ -969,17 +967,17 @@ module Inkoc
             .type
             .return_type
         when AST::Constant
-          type_for_constant_node(node, self_type, block_type, mod)
+          type_for_constant(node, self_type, block_type, mod)
         else
           dynamic_type
         end
       end
 
-      def type_for_constant_node(node, *sources)
+      def type_for_constant(node, *sources)
         name = node.name
 
         if node.receiver
-          receiver = type_for_constant_node(node.receiver, *sources)
+          receiver = type_for_constant(node.receiver, *sources)
           sources = [receiver, *sources]
         end
 
@@ -1004,45 +1002,7 @@ module Inkoc
       end
 
       def find_module_path(path)
-        @state.config.source_directories.each do |dir|
-          full_path = File.join(dir, path)
-
-          return full_path if File.file?(full_path)
-        end
-
-        nil
-      end
-
-      # Returns the module name for a file path.
-      #
-      # Example:
-      #
-      #     module_name_for_path('hello/world.inko') # => "world"
-      def module_name_for_path(path)
-        file = path.split(File::SEPARATOR).last
-
-        file ? file.split('.').first : '<anonymous-module>'
-      end
-
-      # Parses the source file in `path`, returning the AST if successful.
-      def parse_file(path)
-        location = SourceLocation.new(1, 1, SourceFile.new(path))
-
-        source = begin
-          File.read(path)
-        rescue => error
-          diagnostics.error(error.message, location)
-          return
-        end
-
-        parser = Parser.new(source, path)
-
-        begin
-          parser.parse
-        rescue Parser::ParseError => error
-          diagnostics.error(error.message, parser.location)
-          nil
-        end
+        @state.find_module_path(path)
       end
 
       def diagnostics

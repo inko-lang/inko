@@ -5,7 +5,7 @@ module Inkoc
     class Method
       include Inspect
 
-      attr_reader :name, :arguments, :type_arguments, :returns, :throws,
+      attr_reader :name, :arguments, :type_parameters, :returns, :throws,
                   :body, :location
 
       # name - The name of the method.
@@ -17,7 +17,7 @@ module Inkoc
       def initialize(name, args, targs, returns, throws, body, loc)
         @name = name
         @arguments = args
-        @type_arguments = targs
+        @type_parameters = targs
         @returns = returns
         @throws = throws
         @body = body

@@ -93,5 +93,25 @@ module Inkoc
     def define_required_method_on_non_trait_error(location)
       error('Required methods can only be defined on traits', location)
     end
+
+    def type_error(expected, found, location)
+      exp_name = expected.type_name
+      found_name = found.type_name
+
+      error(
+        "Expected a value of type #{exp_name} instead of #{found_name}",
+        location
+      )
+    end
+
+    def type_parameters_error(exp, found, location)
+      params = exp == 1 ? 'parameter' : 'parameters'
+      were = found == 1 ? 'is' : 'are'
+
+      error(
+        "This type requires #{exp} type #{params}, but #{found} #{were} given",
+        location
+      )
+    end
   end
 end

@@ -7,36 +7,55 @@ module Inkoc
     # Any diagnostics that were produced when compiling modules.
     attr_reader :diagnostics
 
-    # All the compiled modules, mapped to their names. The values of this hash
-    # are explicitly set to nil when:
-    #
-    # * The module was found and is about to be processed for the first time
-    # * The module could not be found
-    #
-    # This prevents recursive imports from causing the compiler to get stuck in
-    # a loop.
+    # The modules that have been compiled.
     attr_reader :modules
 
     # The database storing all type information.
     attr_reader :typedb
+
+    # A cache containing relative module paths and their corresponding absolute
+    # paths.
+    attr_reader :module_paths_cache
 
     def initialize(config)
       @config = config
       @diagnostics = Diagnostics.new
       @modules = {}
       @typedb = Type::Database.new
+      @module_paths_cache = {}
     end
 
-    def module_compiled?(name)
+    def module_exists?(name)
       @modules.key?(name)
     end
 
-    def track_module_before_compilation(name)
-      @modules[name] = nil unless @modules[name]
+    def store_module(mod)
+      @modules[mod.name.to_s] = mod
     end
 
-    def store_module(name, mod)
-      @modules[name] = mod
+    def diagnostics?
+      @diagnostics.any?
+    end
+
+    def display_diagnostics
+      formatter = Formatter::Pretty.new
+      output = formatter.format(@diagnostics)
+
+      STDERR.puts(output)
+    end
+
+    def find_module_path(path)
+      if (cached = @module_paths_cache[path])
+        return cached
+      end
+
+      @config.source_directories.each do |dir|
+        full_path = File.join(dir, path)
+
+        return @module_paths_cache[path] = full_path if File.file?(full_path)
+      end
+
+      nil
     end
   end
 end

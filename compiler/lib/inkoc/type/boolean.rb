@@ -7,6 +7,10 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
       include ImmutableType
+
+      def type_name
+        'Boolean'
+      end
     end
   end
 end

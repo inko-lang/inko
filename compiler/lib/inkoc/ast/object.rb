@@ -5,7 +5,7 @@ module Inkoc
     class Object
       include Inspect
 
-      attr_reader :name, :type_arguments, :trait_implementations, :body,
+      attr_reader :name, :type_parameters, :trait_implementations, :body,
                   :location
 
       # name - The name of the object.
@@ -15,7 +15,7 @@ module Inkoc
       # location - The SourceLocation of the object.
       def initialize(name, targs, impl, body, location)
         @name = name
-        @type_arguments = targs
+        @type_parameters = targs
         @trait_implementations = impl
         @body = body
         @location = location

@@ -7,16 +7,17 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
 
-      attr_reader :arguments, :type_arguments, :prototype, :attributes
+      attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
       attr_accessor :rest_argument, :throws, :returns
 
-      def initialize(prototype)
+      def initialize(prototype, name: nil)
+        @name = name
+        @prototype = prototype
         @arguments = SymbolTable.new
         @rest_argument = false
-        @type_arguments = SymbolTable.new
+        @type_parameters = {}
         @throws = nil
         @returns = nil
-        @prototype = prototype
         @attributes = SymbolTable.new
       end
 
@@ -28,12 +29,20 @@ module Inkoc
         returns
       end
 
+      def define_type_parameter(name, param)
+        @type_parameters[name] = param
+      end
+
       def lookup_argument(name)
         @arguments[name]
       end
 
       def lookup_type(name)
-        super.or_else { @type_arguments[name] }
+        symbol = lookup_attribute(name)
+
+        return symbol.type if symbol.any?
+
+        type_parameters[name]
       end
     end
   end

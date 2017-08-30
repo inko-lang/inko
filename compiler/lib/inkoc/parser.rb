@@ -286,15 +286,15 @@ module Inkoc
     def type_name(token)
       node = constant(token)
 
-      node.type_arguments = optional_type_arguments
+      node.type_parameters = optional_type_parameters
       node.return_type = optional_return_type
 
       node
     end
 
     # Parses a type argument.
-    def def_type_argument(token)
-      node = AST::DefineTypeArgument.new(token.value, token.location)
+    def def_type_parameter(token)
+      node = AST::DefineTypeParameter.new(token.value, token.location)
 
       if @lexer.next_type_is?(:colon)
         skip_one
@@ -529,7 +529,7 @@ module Inkoc
     #     fn(arg: T) { body }
     #     fn(arg: T) -> T { body }
     def block(start)
-      targs = optional_type_argument_definitions
+      targs = optional_type_parameter_definitions
       args = optional_arguments
       ret_type = optional_return_type
       throw_type = optional_throw_type
@@ -645,7 +645,7 @@ module Inkoc
     def def_method(start)
       name_token = advance!
       name = message_name_for_token(name_token)
-      targs = optional_type_argument_definitions
+      targs = optional_type_parameter_definitions
       arguments = optional_arguments
       ret_type = optional_return_type
       throw_type = optional_throw_type
@@ -689,15 +689,15 @@ module Inkoc
 
       skip_one
 
-      type_name_or_nullable_type(advance!)
+      type_name_or_optional_type(advance!)
     end
 
     # Parses a list of type argument definitions.
-    def def_type_arguments
+    def def_type_parameters
       args = []
 
       while @lexer.peek.valid_but_not?(:paren_close)
-        args << def_type_argument(advance_and_expect!(:constant))
+        args << def_type_parameter(advance_and_expect!(:constant))
 
         break if comma_or_break_on(:paren_close)
       end
@@ -705,7 +705,7 @@ module Inkoc
       args
     end
 
-    def type_arguments
+    def type_parameters
       args = []
 
       while @lexer.peek.valid_but_not?(:paren_close)
@@ -726,19 +726,19 @@ module Inkoc
       end
     end
 
-    def optional_type_argument_definitions
+    def optional_type_parameter_definitions
       if @lexer.next_type_is?(:type_args_open)
         skip_one
-        def_type_arguments
+        def_type_parameters
       else
         []
       end
     end
 
-    def optional_type_arguments
+    def optional_type_parameters
       if @lexer.next_type_is?(:type_args_open)
         skip_one
-        type_arguments
+        type_parameters
       else
         []
       end
@@ -749,7 +749,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_nullable_type(advance!)
+      type_name_or_optional_type(advance!)
     end
 
     def optional_throw_type
@@ -812,7 +812,7 @@ module Inkoc
       return unless @lexer.next_type_is?(:colon)
 
       skip_one
-      type_name_or_nullable_type(advance!)
+      type_name_or_optional_type(advance!)
     end
 
     def variable_value
@@ -830,35 +830,56 @@ module Inkoc
     #     }
     def def_object(start)
       name = advance_and_expect!(:constant)
-      targs = optional_type_argument_definitions
-      implements = []
+      targs = optional_type_parameter_definitions
 
-      while @lexer.next_type_is?(:impl)
-        implements << implement_trait(@lexer.advance)
-      end
+      implements =
+        if @lexer.next_type_is?(:colon)
+          skip_one
+          trait_implementations
+        else
+          []
+        end
 
       body = block_body(advance_and_expect!(:curly_open))
 
       AST::Object.new(name.value, targs, implements, body, start.location)
     end
 
-    # Parses the implementation of a trait.
+    # Parses a list of trait implementations
     #
     # Examples:
     #
-    #     object Foo impl Bar { ... }
-    #     object Foo impl Bar(original as alias) { ... }
-    def implement_trait(start)
-      name = type_name(advance_and_expect!(:constant))
+    #     object Foo: Bar { ... }
+    #     object Foo: Bar(original as alias), Baz { ... }
+    def trait_implementations
+      impl = []
 
-      renames = if @lexer.next_type_is?(:paren_open)
-                  skip_one
-                  trait_renames
-                else
-                  []
-                end
+      loop do
+        start = advance_and_expect!(:constant)
+        name = type_name(start)
 
-      AST::Implement.new(name, renames, start.location)
+        renames = if @lexer.next_type_is?(:paren_open)
+                    skip_one
+                    trait_renames
+                  else
+                    []
+                  end
+
+        impl << AST::Implement.new(name, renames, start.location)
+
+        if @lexer.next_type_is?(:comma)
+          @lexer.advance
+        elsif @lexer.next_type_is?(:curly_open)
+          break
+        else
+          raise(
+            ParseError,
+            "Unexpected #{@lexer.peek.type}, expected a comma or {"
+          )
+        end
+      end
+
+      impl
     end
 
     # Parses a list of methods to rename in a trait implementation.
@@ -886,12 +907,22 @@ module Inkoc
     #
     #     trait Foo { ... }
     #     trait Foo!(T) { ... }
+    #     trait Numeric: Add, Subtract { ... }
     def def_trait(start)
       name = advance_and_expect!(:constant)
-      targs = optional_type_argument_definitions
+      targs = optional_type_parameter_definitions
+
+      implements =
+        if @lexer.next_type_is?(:colon)
+          skip_one
+          trait_implementations
+        else
+          []
+        end
+
       body = block_body(advance_and_expect!(:curly_open))
 
-      AST::Trait.new(name.value, targs, body, start.location)
+      AST::Trait.new(name.value, targs, implements, body, start.location)
     end
 
     # Parses a return statement.
@@ -1042,13 +1073,13 @@ module Inkoc
       name
     end
 
-    # Parses a single regular or nullable type.
+    # Parses a single regular or optional type.
     #
     # Examples:
     #
     #     fn foo -> Integer
     #     fn foo -> ?Integer
-    def type_name_or_nullable_type(start)
+    def type_name_or_optional_type(start)
       optional =
         if start.type == :question
           start = advance_and_expect!(:constant)

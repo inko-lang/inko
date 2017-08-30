@@ -7,6 +7,10 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
       include ImmutableType
+
+      def type_name
+        'Float'
+      end
     end
   end
 end

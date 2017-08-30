@@ -10,7 +10,11 @@ module Inkoc
       end
 
       def attributes
-        @prototype.attributes
+        prototype.attributes
+      end
+
+      def implemented_traits
+        prototype.implemented_traits
       end
     end
   end

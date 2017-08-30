@@ -50,11 +50,12 @@ config.add_source_directories(options[:include])
 
 config.create_directories
 
-compiler = Inkoc::Compiler.new(config)
+state = Inkoc::State.new(config)
+compiler = Inkoc::Compiler.new(state)
 
 ARGV.each { |path| compiler.compile(path) }
 
-if compiler.diagnostics?
-  compiler.display_diagnostics
+if state.diagnostics?
+  state.display_diagnostics
   exit(1)
 end

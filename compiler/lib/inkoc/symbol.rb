@@ -26,12 +26,22 @@ module Inkoc
     end
   end
 
-  class NullSymbol < Symbol
+  class NullSymbol
+    include Inspect
+
+    attr_reader :name, :type, :index
+
     def initialize(name)
-      super(name, Type::Dynamic.new, -1, false)
+      @name = name
+      @type = Type::Dynamic.new
+      @index = -1
     end
 
     def any?
+      false
+    end
+
+    def mutable?
       false
     end
 

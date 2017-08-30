@@ -10,7 +10,6 @@ module Inkoc
       'var' => :var,
       'object' => :object,
       'trait' => :trait,
-      'impl' => :impl,
       'import' => :import,
       'return' => :return,
       'self' => :self,

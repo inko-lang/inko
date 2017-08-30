@@ -15,7 +15,19 @@ module Inkoc
         false
       end
 
+      def generic_trait?
+        false
+      end
+
       def trait?
+        false
+      end
+
+      def dynamic?
+        false
+      end
+
+      def type_parameter?
         false
       end
 
@@ -24,11 +36,21 @@ module Inkoc
       end
 
       def lookup_attribute(name)
-        attributes[name]
+        source = self
+
+        while source
+          attr = attributes[name]
+
+          return attr if attr
+
+          source = source.prototype
+        end
+
+        nil
       end
 
       def lookup_type(name)
-        lookup_attribute(name)
+        lookup_attribute(name).type
       end
 
       def lookup_method(name)

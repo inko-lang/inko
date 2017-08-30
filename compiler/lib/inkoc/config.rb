@@ -22,6 +22,12 @@ module Inkoc
     # The constant used for defining traits.
     TRAIT_CONST = 'Trait'
 
+    # The constant used for creating arrays.
+    ARRAY_CONST = 'Array'
+
+    # The constant used for creating hash maps.
+    HASH_MAP_CONST = 'HashMap'
+
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '__INKOC'
 

@@ -9,7 +9,7 @@ module Inkoc
     end
 
     def lines
-      @lines ||= File.readlines(path)
+      @lines ||= File.file?(path) ? File.readlines(path) : []
     end
   end
 end
