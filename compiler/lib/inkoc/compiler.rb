@@ -6,8 +6,9 @@ module Inkoc
     BASE_PASSES = [
       Pass::PathToSource,
       Pass::SourceToAst,
-      Pass::InsertImplicitImports,
       Pass::AstToModule,
+      Pass::ConfigureModule,
+      Pass::InsertImplicitImports,
       Pass::CompileImportedModules,
       Pass::DefineTypes,
       Pass::ModuleBody

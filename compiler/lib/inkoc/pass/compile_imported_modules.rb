@@ -3,19 +3,23 @@
 module Inkoc
   module Pass
     class CompileImportedModules
+      include VisitorMethods
+
       def initialize(state)
         @state = state
       end
 
       def run(ast, mod)
-        ast.expressions.each do |expr|
-          process_import(expr) if expr.is_a?(AST::Import)
-        end
+        process_node(ast)
 
         [ast, mod]
       end
 
-      def process_import(node)
+      def on_body(node)
+        process_nodes(node.expressions)
+      end
+
+      def on_import(node)
         qname = node.qualified_name
         loc = node.location
 

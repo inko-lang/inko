@@ -22,7 +22,7 @@ module Inkoc
       @diagnostics = Diagnostics.new
       @modules = {}
       @typedb = Type::Database.new
-      @module_paths_cache = {}
+      @module_paths_cache = ModulePathsCache.new(config)
     end
 
     def module_exists?(name)
@@ -49,17 +49,7 @@ module Inkoc
     end
 
     def find_module_path(path)
-      if (cached = @module_paths_cache[path])
-        return cached
-      end
-
-      @config.source_directories.each do |dir|
-        full_path = File.join(dir, path)
-
-        return @module_paths_cache[path] = full_path if File.file?(full_path)
-      end
-
-      nil
+      @module_paths_cache.absolute_path_for(path)
     end
   end
 end

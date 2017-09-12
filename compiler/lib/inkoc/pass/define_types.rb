@@ -5,6 +5,7 @@ module Inkoc
     class DefineTypes
       include TypeLookup
       include DefineTypeParameters
+      include VisitorMethods
 
       def initialize(state)
         @state = state
@@ -23,12 +24,6 @@ module Inkoc
         process_node(ast, mod.type, mod)
 
         [ast, mod]
-      end
-
-      def process_node(node, type, mod)
-        callback = node.visitor_method
-
-        public_send(callback, node, type, mod) if respond_to?(callback)
       end
 
       def on_body(node, self_type, mod)

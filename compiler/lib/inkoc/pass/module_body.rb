@@ -4,6 +4,7 @@ module Inkoc
   module Pass
     class ModuleBody
       include TypeVerification
+      include VisitorMethods
 
       def initialize(state)
         @state = state
@@ -13,16 +14,6 @@ module Inkoc
         on_module_body(ast, mod.body, mod)
 
         [mod]
-      end
-
-      def process_node(node, body, mod)
-        callback = node.visitor_method
-
-        public_send(callback, node, body, mod)
-      end
-
-      def process_nodes(nodes, body, mod)
-        nodes.map { |node| process_node(node, body, mod) }
       end
 
       def on_module_body(node, body, mod)

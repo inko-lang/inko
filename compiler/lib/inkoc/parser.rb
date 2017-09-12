@@ -152,6 +152,8 @@ module Inkoc
         def_object(start)
       when :trait
         def_trait(start)
+      when :compiler_option_open
+        compiler_option(start)
       else
         expression(start)
       end
@@ -171,7 +173,7 @@ module Inkoc
 
       loop do
         case step.type
-        when :identifier
+        when :identifier, :object, :trait
           steps << identifier_from_token(step)
         when :constant
           symbols << AST::ImportSymbol.new(step.value, nil, step.location)
@@ -1163,6 +1165,24 @@ module Inkoc
       type.optional = optional
 
       type
+    end
+
+    # Parses a compiler option
+    #
+    # Example:
+    #
+    #     ![key: value]
+    def compiler_option(start)
+      key = advance_and_expect!(:identifier).value
+
+      advance_and_expect!(:colon)
+
+      val = advance_and_expect!(:identifier).value
+      opt = AST::CompilerOption.new(key, val, start.location)
+
+      advance_and_expect!(:bracket_close)
+
+      opt
     end
 
     def constant_from_token(token, receiver = nil)

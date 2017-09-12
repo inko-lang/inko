@@ -7,14 +7,20 @@ module Inkoc
         @state = state
       end
 
-      def run(ast)
+      def run(ast, mod)
+        prepend_imports(ast, mod)
+
+        [ast, mod]
+      end
+
+      def prepend_imports(ast, mod)
         location = ast.location
-        bootstrap = import_bootstrap(location)
-        prelude = import_prelude(location)
+        prepend = []
 
-        ast.prepend_nodes([bootstrap, prelude])
+        prepend << import_bootstrap(location) if mod.import_bootstrap?
+        prepend << import_prelude(location) if mod.import_prelude?
 
-        [ast]
+        ast.prepend_nodes(prepend)
       end
 
       # Generates an import statement equivalent to the following:

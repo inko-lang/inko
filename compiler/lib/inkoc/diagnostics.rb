@@ -119,5 +119,9 @@ module Inkoc
         location
       )
     end
+
+    def invalid_compiler_option(key, location)
+      error("#{key} is not a valid compiler option", location)
+    end
   end
 end

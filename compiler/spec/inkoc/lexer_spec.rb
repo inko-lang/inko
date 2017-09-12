@@ -600,6 +600,14 @@ describe Inkoc::Lexer do
       expect(token.type).to eq(:throws)
       expect(token.value).to eq('!!')
     end
+
+    it 'tokenizes the compiler option open token' do
+      lexer = described_class.new('![')
+      token = lexer.not_equal_or_type_args_open_or_throws
+
+      expect(token.type).to eq(:compiler_option_open)
+      expect(token.value).to eq('![')
+    end
   end
 
   describe '#dot_or_range' do
