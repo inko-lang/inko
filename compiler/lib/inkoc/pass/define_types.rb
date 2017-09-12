@@ -26,7 +26,7 @@ module Inkoc
       end
 
       def process_node(node, type, mod)
-        callback = node.tir_process_node_method
+        callback = node.visitor_method
 
         public_send(callback, node, type, mod) if respond_to?(callback)
       end
@@ -38,7 +38,7 @@ module Inkoc
       end
 
       def on_object(node, self_type, mod)
-        proto = type_of_global(Config::OBJECT_CONST, node.location, mod)
+        proto = type_of_global(Config::OBJECT_BUILTIN, node.location, mod)
         name = node.name
         type = Type::Object.new(name, proto)
 
@@ -51,7 +51,7 @@ module Inkoc
       end
 
       def on_trait(node, self_type, mod)
-        proto = type_of_global(Config::TRAIT_CONST, node.location, mod)
+        proto = type_of_global(Config::TRAIT_BUILTIN, node.location, mod)
         name = node.name
         type = Type::Trait.new(name, proto)
 
@@ -83,7 +83,7 @@ module Inkoc
       end
 
       def on_define_variable(node, self_type, mod)
-        callback = node.variable.tir_define_variable_method
+        callback = node.variable.define_variable_visitor_method
 
         public_send(callback, node, self_type, mod) if respond_to?(callback)
       end
@@ -95,7 +95,7 @@ module Inkoc
         store_type(vtype, self_type, mod, name)
       end
 
-      alias_method :on_define_attribute, :on_define_constant
+      alias on_define_attribute on_define_constant
 
       def define_arguments(arguments, block_type, self_type, mod)
         block_type.arguments.define(Config::SELF_LOCAL, self_type)

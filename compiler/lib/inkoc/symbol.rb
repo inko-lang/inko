@@ -6,7 +6,7 @@ module Inkoc
 
     attr_reader :name, :type, :index
 
-    def initialize(name, type, index, mutable)
+    def initialize(name, type, index = -1, mutable = false)
       @name = name
       @type = type
       @index = index

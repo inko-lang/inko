@@ -37,6 +37,20 @@ module Inkoc
         @arguments[name]
       end
 
+      def initialized_return_type(passed_types)
+        instance = return_type.new_instance
+
+        arguments.each_with_index do |arg, index|
+          next unless arg.type.type_parameter?
+
+          if (concrete_type = passed_types[index])
+            instance.init_type_parameter(arg.type.name, concrete_type)
+          end
+        end
+
+        instance
+      end
+
       def lookup_type(name)
         symbol = lookup_attribute(name)
 

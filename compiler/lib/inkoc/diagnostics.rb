@@ -66,8 +66,14 @@ module Inkoc
       error("The attribute #{name} is undefined", location)
     end
 
-    def undefined_method_error(name, location)
-      error("The method #{name} is undefined", location)
+    def undefined_method_error(receiver, name, location)
+      tname = receiver.type_name.inspect
+      msg = name.inspect
+
+      error(
+        "The type #{tname} does not respond to the message #{msg}",
+        location
+      )
     end
 
     def undefined_constant_error(name, location)

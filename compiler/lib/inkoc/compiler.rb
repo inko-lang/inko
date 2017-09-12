@@ -6,9 +6,11 @@ module Inkoc
     BASE_PASSES = [
       Pass::PathToSource,
       Pass::SourceToAst,
+      Pass::InsertImplicitImports,
       Pass::AstToModule,
       Pass::CompileImportedModules,
-      Pass::DefineTypes
+      Pass::DefineTypes,
+      Pass::ModuleBody
     ].freeze
 
     def initialize(state)

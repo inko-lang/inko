@@ -311,7 +311,7 @@ module Inkoc
       token_type = :mod
 
       case @input[@position += 1]
-      when '{'
+      when '['
         token_type = :hash_open
         @position += 1
       when '='

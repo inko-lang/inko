@@ -7,8 +7,8 @@ module Inkoc
         type_parameters[name] = param
       end
 
-      def init_type_parameter(name, concrete_type)
-        type_parameter_instances[name] = concrete_type
+      def init_type_parameter(name, type)
+        type_parameter_instances[name] = type
       end
 
       def type_parameter_names

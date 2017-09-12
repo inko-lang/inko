@@ -16,7 +16,7 @@ module Inkoc
         @location = location
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_implement
       end
     end

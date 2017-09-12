@@ -3,6 +3,7 @@
 module Inkoc
   class SymbolTable
     include Inspect
+    include Enumerable
 
     def initialize
       @map = {}

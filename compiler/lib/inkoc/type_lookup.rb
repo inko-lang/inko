@@ -13,7 +13,7 @@ module Inkoc
       sources.each do |source|
         type = source.lookup_type(name)
 
-        return initialize_type(type, node, sources) if type
+        return type if type
       end
 
       diagnostics.undefined_constant_error(node.name, node.location)
@@ -39,7 +39,7 @@ module Inkoc
       node.type_parameters.each_with_index do |arg, index|
         arg_type = type_for_constant(arg, sources)
 
-        instance.init_type_parameter(param_names[index], arg_type)
+        instance.init_type_parameter_by_name(param_names[index], arg_type)
       end
 
       instance

@@ -14,12 +14,16 @@ module Inkoc
         @location = location
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_body
       end
 
       def last_expression
         @expressions.last
+      end
+
+      def prepend_nodes(nodes)
+        @expressions = nodes + @expressions
       end
     end
   end

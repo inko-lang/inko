@@ -36,8 +36,109 @@ module Inkoc
         @registers.allocate(type)
       end
 
+      def register_dynamic
+        register(Type::Dynamic.new)
+      end
+
       def instruct(*args)
         current_block.instruct(*args)
+      end
+
+      def set_string(value, type, location)
+        set_literal(:SetString, value, type, location)
+      end
+
+      def set_literal(instruction, value, type, location)
+        reg = register(type)
+
+        instruct(instruction, reg, value, location)
+
+        reg
+      end
+
+      def set_integer(value, type, location)
+        set_literal(:SetInteger, value, type, location)
+      end
+
+      def set_float(value, type, location)
+        set_literal(:SetFloat, value, type, location)
+      end
+
+      def set_array(values, type, location)
+        reg = register(type)
+
+        instruct(:SetArray, reg, values, location)
+
+        reg
+      end
+
+      def set_hash_map(keys, values, type, location)
+        set_literal(:SetHashMap, keys.zip(values), type, location)
+      end
+
+      def get_toplevel(type, location)
+        reg = register(type)
+
+        instruct(:GetToplevel, reg, location)
+
+        reg
+      end
+
+      def set_local(symbol, value, location)
+        instruct(:SetLocal, symbol, value, location)
+
+        value
+      end
+
+      def get_local(symbol, location)
+        reg = register(symbol.type)
+
+        instruct(:GetLocal, reg, symbol, location)
+
+        reg
+      end
+
+      def get_global(symbol, location)
+        reg = register(symbol.type)
+
+        instruct(:GetGlobal, reg, symbol, location)
+
+        reg
+      end
+
+      def self_local
+        locals[Config::SELF_LOCAL]
+      end
+
+      def self_type
+        self_local.type
+      end
+
+      def send_object_message(register, receiver, name, arguments, location)
+        instruct(
+          :SendObjectMessage,
+          register,
+          receiver,
+          name,
+          arguments,
+          location
+        )
+
+        register
+      end
+
+      def return_value(value, location)
+        instruct(:Return, value, location)
+
+        value
+      end
+
+      def get_nil(type, location)
+        reg = register(type)
+
+        instruct(:GetNil, reg, location)
+
+        reg
       end
 
       def add_code_object(*args)

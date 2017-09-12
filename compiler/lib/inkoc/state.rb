@@ -29,6 +29,10 @@ module Inkoc
       @modules.key?(name)
     end
 
+    def module(name)
+      @modules[name]
+    end
+
     def store_module(mod)
       @modules[mod.name.to_s] = mod
     end

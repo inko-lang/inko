@@ -99,7 +99,7 @@ module Inkoc
       end
 
       def process_node(node, body, mod)
-        public_send(node.tir_process_node_method, node, body, mod)
+        public_send(node.visitor_method, node, body, mod)
       end
 
       def on_body(node, body, mod)
@@ -200,7 +200,7 @@ module Inkoc
 
       def on_define_variable(node, body, mod)
         value = process_node(node.value, body, mod)
-        method = node.variable.tir_define_variable_method
+        method = node.variable.define_variable_visitor_method
 
         if node.value_type
           # TODO: ensure the tagged and value types match
@@ -260,7 +260,7 @@ module Inkoc
       end
 
       def on_reassign_variable(node, body, mod)
-        method = node.variable.tir_reassign_variable_method
+        method = node.variable.reassign_variable_visitor_method
 
         public_send(method, node, body, mod)
       end

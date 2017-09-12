@@ -176,6 +176,9 @@ module Inkoc
         when :constant
           symbols << AST::ImportSymbol.new(step.value, nil, step.location)
           break
+        when :mul
+          symbols << AST::GlobImport.new(step.location)
+          break
         else
           raise ParseError, "#{step.type} is not valid in import statements"
         end
@@ -200,13 +203,14 @@ module Inkoc
       symbols = []
 
       loop do
-        start = advance_and_expect!(:constant)
-        symbol = start.value
+        start = advance!
+        symbol = import_symbol_from_token(start)
 
-        alias_name = if @lexer.next_type_is?(:as)
-                       skip_one
-                       advance_and_expect!(:constant).value
-                     end
+        alias_name =
+          if @lexer.next_type_is?(:as)
+            skip_one
+            import_alias_from_token(advance!)
+          end
 
         symbols << AST::ImportSymbol.new(symbol, alias_name, start.location)
 
@@ -214,6 +218,32 @@ module Inkoc
       end
 
       symbols
+    end
+
+    def import_symbol_from_token(start)
+      case start.type
+      when :identifier, :constant
+        identifier_from_token(start)
+      when :self
+        self_object(start)
+      else
+        raise(
+          ParseError,
+          "#{start.type.inspect} is not a valid import symbol"
+        )
+      end
+    end
+
+    def import_alias_from_token(start)
+      case start.type
+      when :identifier, :constant
+        identifier_from_token(start)
+      else
+        raise(
+          ParseError,
+          "#{start.type.inspect} is not a valid symbol alias"
+        )
+      end
     end
 
     def expression(start)
@@ -450,6 +480,7 @@ module Inkoc
       when :self then self_object(start)
       when :throw then throw_value(start)
       when :try then try(start)
+      when :colon_colon then global(start)
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -512,6 +543,17 @@ module Inkoc
       end
 
       node
+    end
+
+    # Parses a reference to a module global.
+    #
+    # Example:
+    #
+    #     ::Foo
+    def global(start)
+      name = advance_and_expect!(:constant)
+
+      AST::Global.new(name.value, start.location)
     end
 
     # Parses a block without arguments.
@@ -588,7 +630,7 @@ module Inkoc
         break if comma_or_break_on(:bracket_close)
       end
 
-      AST::Array.new(values, start.location)
+      new_array(values, start)
     end
 
     # Parses a hash map literal
@@ -597,21 +639,28 @@ module Inkoc
     #
     #     %{ 'key': 'value' }
     def hash(start)
-      pairs = []
+      keys = []
+      vals = []
 
-      while (key_tok = @lexer.advance) && key_tok.valid_but_not?(:curly_close)
+      while (key_tok = @lexer.advance) && key_tok.valid_but_not?(:bracket_close)
         key = expression(key_tok)
 
         advance_and_expect!(:colon)
 
         value = expression(advance!)
 
-        pairs << [key, value]
+        keys << key
+        vals << value
 
-        break if comma_or_break_on(:curly_close)
+        break if comma_or_break_on(:bracket_close)
       end
 
-      AST::HashMap.new(pairs, start.location)
+      location = start.location
+      receiver = AST::Global.new(Config::HASH_MAP_BUILTIN, location)
+      keys_array = new_array(keys, start)
+      vals_array = new_array(vals, start)
+
+      AST::Send.new('from_array', receiver, [keys_array, vals_array], location)
     end
 
     # Parses a method or an anonymous block.
@@ -854,14 +903,14 @@ module Inkoc
 
       while (token = @lexer.advance) && token.valid_but_not?(:curly_close)
         nodes <<
-        case token.type
-        when :object
-          def_object(token)
-        when :trait
-          def_trait(token)
-        else
-          expression(token)
-        end
+          case token.type
+          when :object
+            def_object(token)
+          when :trait
+            def_trait(token)
+          else
+            expression(token)
+          end
       end
 
       AST::Body.new(nodes, start.location)
@@ -1199,6 +1248,12 @@ module Inkoc
           "Unexpected #{token.type}, expected a comma or #{break_on}"
         )
       end
+    end
+
+    def new_array(values, start)
+      receiver = AST::Global.new(Config::ARRAY_BUILTIN, start.location)
+
+      AST::Send.new('new', receiver, values, start.location)
     end
   end
 end

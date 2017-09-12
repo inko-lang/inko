@@ -25,11 +25,11 @@ module Inkoc
         @optional
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_constant
       end
 
-      def tir_define_variable_method
+      def define_variable_visitor_method
         :on_define_constant
       end
     end

@@ -14,15 +14,15 @@ module Inkoc
         @location = location
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_attribute
       end
 
-      def tir_define_variable_method
+      def define_variable_visitor_method
         :on_define_attribute
       end
 
-      def tir_reassign_variable_method
+      def reassign_variable_visitor_method
         :on_reassign_attribute
       end
     end

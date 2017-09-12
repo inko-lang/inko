@@ -28,7 +28,7 @@ module Inkoc
         @body.nil?
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_method
       end
     end

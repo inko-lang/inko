@@ -13,20 +13,19 @@ module Inkoc
     # The file extension of source files.
     SOURCE_EXT = '.inko'
 
-    # The name of the bootstrap module.
-    BOOTSTRAP_FILE = 'bootstrap'
+    # The name of the root module for the standard library.
+    STD_MODULE = 'std'
 
-    # The constant used for defining named objects.
-    OBJECT_CONST = 'Object'
+    # The path to the bootstrap module.
+    BOOTSTRAP_MODULE = 'bootstrap'
 
-    # The constant used for defining traits.
-    TRAIT_CONST = 'Trait'
+    # The path to the prelude module.
+    PRELUDE_MODULE = 'prelude'
 
-    # The constant used for creating arrays.
-    ARRAY_CONST = 'Array'
-
-    # The constant used for creating hash maps.
-    HASH_MAP_CONST = 'HashMap'
+    OBJECT_BUILTIN = '_Object'
+    TRAIT_BUILTIN = '_Trait'
+    ARRAY_BUILTIN = '_Array'
+    HASH_MAP_BUILTIN = '_HashMap'
 
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '__INKOC'
@@ -39,19 +38,6 @@ module Inkoc
     SYMBOL_MESSAGE = 'symbol'
     DEFINE_MODULE_MESSAGE = 'define_module'
     MODULE_SEPARATOR = '::'
-
-    DEFAULT_GLOBALS = {
-      'core::string::String' => 'String',
-      'core::array::Array' => 'Array',
-      'core::integer::Integer' => 'Integer',
-      'core::float::Float' => 'Float',
-      'core::object::Object' => 'Object',
-      'core::class::Class' => 'Class',
-      'core::trait::Trait' => 'Trait',
-      'core::nil::Nil' => 'Nil',
-      'core::boolean::True' => 'True',
-      'core::boolean::False' => 'False'
-    }.freeze
 
     attr_reader :source_directories, :mode, :target
 

@@ -28,6 +28,10 @@ module Inkoc
         true
       end
 
+      def lookup_attribute(name)
+        super.or_else { Symbol.new(name, Type::Dynamic.new) }
+      end
+
       # Dynamic types are compatible with everything else.
       def type_compatible?(*)
         true

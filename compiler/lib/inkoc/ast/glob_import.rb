@@ -2,18 +2,13 @@
 
 module Inkoc
   module AST
-    class Self
+    class GlobImport
       include Inspect
 
       attr_reader :location
 
-      # @location = location
       def initialize(location)
         @location = location
-      end
-
-      def visitor_method
-        :on_self
       end
     end
   end

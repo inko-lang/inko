@@ -24,7 +24,7 @@ module Inkoc
         @rest
       end
 
-      def tir_process_node_method
+      def visitor_method
         :on_define_argument
       end
     end
