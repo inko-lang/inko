@@ -1172,13 +1172,13 @@ module Inkoc
     # Example:
     #
     #     ![key: value]
-    def compiler_option(start)
-      key = advance_and_expect!(:identifier).value
+    def compiler_option
+      key = advance_and_expect!(:identifier)
 
       advance_and_expect!(:colon)
 
       val = advance_and_expect!(:identifier).value
-      opt = AST::CompilerOption.new(key, val, start.location)
+      opt = AST::CompilerOption.new(key.value, val, key.location)
 
       advance_and_expect!(:bracket_close)
 
