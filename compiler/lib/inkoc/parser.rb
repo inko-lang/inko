@@ -153,7 +153,7 @@ module Inkoc
       when :trait
         def_trait(start)
       when :compiler_option_open
-        compiler_option(start)
+        compiler_option
       else
         expression(start)
       end
