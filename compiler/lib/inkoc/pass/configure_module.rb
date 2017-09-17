@@ -5,25 +5,26 @@ module Inkoc
     class ConfigureModule
       include VisitorMethods
 
-      def initialize(state)
+      def initialize(mod, state)
+        @module = mod
         @state = state
       end
 
-      def run(ast, mod)
-        process_node(ast, mod)
+      def run(ast)
+        process_node(ast)
 
-        [ast, mod]
+        [ast]
       end
 
-      def on_body(node, mod)
-        process_nodes(node.expressions, mod)
+      def on_body(node)
+        process_nodes(node.expressions)
       end
 
-      def on_compiler_option(node, mod)
+      def on_compiler_option(node)
         key = node.key
 
-        if mod.config.valid_key?(key)
-          mod.config[key] = node.value
+        if @module.config.valid_key?(key)
+          @module.config[key] = node.value
         else
           diagnostics.invalid_compiler_option(key, node.location)
         end

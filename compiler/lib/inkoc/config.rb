@@ -28,7 +28,7 @@ module Inkoc
     HASH_MAP_BUILTIN = '_HashMap'
 
     # The name of the constant to use as the receiver for raw instructions.
-    RAW_INSTRUCTION_RECEIVER = '__INKOC'
+    RAW_INSTRUCTION_RECEIVER = '_INKOC'
 
     NEW_MESSAGE = 'new'
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
@@ -42,13 +42,14 @@ module Inkoc
     attr_reader :source_directories, :mode, :target
 
     def initialize
-      @source_directories = []
+      @source_directories = Set.new
       @mode = :debug
-      @target = File.join(SXDG::XDG_CACHE_HOME, PROGRAM_NAME, BYTECODE_DIR)
+      @target = Pathname
+        .new(File.join(SXDG::XDG_CACHE_HOME, PROGRAM_NAME, BYTECODE_DIR))
     end
 
     def target=(path)
-      @target = File.expand_path(path)
+      @target = Pathname.new(path).expand_path
     end
 
     def release_mode?
@@ -60,11 +61,13 @@ module Inkoc
     end
 
     def add_source_directories(directories)
-      @source_directories |= directories
+      directories.each do |dir|
+        @source_directories << Pathname.new(File.expand_path(dir))
+      end
     end
 
     def create_directories
-      FileUtils.mkdir_p(@target)
+      @target.mkpath
     end
   end
 end

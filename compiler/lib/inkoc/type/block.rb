@@ -8,7 +8,8 @@ module Inkoc
       include TypeCompatibility
 
       attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
-      attr_accessor :rest_argument, :throws, :returns
+
+      attr_accessor :rest_argument, :throws, :returns, :required_arguments_count
 
       def initialize(prototype, name: nil)
         @name = name
@@ -19,6 +20,35 @@ module Inkoc
         @throws = nil
         @returns = nil
         @attributes = SymbolTable.new
+        @required_arguments_count = 0
+      end
+
+      def arguments_count
+        @arguments.length
+      end
+
+      def arguments_count_without_self
+        @arguments.length - 1
+      end
+
+      def define_self_argument(type)
+        define_required_argument(Config::SELF_LOCAL, type)
+      end
+
+      def define_required_argument(name, type)
+        @required_arguments_count += 1
+
+        arguments.define(name, type)
+      end
+
+      def define_argument(name, type)
+        arguments.define(name, type)
+      end
+
+      def define_rest_argument(name, type)
+        @rest_argument = true
+
+        define_argument(name, type)
       end
 
       def block?

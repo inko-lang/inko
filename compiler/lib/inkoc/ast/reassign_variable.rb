@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class ReassignVariable
+      include Predicates
       include Inspect
 
       attr_reader :variable, :value, :location

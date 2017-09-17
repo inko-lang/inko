@@ -3,16 +3,14 @@
 module Inkoc
   class TypeInference
     include TypeVerification
+    include VisitorMethods
 
-    def initialize(state)
+    def initialize(mod, state)
+      @module = mod
       @state = state
     end
 
-    def infer(node, self_type, mod)
-      callback = node.visitor_method
-
-      public_send(callback, node, self_type, mod)
-    end
+    alias infer process_node
 
     def on_integer(*)
       typedb.integer_type
@@ -26,7 +24,7 @@ module Inkoc
       typedb.string_type
     end
 
-    def on_attribute(node, self_type, *)
+    def on_attribute(node, self_type)
       name = node.name
       symbol = self_type.lookup_attribute(name)
 
@@ -35,17 +33,17 @@ module Inkoc
       symbol.type
     end
 
-    def on_constant(node, self_type, mod)
+    def on_constant(node, self_type)
       name = node.name
       symbol = self_type.lookup_attribute(name)
-        .or_else { mod.lookup_attribute(name) }
+        .or_else { @module.lookup_attribute(name) }
 
       diagnostics.undefined_attribute_error(name, node.location) if symbol.nil?
 
       symbol.type
     end
 
-    def on_identifier(node, self_type, *)
+    def on_identifier(node, self_type)
       name = node.name
 
       symbol =
@@ -63,10 +61,10 @@ module Inkoc
       symbol.type.return_type
     end
 
-    def on_send(node, self_type, mod)
+    def on_send(node, self_type)
       name = node.name
       rec_type =
-        node.receiver ? infer(node.receiver, self_type, mod) : self_type
+        node.receiver ? infer(node.receiver, self_type) : self_type
 
       symbol = rec_type.lookup_method(node.name)
 
@@ -76,40 +74,40 @@ module Inkoc
         return symbol.type
       end
 
-      arg_types = node.arguments.map { |arg| infer(arg, self_type, mod) }
+      arg_types = node.arguments.map { |arg| infer(arg, self_type) }
 
       symbol.type.initialized_return_type(arg_types)
     end
 
-    def on_global(node, _, mod)
+    def on_global(node, *)
       name = node.name
-      symbol = mod.globals[name]
+      symbol = @module.globals[name]
 
       diagnostics.undefined_constant_error(name, node.location) if symbol.nil?
 
       symbol.type
     end
 
-    def on_self(_, self_type, _)
+    def on_self(_, self_type)
       self_type
     end
 
-    def on_define_variable(node, self_type, mod)
-      infer(node.value, self_type, mod)
+    def on_define_variable(node, self_type)
+      infer(node.value, self_type)
     end
 
-    def on_return(node, self_type, mod)
-      node.value ? infer(node.value, self_type, mod) : typedb.nil_type
+    def on_return(node, self_type)
+      node.value ? infer(node.value, self_type) : typedb.nil_type
     end
 
-    def on_throw(node, self_type, mod)
-      infer(node.value, self_type, mod)
+    def on_throw(node, self_type)
+      infer(node.value, self_type)
     end
 
-    def on_try(node, self_type, mod)
+    def on_try(node, self_type)
       expression = node.expression.last_expression
 
-      infer(expression, self_type, mod)
+      infer(expression, self_type)
     end
 
     def typedb

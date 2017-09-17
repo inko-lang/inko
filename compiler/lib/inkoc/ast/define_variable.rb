@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class DefineVariable
+      include Predicates
       include Inspect
 
       attr_reader :variable, :value, :value_type, :location

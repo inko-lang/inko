@@ -5,14 +5,15 @@ module Inkoc
     class CompileImportedModules
       include VisitorMethods
 
-      def initialize(state)
+      def initialize(mod, state)
+        @module = mod
         @state = state
       end
 
-      def run(ast, mod)
+      def run(ast)
         process_node(ast)
 
-        [ast, mod]
+        [ast]
       end
 
       def on_body(node)
@@ -30,7 +31,7 @@ module Inkoc
         rel_path = qname.source_path_with_extension
 
         if (full_path = @state.find_module_path(rel_path))
-          Compiler.new(@state).compile(full_path)
+          Compiler.new(@state).compile(qname, full_path)
         else
           @state.diagnostics.module_not_found_error(qname.to_s, location)
         end

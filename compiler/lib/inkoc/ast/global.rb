@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Global
+      include Predicates
       include Inspect
 
       attr_reader :name, :location, :receiver

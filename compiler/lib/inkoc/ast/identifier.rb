@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Identifier
+      include Predicates
       include Inspect
 
       attr_reader :name, :location
@@ -12,6 +13,10 @@ module Inkoc
       def initialize(name, location)
         @name = name
         @location = location
+      end
+
+      def identifier?
+        true
       end
 
       def visitor_method

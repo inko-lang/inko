@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Try
+      include Predicates
       include Inspect
 
       attr_reader :expression, :else_argument, :else_body, :location

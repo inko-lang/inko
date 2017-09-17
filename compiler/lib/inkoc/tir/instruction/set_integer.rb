@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class SetInteger
+        include Predicates
         include Inspect
 
         attr_reader :register, :value, :location

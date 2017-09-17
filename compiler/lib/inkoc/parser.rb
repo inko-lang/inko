@@ -113,7 +113,7 @@ module Inkoc
       ]
     ).freeze
 
-    def initialize(input, file_path = nil)
+    def initialize(input, file_path = Pathname.new('(eval)'))
       @lexer = Lexer.new(input, file_path)
     end
 

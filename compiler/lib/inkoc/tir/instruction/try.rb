@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class Try
+        include Predicates
         include Inspect
 
         attr_reader :register, :try_body, :else_body, :else_arg, :location

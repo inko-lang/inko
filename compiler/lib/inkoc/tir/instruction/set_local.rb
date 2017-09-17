@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class SetLocal
+        include Predicates
         include Inspect
 
         attr_reader :variable, :value, :location

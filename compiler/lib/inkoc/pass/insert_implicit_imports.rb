@@ -3,22 +3,23 @@
 module Inkoc
   module Pass
     class InsertImplicitImports
-      def initialize(state)
+      def initialize(mod, state)
+        @module = mod
         @state = state
       end
 
-      def run(ast, mod)
-        prepend_imports(ast, mod)
+      def run(ast)
+        prepend_imports(ast)
 
-        [ast, mod]
+        [ast]
       end
 
-      def prepend_imports(ast, mod)
+      def prepend_imports(ast)
         location = ast.location
         prepend = []
 
-        prepend << import_bootstrap(location) if mod.import_bootstrap?
-        prepend << import_prelude(location) if mod.import_prelude?
+        prepend << import_bootstrap(location) if @module.import_bootstrap?
+        prepend << import_prelude(location) if @module.import_prelude?
 
         ast.prepend_nodes(prepend)
       end

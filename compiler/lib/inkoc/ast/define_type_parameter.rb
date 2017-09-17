@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class DefineTypeParameter
+      include Predicates
       include Inspect
 
       attr_reader :name, :required_traits, :location

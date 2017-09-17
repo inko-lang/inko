@@ -5,10 +5,12 @@ module Inkoc
     class CodeObject
       include Inspect
 
-      attr_reader :name, :locals, :registers, :location, :blocks, :code_objects
+      attr_reader :name, :type, :locals, :registers, :location, :blocks,
+                  :code_objects
 
-      def initialize(name, location)
+      def initialize(name, type, location)
         @name = name
+        @type = type
         @locals = SymbolTable.new
         @registers = VirtualRegisters.new
         @location = location
@@ -28,8 +30,12 @@ module Inkoc
         block == start_block || block.callers.any?
       end
 
+      def define_immutable_local(name, type)
+        @locals.define(name, type, false)
+      end
+
       def define_self_local(type)
-        @locals.define(Config::SELF_LOCAL, type, false)
+        define_immutable_local(Config::SELF_LOCAL, type)
       end
 
       def register(type)
@@ -76,18 +82,24 @@ module Inkoc
         set_literal(:SetHashMap, keys.zip(values), type, location)
       end
 
-      def get_toplevel(type, location)
-        reg = register(type)
-
-        instruct(:GetToplevel, reg, location)
-
-        reg
-      end
-
       def set_local(symbol, value, location)
         instruct(:SetLocal, symbol, value, location)
 
         value
+      end
+
+      def local_exists(bool_type, local, location)
+        reg = register(bool_type)
+
+        instruct(:LocalExists, reg, local, location)
+
+        reg
+      end
+
+      def goto_next_block_if_true(register, location)
+        instruct(:GotoNextBlockIfTrue, register, location)
+
+        register
       end
 
       def get_local(symbol, location)
@@ -133,10 +145,26 @@ module Inkoc
         value
       end
 
+      def get_toplevel(type, location)
+        reg = register(type)
+
+        instruct(:GetToplevel, reg, location)
+
+        reg
+      end
+
       def get_nil(type, location)
         reg = register(type)
 
         instruct(:GetNil, reg, location)
+
+        reg
+      end
+
+      def set_block(block, type, location)
+        reg = register(type)
+
+        instruct(:SetBlock, reg, block, location)
 
         reg
       end

@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class GetStringPrototype
+        include Predicates
         include Inspect
 
         attr_reader :register, :location

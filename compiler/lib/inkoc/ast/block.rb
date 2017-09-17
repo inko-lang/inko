@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Block
+      include Predicates
       include Inspect
 
       attr_reader :arguments, :body, :throws, :returns, :location,

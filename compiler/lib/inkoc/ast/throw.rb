@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Throw
+      include Predicates
       include Inspect
 
       attr_reader :value, :location

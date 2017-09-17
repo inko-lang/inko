@@ -13,9 +13,9 @@ module Inkoc
       end
 
       @config.source_directories.each do |dir|
-        full_path = File.expand_path(File.join(dir, path))
+        full_path = dir.join(path).expand_path
 
-        return @cache[path] = full_path if File.file?(full_path)
+        return @cache[path] = full_path if full_path.file?
       end
 
       nil

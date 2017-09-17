@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Object
+      include Predicates
       include Inspect
 
       attr_reader :name, :type_parameters, :trait_implementations, :body,

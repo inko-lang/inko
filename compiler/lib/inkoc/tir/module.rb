@@ -9,10 +9,10 @@ module Inkoc
 
       def initialize(name, location)
         @name = name
-        @location = location
-        @body = CodeObject.new(name, location)
-        @globals = SymbolTable.new
         @type = Type::Object.new(name.to_s)
+        @location = location
+        @body = CodeObject.new(name, @type, location)
+        @globals = SymbolTable.new
         @config = ModuleConfig.new
       end
 
@@ -30,6 +30,14 @@ module Inkoc
 
       def import_prelude?
         @config.import_prelude?
+      end
+
+      def source_code
+        @location.file.path.read
+      end
+
+      def file_path_as_string
+        @location.file.path.to_s
       end
     end
   end

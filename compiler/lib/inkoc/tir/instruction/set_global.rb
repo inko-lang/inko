@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class SetGlobal
+        include Predicates
         include Inspect
 
         attr_reader :register, :variable, :value, :location

@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Constant
+      include Predicates
       include Inspect
 
       attr_reader :name, :location, :receiver
@@ -19,6 +20,10 @@ module Inkoc
         @type_parameters = []
         @required_traits = []
         @optional = false
+      end
+
+      def constant?
+        true
       end
 
       def optional?

@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Send
+      include Predicates
       include Inspect
 
       attr_reader :name, :receiver, :arguments, :location

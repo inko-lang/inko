@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Attribute
+      include Predicates
       include Inspect
 
       attr_reader :name, :location

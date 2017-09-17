@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class KeywordArgument
+      include Predicates
       include Inspect
 
       attr_reader :name, :value, :location

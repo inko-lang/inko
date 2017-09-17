@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Method
+      include Predicates
       include Inspect
 
       attr_reader :name, :arguments, :type_parameters, :returns, :throws,

@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class DefineArgument
+      include Predicates
       include Inspect
 
       attr_reader :name, :type, :default, :rest, :location

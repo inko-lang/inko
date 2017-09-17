@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Pair
+      include Predicates
       include Inspect
 
       attr_reader :key, :value, :location

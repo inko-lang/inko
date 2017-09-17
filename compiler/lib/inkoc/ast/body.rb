@@ -3,9 +3,11 @@
 module Inkoc
   module AST
     class Body
+      include Predicates
       include Inspect
 
-      attr_reader :expressions, :location
+      attr_reader :location
+      attr_accessor :expressions
 
       # expr - The expressions of this body.
       # location - The SourceLocation of this node.

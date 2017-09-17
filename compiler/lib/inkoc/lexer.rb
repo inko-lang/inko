@@ -34,7 +34,7 @@ module Inkoc
     # consume a peeked value.
     NULL_TOKEN = NullToken.new.freeze
 
-    def initialize(input, file_path = nil)
+    def initialize(input, file_path = Pathname.new('(eval)'))
       @input = input.chars
       @position = 0
       @line = 1

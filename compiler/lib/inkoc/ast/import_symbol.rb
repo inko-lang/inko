@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class ImportSymbol
+      include Predicates
       include Inspect
 
       attr_reader :symbol_name, :alias_name, :location

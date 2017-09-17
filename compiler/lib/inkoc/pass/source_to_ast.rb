@@ -3,12 +3,13 @@
 module Inkoc
   module Pass
     class SourceToAst
-      def initialize(state)
+      def initialize(mod, state)
+        @module = mod
         @state = state
       end
 
-      def run(source, path)
-        parser = Parser.new(source, path)
+      def run(source)
+        parser = Parser.new(source, @module.file_path_as_string)
 
         begin
           [parser.parse]

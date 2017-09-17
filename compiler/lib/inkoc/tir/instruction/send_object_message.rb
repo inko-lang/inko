@@ -4,6 +4,7 @@ module Inkoc
   module TIR
     module Instruction
       class SendObjectMessage
+        include Predicates
         include Inspect
 
         attr_reader :register, :receiver, :name, :arguments, :location

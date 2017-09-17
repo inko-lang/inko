@@ -3,15 +3,15 @@
 module Inkoc
   module Pass
     class PathToSource
-      def initialize(state)
+      def initialize(mod, state)
+        @module = mod
         @state = state
       end
 
-      def run(path)
-        [File.read(path), path]
-      rescue => error
-        location = SourceLocation.new(1, 1, SourceFile.new(path))
-        @state.diagnostics.error(error.message, location)
+      def run
+        [@module.source_code]
+      rescue SystemCallError => error
+        @state.diagnostics.error(error.message, @module.location)
         nil
       end
     end

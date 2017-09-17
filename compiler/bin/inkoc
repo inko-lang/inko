@@ -38,7 +38,7 @@ end
 parser.parse!(ARGV)
 
 if ARGV.empty?
-  puts 'You must specify at least one source file to compile'
+  puts 'You must specify a source file to compile'
   abort(parser.to_s)
 end
 
@@ -53,7 +53,7 @@ config.create_directories
 state = Inkoc::State.new(config)
 compiler = Inkoc::Compiler.new(state)
 
-ARGV.each { |path| compiler.compile(path) }
+compiler.compile_main(Pathname.new(ARGV[0]))
 
 if state.diagnostics?
   state.display_diagnostics

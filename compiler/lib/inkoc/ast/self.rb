@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Self
+      include Predicates
       include Inspect
 
       attr_reader :location

@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Import
+      include Predicates
       include Inspect
 
       attr_reader :steps, :symbols, :location
@@ -22,7 +23,7 @@ module Inkoc
 
       def qualified_name
         steps = @steps.each_with_object([]) do |step, array|
-          array << step.name if step.is_a?(Identifier)
+          array << step.name if step.identifier?
         end
 
         TIR::QualifiedName.new(steps)
