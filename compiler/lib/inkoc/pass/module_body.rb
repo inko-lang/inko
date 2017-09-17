@@ -52,7 +52,7 @@ module Inkoc
         ins = body.current_block.instructions.last
         loc = ins ? ins.location : body.location
 
-        if ins && ins.return?
+        if ins && !ins.return?
           body.return_value(ins.register, loc)
         elsif !ins
           body.return_value(get_nil(body, loc), loc)
@@ -154,6 +154,18 @@ module Inkoc
 
       def on_send(node, body)
         return on_raw_instruction(node, body) if raw_instruction?(node)
+
+        location = node.location
+        receiver =
+          if node.receiver
+            process_node(node.receiver, body)
+          else
+            get_self(body, location)
+          end
+
+        arg_regs = process_nodes(node.arguments, body)
+
+        send_object_message(receiver, node.name, arg_regs, body, location)
       end
 
       def on_raw_instruction(node, body)
