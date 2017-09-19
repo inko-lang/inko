@@ -2147,16 +2147,16 @@ impl Machine {
                 //
                 // This instruction requires two arguments:
                 //
-                // 1. The reason for throwing the value as a value in the
+                // 1. The register containing the value to throw.
+                // 2. The reason for throwing the value as a value in the
                 //    ThrowReason enum.
-                // 2. The register containing the value to throw.
                 //
                 // This method will unwind the call stack until either the
                 // value is caught, or until we reach the top level (at
                 // which point we terminate the VM).
                 InstructionType::Throw => {
-                    let reason = ThrowReason::from_u8(instruction.arg(0) as u8);
-                    let value = context.get_register(instruction.arg(1));
+                    let value = context.get_register(instruction.arg(0));
+                    let reason = ThrowReason::from_u8(instruction.arg(1) as u8);
 
                     throw_value!(
                         self,
