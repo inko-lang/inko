@@ -14,7 +14,7 @@ module Inkoc
       def run(ast)
         on_module_body(ast, @module.body)
 
-        [ast]
+        []
       end
 
       def on_module_body(node, body)
@@ -35,6 +35,18 @@ module Inkoc
         body.set_local(self_local, mod_reg, location)
 
         process_node(node, body)
+      end
+
+      def on_import(node, body)
+        qname = node.qualified_name
+        location = node.location
+        imported_mod = @state.module(qname)
+        import_path = imported_mod.bytecode_import_path
+        path_reg = set_string(import_path, body, location)
+
+        body.load_module(path_reg, location)
+
+        # TODO: import symbols
       end
 
       def on_body(node, body)

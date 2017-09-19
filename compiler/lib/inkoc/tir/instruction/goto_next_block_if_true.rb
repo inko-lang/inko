@@ -15,6 +15,10 @@ module Inkoc
           @register = register
           @location = location
         end
+
+        def visitor_method
+          :on_goto_next_block_if_true
+        end
       end
     end
   end

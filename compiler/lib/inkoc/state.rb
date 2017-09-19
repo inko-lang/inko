@@ -30,7 +30,7 @@ module Inkoc
     end
 
     def module(name)
-      @modules[name]
+      @modules[name.to_s]
     end
 
     def store_module(mod)

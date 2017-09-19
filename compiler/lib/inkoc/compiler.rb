@@ -11,7 +11,9 @@ module Inkoc
       Pass::InsertImplicitImports,
       Pass::CompileImportedModules,
       Pass::DefineTypes,
-      Pass::ModuleBody
+      Pass::ModuleBody,
+      Pass::CodeGeneration,
+      Pass::CodeWriter
     ].freeze
 
     def initialize(state)

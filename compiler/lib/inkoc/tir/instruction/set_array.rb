@@ -14,6 +14,10 @@ module Inkoc
           @values = values
           @location = location
         end
+
+        def visitor_method
+          :on_set_array
+        end
       end
     end
   end

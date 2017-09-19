@@ -14,6 +14,10 @@ module Inkoc
           @value = value
           @location = location
         end
+
+        def visitor_method
+          :on_set_literal
+        end
       end
     end
   end

@@ -13,6 +13,10 @@ module Inkoc
           @register = register
           @location = location
         end
+
+        def visitor_method
+          :on_get_toplevel
+        end
       end
     end
   end

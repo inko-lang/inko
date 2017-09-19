@@ -16,6 +16,10 @@ module Inkoc
           @arguments = arguments
           @location = location
         end
+
+        def visitor_method
+          :on_send_object_message
+        end
       end
     end
   end

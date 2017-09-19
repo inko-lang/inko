@@ -15,6 +15,10 @@ module Inkoc
           @name = name
           @location = location
         end
+
+        def visitor_method
+          :on_get_attribute
+        end
       end
     end
   end

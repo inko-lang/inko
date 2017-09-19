@@ -14,6 +14,10 @@ module Inkoc
           @pairs = pairs
           @location = location
         end
+
+        def visitor_method
+          :on_set_hash_map
+        end
       end
     end
   end

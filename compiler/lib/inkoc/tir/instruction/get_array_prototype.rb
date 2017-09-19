@@ -13,6 +13,10 @@ module Inkoc
           @register = register
           @location = location
         end
+
+        def visitor_method
+          :on_get_array_prototype
+        end
       end
     end
   end

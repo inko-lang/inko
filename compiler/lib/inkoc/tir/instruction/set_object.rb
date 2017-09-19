@@ -19,6 +19,10 @@ module Inkoc
         def permanent?
           @permanent
         end
+
+        def visitor_method
+          :on_set_object
+        end
       end
     end
   end

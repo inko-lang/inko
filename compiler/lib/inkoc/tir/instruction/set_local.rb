@@ -18,6 +18,10 @@ module Inkoc
         def register
           value
         end
+
+        def visitor_method
+          :on_set_local
+        end
       end
     end
   end

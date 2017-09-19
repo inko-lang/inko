@@ -26,6 +26,16 @@ module Inkoc
         @blocks.last
       end
 
+      def each_reachable_basic_block
+        block = start_block
+
+        while block
+          yield block
+
+          block = block.next
+        end
+      end
+
       def reachable_basic_block?(block)
         block == start_block || block.callers.any?
       end
@@ -169,6 +179,14 @@ module Inkoc
         reg
       end
 
+      def load_module(path, location)
+        reg = register_dynamic
+
+        instruct(:LoadModule, reg, path, location)
+
+        reg
+      end
+
       def add_code_object(*args)
         object = CodeObject.new(*args)
         @code_objects << object
@@ -195,6 +213,10 @@ module Inkoc
 
       def new_basic_block(name = @blocks.length.to_s, *args)
         BasicBlock.new(name, *args)
+      end
+
+      def visitor_method
+        :on_code_object
       end
     end
   end

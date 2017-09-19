@@ -14,6 +14,10 @@ module Inkoc
           @path = path
           @location = location
         end
+
+        def visitor_method
+          :on_load_module
+        end
       end
     end
   end

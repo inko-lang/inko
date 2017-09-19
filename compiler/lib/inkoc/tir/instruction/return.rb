@@ -17,6 +17,10 @@ module Inkoc
         def return?
           true
         end
+
+        def visitor_method
+          :on_return
+        end
       end
     end
   end

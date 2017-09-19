@@ -14,6 +14,10 @@ module Inkoc
           @code_object = code_object
           @location = location
         end
+
+        def visitor_method
+          :on_set_block
+        end
       end
     end
   end

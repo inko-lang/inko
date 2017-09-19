@@ -16,6 +16,10 @@ module Inkoc
           @else_arg = else_arg
           @location = location
         end
+
+        def visitor_method
+          :on_try
+        end
       end
     end
   end

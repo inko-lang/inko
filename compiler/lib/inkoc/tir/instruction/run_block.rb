@@ -15,6 +15,10 @@ module Inkoc
           @arguments = arguments
           @location = location
         end
+
+        def visitor_method
+          :on_run_block
+        end
       end
     end
   end

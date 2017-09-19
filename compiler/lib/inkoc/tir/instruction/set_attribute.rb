@@ -16,6 +16,10 @@ module Inkoc
           @value = value
           @location = location
         end
+
+        def visitor_method
+          :on_set_attribute
+        end
       end
     end
   end
