@@ -9,6 +9,7 @@ module Inkoc
       Pass::ConfigureModule,
       Pass::TrackModule,
       Pass::InsertImplicitImports,
+      Pass::CollectImports,
       Pass::CompileImportedModules,
       Pass::DefineTypes,
       Pass::ModuleBody,

@@ -24,9 +24,17 @@ module Inkoc
       end
 
       def run(ast)
-        process_node(ast, @module.type)
+        process_node(ast, type_for_module)
 
         [ast]
+      end
+
+      def type_for_module
+        if @module.define_module?
+          @module.type
+        else
+          typedb.top_level
+        end
       end
 
       def on_body(node, self_type)
@@ -62,7 +70,7 @@ module Inkoc
       end
 
       def on_method(node, self_type)
-        type = Type::Block.new(typedb.block_prototype, name: node.name)
+        type = Type::Block.new(node.name, typedb.block_prototype)
 
         define_type_parameters(node.type_parameters, type)
         define_arguments(node.arguments, type, self_type)

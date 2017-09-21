@@ -15,13 +15,10 @@ module Inkoc
       end
 
       def prepend_imports(ast)
-        location = ast.location
-        prepend = []
+        loc = ast.location
 
-        prepend << import_bootstrap(location) if @module.import_bootstrap?
-        prepend << import_prelude(location) if @module.import_prelude?
-
-        ast.prepend_nodes(prepend)
+        @module.imports << import_bootstrap(loc) if @module.import_bootstrap?
+        @module.imports << import_prelude(loc) if @module.import_prelude?
       end
 
       # Generates an import statement equivalent to the following:

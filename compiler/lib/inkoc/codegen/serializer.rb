@@ -102,6 +102,7 @@ module Inkoc
         end
       end
 
+      # rubocop: disable Metrics/AbcSize
       def compiled_code(code)
         string(code.name) +
           string(code.file.to_s) +

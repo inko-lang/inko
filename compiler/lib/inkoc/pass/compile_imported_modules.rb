@@ -3,21 +3,15 @@
 module Inkoc
   module Pass
     class CompileImportedModules
-      include VisitorMethods
-
       def initialize(mod, state)
         @module = mod
         @state = state
       end
 
       def run(ast)
-        process_node(ast)
+        @module.imports.each { |import| on_import(import) }
 
         [ast]
-      end
-
-      def on_body(node)
-        process_nodes(node.expressions)
       end
 
       def on_import(node)

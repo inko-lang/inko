@@ -12,29 +12,52 @@ module Inkoc
       end
 
       def run(ast)
+        process_imports(@module.body)
         on_module_body(ast, @module.body)
 
         []
       end
 
+      def process_imports(body)
+        body.add_connected_basic_block('imports')
+
+        @module.imports.each do |import|
+          on_import(import, body)
+        end
+      end
+
       def on_module_body(node, body)
-        body.add_connected_basic_block('prelude')
-
-        self_local = body.define_self_local(@module.type)
-        location = @module.location
-        mod_name = set_array_of_strings(@module.name.parts, body, location)
-
-        mod_reg = send_object_message(
-          get_toplevel(body, location),
-          Config::DEFINE_MODULE_MESSAGE,
-          [mod_name],
-          body,
-          location
-        )
-
-        body.set_local(self_local, mod_reg, location)
-
+        define_module(body)
         process_node(node, body)
+      end
+
+      def define_module(body)
+        body.add_connected_basic_block('define_module')
+
+        mod_type, mod_reg = value_for_module_self(body)
+        self_local = body.define_self_local(mod_type)
+
+        body.set_local(self_local, mod_reg, @module.location)
+      end
+
+      def value_for_module_self(body)
+        location = @module.location
+        top = get_toplevel(body, location)
+
+        if @module.define_module?
+          mod_name = set_array_of_strings(@module.name.parts, body, location)
+          register = send_object_message(
+            top,
+            Config::DEFINE_MODULE_MESSAGE,
+            [mod_name],
+            body,
+            location
+          )
+
+          [@module.type, register]
+        else
+          [top.type, top]
+        end
       end
 
       def on_import(node, body)
@@ -107,6 +130,7 @@ module Inkoc
           body.get_global(@module.globals[name], loc)
         else
           diagnostics.undefined_method_error(body.self_type, name, loc)
+          get_nil(body, loc)
         end
       end
 
@@ -118,6 +142,19 @@ module Inkoc
         else
           define_method(node, receiver, body)
         end
+      end
+
+      def on_block(node, body)
+        name = '<block>'
+        location = node.location
+        type = Type::Block.new(name, typedb.block_prototype)
+        block = body.add_code_object(name, type, location)
+
+        define_block_arguments(block, node.arguments)
+
+        on_body(node.body, block)
+
+        body.set_block(block, type, location)
       end
 
       def define_required_method(node, receiver, body)
@@ -133,14 +170,16 @@ module Inkoc
       def define_method(node, receiver, body)
         location = node.location
         name = node.name
+        name_reg = set_string(name, body, location)
         type = receiver.type.lookup_method(name).type
         block = body.add_code_object(name, type, location)
 
         define_block_arguments(block, node.arguments)
-
         on_body(node.body, block)
 
-        body.set_block(block, type, location)
+        block_reg = body.set_block(block, type, location)
+
+        body.set_attribute(receiver, name_reg, block_reg, location)
       end
 
       def define_block_arguments(block, arguments)
@@ -180,19 +219,45 @@ module Inkoc
         send_object_message(receiver, node.name, arg_regs, body, location)
       end
 
+      def on_define_variable(node, body)
+        callback = node.variable.define_variable_visitor_method
+        value = process_node(node.value, body)
+
+        public_send(callback, node.variable, value, node.mutable?, body)
+      end
+
+      def on_define_local(variable, value, mutable, body)
+        name = variable.name
+        symbol = body.define_local(name, value.type, mutable)
+
+        body.set_local(symbol, value, variable.location)
+      end
+
       def on_raw_instruction(node, body)
         name = node.name
-        callback = :"on_raw_#{node}"
+        callback = :"on_raw_#{name}"
 
         if respond_to?(callback)
           public_send(callback, node, body)
         else
-          diagnostics.unknown_raw_instruction_error(name)
+          location = node.location
+
+          diagnostics.unknown_raw_instruction_error(name, location)
+          get_nil(body, location)
         end
       end
 
       def on_raw_get_toplevel(node, body)
         get_toplevel(body, node.location)
+      end
+
+      def on_raw_set_attribute(node, body)
+        args = node.arguments
+        receiver = process_node(args.fetch(0), body)
+        name = process_node(args.fetch(1), body)
+        value = process_node(args.fetch(2), body)
+
+        body.set_attribute(receiver, name, value, node.location)
       end
 
       def raw_instruction?(node)
@@ -242,6 +307,8 @@ module Inkoc
         unless rec_type.responds_to_message?(name)
           diagnostics.undefined_method_error(rec_type, name, location)
         end
+
+        arguments = [receiver] + arguments
 
         body.send_object_message(reg, receiver, name_reg, arguments, location)
       end

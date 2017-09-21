@@ -45,7 +45,7 @@ module Inkoc
       formatter = Formatter::Pretty.new
       output = formatter.format(@diagnostics)
 
-      STDERR.puts(output)
+      STDERR.puts(output) unless output.empty?
     end
 
     def find_module_path(path)

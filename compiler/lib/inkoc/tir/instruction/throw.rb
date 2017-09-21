@@ -7,9 +7,10 @@ module Inkoc
         include Predicates
         include Inspect
 
-        attr_reader :register, :location
+        attr_reader :register, :reason, :location
 
-        def initialize(register, location)
+        def initialize(register, reason, location)
+          @reason = reason
           @register = register
           @location = location
         end

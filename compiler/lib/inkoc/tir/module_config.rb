@@ -4,13 +4,14 @@ module Inkoc
   module TIR
     class ModuleConfig
       VALID_KEYS = Set.new(
-        %w[import_prelude import_bootstrap]
+        %w[import_prelude import_bootstrap define_module]
       ).freeze
 
       def initialize
         @options = {
           import_prelude: true,
-          import_bootstrap: true
+          import_bootstrap: true,
+          define_module: true
         }
       end
 
@@ -28,6 +29,10 @@ module Inkoc
 
       def import_bootstrap?
         @options[:import_bootstrap]
+      end
+
+      def define_module?
+        @options[:define_module]
       end
     end
   end

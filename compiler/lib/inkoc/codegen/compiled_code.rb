@@ -36,20 +36,6 @@ module Inkoc
       def instruct(*args)
         @instructions << Instruction.named(*args)
       end
-
-      def set_literal(register, value, location)
-        literal = literals.get_or_set(value)
-
-        instruct(:SetLiteral, [register.id, literal], location)
-      end
-
-      def return(register, location)
-        instruct(:Return, [register.id], location)
-      end
-
-      def get_array_prototype(register, location)
-        instruct(:GetArrayPrototype, [register.id], location)
-      end
     end
   end
 end

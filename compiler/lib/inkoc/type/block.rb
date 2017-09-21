@@ -11,7 +11,7 @@ module Inkoc
 
       attr_accessor :rest_argument, :throws, :returns, :required_arguments_count
 
-      def initialize(prototype, name: nil)
+      def initialize(name, prototype = nil)
         @name = name
         @prototype = prototype
         @arguments = SymbolTable.new

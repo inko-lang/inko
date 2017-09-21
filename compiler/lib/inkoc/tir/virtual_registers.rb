@@ -17,6 +17,10 @@ module Inkoc
         register
       end
 
+      def length
+        @registers.length
+      end
+
       def empty?
         @registers.empty?
       end

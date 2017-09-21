@@ -17,6 +17,10 @@ module Inkoc
         @location = location
       end
 
+      def import?
+        true
+      end
+
       def visitor_method
         :on_import
       end

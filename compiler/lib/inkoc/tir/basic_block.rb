@@ -3,13 +3,11 @@
 module Inkoc
   module TIR
     class BasicBlock
-      include Inspect
-
       # The name of the basic block as a String.
       attr_reader :name
 
-      # All blocks that may jump to this block.
-      attr_reader :callers
+      # The block that preceded this block, if any.
+      attr_accessor :previous
 
       # The instructions that make up this basic block.
       attr_reader :instructions
@@ -19,7 +17,7 @@ module Inkoc
 
       def initialize(name, next_block = nil)
         @name = name
-        @callers = []
+        @previous = nil
         @instructions = []
 
         self.next = next_block
@@ -34,8 +32,22 @@ module Inkoc
       end
 
       def next=(block)
-        block.callers << self if block
+        block&.previous = self
+
         @next = block
+      end
+
+      def instruction_offset
+        block = previous
+        offset = 0
+
+        while block
+          offset += block.instructions.length
+
+          block = block.previous
+        end
+
+        offset
       end
     end
   end

@@ -18,6 +18,26 @@ module Inkoc
         @code_objects = []
       end
 
+      def arguments_count
+        @type.arguments_count
+      end
+
+      def required_arguments_count
+        @type.required_arguments_count
+      end
+
+      def rest_argument?
+        @type.rest_argument
+      end
+
+      def local_variables_count
+        @locals.length
+      end
+
+      def registers_count
+        @registers.length
+      end
+
       def start_block
         @blocks.first
       end
@@ -37,11 +57,15 @@ module Inkoc
       end
 
       def reachable_basic_block?(block)
-        block == start_block || block.callers.any?
+        block == start_block || block.previous
+      end
+
+      def define_local(name, type, mutable)
+        @locals.define(name, type, mutable)
       end
 
       def define_immutable_local(name, type)
-        @locals.define(name, type, false)
+        define_local(name, type, false)
       end
 
       def define_self_local(type)
@@ -183,6 +207,14 @@ module Inkoc
         reg = register_dynamic
 
         instruct(:LoadModule, reg, path, location)
+
+        reg
+      end
+
+      def set_attribute(receiver, name, value, location)
+        reg = register(value.type)
+
+        instruct(:SetAttribute, reg, receiver, name, value, location)
 
         reg
       end

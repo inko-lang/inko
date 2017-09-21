@@ -6,13 +6,13 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :body, :globals, :type, :config,
-                  :bytecode_directory, :bytecode_file
+                  :bytecode_directory, :bytecode_file, :imports
 
       def initialize(name, location)
         @name = name
         @type = Type::Object.new(name.to_s)
         @location = location
-        @body = CodeObject.new(name, @type, location)
+        @body = CodeObject.new(name, Type::Block.new(name.to_s), location)
         @globals = SymbolTable.new
         @config = ModuleConfig.new
 
@@ -20,6 +20,7 @@ module Inkoc
 
         @bytecode_directory = hash[0..1]
         @bytecode_file = hash[1..-1] + Config::BYTECODE_EXT
+        @imports = []
       end
 
       def lookup_type(name)
@@ -36,6 +37,10 @@ module Inkoc
 
       def import_prelude?
         config.import_prelude?
+      end
+
+      def define_module?
+        config.define_module?
       end
 
       def source_code

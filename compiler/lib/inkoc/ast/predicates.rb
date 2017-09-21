@@ -10,6 +10,10 @@ module Inkoc
       def constant?
         false
       end
+
+      def import?
+        false
+      end
     end
   end
 end
