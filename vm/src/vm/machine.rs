@@ -2103,9 +2103,17 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
+                    let method_opt = rec_ptr.lookup_attribute(&self.state, &name);
 
-                    let method =
-                        rec_ptr.lookup_attribute(&self.state, &name).unwrap();
+                    let method = if let Some(found) = method_opt {
+                        found
+                    } else {
+                        panic!(
+                            "the object in register {} does not respond to {:?}",
+                            instruction.arg(1),
+                            name.string_value().unwrap()
+                        );
+                    };
 
                     let block = method.block_value().unwrap();
 
