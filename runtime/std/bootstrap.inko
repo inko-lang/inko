@@ -1,0 +1,23 @@
+# Importing of both the prelude and the bootstrap modules will not yet work at
+# this point, hence these are disabled.
+![import_prelude: false]
+![import_bootstrap: false]
+
+# Implicit module definitions will not yet work since we haven't defined the
+# required objects just yet.
+#
+# As a result of this setting all constants and methods defined in this module
+# are defined directly on the top-level object.
+![define_module: false]
+
+# Object will act as the prototype for all other objects.
+var Object = _INKOC.set_object(_INKOC.get_true)
+
+# Inko::Modules contains all of the imported modules mapped to their fully
+# qualified module names.
+var Modules = _INKOC.set_object(_INKOC.get_true, Object)
+
+# Inkoc::Module will act as the prototype for all modules. We'll later refine
+# this object in the std::module module, but we need it here to allow us to
+# define new modules in the first place.
+var Module = _INKOC.set_object(_INKOC.get_true, Object)
