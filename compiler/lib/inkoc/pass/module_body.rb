@@ -139,6 +139,16 @@ module Inkoc
         end
       end
 
+      def on_attribute(node, body)
+        name = node.name
+        loc = node.location
+        receiver = get_self(body, loc)
+
+        get_attribute(receiver, name, body, loc)
+      end
+
+      alias on_constant on_attribute
+
       def on_method(node, body)
         receiver = get_self(body, node.location)
 
@@ -358,6 +368,7 @@ module Inkoc
         name_reg = set_string(name, body, location)
         rec_type = receiver.type
 
+        # TODO: type inference should handle this.
         if rec_type.lookup_attribute(name).nil?
           rec_type.define_attribute(name, value.type, mutable)
         end
