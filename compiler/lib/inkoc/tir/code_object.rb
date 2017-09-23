@@ -211,10 +211,34 @@ module Inkoc
         reg
       end
 
+      def get_attribute(receiver, name, type, location)
+        reg = register(type)
+
+        instruct(:GetAttribute, reg, receiver, name, location)
+
+        reg
+      end
+
       def set_attribute(receiver, name, value, location)
         reg = register(value.type)
 
         instruct(:SetAttribute, reg, receiver, name, value, location)
+
+        reg
+      end
+
+      def get_true(type, location)
+        reg = register(type)
+
+        instruct(:GetTrue, reg, location)
+
+        reg
+      end
+
+      def set_object(type, permanent, prototype, location)
+        reg = register(type)
+
+        instruct(:SetObject, reg, permanent, prototype, location)
 
         reg
       end

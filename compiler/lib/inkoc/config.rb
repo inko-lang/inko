@@ -27,6 +27,9 @@ module Inkoc
     ARRAY_BUILTIN = '_Array'
     HASH_MAP_BUILTIN = '_HashMap'
 
+    MODULE_TYPE = 'Module'
+    MODULES_ATTRIBUTE = 'Modules'
+
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
 
@@ -34,9 +37,6 @@ module Inkoc
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     CALL_MESSAGE = 'call'
     SELF_LOCAL = 'self'
-    LOAD_MODULE_MESSAGE = 'load_module'
-    SYMBOL_MESSAGE = 'symbol'
-    DEFINE_MODULE_MESSAGE = 'define_module'
     MODULE_SEPARATOR = '::'
 
     attr_reader :source_directories, :mode, :target

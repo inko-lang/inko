@@ -28,7 +28,9 @@ module Inkoc
       name = node.name
       symbol = self_type.lookup_attribute(name)
 
-      diagnostics.undefined_attribute_error(name, node.location) if symbol.nil?
+      if symbol.nil?
+        diagnostics.undefined_attribute_error(self_type, name, node.location)
+      end
 
       symbol.type
     end
@@ -38,7 +40,9 @@ module Inkoc
       symbol = self_type.lookup_attribute(name)
         .or_else { @module.lookup_attribute(name) }
 
-      diagnostics.undefined_attribute_error(name, node.location) if symbol.nil?
+      if symbol.nil?
+        diagnostics.undefined_attribute_error(self_type, name, node.location)
+      end
 
       symbol.type
     end
@@ -62,6 +66,8 @@ module Inkoc
     end
 
     def on_send(node, self_type)
+      return Type::Dynamic.new if node.raw_instruction?
+
       name = node.name
       rec_type =
         node.receiver ? infer(node.receiver, self_type) : self_type

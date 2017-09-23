@@ -34,30 +34,35 @@ module Inkoc
       def define_module(body)
         body.add_connected_basic_block('define_module')
 
-        mod_type, mod_reg = value_for_module_self(body)
-        self_local = body.define_self_local(mod_type)
+        mod_reg = value_for_module_self(body)
+        self_local = body.define_self_local(mod_reg.type)
 
         body.set_local(self_local, mod_reg, @module.location)
       end
 
       def value_for_module_self(body)
-        location = @module.location
-        top = get_toplevel(body, location)
-
         if @module.define_module?
-          mod_name = set_array_of_strings(@module.name.parts, body, location)
-          register = send_object_message(
-            top,
-            Config::DEFINE_MODULE_MESSAGE,
-            [mod_name],
-            body,
-            location
-          )
-
-          [@module.type, register]
+          define_module_object(body)
         else
-          [top.type, top]
+          get_toplevel(body, @module.location)
         end
+      end
+
+      def define_module_object(body)
+        loc = @module.location
+        top = get_toplevel(body, loc)
+
+        # Get the object containing all modules (Inko::modules).
+        modules = get_attribute(top, Config::MODULES_ATTRIBUTE, body, loc)
+
+        # Get the prototype for the new module (Inko::Module)
+        proto = get_attribute(top, Config::MODULE_TYPE, body, loc)
+
+        # Create the new module and store it in the modules list.
+        true_reg = body.get_true(typedb.boolean_type, loc)
+        mod = body.set_object(@module.type, true_reg, proto, loc)
+
+        set_attribute(modules, @module.name.to_s, mod, true, body, loc)
       end
 
       def on_import(node, body)
@@ -204,7 +209,7 @@ module Inkoc
       end
 
       def on_send(node, body)
-        return on_raw_instruction(node, body) if raw_instruction?(node)
+        return on_raw_instruction(node, body) if node.raw_instruction?
 
         location = node.location
         receiver =
@@ -233,6 +238,16 @@ module Inkoc
         body.set_local(symbol, value, variable.location)
       end
 
+      def on_define_attribute(variable, value, mutable, body)
+        loc = variable.location
+        name = variable.name
+        receiver = get_self(body, loc)
+
+        set_attribute(receiver, name, value, mutable, body, loc)
+      end
+
+      alias on_define_constant on_define_attribute
+
       def on_raw_instruction(node, body)
         name = node.name
         callback = :"on_raw_#{name}"
@@ -260,10 +275,24 @@ module Inkoc
         body.set_attribute(receiver, name, value, node.location)
       end
 
-      def raw_instruction?(node)
-        node.receiver &&
-          node.receiver.constant? &&
-          node.receiver.name == Config::RAW_INSTRUCTION_RECEIVER
+      def on_raw_set_object(node, body)
+        args = node.arguments
+        loc = node.location
+        permanent = process_node(args.fetch(0), body)
+
+        if args[1]
+          prototype = process_node(args[1], body)
+          type = Type::Object.new(nil, prototype.type)
+        else
+          prototype = get_nil(body, loc)
+          type = Type::Object.new
+        end
+
+        body.set_object(type, permanent, prototype, loc)
+      end
+
+      def on_raw_get_true(node, body)
+        body.get_true(typedb.boolean_type, node.location)
       end
 
       def send_to_self(name, body, location)
@@ -311,6 +340,29 @@ module Inkoc
         arguments = [receiver] + arguments
 
         body.send_object_message(reg, receiver, name_reg, arguments, location)
+      end
+
+      def get_attribute(receiver, name, body, location)
+        rec_type = receiver.type
+        symbol = rec_type.lookup_attribute(name)
+        name_reg = set_string(name, body, location)
+
+        unless symbol.any?
+          diagnostics.undefined_attribute_error(rec_type, name, location)
+        end
+
+        body.get_attribute(receiver, name_reg, symbol.type, location)
+      end
+
+      def set_attribute(receiver, name, value, mutable, body, location)
+        name_reg = set_string(name, body, location)
+        rec_type = receiver.type
+
+        if rec_type.lookup_attribute(name).nil?
+          rec_type.define_attribute(name, value.type, mutable)
+        end
+
+        body.set_attribute(receiver, name_reg, value, location)
       end
 
       def array_type

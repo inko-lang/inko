@@ -22,6 +22,12 @@ module Inkoc
       def visitor_method
         :on_send
       end
+
+      def raw_instruction?
+        receiver &&
+          receiver.constant? &&
+          receiver.name == Config::RAW_INSTRUCTION_RECEIVER
+      end
     end
   end
 end

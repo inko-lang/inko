@@ -62,8 +62,13 @@ module Inkoc
       error("The constant #{name} has already been defined", location)
     end
 
-    def undefined_attribute_error(name, location)
-      error("The attribute #{name} is undefined", location)
+    def undefined_attribute_error(receiver, name, location)
+      tname = receiver.type_name.inspect
+
+      error(
+        "The type #{tname} does not define the attribute #{name.inspect}",
+        location
+      )
     end
 
     def undefined_method_error(receiver, name, location)
