@@ -14,6 +14,22 @@ module Inkoc
       def import?
         false
       end
+
+      def hoist?
+        false
+      end
+
+      def method?
+        false
+      end
+
+      def hoist_children?
+        false
+      end
+
+      def variable_definition?
+        false
+      end
     end
   end
 end

@@ -32,6 +32,14 @@ module Inkoc
       def visitor_method
         :on_method
       end
+
+      def hoist?
+        true
+      end
+
+      def method?
+        true
+      end
     end
   end
 end

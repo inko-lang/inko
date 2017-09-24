@@ -185,11 +185,7 @@ module Inkoc
       end
 
       def type_of_global(name, location)
-        symbol = @module.globals[name]
-
-        diagnostics.undefined_constant_error(name, location) if symbol.nil?
-
-        symbol.type
+        @module.globals[name].type
       end
 
       def wrap_optional_type(node, type)

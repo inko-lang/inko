@@ -84,18 +84,6 @@ module Inkoc
         current_block.instruct(*args)
       end
 
-      def set_string(value, type, location)
-        set_literal(:SetString, value, type, location)
-      end
-
-      def set_literal(instruction, value, type, location)
-        reg = register(type)
-
-        instruct(instruction, reg, value, location)
-
-        reg
-      end
-
       def set_integer(value, type, location)
         set_literal(:SetInteger, value, type, location)
       end

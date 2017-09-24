@@ -23,6 +23,12 @@ module Inkoc
       def last_expression
         @expressions.last
       end
+
+      def prepend(nodes)
+        return if nodes.empty?
+
+        @expressions = nodes + @expressions
+      end
     end
   end
 end

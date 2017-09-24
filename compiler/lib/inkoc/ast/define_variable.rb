@@ -28,6 +28,14 @@ module Inkoc
       def visitor_method
         :on_define_variable
       end
+
+      def hoist?
+        variable.constant?
+      end
+
+      def variable_definition?
+        true
+      end
     end
   end
 end

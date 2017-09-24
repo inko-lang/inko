@@ -11,6 +11,7 @@ module Inkoc
       Pass::InsertImplicitImports,
       Pass::CollectImports,
       Pass::CompileImportedModules,
+      Pass::Hoisting,
       Pass::DefineTypes,
       Pass::ModuleBody,
       Pass::CodeGeneration,
