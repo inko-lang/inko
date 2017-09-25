@@ -81,63 +81,8 @@ module Inkoc
       end
 
       def instruct(*args)
-        current_block.instruct(*args)
-      end
-
-      def set_integer(value, type, location)
-        set_literal(:SetInteger, value, type, location)
-      end
-
-      def set_float(value, type, location)
-        set_literal(:SetFloat, value, type, location)
-      end
-
-      def set_array(values, type, location)
-        reg = register(type)
-
-        instruct(:SetArray, reg, values, location)
-
-        reg
-      end
-
-      def set_hash_map(keys, values, type, location)
-        set_literal(:SetHashMap, keys.zip(values), type, location)
-      end
-
-      def set_local(symbol, value, location)
-        instruct(:SetLocal, symbol, value, location)
-
-        value
-      end
-
-      def local_exists(bool_type, local, location)
-        reg = register(bool_type)
-
-        instruct(:LocalExists, reg, local, location)
-
-        reg
-      end
-
-      def goto_next_block_if_true(register, location)
-        instruct(:GotoNextBlockIfTrue, register, location)
-
-        register
-      end
-
-      def get_local(symbol, location)
-        reg = register(symbol.type)
-
-        instruct(:GetLocal, reg, symbol, location)
-
-        reg
-      end
-
-      def get_global(symbol, location)
-        reg = register(symbol.type)
-
-        instruct(:GetGlobal, reg, symbol, location)
-
-        reg
+        instruction = current_block.instruct(*args)
+        instruction.register
       end
 
       def self_local
@@ -146,89 +91,6 @@ module Inkoc
 
       def self_type
         self_local.type
-      end
-
-      def send_object_message(register, receiver, name, arguments, location)
-        instruct(
-          :SendObjectMessage,
-          register,
-          receiver,
-          name,
-          arguments,
-          location
-        )
-
-        register
-      end
-
-      def return_value(value, location)
-        instruct(:Return, value, location)
-
-        value
-      end
-
-      def get_toplevel(type, location)
-        reg = register(type)
-
-        instruct(:GetToplevel, reg, location)
-
-        reg
-      end
-
-      def get_nil(type, location)
-        reg = register(type)
-
-        instruct(:GetNil, reg, location)
-
-        reg
-      end
-
-      def set_block(block, type, location)
-        reg = register(type)
-
-        instruct(:SetBlock, reg, block, location)
-
-        reg
-      end
-
-      def load_module(path, location)
-        reg = register_dynamic
-
-        instruct(:LoadModule, reg, path, location)
-
-        reg
-      end
-
-      def get_attribute(receiver, name, type, location)
-        reg = register(type)
-
-        instruct(:GetAttribute, reg, receiver, name, location)
-
-        reg
-      end
-
-      def set_attribute(receiver, name, value, location)
-        reg = register(value.type)
-
-        instruct(:SetAttribute, reg, receiver, name, value, location)
-
-        reg
-      end
-
-      def get_true(type, location)
-        reg = register(type)
-
-        instruct(:GetTrue, reg, location)
-
-        reg
-      end
-
-      def set_object(type, permanent, prototype, location)
-        reg = register(type)
-
-        instruct(:SetObject, reg, permanent, prototype, location)
-
-        reg
       end
 
       def add_code_object(*args)

@@ -28,7 +28,11 @@ module Inkoc
       end
 
       def instruct(klass, *args)
-        @instructions << Instruction.const_get(klass).new(*args)
+        instruction = Instruction.const_get(klass).new(*args)
+
+        @instructions << instruction
+
+        instruction
       end
 
       def next=(block)

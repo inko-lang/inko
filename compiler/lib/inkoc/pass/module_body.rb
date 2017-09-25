@@ -37,7 +37,7 @@ module Inkoc
         mod_reg = value_for_module_self(body)
         self_local = body.define_self_local(mod_reg.type)
 
-        body.set_local(self_local, mod_reg, @module.location)
+        set_local(self_local, mod_reg, body, @module.location)
       end
 
       def value_for_module_self(body)
@@ -59,10 +59,10 @@ module Inkoc
         proto = get_attribute(top, Config::MODULE_TYPE, body, loc)
 
         # Create the new module and store it in the modules list.
-        true_reg = body.get_true(typedb.boolean_type, loc)
-        mod = body.set_object(@module.type, true_reg, proto, loc)
+        true_reg = get_true(body, loc)
+        mod = set_object(@module.type, true_reg, proto, body, loc)
 
-        set_attribute(modules, @module.name.to_s, mod, true, body, loc)
+        set_literal_attribute(modules, @module.name.to_s, mod, true, body, loc)
       end
 
       def on_import(node, body)
@@ -72,7 +72,7 @@ module Inkoc
         import_path = imported_mod.bytecode_import_path
         path_reg = set_string(import_path, body, location)
 
-        body.load_module(path_reg, location)
+        body.instruct(:LoadModule, body.register_dynamic, path_reg, location)
 
         # TODO: import symbols
       end
@@ -93,9 +93,9 @@ module Inkoc
         loc = ins ? ins.location : body.location
 
         if ins && !ins.return?
-          body.return_value(ins.register, loc)
+          body.instruct(:Return, ins.register, loc)
         elsif !ins
-          body.return_value(get_nil(body, loc), loc)
+          body.instruct(:Return, get_nil(body, loc), loc)
         end
       end
 
@@ -108,11 +108,15 @@ module Inkoc
       end
 
       def on_integer(node, body)
-        body.set_integer(node.value, typedb.integer_type, node.location)
+        register = body.register(typedb.integer_type)
+
+        body.instruct(:SetInteger, register, node.value, node.location)
       end
 
       def on_float(node, body)
-        body.set_float(node.value, typedb.float_type, node.location)
+        register = body.register(typedb.float_type)
+
+        body.instruct(:SetFloat, register, node.value, node.location)
       end
 
       def on_string(node, body)
@@ -128,11 +132,11 @@ module Inkoc
         loc = node.location
 
         if body.locals.defined?(name)
-          body.get_local(body.locals[name], loc)
+          get_local(body.locals[name], body, loc)
         elsif body.self_type.responds_to_message?(name)
           send_to_self(name, body, loc)
         elsif @module.globals.defined?(name)
-          body.get_global(@module.globals[name], loc)
+          get_global(@module.globals[name], body, loc)
         else
           diagnostics.undefined_method_error(body.self_type, name, loc)
           get_nil(body, loc)
@@ -163,13 +167,16 @@ module Inkoc
         name = '<block>'
         location = node.location
         type = Type::Block.new(name, typedb.block_prototype)
-        block = body.add_code_object(name, type, location)
 
-        define_block_arguments(block, node.arguments)
-
-        on_body(node.body, block)
-
-        body.set_block(block, type, location)
+        define_block(
+          name,
+          type,
+          body.self_type,
+          node.arguments,
+          node.body,
+          body,
+          location
+        )
       end
 
       def define_required_method(node, receiver, body)
@@ -185,16 +192,38 @@ module Inkoc
       def define_method(node, receiver, body)
         location = node.location
         name = node.name
-        name_reg = set_string(name, body, location)
-        type = receiver.type.lookup_method(name).type
-        block = body.add_code_object(name, type, location)
+        rec_type = receiver.type
+        block_reg = define_block(
+          name,
+          rec_type.lookup_method(name).type,
+          rec_type,
+          node.arguments,
+          node.body,
+          body,
+          location
+        )
 
-        define_block_arguments(block, node.arguments)
-        on_body(node.body, block)
+        set_literal_attribute(receiver, name, block_reg, false, body, location)
+      end
 
-        block_reg = body.set_block(block, type, location)
+      def define_block(
+        name,
+        type,
+        self_type,
+        arguments,
+        block_body,
+        body,
+        location
+      )
+        code_object = body.add_code_object(name, type, location)
 
-        body.set_attribute(receiver, name_reg, block_reg, location)
+        code_object.define_self_local(self_type)
+
+        define_block_arguments(code_object, arguments)
+
+        on_body(block_body, code_object)
+
+        body.instruct(:SetBlock, body.register(type), code_object, location)
       end
 
       def define_block_arguments(block, arguments)
@@ -212,10 +241,11 @@ module Inkoc
         body.add_connected_basic_block("#{local.name}_default")
 
         location = vnode.location
-        exists_reg = body.local_exists(typedb.boolean_type, local, location)
+        exists_reg = local_exists(local, location)
 
-        body.goto_next_block_if_true(exists_reg, location)
-        body.set_local(local, process_node(vnode, body), location)
+        body.instruct(:GotoNextBlockIfTrue, exists_reg, location)
+
+        set_local(local, process_node(vnode, body), body, location)
       end
 
       def on_send(node, body)
@@ -245,7 +275,29 @@ module Inkoc
         name = variable.name
         symbol = body.define_local(name, value.type, mutable)
 
-        body.set_local(symbol, value, variable.location)
+        set_local(symbol, value, body, variable.location)
+      end
+
+      def set_local(symbol, value, body, location)
+        body.instruct(:SetLocal, symbol, value, location)
+      end
+
+      def get_local(symbol, body, location)
+        register = body.register(symbol.type)
+
+        body.instruct(:GetLocal, register, symbol, location)
+      end
+
+      def get_global(symbol, body, location)
+        register = body.register(symbol.type)
+
+        body.instruct(:GetGlobal, register, symbol, location)
+      end
+
+      def local_exists(symbol, location)
+        register = body.register(typedb.boolean_type)
+
+        body.instruct(:LocalExists, register, symbol, location)
       end
 
       def on_define_attribute(variable, value, mutable, body)
@@ -253,7 +305,7 @@ module Inkoc
         name = variable.name
         receiver = get_self(body, loc)
 
-        set_attribute(receiver, name, value, mutable, body, loc)
+        set_literal_attribute(receiver, name, value, mutable, body, loc)
       end
 
       alias on_define_constant on_define_attribute
@@ -282,7 +334,7 @@ module Inkoc
         name = process_node(args.fetch(1), body)
         value = process_node(args.fetch(2), body)
 
-        body.set_attribute(receiver, name, value, node.location)
+        set_attribute(receiver, name, value, body, node.location)
       end
 
       def on_raw_set_object(node, body)
@@ -298,43 +350,45 @@ module Inkoc
           type = Type::Object.new
         end
 
-        body.set_object(type, permanent, prototype, loc)
+        set_object(type, permanent, prototype, body, loc)
       end
 
       def on_raw_get_true(node, body)
-        body.get_true(typedb.boolean_type, node.location)
+        get_true(body, node.location)
       end
 
       def send_to_self(name, body, location)
         receiver = get_self(body, location)
-        reg_type = receiver.type.message_return_type(name)
-        reg = body.register(reg_type)
-        name_reg = set_string(name, body, location)
 
-        body.send_object_message(reg, receiver, name_reg, [], location)
+        send_object_message(receiver, name, [], body, location)
       end
 
       def get_toplevel(body, location)
-        body.get_toplevel(typedb.top_level, location)
+        register = body.register(typedb.top_level)
+
+        body.instruct(:GetToplevel, register, location)
       end
 
       def get_self(body, location)
-        body.get_local(body.self_local, location)
+        get_local(body.self_local, body, location)
       end
 
       def get_nil(body, location)
-        body.get_nil(@state.typedb.nil_type, location)
+        register = body.register(typedb.nil_type)
+
+        body.instruct(:GetNil, register, location)
+      end
+
+      def get_true(body, location)
+        register = body.register(typedb.boolean_type)
+
+        body.instruct(:GetTrue, register, location)
       end
 
       def set_string(value, body, location)
-        body.set_string(value, typedb.string_type, location)
-      end
+        register = body.register(typedb.string_type)
 
-      def set_array_of_strings(values, body, location)
-        value_regs = values.map { |v| set_string(v, body, location) }
-        type = array_type
-
-        body.set_array(value_regs, type, location)
+        body.instruct(:SetString, register, value, location)
       end
 
       def send_object_message(receiver, name, arguments, body, location)
@@ -347,9 +401,10 @@ module Inkoc
           diagnostics.undefined_method_error(rec_type, name, location)
         end
 
-        arguments = [receiver] + arguments
+        args = [receiver] + arguments
 
-        body.send_object_message(reg, receiver, name_reg, arguments, location)
+        body
+          .instruct(:SendObjectMessage, reg, receiver, name_reg, args, location)
       end
 
       def get_attribute(receiver, name, body, location)
@@ -361,10 +416,18 @@ module Inkoc
           diagnostics.undefined_attribute_error(rec_type, name, location)
         end
 
-        body.get_attribute(receiver, name_reg, symbol.type, location)
+        register = body.register(symbol.type)
+
+        body.instruct(:GetAttribute, register, receiver, name_reg, location)
       end
 
-      def set_attribute(receiver, name, value, mutable, body, location)
+      def set_attribute(receiver, name, value, body, location)
+        register = body.register(value.type)
+
+        body.instruct(:SetAttribute, register, receiver, name, value, location)
+      end
+
+      def set_literal_attribute(receiver, name, value, mutable, body, location)
         name_reg = set_string(name, body, location)
         rec_type = receiver.type
 
@@ -373,7 +436,13 @@ module Inkoc
           rec_type.define_attribute(name, value.type, mutable)
         end
 
-        body.set_attribute(receiver, name_reg, value, location)
+        set_attribute(receiver, name_reg, value, body, location)
+      end
+
+      def set_object(type, permanent, prototype, body, location)
+        register = body.register(type)
+
+        body.instruct(:SetObject, register, permanent, prototype, location)
       end
 
       def array_type
