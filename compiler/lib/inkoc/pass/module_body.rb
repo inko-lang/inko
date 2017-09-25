@@ -229,7 +229,7 @@ module Inkoc
         body.add_connected_basic_block("#{local.name}_default")
 
         location = vnode.location
-        exists_reg = local_exists(local, location)
+        exists_reg = local_exists(local, body, location)
 
         body.instruct(:GotoNextBlockIfTrue, exists_reg, location)
 
@@ -282,7 +282,7 @@ module Inkoc
         body.instruct(:GetGlobal, register, symbol, location)
       end
 
-      def local_exists(symbol, location)
+      def local_exists(symbol, body, location)
         register = body.register(typedb.boolean_type)
 
         body.instruct(:LocalExists, register, symbol, location)
@@ -339,6 +339,20 @@ module Inkoc
         end
 
         set_object(type, permanent, prototype, body, loc)
+      end
+
+      def on_raw_integer_to_string(node, body)
+        register = body.register(typedb.string_type)
+        value = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:IntegerToString, register, value, node.location)
+      end
+
+      def on_raw_stdout_write(node, body)
+        register = body.register(typedb.integer_type)
+        value = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:StdoutWrite, register, value, node.location)
       end
 
       def on_raw_get_true(node, body)

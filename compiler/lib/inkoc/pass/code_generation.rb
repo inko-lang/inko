@@ -231,6 +231,20 @@ module Inkoc
         compiled_code.instruct(:SetGlobal, [var, val], tir_ins.location)
       end
 
+      def on_integer_to_string(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        val = tir_ins.value.id
+
+        compiled_code.instruct(:IntegerToString, [reg, val], tir_ins.location)
+      end
+
+      def on_stdout_write(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        val = tir_ins.value.id
+
+        compiled_code.instruct(:StdoutWrite, [reg, val], tir_ins.location)
+      end
+
       def on_throw(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         reason = tir_ins.reason
