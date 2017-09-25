@@ -246,20 +246,23 @@ module Inkoc
     end
 
     def double_string
-      string_with_quote('"', '\\"')
+      string_with_quote('"', '\\"', true)
     end
 
-    def string_with_quote(quote, escaped)
+    def string_with_quote(quote, escaped, unescape_special = false)
       # Skip the opening quote
       @position += 1
 
       start = @position
       has_escape = false
+      has_special = false
 
       loop do
         char = @input[@position]
 
         break unless char
+
+        has_special = true if char == '\\'
 
         @position += 1
 
@@ -273,6 +276,11 @@ module Inkoc
       token = new_token(:string, start, @position - 1)
 
       token.value.gsub!(escaped, quote) if has_escape
+
+      if has_special && unescape_special
+        token.value
+          .gsub!(/\\t|\\r|\\n/, '\t' => "\t", '\n' => "\n", '\r' => "\r")
+      end
 
       @column += 2
 

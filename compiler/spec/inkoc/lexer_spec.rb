@@ -346,6 +346,30 @@ describe Inkoc::Lexer do
       expect(token.type).to eq(:string)
       expect(token.value).to eq('hello"world')
     end
+
+    it 'tokenizes a double quoted string with a newline' do
+      lexer = described_class.new('"\n"')
+      token = lexer.double_string
+
+      expect(token.type).to eq(:string)
+      expect(token.value).to eq("\n")
+    end
+
+    it 'tokenizes a double quoted string with a carriage return' do
+      lexer = described_class.new('"\r"')
+      token = lexer.double_string
+
+      expect(token.type).to eq(:string)
+      expect(token.value).to eq("\r")
+    end
+
+    it 'tokenizes a double quoted string with a tab' do
+      lexer = described_class.new('"\t"')
+      token = lexer.double_string
+
+      expect(token.type).to eq(:string)
+      expect(token.value).to eq("\t")
+    end
   end
 
   describe '#colons' do
