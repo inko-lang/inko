@@ -14,6 +14,7 @@ module Inkoc
       Pass::Hoisting,
       Pass::DefineTypes,
       Pass::ModuleBody,
+      Pass::DeadCode,
       Pass::CodeGeneration,
       Pass::CodeWriter
     ].freeze

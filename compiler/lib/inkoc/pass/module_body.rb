@@ -83,7 +83,6 @@ module Inkoc
         registers = process_nodes(node.expressions, body)
 
         add_explicit_return(body)
-        check_for_unreachable_blocks(body)
 
         registers
       end
@@ -96,14 +95,6 @@ module Inkoc
           body.instruct(:Return, ins.register, loc)
         elsif !ins
           body.instruct(:Return, get_nil(body, loc), loc)
-        end
-      end
-
-      def check_for_unreachable_blocks(body)
-        body.blocks.each do |block|
-          next if body.reachable_basic_block?(block)
-
-          diagnostics.unreachable_code_warning(block.location)
         end
       end
 
@@ -144,11 +135,9 @@ module Inkoc
       end
 
       def on_attribute(node, body)
-        name = node.name
         loc = node.location
-        receiver = get_self(body, loc)
 
-        get_attribute(receiver, name, body, loc)
+        get_attribute(get_self(body, loc), node.name, body, loc)
       end
 
       alias on_constant on_attribute
@@ -164,12 +153,11 @@ module Inkoc
       end
 
       def on_block(node, body)
-        name = '<block>'
         location = node.location
-        type = Type::Block.new(name, typedb.block_prototype)
+        type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
 
         define_block(
-          name,
+          Config::BLOCK_NAME,
           type,
           body.self_type,
           node.arguments,
@@ -357,10 +345,23 @@ module Inkoc
         get_true(body, node.location)
       end
 
-      def send_to_self(name, body, location)
-        receiver = get_self(body, location)
+      def on_return(node, body)
+        location = node.location
+        value =
+          if node.value
+            process_node(node.value, body)
+          else
+            get_nil(body, location)
+          end
 
-        send_object_message(receiver, name, [], body, location)
+        register = body.register(value.type)
+
+        body.instruct(:Return, register, location)
+        body.add_basic_block
+      end
+
+      def send_to_self(name, body, location)
+        send_object_message(get_self(body, location), name, [], body, location)
       end
 
       def get_toplevel(body, location)
@@ -443,10 +444,6 @@ module Inkoc
         register = body.register(type)
 
         body.instruct(:SetObject, register, permanent, prototype, location)
-      end
-
-      def array_type
-        typedb.array_prototype.new_instance
       end
 
       def diagnostics

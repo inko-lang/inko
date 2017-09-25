@@ -35,9 +35,9 @@ module Inkoc
 
     NEW_MESSAGE = 'new'
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
-    CALL_MESSAGE = 'call'
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
+    BLOCK_NAME = '<block>'
 
     attr_reader :source_directories, :mode, :target
 
