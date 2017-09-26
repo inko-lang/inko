@@ -13,7 +13,7 @@ module Inkoc
       Pass::CompileImportedModules,
       Pass::Hoisting,
       Pass::DefineTypes,
-      Pass::ModuleBody,
+      Pass::GenerateTir,
       Pass::DeadCode,
       Pass::CodeGeneration,
       Pass::CodeWriter

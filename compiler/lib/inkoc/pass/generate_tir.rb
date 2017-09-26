@@ -2,7 +2,7 @@
 
 module Inkoc
   module Pass
-    class ModuleBody
+    class GenerateTir
       include TypeVerification
       include VisitorMethods
 
