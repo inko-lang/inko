@@ -66,7 +66,7 @@ module Inkoc
     end
 
     def on_send(node, self_type)
-      return Type::Dynamic.new if node.raw_instruction?
+      return on_raw_instruction(node, self_type) if node.raw_instruction?
 
       name = node.name
       rec_type =
@@ -83,6 +83,47 @@ module Inkoc
       arg_types = node.arguments.map { |arg| infer(arg, self_type) }
 
       symbol.type.initialized_return_type(arg_types)
+    end
+
+    def on_raw_instruction(node, self_type)
+      callback = node.raw_instruction_visitor_method
+
+      if respond_to?(callback)
+        public_send(callback, node, self_type)
+      else
+        diagnostics.unknown_raw_instruction_error(node.name, node.location)
+
+        Type::Dynamic.new
+      end
+    end
+
+    def on_raw_get_toplevel(*)
+      typedb.top_level
+    end
+
+    def on_raw_set_attribute(*, self_type)
+      process_node(args.fetch(2), self_type)
+    end
+
+    def on_raw_set_object(node, self_type)
+      proto =
+        if (proto_node = node.arguments[1])
+          process_node(proto_node, self_type)
+        end
+
+      Type::Object.new(nil, proto)
+    end
+
+    def on_raw_integer_to_string(*)
+      typedb.string_type
+    end
+
+    def on_raw_stdout_write(*)
+      typedb.integer_type
+    end
+
+    def on_raw_get_true(*)
+      typedb.boolean_type
     end
 
     def on_global(node, *)

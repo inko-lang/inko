@@ -390,7 +390,7 @@ module Inkoc
 
       def on_raw_instruction(node, body)
         name = node.name
-        callback = :"on_raw_#{name}"
+        callback = node.raw_instruction_visitor_method
 
         if respond_to?(callback)
           public_send(callback, node, body)

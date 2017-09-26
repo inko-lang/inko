@@ -28,6 +28,10 @@ module Inkoc
           receiver.constant? &&
           receiver.name == Config::RAW_INSTRUCTION_RECEIVER
       end
+
+      def raw_instruction_visitor_method
+        :"on_raw_#{name}"
+      end
     end
   end
 end
