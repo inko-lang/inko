@@ -12,7 +12,7 @@ module Inkoc
       Pass::CollectImports,
       Pass::CompileImportedModules,
       Pass::Hoisting,
-      Pass::DefineTypes,
+      Pass::DefineGlobalTypes,
       Pass::GenerateTir,
       Pass::DeadCode,
       Pass::CodeGeneration,

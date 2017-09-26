@@ -2,7 +2,7 @@
 
 module Inkoc
   module Pass
-    class DefineTypes
+    class DefineGlobalTypes
       include TypeLookup
       include DefineTypeParameters
       include VisitorMethods
