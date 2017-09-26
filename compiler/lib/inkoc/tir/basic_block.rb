@@ -53,6 +53,10 @@ module Inkoc
 
         offset
       end
+
+      def last_instruction
+        @instructions.last
+      end
     end
   end
 end

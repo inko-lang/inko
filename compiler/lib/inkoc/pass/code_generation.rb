@@ -155,7 +155,7 @@ module Inkoc
 
       def on_run_block(tir_ins, compiled_code, *)
         register = tir_ins.register.id
-        block = tir_ins.register.id
+        block = tir_ins.block.id
         args = tir_ins.arguments.map(&:id)
 
         compiled_code
@@ -225,10 +225,11 @@ module Inkoc
       end
 
       def on_set_global(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
         var = tir_ins.variable.index
         val = tir_ins.value.id
 
-        compiled_code.instruct(:SetGlobal, [var, val], tir_ins.location)
+        compiled_code.instruct(:SetGlobal, [reg, var, val], tir_ins.location)
       end
 
       def on_integer_to_string(tir_ins, compiled_code, *)

@@ -658,7 +658,7 @@ module Inkoc
       end
 
       location = start.location
-      receiver = AST::Global.new(Config::HASH_MAP_BUILTIN, location)
+      receiver = AST::Global.new(Config::HASH_MAP_CONST, location)
       keys_array = new_array(keys, start)
       vals_array = new_array(vals, start)
 
@@ -1271,7 +1271,7 @@ module Inkoc
     end
 
     def new_array(values, start)
-      receiver = AST::Global.new(Config::ARRAY_BUILTIN, start.location)
+      receiver = AST::Global.new(Config::ARRAY_CONST, start.location)
 
       AST::Send.new('new', receiver, values, start.location)
     end

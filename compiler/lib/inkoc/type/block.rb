@@ -32,7 +32,9 @@ module Inkoc
       end
 
       def define_self_argument(type)
-        define_required_argument(Config::SELF_LOCAL, type)
+        name = Config::SELF_LOCAL
+
+        define_required_argument(name, type) unless arguments.defined?(name)
       end
 
       def define_required_argument(name, type)

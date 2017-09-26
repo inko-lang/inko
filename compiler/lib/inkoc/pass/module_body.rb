@@ -84,6 +84,8 @@ module Inkoc
 
         add_explicit_return(body)
 
+        body.type.returns = body.return_type
+
         registers
       end
 
@@ -123,11 +125,11 @@ module Inkoc
         loc = node.location
 
         if body.locals.defined?(name)
-          get_local(body.locals[name], body, loc)
+          get_local(name, body, loc)
         elsif body.self_type.responds_to_message?(name)
           send_to_self(name, body, loc)
         elsif @module.globals.defined?(name)
-          get_global(@module.globals[name], body, loc)
+          get_global(name, body, loc)
         else
           diagnostics.undefined_method_error(body.self_type, name, loc)
           get_nil(body, loc)
@@ -140,7 +142,23 @@ module Inkoc
         get_attribute(get_self(body, loc), node.name, body, loc)
       end
 
-      alias on_constant on_attribute
+      def on_constant(node, body)
+        name = node.name
+        loc = node.location
+        self_type = body.self_type
+
+        if self_type.lookup_attribute(name).any?
+          get_attribute(get_self(body, loc), name, body, loc)
+        elsif @module.globals.defined?(name)
+          get_global(name, body, loc)
+        else
+          diagnostics.undefined_constant_error(name, loc)
+        end
+      end
+
+      def on_global(node, body)
+        get_global(node.name, body, node.location)
+      end
 
       def on_method(node, body)
         receiver = get_self(body, node.location)
@@ -191,6 +209,9 @@ module Inkoc
           location
         )
 
+        block_reg =
+          set_global_if_module_scope(receiver, name, block_reg, body, location)
+
         set_literal_attribute(receiver, name, block_reg, false, body, location)
       end
 
@@ -205,7 +226,7 @@ module Inkoc
       )
         code_object = body.add_code_object(name, type, location)
 
-        code_object.define_self_local(self_type)
+        code_object.define_self_argument(self_type)
 
         define_block_arguments(code_object, arguments)
 
@@ -234,6 +255,48 @@ module Inkoc
         body.instruct(:GotoNextBlockIfTrue, exists_reg, location)
 
         set_local(local, process_node(vnode, body), body, location)
+      end
+
+      def on_object(node, body)
+        name = node.name
+        loc = node.location
+        type = body.self_type.lookup_attribute(name).type
+
+        prototype = object_builtin(body, loc)
+        object = set_object(type, get_true(body, loc), prototype, body, loc)
+        object = store_object_literal(object, name, body, loc)
+
+        set_object_literal_name(object, name, body, loc)
+
+        # Define and run the block containing the object's body (e.g. methods).
+        block_type = Type::Block.new(name, typedb.block_prototype)
+        block = define_block(name, block_type, type, [], node.body, body, loc)
+
+        run_block(block, [object], body, loc)
+      end
+
+      def object_builtin(body, location)
+        top = get_toplevel(body, location)
+
+        get_attribute(top, Config::OBJECT_CONST, body, location)
+      end
+
+      def set_object_literal_name(object, name, body, location)
+        attr = Config::NAME_INSTANCE_ATTRIBUTE
+        name_reg = set_string(name, body, location)
+
+        object.type.define_attribute(attr, typedb.string_type)
+
+        set_literal_attribute(object, attr, name_reg, false, body, location)
+      end
+
+      def store_object_literal(object, name, body, location)
+        receiver = get_self(body, location)
+
+        object =
+          set_global_if_module_scope(receiver, name, object, body, location)
+
+        set_literal_attribute(receiver, name, object, false, body, location)
       end
 
       def on_send(node, body)
@@ -270,14 +333,33 @@ module Inkoc
         body.instruct(:SetLocal, symbol, value, location)
       end
 
-      def get_local(symbol, body, location)
+      def get_local(name, body, location)
+        symbol = body.locals[name]
         register = body.register(symbol.type)
 
         body.instruct(:GetLocal, register, symbol, location)
       end
 
-      def get_global(symbol, body, location)
+      def set_global_if_module_scope(receiver, name, value, body, location)
+        if module_scope?(receiver.type)
+          set_global(name, value, body, location)
+        else
+          value
+        end
+      end
+
+      def set_global(name, value, body, location)
+        symbol = @module.globals.define(name, value.type)
         register = body.register(symbol.type)
+
+        body.instruct(:SetGlobal, register, symbol, value, location)
+      end
+
+      def get_global(name, body, location)
+        symbol = @module.globals[name]
+        register = body.register(symbol.type)
+
+        diagnostics.undefined_constant_error(name, location) if symbol.nil?
 
         body.instruct(:GetGlobal, register, symbol, location)
       end
@@ -296,7 +378,15 @@ module Inkoc
         set_literal_attribute(receiver, name, value, mutable, body, loc)
       end
 
-      alias on_define_constant on_define_attribute
+      def on_define_constant(variable, value, mutable, body)
+        loc = variable.location
+        name = variable.name
+        receiver = get_self(body, loc)
+
+        value = set_global_if_module_scope(receiver, name, value, body, loc)
+
+        set_literal_attribute(receiver, name, value, mutable, body, loc)
+      end
 
       def on_raw_instruction(node, body)
         name = node.name
@@ -374,6 +464,12 @@ module Inkoc
         body.add_basic_block
       end
 
+      def run_block(block, arguments, body, location)
+        register = body.register(block.type.return_type)
+
+        body.instruct(:RunBlock, register, block, arguments, location)
+      end
+
       def send_to_self(name, body, location)
         send_object_message(get_self(body, location), name, [], body, location)
       end
@@ -385,7 +481,7 @@ module Inkoc
       end
 
       def get_self(body, location)
-        get_local(body.self_local, body, location)
+        get_local(Config::SELF_LOCAL, body, location)
       end
 
       def get_nil(body, location)
@@ -466,6 +562,10 @@ module Inkoc
 
       def typedb
         @state.typedb
+      end
+
+      def module_scope?(self_type)
+        self_type == @module.type
       end
     end
   end

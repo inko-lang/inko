@@ -22,10 +22,10 @@ module Inkoc
     # The path to the prelude module.
     PRELUDE_MODULE = 'prelude'
 
-    OBJECT_BUILTIN = '_Object'
-    TRAIT_BUILTIN = '_Trait'
-    ARRAY_BUILTIN = '_Array'
-    HASH_MAP_BUILTIN = '_HashMap'
+    OBJECT_CONST = 'Object'
+    TRAIT_CONST = 'Trait'
+    ARRAY_CONST = 'Array'
+    HASH_MAP_CONST = 'HashMap'
 
     MODULE_TYPE = 'Module'
     MODULES_ATTRIBUTE = 'Modules'
@@ -38,6 +38,8 @@ module Inkoc
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
     BLOCK_NAME = '<block>'
+
+    NAME_INSTANCE_ATTRIBUTE = '@name'
 
     attr_reader :source_directories, :mode, :target
 

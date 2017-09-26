@@ -44,7 +44,9 @@ module Inkoc
       end
 
       def on_object(node, self_type)
-        proto = type_of_global(Config::OBJECT_BUILTIN, node.location)
+        top = typedb.top_level
+        proto = top.lookup_attribute(Config::OBJECT_CONST).type
+
         name = node.name
         type = Type::Object.new(name, proto)
 
@@ -57,7 +59,7 @@ module Inkoc
       end
 
       def on_trait(node, self_type)
-        proto = type_of_global(Config::TRAIT_BUILTIN, node.location)
+        proto = type_of_global(Config::TRAIT_CONST)
         name = node.name
         type = Type::Trait.new(name, proto)
 
@@ -184,7 +186,7 @@ module Inkoc
         self_type == @module.type
       end
 
-      def type_of_global(name, location)
+      def type_of_global(name)
         @module.globals[name].type
       end
 

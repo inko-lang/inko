@@ -72,6 +72,11 @@ module Inkoc
         define_immutable_local(Config::SELF_LOCAL, type)
       end
 
+      def define_self_argument(self_type)
+        define_self_local(self_type)
+        type.define_self_argument(self_type)
+      end
+
       def register(type)
         @registers.allocate(type)
       end
@@ -119,6 +124,10 @@ module Inkoc
 
       def new_basic_block(name = @blocks.length.to_s, *args)
         BasicBlock.new(name, *args)
+      end
+
+      def return_type
+        current_block.last_instruction.register.type
       end
 
       def visitor_method
