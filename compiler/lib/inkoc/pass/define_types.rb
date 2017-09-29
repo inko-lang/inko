@@ -109,7 +109,7 @@ module Inkoc
           .or_else { @module.lookup_attribute(name) }
 
         if symbol.nil?
-          diagnostics.undefined_attribute_error(self_type, name, node.location)
+          diagnostics.undefined_constant_error(name, node.location)
         end
 
         symbol.type
