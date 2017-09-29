@@ -6,9 +6,9 @@ module Inkoc
       include Inspect
       include ObjectOperations
       include TypeCompatibility
+      include GenericTypeOperations
 
       attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
-
       attr_accessor :rest_argument, :throws, :returns, :required_arguments_count
 
       def initialize(name, prototype = nil)
@@ -32,9 +32,7 @@ module Inkoc
       end
 
       def define_self_argument(type)
-        name = Config::SELF_LOCAL
-
-        define_required_argument(name, type) unless arguments.defined?(name)
+        define_required_argument(Config::SELF_LOCAL, type)
       end
 
       def define_required_argument(name, type)
@@ -89,6 +87,13 @@ module Inkoc
         return symbol.type if symbol.any?
 
         type_parameters[name]
+      end
+
+      def type_name
+        tname = super
+        tname += " -> #{return_type.type_name}" if return_type
+
+        tname
       end
     end
   end

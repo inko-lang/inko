@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class ImportSymbol
+      include TypeOperations
       include Predicates
       include Inspect
 

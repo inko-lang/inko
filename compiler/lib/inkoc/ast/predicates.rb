@@ -30,6 +30,14 @@ module Inkoc
       def variable_definition?
         false
       end
+
+      def expression?
+        true
+      end
+
+      def return?
+        false
+      end
     end
   end
 end

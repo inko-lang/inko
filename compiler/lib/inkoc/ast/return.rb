@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Return
+      include TypeOperations
       include Predicates
       include Inspect
 
@@ -17,6 +18,10 @@ module Inkoc
 
       def visitor_method
         :on_return
+      end
+
+      def return?
+        true
       end
     end
   end

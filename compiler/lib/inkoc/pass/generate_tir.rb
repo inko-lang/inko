@@ -171,11 +171,12 @@ module Inkoc
       end
 
       def on_block(node, body)
+        name = Config::BLOCK_NAME
         location = node.location
-        type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
+        type = Type::Block.new(name, typedb.block_prototype)
 
         define_block(
-          Config::BLOCK_NAME,
+          name,
           type,
           body.self_type,
           node.arguments,
@@ -269,7 +270,7 @@ module Inkoc
         set_object_literal_name(object, name, body, loc)
 
         # Define and run the block containing the object's body (e.g. methods).
-        block_type = Type::Block.new(name, typedb.block_prototype)
+        block_type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
         block = define_block(name, block_type, type, [], node.body, body, loc)
 
         run_block(block, [object], body, loc)

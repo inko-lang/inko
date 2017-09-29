@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class DefineTypeParameter
+      include TypeOperations
       include Predicates
       include Inspect
 

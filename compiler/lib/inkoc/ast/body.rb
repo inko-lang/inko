@@ -3,17 +3,19 @@
 module Inkoc
   module AST
     class Body
+      include TypeOperations
       include Predicates
       include Inspect
 
       attr_reader :location
-      attr_accessor :expressions
+      attr_accessor :expressions, :locals
 
       # expr - The expressions of this body.
       # location - The SourceLocation of this node.
       def initialize(expr, location)
         @expressions = expr
         @location = location
+        @locals = nil
       end
 
       def visitor_method
@@ -28,6 +30,10 @@ module Inkoc
         return if nodes.empty?
 
         @expressions = nodes + @expressions
+      end
+
+      def empty?
+        @expressions.empty?
       end
     end
   end

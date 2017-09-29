@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class CompilerOption
+      include TypeOperations
       include Predicates
       include Inspect
 
@@ -25,6 +26,10 @@ module Inkoc
 
       def visitor_method
         :on_compiler_option
+      end
+
+      def expression?
+        false
       end
     end
   end

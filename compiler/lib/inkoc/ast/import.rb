@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Import
+      include TypeOperations
       include Predicates
       include Inspect
 
@@ -31,6 +32,10 @@ module Inkoc
         end
 
         TIR::QualifiedName.new(steps)
+      end
+
+      def expression?
+        false
       end
     end
   end

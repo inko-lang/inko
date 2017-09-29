@@ -3,6 +3,7 @@
 module Inkoc
   module AST
     class Self
+      include TypeOperations
       include Predicates
       include Inspect
 

@@ -5,8 +5,11 @@ module Inkoc
     include Inspect
     include Enumerable
 
-    def initialize
+    attr_reader :parent
+
+    def initialize(parent = nil)
       @map = {}
+      @parent = parent
     end
 
     def define(name, type, mutable = false)
