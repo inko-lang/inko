@@ -5,12 +5,14 @@ module Inkoc
     class Module
       include Inspect
 
-      attr_reader :name, :location, :body, :globals, :type, :config,
+      attr_reader :name, :location, :body, :globals, :config,
                   :bytecode_directory, :bytecode_file, :imports
+
+      attr_accessor :type
 
       def initialize(name, location)
         @name = name
-        @type = Type::Object.new(name.to_s)
+        @type = nil
         @location = location
         @body = CodeObject.new(name, Type::Block.new(name.to_s), location)
         @globals = SymbolTable.new

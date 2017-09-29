@@ -36,7 +36,7 @@ module Inkoc
       def run(ast)
         locals = ast.locals
 
-        define_type(ast, type_for_module, locals)
+        on_module_body(ast, locals)
 
         # Method bodies are processed last since they may depend on types
         # defined after the method itself is defined.
@@ -47,7 +47,31 @@ module Inkoc
         [ast]
       end
 
+      def on_module_body(ast, locals)
+        @module.type =
+          if @module.define_module?
+            define_module_type
+          else
+            typedb.top_level
+          end
+
+        define_type(ast, @module.type, locals)
+      end
+
+      def define_module_type
+        top = typedb.top_level
+        modules = top.lookup_attribute(Config::MODULES_ATTRIBUTE).type
+        proto = top.lookup_attribute(Config::MODULE_TYPE).type
+        type = Type::Object.new(@module.name.to_s, proto)
+
+        modules.define_attribute(type.name, type, true)
+
+        type
+      end
+
       def on_body(node, self_type, locals)
+        locals.define(Config::SELF_LOCAL, self_type)
+
         return_types = return_types_for_body(node, self_type, locals)
         first_type = return_types[0][0]
 
@@ -108,9 +132,7 @@ module Inkoc
         symbol = self_type.lookup_attribute(name)
           .or_else { @module.lookup_attribute(name) }
 
-        if symbol.nil?
-          diagnostics.undefined_constant_error(name, node.location)
-        end
+        diagnostics.undefined_constant_error(name, node.location) if symbol.nil?
 
         symbol.type
       end
@@ -236,24 +258,34 @@ module Inkoc
         exp_type
       end
 
-      def on_object(node, self_type, locals)
-        top = typedb.top_level
-        proto = top.lookup_attribute(Config::OBJECT_CONST).type
-
+      def on_object(node, self_type, *)
+        proto = typedb.top_level.lookup_attribute(Config::OBJECT_CONST).type
         name = node.name
         type = Type::Object.new(name, proto)
 
+        type
+          .define_attribute(Config::NAME_INSTANCE_ATTRIBUTE, typedb.string_type)
+
         define_type_parameters(node.type_parameters, type)
         implement_traits(node.trait_implementations, type, self_type)
-
         store_type(type, self_type)
-
-        define_type(node.body, type, locals)
+        define_type(node.body, type, node.body.locals)
+        define_block_type_for_object(node, type)
 
         type
       end
 
-      def on_trait(node, self_type, locals)
+      def define_block_type_for_object(node, type)
+        node.block_type = Type::Block.new(
+          Config::BLOCK_NAME,
+          typedb.block_prototype,
+          returns: node.body.type
+        )
+
+        node.block_type.define_self_argument(type)
+      end
+
+      def on_trait(node, self_type, *)
         proto = type_of_global(Config::TRAIT_CONST)
         name = node.name
         type = Type::Trait.new(name, proto)
@@ -263,15 +295,15 @@ module Inkoc
 
         store_type(type, self_type)
 
-        define_type(node.body, type, locals)
+        define_type(node.body, type, node.body.locals)
 
         type
       end
 
-      def on_method(node, self_type, locals)
+      def on_method(node, self_type, *)
         type = Type::Block.new(node.name, typedb.block_prototype)
 
-        block_signature(node, type, self_type, locals)
+        block_signature(node, type, self_type, node.body.locals)
 
         if node.required?
           if self_type.trait?
@@ -283,17 +315,25 @@ module Inkoc
           store_type(type, self_type)
         end
 
-        @method_bodies << DeferredMethod.new(node.body, self_type, locals)
+        @method_bodies << DeferredMethod
+          .new(node.body, self_type, node.body.locals)
 
         type
       end
 
-      def on_block(node, self_type, locals)
+      def on_block(node, self_type, *)
         type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
 
-        block_signature(node, type, self_type, locals)
+        block_signature(node, type, self_type, node.body.locals)
+        define_type(node.body, self_type, node.body.locals)
 
-        define_type(node.body, self_type, locals)
+        rtype = node.body.type
+
+        type.returns = rtype if type.returns.dynamic?
+
+        unless rtype.type_compatible?(type.return_type)
+          diagnostics.return_type_error(type.returns, rtype, node.location)
+        end
 
         type
       end
@@ -355,7 +395,6 @@ module Inkoc
 
       def define_arguments(arguments, block_type, self_type, locals)
         block_type.define_self_argument(self_type)
-        locals.define(Config::SELF_LOCAL, self_type)
 
         arguments.each do |arg|
           val_type = type_for_argument_value(arg, self_type, locals)
@@ -377,6 +416,8 @@ module Inkoc
           else
             block_type.define_required_argument(arg_name, arg_type)
           end
+
+          arg.type = arg_type
 
           locals.define(arg_name, arg_type)
         end
@@ -443,10 +484,6 @@ module Inkoc
 
       def wrap_optional_type(node, type)
         node.optional? ? Type::Optional.new(type) : type
-      end
-
-      def type_for_module
-        @module.define_module? ? @module.type : typedb.top_level
       end
     end
   end

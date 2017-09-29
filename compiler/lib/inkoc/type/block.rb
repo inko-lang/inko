@@ -11,14 +11,14 @@ module Inkoc
       attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
       attr_accessor :rest_argument, :throws, :returns, :required_arguments_count
 
-      def initialize(name, prototype = nil)
+      def initialize(name, prototype = nil, returns: nil)
         @name = name
         @prototype = prototype
         @arguments = SymbolTable.new
         @rest_argument = false
         @type_parameters = {}
         @throws = nil
-        @returns = nil
+        @returns = returns
         @attributes = SymbolTable.new
         @required_arguments_count = 0
       end

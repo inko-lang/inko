@@ -35,9 +35,8 @@ module Inkoc
         body.add_connected_basic_block('define_module')
 
         mod_reg = value_for_module_self(body)
-        self_local = body.define_self_local(mod_reg.type)
 
-        set_local(self_local, mod_reg, body, @module.location)
+        set_local(body.self_local, mod_reg, body, @module.location)
       end
 
       def value_for_module_self(body)
@@ -60,9 +59,9 @@ module Inkoc
 
         # Create the new module and store it in the modules list.
         true_reg = get_true(body, loc)
-        mod = set_object(@module.type, true_reg, proto, body, loc)
+        mod = set_object(body.type, true_reg, proto, body, loc)
 
-        set_literal_attribute(modules, @module.name.to_s, mod, true, body, loc)
+        set_literal_attribute(modules, @module.name.to_s, mod, body, loc)
       end
 
       def on_import(node, body)
@@ -83,8 +82,6 @@ module Inkoc
         registers = process_nodes(node.expressions, body)
 
         add_explicit_return(body)
-
-        body.type.returns = body.return_type
 
         registers
       end
@@ -131,7 +128,6 @@ module Inkoc
         elsif @module.globals.defined?(name)
           get_global(name, body, loc)
         else
-          diagnostics.undefined_method_error(body.self_type, name, loc)
           get_nil(body, loc)
         end
       end
@@ -152,7 +148,7 @@ module Inkoc
         elsif @module.globals.defined?(name)
           get_global(name, body, loc)
         else
-          diagnostics.undefined_constant_error(name, loc)
+          get_nil(body, loc)
         end
       end
 
@@ -164,25 +160,21 @@ module Inkoc
         receiver = get_self(body, node.location)
 
         if node.required?
-          define_required_method(node, receiver, body) if receiver.type.trait?
+          define_required_method(node, receiver, body)
         else
           define_method(node, receiver, body)
         end
       end
 
       def on_block(node, body)
-        name = Config::BLOCK_NAME
-        location = node.location
-        type = Type::Block.new(name, typedb.block_prototype)
-
         define_block(
-          name,
-          type,
-          body.self_type,
+          Config::BLOCK_NAME,
+          node.type,
           node.arguments,
           node.body,
+          node.body.locals,
           body,
-          location
+          node.location
         )
       end
 
@@ -199,13 +191,12 @@ module Inkoc
       def define_method(node, receiver, body)
         location = node.location
         name = node.name
-        rec_type = receiver.type
         block_reg = define_block(
           name,
-          rec_type.lookup_method(name).type,
-          rec_type,
+          node.type,
           node.arguments,
           node.body,
+          node.body.locals,
           body,
           location
         )
@@ -213,21 +204,19 @@ module Inkoc
         block_reg =
           set_global_if_module_scope(receiver, name, block_reg, body, location)
 
-        set_literal_attribute(receiver, name, block_reg, false, body, location)
+        set_literal_attribute(receiver, name, block_reg, body, location)
       end
 
       def define_block(
         name,
         type,
-        self_type,
         arguments,
         block_body,
+        locals,
         body,
         location
       )
-        code_object = body.add_code_object(name, type, location)
-
-        code_object.define_self_argument(self_type)
+        code_object = body.add_code_object(name, type, location, locals: locals)
 
         define_block_arguments(code_object, arguments)
 
@@ -236,14 +225,14 @@ module Inkoc
         body.instruct(:SetBlock, body.register(type), code_object, location)
       end
 
-      def define_block_arguments(block, arguments)
+      def define_block_arguments(code_object, arguments)
         arguments.each do |arg|
-          symbol = block.type.lookup_argument(arg.name)
-          local = block.define_immutable_local(arg.name, symbol.type)
+          symbol = code_object.type.lookup_argument(arg.name)
+          local = code_object.define_immutable_local(arg.name, symbol.type)
 
           next unless arg.default
 
-          define_argument_default(block, local, arg.default)
+          define_argument_default(code_object, local, arg.default)
         end
       end
 
@@ -269,9 +258,15 @@ module Inkoc
 
         set_object_literal_name(object, name, body, loc)
 
-        # Define and run the block containing the object's body (e.g. methods).
-        block_type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
-        block = define_block(name, block_type, type, [], node.body, body, loc)
+        block = define_block(
+          name,
+          node.block_type,
+          [],
+          node.body,
+          node.body.locals,
+          body,
+          loc
+        )
 
         run_block(block, [object], body, loc)
       end
@@ -286,9 +281,7 @@ module Inkoc
         attr = Config::NAME_INSTANCE_ATTRIBUTE
         name_reg = set_string(name, body, location)
 
-        object.type.define_attribute(attr, typedb.string_type)
-
-        set_literal_attribute(object, attr, name_reg, false, body, location)
+        set_literal_attribute(object, attr, name_reg, body, location)
       end
 
       def store_object_literal(object, name, body, location)
@@ -297,7 +290,7 @@ module Inkoc
         object =
           set_global_if_module_scope(receiver, name, object, body, location)
 
-        set_literal_attribute(receiver, name, object, false, body, location)
+        set_literal_attribute(receiver, name, object, body, location)
       end
 
       def on_send(node, body)
@@ -320,12 +313,12 @@ module Inkoc
         callback = node.variable.define_variable_visitor_method
         value = process_node(node.value, body)
 
-        public_send(callback, node.variable, value, node.mutable?, body)
+        public_send(callback, node.variable, value, body)
       end
 
-      def on_define_local(variable, value, mutable, body)
+      def on_define_local(variable, value, body)
         name = variable.name
-        symbol = body.define_local(name, value.type, mutable)
+        symbol = body.locals[name]
 
         set_local(symbol, value, body, variable.location)
       end
@@ -350,7 +343,7 @@ module Inkoc
       end
 
       def set_global(name, value, body, location)
-        symbol = @module.globals.define(name, value.type)
+        symbol = @module.globals[name]
         register = body.register(symbol.type)
 
         body.instruct(:SetGlobal, register, symbol, value, location)
@@ -359,8 +352,6 @@ module Inkoc
       def get_global(name, body, location)
         symbol = @module.globals[name]
         register = body.register(symbol.type)
-
-        diagnostics.undefined_constant_error(name, location) if symbol.nil?
 
         body.instruct(:GetGlobal, register, symbol, location)
       end
@@ -371,35 +362,30 @@ module Inkoc
         body.instruct(:LocalExists, register, symbol, location)
       end
 
-      def on_define_attribute(variable, value, mutable, body)
+      def on_define_attribute(variable, value, body)
         loc = variable.location
         name = variable.name
         receiver = get_self(body, loc)
 
-        set_literal_attribute(receiver, name, value, mutable, body, loc)
+        set_literal_attribute(receiver, name, value, body, loc)
       end
 
-      def on_define_constant(variable, value, mutable, body)
+      def on_define_constant(variable, value, body)
         loc = variable.location
         name = variable.name
         receiver = get_self(body, loc)
-
         value = set_global_if_module_scope(receiver, name, value, body, loc)
 
-        set_literal_attribute(receiver, name, value, mutable, body, loc)
+        set_literal_attribute(receiver, name, value, body, loc)
       end
 
       def on_raw_instruction(node, body)
-        name = node.name
         callback = node.raw_instruction_visitor_method
 
         if respond_to?(callback)
           public_send(callback, node, body)
         else
-          location = node.location
-
-          diagnostics.unknown_raw_instruction_error(name, location)
-          get_nil(body, location)
+          get_nil(body, node.location)
         end
       end
 
@@ -421,15 +407,14 @@ module Inkoc
         loc = node.location
         permanent = process_node(args.fetch(0), body)
 
-        if args[1]
-          prototype = process_node(args[1], body)
-          type = Type::Object.new(nil, prototype.type)
-        else
-          prototype = get_nil(body, loc)
-          type = Type::Object.new
-        end
+        prototype =
+          if args[1]
+            process_node(args[1], body)
+          else
+            get_nil(body, loc)
+          end
 
-        set_object(type, permanent, prototype, body, loc)
+        set_object(node.type, permanent, prototype, body, loc)
       end
 
       def on_raw_integer_to_string(node, body)
@@ -505,14 +490,8 @@ module Inkoc
 
       def send_object_message(receiver, name, arguments, body, location)
         rec_type = receiver.type
-        reg_type = rec_type.message_return_type(name)
-        reg = body.register(reg_type)
+        reg = body.register(rec_type.message_return_type(name))
         name_reg = set_string(name, body, location)
-
-        unless rec_type.responds_to_message?(name)
-          diagnostics.undefined_method_error(rec_type, name, location)
-        end
-
         args = [receiver] + arguments
 
         body
@@ -523,11 +502,6 @@ module Inkoc
         rec_type = receiver.type
         symbol = rec_type.lookup_attribute(name)
         name_reg = set_string(name, body, location)
-
-        unless symbol.any?
-          diagnostics.undefined_attribute_error(rec_type, name, location)
-        end
-
         register = body.register(symbol.type)
 
         body.instruct(:GetAttribute, register, receiver, name_reg, location)
@@ -539,14 +513,8 @@ module Inkoc
         body.instruct(:SetAttribute, register, receiver, name, value, location)
       end
 
-      def set_literal_attribute(receiver, name, value, mutable, body, location)
+      def set_literal_attribute(receiver, name, value, body, location)
         name_reg = set_string(name, body, location)
-        rec_type = receiver.type
-
-        # TODO: type inference should handle this.
-        if rec_type.lookup_attribute(name).nil?
-          rec_type.define_attribute(name, value.type, mutable)
-        end
 
         set_attribute(receiver, name_reg, value, body, location)
       end

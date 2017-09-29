@@ -11,9 +11,15 @@ module Inkoc
       end
 
       def run(node)
-        process_node(node, node)
+        on_module_body(node)
 
         [node]
+      end
+
+      def on_module_body(node)
+        node.locals = @module.body.locals
+
+        process_nodes(node.expressions, node)
       end
 
       def on_body(node, outer)

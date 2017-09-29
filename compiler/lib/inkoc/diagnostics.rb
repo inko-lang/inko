@@ -115,6 +115,16 @@ module Inkoc
       )
     end
 
+    def return_type_error(expected, found, location)
+      exname = expected.type_name
+      fname = found.type_name
+
+      error(
+        "Expected a value of type #{exname} to be returned instead of #{fname}",
+        location
+      )
+    end
+
     def type_parameters_error(exp, found, location)
       params = exp == 1 ? 'parameter' : 'parameters'
       were = found == 1 ? 'is' : 'are'

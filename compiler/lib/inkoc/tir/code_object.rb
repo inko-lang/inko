@@ -8,10 +8,10 @@ module Inkoc
       attr_reader :name, :type, :locals, :registers, :location, :blocks,
                   :code_objects
 
-      def initialize(name, type, location)
+      def initialize(name, type, location, locals: SymbolTable.new)
         @name = name
         @type = type
-        @locals = SymbolTable.new
+        @locals = locals
         @registers = VirtualRegisters.new
         @location = location
         @blocks = []
@@ -66,15 +66,6 @@ module Inkoc
 
       def define_immutable_local(name, type)
         define_local(name, type, false)
-      end
-
-      def define_self_local(type)
-        define_immutable_local(Config::SELF_LOCAL, type)
-      end
-
-      def define_self_argument(self_type)
-        define_self_local(self_type)
-        type.define_self_argument(self_type)
       end
 
       def register(type)

@@ -10,6 +10,8 @@ module Inkoc
       attr_reader :name, :type_parameters, :trait_implementations, :body,
                   :location
 
+      attr_accessor :block_type
+
       # name - The name of the object.
       # targs - The type arguments of the object.
       # impl - The trait implementations to add to this object.
@@ -21,6 +23,7 @@ module Inkoc
         @trait_implementations = impl
         @body = body
         @location = location
+        @block_type = nil
       end
 
       def visitor_method
