@@ -208,14 +208,14 @@ module Inkoc
         typedb.top_level
       end
 
-      def on_raw_set_attribute(*, self_type, locals)
-        define_type(args.fetch(2), self_type, locals)
+      def on_raw_set_attribute(node, *)
+        node.arguments[2].type
       end
 
-      def on_raw_set_object(node, self_type, locals)
+      def on_raw_set_object(node, *)
         proto =
           if (proto_node = node.arguments[1])
-            define_type(proto_node, self_type, locals)
+            proto_node.type
           end
 
         Type::Object.new(nil, proto)
