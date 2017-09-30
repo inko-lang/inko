@@ -15,15 +15,7 @@ module Inkoc
         false
       end
 
-      def hoist?
-        false
-      end
-
       def method?
-        false
-      end
-
-      def hoist_children?
         false
       end
 

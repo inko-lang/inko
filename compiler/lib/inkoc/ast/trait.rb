@@ -27,14 +27,6 @@ module Inkoc
       def visitor_method
         :on_trait
       end
-
-      def hoist?
-        true
-      end
-
-      def hoist_children?
-        true
-      end
     end
   end
 end

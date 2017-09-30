@@ -34,10 +34,6 @@ module Inkoc
         :on_method
       end
 
-      def hoist?
-        true
-      end
-
       def method?
         true
       end

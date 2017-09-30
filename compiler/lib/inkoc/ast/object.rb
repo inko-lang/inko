@@ -7,20 +7,17 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :type_parameters, :trait_implementations, :body,
-                  :location
+      attr_reader :name, :type_parameters, :body, :location
 
       attr_accessor :block_type
 
       # name - The name of the object.
       # targs - The type arguments of the object.
-      # impl - The trait implementations to add to this object.
       # body - The body of the object.
       # location - The SourceLocation of the object.
-      def initialize(name, targs, impl, body, location)
+      def initialize(name, targs, body, location)
         @name = name
         @type_parameters = targs
-        @trait_implementations = impl
         @body = body
         @location = location
         @block_type = nil
@@ -28,14 +25,6 @@ module Inkoc
 
       def visitor_method
         :on_object
-      end
-
-      def hoist?
-        true
-      end
-
-      def hoist_children?
-        true
       end
     end
   end
