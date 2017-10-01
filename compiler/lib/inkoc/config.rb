@@ -34,10 +34,13 @@ module Inkoc
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
 
     NEW_MESSAGE = 'new'
-    DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
     BLOCK_NAME = '<block>'
+    IMPL_NAME = '<impl>'
+
+    DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
+    IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
 
     NAME_INSTANCE_ATTRIBUTE = '@name'
 

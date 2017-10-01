@@ -59,7 +59,7 @@ module Inkoc
 
         # Create the new module and store it in the modules list.
         true_reg = get_true(body, loc)
-        mod = set_object(body.type, true_reg, proto, body, loc)
+        mod = set_object_with_prototype(body.type, true_reg, proto, body, loc)
 
         set_literal_attribute(modules, @module.name.to_s, mod, body, loc)
       end
@@ -249,12 +249,29 @@ module Inkoc
       end
 
       def on_object(node, body)
+        define_object(node, body, Config::OBJECT_CONST)
+      end
+
+      def on_trait(node, body)
+        define_object(node, body, Config::TRAIT_CONST)
+      end
+
+      def define_object(node, body, proto_name)
         name = node.name
         loc = node.location
         type = body.self_type.lookup_attribute(name).type
+        true_reg = get_true(body, loc)
 
-        prototype = object_builtin(body, loc)
-        object = set_object(type, get_true(body, loc), prototype, body, loc)
+        object =
+          if type.prototype
+            top = get_toplevel(body, loc)
+            proto = get_attribute(top, proto_name, body, loc)
+
+            set_object_with_prototype(type, true_reg, proto, body, loc)
+          else
+            set_object(type, true_reg, body, loc)
+          end
+
         object = store_object_literal(object, name, body, loc)
 
         set_object_literal_name(object, name, body, loc)
@@ -270,12 +287,42 @@ module Inkoc
         )
 
         run_block(block, [object], body, loc)
+
+        object
       end
 
-      def object_builtin(body, location)
+      def on_trait_implementation(node, body)
+        loc = node.location
+        object = get_global(node.object_name.name, body, loc)
+        trait = get_global(node.trait_name.name, body, loc)
+
+        send_object_message(
+          object,
+          Config::IMPLEMENT_TRAIT_MESSAGE,
+          [trait],
+          body,
+          loc
+        )
+
+        block = define_block(
+          Config::IMPL_NAME,
+          node.block_type,
+          [],
+          node.body,
+          node.body.locals,
+          body,
+          loc
+        )
+
+        run_block(block, [object], body, loc)
+
+        object
+      end
+
+      def trait_builtin(body, location)
         top = get_toplevel(body, location)
 
-        get_attribute(top, Config::OBJECT_CONST, body, location)
+        get_attribute(top, Config::TRAIT_CONST, body, location)
       end
 
       def set_object_literal_name(object, name, body, location)
@@ -408,14 +455,13 @@ module Inkoc
         loc = node.location
         permanent = process_node(args.fetch(0), body)
 
-        prototype =
-          if args[1]
-            process_node(args[1], body)
-          else
-            get_nil(body, loc)
-          end
+        if args[1]
+          proto = process_node(args[1], body)
 
-        set_object(node.type, permanent, prototype, body, loc)
+          set_object_with_prototype(node.type, permanent, proto, body, loc)
+        else
+          set_object(node.type, permanent, body, loc)
+        end
       end
 
       def on_raw_integer_to_string(node, body)
@@ -434,6 +480,10 @@ module Inkoc
 
       def on_raw_get_true(node, body)
         get_true(body, node.location)
+      end
+
+      def on_raw_get_false(node, body)
+        get_false(body, node.location)
       end
 
       def on_return(node, body)
@@ -483,6 +533,12 @@ module Inkoc
         body.instruct(:GetTrue, register, location)
       end
 
+      def get_false(body, location)
+        register = body.register(typedb.boolean_type)
+
+        body.instruct(:GetFalse, register, location)
+      end
+
       def set_string(value, body, location)
         register = body.register(typedb.string_type)
 
@@ -520,7 +576,13 @@ module Inkoc
         set_attribute(receiver, name_reg, value, body, location)
       end
 
-      def set_object(type, permanent, prototype, body, location)
+      def set_object(type, permanent, body, location)
+        register = body.register(type)
+
+        body.instruct(:SetObject, register, permanent, nil, location)
+      end
+
+      def set_object_with_prototype(type, permanent, prototype, body, location)
         register = body.register(type)
 
         body.instruct(:SetObject, register, permanent, prototype, location)

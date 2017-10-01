@@ -41,7 +41,7 @@ module Inkoc
         # Method bodies are processed last since they may depend on types
         # defined after the method itself is defined.
         @method_bodies.each do |method|
-          define_type(method.ast, method.self_type, method.locals)
+          process_deferred_method(method)
         end
 
         [ast]
@@ -174,16 +174,18 @@ module Inkoc
             self_type
           end
 
+        arg_types = node.arguments.map do |arg|
+          define_type(arg, self_type, locals)
+        end
+
+        return rec_type if rec_type.dynamic?
+
         symbol = rec_type.lookup_method(node.name)
 
         unless symbol.type.block?
           diagnostics.undefined_method_error(rec_type, name, node.location)
 
           return symbol.type
-        end
-
-        arg_types = node.arguments.map do |arg|
-          define_type(arg, self_type, locals)
         end
 
         symbol.type.initialized_return_type(arg_types)
@@ -233,6 +235,8 @@ module Inkoc
         typedb.boolean_type
       end
 
+      alias on_raw_get_false on_raw_get_true
+
       def on_return(node, self_type, locals)
         if node.value
           define_type(node.value, self_type, locals)
@@ -259,8 +263,14 @@ module Inkoc
       end
 
       def on_object(node, self_type, *)
-        proto = typedb.top_level.lookup_attribute(Config::OBJECT_CONST).type
         name = node.name
+        top = typedb.top_level
+
+        proto =
+          if (sym = top.lookup_attribute(Config::OBJECT_CONST)) && sym.any?
+            sym.type
+          end
+
         type = Type::Object.new(name, proto)
 
         type
@@ -299,6 +309,7 @@ module Inkoc
 
         store_type(type, self_type)
         define_type(node.body, type, node.body.locals)
+        define_block_type_for_object(node, type)
 
         type
       end
@@ -306,30 +317,42 @@ module Inkoc
       def on_trait_implementation(node, self_type, *)
         trait = type_for_constant(node.trait_name, [self_type, @module])
         object = type_for_constant(node.object_name, [self_type, @module])
+        loc = node.location
 
-        define_block_type_for_object(node, object)
         define_type(node.body, object, node.body.locals)
+        define_block_type_for_object(node, object)
 
-        # TODO: check if all required methods are implemented
-        # TODO: check if methods of inherited traits are implemented
+        traits_implemented = required_traits_implemented?(object, trait, loc)
+        methods_implemented = required_methods_implemented?(object, trait, loc)
+
+        if traits_implemented && methods_implemented
+          object.implemented_traits << trait
+        end
+
+        object
+      end
+
+      def required_traits_implemented?(object, trait, location)
         trait.required_traits.each do |req_trait|
           next if object.trait_implemented?(req_trait)
 
           diagnostics
-            .uninplemented_trait_error(trait, object, req_trait, node.location)
+            .uninplemented_trait_error(trait, object, req_trait, location)
+
+          return false
         end
 
+        true
+      end
+
+      def required_methods_implemented?(object, trait, location)
         trait.required_methods.each do |method|
           next if object.method_implemented?(method)
 
-          diagnostics
-            .unimplemented_method_error(method.type, object, node.location)
+          diagnostics.unimplemented_method_error(method.type, object, location)
+
+          return false
         end
-
-        # TODO: only do this when everything is OK
-        object.implemented_traits << trait
-
-        trait
       end
 
       def on_method(node, self_type, *)
@@ -347,10 +370,24 @@ module Inkoc
           store_type(type, self_type)
         end
 
-        @method_bodies << DeferredMethod
-          .new(node.body, self_type, node.body.locals)
+        @method_bodies << DeferredMethod.new(node, self_type, node.body.locals)
 
         type
+      end
+
+      def process_deferred_method(method)
+        node = method.ast
+        body = node.body
+
+        define_type(body, method.self_type, method.locals)
+
+        expected_type = node.type.return_type
+        inferred_type = body.type
+
+        return if inferred_type.type_compatible?(expected_type)
+
+        diagnostics
+          .return_type_error(expected_type, inferred_type, node.location)
       end
 
       def on_block(node, self_type, *)

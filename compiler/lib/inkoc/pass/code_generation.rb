@@ -125,6 +125,12 @@ module Inkoc
         compiled_code.instruct(:GetTrue, [register], tir_ins.location)
       end
 
+      def on_get_false(tir_ins, compiled_code, *)
+        register = tir_ins.register.id
+
+        compiled_code.instruct(:GetFalse, [register], tir_ins.location)
+      end
+
       def on_goto_next_block_if_true(tir_ins, compiled_code, basic_block)
         index = basic_block.next.instruction_offset
         register = tir_ins.register.id
@@ -212,9 +218,14 @@ module Inkoc
       def on_set_object(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         perm = tir_ins.permanent? ? 1 : 0
-        proto = tir_ins.prototype.id
+        args =
+          if (proto = tir_ins.prototype)
+            [reg, perm, proto.id]
+          else
+            [reg, perm]
+          end
 
-        compiled_code.instruct(:SetObject, [reg, perm, proto], tir_ins.location)
+        compiled_code.instruct(:SetObject, args, tir_ins.location)
       end
 
       def on_set_local(tir_ins, compiled_code, *)

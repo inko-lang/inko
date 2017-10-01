@@ -8,7 +8,7 @@ module Inkoc
           type_for_constant(node, [type, self.module])
         end
 
-        arg = Type::TypeParameter.new(arg_node.name, required_traits)
+        arg = Type::TypeParameter.new(arg_node.name, Set.new(required_traits))
 
         type.define_type_parameter(arg.name, arg)
       end
