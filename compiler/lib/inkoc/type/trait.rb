@@ -9,14 +9,14 @@ module Inkoc
       include TypeCompatibility
 
       attr_reader :name, :attributes, :required_methods, :type_parameters,
-                  :prototype, :implemented_traits
+                  :prototype, :required_traits
 
       def initialize(name, prototype = nil)
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
-        @required_methods = {}
-        @implemented_traits = {}
+        @required_methods = SymbolTable.new
+        @required_traits = Set.new
         @type_parameters = {}
       end
 
@@ -25,11 +25,11 @@ module Inkoc
       end
 
       def define_required_method(block_type)
-        @required_methods[block_type.name] = block_type
+        @required_methods.define(block_type.name, block_type)
       end
 
       def lookup_method(name)
-        @required_methods[name]
+        @required_methods[name].type
       end
 
       def trait?

@@ -138,5 +138,27 @@ module Inkoc
     def invalid_compiler_option(key, location)
       error("#{key} is not a valid compiler option", location)
     end
+
+    def uninplemented_trait_error(trait, object, required_trait, location)
+      tname = trait.type_name.inspect
+      oname = object.type_name.inspect
+      rname = required_trait.type_name.inspect
+
+      error(
+        "The trait #{tname} can not be implemented for the type #{oname} " \
+          "because it does not implement the trait #{rname}",
+        location
+      )
+    end
+
+    def unimplemented_method_error(method, object, location)
+      mname = method.type_name.inspect
+      oname = object.type_name.inspect
+
+      error(
+        "The method #{mname} must be implemented by type #{oname}",
+        location
+      )
+    end
   end
 end

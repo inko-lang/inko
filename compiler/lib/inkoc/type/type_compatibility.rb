@@ -29,6 +29,12 @@ module Inkoc
 
         prototype_chain_compatible?(other)
       end
+
+      def strict_type_compatible?(other)
+        return false if other.dynamic?
+
+        type_compatible?(other)
+      end
     end
   end
 end

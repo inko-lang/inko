@@ -5,6 +5,7 @@ module Inkoc
     class Dynamic
       include Inspect
       include ObjectOperations
+      include TypeCompatibility
 
       attr_reader :attributes, :implemented_traits, :type_parameters,
                   :type_parameter_instances
@@ -32,9 +33,12 @@ module Inkoc
         super.or_else { Symbol.new(name, Type::Dynamic.new) }
       end
 
-      # Dynamic types are compatible with everything else.
       def type_compatible?(*)
         true
+      end
+
+      def strict_type_compatible?(other)
+        other.dynamic?
       end
 
       def dynamic?
@@ -43,6 +47,14 @@ module Inkoc
 
       def regular_object?
         true
+      end
+
+      def implementation_of?(*)
+        false
+      end
+
+      def ==(other)
+        other.is_a?(Dynamic)
       end
 
       def type_name

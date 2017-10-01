@@ -8,20 +8,23 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :type_parameters, :body, :location,
-                  :trait_implementations
+                  :required_traits
+
+      attr_accessor :block_type
 
       # name - The name of the trait.
       # targs - The type arguments of the trait.
-      # impl - The other traits that must be implemented by the object
-      #        implementing this trait.
+      # required - The other traits that must be implemented by the object
+      #            implementing this trait.
       # body - The body of the trait.
       # location - The SourceLocation of the trait.
-      def initialize(name, targs, impl, body, location)
+      def initialize(name, targs, required, body, location)
         @name = name
         @type_parameters = targs
-        @trait_implementations = impl
+        @required_traits = required
         @body = body
         @location = location
+        @block_type = nil
       end
 
       def visitor_method

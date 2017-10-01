@@ -17,7 +17,9 @@ module Inkoc
       'throw' => :throw,
       'else' => :else,
       'try' => :try,
-      'as' => :as
+      'as' => :as,
+      'impl' => :impl,
+      'for' => :for
     }.freeze
 
     SPECIALS = Set.new(

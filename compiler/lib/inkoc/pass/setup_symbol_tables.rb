@@ -44,6 +44,7 @@ module Inkoc
 
       alias on_object on_node_with_body
       alias on_trait on_node_with_body
+      alias on_trait_implementation on_node_with_body
       alias on_method on_node_with_body
 
       def on_try(node, outer)

@@ -89,8 +89,41 @@ module Inkoc
         type_parameters[name]
       end
 
+      def implementation_of?(block)
+        arguments_compatible?(block) &&
+          type_parameters == block.type_parameters &&
+          rest_argument == block.rest_argument &&
+          throws == block.throws &&
+          returns == block.returns
+      end
+
+      def arguments_compatible?(block)
+        other_types = block.argument_types_without_self
+
+        argument_types_without_self.each_with_index do |arg, index|
+          other = other_types[index]
+
+          return false unless arg.strict_type_compatible?(other)
+        end
+
+        true
+      end
+
+      def argument_types_without_self
+        types = []
+
+        arguments.each do |arg|
+          types << arg.type unless arg.name == Config::SELF_LOCAL
+        end
+
+        types
+      end
+
       def type_name
         tname = super
+        args = argument_types_without_self
+
+        tname += "(#{args.map(&:type_name).join(', ')})" unless args.empty?
         tname += " -> #{return_type.type_name}" if return_type
 
         tname

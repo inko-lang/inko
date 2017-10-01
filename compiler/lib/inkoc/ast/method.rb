@@ -16,7 +16,7 @@ module Inkoc
       # throws - The type being thrown by this method.
       # body - The body of the method.
       # loc - The SourceLocation of this method.
-      def initialize(name, args, targs, returns, throws, body, loc)
+      def initialize(name, args, targs, returns, throws, required, body, loc)
         @name = name
         @arguments = args
         @type_parameters = targs
@@ -24,10 +24,11 @@ module Inkoc
         @throws = throws
         @body = body
         @location = loc
+        @required = required
       end
 
       def required?
-        @body.nil?
+        @required
       end
 
       def visitor_method

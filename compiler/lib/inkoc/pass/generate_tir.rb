@@ -160,7 +160,8 @@ module Inkoc
         receiver = get_self(body, node.location)
 
         if node.required?
-          define_required_method(node, receiver, body)
+          # TODO: figure out how to expose required methods to the runtime
+          # define_required_method(node, receiver, body)
         else
           define_method(node, receiver, body)
         end

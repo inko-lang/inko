@@ -24,6 +24,14 @@ module Inkoc
     def or_else
       self
     end
+
+    def ==(other)
+      other.is_a?(Symbol) &&
+        name == other.name &&
+        type == other.type &&
+        index == other.index &&
+        mutable? == other.mutable?
+    end
   end
 
   class NullSymbol

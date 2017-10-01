@@ -41,6 +41,8 @@ module Inkoc
         throw
         trait
         var
+        for
+        impl
       ]
     ).freeze
 
@@ -58,7 +60,6 @@ module Inkoc
         integer
         let
         let
-        object
         return
         self
         string
@@ -152,6 +153,8 @@ module Inkoc
         def_object(start)
       when :trait
         def_trait(start)
+      when :impl
+        implement_trait(start)
       when :compiler_option_open
         compiler_option
       else
@@ -703,10 +706,26 @@ module Inkoc
       arguments = optional_arguments
       ret_type = optional_return_type
       throw_type = optional_throw_type
-      body = block_body(advance!) if @lexer.next_type_is?(:curly_open)
+      required = false
 
-      AST::Method
-        .new(name, arguments, targs, ret_type, throw_type, body, start.location)
+      body =
+        if @lexer.next_type_is?(:curly_open)
+          block_body(advance!)
+        else
+          required = true
+          AST::Body.new([], start.location)
+        end
+
+      AST::Method.new(
+        name,
+        arguments,
+        targs,
+        ret_type,
+        throw_type,
+        required,
+        body,
+        start.location
+      )
     end
 
     # Parses a list of argument definitions.
@@ -885,18 +904,9 @@ module Inkoc
     def def_object(start)
       name = advance_and_expect!(:constant)
       targs = optional_type_parameter_definitions
-
-      implements =
-        if @lexer.next_type_is?(:colon)
-          skip_one
-          trait_implementations
-        else
-          []
-        end
-
       body = object_body(advance_and_expect!(:curly_open))
 
-      AST::Object.new(name.value, targs, implements, body, start.location)
+      AST::Object.new(name.value, targs, body, start.location)
     end
 
     # Parses the body of an object definition.
@@ -918,62 +928,6 @@ module Inkoc
       AST::Body.new(nodes, start.location)
     end
 
-    # Parses a list of trait implementations
-    #
-    # Examples:
-    #
-    #     object Foo: Bar { ... }
-    #     object Foo: Bar(original as alias), Baz { ... }
-    def trait_implementations
-      impl = []
-
-      loop do
-        start = advance_and_expect!(:constant)
-        name = type_name(start)
-
-        renames = if @lexer.next_type_is?(:paren_open)
-                    skip_one
-                    trait_renames
-                  else
-                    []
-                  end
-
-        impl << AST::Implement.new(name, renames, start.location)
-
-        if @lexer.next_type_is?(:comma)
-          @lexer.advance
-        elsif @lexer.next_type_is?(:curly_open)
-          break
-        else
-          raise(
-            ParseError,
-            "Unexpected #{@lexer.peek.type}, expected a comma or {"
-          )
-        end
-      end
-
-      impl
-    end
-
-    # Parses a list of methods to rename in a trait implementation.
-    def trait_renames
-      renames = []
-
-      loop do
-        src_name = identifier_from_token(advance_and_expect!(:identifier))
-
-        advance_and_expect!(:as)
-
-        new_name = identifier_from_token(advance_and_expect!(:identifier))
-
-        renames << [src_name, new_name]
-
-        break if comma_or_break_on(:paren_close)
-      end
-
-      renames
-    end
-
     # Parses the definition of a trait.
     #
     # Examples:
@@ -985,17 +939,50 @@ module Inkoc
       name = advance_and_expect!(:constant)
       targs = optional_type_parameter_definitions
 
-      implements =
+      required_traits =
         if @lexer.next_type_is?(:colon)
           skip_one
-          trait_implementations
+          trait_requirements
         else
           []
         end
 
       body = object_body(advance_and_expect!(:curly_open))
 
-      AST::Trait.new(name.value, targs, implements, body, start.location)
+      AST::Trait.new(name.value, targs, required_traits, body, start.location)
+    end
+
+    # Parses a list of traits that must be implemented by whatever implements
+    # the current trait.
+    def trait_requirements
+      required = []
+
+      while @lexer.next_type_is?(:constant)
+        required << constant(advance!)
+
+        advance! if @lexer.next_type_is?(:comma)
+      end
+
+      required
+    end
+
+    # Parses the implementation of a trait.
+    #
+    # Example:
+    #
+    #     impl ToString for Object {
+    #
+    #     }
+    def implement_trait(start)
+      trait_name = constant(advance_and_expect!(:constant))
+
+      advance_and_expect!(:for)
+
+      object_name = constant(advance_and_expect!(:constant))
+      body = block_body(advance_and_expect!(:curly_open))
+
+      AST::TraitImplementation
+        .new(trait_name, object_name, body, start.location)
     end
 
     # Parses a return statement.

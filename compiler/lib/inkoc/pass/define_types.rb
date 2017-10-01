@@ -267,7 +267,6 @@ module Inkoc
           .define_attribute(Config::NAME_INSTANCE_ATTRIBUTE, typedb.string_type)
 
         define_type_parameters(node.type_parameters, type)
-        implement_traits(node.trait_implementations, type, self_type)
         store_type(type, self_type)
         define_type(node.body, type, node.body.locals)
         define_block_type_for_object(node, type)
@@ -286,18 +285,51 @@ module Inkoc
       end
 
       def on_trait(node, self_type, *)
-        proto = type_of_global(Config::TRAIT_CONST)
+        proto = typedb.top_level.lookup_attribute(Config::TRAIT_CONST).type
         name = node.name
         type = Type::Trait.new(name, proto)
 
         define_type_parameters(node.type_parameters, type)
-        implement_traits(node.trait_implementations, type, self_type)
+
+        node.required_traits.each do |trait|
+          trait_type = type_for_constant(trait, [self_type, @module])
+
+          type.required_traits << trait_type if trait_type.trait?
+        end
 
         store_type(type, self_type)
-
         define_type(node.body, type, node.body.locals)
 
         type
+      end
+
+      def on_trait_implementation(node, self_type, *)
+        trait = type_for_constant(node.trait_name, [self_type, @module])
+        object = type_for_constant(node.object_name, [self_type, @module])
+
+        define_block_type_for_object(node, object)
+        define_type(node.body, object, node.body.locals)
+
+        # TODO: check if all required methods are implemented
+        # TODO: check if methods of inherited traits are implemented
+        trait.required_traits.each do |req_trait|
+          next if object.trait_implemented?(req_trait)
+
+          diagnostics
+            .uninplemented_trait_error(trait, object, req_trait, node.location)
+        end
+
+        trait.required_methods.each do |method|
+          next if object.method_implemented?(method)
+
+          diagnostics
+            .unimplemented_method_error(method.type, object, node.location)
+        end
+
+        # TODO: only do this when everything is OK
+        object.implemented_traits << trait
+
+        trait
       end
 
       def on_method(node, self_type, *)
@@ -467,19 +499,8 @@ module Inkoc
         @module.globals.define(name, type) if module_scope?(self_type)
       end
 
-      def implement_traits(traits, type, self_type)
-        traits.each do |trait|
-          type.implemented_traits <<
-            type_for_constant(trait.name, [self_type, @module])
-        end
-      end
-
       def module_scope?(self_type)
         self_type == @module.type
-      end
-
-      def type_of_global(name)
-        @module.globals[name].type
       end
 
       def wrap_optional_type(node, type)

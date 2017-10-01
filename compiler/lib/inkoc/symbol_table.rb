@@ -5,33 +5,33 @@ module Inkoc
     include Inspect
     include Enumerable
 
-    attr_reader :parent
+    attr_reader :mapping, :parent
 
     def initialize(parent = nil)
-      @map = {}
+      @mapping = {}
       @parent = parent
     end
 
     def define(name, type, mutable = false)
-      symbol = Symbol.new(name, type, @map.length, mutable)
+      symbol = Symbol.new(name, type, @mapping.length, mutable)
 
-      @map[name] = symbol
+      @mapping[name] = symbol
 
       symbol
     end
 
     def names
-      @map.keys
+      @mapping.keys
     end
 
     def each
-      @map.values.each do |value|
+      @mapping.values.each do |value|
         yield value
       end
     end
 
     def [](name)
-      @map[name] || NullSymbol.new(name)
+      @mapping[name] || NullSymbol.new(name)
     end
 
     def defined?(name)
@@ -39,15 +39,21 @@ module Inkoc
     end
 
     def any?
-      @map.any?
+      @mapping.any?
     end
 
     def empty?
-      @map.empty?
+      @mapping.empty?
     end
 
     def length
-      @map.length
+      @mapping.length
+    end
+
+    def ==(other)
+      other.is_a?(self.class) &&
+        mapping == other.mapping &&
+        parent == other.parent
     end
   end
 end
