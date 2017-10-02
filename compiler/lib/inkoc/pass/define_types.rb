@@ -62,7 +62,7 @@ module Inkoc
         top = typedb.top_level
         modules = top.lookup_attribute(Config::MODULES_ATTRIBUTE).type
         proto = top.lookup_attribute(Config::MODULE_TYPE).type
-        type = Type::Object.new(@module.name.to_s, proto)
+        type = Type::Object.new(name: @module.name.to_s, prototype: proto)
 
         modules.define_attribute(type.name, type, true)
 
@@ -235,7 +235,7 @@ module Inkoc
             proto_node.type
           end
 
-        Type::Object.new(nil, proto)
+        Type::Object.new(prototype: proto)
       end
 
       def on_raw_integer_to_string(*)
@@ -286,7 +286,7 @@ module Inkoc
             sym.type
           end
 
-        type = Type::Object.new(name, proto)
+        type = Type::Object.new(name: name, prototype: proto)
 
         type.define_attribute(
           Config::OBJECT_NAME_INSTANCE_ATTRIBUTE,
@@ -314,7 +314,7 @@ module Inkoc
       def on_trait(node, self_type, *)
         proto = typedb.top_level.lookup_attribute(Config::TRAIT_CONST).type
         name = node.name
-        type = Type::Trait.new(name, proto)
+        type = Type::Trait.new(name: name, prototype: proto)
 
         define_type_parameters(node.type_parameters, type)
 

@@ -12,7 +12,7 @@ module Inkoc
       attr_reader :name, :attributes, :required_methods, :type_parameters,
                   :prototype, :required_traits
 
-      def initialize(name, prototype = nil)
+      def initialize(name: Config::TRAIT_CONST, prototype: nil)
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new

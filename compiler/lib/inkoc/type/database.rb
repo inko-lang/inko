@@ -12,23 +12,27 @@ module Inkoc
                   :hash_map_prototype
 
       def initialize
-        @top_level = Object.new('Inko')
-        @block_prototype = Object.new('Block')
-        @integer_prototype = Object.new('Integer')
-        @float_prototype = Object.new('Float')
-        @string_prototype = Object.new('String')
-        @array_prototype = Object.new('Array')
-        @boolean_prototype = Object.new('Boolean')
-        @nil_prototype = Object.new('Nil')
-        @hash_map_prototype = Object.new('HashMap')
+        @top_level = Object.new(name: 'Inko')
+        @block_prototype = Object.new(name: 'Block')
+        @integer_prototype = Object.new(name: 'Integer')
+        @float_prototype = Object.new(name: 'Float')
+        @string_prototype = Object.new(name: 'String')
+        @array_prototype = Object.new(name: 'Array')
+        @boolean_prototype = Object.new(name: 'Boolean')
+        @nil_prototype = Object.new(name: 'Nil')
+        @hash_map_prototype = Object.new(name: 'HashMap')
 
         # Instances of these types are immutable so we don't need to allocate
         # new objects every time.
-        @integer_type = Object.new('Integer', @integer_prototype).freeze
-        @float_type = Object.new('Float', @float_prototype).freeze
-        @string_type = Object.new('String', @string_prototype).freeze
-        @boolean_type = Object.new('Boolean', @boolean_prototype).freeze
-        @nil_type = Object.new('Nil', @nil_prototype).freeze
+        @integer_type = immutable_object('<Integer>', @integer_prototype)
+        @float_type = immutable_object('Float', @float_prototype)
+        @string_type = immutable_object('String', @string_prototype)
+        @boolean_type = immutable_object('Boolean', @boolean_prototype)
+        @nil_type = immutable_object('Nil', @nil_prototype)
+      end
+
+      def immutable_object(name, prototype)
+        Object.new(name: name, prototype: prototype).freeze
       end
     end
   end

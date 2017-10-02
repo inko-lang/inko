@@ -14,17 +14,25 @@ module Inkoc
 
       attr_accessor :name, :prototype
 
-      def initialize(name = nil, prototype = nil, type_param_instances = {})
+      def initialize(
+        name: Config::OBJECT_CONST,
+        prototype: nil,
+        type_parameter_instances: {}
+      )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @implemented_traits = Set.new
         @type_parameters = {}
-        @type_parameter_instances = type_param_instances
+        @type_parameter_instances = type_parameter_instances
       end
 
       def new_instance(type_parameter_instances = {})
-        self.class.new(name, self, type_parameter_instances)
+        self.class.new(
+          name: name,
+          prototype: self,
+          type_parameter_instances: type_parameter_instances
+        )
       end
 
       def regular_object?
