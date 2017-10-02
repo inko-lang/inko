@@ -53,7 +53,7 @@ module Inkoc
       end
 
       def on_node_with_value(node, outer)
-        process_node(node.value, outer)
+        process_node(node.value, outer) if node.value
       end
 
       alias on_throw on_node_with_value

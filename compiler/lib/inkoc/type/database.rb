@@ -24,7 +24,7 @@ module Inkoc
 
         # Instances of these types are immutable so we don't need to allocate
         # new objects every time.
-        @integer_type = immutable_object('<Integer>', @integer_prototype)
+        @integer_type = immutable_object('Integer', @integer_prototype)
         @float_type = immutable_object('Float', @float_prototype)
         @string_type = immutable_object('String', @string_prototype)
         @boolean_type = immutable_object('Boolean', @boolean_prototype)
