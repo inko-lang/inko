@@ -52,23 +52,20 @@ module Inkoc
       end
 
       def type_name
-        tname =
-          if name
-            name
-          else
-            trait? ? 'Trait' : 'Object'
-          end
-
         type_params = type_parameter_names.map do |name|
-          instance = type_parameter_instances[name]
+          if (instance = type_parameter_instances[name])
+            instance.type_name
+          else
+            param = lookup_type_parameter(name)
 
-          instance ? instance.type_name : '?'
+            param.required_traits.map(&:type_name).join(' + ')
+          end
         end
 
         if type_params.any?
-          "#{tname}!(#{type_params.join(', ')})"
+          "#{name}!(#{type_params.join(', ')})"
         else
-          tname
+          name
         end
       end
     end
