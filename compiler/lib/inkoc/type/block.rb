@@ -4,6 +4,7 @@ module Inkoc
   module Type
     class Block
       include Inspect
+      include Predicates
       include ObjectOperations
       include TypeCompatibility
       include GenericTypeOperations
@@ -67,18 +68,27 @@ module Inkoc
         @arguments[name]
       end
 
-      def initialized_return_type(passed_types)
-        instance = return_type.new_instance
+      def initialized_return_type(self_type, passed_types)
+        param_instances = {}
 
         arguments.each_with_index do |arg, index|
           next unless arg.type.type_parameter?
 
           if (concrete_type = passed_types[index])
-            instance.init_type_parameter(arg.type.name, concrete_type)
+            param_instances[arg.type.name] = concrete_type
           end
         end
 
-        instance
+        rtype =
+          if return_type.type_parameter?
+            param_instances[return_type.name]
+          else
+            return_type
+          end
+
+        rtype = self_type if rtype.self_type?
+
+        rtype.new_instance(param_instances)
       end
 
       def lookup_type(name)

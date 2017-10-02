@@ -4,6 +4,7 @@ module Inkoc
   module Type
     class Optional
       include Inspect
+      include Predicates
       include ObjectOperations
 
       attr_reader :type

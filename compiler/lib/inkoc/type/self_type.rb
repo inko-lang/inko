@@ -2,14 +2,16 @@
 
 module Inkoc
   module Type
-    class Boolean
+    class SelfType
       include Inspect
-      include ObjectOperations
-      include TypeCompatibility
-      include ImmutableType
+      include Predicates
 
       def type_name
-        'Boolean'
+        'Self'
+      end
+
+      def self_type?
+        true
       end
     end
   end

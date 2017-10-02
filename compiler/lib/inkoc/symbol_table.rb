@@ -25,6 +25,8 @@ module Inkoc
     end
 
     def each
+      return to_enum(__method__) unless block_given?
+
       @mapping.values.each do |value|
         yield value
       end

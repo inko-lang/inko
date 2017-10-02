@@ -174,11 +174,13 @@ module Inkoc
             self_type
           end
 
-        arg_types = node.arguments.map do |arg|
+        explicit_arg_types = node.arguments.map do |arg|
           define_type(arg, self_type, locals)
         end
 
         return rec_type if rec_type.dynamic?
+
+        # TODO: handle message sends to type parameters
 
         symbol = rec_type.lookup_method(node.name)
 
@@ -188,7 +190,20 @@ module Inkoc
           return symbol.type
         end
 
-        symbol.type.initialized_return_type(arg_types)
+        method_type = symbol.type
+        expected_arg_types = method_type.argument_types_without_self
+
+        explicit_arg_types.each_with_index do |arg_type, index|
+          expected = expected_arg_types[index]
+
+          unless arg_type.type_compatible?(expected)
+            diagnostics
+              .type_error(expected, arg_type, node.arguments[index].location)
+          end
+        end
+
+        method_type
+          .initialized_return_type(rec_type, [self_type, *explicit_arg_types])
       end
 
       def on_raw_instruction(node, self_type, locals)
@@ -273,8 +288,10 @@ module Inkoc
 
         type = Type::Object.new(name, proto)
 
-        type
-          .define_attribute(Config::NAME_INSTANCE_ATTRIBUTE, typedb.string_type)
+        type.define_attribute(
+          Config::OBJECT_NAME_INSTANCE_ATTRIBUTE,
+          typedb.string_type
+        )
 
         define_type_parameters(node.type_parameters, type)
         store_type(type, self_type)
@@ -383,6 +400,7 @@ module Inkoc
 
         expected_type = node.type.return_type
         inferred_type = body.type
+        expected_type = method.self_type if expected_type.self_type?
 
         return if inferred_type.type_compatible?(expected_type)
 
@@ -493,15 +511,22 @@ module Inkoc
       end
 
       def define_return_type(node, block_type, self_type)
-        block_type.returns =
-          if node.returns
-            wrap_optional_type(
-              node.returns,
-              type_for_constant(node.returns, [block_type, self_type, @module])
-            )
-          else
-            Type::Dynamic.new
-          end
+        rnode = node.returns
+
+        unless rnode
+          block_type.returns = Type::Dynamic.new
+          return
+        end
+
+        if rnode.self_type?
+          block_type.returns = Type::SelfType.new
+          return
+        end
+
+        block_type.returns = wrap_optional_type(
+          rnode,
+          type_for_constant(rnode, [block_type, self_type, @module])
+        )
       end
 
       def define_throw_type(node, block_type, self_type)

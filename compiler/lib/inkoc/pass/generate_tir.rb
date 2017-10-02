@@ -326,7 +326,7 @@ module Inkoc
       end
 
       def set_object_literal_name(object, name, body, location)
-        attr = Config::NAME_INSTANCE_ATTRIBUTE
+        attr = Config::OBJECT_NAME_INSTANCE_ATTRIBUTE
         name_reg = set_string(name, body, location)
 
         set_literal_attribute(object, attr, name_reg, body, location)

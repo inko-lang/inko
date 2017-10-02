@@ -4,6 +4,7 @@ module Inkoc
   module Type
     class TypeParameter
       include Inspect
+      include Predicates
 
       attr_reader :name, :required_traits, :required_methods
 
@@ -20,31 +21,17 @@ module Inkoc
         @required_methods.define(block_type.name, block_type)
       end
 
-      def dynamic?
-        false
-      end
-
-      def optional?
-        false
-      end
-
-      def block?
-        false
-      end
-
-      def regular_object?
-        false
-      end
-
-      def trait?
-        false
-      end
-
       def type_parameter?
         true
       end
 
+      def return_type
+        self
+      end
+
       def type_compatible?(other)
+        return true if other.dynamic?
+
         other.is_a?(self.class) &&
           required_traits == other.required_traits &&
           required_methods == other.required_methods

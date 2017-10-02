@@ -3,34 +3,6 @@
 module Inkoc
   module Type
     module ObjectOperations
-      def optional?
-        false
-      end
-
-      def block?
-        false
-      end
-
-      def regular_object?
-        false
-      end
-
-      def generic_trait?
-        false
-      end
-
-      def trait?
-        false
-      end
-
-      def dynamic?
-        false
-      end
-
-      def type_parameter?
-        false
-      end
-
       def define_attribute(*args)
         attributes.define(*args)
       end

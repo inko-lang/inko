@@ -31,6 +31,10 @@ module Inkoc
         @optional
       end
 
+      def self_type?
+        name == Config::SELF_TYPE
+      end
+
       def visitor_method
         :on_constant
       end

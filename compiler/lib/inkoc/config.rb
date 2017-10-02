@@ -28,6 +28,7 @@ module Inkoc
     HASH_MAP_CONST = 'HashMap'
 
     MODULE_TYPE = 'Module'
+    SELF_TYPE = 'Self'
     MODULES_ATTRIBUTE = 'Modules'
 
     # The name of the constant to use as the receiver for raw instructions.
@@ -42,7 +43,7 @@ module Inkoc
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
 
-    NAME_INSTANCE_ATTRIBUTE = '@name'
+    OBJECT_NAME_INSTANCE_ATTRIBUTE = '@object_name'
 
     attr_reader :source_directories, :mode, :target
 

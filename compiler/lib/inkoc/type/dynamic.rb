@@ -4,6 +4,7 @@ module Inkoc
   module Type
     class Dynamic
       include Inspect
+      include Predicates
       include ObjectOperations
       include TypeCompatibility
 
@@ -12,17 +13,17 @@ module Inkoc
 
       attr_accessor :name, :prototype
 
-      def initialize(prototype = nil)
+      def initialize(prototype = nil, type_param_instances = {})
         @name = 'Dynamic'
         @prototype = prototype
         @attributes = SymbolTable.new
         @implemented_traits = Set.new
         @type_parameters = {}
-        @type_parameter_instances = {}
+        @type_parameter_instances = type_param_instances
       end
 
-      def new_instance
-        self.class.new(self)
+      def new_instance(type_parameter_instances = {})
+        self.class.new(self, type_parameter_instances)
       end
 
       def responds_to_message?(*)

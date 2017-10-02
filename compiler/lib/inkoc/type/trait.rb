@@ -7,6 +7,7 @@ module Inkoc
       include ObjectOperations
       include GenericTypeOperations
       include TypeCompatibility
+      include Predicates
 
       attr_reader :name, :attributes, :required_methods, :type_parameters,
                   :prototype, :required_traits

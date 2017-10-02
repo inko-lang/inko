@@ -24,11 +24,11 @@ module Inkoc
 
         # Instances of these types are immutable so we don't need to allocate
         # new objects every time.
-        @integer_type = Integer.new(@integer_prototype).freeze
-        @float_type = Float.new(@float_prototype).freeze
-        @string_type = String.new(@string_prototype).freeze
-        @boolean_type = Boolean.new(@boolean_prototype).freeze
-        @nil_type = Nil.new(@nil_prototype).freeze
+        @integer_type = Object.new('Integer', @integer_prototype).freeze
+        @float_type = Object.new('Float', @float_prototype).freeze
+        @string_type = Object.new('String', @string_prototype).freeze
+        @boolean_type = Object.new('Boolean', @boolean_prototype).freeze
+        @nil_type = Object.new('Nil', @nil_prototype).freeze
       end
     end
   end
