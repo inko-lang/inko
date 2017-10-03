@@ -160,5 +160,21 @@ module Inkoc
         location
       )
     end
+
+    def generated_trait_not_implemented_error(trait, type, location)
+      missing = []
+      name = type.type_name.inspect
+
+      trait.required_traits.each do |t|
+        missing << t.type_name unless type.implements_trait?(t)
+      end
+
+      traits = missing.join(', ')
+
+      error(
+        "The type #{name} does not implement the following trait(s): #{traits}",
+        location
+      )
+    end
   end
 end

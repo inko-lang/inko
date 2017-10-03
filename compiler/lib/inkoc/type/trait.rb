@@ -10,19 +10,39 @@ module Inkoc
       include Predicates
 
       attr_reader :name, :attributes, :required_methods, :type_parameters,
-                  :prototype, :required_traits
+                  :prototype, :required_traits, :type_parameter_instances
 
-      def initialize(name: Config::TRAIT_CONST, prototype: nil)
+      def initialize(
+        name: Config::TRAIT_CONST,
+        prototype: nil,
+        generated: false,
+        type_parameter_instances: {}
+      )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @required_methods = SymbolTable.new
         @required_traits = Set.new
         @type_parameters = {}
+        @type_parameter_instances = type_parameter_instances
+        @generated = generated
       end
 
-      def new_instance
-        self.class.new(name, self)
+      def trait?
+        true
+      end
+
+      def generated_trait?
+        @generated
+      end
+
+      def new_instance(param_instances = {})
+        self.class.new(
+          name: name,
+          prototype: self,
+          type_parameter_instances: param_instances,
+          generated: generated_trait?
+        )
       end
 
       def define_required_method(block_type)
@@ -33,14 +53,28 @@ module Inkoc
         @required_methods[name].type
       end
 
-      def trait?
-        true
-      end
-
       def type_compatible?(other)
         return true if self == other
 
-        prototype_chain_compatible?(other)
+        other.is_a?(self.class) &&
+          required_traits == other.required_traits &&
+          required_methods == other.required_methods
+      end
+
+      def type_name
+        if generated_trait?
+          type_name_for_generated_trait
+        else
+          super
+        end
+      end
+
+      def type_name_for_generated_trait
+        return name unless required_traits.any?
+
+        trait_names = required_traits.map(&:type_name).join(' + ')
+
+        "#{name}: #{trait_names}"
       end
     end
   end

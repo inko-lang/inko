@@ -72,7 +72,7 @@ module Inkoc
         param_instances = {}
 
         arguments.each_with_index do |arg, index|
-          next unless arg.type.type_parameter?
+          next unless arg.type.generated_trait?
 
           if (concrete_type = passed_types[index])
             param_instances[arg.type.name] = concrete_type
@@ -80,7 +80,7 @@ module Inkoc
         end
 
         rtype =
-          if return_type.type_parameter?
+          if return_type.generated_trait?
             param_instances[return_type.name]
           else
             return_type

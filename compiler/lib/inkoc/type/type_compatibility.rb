@@ -4,7 +4,8 @@ module Inkoc
   module Type
     module TypeCompatibility
       def implements_trait?(trait)
-        implemented_traits.include?(trait)
+        trait.required_traits.all? { |t| implements_trait?(t) } &&
+          trait.required_methods.all? { |m| method_implemented?(m) }
       end
 
       def prototype_chain_compatible?(other)
@@ -26,19 +27,7 @@ module Inkoc
         return implements_trait?(other) if other.trait?
         return type_compatible?(other.type) if other.optional?
 
-        # We can pass anything to a type parameter without constraints, which is
-        # rare but possible (e.g. a method that simply returns its given
-        # argument).
-        if other.type_parameter?
-          type_compatible_with_type_parameter?(other)
-        else
-          prototype_chain_compatible?(other)
-        end
-      end
-
-      def type_compatible_with_type_parameter?(param)
-        param.required_traits.all? { |t| implements_trait?(t) } &&
-          param.required_methods.all? { |m| method_implemented?(m) }
+        prototype_chain_compatible?(other)
       end
 
       def strict_type_compatible?(other)

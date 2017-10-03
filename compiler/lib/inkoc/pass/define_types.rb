@@ -4,7 +4,6 @@ module Inkoc
   module Pass
     class DefineTypes
       include TypeLookup
-      include DefineTypeParameters
       include VisitorMethods
 
       DeferredMethod = Struct.new(:ast, :self_type, :locals)
@@ -194,11 +193,14 @@ module Inkoc
         expected_arg_types = method_type.argument_types_without_self
 
         explicit_arg_types.each_with_index do |arg_type, index|
-          expected = expected_arg_types[index]
+          exp = expected_arg_types[index]
+          loc = node.arguments[index].location
 
-          unless arg_type.type_compatible?(expected)
+          if exp.generated_trait? && !arg_type.implements_trait?(exp)
             diagnostics
-              .type_error(expected, arg_type, node.arguments[index].location)
+              .generated_trait_not_implemented_error(exp, arg_type, loc)
+          elsif !arg_type.type_compatible?(exp)
+            diagnostics.type_error(exp, arg_type, loc)
           end
         end
 
@@ -312,9 +314,8 @@ module Inkoc
       end
 
       def on_trait(node, self_type, *)
-        proto = typedb.top_level.lookup_attribute(Config::TRAIT_CONST).type
         name = node.name
-        type = Type::Trait.new(name: name, prototype: proto)
+        type = Type::Trait.new(name: name, prototype: trait_prototype)
 
         define_type_parameters(node.type_parameters, type)
 
@@ -567,6 +568,26 @@ module Inkoc
 
       def wrap_optional_type(node, type)
         node.optional? ? Type::Optional.new(type) : type
+      end
+
+      def trait_prototype
+        typedb.top_level.lookup_attribute(Config::TRAIT_CONST).type
+      end
+
+      def define_type_parameters(arguments, type)
+        proto = trait_prototype
+
+        arguments.each do |arg_node|
+          required_traits = arg_node.required_traits.map do |node|
+            type_for_constant(node, [type, self.module])
+          end
+
+          trait = Type::Trait
+            .new(name: arg_node.name, prototype: proto, generated: true)
+
+          trait.required_traits.merge(required_traits)
+          type.define_type_parameter(trait.name, trait)
+        end
       end
     end
   end

@@ -27,7 +27,7 @@ module Inkoc
         false
       end
 
-      def type_parameter?
+      def generated_trait?
         false
       end
 
