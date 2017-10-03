@@ -45,6 +45,10 @@ module Inkoc
         self
       end
 
+      def resolve_type(*)
+        self
+      end
+
       def message_return_type(name)
         lookup_method(name).type.return_type
       end

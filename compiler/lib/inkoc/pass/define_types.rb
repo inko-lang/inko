@@ -3,7 +3,6 @@
 module Inkoc
   module Pass
     class DefineTypes
-      include TypeLookup
       include VisitorMethods
 
       DeferredMethod = Struct.new(:ast, :self_type, :locals)
@@ -144,7 +143,7 @@ module Inkoc
           diagnostics.undefined_method_error(self_type, name, node.location)
         end
 
-        symbol.type.return_type
+        symbol.type.resolve_type(self_type)
       end
 
       def on_global(node, *)
@@ -193,7 +192,7 @@ module Inkoc
         expected_arg_types = method_type.argument_types_without_self
 
         explicit_arg_types.each_with_index do |arg_type, index|
-          exp = expected_arg_types[index]
+          exp = expected_arg_types[index].resolve_type(rec_type)
           loc = node.arguments[index].location
 
           if exp.generated_trait? && !arg_type.implements_trait?(exp)
@@ -320,7 +319,7 @@ module Inkoc
         define_type_parameters(node.type_parameters, type)
 
         node.required_traits.each do |trait|
-          trait_type = type_for_constant(trait, [self_type, @module])
+          trait_type = type_for_constant(trait, self_type, [self_type, @module])
 
           type.required_traits << trait_type if trait_type.trait?
         end
@@ -333,8 +332,12 @@ module Inkoc
       end
 
       def on_trait_implementation(node, self_type, *)
-        trait = type_for_constant(node.trait_name, [self_type, @module])
-        object = type_for_constant(node.object_name, [self_type, @module])
+        trait =
+          type_for_constant(node.trait_name, self_type, [self_type, @module])
+
+        object =
+          type_for_constant(node.object_name, self_type, [self_type, @module])
+
         loc = node.location
 
         define_type(node.body, object, node.body.locals)
@@ -399,9 +402,8 @@ module Inkoc
 
         define_type(body, method.self_type, method.locals)
 
-        expected_type = node.type.return_type
+        expected_type = node.type.return_type.resolve_type(method.self_type)
         inferred_type = body.type
-        expected_type = method.self_type if expected_type.self_type?
 
         return if inferred_type.type_compatible?(expected_type)
 
@@ -416,11 +418,12 @@ module Inkoc
         define_type(node.body, self_type, node.body.locals)
 
         rtype = node.body.type
+        exp = type.resolve_type(self_type)
 
         type.returns = rtype if type.returns.dynamic?
 
-        unless rtype.type_compatible?(type.return_type)
-          diagnostics.return_type_error(type.returns, rtype, node.location)
+        unless rtype.type_compatible?(exp)
+          diagnostics.return_type_error(exp, rtype, node.location)
         end
 
         type
@@ -526,7 +529,7 @@ module Inkoc
 
         block_type.returns = wrap_optional_type(
           rnode,
-          type_for_constant(rnode, [block_type, self_type, @module])
+          type_for_constant(rnode, self_type, [block_type, self_type, @module])
         )
       end
 
@@ -535,7 +538,11 @@ module Inkoc
 
         block_type.throws = wrap_optional_type(
           node.returns,
-          type_for_constant(node.throws, [block_type, self_type, @module])
+          type_for_constant(
+            node.throws,
+            self_type,
+            [block_type, self_type, @module]
+          )
         )
       end
 
@@ -548,7 +555,11 @@ module Inkoc
 
         wrap_optional_type(
           arg.type,
-          type_for_constant(arg.type, [block_type, self_type, @module])
+          type_for_constant(
+            arg.type,
+            self_type,
+            [block_type, self_type, @module]
+          )
         )
       end
 
@@ -579,7 +590,7 @@ module Inkoc
 
         arguments.each do |arg_node|
           required_traits = arg_node.required_traits.map do |node|
-            type_for_constant(node, [type, self.module])
+            type_for_constant(node, type, [type, self.module])
           end
 
           trait = Type::Trait
@@ -588,6 +599,27 @@ module Inkoc
           trait.required_traits.merge(required_traits)
           type.define_type_parameter(trait.name, trait)
         end
+      end
+
+      def type_for_constant(node, self_type, sources)
+        return Type::SelfType.new if node.self_type?
+
+        name = node.name
+
+        if node.receiver
+          receiver = type_for_constant(node.receiver, self_type, sources)
+          sources = [receiver] + sources
+        end
+
+        sources.find do |source|
+          if (type = source.lookup_type(name))
+            return type
+          end
+        end
+
+        diagnostics.undefined_constant_error(node.name, node.location)
+
+        Type::Dynamic.new(name)
       end
     end
   end

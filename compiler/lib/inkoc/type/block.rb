@@ -86,9 +86,7 @@ module Inkoc
             return_type
           end
 
-        rtype = self_type if rtype.self_type?
-
-        rtype.new_instance(param_instances)
+        rtype.resolve_type(self_type).new_instance(param_instances)
       end
 
       def lookup_type(name)
