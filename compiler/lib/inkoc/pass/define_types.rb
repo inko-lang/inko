@@ -28,7 +28,7 @@ module Inkoc
       end
 
       def define_types(nodes, self_type, locals)
-        nodes.each { |node| define_type(node, self_type, locals) }
+        nodes.map { |node| define_type(node, self_type, locals) }
       end
 
       def run(ast)
@@ -137,13 +137,18 @@ module Inkoc
 
       def on_identifier(node, self_type, locals)
         name = node.name
-        symbol = locals[name].or_else { self_type.lookup_method(name) }
+        loc = node.location
 
-        if symbol.nil?
-          diagnostics.undefined_method_error(self_type, name, node.location)
-        end
+        type =
+          if (local = locals[name]) && local.any?
+            local.type
+          elsif self_type.lookup_method(name).any?
+            send_object_message(self_type, name, [], self_type, locals, loc)
+          else
+            send_object_message(@module.type, name, [], self_type, locals, loc)
+          end
 
-        symbol.type.resolve_type(self_type)
+        type.resolve_type(self_type)
       end
 
       def on_global(node, *)
@@ -160,51 +165,85 @@ module Inkoc
       end
 
       def on_send(node, self_type, locals)
-        if node.raw_instruction?
-          return on_raw_instruction(node, self_type, locals)
-        end
+        send_object_message(
+          receiver_type(node, self_type, locals),
+          node.name,
+          node.arguments,
+          self_type,
+          locals,
+          node.location
+        )
+      end
 
-        name = node.name
-        rec_type =
-          if node.receiver
-            define_type(node.receiver, self_type, locals)
-          else
-            self_type
-          end
+      def send_object_message(receiver, name, args, self_type, locals, location)
+        arg_types = define_types(args, self_type, locals)
 
-        explicit_arg_types = node.arguments.map do |arg|
-          define_type(arg, self_type, locals)
-        end
+        return receiver if receiver.dynamic?
 
-        return rec_type if rec_type.dynamic?
-
-        # TODO: handle message sends to type parameters
-
-        symbol = rec_type.lookup_method(node.name)
-
-        unless symbol.type.block?
-          diagnostics.undefined_method_error(rec_type, name, node.location)
-
-          return symbol.type
-        end
-
+        symbol = receiver.lookup_method(name)
         method_type = symbol.type
-        expected_arg_types = method_type.argument_types_without_self
 
-        explicit_arg_types.each_with_index do |arg_type, index|
-          exp = expected_arg_types[index].resolve_type(rec_type)
-          loc = node.arguments[index].location
+        unless method_type.block?
+          diagnostics.undefined_method_error(receiver, name, location)
 
-          if exp.generated_trait? && !arg_type.implements_trait?(exp)
-            diagnostics
-              .generated_trait_not_implemented_error(exp, arg_type, loc)
-          elsif !arg_type.type_compatible?(exp)
-            diagnostics.type_error(exp, arg_type, loc)
-          end
+          return method_type
         end
+
+        verify_send_arguments(receiver, method_type, args, location)
 
         method_type
-          .initialized_return_type(rec_type, [self_type, *explicit_arg_types])
+          .initialized_return_type(receiver, [self_type, *arg_types])
+      end
+
+      def verify_send_arguments(receiver_type, type, arguments, location)
+        given_count = arguments.length
+        arg_range = type.argument_count_range
+
+        if arg_range.cover?(given_count)
+          verify_send_argument_types(receiver_type, type, arguments)
+        else
+          diagnostics.argument_count_error(given_count, arg_range, location)
+        end
+      end
+
+      def verify_send_argument_types(receiver_type, type, arguments)
+        expected_types = type.argument_types_without_self
+        receiver_is_module = receiver_type == @module.type
+
+        arguments.each_with_index do |arg, index|
+          exp = expected_types[index].resolve_type(receiver_type)
+
+          if exp.generated_trait?
+            if (instance = receiver_type.type_parameter_instances[exp.name])
+              exp = instance
+            elsif arg.type.type_compatible?(exp) && !receiver_is_module
+              receiver_type.init_type_parameter(exp.name, arg.type)
+            end
+          end
+
+          verify_send_argument(arg.type, exp, arg.location)
+        end
+      end
+
+      def verify_send_argument(given, expected, location)
+        if expected.generated_trait? && !given.implements_trait?(expected)
+          diagnostics
+            .generated_trait_not_implemented_error(expected, given, location)
+
+          return
+        end
+
+        return if given.type_compatible?(expected)
+
+        diagnostics.type_error(expected, given, location)
+      end
+
+      def receiver_type(node, self_type, locals)
+        if node.receiver
+          define_type(node.receiver, self_type, locals)
+        else
+          self_type
+        end
       end
 
       def on_raw_instruction(node, self_type, locals)
@@ -319,7 +358,7 @@ module Inkoc
         define_type_parameters(node.type_parameters, type)
 
         node.required_traits.each do |trait|
-          trait_type = type_for_constant(trait, self_type, [self_type, @module])
+          trait_type = resolve_type(trait, self_type, [self_type, @module])
 
           type.required_traits << trait_type if trait_type.trait?
         end
@@ -332,11 +371,8 @@ module Inkoc
       end
 
       def on_trait_implementation(node, self_type, *)
-        trait =
-          type_for_constant(node.trait_name, self_type, [self_type, @module])
-
-        object =
-          type_for_constant(node.object_name, self_type, [self_type, @module])
+        trait = resolve_type(node.trait_name, self_type, [self_type, @module])
+        object = resolve_type(node.object_name, self_type, [self_type, @module])
 
         loc = node.location
 
@@ -529,7 +565,7 @@ module Inkoc
 
         block_type.returns = wrap_optional_type(
           rnode,
-          type_for_constant(rnode, self_type, [block_type, self_type, @module])
+          resolve_type(rnode, self_type, [block_type, self_type, @module])
         )
       end
 
@@ -538,11 +574,7 @@ module Inkoc
 
         block_type.throws = wrap_optional_type(
           node.returns,
-          type_for_constant(
-            node.throws,
-            self_type,
-            [block_type, self_type, @module]
-          )
+          resolve_type(node.throws, self_type, [block_type, self_type, @module])
         )
       end
 
@@ -555,11 +587,7 @@ module Inkoc
 
         wrap_optional_type(
           arg.type,
-          type_for_constant(
-            arg.type,
-            self_type,
-            [block_type, self_type, @module]
-          )
+          resolve_type(arg.type, self_type, [block_type, self_type, @module])
         )
       end
 
@@ -590,7 +618,7 @@ module Inkoc
 
         arguments.each do |arg_node|
           required_traits = arg_node.required_traits.map do |node|
-            type_for_constant(node, type, [type, self.module])
+            resolve_type(node, type, [type, self.module])
           end
 
           trait = Type::Trait
@@ -601,13 +629,13 @@ module Inkoc
         end
       end
 
-      def type_for_constant(node, self_type, sources)
+      def resolve_type(node, self_type, sources)
         return Type::SelfType.new if node.self_type?
 
         name = node.name
 
         if node.receiver
-          receiver = type_for_constant(node.receiver, self_type, sources)
+          receiver = resolve_type(node.receiver, self_type, sources)
           sources = [receiver] + sources
         end
 
@@ -620,6 +648,12 @@ module Inkoc
         diagnostics.undefined_constant_error(node.name, node.location)
 
         Type::Dynamic.new(name)
+      end
+
+      def inspect
+        # The default inspect is very slow, slowing down the rendering of any
+        # runtime errors.
+        '#<Pass::DefineTypes>'
       end
     end
   end

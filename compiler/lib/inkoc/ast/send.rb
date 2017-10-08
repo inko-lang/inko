@@ -21,7 +21,11 @@ module Inkoc
       end
 
       def visitor_method
-        :on_send
+        if raw_instruction?
+          :on_raw_instruction
+        else
+          :on_send
+        end
       end
 
       def raw_instruction?

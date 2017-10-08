@@ -28,8 +28,16 @@ module Inkoc
         @arguments.length
       end
 
+      def required_arguments_count_without_self
+        @required_arguments_count - 1
+      end
+
       def arguments_count_without_self
-        @arguments.length - 1
+        arguments_count - 1
+      end
+
+      def argument_count_range
+        required_arguments_count_without_self..arguments_count_without_self
       end
 
       def define_self_argument(type)

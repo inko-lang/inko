@@ -50,7 +50,7 @@ module Inkoc
       end
 
       def lookup_method(name)
-        @required_methods[name].type
+        @required_methods[name]
       end
 
       def type_compatible?(other)
@@ -69,12 +69,18 @@ module Inkoc
         end
       end
 
+      def empty?
+        required_methods.empty? && required_traits.empty?
+      end
+
+      def empty_generated_trait?
+        generated_trait? && empty?
+      end
+
       def type_name_for_generated_trait
         return name unless required_traits.any?
 
-        trait_names = required_traits.map(&:type_name).join(' + ')
-
-        "#{name}: #{trait_names}"
+        required_traits.map(&:type_name).join(' + ')
       end
     end
   end

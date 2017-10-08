@@ -4,8 +4,11 @@ module Inkoc
   module Type
     module TypeCompatibility
       def implements_trait?(trait)
-        trait.required_traits.all? { |t| implements_trait?(t) } &&
-          trait.required_methods.all? { |m| method_implemented?(m) }
+        if trait.empty_generated_trait?
+          true
+        else
+          implemented_traits.include?(trait)
+        end
       end
 
       def prototype_chain_compatible?(other)

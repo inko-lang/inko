@@ -176,5 +176,24 @@ module Inkoc
         location
       )
     end
+
+    def argument_count_error(given, range, location)
+      given_word = given == 1 ? 'was' : 'were'
+
+      exp_word, exp_val =
+        if given < range.min
+          ['requires', range.min]
+        else
+          ['takes up to', range.max]
+        end
+
+      arg_word = exp_val == 1 ? 'argument' : 'arguments'
+
+      error(
+        "This message #{exp_word} #{exp_val} #{arg_word} " \
+          "but #{given} #{given_word} given",
+        location
+      )
+    end
   end
 end

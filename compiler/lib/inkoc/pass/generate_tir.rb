@@ -342,8 +342,6 @@ module Inkoc
       end
 
       def on_send(node, body)
-        return on_raw_instruction(node, body) if node.raw_instruction?
-
         location = node.location
         receiver =
           if node.receiver

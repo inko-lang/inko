@@ -56,9 +56,7 @@ module Inkoc
           if (instance = type_parameter_instances[name])
             instance.type_name
           else
-            param = lookup_type_parameter(name)
-
-            param.required_traits.map(&:type_name).join(' + ')
+            lookup_type_parameter(name).type_name
           end
         end
 
