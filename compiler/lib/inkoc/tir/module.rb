@@ -33,6 +33,20 @@ module Inkoc
         type.lookup_attribute(name)
       end
 
+      def responds_to_message?(name)
+        lookup_attribute(name).any?
+      end
+
+      def type_of_global(name)
+        return unless (global = globals[name]) && global.any?
+
+        global.type
+      end
+
+      def global_defined?(name)
+        globals.defined?(name)
+      end
+
       def import_bootstrap?
         config.import_bootstrap?
       end

@@ -34,9 +34,12 @@ module Inkoc
       def define_module(body)
         body.add_connected_basic_block('define_module')
 
-        mod_reg = value_for_module_self(body)
+        loc = @module.location
 
-        set_local(body.self_local, mod_reg, body, @module.location)
+        mod_reg = value_for_module_self(body)
+        mod_reg = set_global(Config::MODULE_GLOBAL, mod_reg, body, loc)
+
+        set_local(body.self_local, mod_reg, body, loc)
       end
 
       def value_for_module_self(body)
@@ -125,7 +128,15 @@ module Inkoc
           get_local(name, body, loc)
         elsif body.self_type.responds_to_message?(name)
           send_to_self(name, body, loc)
-        elsif @module.globals.defined?(name)
+        elsif @module.responds_to_message?(name)
+          send_object_message(
+            get_global(Config::MODULE_GLOBAL, body, loc),
+            name,
+            [],
+            body,
+            loc
+          )
+        elsif @module.global_defined?(name)
           get_global(name, body, loc)
         else
           get_nil(body, loc)
@@ -343,16 +354,20 @@ module Inkoc
 
       def on_send(node, body)
         location = node.location
-        receiver =
-          if node.receiver
-            process_node(node.receiver, body)
-          else
-            get_self(body, location)
-          end
-
+        receiver = receiver_for_send(node, body)
         arg_regs = process_nodes(node.arguments, body)
 
         send_object_message(receiver, node.name, arg_regs, body, location)
+      end
+
+      def receiver_for_send(node, body)
+        if node.receiver
+          process_node(node.receiver, body)
+        elsif node.receiver_type == @module.type
+          get_global(Config::MODULE_GLOBAL, body, node.location)
+        else
+          get_self(body, location)
+        end
       end
 
       def on_define_variable(node, body)

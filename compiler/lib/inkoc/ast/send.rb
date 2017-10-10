@@ -9,6 +9,8 @@ module Inkoc
 
       attr_reader :name, :receiver, :arguments, :location
 
+      attr_accessor :receiver_type
+
       # name - The name of the message as a String.
       # receiver - The object to send the message to.
       # arguments - The arguments to pass.

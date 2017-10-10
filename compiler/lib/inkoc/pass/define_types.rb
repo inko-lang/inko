@@ -53,6 +53,8 @@ module Inkoc
             typedb.top_level
           end
 
+        @module.globals.define(Config::MODULE_GLOBAL, @module.type)
+
         define_type(ast, @module.type, locals)
       end
 
@@ -128,7 +130,7 @@ module Inkoc
       def on_constant(node, self_type, *)
         name = node.name
         symbol = self_type.lookup_attribute(name)
-          .or_else { @module.lookup_attribute(name) }
+          .or_else { @module.globals[name] }
 
         diagnostics.undefined_constant_error(name, node.location) if symbol.nil?
 
@@ -142,10 +144,15 @@ module Inkoc
         type =
           if (local = locals[name]) && local.any?
             local.type
-          elsif self_type.lookup_method(name).any?
+          elsif self_type.responds_to_message?(name)
             send_object_message(self_type, name, [], self_type, locals, loc)
-          else
+          elsif @module.responds_to_message?(name)
             send_object_message(@module.type, name, [], self_type, locals, loc)
+          elsif (global_type = @module.type_of_global(name))
+            global_type
+          else
+            diagnostics.undefined_method_error(self_type, name, loc)
+            Type::Dynamic.new
           end
 
         type.resolve_type(self_type)
@@ -261,11 +268,18 @@ module Inkoc
       end
 
       def receiver_type(node, self_type, locals)
-        if node.receiver
-          define_type(node.receiver, self_type, locals)
-        else
-          self_type
-        end
+        name = node.name
+
+        node.receiver_type =
+          if node.receiver
+            define_type(node.receiver, self_type, locals)
+          elsif self_type.lookup_method(name).any?
+            self_type
+          elsif @module.globals[name].any?
+            @module.type
+          else
+            self_type
+          end
       end
 
       def on_raw_instruction(node, self_type, locals)
@@ -620,7 +634,9 @@ module Inkoc
       def store_type(type, self_type, name = type.name)
         self_type.define_attribute(name, type)
 
-        @module.globals.define(name, type) if module_scope?(self_type)
+        return if type.block? || !module_scope?(self_type)
+
+        @module.globals.define(name, type)
       end
 
       def module_scope?(self_type)

@@ -35,6 +35,7 @@ module Inkoc
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
 
     NEW_MESSAGE = 'new'
+    MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
     BLOCK_NAME = '<block>'
