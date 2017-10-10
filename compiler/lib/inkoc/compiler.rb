@@ -19,6 +19,8 @@ module Inkoc
       Pass::CodeWriter
     ].freeze
 
+    attr_reader :state
+
     def initialize(state)
       @state = state
     end
@@ -35,7 +37,9 @@ module Inkoc
       out = passes.reduce([]) do |input, klass|
         out = klass.new(mod, @state).run(*input)
 
-        out ? out : break
+        break if !out || state.diagnostics.errors?
+
+        out
       end
 
       mod
