@@ -442,9 +442,9 @@ module Inkoc
     # Examples:
     #
     #     foo(10)
-    #     foo(number = 10)
+    #     foo(number: 10)
     def send_argument(start)
-      if @lexer.next_type_is?(:assign)
+      if @lexer.next_type_is?(:colon)
         skip_one
 
         value = expression(advance!)
