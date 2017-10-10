@@ -197,12 +197,15 @@ module Inkoc
 
       def verify_send_arguments(receiver_type, type, arguments, location)
         given_count = arguments.length
-        arg_range = type.argument_count_range
 
-        if arg_range.cover?(given_count)
+        if type.valid_number_of_arguments?(given_count)
           verify_send_argument_types(receiver_type, type, arguments)
         else
-          diagnostics.argument_count_error(given_count, arg_range, location)
+          diagnostics.argument_count_error(
+            given_count,
+            type.argument_count_range,
+            location
+          )
         end
       end
 
@@ -211,7 +214,8 @@ module Inkoc
         receiver_is_module = receiver_type == @module.type
 
         arguments.each_with_index do |arg, index|
-          exp = expected_types[index].resolve_type(receiver_type)
+          exp = (expected_types[index] || expected_types.last)
+            .resolve_type(receiver_type)
 
           if exp.generated_trait?
             if (instance = receiver_type.type_parameter_instances[exp.name])

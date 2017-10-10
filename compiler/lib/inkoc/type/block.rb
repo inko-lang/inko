@@ -24,6 +24,13 @@ module Inkoc
         @required_arguments_count = 0
       end
 
+      def valid_number_of_arguments?(given)
+        range = argument_count_range
+        covers = range.cover?(given)
+
+        covers || given > range.max && rest_argument
+      end
+
       def arguments_count
         @arguments.length
       end
