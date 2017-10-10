@@ -30,6 +30,10 @@ module Inkoc
       def return?
         false
       end
+
+      def keyword_argument?
+        false
+      end
     end
   end
 end

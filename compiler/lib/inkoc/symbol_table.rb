@@ -5,16 +5,18 @@ module Inkoc
     include Inspect
     include Enumerable
 
-    attr_reader :mapping, :parent
+    attr_reader :symbols, :mapping, :parent
 
     def initialize(parent = nil)
+      @symbols = []
       @mapping = {}
       @parent = parent
     end
 
     def define(name, type, mutable = false)
-      symbol = Symbol.new(name, type, @mapping.length, mutable)
+      symbol = Symbol.new(name, type, @symbols.length, mutable)
 
+      @symbols << symbol
       @mapping[name] = symbol
 
       symbol
@@ -27,29 +29,35 @@ module Inkoc
     def each
       return to_enum(__method__) unless block_given?
 
-      @mapping.values.each do |value|
+      @symbols.each do |value|
         yield value
       end
     end
 
-    def [](name)
-      @mapping[name] || NullSymbol.new(name)
+    def [](name_or_index)
+      source = name_or_index.is_a?(Integer) ? @symbols : @mapping
+
+      source[name_or_index] || NullSymbol.new(name_or_index)
     end
 
     def defined?(name)
       self[name].any?
     end
 
+    def last
+      @symbols.last
+    end
+
     def any?
-      @mapping.any?
+      @symbols.any?
     end
 
     def empty?
-      @mapping.empty?
+      @symbols.empty?
     end
 
     def length
-      @mapping.length
+      @symbols.length
     end
 
     def ==(other)

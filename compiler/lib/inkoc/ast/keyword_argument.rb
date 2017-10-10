@@ -21,6 +21,10 @@ module Inkoc
       def visitor_method
         :on_keyword_argument
       end
+
+      def keyword_argument?
+        true
+      end
     end
   end
 end

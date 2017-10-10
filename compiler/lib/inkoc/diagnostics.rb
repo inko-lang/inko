@@ -195,5 +195,14 @@ module Inkoc
         location
       )
     end
+
+    def undefined_keyword_argument_error(name, type, location)
+      tname = type.type_name.inspect
+
+      error(
+        "The type #{tname} does not define the argument #{name.inspect}",
+        location
+      )
+    end
   end
 end

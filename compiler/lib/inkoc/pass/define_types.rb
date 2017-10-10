@@ -175,6 +175,10 @@ module Inkoc
         )
       end
 
+      def on_keyword_argument(node, self_type, locals)
+        define_type(node.value, self_type, locals)
+      end
+
       def send_object_message(receiver, name, args, self_type, locals, location)
         arg_types = define_types(args, self_type, locals)
 
@@ -198,6 +202,8 @@ module Inkoc
       def verify_send_arguments(receiver_type, type, arguments, location)
         given_count = arguments.length
 
+        return unless verify_keyword_arguments(type, arguments)
+
         if type.valid_number_of_arguments?(given_count)
           verify_send_argument_types(receiver_type, type, arguments)
         else
@@ -209,13 +215,25 @@ module Inkoc
         end
       end
 
+      def verify_keyword_arguments(type, arguments)
+        arguments.all? do |arg|
+          next true unless arg.keyword_argument?
+          next true if type.lookup_argument(arg.name).any?
+
+          diagnostics
+            .undefined_keyword_argument_error(arg.name, type, arg.location)
+
+          false
+        end
+      end
+
       def verify_send_argument_types(receiver_type, type, arguments)
-        expected_types = type.argument_types_without_self
         receiver_is_module = receiver_type == @module.type
 
         arguments.each_with_index do |arg, index|
-          exp = (expected_types[index] || expected_types.last)
-            .resolve_type(receiver_type)
+          # We add +1 to the index to skip the self argument.
+          key = arg.keyword_argument? ? arg.name : index + 1
+          exp = type.type_for_argument_or_rest(key)
 
           if exp.generated_trait?
             if (instance = receiver_type.type_parameter_instances[exp.name])

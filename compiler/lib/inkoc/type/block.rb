@@ -76,11 +76,15 @@ module Inkoc
       end
 
       def define_type_parameter(name, param)
-        @type_parameters[name] = param
+        type_parameters[name] = param
       end
 
       def lookup_argument(name)
-        @arguments[name]
+        arguments[name]
+      end
+
+      def type_for_argument_or_rest(name_or_index)
+        arguments[name_or_index].or_else { arguments.last }.type
       end
 
       def initialized_return_type(self_type, passed_types)
@@ -162,7 +166,6 @@ module Inkoc
 
       def type_name
         type_params = type_parameter_names
-        args = argument_types_without_self
 
         tname =
           if type_params.any?
@@ -171,7 +174,15 @@ module Inkoc
             name
           end
 
-        tname += "(#{args.map(&:type_name).join(', ')})" unless args.empty?
+        args = []
+
+        arguments.each do |arg|
+          next if arg.name == Config::SELF_LOCAL
+
+          args << "#{arg.name}: #{arg.type.type_name}"
+        end
+
+        tname += "(#{args.join(', ')})" unless args.empty?
         tname += " -> #{return_type.type_name}" if return_type
 
         tname
