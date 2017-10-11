@@ -370,7 +370,7 @@ module Inkoc
         )
 
         define_type_parameters(node.type_parameters, type)
-        store_type(type, self_type)
+        store_type(type, self_type, node.location)
         define_type(node.body, type, node.body.locals)
         define_block_type_for_object(node, type)
 
@@ -399,7 +399,7 @@ module Inkoc
           type.required_traits << trait_type if trait_type.trait?
         end
 
-        store_type(type, self_type)
+        store_type(type, self_type, node.location)
         define_type(node.body, type, node.body.locals)
         define_block_type_for_object(node, type)
 
@@ -460,7 +460,7 @@ module Inkoc
             diagnostics.define_required_method_on_non_trait_error(node.location)
           end
         else
-          store_type(type, self_type)
+          store_type(type, self_type, node.location)
         end
 
         @method_bodies << DeferredMethod.new(node, self_type, node.body.locals)
@@ -511,7 +511,7 @@ module Inkoc
       end
 
       def on_define_constant(node, self_type, value_type, *)
-        store_type(value_type, self_type, node.variable.name)
+        store_type(value_type, self_type, node.location, node.variable.name)
       end
 
       def on_define_attribute(node, self_type, value_type, *)
@@ -631,8 +631,12 @@ module Inkoc
         defined_type && value_type && !defined_type.type_compatible?(value_type)
       end
 
-      def store_type(type, self_type, name = type.name)
+      def store_type(type, self_type, location, name = type.name)
         self_type.define_attribute(name, type)
+
+        if Config::RESERVED_CONSTANTS.include?(name)
+          diagnostics.redefine_reserved_constant_error(name, location)
+        end
 
         return if type.block? || !module_scope?(self_type)
 

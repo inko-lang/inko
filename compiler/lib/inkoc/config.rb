@@ -33,18 +33,19 @@ module Inkoc
 
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
-
     NEW_MESSAGE = 'new'
     MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
     BLOCK_NAME = '<block>'
     IMPL_NAME = '<impl>'
-
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
-
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@object_name'
+
+    RESERVED_CONSTANTS = Set.new(
+      [MODULE_GLOBAL, RAW_INSTRUCTION_RECEIVER, SELF_TYPE]
+    ).freeze
 
     attr_reader :source_directories, :mode, :target
 

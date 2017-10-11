@@ -204,5 +204,12 @@ module Inkoc
         location
       )
     end
+
+    def redefine_reserved_constant_error(name, location)
+      error(
+        "The reserved constant #{name.inspect} cannot be redefined",
+        location
+      )
+    end
   end
 end
