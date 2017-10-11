@@ -440,6 +440,16 @@ module Inkoc
         set_literal_attribute(receiver, name, value, body, loc)
       end
 
+      def on_reassign_variable(node, body)
+        callback = node.variable.reassign_variable_visitor_method
+        value = process_node(node.value, body)
+
+        public_send(callback, node.variable, value, body)
+      end
+
+      alias on_reassign_local on_define_local
+      alias on_reassign_attribute on_define_attribute
+
       def on_raw_instruction(node, body)
         callback = node.raw_instruction_visitor_method
 

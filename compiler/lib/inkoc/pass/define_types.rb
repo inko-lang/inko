@@ -532,7 +532,14 @@ module Inkoc
       end
 
       def on_reassign_attribute(node, self_type, value_type, *)
-        existing_type = self_type.lookup_attribute(node.variable.name).type
+        name = node.variable.name
+        symbol = self_type.lookup_attribute(name)
+        existing_type = symbol.type
+
+        if symbol.nil?
+          diagnostics.reassign_undefined_attribute_error(name, node.location)
+          return existing_type
+        end
 
         return if value_type.type_compatible?(existing_type)
 
@@ -543,6 +550,11 @@ module Inkoc
         name = node.variable.name
         local = locals[name]
         existing_type = local.type
+
+        if local.nil?
+          diagnostics.reassign_undefined_local_error(name, node.location)
+          return existing_type
+        end
 
         return if value_type.type_compatible?(existing_type)
 

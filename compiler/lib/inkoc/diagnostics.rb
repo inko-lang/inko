@@ -46,6 +46,10 @@ module Inkoc
       error("Cannot reassign undefined local variable #{name}", location)
     end
 
+    def reassign_undefined_attribute_error(name, location)
+      error("Cannot reassign undefined attribute #{name}", location)
+    end
+
     def redefine_existing_local_error(name, location)
       error("The local variable #{name} has already been defined", location)
     end
