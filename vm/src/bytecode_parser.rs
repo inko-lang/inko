@@ -261,9 +261,10 @@ fn read_compiled_code<T: Read>(
 
     // Make sure we always have a return at the end.
     if let Some(ins) = instructions.last() {
-        if ins.instruction_type != InstructionType::Return {
-            return Err(ParserError::MissingReturnInstruction(file, line));
-        }
+        match ins.instruction_type {
+            InstructionType::Return | InstructionType::Throw => {}
+            _ => return Err(ParserError::MissingReturnInstruction(file, line)),
+        };
     } else {
         return Err(ParserError::MissingInstructions(file, line));
     }
