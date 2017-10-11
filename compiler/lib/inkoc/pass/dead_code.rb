@@ -16,7 +16,7 @@ module Inkoc
 
       def on_code_object(code_object)
         code_object.blocks.each do |block|
-          next if code_object.reachable_basic_block?(block)
+          next if code_object.reachable_basic_block?(block) || block.empty?
 
           diagnostics.unreachable_code_warning(block.location)
         end

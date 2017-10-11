@@ -18,6 +18,10 @@ module Inkoc
         def visitor_method
           :on_throw
         end
+
+        def reason_integer
+          THROW_REASONS[reason]
+        end
       end
     end
   end

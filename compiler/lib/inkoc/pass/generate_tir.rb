@@ -90,6 +90,8 @@ module Inkoc
       end
 
       def add_explicit_return(body)
+        return unless body.reachable_basic_block?(body.current_block)
+
         ins = body.current_block.instructions.last
         loc = ins ? ins.location : body.location
 
@@ -524,6 +526,13 @@ module Inkoc
         body.add_basic_block
       end
 
+      def on_throw(node, body)
+        register = process_node(node.value, body)
+
+        body.instruct(:Throw, register, :throw, node.location)
+        body.add_basic_block
+      end
+
       def run_block(block, arguments, body, location)
         register = body.register(block.type.return_type)
 
@@ -621,6 +630,12 @@ module Inkoc
 
       def module_scope?(self_type)
         self_type == @module.type
+      end
+
+      def inspect
+        # The default inspect is very slow, slowing down the rendering of any
+        # runtime errors.
+        '#<Pass::GenerateTir>'
       end
     end
   end

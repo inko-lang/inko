@@ -5,12 +5,10 @@ module Inkoc
     class CatchEntry
       include Inspect
 
-      REASONS = { return: 0, throw: 1 }.freeze
-
       attr_reader :reason, :start, :stop, :jump_to, :register
 
       def self.named(name, start, stop, jump_to, register)
-        new(REASONS[name], start, stop, jump_to, register)
+        new(THROW_REASONS[name], start, stop, jump_to, register)
       end
 
       def initialize(reason, start, stop, jump_to, register)

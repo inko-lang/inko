@@ -259,7 +259,7 @@ module Inkoc
 
       def on_throw(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
-        reason = tir_ins.reason
+        reason = tir_ins.reason_integer
 
         compiled_code.instruct(:Throw, [reg, reason], tir_ins.location)
       end

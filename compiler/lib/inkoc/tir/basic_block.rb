@@ -57,6 +57,10 @@ module Inkoc
       def last_instruction
         @instructions.last
       end
+
+      def empty?
+        @instructions.empty?
+      end
     end
   end
 end
