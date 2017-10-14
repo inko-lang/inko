@@ -533,6 +533,23 @@ module Inkoc
         body.add_basic_block
       end
 
+      def on_try(node, body)
+        return
+        # TODO: don't do anything unless an "else" body is provided
+
+        # note down start index
+
+        registers = process_nodes(node.expressions, body)
+
+        # note down end index
+
+        body.instruct(:GotoNextBlock, node.location)
+
+        # TODO: inject else code here
+
+        body.add_connected_basic_block
+      end
+
       def run_block(block, arguments, body, location)
         register = body.register(block.type.return_type)
 

@@ -215,5 +215,31 @@ module Inkoc
         location
       )
     end
+
+    def throw_without_throw_defined_error(type, location)
+      tname = type.type_name.inspect
+
+      error(
+        "cannot throw a value of type #{tname} because the enclosing " \
+          'block does not define a type to throw',
+        location
+      )
+    end
+
+    def throw_at_top_level_error(type, location)
+      tname = type.type_name.inspect
+
+      error("cannot throw a value of type #{tname} at the top-level", location)
+    end
+
+    def missing_throw_error(throw_type, location)
+      tname = throw_type.type_name.inspect
+
+      error(
+        "this method is expected to throw a value of type #{tname} " \
+          'but no value is ever thrown',
+        location
+      )
+    end
   end
 end

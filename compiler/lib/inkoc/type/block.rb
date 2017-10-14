@@ -10,9 +10,10 @@ module Inkoc
       include GenericTypeOperations
 
       attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
-      attr_accessor :rest_argument, :throws, :returns, :required_arguments_count
+      attr_accessor :rest_argument, :throws, :returns,
+                    :required_arguments_count, :contains_throw
 
-      def initialize(name, prototype = nil, returns: nil)
+      def initialize(name, prototype = nil, returns: nil, block_type: :closure)
         @name = name
         @prototype = prototype
         @arguments = SymbolTable.new
@@ -22,6 +23,20 @@ module Inkoc
         @returns = returns
         @attributes = SymbolTable.new
         @required_arguments_count = 0
+        @block_type = block_type
+        @contains_throw = false
+      end
+
+      def missing_throw?
+        throws && !contains_throw
+      end
+
+      def closure?
+        @block_type == :closure
+      end
+
+      def method?
+        @block_type == :method
       end
 
       def valid_number_of_arguments?(given)
