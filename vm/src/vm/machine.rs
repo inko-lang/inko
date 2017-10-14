@@ -3,7 +3,6 @@ use std::io::{self, Write, Read, Seek, SeekFrom};
 
 use binding::Binding;
 use block::Block;
-use catch_table::ThrowReason;
 use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
@@ -30,10 +29,10 @@ macro_rules! reset_context {
 }
 
 macro_rules! throw_value {
-    ($machine: expr, $process: expr, $reason: expr, $value: expr, $context: ident, $code: ident, $index: ident) => ({
+    ($machine: expr, $process: expr, $value: expr, $context: ident, $code: ident, $index: ident) => ({
         $context.instruction_index = $index;
 
-        $machine.throw($process, $reason, $value);
+        $machine.throw($process, $value);
 
         reset_context!($process, $context, $code, $index);
     })
@@ -41,23 +40,19 @@ macro_rules! throw_value {
 
 macro_rules! throw_io_error {
     ($machine: expr, $process: expr, $error: expr, $context: ident, $code: ident, $index: ident) => ({
-        let reason = ThrowReason::Throw;
         let code = $crate::error_codes::from_io_error($error);
         let value = ObjectPointer::integer(code);
 
-        throw_value!($machine, $process, reason, value, $context, $code,
-                     $index);
+        throw_value!($machine, $process, value, $context, $code, $index);
     });
 }
 
 macro_rules! throw_invalid_utf8_error {
     ($machine: expr, $process: expr, $context: ident, $code: ident, $index: ident) => ({
-        let reason = ThrowReason::Throw;
         let code = $crate::error_codes::STRING_INVALID_UTF8;
         let value = ObjectPointer::integer(code);
 
-        throw_value!($machine, $process, reason, value, $context, $code,
-                     $index);
+        throw_value!($machine, $process, value, $context, $code, $index);
     })
 }
 
@@ -2153,28 +2148,16 @@ impl Machine {
                 }
                 // Throws a value
                 //
-                // This instruction requires two arguments:
-                //
-                // 1. The register containing the value to throw.
-                // 2. The reason for throwing the value as a value in the
-                //    ThrowReason enum.
+                // This instruction requires one arguments: the register
+                // containing the value to throw.
                 //
                 // This method will unwind the call stack until either the
                 // value is caught, or until we reach the top level (at
                 // which point we terminate the VM).
                 InstructionType::Throw => {
                     let value = context.get_register(instruction.arg(0));
-                    let reason = ThrowReason::from_u8(instruction.arg(1) as u8);
 
-                    throw_value!(
-                        self,
-                        process,
-                        reason,
-                        value,
-                        context,
-                        code,
-                        index
-                    );
+                    throw_value!(self, process, value, context, code, index);
                 }
                 // Sets a register to the value of another register.
                 //
@@ -2298,21 +2281,14 @@ impl Machine {
         process.push_context(context);
     }
 
-    fn throw(
-        &self,
-        process: &RcProcess,
-        reason: ThrowReason,
-        value: ObjectPointer,
-    ) {
+    fn throw(&self, process: &RcProcess, value: ObjectPointer) {
         loop {
             let code = process.compiled_code();
             let context = process.context_mut();
             let index = context.instruction_index;
 
             for entry in code.catch_table.entries.iter() {
-                if entry.reason == reason && entry.start < index &&
-                    entry.end >= index
-                {
+                if entry.start < index && entry.end >= index {
                     context.instruction_index = entry.jump_to;
                     context.set_register(entry.register, value);
 

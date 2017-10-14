@@ -17,7 +17,7 @@ use std::io::Bytes;
 use std::fs::File;
 use std::mem;
 
-use catch_table::{CatchTable, CatchEntry, ThrowReason};
+use catch_table::{CatchTable, CatchEntry};
 use compiled_code::CompiledCode;
 use object_pointer::ObjectPointer;
 use vm::instruction::{InstructionType, Instruction};
@@ -332,13 +332,12 @@ fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
 }
 
 fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
-    let reason = ThrowReason::from_u8(try!(read_u8(bytes)));
     let start = try!(read_u16_as_usize(bytes));
     let end = try!(read_u16_as_usize(bytes));
     let jump_to = try!(read_u16_as_usize(bytes));
     let register = try!(read_u16_as_usize(bytes));
 
-    Ok(CatchEntry::new(reason, start, end, jump_to, register))
+    Ok(CatchEntry::new(start, end, jump_to, register))
 }
 
 #[cfg(test)]
@@ -707,7 +706,6 @@ mod tests {
 
         // catch table entries
         pack_u64!(1, buffer);
-        pack_u8!(0, buffer); // reason
         pack_u16!(4, buffer); // start
         pack_u16!(6, buffer); // end
         pack_u16!(8, buffer); // jump-to
@@ -743,7 +741,6 @@ mod tests {
 
         let ref entry = object.catch_table.entries[0];
 
-        assert_eq!(entry.reason, ThrowReason::Return);
         assert_eq!(entry.start, 4);
         assert_eq!(entry.end, 6);
         assert_eq!(entry.jump_to, 8);
