@@ -529,7 +529,7 @@ module Inkoc
       def on_throw(node, body)
         register = process_node(node.value, body)
 
-        body.instruct(:Throw, register, :throw, node.location)
+        body.instruct(:Throw, register, node.location)
         body.add_basic_block
       end
 

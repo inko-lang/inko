@@ -7,20 +7,15 @@ module Inkoc
         include Predicates
         include Inspect
 
-        attr_reader :register, :reason, :location
+        attr_reader :register, :location
 
-        def initialize(register, reason, location)
-          @reason = reason
+        def initialize(register, location)
           @register = register
           @location = location
         end
 
         def visitor_method
           :on_throw
-        end
-
-        def reason_integer
-          THROW_REASONS[reason]
         end
       end
     end

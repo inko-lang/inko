@@ -70,8 +70,7 @@ module Inkoc
       end
 
       def catch_entry(entry)
-        u8(entry.reason) +
-          u16(entry.start) +
+        u16(entry.start) +
           u16(entry.stop) +
           u16(entry.jump_to) +
           u16(entry.register)
