@@ -10,14 +10,46 @@
 # are defined directly on the top-level object.
 ![define_module: false]
 
-# Object will act as the prototype for all other objects.
-var Object = _INKOC.set_object(_INKOC.get_true)
+var True = _INKOC.get_true
+var False = _INKOC.get_false
+
+# Object will act as the prototype for all objects.
+#
+# We need to define Object here instead of in a separate module as all other
+# objects depend on it being present.
+object Object {
+  def new -> Self {
+    let obj = _INKOC.set_object(False, self)
+
+    obj.init
+
+    obj
+  }
+
+  def init {}
+
+  def object_name {
+    @object_name
+  }
+
+  def implement_trait(thing) {}
+}
+
+object Trait {
+  def init {
+    # let @required_methods = []
+    # let @required_traits = []
+  }
+
+  def define_required_method(name) {}
+  def add_required_trait(thing) {}
+}
 
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.
-var Modules = _INKOC.set_object(_INKOC.get_true, Object)
+object Modules {}
 
 # Inkoc::Module will act as the prototype for all modules. We'll later refine
 # this object in the std::module module, but we need it here to allow us to
 # define new modules in the first place.
-var Module = _INKOC.set_object(_INKOC.get_true, Object)
+object Module {}

@@ -534,19 +534,17 @@ module Inkoc
       end
 
       def on_try(node, body)
-        return
-        # TODO: don't do anything unless an "else" body is provided
+        return unless node.else_body
 
-        # note down start index
+        # Block for running the to-try expression
+        body.add_connected_basic_block
+        process_nodes(node.expressions, body)
+        body.instruct(:SkipNextBlock, node.location)
 
-        registers = process_nodes(node.expressions, body)
+        # Block for error handling
+        process_nodes(node.else_body.expressions, body)
 
-        # note down end index
-
-        body.instruct(:GotoNextBlock, node.location)
-
-        # TODO: inject else code here
-
+        # Block for everything that comes after our "try" expression.
         body.add_connected_basic_block
       end
 

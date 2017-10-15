@@ -350,7 +350,7 @@ module Inkoc
         block_throws = scope.block_type.throws
         scope.block_type.contains_throw = true
 
-        if module_scope?(scope.block_type)
+        if scope.block_type == @module.body.type
           diagnostics.throw_at_top_level_error(throw_type, location)
           return
         end

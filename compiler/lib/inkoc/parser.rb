@@ -53,7 +53,8 @@ module Inkoc
         constant
         curly_open
         float
-        function
+        define
+        do
         hash_open
         identifier
         impl
@@ -69,8 +70,6 @@ module Inkoc
         try
       ]
     ).freeze
-
-    CLOSURE_START = Set.new(%i[paren_open curly_open arrow throws]).freeze
 
     BINARY_OPERATORS = Set.new(
       %i[
@@ -456,7 +455,7 @@ module Inkoc
         case start.type
         when :curly_open
           block_without_arguments(start)
-        when :function
+        when :do
           block(start)
         else
           expression(start)
@@ -477,7 +476,8 @@ module Inkoc
       when :sub then negative_number(start)
       when :bracket_open then array(start)
       when :hash_open then hash(start)
-      when :function then method_or_block(start)
+      when :define then def_method(start)
+      when :do then block(start)
       when :let then let_define(start)
       when :var then var_define(start)
       when :return then return_value(start)
@@ -666,28 +666,6 @@ module Inkoc
       vals_array = new_array(vals, start)
 
       AST::Send.new('from_array', receiver, [keys_array, vals_array], location)
-    end
-
-    # Parses a method or an anonymous block.
-    #
-    # Examples:
-    #
-    #     fn foo { ... }
-    #     fn { ... }
-    def method_or_block(start)
-      if @lexer.peek.nil?
-        raise(
-          ParseError,
-          'The "fn" keyword must be followed by a name, ' \
-            'arguments list or return type'
-        )
-      end
-
-      if CLOSURE_START.include?(@lexer.peek.type)
-        block(start)
-      else
-        def_method(start)
-      end
     end
 
     # Parses a method definition.
