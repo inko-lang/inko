@@ -13,6 +13,7 @@ module Inkoc
       Pass::CompileImportedModules,
       Pass::SetupSymbolTables,
       Pass::DefineTypes,
+      Pass::ValidateThrow,
       Pass::GenerateTir,
       Pass::DeadCode,
       Pass::CodeGeneration,

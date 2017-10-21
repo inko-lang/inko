@@ -28,6 +28,10 @@ module Inkoc
       def visitor_method
         :on_block
       end
+
+      def block_type
+        type
+      end
     end
   end
 end

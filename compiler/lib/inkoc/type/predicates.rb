@@ -19,6 +19,10 @@ module Inkoc
         false
       end
 
+      def physical_type?
+        true
+      end
+
       def trait?
         false
       end
@@ -32,6 +36,10 @@ module Inkoc
       end
 
       def self_type?
+        false
+      end
+
+      def void?
         false
       end
     end

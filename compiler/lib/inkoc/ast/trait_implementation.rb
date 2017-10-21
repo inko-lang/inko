@@ -20,6 +20,7 @@ module Inkoc
         @object_name = object_name
         @body = body
         @location = location
+        @block_type = nil
       end
 
       def visitor_method

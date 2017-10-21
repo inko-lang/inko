@@ -25,6 +25,10 @@ module Inkoc
         type.regular_object?
       end
 
+      def type_parameter_instances
+        type.type_parameter_instances
+      end
+
       def trait?
         type.trait?
       end
@@ -34,7 +38,7 @@ module Inkoc
       end
 
       def type_name
-        "?#{type.type_name}"
+        type.type_name
       end
     end
   end

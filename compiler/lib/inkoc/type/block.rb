@@ -11,7 +11,7 @@ module Inkoc
 
       attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
       attr_accessor :rest_argument, :throws, :returns,
-                    :required_arguments_count, :contains_throw
+                    :required_arguments_count
 
       def initialize(name, prototype = nil, returns: nil, block_type: :closure)
         @name = name
@@ -24,11 +24,6 @@ module Inkoc
         @attributes = SymbolTable.new
         @required_arguments_count = 0
         @block_type = block_type
-        @contains_throw = false
-      end
-
-      def missing_throw?
-        throws && !contains_throw
       end
 
       def closure?
@@ -197,7 +192,7 @@ module Inkoc
           args << "#{arg.name}: #{arg.type.type_name}"
         end
 
-        tname += "(#{args.join(', ')})" unless args.empty?
+        tname += " (#{args.join(', ')})" unless args.empty?
         tname += " -> #{return_type.type_name}" if return_type
 
         tname

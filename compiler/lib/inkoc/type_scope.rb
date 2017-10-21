@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Inkoc
-  class Scope
+  class TypeScope
     attr_reader :self_type, :block_type, :locals
 
     # self_type - The type of "self".

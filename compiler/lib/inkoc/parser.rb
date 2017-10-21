@@ -808,7 +808,7 @@ module Inkoc
 
       skip_one
 
-      type_name(advance_and_expect!(:constant))
+      type_name_or_optional_type(advance!)
     end
 
     # Parses a definition of an immutable variable.
@@ -1071,21 +1071,24 @@ module Inkoc
     # Examples:
     #
     #     try foo
-    #     try { foo }
     #     try foo else bar
+    #     try foo else (error) { error }
     def try(start)
-      body = block_with_optional_curly_braces
+      expression = expression(advance!)
       else_arg = nil
-      else_body = nil
 
-      if @lexer.next_type_is?(:else)
-        skip_one
+      else_body =
+        if @lexer.next_type_is?(:else)
+          skip_one
 
-        else_arg = optional_else_arg
-        else_body = block_with_optional_curly_braces
-      end
+          else_arg = optional_else_arg
 
-      AST::Try.new(body, else_arg, else_body, start.location)
+          block_with_optional_curly_braces
+        else
+          AST::Body.new([], start.location)
+        end
+
+      AST::Try.new(expression, else_body, else_arg, start.location)
     end
 
     def block_with_optional_curly_braces

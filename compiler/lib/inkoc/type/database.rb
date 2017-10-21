@@ -9,7 +9,7 @@ module Inkoc
                   :float_prototype, :string_prototype, :array_prototype,
                   :boolean_prototype, :nil_prototype, :integer_type,
                   :float_type, :string_type, :boolean_type, :nil_type,
-                  :hash_map_prototype
+                  :hash_map_prototype, :void_type
 
       def initialize
         @top_level = Object.new(name: 'Inko')
@@ -29,6 +29,7 @@ module Inkoc
         @string_type = immutable_object('String', @string_prototype)
         @boolean_type = immutable_object('Boolean', @boolean_prototype)
         @nil_type = immutable_object('Nil', @nil_prototype)
+        @void_type = Void.new
       end
 
       def immutable_object(name, prototype)

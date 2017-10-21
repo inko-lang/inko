@@ -22,8 +22,8 @@ module Inkoc
         :on_body
       end
 
-      def single_expression?
-        @expressions.length == 1
+      def multiple_expressions?
+        @expressions.length > 1
       end
 
       def last_expression

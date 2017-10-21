@@ -8,7 +8,7 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :receiver
-      attr_accessor :return_type, :type_parameters, :required_traits, :optional
+      attr_accessor :return_type, :type_parameters, :optional
 
       # name - The name of the constant as a String.
       # location - The SourceLocation of the constant.
@@ -19,7 +19,6 @@ module Inkoc
         @location = location
         @return_type = nil
         @type_parameters = []
-        @required_traits = []
         @optional = false
       end
 
@@ -33,6 +32,10 @@ module Inkoc
 
       def self_type?
         name == Config::SELF_TYPE
+      end
+
+      def dynamic_type?
+        name == Config::DYNAMIC_TYPE
       end
 
       def visitor_method

@@ -39,6 +39,18 @@ module Inkoc
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
         compiled_code.captures = false # TODO: implement capturing
+
+        set_catch_entries(compiled_code, code_object)
+      end
+
+      def set_catch_entries(compiled_code, code_object)
+        compiled_code.catch_table = code_object.catch_table.map do |entry|
+          start = entry.try_block.instruction_offset
+          stop = entry.try_block.instruction_end
+          jump_to = entry.else_block.instruction_offset
+
+          Codegen::CatchEntry.new(start, stop, jump_to, entry.register.id)
+        end
       end
 
       def on_get_array_prototype(tir_ins, compiled_code, *)
@@ -136,6 +148,12 @@ module Inkoc
         register = tir_ins.register.id
 
         compiled_code.instruct(:GotoIfTrue, [index, register], tir_ins.location)
+      end
+
+      def on_skip_next_block(tir_ins, compiled_code, basic_block)
+        index = basic_block.next.next.instruction_offset
+
+        compiled_code.instruct(:Goto, [index], tir_ins.location)
       end
 
       def on_load_module(tir_ins, compiled_code, *)
@@ -263,8 +281,11 @@ module Inkoc
         compiled_code.instruct(:Throw, [reg], tir_ins.location)
       end
 
-      def on_try(tir_ins, compiled_code, *)
-        # TODO: implement try
+      def on_set_register(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        src_reg = tir_ins.source_register.id
+
+        compiled_code.instruct(:SetRegister, [reg, src_reg], tir_ins.location)
       end
     end
   end

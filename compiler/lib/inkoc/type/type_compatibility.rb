@@ -6,6 +6,8 @@ module Inkoc
       def implements_trait?(trait)
         if trait.empty_generated_trait?
           true
+        elsif trait.generated_trait?
+          trait.required_traits.all? { |t| implements_trait?(t) }
         else
           implemented_traits.include?(trait)
         end
@@ -26,6 +28,7 @@ module Inkoc
       # Returns true if the current and the given type are compatible.
       def type_compatible?(other)
         return true if self == other || other.dynamic?
+        return false if other.void?
 
         return implements_trait?(other) if other.trait?
         return type_compatible?(other.type) if other.optional?

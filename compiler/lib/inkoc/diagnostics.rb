@@ -110,8 +110,8 @@ module Inkoc
     end
 
     def type_error(expected, found, location)
-      exp_name = expected.type_name
-      found_name = found.type_name
+      exp_name = expected.type_name.inspect
+      found_name = found.type_name.inspect
 
       error(
         "Expected a value of type #{exp_name} instead of #{found_name}",
@@ -120,8 +120,8 @@ module Inkoc
     end
 
     def return_type_error(expected, found, location)
-      exname = expected.type_name
-      fname = found.type_name
+      exname = expected.type_name.inspect
+      fname = found.type_name.inspect
 
       error(
         "Expected a value of type #{exname} to be returned instead of #{fname}",
@@ -236,8 +236,18 @@ module Inkoc
       tname = throw_type.type_name.inspect
 
       error(
-        "this method is expected to throw a value of type #{tname} " \
+        "this block is expected to throw a value of type #{tname} " \
           'but no value is ever thrown',
+        location
+      )
+    end
+
+    def missing_try_error(throw_type, location)
+      tname = throw_type.type_name.inspect
+
+      error(
+        "This message may throw a value of type #{tname} but the `try` " \
+          'statement is missing',
         location
       )
     end

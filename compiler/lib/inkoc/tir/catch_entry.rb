@@ -3,14 +3,16 @@
 module Inkoc
   module TIR
     class CatchEntry
-      include Inspect
+      attr_reader :try_block, :else_block, :register
 
-      attr_reader :start, :stop, :jump_to, :register
-
-      def initialize(start, stop, jump_to, register)
-        @stop = stop
-        @jump_to = jump_to
+      def initialize(try_block, else_block, register)
+        @try_block = try_block
+        @else_block = else_block
         @register = register
+      end
+
+      def inspect
+        "CatchEntry(register: #{register.inspect}, ...)"
       end
     end
   end

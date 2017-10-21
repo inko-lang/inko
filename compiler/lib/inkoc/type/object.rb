@@ -17,12 +17,13 @@ module Inkoc
       def initialize(
         name: Config::OBJECT_CONST,
         prototype: nil,
-        type_parameter_instances: {}
+        type_parameter_instances: {},
+        implemented_traits: Set.new
       )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
-        @implemented_traits = Set.new
+        @implemented_traits = implemented_traits
         @type_parameters = {}
         @type_parameter_instances = type_parameter_instances
       end
@@ -31,7 +32,8 @@ module Inkoc
         self.class.new(
           name: name,
           prototype: self,
-          type_parameter_instances: type_parameter_instances
+          type_parameter_instances: type_parameter_instances,
+          implemented_traits: implemented_traits.dup
         )
       end
 

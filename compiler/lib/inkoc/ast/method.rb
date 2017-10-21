@@ -25,6 +25,7 @@ module Inkoc
         @body = body
         @location = loc
         @required = required
+        @type = nil
       end
 
       def required?
@@ -37,6 +38,10 @@ module Inkoc
 
       def method?
         true
+      end
+
+      def block_type
+        type
       end
     end
   end

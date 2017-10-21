@@ -9,7 +9,7 @@ module Inkoc
 
       attr_reader :name, :receiver, :arguments, :location
 
-      attr_accessor :receiver_type
+      attr_accessor :receiver_type, :block_type
 
       # name - The name of the message as a String.
       # receiver - The object to send the message to.
@@ -20,6 +20,8 @@ module Inkoc
         @receiver = receiver
         @arguments = arguments
         @location = location
+        @receiver_type = nil
+        @method_type = nil
       end
 
       def visitor_method
@@ -31,9 +33,8 @@ module Inkoc
       end
 
       def raw_instruction?
-        receiver &&
-          receiver.constant? &&
-          receiver.name == Config::RAW_INSTRUCTION_RECEIVER
+        receiver&.constant? &&
+          receiver&.name == Config::RAW_INSTRUCTION_RECEIVER
       end
 
       def raw_instruction_visitor_method

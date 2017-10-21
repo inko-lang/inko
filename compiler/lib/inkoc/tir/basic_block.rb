@@ -54,12 +54,22 @@ module Inkoc
         offset
       end
 
+      def instruction_end
+        position = instruction_offset
+
+        if instructions.length.positive?
+          position + instructions.length - 1
+        else
+          position
+        end
+      end
+
       def last_instruction
-        @instructions.last
+        instructions.last
       end
 
       def empty?
-        @instructions.empty?
+        instructions.empty?
       end
     end
   end

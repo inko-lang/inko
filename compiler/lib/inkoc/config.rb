@@ -29,6 +29,7 @@ module Inkoc
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
+    DYNAMIC_TYPE = 'Dynamic'
     MODULES_ATTRIBUTE = 'Modules'
 
     # The name of the constant to use as the receiver for raw instructions.
@@ -37,7 +38,9 @@ module Inkoc
     MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     MODULE_SEPARATOR = '::'
-    BLOCK_NAME = '<block>'
+    BLOCK_NAME = 'do'
+    TRY_BLOCK_NAME = '<try>'
+    ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
     DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'

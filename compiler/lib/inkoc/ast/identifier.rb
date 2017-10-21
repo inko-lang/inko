@@ -9,11 +9,14 @@ module Inkoc
 
       attr_reader :name, :location
 
+      attr_accessor :block_type
+
       # name - The name of the identifier.
       # location - The SourceLocation of the identifier.
       def initialize(name, location)
         @name = name
         @location = location
+        @method_type = nil
       end
 
       def identifier?

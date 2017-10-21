@@ -55,7 +55,7 @@ module Inkoc
 
         @module.globals.define(Config::MODULE_GLOBAL, @module.type)
 
-        scope = Scope.new(@module.type, @module.body.type, locals)
+        scope = TypeScope.new(@module.type, @module.body.type, locals)
 
         define_type(ast, scope)
       end
@@ -144,11 +144,11 @@ module Inkoc
         name = node.name
         loc = node.location
 
-        type =
+        rtype, block_type =
           if (local_type = scope.type_of_local(name))
             local_type
           elsif scope.self_type.responds_to_message?(name)
-            send_object_message(self_type, name, [], scope, loc)
+            send_object_message(scope.self_type, name, [], scope, loc)
           elsif @module.responds_to_message?(name)
             send_object_message(@module.type, name, [], scope, loc)
           elsif (global_type = @module.type_of_global(name))
@@ -158,7 +158,9 @@ module Inkoc
             Type::Dynamic.new
           end
 
-        type.resolve_type(scope.self_type)
+        node.block_type = block_type if block_type
+
+        rtype.resolve_type(scope.self_type)
       end
 
       def on_global(node, *)
@@ -175,13 +177,15 @@ module Inkoc
       end
 
       def on_send(node, scope)
-        send_object_message(
+        rtype, node.block_type = send_object_message(
           receiver_type(node, scope),
           node.name,
           node.arguments,
           scope,
           node.location
         )
+
+        rtype
       end
 
       def on_keyword_argument(node, scope)
@@ -204,8 +208,10 @@ module Inkoc
 
         verify_send_arguments(receiver, method_type, args, location)
 
-        method_type
+        rtype = method_type
           .initialized_return_type(receiver, [scope.self_type, *arg_types])
+
+        [rtype, method_type]
       end
 
       def verify_send_arguments(receiver_type, type, arguments, location)
@@ -341,42 +347,55 @@ module Inkoc
       def on_throw(node, scope)
         throw_type = define_type(node.value, scope)
 
-        infer_and_validate_throw_type(throw_type, scope, node.location)
+        # For block types we infer the throw type so one doesn't have to
+        # annotate every block with an explicit type.
+        scope.block_type.throws ||= throw_type if scope.closure?
 
-        throw_type
-      end
-
-      def infer_and_validate_throw_type(throw_type, scope, location)
-        block_throws = scope.block_type.throws
-        scope.block_type.contains_throw = true
-
-        if scope.block_type == @module.body.type
-          diagnostics.throw_at_top_level_error(throw_type, location)
-          return
-        end
-
-        # For block types we infer the throw type so one doesn't have
-        # to annotate every block with an explicit type.
-        if block_throws
-          unless block_throws.type_compatible?(throw_type)
-            diagnostics.type_error(block_throws, throw_type, location)
-          end
-        elsif scope.closure?
-          scope.block_type.throws ||= throw_type
-        elsif scope.method?
-          diagnostics.throw_without_throw_defined_error(throw_type, location)
-        end
+        typedb.void_type
       end
 
       def on_try(node, scope)
-        exp_type = define_type(node.expression, scope)
-        else_type = define_type(node.else_body, scope) if node.else_body
+        node.try_block_type =
+          block_type_with_self(Config::TRY_BLOCK_NAME, scope.self_type)
 
-        if else_type && !else_type.type_compatible?(exp_type)
-          diagnostics.type_error(exp_type, else_type, node.else_body.location)
+        node.else_block_type =
+          block_type_with_self(Config::ELSE_BLOCK_NAME, scope.self_type)
+
+        try_scope =
+          TypeScope.new(scope.self_type, node.try_block_type, scope.locals)
+
+        try_type =
+          node.try_block_type.returns =
+            define_type(node.expression, try_scope)
+
+        else_scope = node.type_scope_for_else(scope.self_type)
+
+        node.define_else_argument_type
+
+        else_type = else_type_for_try(node, else_scope)
+
+        if try_type.physical_type? &&
+           else_type.physical_type? &&
+           !else_type.type_compatible?(try_type)
+          diagnostics.type_error(try_type, else_type, node.else_body.location)
         end
 
-        exp_type
+        try_type.if_physical_or_else { else_type }
+      end
+
+      def else_type_for_try(node, scope)
+        if node.else_body.empty?
+          node.else_body.type = Type::Void.new
+        else
+          define_type(node.else_body, scope)
+        end
+      end
+
+      def block_type_with_self(name, self_type)
+        type = Type::Block.new(name, typedb.block_prototype)
+
+        type.define_self_argument(self_type)
+        type
       end
 
       def on_object(node, scope)
@@ -396,7 +415,7 @@ module Inkoc
         )
 
         block_type = define_block_type_for_object(node, type)
-        new_scope = Scope.new(type, block_type, node.body.locals)
+        new_scope = TypeScope.new(type, block_type, node.body.locals)
 
         define_type_parameters(node.type_parameters, type)
         store_type(type, scope.self_type, node.location)
@@ -423,16 +442,14 @@ module Inkoc
         define_type_parameters(node.type_parameters, type)
 
         node.required_traits.each do |trait|
-          trait_type =
-            resolve_type(trait, scope.self_type, [scope.self_type, @module])
-
+          trait_type = resolve_module_type(trait, scope.self_type)
           type.required_traits << trait_type if trait_type.trait?
         end
 
         block_type = define_block_type_for_object(node, type)
-        new_scope = Scope.new(type, block_type, node.body.locals)
+        new_scope = TypeScope.new(type, block_type, node.body.locals)
 
-        store_type(type, ssope.self_type, node.location)
+        store_type(type, scope.self_type, node.location)
         define_type(node.body, new_scope)
 
         type
@@ -442,11 +459,13 @@ module Inkoc
         self_type = scope.self_type
         loc = node.location
 
-        trait = resolve_type(node.trait_name, self_type, [self_type, @module])
-        object = resolve_type(node.object_name, self_type, [self_type, @module])
+        trait = resolve_module_type(node.trait_name, self_type)
+        object = resolve_module_type(node.object_name, self_type)
 
-        define_type(node.body, object, node.body.locals)
-        define_block_type_for_object(node, object)
+        block_type = define_block_type_for_object(node, object)
+        new_scope = TypeScope.new(object, block_type, node.body.locals)
+
+        define_type(node.body, new_scope)
 
         traits_implemented = required_traits_implemented?(object, trait, loc)
         methods_implemented = required_methods_implemented?(object, trait, loc)
@@ -487,7 +506,7 @@ module Inkoc
         type = Type::Block
           .new(node.name, typedb.block_prototype, block_type: :method)
 
-        new_scope = Scope.new(self_type, type, node.body.locals)
+        new_scope = TypeScope.new(self_type, type, node.body.locals)
 
         block_signature(node, type, scope)
 
@@ -512,10 +531,6 @@ module Inkoc
 
         define_type(body, method.scope)
 
-        if node.type.missing_throw?
-          diagnostics.missing_throw_error(node.type.throws, node.location)
-        end
-
         expected_type = node.type
           .return_type
           .resolve_type(method.scope.self_type)
@@ -530,13 +545,13 @@ module Inkoc
 
       def on_block(node, scope)
         type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
-        new_scope = Scope.new(scope.self_type, type, node.body.locals)
+        new_scope = TypeScope.new(scope.self_type, type, node.body.locals)
 
         block_signature(node, type, new_scope)
         define_type(node.body, new_scope)
 
         rtype = node.body.type
-        exp = type.resolve_type(scope.self_type)
+        exp = type.return_type.resolve_type(scope.self_type)
 
         type.returns = rtype if type.returns.dynamic?
 
@@ -550,6 +565,19 @@ module Inkoc
       def on_define_variable(node, scope)
         callback = node.variable.define_variable_visitor_method
         vtype = define_type(node.value, scope)
+
+        if node.value_type
+          exp_type = resolve_module_type(node.value_type, scope.self_type)
+
+          # If an explicit type is given and the inferred type is compatible we
+          # want to use the _explicit type_ as _the_ type, instead of the
+          # inferred one.
+          if vtype.type_compatible?(exp_type)
+            vtype = exp_type
+          else
+            diagnostics.type_error(exp_type, vtype, node.location)
+          end
+        end
 
         public_send(callback, node, vtype, scope)
 
@@ -730,8 +758,13 @@ module Inkoc
         end
       end
 
+      def resolve_module_type(node, self_type)
+        resolve_type(node, self_type, [self_type, @module])
+      end
+
       def resolve_type(node, self_type, sources)
         return Type::SelfType.new if node.self_type?
+        return Type::Dynamic.new if node.dynamic_type?
 
         name = node.name
 
@@ -739,6 +772,8 @@ module Inkoc
           receiver = resolve_type(node.receiver, self_type, sources)
           sources = [receiver] + sources
         end
+
+        p node.return_type
 
         sources.find do |source|
           if (type = source.lookup_type(name))

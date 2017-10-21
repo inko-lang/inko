@@ -13,16 +13,16 @@ module Inkoc
         while source
           attr = attributes[name]
 
-          return attr if attr
+          return attr if attr.any?
 
           source = source.prototype
         end
 
-        nil
+        NullSymbol.new(name)
       end
 
       def lookup_type(name)
-        lookup_attribute(name).type
+        lookup_attribute(name)&.type
       end
 
       def lookup_method(name)
@@ -59,6 +59,10 @@ module Inkoc
 
       def attribute?(name)
         lookup_attribute(name).any?
+      end
+
+      def if_physical_or_else
+        self
       end
     end
   end

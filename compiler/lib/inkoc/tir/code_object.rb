@@ -6,7 +6,7 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :type, :locals, :registers, :location, :blocks,
-                  :code_objects
+                  :code_objects, :catch_table
 
       def initialize(name, type, location, locals: SymbolTable.new)
         @name = name
@@ -16,6 +16,7 @@ module Inkoc
         @location = location
         @blocks = []
         @code_objects = []
+        @catch_table = []
       end
 
       def arguments_count

@@ -530,22 +530,61 @@ module Inkoc
         register = process_node(node.value, body)
 
         body.instruct(:Throw, register, node.location)
-        body.add_basic_block
+
+        get_nil(body, node.location)
       end
 
       def on_try(node, body)
-        return unless node.else_body
+        catch_reg = body.register(body.type.throws)
+        ret_reg = body.register(node.expression.type)
 
         # Block for running the to-try expression
-        body.add_connected_basic_block
-        process_nodes(node.expressions, body)
+        try_block = body.add_connected_basic_block
+        try_reg = process_node(node.expression, body)
+
+        body.instruct(:SetRegister, ret_reg, try_reg, node.location)
         body.instruct(:SkipNextBlock, node.location)
 
         # Block for error handling
-        process_nodes(node.else_body.expressions, body)
+        else_block = body.add_connected_basic_block
+
+        else_reg =
+          if node.explicit_block_for_else_body?
+            block_reg = define_block_for_else(node, body)
+            self_reg = get_self(body, node.else_body.location)
+            else_loc = node.else_body.location
+
+            run_block(block_reg, [self_reg, catch_reg], body, else_loc)
+          else
+            process_nodes(node.else_body.expressions, body).last ||
+              get_nil(body, node.else_body.location)
+          end
+
+        body.instruct(:SetRegister, ret_reg, else_reg, node.location)
 
         # Block for everything that comes after our "try" expression.
         body.add_connected_basic_block
+
+        body.catch_table << TIR::CatchEntry
+          .new(try_block, else_block, catch_reg)
+
+        ret_reg
+      end
+
+      def define_block_for_else(node, body)
+        location = node.else_body.location
+        block_type = node.else_block_type
+
+        else_code = body.add_code_object(
+          block_type.name,
+          block_type,
+          location,
+          locals: node.else_body.locals
+        )
+
+        on_body(node.else_body, else_code)
+
+        body.instruct(:SetBlock, body.register(block_type), else_code, location)
       end
 
       def run_block(block, arguments, body, location)

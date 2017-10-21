@@ -34,6 +34,10 @@ module Inkoc
       def keyword_argument?
         false
       end
+
+      def throw?
+        false
+      end
     end
   end
 end

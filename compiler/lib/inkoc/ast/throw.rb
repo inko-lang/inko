@@ -19,6 +19,10 @@ module Inkoc
       def visitor_method
         :on_throw
       end
+
+      def throw?
+        true
+      end
     end
   end
 end
