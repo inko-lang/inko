@@ -83,7 +83,7 @@ impl Binding {
     pub fn find_parent(&self, depth: usize) -> Option<RcBinding> {
         let mut found = self.parent();
 
-        for _ in 0..(depth - 1) {
+        for _ in 0..depth {
             if let Some(unwrapped) = found {
                 found = unwrapped.parent();
             } else {
@@ -250,7 +250,7 @@ mod tests {
     fn test_find_parent_without_parent() {
         let binding = Binding::new(0);
 
-        assert!(binding.find_parent(1).is_none());
+        assert!(binding.find_parent(0).is_none());
     }
 
     #[test]
@@ -260,10 +260,16 @@ mod tests {
         let binding3 = Binding::with_parent(binding2, 0);
         let binding4 = Binding::with_parent(binding3, 0);
 
-        let found = binding4.find_parent(1);
+        assert!(binding4.find_parent(0).is_some());
+        assert!(binding4.find_parent(0).unwrap().parent().is_some());
 
-        assert!(found.is_some());
-        assert!(found.unwrap().parent.is_some());
+        assert!(binding4.find_parent(1).is_some());
+        assert!(binding4.find_parent(1).unwrap().parent().is_some());
+
+        assert!(binding4.find_parent(2).is_some());
+        assert!(binding4.find_parent(2).unwrap().parent().is_none());
+
+        assert!(binding4.find_parent(3).is_none());
     }
 
     #[test]
