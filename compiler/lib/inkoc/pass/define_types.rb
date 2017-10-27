@@ -336,6 +336,10 @@ module Inkoc
 
       alias on_raw_get_false on_raw_get_true
 
+      def on_raw_run_block(node, *)
+        node.arguments[0].type.return_type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)
@@ -623,7 +627,7 @@ module Inkoc
 
       def on_reassign_local(node, value_type, scope)
         name = node.variable.name
-        local = scope.locals[name]
+        _, local = scope.locals.lookup_with_parent(name)
         existing_type = local.type
 
         if local.nil?
@@ -772,8 +776,6 @@ module Inkoc
           receiver = resolve_type(node.receiver, self_type, sources)
           sources = [receiver] + sources
         end
-
-        p node.return_type
 
         sources.find do |source|
           if (type = source.lookup_type(name))

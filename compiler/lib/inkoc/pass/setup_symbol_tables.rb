@@ -40,7 +40,7 @@ module Inkoc
       end
 
       def on_node_with_body(node, *)
-        process_node(node.body, node)
+        process_node(node.body, node.body)
       end
 
       alias on_object on_node_with_body

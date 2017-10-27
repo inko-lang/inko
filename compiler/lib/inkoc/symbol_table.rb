@@ -40,8 +40,24 @@ module Inkoc
       source[name_or_index] || NullSymbol.new(name_or_index)
     end
 
+    def lookup_with_parent(name_or_index)
+      source = self
+      depth = 0
+
+      while source
+        found = source[name_or_index]
+
+        return [depth, found] if found.any?
+
+        depth += 1
+        source = source.parent
+      end
+
+      [0, NullSymbol.new(name_or_index)]
+    end
+
     def defined?(name)
-      self[name].any?
+      lookup_with_parent(name)[1].any?
     end
 
     def last

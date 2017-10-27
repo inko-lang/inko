@@ -19,7 +19,7 @@ module Inkoc
     end
 
     def type_of_local(name)
-      local = locals[name]
+      _, local = locals.lookup_with_parent(name)
 
       local.type if local.any?
     end

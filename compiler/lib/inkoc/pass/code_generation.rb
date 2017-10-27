@@ -38,7 +38,6 @@ module Inkoc
         compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
-        compiled_code.captures = false # TODO: implement capturing
 
         set_catch_entries(compiled_code, code_object)
       end
@@ -117,6 +116,30 @@ module Inkoc
 
         compiled_code
           .instruct(:GetLocal, [register, variable], tir_ins.location)
+      end
+
+      def on_get_parent_local(tir_ins, compiled_code, *)
+        register = tir_ins.register.id
+        depth = tir_ins.depth
+        variable = tir_ins.variable.index
+        location = tir_ins.location
+
+        compiled_code.captures = true
+
+        compiled_code
+          .instruct(:GetParentLocal, [register, depth, variable], location)
+      end
+
+      def on_set_parent_local(tir_ins, compiled_code, *)
+        depth = tir_ins.depth
+        variable = tir_ins.variable.index
+        value = tir_ins.value.id
+        location = tir_ins.location
+
+        compiled_code.captures = true
+
+        compiled_code
+          .instruct(:SetParentLocal, [variable, depth, value], location)
       end
 
       def on_get_nil(tir_ins, compiled_code, *)

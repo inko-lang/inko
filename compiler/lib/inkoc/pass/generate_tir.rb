@@ -391,10 +391,14 @@ module Inkoc
       end
 
       def get_local(name, body, location)
-        symbol = body.locals[name]
+        depth, symbol = body.locals.lookup_with_parent(name)
         register = body.register(symbol.type)
 
-        body.instruct(:GetLocal, register, symbol, location)
+        if depth.positive?
+          body.instruct(:GetParentLocal, register, depth, symbol, location)
+        else
+          body.instruct(:GetLocal, register, symbol, location)
+        end
       end
 
       def set_global_if_module_scope(receiver, name, value, body, location)
@@ -449,7 +453,18 @@ module Inkoc
         public_send(callback, node.variable, value, body)
       end
 
-      alias on_reassign_local on_define_local
+      def on_reassign_local(variable, value, body)
+        name = variable.name
+        loc = variable.location
+        depth, symbol = body.locals.lookup_with_parent(name)
+
+        if depth.positive?
+          body.instruct(:SetParentLocal, symbol, depth, value, loc)
+        else
+          set_local(symbol, value, body, loc)
+        end
+      end
+
       alias on_reassign_attribute on_define_attribute
 
       def on_raw_instruction(node, body)
@@ -509,6 +524,14 @@ module Inkoc
 
       def on_raw_get_false(node, body)
         get_false(body, node.location)
+      end
+
+      def on_raw_run_block(node, body)
+        block = process_node(node.arguments.fetch(0), body)
+        self_reg = get_self(body, node.location)
+        arguments = process_nodes(node.arguments[1..-1], body)
+
+        run_block(block, [self_reg, *arguments], body, node.location)
       end
 
       def on_return(node, body)
