@@ -769,6 +769,7 @@ module Inkoc
       def resolve_type(node, self_type, sources)
         return Type::SelfType.new if node.self_type?
         return Type::Dynamic.new if node.dynamic_type?
+        return resolve_block_type(node, self_type, sources) if node.block_type?
 
         name = node.name
 
@@ -786,6 +787,35 @@ module Inkoc
         diagnostics.undefined_constant_error(node.name, node.location)
 
         Type::Dynamic.new(name)
+      end
+
+      def resolve_block_type(node, self_type, sources)
+        args = node.arguments.map do |arg|
+          resolve_type(arg, self_type, sources)
+        end
+
+        returns =
+          if (rnode = node.returns)
+            resolve_type(rnode, self_type, sources)
+          end
+
+        throws =
+          if (tnode = node.throws)
+            resolve_type(tnode, self_type, sources)
+          end
+
+        type = Type::Block.new(
+          Config::BLOCK_TYPE_NAME,
+          typedb.block_prototype,
+          returns: returns,
+          throws: throws
+        )
+
+        args.each_with_index do |arg, index|
+          type.define_argument(index.to_s, arg)
+        end
+
+        wrap_optional_type(node, type)
       end
 
       def inspect

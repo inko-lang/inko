@@ -315,7 +315,7 @@ module Inkoc
       [name, args]
     end
 
-    # Parses a type name or a nullable type.
+    # Parses a type name.
     #
     # Examples:
     #
@@ -326,9 +326,32 @@ module Inkoc
       node = constant(token)
 
       node.type_parameters = optional_type_parameters
-      node.return_type = optional_return_type
 
       node
+    end
+
+    # Parses a block type.
+    #
+    # Examples:
+    #
+    #     ()
+    #     (A)
+    #     (A, B)
+    #     (A) -> R
+    #     (A) !! X -> R
+    def block_type(start)
+      args = []
+
+      while (token = @lexer.advance) && token.valid_but_not?(:paren_close)
+        args << type_name(token)
+
+        break if comma_or_break_on(:paren_close)
+      end
+
+      throws = optional_throw_type
+      returns = optional_return_type
+
+      AST::BlockType.new(args, returns, throws, start.location)
     end
 
     # Parses a type argument.
@@ -464,7 +487,6 @@ module Inkoc
     end
 
     # rubocop: disable Metrics/CyclomaticComplexity
-    # rubocop: disable Metrics/AbcSize
     def value(start)
       case start.type
       when :string then string(start)
@@ -574,15 +596,15 @@ module Inkoc
     #
     # Examples:
     #
-    #     fn { body }
-    #     fn(arg) { body }
-    #     fn(arg: T) { body }
-    #     fn(arg: T) -> T { body }
+    #     do { body }
+    #     do (arg) { body }
+    #     do (arg: T) { body }
+    #     do (arg: T) -> T { body }
     def block(start)
       targs = optional_type_parameter_definitions
       args = optional_arguments
-      ret_type = optional_return_type
       throw_type = optional_throw_type
+      ret_type = optional_return_type
       body = block_body(advance_and_expect!(:curly_open))
 
       AST::Block.new(targs, args, ret_type, throw_type, body, start.location)
@@ -672,18 +694,18 @@ module Inkoc
     #
     # Examples:
     #
-    #     fn foo { ... }
-    #     fn foo
-    #     fn foo -> A { ... }
-    #     fn foo!(T)(arg: T) -> T { ... }
-    #     fn foo -> A throw B { ... }
+    #     def foo { ... }
+    #     def foo
+    #     def foo -> A { ... }
+    #     def foo!(T)(arg: T) -> T { ... }
+    #     def foo !! B -> A { ... }
     def def_method(start)
       name_token = advance!
       name = message_name_for_token(name_token)
       targs = optional_type_parameter_definitions
       arguments = optional_arguments
-      ret_type = optional_return_type
       throw_type = optional_throw_type
+      ret_type = optional_return_type
       required = false
 
       body =
@@ -709,25 +731,23 @@ module Inkoc
     # Parses a list of argument definitions.
     def def_arguments
       args = []
+      rest = false
 
-      while @lexer.peek.valid_but_not?(:paren_close)
-        rest = if @lexer.next_type_is?(:mul)
-                 @lexer.advance
-                 true
-               else
-                 false
-               end
+      while (token = advance!) && token.valid_but_not?(:paren_close)
+        if token.type == :mul
+          token = advance!
+          rest = true
+        end
 
-        name = advance_and_expect!(:identifier)
+        if token.type != :identifier
+          raise(ParseError, "Expected an identifier, not #{token.type}")
+        end
+
         type = optional_argument_type
-
-        default = if @lexer.next_type_is?(:assign)
-                    skip_one
-                    expression(advance!)
-                  end
+        default = optional_argument_default
 
         args << AST::DefineArgument
-          .new(name.value, type, default, rest, name.location)
+          .new(token.value, type, default, rest, token.location)
 
         break if comma_or_break_on(:paren_close) || rest
       end
@@ -740,7 +760,15 @@ module Inkoc
 
       skip_one
 
-      type_name_or_optional_type(advance!)
+      type(advance!)
+    end
+
+    def optional_argument_default
+      return unless @lexer.next_type_is?(:assign)
+
+      skip_one
+
+      expression(advance!)
     end
 
     # Parses a list of type argument definitions.
@@ -800,7 +828,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_optional_type(advance!)
+      type(advance!)
     end
 
     def optional_throw_type
@@ -808,7 +836,7 @@ module Inkoc
 
       skip_one
 
-      type_name_or_optional_type(advance!)
+      type(advance!)
     end
 
     # Parses a definition of an immutable variable.
@@ -863,7 +891,7 @@ module Inkoc
       return unless @lexer.next_type_is?(:colon)
 
       skip_one
-      type_name_or_optional_type(advance!)
+      type(advance!)
     end
 
     def variable_value
@@ -1114,22 +1142,35 @@ module Inkoc
       name
     end
 
-    # Parses a single regular or optional type.
+    # Parses a type
     #
     # Examples:
     #
-    #     fn foo -> Integer
-    #     fn foo -> ?Integer
-    def type_name_or_optional_type(start)
+    #     def foo -> Integer
+    #     def foo -> ?Integer
+    #     def foo -> (T) -> R
+    def type(start)
       optional =
         if start.type == :question
-          start = advance_and_expect!(:constant)
+          start = advance!
           true
         else
           false
         end
 
-      type = type_name(start)
+      type =
+        case start.type
+        when :constant
+          type_name(start)
+        when :paren_open
+          block_type(start)
+        else
+          raise(
+            ParseError,
+            "Unexpected #{start.type}, expected a constant or a ("
+          )
+        end
+
       type.optional = optional
 
       type

@@ -13,13 +13,19 @@ module Inkoc
       attr_accessor :rest_argument, :throws, :returns,
                     :required_arguments_count
 
-      def initialize(name, prototype = nil, returns: nil, block_type: :closure)
+      def initialize(
+        name,
+        prototype = nil,
+        returns: nil,
+        throws: nil,
+        block_type: :closure
+      )
         @name = name
         @prototype = prototype
         @arguments = SymbolTable.new
         @rest_argument = false
         @type_parameters = {}
-        @throws = nil
+        @throws = throws
         @returns = returns
         @attributes = SymbolTable.new
         @required_arguments_count = 0
@@ -189,10 +195,11 @@ module Inkoc
         arguments.each do |arg|
           next if arg.name == Config::SELF_LOCAL
 
-          args << "#{arg.name}: #{arg.type.type_name}"
+          args << arg.type.type_name
         end
 
         tname += " (#{args.join(', ')})" unless args.empty?
+        tname += " !! #{throws.type_name}" if throws
         tname += " -> #{return_type.type_name}" if return_type
 
         tname

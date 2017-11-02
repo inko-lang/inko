@@ -38,6 +38,18 @@ module Inkoc
       def throw?
         false
       end
+
+      def block_type?
+        false
+      end
+
+      def self_type?
+        false
+      end
+
+      def dynamic_type?
+        false
+      end
     end
   end
 end
