@@ -170,6 +170,40 @@ module Inkoc
         true
       end
 
+      def argument_types_compatible?(other)
+        return false if arguments.length != other.arguments.length
+
+        arguments.each.zip(other.arguments.each).all? do |(left, right)|
+          left.type.type_compatible?(right.type)
+        end
+      end
+
+      def throw_types_compatible?(other)
+        if throws
+          other.throws ? throws.type_compatible?(other.throws) : false
+        else
+          true
+        end
+      end
+
+      def return_types_compatible?(other)
+        # Not having a return type means the return type is dynamic.
+        if returns
+          other.returns ? returns.type_compatible?(other.returns) : true
+        else
+          true
+        end
+      end
+
+      def type_compatible?(other)
+        return true if basic_type_compatibility?(other)
+
+        other.is_a?(self.class) &&
+          argument_types_compatible?(other) &&
+          throw_types_compatible?(other) &&
+          return_types_compatible?(other)
+      end
+
       def argument_types_without_self
         types = []
 

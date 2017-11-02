@@ -25,13 +25,18 @@ module Inkoc
         false
       end
 
-      # Returns true if the current and the given type are compatible.
-      def type_compatible?(other)
+      def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return false if other.void?
-
         return implements_trait?(other) if other.trait?
         return type_compatible?(other.type) if other.optional?
+
+        false
+      end
+
+      # Returns true if the current and the given type are compatible.
+      def type_compatible?(other)
+        return true if basic_type_compatibility?(other)
 
         prototype_chain_compatible?(other)
       end
