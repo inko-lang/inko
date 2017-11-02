@@ -430,7 +430,7 @@ module Inkoc
 
       def define_block_type_for_object(node, type)
         node.block_type = Type::Block.new(
-          Config::BLOCK_NAME,
+          Config::BLOCK_TYPE_NAME,
           typedb.block_prototype,
           returns: node.body.type
         )
@@ -512,7 +512,7 @@ module Inkoc
 
         new_scope = TypeScope.new(self_type, type, node.body.locals)
 
-        block_signature(node, type, scope)
+        block_signature(node, type, new_scope)
 
         if node.required?
           if self_type.trait?
@@ -548,7 +548,7 @@ module Inkoc
       end
 
       def on_block(node, scope)
-        type = Type::Block.new(Config::BLOCK_NAME, typedb.block_prototype)
+        type = Type::Block.new(Config::BLOCK_TYPE_NAME, typedb.block_prototype)
         new_scope = TypeScope.new(scope.self_type, type, node.body.locals)
 
         block_signature(node, type, new_scope)

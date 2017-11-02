@@ -570,18 +570,7 @@ module Inkoc
 
         # Block for error handling
         else_block = body.add_connected_basic_block
-
-        else_reg =
-          if node.explicit_block_for_else_body?
-            block_reg = define_block_for_else(node, body)
-            self_reg = get_self(body, node.else_body.location)
-            else_loc = node.else_body.location
-
-            run_block(block_reg, [self_reg, catch_reg], body, else_loc)
-          else
-            process_nodes(node.else_body.expressions, body).last ||
-              get_nil(body, node.else_body.location)
-          end
+        else_reg = register_for_else_block(node, body, catch_reg)
 
         body.instruct(:SetRegister, ret_reg, else_reg, node.location)
 
@@ -592,6 +581,19 @@ module Inkoc
           .new(try_block, else_block, catch_reg)
 
         ret_reg
+      end
+
+      def register_for_else_block(node, body, catch_reg)
+        if node.explicit_block_for_else_body?
+          block_reg = define_block_for_else(node, body)
+          self_reg = get_self(body, node.else_body.location)
+          else_loc = node.else_body.location
+
+          run_block(block_reg, [self_reg, catch_reg], body, else_loc)
+        else
+          process_nodes(node.else_body.expressions, body).last ||
+            get_nil(body, node.else_body.location)
+        end
       end
 
       def define_block_for_else(node, body)

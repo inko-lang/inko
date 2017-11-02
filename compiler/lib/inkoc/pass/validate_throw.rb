@@ -9,6 +9,7 @@ module Inkoc
         @module = mod
         @state = state
         @try_nesting = 0
+        @throws = []
       end
 
       def diagnostics
@@ -43,8 +44,16 @@ module Inkoc
       end
 
       def on_method(node, *)
+        @throws << 0
+
         process_nodes(node.arguments, node.block_type)
         process_node(node.body, node.block_type)
+
+        throws = node.block_type.throws
+
+        return if @throws.pop.positive? || !throws
+
+        diagnostics.missing_throw_error(throws, node.location)
       end
 
       def on_object(node, *)
@@ -92,6 +101,8 @@ module Inkoc
           diagnostics.type_error(exp_throw, node.value.type, location)
         end
 
+        increment_throws
+
         return if in_try?
 
         error_for_undefined_throw(node.value.type, block_type, location)
@@ -131,6 +142,14 @@ module Inkoc
 
       def in_try?
         @try_nesting.positive?
+      end
+
+      def increment_throws
+        @throws[-1] += 1 if track_throw?
+      end
+
+      def track_throw?
+        @throws.any?
       end
 
       def inspect
