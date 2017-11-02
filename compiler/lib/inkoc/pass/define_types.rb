@@ -620,6 +620,11 @@ module Inkoc
           return existing_type
         end
 
+        unless symbol.mutable?
+          diagnostics.reassign_immutable_attribute_error(name, node.location)
+          return existing_type
+        end
+
         return if value_type.type_compatible?(existing_type)
 
         diagnostics.type_error(existing_type, value_type, node.value.location)
@@ -632,6 +637,11 @@ module Inkoc
 
         if local.nil?
           diagnostics.reassign_undefined_local_error(name, node.location)
+          return existing_type
+        end
+
+        unless local.mutable?
+          diagnostics.reassign_immutable_local_error(name, node.location)
           return existing_type
         end
 
