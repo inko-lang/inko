@@ -64,12 +64,12 @@ signature using `!!`:
 
     # This will produce a compile time error because the method's signature does
     # not specify what can be thrown.
-    fn ping {
+    def ping {
       throw NetworkTimeout.new
     }
 
     # This however is valid.
-    fn ping !! NetworkTimeout {
+    def ping !! NetworkTimeout {
       throw NetworkTimeout.new
     }
 
@@ -79,14 +79,14 @@ error of type `NetworkTimeout`.
 Second, a method that specifies it may throw an error must actually use the
 `throw` keyword. This means that the following code is invalid:
 
-    fn ping !! NetworkTimeout {
+    def ping !! NetworkTimeout {
       'nope'
     }
 
 Third, a method can _only_ throw a single type. This means that the following is
 not valid:
 
-    fn ping !! Foo, Bar, Baz {
+    def ping !! Foo, Bar, Baz {
       ...
     }
 
@@ -105,11 +105,11 @@ default behaviour of this keyword is to re-raise the error, which in turn is
 bound by the rules above. This means that this code is invalid because the first
 method does not specify the type it may throw:
 
-    fn foo {
+    def foo {
       try ping
     }
 
-    fn ping !! NetworkError {
+    def ping !! NetworkError {
       ...
     }
 
@@ -131,14 +131,12 @@ block that follows it.
 
 For longer snippets of code you can also use curly braces:
 
-    let x = try {
-      lots_of_code_here
-    }
-    else (error) {
+    let x = try ping else (error) {
       ...
     }
 
-In all cases the return types of the `try` and `else` blocks must match.
+In all cases the return types of the `try` and `else` blocks must be type
+compatible.
 
 If an error bubbles up all the way to the top of a process the process will
 panic, resulting in the entire program terminating.
@@ -168,7 +166,7 @@ define an immutable variable while `var` can be used to define a mutable one:
 The same applies to method arguments, which are immutable by default but can be
 made mutable using the `var` keyword:
 
-    fn append_to(var array) {
+    def append_to(var array) {
       ...
     }
 
@@ -179,13 +177,13 @@ need to explicitly opt-in for dynamic typing, providing a safer default. Using
 dynamic typing is as simple as leaving out type signatures. For example, this
 method uses static types:
 
-    fn add(left: Integer, right: Integer) -> Integer {
+    def add(left: Integer, right: Integer) -> Integer {
       ...
     }
 
 This method however uses dynamic types:
 
-    fn add(left, right) {
+    def add(left, right) {
       ...
     }
 
@@ -217,7 +215,7 @@ As an example, let's say we have an array of users and each user responds to the
 "name" message:
 
     object User {
-      fn init(name: String) {
+      def init(name: String) {
         let @name = name
       }
     }
@@ -227,12 +225,13 @@ As an example, let's say we have an array of users and each user responds to the
 In Inko the message used to access array values is `[]` and its signature is as
 follows:
 
-    fn [](index: Integer) -> T | Nil
+    def [](index: Integer) -> ?T
 
-In other words, it takes an integer as the index and either returns a value `T`
-or Nil. In most other languages using such a method would require a conditional
-to figure out what you're dealing with. For example, in Ruby you might do the
-following:
+In other words, it takes an integer as the index and either returns a value of
+the optional type `T`. An optional type is a type whos value can be either the
+given type (`T`) or Nil. In most other languages using such a method would
+require a conditional to figure out what you're dealing with. For example, in
+Ruby you might do the following:
 
     value = array[4]
 
@@ -280,16 +279,16 @@ that is overwritten in child classes there is a ToString trait defined as
 follows:
 
     trait ToString {
-      fn to_string -> String
+      def to_string -> String
     }
 
-Each object that wishes to provide a `to_string` method can then simply implement
-the trait:
+Each object that wishes to provide a `to_string` method can then simply
+implement the trait:
 
     import std::string::ToString
 
-    object MyObject impl ToString {
-      fn to_string -> String {
+    impl ToString for MyObject {
+      def to_string -> String {
         ...
       }
     }
@@ -303,20 +302,21 @@ and `var`:
     let a = 10
     var b = 20
 
-Methods are defined using the `fn` keyword:
+Methods are defined using the `def` keyword:
 
-    fn method_name {
+    def method_name {
 
     }
 
-Closures use the same syntax, except they don't include a name. If no arguments
-are specified you can even leave out the `fn` keyword:
+Closures are defined the same way except they use the `do` keyword instead of
+`def`, and they don't have a name unlike methods. If no arguments are specified
+you can even leave out the `do` keyword:
 
     let a = {
       ...
     }
 
-    let b = fn(arg) {
+    let b = do (arg) {
       ...
     }
 
@@ -325,7 +325,7 @@ Parenthesis are used for passing arguments but are optional:
     receiver.message 10
     receiver.message(10)
 
-Arguments can either be positional arguments, or keyword arguments:
+Arguments can either be positional arguments or keyword arguments:
 
     receiver.message 10
     receiver.message number: 10
@@ -348,11 +348,11 @@ may not be clear otherwise:
     Person.new(name: 'Alice', age: 24, address: '5th Street')
 
 Objects and traits are defined using the `object` and `trait` keywords
-respectively. The `impl` keyword can be used to implement a trait, and takes an
-optional list of methods to rename:
+respectively. The `impl` keyword can be used to implement a trait for a given
+object:
 
-    object Foo impl Bar(original_name as alias_name) {
-      # The method "original_name" is now available as "alias_name"
+    impl Bar for Foo {
+      ...
     }
 
 Imports use the `import` keyword and `::` is the namespace separator:
@@ -408,7 +408,7 @@ Defining an object that can be re-used, much like a class:
     object Person {
       # "init" is the constructor method, called whenever you create a new
       # instance of this object.
-      fn init(name: String, age: Integer) {
+      def init(name: String, age: Integer) {
         let @name = name
         let @age = age
       }
@@ -416,7 +416,7 @@ Defining an object that can be re-used, much like a class:
 
 Using dynamic typing, simply by leaving out type signatures:
 
-    fn add(left, right) {
+    def add(left, right) {
       left + right
     }
 
