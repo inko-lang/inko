@@ -683,7 +683,7 @@ module Inkoc
 
           arg.type = arg_type
 
-          scope.locals.define(arg_name, arg_type)
+          scope.locals.define(arg_name, arg_type, arg.mutable?)
         end
       end
 

@@ -13,17 +13,23 @@ module Inkoc
       # type - The type of the argument, if any.
       # default - The default value of the argument, if any.
       # rest - If the argument is a rest argument.
+      # mutable - If the argument is mutable or not.
       # location - The SourceLocation of the argument.
-      def initialize(name, type, default, rest, location)
+      def initialize(name, type, default, rest, mutable, location)
         @name = name
         @type = type
         @default = default
         @rest = rest
+        @mutable = mutable
         @location = location
       end
 
       def rest?
         @rest
+      end
+
+      def mutable?
+        @mutable
       end
 
       def visitor_method
