@@ -42,6 +42,14 @@ module Inkoc
       def void?
         false
       end
+
+      def constraint?
+        false
+      end
+
+      def unresolved_constraint?
+        false
+      end
     end
   end
 end

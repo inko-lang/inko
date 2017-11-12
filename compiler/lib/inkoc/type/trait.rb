@@ -46,11 +46,11 @@ module Inkoc
       end
 
       def define_required_method(block_type)
-        @required_methods.define(block_type.name, block_type)
+        required_methods.define(block_type.name, block_type)
       end
 
       def lookup_method(name)
-        @required_methods[name]
+        required_methods[name]
       end
 
       def type_compatible?(other)

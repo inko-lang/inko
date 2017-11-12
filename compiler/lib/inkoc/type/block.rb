@@ -9,13 +9,15 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :name, :arguments, :type_parameters, :prototype, :attributes
+      attr_reader :name, :arguments, :type_parameters, :prototype, :attributes,
+                  :block_type
+
       attr_accessor :rest_argument, :throws, :returns,
-                    :required_arguments_count
+                    :required_arguments_count, :inferred
 
       def initialize(
-        name,
-        prototype = nil,
+        name: Config::BLOCK_TYPE_NAME,
+        prototype: nil,
         returns: nil,
         throws: nil,
         block_type: :closure
@@ -26,10 +28,50 @@ module Inkoc
         @rest_argument = false
         @type_parameters = {}
         @throws = throws
-        @returns = returns
+        @returns = returns || Type::Dynamic.new
         @attributes = SymbolTable.new
         @required_arguments_count = 0
         @block_type = block_type
+        @inferred = false
+      end
+
+      def implemented_traits
+        prototype ? prototype.implemented_traits : Set.new
+      end
+
+      def infer?
+        closure? && !@inferred
+      end
+
+      # Tries to infer this blocks argument types and return type to the types
+      # of the given block.
+      #
+      # If the block could be inferred this method returns true, otherwise false
+      # is returned.
+      def infer_to(block)
+        args = argument_types_without_self
+        other_args = block.argument_types_without_self
+
+        args_inferred = args.zip(other_args).all? do |ours, theirs|
+          if ours.unresolved_constraint?
+            ours.infer_to(theirs)
+          else
+            true
+          end
+        end
+
+        return false unless args_inferred
+
+        valid =
+          if returns.unresolved_constraint?
+            returns.infer_to(block.returns)
+          else
+            true
+          end
+
+        @inferred = true if valid
+
+        valid
       end
 
       def closure?
@@ -67,20 +109,20 @@ module Inkoc
         define_required_argument(Config::SELF_LOCAL, type)
       end
 
-      def define_required_argument(name, type)
+      def define_required_argument(name, type, mutable = false)
         @required_arguments_count += 1
 
-        arguments.define(name, type)
+        arguments.define(name, type, mutable)
       end
 
-      def define_argument(name, type)
-        arguments.define(name, type)
+      def define_argument(name, type, mutable = false)
+        arguments.define(name, type, mutable)
       end
 
-      def define_rest_argument(name, type)
+      def define_rest_argument(name, type, mutable = false)
         @rest_argument = true
 
-        define_argument(name, type)
+        define_argument(name, type, mutable)
       end
 
       def block?
@@ -103,14 +145,14 @@ module Inkoc
         arguments[name_or_index].or_else { arguments.last }.type
       end
 
-      def initialized_return_type(self_type, passed_types)
+      def initialized_return_type(self_type, passed_types = [])
         param_instances = {}
 
-        arguments.each_with_index do |arg, index|
-          next unless arg.type.generated_trait?
+        argument_types_without_self.each_with_index do |arg_type, index|
+          next unless arg_type.generated_trait?
 
           if (concrete_type = passed_types[index])
-            param_instances[arg.type.name] = concrete_type
+            param_instances[arg_type.name] = concrete_type
           end
         end
 
@@ -133,24 +175,7 @@ module Inkoc
       end
 
       def implementation_of?(block)
-        arguments_compatible?(block) &&
-          type_parameters_compatible?(block) &&
-          rest_argument == block.rest_argument &&
-          throws == block.throws &&
-          returns == block.returns
-      end
-
-      def arguments_compatible?(block)
-        other_args = block.argument_types_without_self
-        args = argument_types_without_self
-
-        return false if args.length != other_args.length
-
-        args.each_with_index do |arg, index|
-          return false unless arg.strict_type_compatible?(other_args[index])
-        end
-
-        true
+        name == block.name && strict_type_compatible?(block)
       end
 
       def type_parameter_values
@@ -163,42 +188,41 @@ module Inkoc
 
         return false if params.length != other_params.length
 
-        params.each_with_index do |param, index|
-          return false unless param.strict_type_compatible?(other_params[index])
+        params.zip(other_params).all? do |ours, theirs|
+          ours.strict_type_compatible?(theirs)
         end
-
-        true
       end
 
       def argument_types_compatible?(other)
         return false if arguments.length != other.arguments.length
 
-        arguments.each.zip(other.arguments.each).all? do |(left, right)|
-          left.type.type_compatible?(right.type)
+        arguments.zip(other.arguments).all? do |ours, theirs|
+          ours.type.type_compatible?(theirs.type)
         end
       end
 
       def throw_types_compatible?(other)
         if throws
-          other.throws ? throws.type_compatible?(other.throws) : false
+          if other.throws
+            throws.type_compatible?(other.throws)
+          else
+            closure?
+          end
         else
           true
         end
       end
 
       def return_types_compatible?(other)
-        # Not having a return type means the return type is dynamic.
-        if returns
-          other.returns ? returns.type_compatible?(other.returns) : true
-        else
-          true
-        end
+        returns.type_compatible?(other.returns)
       end
 
       def type_compatible?(other)
         return true if basic_type_compatibility?(other)
 
         other.is_a?(self.class) &&
+          block_type == other.block_type &&
+          rest_argument == other.rest_argument &&
           argument_types_compatible?(other) &&
           throw_types_compatible?(other) &&
           return_types_compatible?(other)
@@ -216,21 +240,14 @@ module Inkoc
 
       def type_name
         type_params = type_parameter_names
+        args = argument_types_without_self.map(&:type_name)
 
         tname =
           if type_params.any?
-            "#{name}!(#{type_params.join(', ')})"
+            "#{name} !(#{type_params.join(', ')})"
           else
             name
           end
-
-        args = []
-
-        arguments.each do |arg|
-          next if arg.name == Config::SELF_LOCAL
-
-          args << arg.type.type_name
-        end
 
         tname += " (#{args.join(', ')})" unless args.empty?
         tname += " !! #{throws.type_name}" if throws

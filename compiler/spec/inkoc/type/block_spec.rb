@@ -26,18 +26,18 @@ describe Inkoc::Type::Block do
     end
   end
 
-  describe '#infer_arguments?' do
+  describe '#infer?' do
     describe 'with a closure' do
       let(:block) { described_class.new(block_type: :closure) }
 
       it 'returns true when the arguments are not inferred' do
-        expect(block.infer_arguments?).to eq(true)
+        expect(block.infer?).to eq(true)
       end
 
       it 'returns false when the arguments are inferred' do
-        block.arguments_inferred = true
+        block.inferred = true
 
-        expect(block.infer_arguments?).to eq(false)
+        expect(block.infer?).to eq(false)
       end
     end
 
@@ -45,7 +45,7 @@ describe Inkoc::Type::Block do
       it 'returns false' do
         block = described_class.new(block_type: :method)
 
-        expect(block.infer_arguments?).to eq(false)
+        expect(block.infer?).to eq(false)
       end
     end
   end
@@ -537,6 +537,12 @@ describe Inkoc::Type::Block do
   describe '#type_compatible?' do
     it 'returns true when compared with itself' do
       expect(block1.type_compatible?(block1)).to eq(true)
+    end
+
+    it 'returns false when comparing a closure with a method' do
+      method = described_class.new(block_type: :method)
+
+      expect(block1.type_compatible?(method)).to eq(false)
     end
 
     it 'returns false when compared with a void type' do

@@ -8,22 +8,33 @@ module Inkoc
       include ObjectOperations
       include TypeCompatibility
 
-      attr_reader :attributes, :implemented_traits, :type_parameters,
-                  :type_parameter_instances
+      def name
+        'Dynamic'
+      end
+      alias type_name name
 
-      attr_accessor :name, :prototype
-
-      def initialize(prototype = nil, type_param_instances = {})
-        @name = 'Dynamic'
-        @prototype = prototype
-        @attributes = SymbolTable.new
-        @implemented_traits = Set.new
-        @type_parameters = {}
-        @type_parameter_instances = type_param_instances
+      def prototype
+        nil
       end
 
-      def new_instance(type_parameter_instances = {})
-        self.class.new(self, type_parameter_instances)
+      def attributes
+        SymbolTable.new
+      end
+
+      def implemented_traits
+        Set.new
+      end
+
+      def type_parameters
+        {}
+      end
+
+      def type_parameter_instances
+        {}
+      end
+
+      def new_instance(*)
+        self
       end
 
       def responds_to_message?(*)
@@ -31,16 +42,13 @@ module Inkoc
       end
 
       def lookup_attribute(name)
-        super.or_else { Symbol.new(name, Type::Dynamic.new) }
+        NullSymbol.new(name)
       end
 
-      def type_compatible?(*)
-        true
-      end
-
-      def strict_type_compatible?(other)
+      def type_compatible?(other)
         other.dynamic?
       end
+      alias strict_type_compatible? type_compatible?
 
       def dynamic?
         true
@@ -56,10 +64,6 @@ module Inkoc
 
       def ==(other)
         other.is_a?(Dynamic)
-      end
-
-      def type_name
-        'Dynamic'
       end
     end
   end

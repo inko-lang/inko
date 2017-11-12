@@ -4,7 +4,8 @@ module Inkoc
   class Symbol
     include Inspect
 
-    attr_reader :name, :type, :index
+    attr_reader :name, :index
+    attr_accessor :type
 
     def initialize(name, type, index = -1, mutable = false)
       @name = name

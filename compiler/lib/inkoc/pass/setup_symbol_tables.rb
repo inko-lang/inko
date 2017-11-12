@@ -36,7 +36,7 @@ module Inkoc
 
       def on_send(node, outer)
         process_nodes(node.arguments, outer)
-        process_node(node.receiver, outer)
+        process_node(node.receiver, outer) if node.receiver
       end
 
       def on_node_with_body(node, *)

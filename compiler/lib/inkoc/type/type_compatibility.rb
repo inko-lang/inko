@@ -13,6 +13,12 @@ module Inkoc
         end
       end
 
+      def implements_method?(method)
+        symbol = lookup_method(method.name)
+
+        symbol.type.implementation_of?(method.type)
+      end
+
       def prototype_chain_compatible?(other)
         proto = prototype
 

@@ -20,11 +20,11 @@ module Inkoc
         NullSymbol.new(name)
       end
 
-      def trait_implemented?(*)
+      def implements_trait?(*)
         false
       end
 
-      def method_implemented?(*)
+      def implements_method?(*)
         false
       end
 

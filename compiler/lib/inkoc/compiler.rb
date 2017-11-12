@@ -13,6 +13,7 @@ module Inkoc
       Pass::CompileImportedModules,
       Pass::SetupSymbolTables,
       Pass::DefineTypes,
+      Pass::ValidateConstraints,
       Pass::ValidateThrow,
       Pass::GenerateTir,
       Pass::DeadCode,
@@ -35,11 +36,9 @@ module Inkoc
     # path - The absolute file path of the module to compile, as a Pathname.
     def compile(name, path)
       mod = module_for_name_and_path(name, path)
-      out = passes.reduce([]) do |input, klass|
-        out = klass.new(mod, @state).run(*input)
 
-        break if !out || state.diagnostics.errors?
-
+      passes.reduce([]) do |input, klass|
+        break unless (out = klass.new(mod, @state).run(*input))
         out
       end
 

@@ -61,16 +61,6 @@ module Inkoc
           valid
         end
       end
-
-      def trait_implemented?(trait)
-        implemented_traits.include?(trait)
-      end
-
-      def method_implemented?(method)
-        symbol = lookup_method(method.name)
-
-        symbol.type.implementation_of?(method.type)
-      end
     end
   end
 end

@@ -12,6 +12,8 @@ module Inkoc
       end
 
       def run(ast)
+        return if diagnostics.errors?
+
         process_imports(@module.body)
         on_module_body(ast, @module.body)
 

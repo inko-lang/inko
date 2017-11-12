@@ -197,6 +197,12 @@ module Inkoc
 
         return receiver if receiver.dynamic?
 
+        if receiver.unresolved_constraint?
+          return receiver
+              .define_required_method(receiver, name, arg_types, typedb)
+              .returns
+        end
+
         symbol = receiver.lookup_method(name)
         method_type = symbol.type
 
@@ -209,7 +215,7 @@ module Inkoc
         verify_send_arguments(receiver, method_type, args, location)
 
         rtype = method_type
-          .initialized_return_type(receiver, [scope.self_type, *arg_types])
+          .initialized_return_type(receiver, arg_types)
 
         [rtype, method_type]
       end
@@ -258,11 +264,13 @@ module Inkoc
             end
           end
 
-          verify_send_argument(arg.type, exp, arg.location)
+          verify_send_argument(arg, exp, arg.location)
         end
       end
 
-      def verify_send_argument(given, expected, location)
+      def verify_send_argument(argument, expected, location)
+        given = argument.type
+
         if expected.generated_trait? && !given.implements_trait?(expected)
           diagnostics
             .generated_trait_not_implemented_error(expected, given, location)
@@ -270,9 +278,15 @@ module Inkoc
           return
         end
 
+        given.infer_to(expected) if infer_block?(given, expected)
+
         return if given.type_compatible?(expected)
 
         diagnostics.type_error(expected, given, location)
+      end
+
+      def infer_block?(given, expected)
+        given.block? && expected.block? && given.infer?
       end
 
       def receiver_type(node, scope)
@@ -396,7 +410,7 @@ module Inkoc
       end
 
       def block_type_with_self(name, self_type)
-        type = Type::Block.new(name, typedb.block_prototype)
+        type = Type::Block.new(name: name, prototype: typedb.block_prototype)
 
         type.define_self_argument(self_type)
         type
@@ -430,8 +444,7 @@ module Inkoc
 
       def define_block_type_for_object(node, type)
         node.block_type = Type::Block.new(
-          Config::BLOCK_TYPE_NAME,
-          typedb.block_prototype,
+          prototype: typedb.block_prototype,
           returns: node.body.type
         )
 
@@ -469,13 +482,17 @@ module Inkoc
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
 
+        # We add the trait to the object first so type checks comparing the
+        # object and trait will pass.
+        object.implemented_traits << trait
+
         define_type(node.body, new_scope)
 
         traits_implemented = required_traits_implemented?(object, trait, loc)
         methods_implemented = required_methods_implemented?(object, trait, loc)
 
-        if traits_implemented && methods_implemented
-          object.implemented_traits << trait
+        unless traits_implemented && methods_implemented
+          object.implemented_traits.delete(trait)
         end
 
         object
@@ -483,7 +500,7 @@ module Inkoc
 
       def required_traits_implemented?(object, trait, location)
         trait.required_traits.each do |req_trait|
-          next if object.trait_implemented?(req_trait)
+          next if object.implements_trait?(req_trait)
 
           diagnostics
             .uninplemented_trait_error(trait, object, req_trait, location)
@@ -496,7 +513,7 @@ module Inkoc
 
       def required_methods_implemented?(object, trait, location)
         trait.required_methods.each do |method|
-          next if object.method_implemented?(method)
+          next if object.implements_method?(method)
 
           diagnostics.unimplemented_method_error(method.type, object, location)
 
@@ -507,8 +524,11 @@ module Inkoc
       def on_method(node, scope)
         self_type = scope.self_type
 
-        type = Type::Block
-          .new(node.name, typedb.block_prototype, block_type: :method)
+        type = Type::Block.new(
+          name: node.name,
+          prototype: typedb.block_prototype,
+          block_type: :method
+        )
 
         new_scope = TypeScope.new(self_type, type, node.body.locals)
 
@@ -522,9 +542,9 @@ module Inkoc
           end
         else
           store_type(type, self_type, node.location)
-        end
 
-        @method_bodies << DeferredMethod.new(node, new_scope)
+          @method_bodies << DeferredMethod.new(node, new_scope)
+        end
 
         type
       end
@@ -548,10 +568,10 @@ module Inkoc
       end
 
       def on_block(node, scope)
-        type = Type::Block.new(Config::BLOCK_TYPE_NAME, typedb.block_prototype)
+        type = Type::Block.new(prototype: typedb.block_prototype)
         new_scope = TypeScope.new(scope.self_type, type, node.body.locals)
 
-        block_signature(node, type, new_scope)
+        block_signature(node, type, new_scope, constraints: true)
         define_type(node.body, new_scope)
 
         rtype = node.body.type
@@ -650,14 +670,14 @@ module Inkoc
         diagnostics.type_error(existing_type, value_type, node.value.location)
       end
 
-      def block_signature(node, type, scope)
+      def block_signature(node, type, scope, constraints: false)
         define_type_parameters(node.type_parameters, type)
-        define_arguments(node.arguments, type, scope)
+        define_arguments(node.arguments, type, scope, constraints: constraints)
         define_return_type(node, type, scope.self_type)
         define_throw_type(node, type, scope.self_type)
       end
 
-      def define_arguments(arguments, block_type, scope)
+      def define_arguments(arguments, block_type, scope, constraints: false)
         block_type.define_self_argument(scope.self_type)
 
         arguments.each do |arg|
@@ -671,19 +691,32 @@ module Inkoc
           end
 
           arg_name = arg.name
-          arg_type = def_type || val_type || Type::Dynamic.new
+          mutable = arg.mutable?
+          arg_type =
+            def_type ||
+            val_type ||
+            default_argument_type(constraints: constraints)
 
-          if arg.default
-            block_type.define_argument(arg_name, arg_type)
-          elsif arg.rest?
-            block_type.define_rest_argument(arg_name, arg_type)
-          else
-            block_type.define_required_argument(arg_name, arg_type)
-          end
+          arg_symbol =
+            if arg.default
+              block_type.define_argument(arg_name, arg_type, mutable)
+            elsif arg.rest?
+              block_type.define_rest_argument(arg_name, arg_type, mutable)
+            else
+              block_type.define_required_argument(arg_name, arg_type, mutable)
+            end
 
           arg.type = arg_type
 
-          scope.locals.define(arg_name, arg_type, arg.mutable?)
+          scope.locals.add_symbol(arg_symbol)
+        end
+      end
+
+      def default_argument_type(constraints: false)
+        if constraints
+          Type::Constraint.new
+        else
+          Type::Dynamic.new
         end
       end
 
@@ -796,7 +829,7 @@ module Inkoc
 
         diagnostics.undefined_constant_error(node.name, node.location)
 
-        Type::Dynamic.new(name)
+        Type::Dynamic.new
       end
 
       def resolve_block_type(node, self_type, sources)
@@ -815,11 +848,12 @@ module Inkoc
           end
 
         type = Type::Block.new(
-          Config::BLOCK_TYPE_NAME,
-          typedb.block_prototype,
+          prototype: typedb.block_prototype,
           returns: returns,
           throws: throws
         )
+
+        type.define_self_argument(self_type)
 
         args.each_with_index do |arg, index|
           type.define_argument(index.to_s, arg)

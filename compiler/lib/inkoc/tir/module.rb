@@ -14,7 +14,7 @@ module Inkoc
         @name = name
         @type = nil
         @location = location
-        @body = CodeObject.new(name, Type::Block.new(name.to_s), location)
+        @body = CodeObject.new(name, Type::Block.new(name: name.to_s), location)
         @globals = SymbolTable.new
         @config = ModuleConfig.new
 

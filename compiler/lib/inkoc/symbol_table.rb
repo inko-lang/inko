@@ -13,6 +13,11 @@ module Inkoc
       @parent = parent
     end
 
+    def add_symbol(symbol)
+      @symbols << symbol
+      @mapping[symbol.name] = symbol
+    end
+
     def define(name, type, mutable = false)
       symbol = Symbol.new(name, type, @symbols.length, mutable)
 
