@@ -23,8 +23,7 @@ module Inkoc
       end
 
       def on_block(node, *)
-        process_nodes(node.arguments, node.type)
-        process_node(node.body, node.type)
+        error_for_missing_throw_in_block(node)
       end
 
       def on_body(node, block_type)
@@ -44,16 +43,7 @@ module Inkoc
       end
 
       def on_method(node, *)
-        @throws << 0
-
-        process_nodes(node.arguments, node.block_type)
-        process_node(node.body, node.block_type)
-
-        throws = node.block_type.throws
-
-        return if @throws.pop.positive? || !throws
-
-        diagnostics.missing_throw_error(throws, node.location)
+        error_for_missing_throw_in_block(node)
       end
 
       def on_object(node, *)
@@ -127,6 +117,19 @@ module Inkoc
         @try_nesting -= 1
       end
 
+      def error_for_missing_throw_in_block(node)
+        throws = throws? do
+          process_nodes(node.arguments, node.block_type)
+          process_node(node.body, node.block_type)
+        end
+
+        ttype = node.block_type.throws
+
+        return if throws || !ttype
+
+        diagnostics.missing_throw_error(ttype, node.location)
+      end
+
       def error_for_missing_try(node)
         return unless (throw_type = node.block_type&.throws)
         return if throw_type.optional?
@@ -142,6 +145,12 @@ module Inkoc
 
       def in_try?
         @try_nesting.positive?
+      end
+
+      def throws?
+        @throws << 0
+        yield
+        @throws.pop.positive?
       end
 
       def increment_throws
