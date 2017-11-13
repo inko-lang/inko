@@ -251,5 +251,13 @@ module Inkoc
         location
       )
     end
+
+    def define_instance_attribute_error(name, location)
+      error(
+        "Instance attributes such as #{name.inspect} can only be " \
+          'defined in a constructor method',
+        location
+      )
+    end
   end
 end

@@ -614,7 +614,13 @@ module Inkoc
       end
 
       def on_define_attribute(node, value_type, scope)
-        scope.self_type.define_attribute(node.variable.name, value_type)
+        var = node.variable
+
+        if scope.method? && scope.block_type.name == Config::INIT_MESSAGE
+          scope.self_type.define_attribute(node.variable.name, value_type)
+        else
+          diagnostics.define_instance_attribute_error(var.name, var.location)
+        end
       end
 
       def on_define_local(node, value_type, scope)

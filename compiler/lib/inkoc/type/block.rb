@@ -105,6 +105,10 @@ module Inkoc
         required_arguments_count_without_self..arguments_count_without_self
       end
 
+      def self_argument
+        arguments[Config::SELF_LOCAL]
+      end
+
       def define_self_argument(type)
         define_required_argument(Config::SELF_LOCAL, type)
       end

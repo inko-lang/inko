@@ -46,6 +46,7 @@ module Inkoc
     IMPL_NAME = '<impl>'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@object_name'
+    INIT_MESSAGE = 'init'
 
     RESERVED_CONSTANTS = Set.new(
       [MODULE_GLOBAL, RAW_INSTRUCTION_RECEIVER, SELF_TYPE]
