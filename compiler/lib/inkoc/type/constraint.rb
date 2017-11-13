@@ -22,13 +22,13 @@ module Inkoc
       # It's possible for a type to be partially resolved, though in this case
       # false will be returned.
       def infer_to(type)
-        methods_compatible = required_methods.all? do |_, required|
+        return resolved if inferred_type
+
+        @inferred_type = type
+        @resolved = required_methods.all? do |_, required|
           found = type.lookup_method(required.name)
           found.any? ? required.infer_to(found.type) : false
         end
-
-        @inferred_type = type
-        @resolved = methods_compatible
       end
 
       def define_required_method(receiver, name, arguments, typedb)
@@ -52,8 +52,11 @@ module Inkoc
       end
 
       def message_return_type(name)
-        # TODO: implement this
-        Type::Dynamic.new
+        if inferred_type
+          inferred_type.message_return_type(name)
+        else
+          Type::Dynamic.new
+        end
       end
 
       def unresolved_constraint?
