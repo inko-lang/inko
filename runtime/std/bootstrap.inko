@@ -35,15 +35,7 @@ object Object {
   def implement_trait(thing) {}
 }
 
-object Trait {
-  def init {
-    # let @required_methods = []
-    # let @required_traits = []
-  }
-
-  def define_required_method(name) {}
-  def add_required_trait(thing) {}
-}
+object Trait {}
 
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.

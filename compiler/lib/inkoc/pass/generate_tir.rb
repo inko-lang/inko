@@ -172,14 +172,11 @@ module Inkoc
       end
 
       def on_method(node, body)
+        return if node.required?
+
         receiver = get_self(body, node.location)
 
-        if node.required?
-          # TODO: figure out how to expose required methods to the runtime
-          # define_required_method(node, receiver, body)
-        else
-          define_method(node, receiver, body)
-        end
+        define_method(node, receiver, body)
       end
 
       def on_block(node, body)
@@ -192,16 +189,6 @@ module Inkoc
           body,
           node.location
         )
-      end
-
-      def define_required_method(node, receiver, body)
-        location = node.location
-        msg_name =
-          set_string(Config::DEFINE_REQUIRED_METHOD_MESSAGE, body, location)
-
-        method_name = set_string(node.name, body, location)
-
-        send_object_message(receiver, msg_name, [method_name], body, location)
       end
 
       def define_method(node, receiver, body)

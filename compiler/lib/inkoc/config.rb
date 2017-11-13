@@ -44,7 +44,6 @@ module Inkoc
     TRY_BLOCK_NAME = '<try>'
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
-    DEFINE_REQUIRED_METHOD_MESSAGE = 'define_required_method'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@object_name'
 
