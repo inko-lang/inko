@@ -822,7 +822,8 @@ module Inkoc
             if arg.default
               block_type.define_argument(arg_name, arg_type, mutable)
             elsif arg.rest?
-              block_type.define_rest_argument(arg_name, arg_type, mutable)
+              rest_type = typedb.new_array_of_type(arg_type)
+              block_type.define_rest_argument(arg_name, rest_type, mutable)
             else
               block_type.define_required_argument(arg_name, arg_type, mutable)
             end

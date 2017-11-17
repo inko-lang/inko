@@ -33,6 +33,9 @@ module Inkoc
     TRUE_CONST = 'True'
     FALSE_CONST = 'False'
     NIL_CONST = 'Nil'
+    ARRAY_TYPE_PARAMETER = 'T'
+    HASH_MAP_KEY_TYPE_PARAMETER = 'K'
+    HASH_MAP_VALUE_TYPE_PARAMETER = 'K'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
