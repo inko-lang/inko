@@ -35,7 +35,6 @@ describe Inkoc::Type::Constraint do
       let(:method) do
         Inkoc::Type::Block.new(
           name: 'to_string',
-          prototype: typedb.block_prototype,
           block_type: :method,
           returns: string
         )

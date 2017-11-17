@@ -21,8 +21,14 @@ module Inkoc
         NullSymbol.new(name)
       end
 
+      def type_of_attribute(name)
+        symbol = lookup_attribute(name)
+
+        symbol.any? ? symbol.type : nil
+      end
+
       def lookup_type(name)
-        lookup_attribute(name)&.type
+        lookup_attribute(name).type
       end
 
       def lookup_method(name)

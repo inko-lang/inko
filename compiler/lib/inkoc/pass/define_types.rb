@@ -323,8 +323,17 @@ module Inkoc
         typedb.top_level
       end
 
+      def on_raw_set_prototype(node, *)
+        object = node.arguments.fetch(0).type
+        proto = node.arguments.fetch(1).type
+
+        object.prototype = proto
+
+        proto
+      end
+
       def on_raw_set_attribute(node, *)
-        node.arguments[2].type
+        node.arguments.fetch(2).type
       end
 
       def on_raw_set_object(node, *)
@@ -345,13 +354,39 @@ module Inkoc
       end
 
       def on_raw_get_true(*)
-        typedb.boolean_type
+        typedb.true_type
       end
 
-      alias on_raw_get_false on_raw_get_true
+      def on_raw_get_false(*)
+        typedb.false_type
+      end
+
+      def on_raw_get_nil(*)
+        typedb.nil_type
+      end
 
       def on_raw_run_block(node, *)
         node.arguments[0].type.return_type
+      end
+
+      def on_raw_get_string_prototype(*)
+        typedb.string_type
+      end
+
+      def on_raw_get_integer_prototype(*)
+        typedb.integer_type
+      end
+
+      def on_raw_get_float_prototype(*)
+        typedb.float_type
+      end
+
+      def on_raw_get_array_prototype(*)
+        typedb.array_type
+      end
+
+      def on_raw_get_block_prototype(*)
+        typedb.block_type
       end
 
       def on_return(node, scope)
@@ -410,7 +445,7 @@ module Inkoc
       end
 
       def block_type_with_self(name, self_type)
-        type = Type::Block.new(name: name, prototype: typedb.block_prototype)
+        type = Type::Block.new(name: name, prototype: typedb.block_type)
 
         type.define_self_argument(self_type)
         type
@@ -418,13 +453,7 @@ module Inkoc
 
       def on_object(node, scope)
         name = node.name
-        top = typedb.top_level
-
-        proto =
-          if (sym = top.lookup_attribute(Config::OBJECT_CONST)) && sym.any?
-            sym.type
-          end
-
+        proto = typedb.object_type
         type = Type::Object.new(name: name, prototype: proto)
 
         type.define_attribute(
@@ -444,7 +473,7 @@ module Inkoc
 
       def define_block_type_for_object(node, type)
         node.block_type = Type::Block.new(
-          prototype: typedb.block_prototype,
+          prototype: typedb.block_type,
           returns: node.body.type
         )
 
@@ -454,7 +483,7 @@ module Inkoc
 
       def on_trait(node, scope)
         name = node.name
-        type = Type::Trait.new(name: name, prototype: trait_prototype)
+        type = Type::Trait.new(name: name, prototype: typedb.trait_type)
 
         define_type_parameters(node.type_parameters, type)
 
@@ -498,6 +527,15 @@ module Inkoc
         object
       end
 
+      def on_reopen_object(node, scope)
+        self_type = scope.self_type
+        object = resolve_module_type(node.name, self_type)
+        block_type = define_block_type_for_object(node, object)
+        new_scope = TypeScope.new(object, block_type, node.body.locals)
+
+        define_type(node.body, new_scope)
+      end
+
       def required_traits_implemented?(object, trait, location)
         trait.required_traits.each do |req_trait|
           next if object.implements_trait?(req_trait)
@@ -526,7 +564,7 @@ module Inkoc
 
         type = Type::Block.new(
           name: node.name,
-          prototype: typedb.block_prototype,
+          prototype: typedb.block_type,
           block_type: :method
         )
 
@@ -568,7 +606,7 @@ module Inkoc
       end
 
       def on_block(node, scope)
-        type = Type::Block.new(prototype: typedb.block_prototype)
+        type = Type::Block.new(prototype: typedb.block_type)
         new_scope = TypeScope.new(scope.self_type, type, node.body.locals)
 
         block_signature(node, type, new_scope, constraints: true)
@@ -791,12 +829,8 @@ module Inkoc
         node.optional? ? Type::Optional.new(type) : type
       end
 
-      def trait_prototype
-        typedb.top_level.lookup_attribute(Config::TRAIT_CONST).type
-      end
-
       def define_type_parameters(arguments, type)
-        proto = trait_prototype
+        proto = typedb.trait_type
 
         arguments.each do |arg_node|
           required_traits = arg_node.required_traits.map do |node|
@@ -854,7 +888,7 @@ module Inkoc
           end
 
         type = Type::Block.new(
-          prototype: typedb.block_prototype,
+          prototype: typedb.block_type,
           returns: returns,
           throws: throws
         )

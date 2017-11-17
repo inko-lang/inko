@@ -985,23 +985,33 @@ module Inkoc
       required
     end
 
-    # Parses the implementation of a trait.
+    # Parses the implementation of a trait or re-opening of an object.
     #
     # Example:
     #
     #     impl ToString for Object {
     #
     #     }
+    #
+    #     impl Object {
+    #     }
     def implement_trait(start)
-      trait_name = constant(advance_and_expect!(:constant))
+      trait_or_object_name = constant(advance_and_expect!(:constant))
 
-      advance_and_expect!(:for)
+      if @lexer.next_type_is?(:for)
+        advance_and_expect!(:for)
 
-      object_name = constant(advance_and_expect!(:constant))
-      body = block_body(advance_and_expect!(:curly_open))
+        object_name = constant(advance_and_expect!(:constant))
+        body = block_body(advance_and_expect!(:curly_open))
 
-      AST::TraitImplementation
-        .new(trait_name, object_name, body, start.location)
+        AST::TraitImplementation
+          .new(trait_or_object_name, object_name, body, start.location)
+      else
+        body = block_body(advance_and_expect!(:curly_open))
+
+        AST::ReopenObject
+          .new(trait_or_object_name, body, start.location)
+      end
     end
 
     # Parses a return statement.

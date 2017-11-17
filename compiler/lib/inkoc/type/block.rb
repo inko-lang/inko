@@ -9,11 +9,10 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :name, :arguments, :type_parameters, :prototype, :attributes,
-                  :block_type
+      attr_reader :name, :arguments, :type_parameters, :attributes, :block_type
 
       attr_accessor :rest_argument, :throws, :returns,
-                    :required_arguments_count, :inferred
+                    :required_arguments_count, :inferred, :prototype
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -222,8 +221,14 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        return true if basic_type_compatibility?(other)
+        if basic_type_compatibility?(other)
+          true
+        else
+          block_type_compatible?(other)
+        end
+      end
 
+      def block_type_compatible?(other)
         other.is_a?(self.class) &&
           block_type == other.block_type &&
           rest_argument == other.rest_argument &&

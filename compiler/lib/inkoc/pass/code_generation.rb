@@ -269,6 +269,13 @@ module Inkoc
         compiled_code.instruct(:SetObject, args, tir_ins.location)
       end
 
+      def on_set_prototype(tir_ins, compiled_code, *)
+        object = tir_ins.object.id
+        proto = tir_ins.prototype.id
+
+        compiled_code.instruct(:SetPrototype, [object, proto], tir_ins.location)
+      end
+
       def on_set_local(tir_ins, compiled_code, *)
         var = tir_ins.variable.index
         val = tir_ins.value.id

@@ -46,17 +46,14 @@ module Inkoc
         error_for_missing_throw_in_block(node)
       end
 
-      def on_object(node, *)
+      def on_node_with_body(node, *)
         process_node(node.body, node.block_type)
       end
 
-      def on_trait(node, *)
-        process_node(node.body, node.block_type)
-      end
-
-      def on_trait_implementation(node, *)
-        process_node(node.body, node.block_type)
-      end
+      alias on_object on_node_with_body
+      alias on_trait on_node_with_body
+      alias on_trait_implementation on_node_with_body
+      alias on_reopen_object on_node_with_body
 
       def on_raw_instruction(node, block_type)
         process_nodes(node.arguments, block_type)

@@ -26,6 +26,13 @@ module Inkoc
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
     HASH_MAP_CONST = 'HashMap'
+    BLOCK_CONST = 'Block'
+    INTEGER_CONST = 'Integer'
+    FLOAT_CONST = 'Float'
+    STRING_CONST = 'String'
+    TRUE_CONST = 'True'
+    FALSE_CONST = 'False'
+    NIL_CONST = 'Nil'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
@@ -45,7 +52,7 @@ module Inkoc
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
-    OBJECT_NAME_INSTANCE_ATTRIBUTE = '@object_name'
+    OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_name'
     INIT_MESSAGE = 'init'
 
     RESERVED_CONSTANTS = Set.new(

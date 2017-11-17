@@ -1,0 +1,14 @@
+import std::string::ToString
+
+def print(value: ToString) -> Nil {
+  _INKOC.stdout_write(value.to_string)
+  _INKOC.stdout_write("\n")
+
+  Nil
+}
+
+def write(value: ToString) -> Nil {
+  _INKOC.stdout_write(value.to_string)
+
+  Nil
+}

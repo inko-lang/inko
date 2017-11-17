@@ -13,6 +13,8 @@ module Inkoc
       end
       alias type_name name
 
+      def prototype=(*); end
+
       def prototype
         nil
       end

@@ -10,16 +10,46 @@
 # are defined directly on the top-level object.
 ![define_module: false]
 
+# Set up the various built-in objects that Inko comes with. These objects need
+# to be set manually since the "object" keyword can not yet be used at this
+# point. This also means we need to manually set their prototypes and names.
 var True = _INKOC.get_true
 var False = _INKOC.get_false
+var Nil = _INKOC.get_nil
 
-# Object will act as the prototype for all objects.
-#
-# We need to define Object here instead of in a separate module as all other
-# objects depend on it being present.
-object Object {
+var Object = _INKOC.set_object(True)
+var String = _INKOC.get_string_prototype
+var Integer = _INKOC.get_integer_prototype
+var Float = _INKOC.get_float_prototype
+var Block = _INKOC.get_block_prototype
+var Array = _INKOC.get_array_prototype
+
+_INKOC.set_prototype(True, Object)
+_INKOC.set_prototype(False, Object)
+_INKOC.set_prototype(Nil, Object)
+_INKOC.set_prototype(String, Object)
+_INKOC.set_prototype(Integer, Object)
+_INKOC.set_prototype(Float, Object)
+_INKOC.set_prototype(Array, Object)
+_INKOC.set_prototype(Block, Object)
+
+_INKOC.set_attribute(True, '@_name', 'True')
+_INKOC.set_attribute(False, '@_name', 'False')
+_INKOC.set_attribute(Nil, '@_name', 'Nil')
+_INKOC.set_attribute(Object, '@_name', 'Object')
+_INKOC.set_attribute(String, '@_name', 'String')
+_INKOC.set_attribute(Integer, '@_name', 'Integer')
+_INKOC.set_attribute(Float, '@_name', 'Float')
+_INKOC.set_attribute(Array, '@_name', 'Array')
+_INKOC.set_attribute(Block, '@_name', 'Block')
+
+# Now that our core objects are set up we can start defining more of the
+# building blocks of Inko, such as "Object.new" and the bits necessary to allow
+# creating of modules.
+impl Object {
   def new -> Self {
-    let obj = _INKOC.set_object(False, self)
+    let permanent = _INKOC.get_false
+    let obj = _INKOC.set_object(permanent, self)
 
     obj.init
 
@@ -27,11 +57,6 @@ object Object {
   }
 
   def init {}
-
-  def object_name {
-    @object_name
-  }
-
   def implement_trait(thing) {}
 }
 

@@ -10,7 +10,9 @@ module Inkoc
       include Predicates
 
       attr_reader :name, :attributes, :required_methods, :type_parameters,
-                  :prototype, :required_traits, :type_parameter_instances
+                  :required_traits, :type_parameter_instances
+
+      attr_accessor :prototype
 
       def initialize(
         name: Config::TRAIT_CONST,

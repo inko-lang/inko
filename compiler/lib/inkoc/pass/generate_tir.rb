@@ -321,6 +321,25 @@ module Inkoc
         object
       end
 
+      def on_reopen_object(node, body)
+        loc = node.location
+        object = get_global(node.name.name, body, loc)
+
+        block = define_block(
+          Config::IMPL_NAME,
+          node.block_type,
+          [],
+          node.body,
+          node.body.locals,
+          body,
+          loc
+        )
+
+        run_block(block, [object], body, loc)
+
+        object
+      end
+
       def trait_builtin(body, location)
         top = get_toplevel(body, location)
 
@@ -413,7 +432,7 @@ module Inkoc
       end
 
       def local_exists(symbol, body, location)
-        register = body.register(typedb.boolean_type)
+        register = body.register(Type::Dynamic.new)
 
         body.instruct(:LocalExists, register, symbol, location)
       end
@@ -468,6 +487,13 @@ module Inkoc
 
       def on_raw_get_toplevel(node, body)
         get_toplevel(body, node.location)
+      end
+
+      def on_raw_set_prototype(node, body)
+        object = process_node(node.arguments.fetch(0), body)
+        proto = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:SetPrototype, object, proto, node.location)
       end
 
       def on_raw_set_attribute(node, body)
@@ -628,13 +654,13 @@ module Inkoc
       end
 
       def get_true(body, location)
-        register = body.register(typedb.boolean_type)
+        register = body.register(typedb.true_type)
 
         body.instruct(:GetTrue, register, location)
       end
 
       def get_false(body, location)
-        register = body.register(typedb.boolean_type)
+        register = body.register(typedb.false_type)
 
         body.instruct(:GetFalse, register, location)
       end

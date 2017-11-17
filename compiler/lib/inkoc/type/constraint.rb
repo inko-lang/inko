@@ -34,7 +34,7 @@ module Inkoc
       def define_required_method(receiver, name, arguments, typedb)
         block = Type::Block.new(
           name: name,
-          prototype: typedb.block_prototype,
+          prototype: typedb.block_type,
           block_type: :method,
           returns: self.class.new,
           throws: self.class.new
