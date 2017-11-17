@@ -12,6 +12,14 @@ module Inkoc
       def initialize(location)
         @location = location
       end
+
+      def location_for_name
+        location
+      end
+
+      def visitor_method
+        :on_import_glob
+      end
     end
   end
 end

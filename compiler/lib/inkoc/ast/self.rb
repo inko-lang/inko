@@ -17,6 +17,10 @@ module Inkoc
       def visitor_method
         :on_self
       end
+
+      def self?
+        true
+      end
     end
   end
 end

@@ -14,7 +14,6 @@ module Inkoc
       def run(ast)
         return if diagnostics.errors?
 
-        process_imports(@module.body)
         on_module_body(ast, @module.body)
 
         []
@@ -23,13 +22,54 @@ module Inkoc
       def process_imports(body)
         body.add_connected_basic_block('imports')
 
+        mod_regs = load_modules(body)
+
         @module.imports.each do |import|
-          on_import(import, body)
+          register = mod_regs[import.qualified_name.to_s]
+
+          process_node(import, register, body)
         end
+      end
+
+      def load_modules(body)
+        imported = Set.new
+        registers = {}
+
+        @module.imports.each do |import|
+          qname = import.qualified_name
+
+          next if imported.include?(qname.to_s)
+
+          load_module(qname, body, import.location)
+
+          registers[qname.to_s] =
+            set_module_register(qname, body, import.location)
+
+          imported << qname.to_s
+        end
+
+        registers
+      end
+
+      def load_module(qname, body, location)
+        imported_mod = @state.module(qname)
+        import_path = imported_mod.bytecode_import_path
+        path_reg = set_string(import_path, body, location)
+
+        body.instruct(:LoadModule, body.register_dynamic, path_reg, location)
+      end
+
+      def set_module_register(qname, body, location)
+        top_reg = get_toplevel(body, location)
+        mods_reg =
+          get_attribute(top_reg, Config::MODULES_ATTRIBUTE, body, location)
+
+        get_attribute(mods_reg, qname.to_s, body, location)
       end
 
       def on_module_body(node, body)
         define_module(body)
+        process_imports(@module.body)
         process_node(node, body)
       end
 
@@ -69,16 +109,41 @@ module Inkoc
         set_literal_attribute(modules, @module.name.to_s, mod, body, loc)
       end
 
-      def on_import(node, body)
-        qname = node.qualified_name
-        location = node.location
-        imported_mod = @state.module(qname)
-        import_path = imported_mod.bytecode_import_path
-        path_reg = set_string(import_path, body, location)
+      def on_import(import, mod_reg, body)
+        source_mod = @state.module(import.qualified_name)
 
-        body.instruct(:LoadModule, body.register_dynamic, path_reg, location)
+        import.symbols.each do |symbol|
+          process_node(symbol, source_mod, mod_reg, body)
+        end
+      end
 
-        # TODO: import symbols
+      def on_import_symbol(symbol, source_mod, mod_reg, body)
+        return unless symbol.expose?
+
+        import_as = symbol.import_as(source_mod)
+        loc = symbol.location
+        symbol_reg = get_attribute(mod_reg, symbol.symbol_name.name, body, loc)
+
+        set_global(import_as, symbol_reg, body, loc)
+      end
+
+      def on_import_self(symbol, source_mod, mod_reg, body)
+        return unless symbol.expose?
+
+        import_as = symbol.import_as(source_mod)
+
+        set_global(import_as, mod_reg, body, symbol.location)
+      end
+
+      def on_import_glob(symbol, source_mod, mod_reg, body)
+        loc = symbol.location
+
+        source_mod.attributes.each do |attribute|
+          sym_name = attribute.name
+          symbol_reg = get_attribute(mod_reg, sym_name, body, loc)
+
+          set_global(sym_name, symbol_reg, body, loc)
+        end
       end
 
       def on_body(node, body)
@@ -156,11 +221,17 @@ module Inkoc
       def on_constant(node, body)
         name = node.name
         loc = node.location
-        self_type = body.self_type
 
-        if self_type.lookup_attribute(name).any?
-          get_attribute(get_self(body, loc), name, body, loc)
-        elsif @module.globals.defined?(name)
+        source =
+          if node.receiver
+            process_node(node.receiver, body)
+          else
+            get_self(body, loc)
+          end
+
+        if source.type.lookup_attribute(name).any?
+          get_attribute(source, name, body, loc)
+        elsif !node.receiver && @module.globals.defined?(name)
           get_global(name, body, loc)
         else
           get_nil(body, loc)

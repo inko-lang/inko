@@ -25,12 +25,20 @@ module Inkoc
         @imports = []
       end
 
+      def attributes
+        type.attributes
+      end
+
       def lookup_type(name)
-        type.lookup_type(name)
+        type.lookup_type(name) || type_of_global(name)
       end
 
       def lookup_attribute(name)
         type.lookup_attribute(name)
+      end
+
+      def type_of_attribute(name)
+        type.type_of_attribute(name)
       end
 
       def responds_to_message?(name)

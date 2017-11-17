@@ -259,5 +259,16 @@ module Inkoc
         location
       )
     end
+
+    def import_undefined_symbol_error(mname, sname, location)
+      error("The module #{mname} does not define #{sname.inspect}", location)
+    end
+
+    def import_existing_symbol_error(sname, location)
+      error(
+        "The symbol #{sname.inspect} can not be imported as it already exists",
+        location
+      )
+    end
   end
 end

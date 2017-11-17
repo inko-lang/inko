@@ -178,7 +178,8 @@ module Inkoc
         when :identifier, :object, :trait
           steps << identifier_from_token(step)
         when :constant
-          symbols << AST::ImportSymbol.new(step.value, nil, step.location)
+          symbol = import_symbol_from_token(step)
+          symbols << AST::ImportSymbol.new(symbol, nil, step.location)
           break
         when :mul
           symbols << AST::GlobImport.new(step.location)

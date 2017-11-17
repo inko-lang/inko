@@ -16,6 +16,10 @@ module Inkoc
         @location = location
       end
 
+      def string?
+        true
+      end
+
       def visitor_method
         :on_string
       end

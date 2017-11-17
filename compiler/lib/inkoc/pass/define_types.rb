@@ -45,6 +45,12 @@ module Inkoc
         [ast]
       end
 
+      def process_imports(scope)
+        @module.imports.each do |node|
+          process_node(node, scope)
+        end
+      end
+
       def on_module_body(ast, locals)
         @module.type =
           if @module.define_module?
@@ -57,6 +63,8 @@ module Inkoc
 
         scope = TypeScope.new(@module.type, @module.body.type, locals)
 
+        process_imports(scope)
+
         define_type(ast, scope)
       end
 
@@ -66,9 +74,63 @@ module Inkoc
         proto = top.lookup_attribute(Config::MODULE_TYPE).type
         type = Type::Object.new(name: @module.name.to_s, prototype: proto)
 
-        modules.define_attribute(type.name, type, true)
+        modules.define_attribute(type.name, type)
 
         type
+      end
+
+      def on_import(node, _)
+        name = node.qualified_name
+        mod = @state.module(name)
+
+        node.symbols.each do |import_symbol|
+          process_node(import_symbol, mod)
+        end
+      end
+
+      def on_import_symbol(symbol, source_mod)
+        return unless symbol.expose?
+
+        sym_name = symbol.symbol_name.name
+        type = source_mod.type_of_attribute(sym_name)
+        import_as = symbol.import_as(source_mod)
+
+        unless type
+          diagnostics.import_undefined_symbol_error(
+            source_mod.name,
+            sym_name,
+            symbol.location
+          )
+
+          return
+        end
+
+        import_symbol_as_global(import_as, type, symbol.location_for_name)
+      end
+
+      def on_import_self(symbol, source_mod)
+        return unless symbol.expose?
+
+        import_as = symbol.import_as(source_mod)
+        loc = symbol.location_for_name
+
+        import_symbol_as_global(import_as, source_mod.type, loc)
+      end
+
+      def on_import_glob(symbol, source_mod)
+        loc = symbol.location_for_name
+
+        source_mod.attributes.each do |attribute|
+          import_symbol_as_global(attribute.name, attribute.type, loc)
+        end
+      end
+
+      def import_symbol_as_global(name, type, location)
+        if @module.global_defined?(name)
+          diagnostics.import_existing_symbol_error(name, location)
+        else
+          @module.globals.define(name, type)
+        end
       end
 
       def on_body(node, scope)
@@ -131,13 +193,7 @@ module Inkoc
       end
 
       def on_constant(node, scope)
-        name = node.name
-        symbol = scope.self_type.lookup_attribute(name)
-          .or_else { @module.globals[name] }
-
-        diagnostics.undefined_constant_error(name, node.location) if symbol.nil?
-
-        symbol.type
+        resolve_module_type(node, scope.self_type)
       end
 
       def on_identifier(node, scope)
@@ -333,7 +389,13 @@ module Inkoc
       end
 
       def on_raw_set_attribute(node, *)
-        node.arguments.fetch(2).type
+        object = node.arguments.fetch(0).type
+        name = node.arguments.fetch(1)
+        value = node.arguments.fetch(2).type
+
+        object.define_attribute(name.value, value) if name.string?
+
+        value
       end
 
       def on_raw_set_object(node, *)

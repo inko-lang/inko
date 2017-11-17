@@ -7,6 +7,14 @@ module Inkoc
         false
       end
 
+      def string?
+        false
+      end
+
+      def self?
+        false
+      end
+
       def constant?
         false
       end

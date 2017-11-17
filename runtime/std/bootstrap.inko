@@ -60,8 +60,6 @@ impl Object {
   def implement_trait(thing) {}
 }
 
-object Trait {}
-
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.
 object Modules {}
@@ -70,3 +68,6 @@ object Modules {}
 # this object in the std::module module, but we need it here to allow us to
 # define new modules in the first place.
 object Module {}
+
+# Now we can define the object for the bootstrap module.
+_INKOC.set_attribute(Modules, 'std::bootstrap', Module.new)

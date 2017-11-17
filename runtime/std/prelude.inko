@@ -1,23 +1,15 @@
 ![import_prelude: false]
 
-#import std::object::Object
-#import std::string::String
-#import std::array::Array
-#import std::integer::Integer
-#import std::float::Float
-#import std::hash_map::HashMap
-
-var Inko = _INKOC.get_toplevel
-
-#let Object = ::Object
-#let String = ::String
-#let Array = ::Array
-#let Integer = ::Integer
-#let Float = ::Float
-#let HashMap = ::HashMap
-
-# These constants are used by the compiler so it can generate the code for array
-# and hashmap literals, even if a module-local definition of "Array" or
-# "HashMap" exists.
-#let _Array = Array
-#let _HashMap = HashMap
+# Re-export various built-in types so we can expose these to every module,
+# without all of those modules having to rely on the internals of the top-level
+# object.
+let Inko = _INKOC.get_toplevel
+let True = Inko::True
+let False = Inko::False
+let Nil = Inko::Nil
+let Object = Inko::Object
+let String = Inko::String
+let Integer = Inko::Integer
+let Float = Inko::Float
+let Block = Inko::Block
+let Array = Inko::Array
