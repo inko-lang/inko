@@ -39,7 +39,7 @@ module Inkoc
       end
 
       def on_keyword_argument(node, block_type)
-        procesS_node(node.value, block_type)
+        process_node(node.value, block_type)
       end
 
       def on_method(node, *)
