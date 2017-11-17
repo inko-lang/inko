@@ -270,5 +270,16 @@ module Inkoc
         location
       )
     end
+
+    def invalid_type_parameters(type, given, location)
+      name = type.name.inspect
+      ex = type.type_parameter_names.join(', ')
+      got = given.join(', ')
+
+      error(
+        "The type #{name} requires type parameters [#{ex}] instead of [#{got}]",
+        location
+      )
+    end
   end
 end

@@ -997,12 +997,12 @@ module Inkoc
     #     impl Object {
     #     }
     def implement_trait(start)
-      trait_or_object_name = constant(advance_and_expect!(:constant))
+      trait_or_object_name = type_name(advance_and_expect!(:constant))
 
       if @lexer.next_type_is?(:for)
         advance_and_expect!(:for)
 
-        object_name = constant(advance_and_expect!(:constant))
+        object_name = type_name(advance_and_expect!(:constant))
         body = block_body(advance_and_expect!(:curly_open))
 
         AST::TraitImplementation

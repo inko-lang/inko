@@ -570,6 +570,9 @@ module Inkoc
         trait = resolve_module_type(node.trait_name, self_type)
         object = resolve_module_type(node.object_name, self_type)
 
+        verify_type_parameters(node.trait_name, trait)
+        verify_type_parameters(node.object_name, object)
+
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
 
@@ -595,7 +598,19 @@ module Inkoc
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
 
+        verify_type_parameters(node.name, object)
+
         define_type(node.body, new_scope)
+      end
+
+      def verify_type_parameters(node, type)
+        node_names = node.type_parameters.map(&:name)
+        type_names = type.type_parameter_names
+
+        return if node_names == type_names
+
+        diagnostics
+          .invalid_type_parameters(type, node_names, node.location)
       end
 
       def required_traits_implemented?(object, trait, location)
