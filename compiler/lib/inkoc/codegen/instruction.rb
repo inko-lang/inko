@@ -100,7 +100,6 @@ module Inkoc
         GetAttributeNames
         MonotonicTimeNanoseconds
         MonotonicTimeMilliseconds
-        RunBlockWithRest
         GetGlobal
         SetGlobal
         SendMessage

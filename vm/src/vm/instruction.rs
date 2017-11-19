@@ -98,7 +98,6 @@ pub enum InstructionType {
     GetAttributeNames,
     MonotonicTimeNanoseconds,
     MonotonicTimeMilliseconds,
-    RunBlockWithRest,
     GetGlobal,
     SetGlobal,
     SendMessage,

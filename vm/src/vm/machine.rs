@@ -2040,9 +2040,6 @@ impl Machine {
 
                     enter_context!(process, context, code, index);
                 }
-                InstructionType::RunBlockWithRest => {
-                    panic!("run_block_with_rest is not yet implemented");
-                }
                 // Sets a global variable to a given register's value.
                 //
                 // This instruction requires 3 arguments:
