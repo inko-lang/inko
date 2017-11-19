@@ -2240,23 +2240,12 @@ impl Machine {
         instruction: &Instruction,
     ) {
         let arg_count = instruction.arguments.len() - arg_offset;
-        let tot_args = block.arguments();
-        let req_args = block.required_arguments();
 
-        if arg_count > tot_args {
+        if !block.valid_number_of_arguments(arg_count) {
             panic!(
-                "{} accepts up to {} arguments, but {} arguments were given",
+                "{} takes {} arguments but {} were supplied",
                 block.name(),
-                tot_args,
-                arg_count
-            );
-        }
-
-        if arg_count < req_args {
-            panic!(
-                "{} requires {} arguments, but {} arguments were given",
-                block.name(),
-                req_args,
+                block.label_for_number_of_arguments(),
                 arg_count
             );
         }

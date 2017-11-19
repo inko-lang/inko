@@ -52,4 +52,27 @@ impl Block {
     pub fn name(&self) -> &String {
         &self.code.name
     }
+
+    pub fn label_for_number_of_arguments(&self) -> String {
+        if self.has_rest_argument() {
+            format!("{}+", self.arguments())
+        } else {
+            format!("{}", self.arguments())
+        }
+    }
+
+    pub fn valid_number_of_arguments(&self, given: usize) -> bool {
+        let total = self.arguments();
+        let required = self.required_arguments();
+
+        if given < required {
+            return false;
+        }
+
+        if given > total && !self.has_rest_argument() {
+            return false;
+        }
+
+        true
+    }
 }
