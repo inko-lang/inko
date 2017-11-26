@@ -9,31 +9,31 @@ module Inkoc
       include GenericTypeOperations
       include TypeCompatibility
 
-      attr_reader :attributes, :implemented_traits, :type_parameters,
-                  :type_parameter_instances
-
+      attr_reader :attributes, :implemented_traits, :type_parameters
       attr_accessor :name, :prototype
 
       def initialize(
         name: Config::OBJECT_CONST,
         prototype: nil,
-        type_parameter_instances: {},
-        implemented_traits: Set.new
+        implemented_traits: Set.new,
+        type_parameters: TypeParameterTable.new
       )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @implemented_traits = implemented_traits
-        @type_parameters = {}
-        @type_parameter_instances = type_parameter_instances
+        @type_parameters = type_parameters
       end
 
-      def new_instance(type_parameter_instances = {})
+      def new_instance(params = type_parameters)
+        new_params = TypeParameterTable.new(type_parameters)
+        new_params.initialize_in_order(params)
+
         self.class.new(
           name: name,
           prototype: self,
-          type_parameter_instances: type_parameter_instances,
-          implemented_traits: implemented_traits.dup
+          implemented_traits: implemented_traits.dup,
+          type_parameters: new_params
         )
       end
 
@@ -43,12 +43,11 @@ module Inkoc
 
       def type_parameter_instances_compatible?(other)
         return false unless other.regular_object?
-        return true if other.type_parameter_instances.empty?
 
-        type_parameter_instances.all? do |name, type|
-          other_type = other.lookup_type_parameter_instance(name)
+        type_parameters.each_instance.all? do |name, our_type|
+          their_type = other.lookup_type_parameter_instance(name)
 
-          other_type ? type.type_compatible?(other_type) : false
+          their_type ? our_type.type_compatible?(their_type) : true
         end
       end
 
@@ -59,6 +58,18 @@ module Inkoc
           valid && type_parameter_instances_compatible?(other)
         else
           valid
+        end
+      end
+
+      def lookup_method(name)
+        super.or_else { lookup_method_from_traits(name) }
+      end
+
+      def lookup_method_from_traits(name)
+        implemented_traits.each do |trait|
+          if (method = trait.lookup_method(name)) && method.any?
+            return method
+          end
         end
       end
     end

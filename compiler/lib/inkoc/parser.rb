@@ -742,7 +742,7 @@ module Inkoc
         end
 
         type = optional_argument_type
-        default = optional_argument_default
+        default = optional_argument_default unless rest
 
         args << AST::DefineArgument
           .new(token.value, type, default, rest, mutable, token.location)

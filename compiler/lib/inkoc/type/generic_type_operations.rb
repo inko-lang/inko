@@ -3,44 +3,28 @@
 module Inkoc
   module Type
     module GenericTypeOperations
-      def define_type_parameter(name, param)
-        type_parameters[name] = param
+      def generic_type?
+        type_parameters.any?
       end
 
-      def init_type_parameter(name, type)
-        type_parameter_instances[name] = type
+      def define_type_parameter(name, required_traits = [])
+        type_parameters.define(name, required_traits)
+      end
+
+      def initialize_type_parameter(name, type)
+        type_parameters.initialize_parameter(name, type)
       end
 
       def type_parameter_names
-        source = self
-
-        while source
-          params = source.type_parameters
-
-          return params.keys if params.any?
-
-          source = source.prototype
-        end
-
-        []
+        type_parameters.names
       end
 
       def lookup_type_parameter_instance(name)
-        type_parameter_instances[name]
+        type_parameters.instance_for(name)
       end
 
       def lookup_type_parameter(name)
-        source = self
-
-        while source
-          symbol = source.type_parameters[name]
-
-          return symbol if symbol
-
-          source = source.prototype
-        end
-
-        nil
+        type_parameters[name]
       end
 
       def lookup_type(name)
@@ -52,12 +36,10 @@ module Inkoc
       end
 
       def type_name
-        type_params = type_parameter_names.map do |name|
-          if (instance = type_parameter_instances[name])
-            instance.type_name
-          else
-            lookup_type_parameter(name).type_name
-          end
+        type_params = type_parameters.map do |param|
+          instance = lookup_type_parameter_instance(param.name)
+
+          instance&.type_name || param.type_name
         end
 
         if type_params.any?

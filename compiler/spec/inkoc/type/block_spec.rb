@@ -219,11 +219,10 @@ describe Inkoc::Type::Block do
 
   describe '#define_type_parameter' do
     it 'defines a type parameter' do
-      type = Inkoc::Type::Object.new
+      block1.define_type_parameter('T', [])
 
-      block1.define_type_parameter('T', type)
-
-      expect(block1.type_parameters['T']).to eq(type)
+      expect(block1.lookup_type_parameter('T'))
+        .to be_an_instance_of(Inkoc::Type::TypeParameter)
     end
   end
 
@@ -246,92 +245,40 @@ describe Inkoc::Type::Block do
     end
   end
 
-  describe '#type_for_argument_or_rest' do
+  describe '#type_for_argument' do
     describe 'when using the name of an existing argument' do
       it 'returns the type of the argument' do
         type = Inkoc::Type::Object.new
 
         block1.define_argument('name', type)
 
-        expect(block1.type_for_argument_or_rest('name')).to eq(type)
+        expect(block1.type_for_argument('name')).to eq(type)
       end
     end
 
     describe 'when using the name of a non-existing argument' do
-      it 'returns the type of the last defined argument' do
-        type = Inkoc::Type::Object.new
-
-        block1.define_rest_argument('rest', type)
-
-        expect(block1.type_for_argument_or_rest('name')).to eq(type)
+      it 'returns a dynamic type' do
+        expect(block1.type_for_argument('name')).to be_dynamic
       end
     end
   end
 
-  describe '#initialized_return_type' do
-    let(:self_type) { Inkoc::Type::Object.new(name: 'A') }
+  describe '#last_argument_type' do
+    it 'returns the type of the last argument' do
+      type = Inkoc::Type::Object.new
 
-    before do
-      block1.define_self_argument(self_type)
-    end
+      block1.define_argument('name', type)
 
-    describe 'without passing any argument types' do
-      it 'returns the initialized return type' do
-        return_type = Inkoc::Type::Object.new(name: 'B')
-        block1.returns = return_type
-        init_type = block1.initialized_return_type(self_type)
-
-        expect(init_type.prototype).to eq(return_type)
-      end
-    end
-
-    describe 'when returning a Self type' do
-      it 'resolves the Self type to the actual type of "self"' do
-        block1.returns = Inkoc::Type::SelfType.new
-        init_type = block1.initialized_return_type(self_type)
-
-        expect(init_type.prototype).to eq(self_type)
-      end
-    end
-
-    describe 'when the block defines a type parameter' do
-      it 'initializes the type parameter in the returned type' do
-        param = Inkoc::Type::Trait.new(name: 'T', generated: true)
-        concrete = Inkoc::Type::Object.new(name: 'Integer')
-
-        block1.define_type_parameter('T', param)
-        block1.define_argument('number', param)
-        block1.returns = Inkoc::Type::Object.new
-
-        init_type = block1.initialized_return_type(self_type, [concrete])
-
-        expect(init_type.lookup_type('T')).to eq(concrete)
-      end
-    end
-
-    describe 'when returning a type parameter' do
-      it 'initializes the type parameter using a concrete type' do
-        param = Inkoc::Type::Trait.new(name: 'T', generated: true)
-        concrete = Inkoc::Type::Object.new(name: 'Integer')
-
-        block1.define_type_parameter('T', param)
-        block1.define_argument('number', param)
-        block1.returns = param
-
-        init_type = block1.initialized_return_type(self_type, [concrete])
-
-        expect(init_type.prototype).to eq(concrete)
-      end
+      expect(block1.last_argument_type).to eq(type)
     end
   end
 
   describe '#lookup_type' do
     let(:type) { Inkoc::Type::Object.new }
-    let(:param) { Inkoc::Type::Trait.new(generated: true) }
+    let!(:param) { block1.define_type_parameter('T') }
 
     before do
       block1.attributes.define('name', type)
-      block1.define_type_parameter('T', param)
     end
 
     describe 'using the name of a defined attribute' do
@@ -388,50 +335,26 @@ describe Inkoc::Type::Block do
     end
   end
 
-  describe '#type_parameter_values' do
-    it 'returns the defined type parameters' do
-      param = Inkoc::Type::Trait.new(generated: true)
-
-      block1.define_type_parameter('T', param)
-
-      expect(block1.type_parameter_values).to eq([param])
-    end
-  end
-
   describe '#type_parameters_compatible?' do
     it 'returns false when the number of type parameters is not the same' do
-      tparam = Inkoc::Type::Trait.new(generated: true)
-
-      block1.define_type_parameter('foo', tparam)
+      block1.define_type_parameter('T')
 
       expect(block1.type_parameters_compatible?(block2)).to eq(false)
     end
 
     it 'returns false if the type parameters are not compatible' do
-      param1 = Inkoc::Type::Trait.new(name: 'T', generated: true)
-      param2 = Inkoc::Type::Trait.new(name: 'T', generated: true)
-      method = described_class
-        .new(name: 'foo', returns: Inkoc::Type::Object.new)
+      trait = Inkoc::Type::Trait.new(name: 'Foo')
 
-      param1.define_required_method(method)
-
-      block1.define_type_parameter(param1.name, param1)
-      block2.define_type_parameter(param2.name, param2)
+      block1.define_type_parameter('T', [trait])
+      block2.define_type_parameter('T')
 
       expect(block1.type_parameters_compatible?(block2)).to eq(false)
     end
 
     it 'returns true if the type parameters are compatible' do
-      param1 = Inkoc::Type::Trait.new(generated: true)
-      param2 = Inkoc::Type::Trait.new(generated: true)
-      method = described_class
-        .new(name: 'foo', returns: Inkoc::Type::Object.new)
-
-      param1.define_required_method(method)
-      param2.define_required_method(method)
-
-      block1.define_type_parameter(param1.name, param1)
-      block2.define_type_parameter(param2.name, param2)
+      trait = Inkoc::Type::Trait.new(name: 'Foo')
+      block1.define_type_parameter('T', [trait])
+      block2.define_type_parameter('T', [trait])
 
       expect(block1.type_parameters_compatible?(block2)).to eq(true)
     end
@@ -706,7 +629,7 @@ describe Inkoc::Type::Block do
 
     describe 'with a type parameter defined' do
       it 'includes the type parameter in the type name' do
-        block1.define_type_parameter('T', Inkoc::Type::Trait.new(name: 'T'))
+        block1.define_type_parameter('T')
 
         expect(block1.type_name).to eq('do !(T) -> Dynamic')
       end
@@ -714,8 +637,8 @@ describe Inkoc::Type::Block do
 
     describe 'with multiple type parameters defined' do
       it 'includes the type parameters in the type name' do
-        block1.define_type_parameter('A', Inkoc::Type::Trait.new(name: 'A'))
-        block1.define_type_parameter('B', Inkoc::Type::Trait.new(name: 'B'))
+        block1.define_type_parameter('A')
+        block1.define_type_parameter('B')
 
         expect(block1.type_name).to eq('do !(A, B) -> Dynamic')
       end
@@ -723,8 +646,8 @@ describe Inkoc::Type::Block do
 
     describe 'with a block that defines everything' do
       it 'includes everything in the type name' do
-        block1.define_type_parameter('T1', Inkoc::Type::Trait.new(name: 'T1'))
-        block1.define_type_parameter('T2', Inkoc::Type::Trait.new(name: 'T1'))
+        block1.define_type_parameter('T1', [Inkoc::Type::Trait.new(name: 'T1')])
+        block1.define_type_parameter('T2', [Inkoc::Type::Trait.new(name: 'T1')])
 
         block1.define_argument('a', Inkoc::Type::Object.new(name: 'A'))
         block1.define_argument('b', Inkoc::Type::Object.new(name: 'B'))

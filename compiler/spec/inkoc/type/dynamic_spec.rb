@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require 'spec_helper'
 
 describe Inkoc::Type::Dynamic do
@@ -31,16 +32,11 @@ describe Inkoc::Type::Dynamic do
   end
 
   describe '#type_parameters' do
-    it 'returns an empty Hash' do
-      expect(type.type_parameters).to be_an_instance_of(Hash)
-      expect(type.type_parameters).to be_empty
-    end
-  end
+    it 'returns an empty type parameter table' do
+      expect(type.type_parameters)
+        .to be_an_instance_of(Inkoc::Type::TypeParameterTable)
 
-  describe '#type_parameter_instances' do
-    it 'returns an empty Hash' do
-      expect(type.type_parameter_instances).to be_an_instance_of(Hash)
-      expect(type.type_parameter_instances).to be_empty
+      expect(type.type_parameters).to be_empty
     end
   end
 

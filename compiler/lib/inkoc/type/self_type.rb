@@ -14,7 +14,7 @@ module Inkoc
         true
       end
 
-      def resolve_type(self_type)
+      def resolve_type(self_type, *)
         self_type
       end
     end

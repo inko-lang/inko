@@ -7,7 +7,8 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :type, :default, :rest, :location
+      attr_reader :name, :type, :rest, :location
+      attr_accessor :default
 
       # name - The name of the argument.
       # type - The type of the argument, if any.

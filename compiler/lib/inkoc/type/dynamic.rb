@@ -28,11 +28,7 @@ module Inkoc
       end
 
       def type_parameters
-        {}
-      end
-
-      def type_parameter_instances
-        {}
+        TypeParameterTable.new
       end
 
       def new_instance(*)
@@ -58,6 +54,10 @@ module Inkoc
 
       def regular_object?
         true
+      end
+
+      def generic_type?
+        false
       end
 
       def implementation_of?(*)

@@ -23,6 +23,16 @@ module Inkoc
         @type.arguments_count
       end
 
+      def arguments_count_without_rest
+        count = arguments_count
+
+        if rest_argument?
+          count - 1
+        else
+          count
+        end
+      end
+
       def required_arguments_count
         @type.required_arguments_count
       end

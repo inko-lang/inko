@@ -10,40 +10,32 @@ module Inkoc
       include Predicates
 
       attr_reader :name, :attributes, :required_methods, :type_parameters,
-                  :required_traits, :type_parameter_instances
+                  :required_traits
 
       attr_accessor :prototype
 
       def initialize(
         name: Config::TRAIT_CONST,
         prototype: nil,
-        generated: false,
-        type_parameter_instances: {}
+        type_parameters: TypeParameterTable.new
       )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @required_methods = SymbolTable.new
         @required_traits = Set.new
-        @type_parameters = {}
-        @type_parameter_instances = type_parameter_instances
-        @generated = generated
+        @type_parameters = type_parameters
       end
 
       def trait?
         true
       end
 
-      def generated_trait?
-        @generated
-      end
-
-      def new_instance(param_instances = {})
+      def new_instance(params = TypeParameterTable.new(type_parameters))
         self.class.new(
           name: name,
           prototype: self,
-          type_parameter_instances: param_instances,
-          generated: generated_trait?
+          type_parameters: params
         )
       end
 
@@ -52,7 +44,7 @@ module Inkoc
       end
 
       def lookup_method(name)
-        required_methods[name]
+        attributes[name].or_else { required_methods[name] }
       end
 
       def type_compatible?(other)
@@ -63,26 +55,8 @@ module Inkoc
           required_methods == other.required_methods
       end
 
-      def type_name
-        if generated_trait?
-          type_name_for_generated_trait
-        else
-          super
-        end
-      end
-
       def empty?
         required_methods.empty? && required_traits.empty?
-      end
-
-      def empty_generated_trait?
-        generated_trait? && empty?
-      end
-
-      def type_name_for_generated_trait
-        return name unless required_traits.any?
-
-        required_traits.map(&:type_name).join(' + ')
       end
     end
   end

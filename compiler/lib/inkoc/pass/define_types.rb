@@ -199,24 +199,25 @@ module Inkoc
       def on_identifier(node, scope)
         name = node.name
         loc = node.location
+        self_type = scope.self_type
 
         rtype, block_type =
           if (local_type = scope.type_of_local(name))
             local_type
-          elsif scope.self_type.responds_to_message?(name)
-            send_object_message(scope.self_type, name, [], scope, loc)
+          elsif self_type.responds_to_message?(name)
+            send_object_message(self_type, name, [], scope, loc)
           elsif @module.responds_to_message?(name)
             send_object_message(@module.type, name, [], scope, loc)
           elsif (global_type = @module.type_of_global(name))
             global_type
           else
-            diagnostics.undefined_method_error(scope.self_type, name, loc)
+            diagnostics.undefined_method_error(self_type, name, loc)
             Type::Dynamic.new
           end
 
         node.block_type = block_type if block_type
 
-        rtype.resolve_type(scope.self_type)
+        rtype.resolve_type(self_type)
       end
 
       def on_global(node, *)
@@ -268,68 +269,91 @@ module Inkoc
           return method_type
         end
 
-        verify_send_arguments(receiver, method_type, args, location)
+        context = MessageContext.new(receiver, method_type, args, location)
 
-        rtype = method_type
-          .initialized_return_type(receiver, arg_types)
+        verify_send_arguments(context)
 
-        [rtype, method_type]
+        [context.initialized_return_type, method_type]
       end
 
-      def verify_send_arguments(receiver_type, type, arguments, location)
-        given_count = arguments.length
+      def verify_send_arguments(context)
+        return unless verify_keyword_arguments(context)
 
-        return unless verify_keyword_arguments(type, arguments)
+        given_count = context.arguments.length
 
-        if type.valid_number_of_arguments?(given_count)
-          verify_send_argument_types(receiver_type, type, arguments)
+        if context.valid_number_of_arguments?(given_count)
+          verify_send_argument_types(context)
         else
           diagnostics.argument_count_error(
             given_count,
-            type.argument_count_range,
-            location
+            context.argument_count_range,
+            context.location
           )
         end
       end
 
-      def verify_keyword_arguments(type, arguments)
-        arguments.all? do |arg|
+      def verify_keyword_arguments(context)
+        context.arguments.all? do |arg|
           next true unless arg.keyword_argument?
-          next true if type.lookup_argument(arg.name).any?
+
+          name = arg.name
+
+          next true if context.valid_argument_name?(name)
 
           diagnostics
-            .undefined_keyword_argument_error(arg.name, type, arg.location)
+            .undefined_keyword_argument_error(name, context.block, arg.location)
 
           false
         end
       end
 
-      def verify_send_argument_types(receiver_type, type, arguments)
-        receiver_is_module = receiver_type == @module.type
+      # receiver, type, arguments
+      def verify_send_argument_types(context)
+        max_args = context.arguments_count_without_self
+        has_rest = context.rest_argument
 
-        arguments.each_with_index do |arg, index|
-          # We add +1 to the index to skip the self argument.
-          key = arg.keyword_argument? ? arg.name : index + 1
-          exp = type.type_for_argument_or_rest(key)
+        context.arguments.each_with_index do |arg, index|
+          # We add 1 to the index to skip the self argument.
+          arg_index = index + 1
+          aname = arg.keyword_argument? ? arg.name : arg_index
+          rest = arg_index >= max_args && has_rest
+          expected =
+            expected_type_for_argument(context, aname, arg.type, rest)
 
-          if exp.generated_trait?
-            if (instance = receiver_type.type_parameter_instances[exp.name])
-              exp = instance
-            elsif arg.type.type_compatible?(exp) && !receiver_is_module
-              receiver_type.init_type_parameter(exp.name, arg.type)
-            end
+          if rest
+            verify_rest_argument(context, arg, expected, arg.location)
+          else
+            verify_send_argument(arg, expected, arg.location)
           end
-
-          verify_send_argument(arg, exp, arg.location)
         end
+      end
+
+      # context - The MessageContext of the current call being validated.
+      # aname - The name (or index) of the argument we're validating.
+      # type - The type of the argument that is being validated.
+      # rest - If true the argument is supposed to be passed to a rest argument.
+      def expected_type_for_argument(context, aname, type, rest = false)
+        expected = context.type_for_argument_or_rest(aname, rest)
+
+        if expected.type_parameter?
+          pname = expected.name
+
+          if (instance = context.type_parameter_instance(pname))
+            expected = instance
+          elsif type.type_compatible?(expected)
+            context.initialize_type_parameter(pname, type)
+          end
+        end
+
+        expected
       end
 
       def verify_send_argument(argument, expected, location)
         given = argument.type
 
-        if expected.generated_trait? && !given.implements_trait?(expected)
+        if expected.type_parameter? && !given.implements_trait?(expected)
           diagnostics
-            .generated_trait_not_implemented_error(expected, given, location)
+            .type_parameter_not_implemented_error(expected, given, location)
 
           return
         end
@@ -339,6 +363,33 @@ module Inkoc
         return if given.type_compatible?(expected)
 
         diagnostics.type_error(expected, given, location)
+      end
+
+      def verify_rest_argument(context, argument, rest_type, location)
+        arg_type = argument.type
+        expected = rest_type
+          .lookup_type_parameter_instance(Config::ARRAY_TYPE_PARAMETER)
+
+        # Type parameters can be used in rest arguments (e.g. `*values: X`).
+        # This means we need to initialize then in similar fashion to regular
+        # arguments.
+        if expected.type_parameter?
+          pname = expected.name
+
+          if (instance = context.type_parameter_instance(pname))
+            expected = instance
+          elsif arg_type.type_compatible?(expected)
+            context.initialize_type_parameter(pname, arg_type)
+
+            # We've already determined the argument is valid, so there's no
+            # point in doing this again.
+            return
+          end
+        end
+
+        return if arg_type.type_compatible?(expected)
+
+        diagnostics.type_error(expected, arg_type, location)
       end
 
       def infer_block?(given, expected)
@@ -449,6 +500,10 @@ module Inkoc
 
       def on_raw_get_block_prototype(*)
         typedb.block_type
+      end
+
+      def on_raw_array_length(*)
+        typedb.integer_type
       end
 
       def on_return(node, scope)
@@ -570,8 +625,8 @@ module Inkoc
         trait = resolve_module_type(node.trait_name, self_type)
         object = resolve_module_type(node.object_name, self_type)
 
-        verify_type_parameters(node.trait_name, trait)
-        verify_type_parameters(node.object_name, object)
+        verify_same_type_parameters(node.trait_name, trait)
+        verify_same_type_parameters(node.object_name, object)
 
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
@@ -598,12 +653,12 @@ module Inkoc
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
 
-        verify_type_parameters(node.name, object)
+        verify_same_type_parameters(node.name, object)
 
         define_type(node.body, new_scope)
       end
 
-      def verify_type_parameters(node, type)
+      def verify_same_type_parameters(node, type)
         node_names = node.type_parameters.map(&:name)
         type_names = type.type_parameter_names
 
@@ -796,6 +851,17 @@ module Inkoc
         define_arguments(node.arguments, type, scope, constraints: constraints)
         define_return_type(node, type, scope.self_type)
         define_throw_type(node, type, scope.self_type)
+        verify_block_type_parameters(node.type_parameters, scope.self_type)
+      end
+
+      def verify_block_type_parameters(params, receiver_type)
+        existing = receiver_type.type_parameter_names.to_set
+
+        params.each do |param|
+          next unless existing.include?(param.name)
+
+          diagnostics.shadowing_type_parameter_error(param.name, param.location)
+        end
       end
 
       def define_arguments(arguments, block_type, scope, constraints: false)
@@ -908,18 +974,12 @@ module Inkoc
       end
 
       def define_type_parameters(arguments, type)
-        proto = typedb.trait_type
-
         arguments.each do |arg_node|
           required_traits = arg_node.required_traits.map do |node|
             resolve_type(node, type, [type, self.module])
           end
 
-          trait = Type::Trait
-            .new(name: arg_node.name, prototype: proto, generated: true)
-
-          trait.required_traits.merge(required_traits)
-          type.define_type_parameter(trait.name, trait)
+          type.define_type_parameter(arg_node.name, required_traits)
         end
       end
 

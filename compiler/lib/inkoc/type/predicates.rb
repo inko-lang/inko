@@ -3,6 +3,10 @@
 module Inkoc
   module Type
     module Predicates
+      def generic_type?
+        false
+      end
+
       def optional?
         false
       end
@@ -31,7 +35,7 @@ module Inkoc
         false
       end
 
-      def generated_trait?
+      def type_parameter?
         false
       end
 

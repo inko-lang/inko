@@ -165,11 +165,11 @@ module Inkoc
       )
     end
 
-    def generated_trait_not_implemented_error(trait, type, location)
+    def type_parameter_not_implemented_error(param, type, location)
       missing = []
       name = type.type_name.inspect
 
-      trait.required_traits.each do |t|
+      param.required_traits.each do |t|
         missing << t.type_name unless type.implements_trait?(t)
       end
 
@@ -278,6 +278,14 @@ module Inkoc
 
       error(
         "The type #{name} requires type parameters [#{ex}] instead of [#{got}]",
+        location
+      )
+    end
+
+    def shadowing_type_parameter_error(name, location)
+      error(
+        "The type parameter #{name} shadows another type parameter with the " \
+          'same name',
         location
       )
     end

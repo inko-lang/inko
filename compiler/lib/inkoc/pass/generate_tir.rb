@@ -304,6 +304,7 @@ module Inkoc
           symbol = code_object.type.lookup_argument(arg.name)
           local = code_object.define_immutable_local(arg.name, symbol.type)
 
+          # TODO: support rest argument defaults
           next unless arg.default
 
           define_argument_default(code_object, local, arg.default)
@@ -612,12 +613,53 @@ module Inkoc
         get_false(body, node.location)
       end
 
+      def on_raw_get_nil(node, body)
+        get_nil(body, node.location)
+      end
+
       def on_raw_run_block(node, body)
         block = process_node(node.arguments.fetch(0), body)
         self_reg = get_self(body, node.location)
         arguments = process_nodes(node.arguments[1..-1], body)
 
         run_block(block, [self_reg, *arguments], body, node.location)
+      end
+
+      def on_raw_get_string_prototype(node, body)
+        register = body.register(typedb.string_type)
+
+        body.instruct(:GetStringPrototype, register, node.location)
+      end
+
+      def on_raw_get_integer_prototype(node, body)
+        register = body.register(typedb.integer_type)
+
+        body.instruct(:GetIntegerPrototype, register, node.location)
+      end
+
+      def on_raw_get_float_prototype(node, body)
+        register = body.register(typedb.float_type)
+
+        body.instruct(:GetFloatPrototype, register, node.location)
+      end
+
+      def on_raw_get_array_prototype(node, body)
+        register = body.register(typedb.array_type)
+
+        body.instruct(:GetArrayPrototype, register, node.location)
+      end
+
+      def on_raw_get_block_prototype(node, body)
+        register = body.register(typedb.block_type)
+
+        body.instruct(:GetBlockPrototype, register, node.location)
+      end
+
+      def on_raw_array_length(node, body)
+        register = body.register(typedb.integer_type)
+        array_register = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:ArrayLength, register, array_register, node.location)
       end
 
       def on_return(node, body)

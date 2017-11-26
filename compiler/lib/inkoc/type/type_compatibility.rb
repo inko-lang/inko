@@ -4,9 +4,7 @@ module Inkoc
   module Type
     module TypeCompatibility
       def implements_trait?(trait)
-        if trait.empty_generated_trait?
-          true
-        elsif trait.generated_trait?
+        if trait.type_parameter?
           trait.required_traits.all? { |t| implements_trait?(t) }
         else
           implemented_traits.include?(trait)

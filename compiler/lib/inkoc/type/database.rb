@@ -36,30 +36,26 @@ module Inkoc
 
       def initialize_array_type
         type = Object.new(name: Config::ARRAY_CONST)
-        param = Type::Trait
-          .new(name: Config::ARRAY_TYPE_PARAMETER, generated: true)
 
-        type.define_type_parameter(param.name, param)
+        type.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
 
         type
       end
 
       def initialize_hash_map_type
         type = Object.new(name: Config::HASH_MAP_CONST)
-        key = Type::Trait
-          .new(name: Config::HASH_MAP_KEY_TYPE_PARAMETER, generated: true)
 
-        val = Type::Trait
-          .new(name: Config::HASH_MAP_VALUE_TYPE_PARAMETER, generated: true)
-
-        type.define_type_parameter(key.name, key)
-        type.define_type_parameter(val.name, val)
+        type.define_type_parameter(Config::HASH_MAP_KEY_TYPE_PARAMETER)
+        type.define_type_parameter(Config::HASH_MAP_VALUE_TYPE_PARAMETER)
 
         type
       end
 
       def new_array_of_type(type)
-        array_type.new_instance(Config::ARRAY_TYPE_PARAMETER => type)
+        array = array_type.new_instance
+        array.initialize_type_parameter(Config::ARRAY_TYPE_PARAMETER, type)
+
+        array
       end
     end
   end

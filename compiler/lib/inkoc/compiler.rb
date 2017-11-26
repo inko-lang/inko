@@ -6,6 +6,7 @@ module Inkoc
     BASE_PASSES = [
       Pass::PathToSource,
       Pass::SourceToAst,
+      Pass::AddDefaultForRestArguments,
       Pass::ConfigureModule,
       Pass::TrackModule,
       Pass::InsertImplicitImports,
@@ -17,6 +18,7 @@ module Inkoc
       Pass::ValidateThrow,
       Pass::GenerateTir,
       Pass::DeadCode,
+      Pass::OptimiseArray,
       Pass::CodeGeneration,
       Pass::CodeWriter
     ].freeze

@@ -6,6 +6,7 @@ module Inkoc
       include Inspect
       include Predicates
       include ObjectOperations
+      include GenericTypeOperations
 
       attr_reader :type
 
@@ -25,12 +26,12 @@ module Inkoc
         type.regular_object?
       end
 
-      def type_parameter_instances
-        type.type_parameter_instances
-      end
-
       def trait?
         type.trait?
+      end
+
+      def type_parameters
+        type.type_parameters
       end
 
       def attributes

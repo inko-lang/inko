@@ -33,7 +33,7 @@ module Inkoc
       end
 
       def assign_compiled_code_metadata(compiled_code, code_object)
-        compiled_code.arguments = code_object.arguments_count
+        compiled_code.arguments = code_object.arguments_count_without_rest
         compiled_code.required_arguments = code_object.required_arguments_count
         compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
@@ -316,6 +316,13 @@ module Inkoc
         src_reg = tir_ins.source_register.id
 
         compiled_code.instruct(:SetRegister, [reg, src_reg], tir_ins.location)
+      end
+
+      def on_array_length(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        array = tir_ins.array.id
+
+        compiled_code.instruct(:ArrayLength, [reg, array], tir_ins.location)
       end
     end
   end

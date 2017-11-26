@@ -19,13 +19,14 @@ module Inkoc
         prototype: nil,
         returns: nil,
         throws: nil,
+        type_parameters: TypeParameterTable.new,
         block_type: :closure
       )
         @name = name
         @prototype = prototype
         @arguments = SymbolTable.new
         @rest_argument = false
-        @type_parameters = {}
+        @type_parameters = type_parameters
         @throws = throws
         @returns = returns || Type::Dynamic.new
         @attributes = SymbolTable.new
@@ -83,9 +84,8 @@ module Inkoc
 
       def valid_number_of_arguments?(given)
         range = argument_count_range
-        covers = range.cover?(given)
 
-        covers || given > range.max && rest_argument
+        range.cover?(given) || given > range.max && rest_argument
       end
 
       def arguments_count
@@ -136,7 +136,8 @@ module Inkoc
         returns
       end
 
-      def define_type_parameter(name, param)
+      def define_type_paaameter(name, param)
+        # FIXME: type parameters
         type_parameters[name] = param
       end
 
@@ -144,29 +145,20 @@ module Inkoc
         arguments[name]
       end
 
-      def type_for_argument_or_rest(name_or_index)
-        arguments[name_or_index].or_else { arguments.last }.type
+      def type_for_argument(name_or_index)
+        arguments[name_or_index].type
       end
 
-      def initialized_return_type(self_type, passed_types = [])
-        param_instances = {}
+      def last_argument_type
+        arguments.last.type
+      end
 
-        argument_types_without_self.each_with_index do |arg_type, index|
-          next unless arg_type.generated_trait?
-
-          if (concrete_type = passed_types[index])
-            param_instances[arg_type.name] = concrete_type
-          end
+      def type_for_argument_or_rest(name_or_index, is_rest = false)
+        if is_rest
+          last_argument_type
+        else
+          type_for_argument(name_or_index)
         end
-
-        rtype =
-          if return_type.generated_trait?
-            param_instances[return_type.name]
-          else
-            return_type
-          end
-
-        rtype.resolve_type(self_type).new_instance(param_instances)
       end
 
       def lookup_type(name)
@@ -181,13 +173,9 @@ module Inkoc
         name == block.name && strict_type_compatible?(block)
       end
 
-      def type_parameter_values
-        type_parameters.values
-      end
-
       def type_parameters_compatible?(block)
-        params = type_parameter_values
-        other_params = block.type_parameter_values
+        params = type_parameters
+        other_params = block.type_parameters
 
         return false if params.length != other_params.length
 
