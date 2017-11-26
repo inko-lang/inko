@@ -75,4 +75,10 @@ impl Block {
 
         true
     }
+
+    pub fn number_of_arguments_to_set(&self, given: usize) -> usize {
+        let total = self.arguments();
+
+        if given <= total { given } else { total }
+    }
 }

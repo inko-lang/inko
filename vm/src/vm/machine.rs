@@ -2239,7 +2239,8 @@ impl Machine {
         process: &RcProcess,
         instruction: &Instruction,
     ) {
-        let arg_count = instruction.arguments.len() - arg_offset;
+        let ins_args_count = instruction.arguments.len();
+        let arg_count = ins_args_count - arg_offset;
 
         if !block.valid_number_of_arguments(arg_count) {
             panic!(
@@ -2255,12 +2256,29 @@ impl Machine {
         {
             // Add the arguments to the binding
             let locals = context.binding.locals_mut();
+            let max_index = arg_offset +
+                block.number_of_arguments_to_set(arg_count);
 
-            for index in arg_offset..(arg_offset + arg_count) {
+            let total = block.arguments();
+
+            for index in arg_offset..max_index {
                 let local_index = index - arg_offset;
 
                 locals[local_index] =
                     process.get_register(instruction.arg(index));
+            }
+
+            // We can only reach this code if a rest argument is defined, thus
+            // we only need to check if too many arguments are passed.
+            if arg_count > total {
+                let rest_args = (max_index..ins_args_count)
+                    .map(|index| process.get_register(instruction.arg(index)))
+                    .collect::<Vec<ObjectPointer>>();
+
+                locals[total + 1] = process.allocate(
+                    object_value::array(rest_args),
+                    self.state.array_prototype,
+                );
             }
         }
 
