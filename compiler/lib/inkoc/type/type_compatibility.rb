@@ -17,18 +17,6 @@ module Inkoc
         symbol.type.implementation_of?(method.type)
       end
 
-      def prototype_chain_compatible?(other)
-        proto = prototype
-
-        while proto
-          return true if proto.type_compatible?(other)
-
-          proto = proto.prototype
-        end
-
-        false
-      end
-
       def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return false if other.void?
@@ -40,9 +28,9 @@ module Inkoc
 
       # Returns true if the current and the given type are compatible.
       def type_compatible?(other)
-        return true if basic_type_compatibility?(other)
-
-        prototype_chain_compatible?(other)
+        basic_type_compatibility?(other) ||
+          prototype == other ||
+          prototype == other.prototype
       end
 
       def strict_type_compatible?(other)

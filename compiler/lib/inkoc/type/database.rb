@@ -7,7 +7,8 @@ module Inkoc
 
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :hash_map_type, :void_type
+                  :hash_map_type, :void_type, :integer_instance,
+                  :float_instance, :string_instance
 
       def initialize
         @top_level = Object.new(name: 'Inko')
@@ -24,6 +25,10 @@ module Inkoc
 
         @trait_type = nil
         @object_type = nil
+
+        @integer_instance = integer_type.new_instance
+        @float_instance = float_type.new_instance
+        @string_instance = string_type.new_instance
       end
 
       def object_type
