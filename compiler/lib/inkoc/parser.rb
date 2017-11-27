@@ -49,7 +49,6 @@ module Inkoc
     VALUE_START = Set.new(
       %i[
         attribute
-        bracket_open
         constant
         curly_open
         float
