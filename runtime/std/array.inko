@@ -1,0 +1,5 @@
+impl Array!(T) {
+  def new!(V)(*values: V) -> Array!(V) {
+    values
+  }
+}
