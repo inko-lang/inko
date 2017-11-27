@@ -5,8 +5,6 @@ module Inkoc
     class Optional
       include Inspect
       include Predicates
-      include ObjectOperations
-      include GenericTypeOperations
 
       extend Forwardable
 
