@@ -1,0 +1,17 @@
+# The "globals" module defines various constants that are to be imported into
+# every module implicitly. Because the prelude has not yet been imported we can
+# only expose a few core types defined directly in the top-level object.
+
+![import_prelude: false]
+![import_globals: false]
+
+let Inko = _INKOC.get_toplevel
+let True = Inko::True
+let False = Inko::False
+let Nil = Inko::Nil
+let Object = Inko::Object
+let String = Inko::String
+let Integer = Inko::Integer
+let Float = Inko::Float
+let Block = Inko::Block
+let Array = Inko::Array

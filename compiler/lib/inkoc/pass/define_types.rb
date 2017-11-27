@@ -52,13 +52,6 @@ module Inkoc
       end
 
       def on_module_body(ast, locals)
-        @module.type =
-          if @module.define_module?
-            define_module_type
-          else
-            typedb.top_level
-          end
-
         @module.globals.define(Config::MODULE_GLOBAL, @module.type)
 
         scope = TypeScope.new(@module.type, @module.body.type, locals)
@@ -66,17 +59,6 @@ module Inkoc
         process_imports(scope)
 
         define_type(ast, scope)
-      end
-
-      def define_module_type
-        top = typedb.top_level
-        modules = top.lookup_attribute(Config::MODULES_ATTRIBUTE).type
-        proto = top.lookup_attribute(Config::MODULE_TYPE).type
-        type = Type::Object.new(name: @module.name.to_s, prototype: proto)
-
-        modules.define_attribute(type.name, type)
-
-        type
       end
 
       def on_import(node, _)

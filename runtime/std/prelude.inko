@@ -1,15 +1,7 @@
+# The prelude module imports various modules of which the contents should be
+# available to every other module. Any globals that should be exposed to every
+# module must be defined in std::globals instead.
+
 ![import_prelude: false]
 
-# Re-export various built-in types so we can expose these to every module,
-# without all of those modules having to rely on the internals of the top-level
-# object.
-let Inko = _INKOC.get_toplevel
-let True = Inko::True
-let False = Inko::False
-let Nil = Inko::Nil
-let Object = Inko::Object
-let String = Inko::String
-let Integer = Inko::Integer
-let Float = Inko::Float
-let Block = Inko::Block
-let Array = Inko::Array
+import std::array

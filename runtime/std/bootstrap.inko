@@ -1,7 +1,8 @@
 # Importing of both the prelude and the bootstrap modules will not yet work at
 # this point, hence these are disabled.
-![import_prelude: false]
 ![import_bootstrap: false]
+![import_globals: false]
+![import_prelude: false]
 
 # Implicit module definitions will not yet work since we haven't defined the
 # required objects just yet.

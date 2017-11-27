@@ -22,6 +22,10 @@ module Inkoc
     # The path to the prelude module.
     PRELUDE_MODULE = 'prelude'
 
+    # The path to the module that defines the default globals exposed to every
+    # module.
+    GLOBALS_MODULE = 'globals'
+
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'

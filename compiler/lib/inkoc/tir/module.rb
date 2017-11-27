@@ -63,6 +63,10 @@ module Inkoc
         config.import_prelude?
       end
 
+      def import_globals?
+        config.import_globals?
+      end
+
       def define_module?
         config.define_module?
       end

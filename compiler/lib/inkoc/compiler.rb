@@ -8,6 +8,7 @@ module Inkoc
       Pass::SourceToAst,
       Pass::AddDefaultForRestArguments,
       Pass::ConfigureModule,
+      Pass::DefineModuleType,
       Pass::TrackModule,
       Pass::InsertImplicitImports,
       Pass::CollectImports,
