@@ -154,7 +154,7 @@ impl Machine {
             let mut registry = write_lock!(self.module_registry);
 
             let module = registry
-                .parse_path(file)
+                .parse_module(file)
                 .map_err(|err| err.message())
                 .unwrap();
 
@@ -1456,11 +1456,13 @@ impl Machine {
 
                     let (block, execute) = {
                         let mut registry = write_lock!(self.module_registry);
-                        let execute = !registry.contains_path(path_str);
-                        let module = registry
+
+                        let lookup = registry
                             .get_or_set(path_str)
                             .map_err(|err| err.message())
                             .unwrap();
+
+                        let module = lookup.module;
 
                         let block = Block::new(
                             module.code(),
@@ -1468,7 +1470,7 @@ impl Machine {
                             module.global_scope_ref(),
                         );
 
-                        (block, execute)
+                        (block, lookup.parsed)
                     };
 
                     if execute {

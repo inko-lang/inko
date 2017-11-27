@@ -22,6 +22,13 @@ pub struct ModuleRegistry {
     parsed: HashMap<String, Module>,
 }
 
+pub struct LookupResult<'a> {
+    pub module: &'a Module,
+
+    /// Set to true when the module was parsed for the first time.
+    pub parsed: bool,
+}
+
 impl ModuleError {
     /// Returns a human friendly error message.
     pub fn message(&self) -> String {
@@ -33,6 +40,12 @@ impl ModuleError {
                 format!("Module does not exist: {}", path)
             }
         }
+    }
+}
+
+impl<'a> LookupResult<'a> {
+    pub fn new(module: &'a Module, parsed: bool) -> Self {
+        LookupResult { module: module, parsed: parsed }
     }
 }
 
@@ -51,19 +64,26 @@ impl ModuleRegistry {
     }
 
     /// Gets or parses a bytecode file for the given path.
-    ///
-    /// If a module has already been parsed for the given path it's returned
-    /// directly, otherwise this method will attempt to parse it.
-    pub fn get_or_set(&mut self, path: &str) -> Result<&Module, ModuleError> {
-        if !self.parsed.contains_key(path) {
-            self.parse_module(path)
+    pub fn get_or_set(
+        &mut self,
+        path: &str,
+    ) -> Result<LookupResult, ModuleError> {
+        let full_path = self.find_path(path)?;
+
+        if !self.parsed.contains_key(&full_path) {
+            self.parse_module(&full_path).map(|module| {
+                LookupResult::new(module, true)
+            })
         } else {
-            Ok(self.parsed.get(path).unwrap())
+            Ok(LookupResult::new(
+                self.parsed.get(&full_path).unwrap(),
+                false,
+            ))
         }
     }
 
-    /// Parses a module.
-    fn parse_module(&mut self, path: &str) -> Result<&Module, ModuleError> {
+    /// Returns the full path for a relative path.
+    fn find_path(&self, path: &str) -> Result<String, ModuleError> {
         let mut input_path = PathBuf::from(path);
 
         if input_path.is_relative() {
@@ -85,13 +105,11 @@ impl ModuleRegistry {
             }
         }
 
-        let parse_path = input_path.to_str().unwrap();
-
-        self.parse_path(parse_path)
+        Ok(input_path.to_str().unwrap().to_string())
     }
 
     /// Parses a full file path pointing to a module.
-    pub fn parse_path(&mut self, path: &str) -> Result<&Module, ModuleError> {
+    pub fn parse_module(&mut self, path: &str) -> Result<&Module, ModuleError> {
         let code = bytecode_parser::parse_file(&self.state, path).map_err(
             |err| {
                 ModuleError::FailedToParse(path.to_string(), err)
@@ -105,5 +123,38 @@ impl ModuleRegistry {
 
     pub fn add_module(&mut self, path: &str, module: Module) {
         self.parsed.insert(path.to_string(), module);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vm::state::State;
+    use config::Config;
+
+    fn new_config() -> Config {
+        let mut config = Config::new();
+
+        config.add_directory("/bin".to_string());
+
+        config
+    }
+
+    #[test]
+    fn test_find_path_relative() {
+        let state = State::new(new_config());
+        let reg = ModuleRegistry::new(state);
+        let result = reg.find_path("ls");
+
+        assert_eq!(result.ok().unwrap(), "/bin/ls".to_string());
+    }
+
+    #[test]
+    fn test_find_path_absolute() {
+        let state = State::new(new_config());
+        let reg = ModuleRegistry::new(state);
+        let result = reg.find_path("/bin/ls");
+
+        assert_eq!(result.ok().unwrap(), "/bin/ls".to_string());
     }
 }

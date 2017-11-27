@@ -25,13 +25,14 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 
         // To ensure the module sticks around long enough we'll manually store in
         // in the module registry.
-        registry.add_module("test", Module::new(code));
+        registry.add_module("/test", Module::new(code));
 
-        let module = match registry.get_or_set(&"test") {
+        let lookup = match registry.get_or_set(&"/test") {
             Ok(module) => module,
             Err(_) => panic!("The test module does not exist"),
         };
 
+        let module = lookup.module;
         let scope = module.global_scope_ref();
 
         let block =
