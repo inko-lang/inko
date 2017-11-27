@@ -14,7 +14,7 @@ module Inkoc
         @top_level = Object.new(name: 'Inko')
         @true_type = Object.new(name: Config::TRUE_CONST)
         @false_type = Object.new(name: Config::FALSE_CONST)
-        @nil_type = Object.new(name: Config::NIL_CONST)
+        @nil_type = Nil.new
         @block_type = Object.new(name: Config::BLOCK_CONST)
         @integer_type = Object.new(name: Config::INTEGER_CONST)
         @float_type = Object.new(name: Config::FLOAT_CONST)

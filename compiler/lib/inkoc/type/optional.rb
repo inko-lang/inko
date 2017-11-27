@@ -8,6 +8,14 @@ module Inkoc
       include ObjectOperations
       include GenericTypeOperations
 
+      extend Forwardable
+
+      def_delegator :type, :generic_type?
+      def_delegator :type, :type_parameter?
+      def_delegator :type, :block?
+      def_delegator :type, :regular_object?
+      def_delegator :type, :trait?
+
       attr_reader :type
 
       def initialize(type)
@@ -18,28 +26,17 @@ module Inkoc
         true
       end
 
-      def block?
-        type.block?
-      end
-
-      def regular_object?
-        type.regular_object?
-      end
-
-      def trait?
-        type.trait?
-      end
-
-      def type_parameters
-        type.type_parameters
-      end
-
-      def attributes
-        type.attributes
-      end
-
       def type_name
-        type.type_name
+        "?#{type.type_name}"
+      end
+
+      # rubocop: disable Style/MethodMissing
+      def method_missing(name, *args, &block)
+        type.public_send(name, *args, &block)
+      end
+
+      def respond_to_missing?(name, include_private = false)
+        type.respond_to?(name, include_private)
       end
     end
   end

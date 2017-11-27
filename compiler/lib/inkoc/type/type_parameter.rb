@@ -21,6 +21,10 @@ module Inkoc
         true
       end
 
+      def prototype
+        nil
+      end
+
       def lookup_method(name)
         required_traits.each do |trait|
           if (method = trait.lookup_method(name)) && method.any?
@@ -50,7 +54,7 @@ module Inkoc
       end
 
       def strict_type_compatible?(other)
-        other.is_a?(self.class) && required_traits == other.required_traits
+        other.type_parameter? && required_traits == other.required_traits
       end
     end
   end
