@@ -7,6 +7,14 @@ module Inkoc
         def return?
           false
         end
+
+        def send_object_message?
+          false
+        end
+
+        def set_string?
+          false
+        end
       end
     end
   end

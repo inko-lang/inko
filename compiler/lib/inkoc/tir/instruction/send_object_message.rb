@@ -20,6 +20,10 @@ module Inkoc
         def visitor_method
           :on_send_object_message
         end
+
+        def send_object_message?
+          true
+        end
       end
     end
   end

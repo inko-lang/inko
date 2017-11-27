@@ -19,7 +19,6 @@ module Inkoc
       Pass::ValidateThrow,
       Pass::GenerateTir,
       Pass::DeadCode,
-      Pass::OptimiseArray,
       Pass::CodeGeneration,
       Pass::CodeWriter
     ].freeze

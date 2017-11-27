@@ -18,6 +18,10 @@ module Inkoc
         def visitor_method
           :on_set_literal
         end
+
+        def set_string?
+          true
+        end
       end
     end
   end

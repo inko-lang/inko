@@ -788,10 +788,27 @@ module Inkoc
         rec_type = receiver.type
         reg = body.register(rec_type.message_return_type(name))
         name_reg = set_string(name, body, location)
-        args = [receiver] + arguments
 
-        body
-          .instruct(:SendObjectMessage, reg, receiver, name_reg, args, location)
+        if send_initializes_array?(rec_type, name)
+          body.instruct(:SetArray, reg, arguments, location)
+        else
+          body.instruct(
+            :SendObjectMessage,
+            reg,
+            receiver,
+            name_reg,
+            [receiver, *arguments],
+            location
+          )
+        end
+      end
+
+      def send_initializes_array?(receiver, name)
+        receiver_is_array =
+          receiver == typedb.array_type ||
+          receiver.prototype == typedb.array_type
+
+        receiver_is_array && name == Config::NEW_MESSAGE
       end
 
       def get_attribute(receiver, name, body, location)
