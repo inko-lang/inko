@@ -71,6 +71,8 @@ module Inkoc
             return method
           end
         end
+
+        NullSymbol.new(name)
       end
     end
   end
