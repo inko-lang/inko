@@ -32,6 +32,10 @@ module Inkoc
 
         return symbol.type if symbol.any?
 
+        lookup_type_parameter_instance_or_parameter(name)
+      end
+
+      def lookup_type_parameter_instance_or_parameter(name)
         lookup_type_parameter_instance(name) || lookup_type_parameter(name)
       end
 

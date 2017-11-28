@@ -431,6 +431,17 @@ module Inkoc
         value
       end
 
+      def on_raw_get_attribute(node, *)
+        object = node.arguments.fetch(0).type
+        name = node.arguments.fetch(1)
+
+        if name.string?
+          object.lookup_attribute(name.value).type
+        else
+          Type::Dynamic.new
+        end
+      end
+
       def on_raw_set_object(node, *)
         proto =
           if (proto_node = node.arguments[1])
@@ -486,6 +497,16 @@ module Inkoc
 
       def on_raw_array_length(*)
         typedb.integer_instance
+      end
+
+      def on_raw_array_at(node, _)
+        array = node.arguments.fetch(0).type
+        param = Config::ARRAY_TYPE_PARAMETER
+        type =
+          array.lookup_type_parameter_instance_or_parameter(param) ||
+          Type::Dynamic.new
+
+        Type::Optional.new(type)
       end
 
       def on_return(node, scope)

@@ -577,6 +577,14 @@ module Inkoc
         set_attribute(receiver, name, value, body, node.location)
       end
 
+      def on_raw_get_attribute(node, body)
+        register = body.register(node.type)
+        receiver = process_node(node.arguments.fetch(0), body)
+        name = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:GetAttribute, register, receiver, name, node.location)
+      end
+
       def on_raw_set_object(node, body)
         args = node.arguments
         loc = node.location
@@ -656,10 +664,19 @@ module Inkoc
       end
 
       def on_raw_array_length(node, body)
-        register = body.register(typedb.integer_instance)
+        register = body.register(node.type)
         array_register = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:ArrayLength, register, array_register, node.location)
+      end
+
+      def on_raw_array_at(node, body)
+        register = body.register(node.type)
+        array_reg = process_node(node.arguments.fetch(0), body)
+        index_reg = process_node(node.arguments.fetch(1), body)
+        location = node.location
+
+        body.instruct(:ArrayAt, register, array_reg, index_reg, location)
       end
 
       def on_return(node, body)

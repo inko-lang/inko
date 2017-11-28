@@ -324,6 +324,14 @@ module Inkoc
 
         compiled_code.instruct(:ArrayLength, [reg, array], tir_ins.location)
       end
+
+      def on_array_at(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        array = tir_ins.array.id
+        index = tir_ins.index.id
+
+        compiled_code.instruct(:ArrayAt, [reg, array, index], tir_ins.location)
+      end
     end
   end
 end
