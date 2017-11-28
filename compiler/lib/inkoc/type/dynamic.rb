@@ -7,6 +7,7 @@ module Inkoc
       include Predicates
       include ObjectOperations
       include TypeCompatibility
+      include GenericTypeOperations
 
       def name
         'Dynamic'
@@ -44,7 +45,11 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        other.dynamic?
+        if other.optional?
+          other.type.dynamic?
+        else
+          other.dynamic?
+        end
       end
       alias strict_type_compatible? type_compatible?
 
