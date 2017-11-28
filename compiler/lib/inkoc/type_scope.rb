@@ -15,7 +15,9 @@ module Inkoc
     end
 
     def define_self_local
-      locals.define(Config::SELF_LOCAL, self_type)
+      name = Config::SELF_LOCAL
+
+      locals.define(name, self_type) if locals[name].nil?
     end
 
     def type_of_local(name)

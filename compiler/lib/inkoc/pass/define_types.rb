@@ -868,7 +868,9 @@ module Inkoc
       end
 
       def define_arguments(arguments, block_type, scope, constraints: false)
-        block_type.define_self_argument(scope.self_type)
+        self_symbol = block_type.define_self_argument(scope.self_type)
+
+        scope.locals.add_symbol(self_symbol)
 
         arguments.each do |arg|
           val_type = type_for_argument_value(arg, scope)

@@ -302,12 +302,11 @@ module Inkoc
       def define_block_arguments(code_object, arguments)
         arguments.each do |arg|
           symbol = code_object.type.lookup_argument(arg.name)
-          local = code_object.define_immutable_local(arg.name, symbol.type)
 
           # TODO: support rest argument defaults
           next unless arg.default
 
-          define_argument_default(code_object, local, arg.default)
+          define_argument_default(code_object, symbol, arg.default)
         end
       end
 
