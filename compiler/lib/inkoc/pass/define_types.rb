@@ -509,6 +509,10 @@ module Inkoc
         Type::Optional.new(type)
       end
 
+      def on_raw_array_insert(node, _)
+        node.arguments.fetch(2).type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

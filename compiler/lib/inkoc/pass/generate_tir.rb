@@ -162,9 +162,9 @@ module Inkoc
         ins = body.current_block.instructions.last
         loc = ins ? ins.location : body.location
 
-        if ins && !ins.return?
-          body.instruct(:Return, ins.register, loc)
-        elsif !ins
+        if ins
+          body.instruct(:Return, ins.register, loc) unless ins.return?
+        else
           body.instruct(:Return, get_nil(body, loc), loc)
         end
       end
@@ -676,6 +676,16 @@ module Inkoc
         location = node.location
 
         body.instruct(:ArrayAt, register, array_reg, index_reg, location)
+      end
+
+      def on_raw_array_insert(node, body)
+        register = body.register(node.type)
+        array_reg = process_node(node.arguments.fetch(0), body)
+        index_reg = process_node(node.arguments.fetch(1), body)
+        vreg = process_node(node.arguments.fetch(2), body)
+        loc = node.location
+
+        body.instruct(:ArrayInsert, register, array_reg, index_reg, vreg, loc)
       end
 
       def on_return(node, body)
