@@ -67,6 +67,7 @@ module Inkoc
         throw
         trait
         try
+        paren_open
       ]
     ).freeze
 
@@ -487,6 +488,7 @@ module Inkoc
     end
 
     # rubocop: disable Metrics/CyclomaticComplexity
+    # rubocop: disable Metrics/AbcSize
     def value(start)
       case start.type
       when :string then string(start)
@@ -508,6 +510,7 @@ module Inkoc
       when :throw then throw_value(start)
       when :try then try(start)
       when :colon_colon then global(start)
+      when :paren_open then grouped_expression
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -581,6 +584,19 @@ module Inkoc
       name = advance_and_expect!(:constant)
 
       AST::Global.new(name.value, start.location)
+    end
+
+    # Parses a grouped expression.
+    #
+    # Example:
+    #
+    #   (10 + 20)
+    def grouped_expression
+      expr = expression(advance!)
+
+      advance_and_expect!(:paren_close)
+
+      expr
     end
 
     # Parses a block without arguments.
