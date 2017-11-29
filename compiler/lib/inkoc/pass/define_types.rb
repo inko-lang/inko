@@ -455,6 +455,10 @@ module Inkoc
         typedb.string_type
       end
 
+      def on_raw_integer_add(*)
+        typedb.integer_type
+      end
+
       def on_raw_stdout_write(*)
         typedb.integer_type
       end

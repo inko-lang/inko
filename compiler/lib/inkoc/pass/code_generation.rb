@@ -298,6 +298,14 @@ module Inkoc
         compiled_code.instruct(:IntegerToString, [reg, val], tir_ins.location)
       end
 
+      def on_integer_add(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        base = tir_ins.base.id
+        add = tir_ins.add.id
+
+        compiled_code.instruct(:IntegerAdd, [reg, base, add], tir_ins.location)
+      end
+
       def on_stdout_write(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         val = tir_ins.value.id
