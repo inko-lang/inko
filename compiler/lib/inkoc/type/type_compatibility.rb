@@ -11,26 +11,25 @@ module Inkoc
         end
       end
 
-      def implements_method?(method)
-        symbol = lookup_method(method.name)
-
-        symbol.type.implementation_of?(method.type)
-      end
-
       def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return false if other.void?
         return implements_trait?(other) if other.trait?
         return type_compatible?(other.type) if other.optional?
 
-        false
+        nil
       end
 
       # Returns true if the current and the given type are compatible.
       def type_compatible?(other)
-        basic_type_compatibility?(other) ||
+        basic_compat = basic_type_compatibility?(other)
+
+        if basic_compat.nil?
           prototype == other ||
-          prototype == other.prototype
+            prototype == other.prototype
+        else
+          basic_compat
+        end
       end
 
       def strict_type_compatible?(other)

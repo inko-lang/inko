@@ -13,6 +13,10 @@ module Inkoc
         @required_traits = required_traits.to_set
       end
 
+      def new_instance(*)
+        self
+      end
+
       def type_parameter?
         true
       end

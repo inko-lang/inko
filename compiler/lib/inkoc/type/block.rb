@@ -9,10 +9,11 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :name, :arguments, :type_parameters, :attributes, :block_type
+      attr_reader :name, :arguments, :attributes, :block_type
 
       attr_accessor :rest_argument, :throws, :returns,
-                    :required_arguments_count, :inferred, :prototype
+                    :required_arguments_count, :inferred, :prototype,
+                    :type_parameters
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -41,6 +42,15 @@ module Inkoc
 
       def infer?
         closure? && !@inferred
+      end
+
+      def new_shallow_instance(tparams = type_parameters)
+        new_params = TypeParameterTable.new(type_parameters)
+        new_params.merge(tparams)
+
+        dup.tap do |copy|
+          copy.type_parameters = new_params
+        end
       end
 
       # Tries to infer this blocks argument types and return type to the types
@@ -136,11 +146,6 @@ module Inkoc
         returns
       end
 
-      def define_type_paaameter(name, param)
-        # FIXME: type parameters
-        type_parameters[name] = param
-      end
-
       def lookup_argument(name)
         arguments[name]
       end
@@ -161,41 +166,27 @@ module Inkoc
         end
       end
 
-      def lookup_type(name)
-        symbol = lookup_attribute(name)
-
-        return symbol.type if symbol.any?
-
-        type_parameters[name]
-      end
-
       def implementation_of?(block)
         name == block.name && strict_type_compatible?(block)
-      end
-
-      def type_parameters_compatible?(block)
-        params = type_parameters
-        other_params = block.type_parameters
-
-        return false if params.length != other_params.length
-
-        params.zip(other_params).all? do |ours, theirs|
-          ours.strict_type_compatible?(theirs)
-        end
       end
 
       def argument_types_compatible?(other)
         return false if arguments.length != other.arguments.length
 
         arguments.zip(other.arguments).all? do |ours, theirs|
-          ours.type.type_compatible?(theirs.type)
+          ours = real_type_for(ours.type)
+          theirs = real_type_for(theirs.type, other.type_parameters)
+
+          ours.type_compatible?(theirs)
         end
       end
 
       def throw_types_compatible?(other)
         if throws
           if other.throws
-            throws.type_compatible?(other.throws)
+            theirs = real_type_for(other.throws, other.type_parameters)
+
+            real_type_for(throws).type_compatible?(theirs)
           else
             closure?
           end
@@ -205,24 +196,41 @@ module Inkoc
       end
 
       def return_types_compatible?(other)
-        returns.type_compatible?(other.returns)
+        real_type_for(returns)
+          .type_compatible?(real_type_for(other.returns, other.type_parameters))
       end
 
       def type_compatible?(other)
-        if basic_type_compatibility?(other)
-          true
-        else
+        basic_compat = basic_type_compatibility?(other)
+
+        if basic_compat.nil?
           block_type_compatible?(other)
+        else
+          basic_compat
         end
       end
 
+      def same_kind_of_block?(other)
+        other.block? && block_type == other.block_type
+      end
+
       def block_type_compatible?(other)
-        other.is_a?(self.class) &&
-          block_type == other.block_type &&
+        same_kind_of_block?(other) &&
           rest_argument == other.rest_argument &&
           argument_types_compatible?(other) &&
           throw_types_compatible?(other) &&
           return_types_compatible?(other)
+      end
+
+      def real_type_for(type, type_params = type_parameters)
+        if type&.type_parameter?
+          resolved = type_params.instance_for(type.name) || type
+          resolved = Type::Optional.new(resolved) if type.optional?
+
+          resolved
+        else
+          type
+        end
       end
 
       def argument_types_without_self
@@ -237,7 +245,10 @@ module Inkoc
 
       def type_name
         type_params = type_parameter_names
-        args = argument_types_without_self.map(&:type_name)
+
+        args = argument_types_without_self.map do |arg|
+          real_type_for(arg).type_name
+        end
 
         tname =
           if type_params.any?
@@ -247,8 +258,8 @@ module Inkoc
           end
 
         tname += " (#{args.join(', ')})" unless args.empty?
-        tname += " !! #{throws.type_name}" if throws
-        tname += " -> #{return_type.type_name}" if return_type
+        tname += " !! #{real_type_for(throws).type_name}" if throws
+        tname += " -> #{real_type_for(return_type).type_name}" if return_type
 
         tname
       end

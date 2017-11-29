@@ -628,11 +628,14 @@ module Inkoc
         trait = resolve_module_type(node.trait_name, self_type)
         object = resolve_module_type(node.object_name, self_type)
 
-        verify_same_type_parameters(node.trait_name, trait)
         verify_same_type_parameters(node.object_name, object)
 
+        param_instances = type_parameter_instances_for(node.trait_name, object)
         block_type = define_block_type_for_object(node, object)
         new_scope = TypeScope.new(object, block_type, node.body.locals)
+
+        # TODO: check if the methods of the trait don't conflict with existing
+        # ones.
 
         # We add the trait to the object first so type checks comparing the
         # object and trait will pass.
@@ -641,13 +644,21 @@ module Inkoc
         define_type(node.body, new_scope)
 
         traits_implemented = required_traits_implemented?(object, trait, loc)
-        methods_implemented = required_methods_implemented?(object, trait, loc)
+
+        methods_implemented =
+          required_methods_implemented?(object, trait, param_instances, loc)
 
         unless traits_implemented && methods_implemented
           object.implemented_traits.delete(trait)
         end
 
         object
+      end
+
+      def type_parameter_instances_for(node, self_type)
+        node.type_parameters.map do |name|
+          resolve_module_type(name, self_type).new_instance
+        end
       end
 
       def on_reopen_object(node, scope)
@@ -684,11 +695,11 @@ module Inkoc
         true
       end
 
-      def required_methods_implemented?(object, trait, location)
-        trait.required_methods.each do |method|
-          next if object.implements_method?(method)
+      def required_methods_implemented?(object, trait, param_instances, loc)
+        trait.required_method_types(param_instances).each do |method_type|
+          next if object.implements_method?(method_type)
 
-          diagnostics.unimplemented_method_error(method.type, object, location)
+          diagnostics.unimplemented_method_error(method_type, object, loc)
 
           return false
         end
@@ -868,7 +879,8 @@ module Inkoc
       end
 
       def define_arguments(arguments, block_type, scope, constraints: false)
-        self_symbol = block_type.define_self_argument(scope.self_type)
+        self_symbol = block_type
+          .define_self_argument(scope.self_type.new_instance)
 
         scope.locals.add_symbol(self_symbol)
 
@@ -888,6 +900,8 @@ module Inkoc
             def_type ||
             val_type ||
             default_argument_type(constraints: constraints)
+
+          arg_type = arg_type.new_instance
 
           arg_symbol =
             if arg.default
@@ -926,19 +940,20 @@ module Inkoc
           return
         end
 
-        block_type.returns = wrap_optional_type(
-          rnode,
-          resolve_type(rnode, self_type, [block_type, self_type, @module])
-        )
+        rtype = resolve_type(rnode, self_type, [block_type, self_type, @module])
+          .new_instance
+
+        block_type.returns = wrap_optional_type(rnode, rtype)
       end
 
       def define_throw_type(node, block_type, self_type)
         return unless node.throws
 
-        block_type.throws = wrap_optional_type(
-          node.throws,
+        ttype =
           resolve_type(node.throws, self_type, [block_type, self_type, @module])
-        )
+            .new_instance
+
+        block_type.throws = wrap_optional_type(node.throws, ttype)
       end
 
       def type_for_argument_value(arg, scope)

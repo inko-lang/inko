@@ -335,31 +335,6 @@ describe Inkoc::Type::Block do
     end
   end
 
-  describe '#type_parameters_compatible?' do
-    it 'returns false when the number of type parameters is not the same' do
-      block1.define_type_parameter('T')
-
-      expect(block1.type_parameters_compatible?(block2)).to eq(false)
-    end
-
-    it 'returns false if the type parameters are not compatible' do
-      trait = Inkoc::Type::Trait.new(name: 'Foo')
-
-      block1.define_type_parameter('T', [trait])
-      block2.define_type_parameter('T')
-
-      expect(block1.type_parameters_compatible?(block2)).to eq(false)
-    end
-
-    it 'returns true if the type parameters are compatible' do
-      trait = Inkoc::Type::Trait.new(name: 'Foo')
-      block1.define_type_parameter('T', [trait])
-      block2.define_type_parameter('T', [trait])
-
-      expect(block1.type_parameters_compatible?(block2)).to eq(true)
-    end
-  end
-
   describe '#argument_types_compatible?' do
     it 'returns false when the number of arguments is not the same' do
       block1.define_argument('number', Inkoc::Type::Object.new)
@@ -451,7 +426,7 @@ describe Inkoc::Type::Block do
 
     it 'returns false when the types are not compatible' do
       block1.returns = Inkoc::Type::Object.new
-      block2.returns = Inkoc::Type::Object.new
+      block2.returns = Inkoc::Type::Trait.new
 
       expect(block1.return_types_compatible?(block2)).to eq(false)
     end
@@ -521,11 +496,8 @@ describe Inkoc::Type::Block do
     end
 
     it 'returns false when the arguments are not type compatible' do
-      parent = Inkoc::Type::Object.new
-      child = Inkoc::Type::Object.new
-
-      block1.define_argument('number', child)
-      block2.define_argument('number', parent)
+      block1.define_argument('number', Inkoc::Type::Object.new)
+      block2.define_argument('number', Inkoc::Type::Trait.new)
 
       expect(block1.type_compatible?(block2)).to eq(false)
     end
@@ -541,11 +513,8 @@ describe Inkoc::Type::Block do
     end
 
     it 'returns false when the throw types are not compatible' do
-      parent = Inkoc::Type::Object.new
-      child = Inkoc::Type::Object.new
-
-      block1.throws = child
-      block2.throws = parent
+      block1.throws = Inkoc::Type::Object.new
+      block2.throws = Inkoc::Type::Trait.new
 
       expect(block1.type_compatible?(block2)).to eq(false)
     end
@@ -561,11 +530,8 @@ describe Inkoc::Type::Block do
     end
 
     it 'returns false when the return types are not compatible' do
-      parent = Inkoc::Type::Object.new
-      child = Inkoc::Type::Object.new
-
-      block1.returns = child
-      block2.returns = parent
+      block1.returns = Inkoc::Type::Object.new
+      block2.returns = Inkoc::Type::Trait.new
 
       expect(block1.type_compatible?(block2)).to eq(false)
     end

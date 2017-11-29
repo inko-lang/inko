@@ -24,8 +24,24 @@ module Inkoc
         end
       end
 
-      def initialize_in_order(table)
+      def initialize_in_order(source)
+        if source.is_a?(self.class)
+          initialize_in_order_from_table(source)
+        else
+          initialize_in_order_from_array(source)
+        end
+      end
+
+      def initialize_in_order_from_table(table)
         table.each_instance.each_with_index do |(_, instance), index|
+          next unless (our_param = self[index])
+
+          initialize_parameter(our_param.name, instance)
+        end
+      end
+
+      def initialize_in_order_from_array(array)
+        array.each_with_index do |instance, index|
           next unless (our_param = self[index])
 
           initialize_parameter(our_param.name, instance)

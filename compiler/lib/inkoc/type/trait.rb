@@ -4,15 +4,13 @@ module Inkoc
   module Type
     class Trait
       include Inspect
+      include Predicates
+      include TypeCompatibility
       include ObjectOperations
       include GenericTypeOperations
-      include TypeCompatibility
-      include Predicates
 
-      attr_reader :name, :attributes, :required_methods, :type_parameters,
-                  :required_traits
-
-      attr_accessor :prototype
+      attr_reader :name, :attributes, :required_methods, :required_traits
+      attr_accessor :prototype, :type_parameters
 
       def initialize(
         name: Config::TRAIT_CONST,
@@ -27,16 +25,12 @@ module Inkoc
         @type_parameters = type_parameters
       end
 
-      def trait?
-        true
+      def new_instance(*)
+        self
       end
 
-      def new_instance(params = TypeParameterTable.new(type_parameters))
-        self.class.new(
-          name: name,
-          prototype: self,
-          type_parameters: params
-        )
+      def trait?
+        true
       end
 
       def define_required_method(block_type)
@@ -57,6 +51,15 @@ module Inkoc
 
       def empty?
         required_methods.empty? && required_traits.empty?
+      end
+
+      def required_method_types(param_instances = [])
+        params = Type::TypeParameterTable.new(type_parameters)
+        params.initialize_in_order(param_instances)
+
+        required_methods.map do |method|
+          method.type.new_shallow_instance(params)
+        end
       end
     end
   end
