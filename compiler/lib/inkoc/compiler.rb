@@ -12,6 +12,7 @@ module Inkoc
       Pass::TrackModule,
       Pass::InsertImplicitImports,
       Pass::CollectImports,
+      Pass::AddImplicitImportSymbols,
       Pass::CompileImportedModules,
       Pass::SetupSymbolTables,
       Pass::DefineTypes,
