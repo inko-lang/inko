@@ -1,5 +1,26 @@
+import std::index::(Index, SetIndex)
+import std::length::Length
+
 impl Array!(T) {
   def new!(V)(*values: V) -> Array!(V) {
     values
+  }
+}
+
+impl Length for Array!(T) {
+  def length -> Integer {
+    _INKOC.array_length(self)
+  }
+}
+
+impl Index!(Integer, T) for Array!(T) {
+  def [](index: Integer) -> ?T {
+    _INKOC.array_at(self, index)
+  }
+}
+
+impl SetIndex!(Integer, T) for Array!(T) {
+  def []=(index: Integer, value: T) -> T {
+    _INKOC.array_insert(self, index, value)
   }
 }

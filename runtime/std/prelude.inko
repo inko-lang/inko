@@ -5,3 +5,4 @@
 ![import_prelude: false]
 
 import std::array
+import std::string

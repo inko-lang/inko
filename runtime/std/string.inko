@@ -1,0 +1,9 @@
+trait ToString {
+  def to_string -> String
+}
+
+impl ToString for String {
+  def to_string -> String {
+    self
+  }
+}

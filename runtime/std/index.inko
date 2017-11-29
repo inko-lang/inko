@@ -1,0 +1,7 @@
+trait Index!(K, R) {
+  def [](index: K) -> ?R
+}
+
+trait SetIndex!(K, V) {
+  def []=(index: K, value: V) -> V
+}
