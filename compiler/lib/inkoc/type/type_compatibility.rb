@@ -25,8 +25,7 @@ module Inkoc
         basic_compat = basic_type_compatibility?(other)
 
         if basic_compat.nil?
-          prototype == other ||
-            prototype == other.prototype
+          prototype == other
         else
           basic_compat
         end

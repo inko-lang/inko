@@ -657,7 +657,7 @@ module Inkoc
 
       def type_parameter_instances_for(node, self_type)
         node.type_parameters.map do |name|
-          resolve_module_type(name, self_type).new_instance
+          resolve_module_type(name, self_type)
         end
       end
 
@@ -880,7 +880,7 @@ module Inkoc
 
       def define_arguments(arguments, block_type, scope, constraints: false)
         self_symbol = block_type
-          .define_self_argument(scope.self_type.new_instance)
+          .define_self_argument(scope.self_type)
 
         scope.locals.add_symbol(self_symbol)
 
@@ -901,7 +901,7 @@ module Inkoc
             val_type ||
             default_argument_type(constraints: constraints)
 
-          arg_type = arg_type.new_instance
+          arg_type = arg_type
 
           arg_symbol =
             if arg.default
@@ -941,7 +941,6 @@ module Inkoc
         end
 
         rtype = resolve_type(rnode, self_type, [block_type, self_type, @module])
-          .new_instance
 
         block_type.returns = wrap_optional_type(rnode, rtype)
       end
@@ -951,7 +950,6 @@ module Inkoc
 
         ttype =
           resolve_type(node.throws, self_type, [block_type, self_type, @module])
-            .new_instance
 
         block_type.throws = wrap_optional_type(node.throws, ttype)
       end
