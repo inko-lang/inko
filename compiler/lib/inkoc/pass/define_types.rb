@@ -151,15 +151,15 @@ module Inkoc
       end
 
       def on_integer(*)
-        typedb.integer_instance
+        typedb.integer_type
       end
 
       def on_float(*)
-        typedb.float_instance
+        typedb.float_type
       end
 
       def on_string(*)
-        typedb.string_instance
+        typedb.string_type
       end
 
       def on_attribute(node, scope)
@@ -452,11 +452,11 @@ module Inkoc
       end
 
       def on_raw_integer_to_string(*)
-        typedb.string_instance
+        typedb.string_type
       end
 
       def on_raw_stdout_write(*)
-        typedb.integer_instance
+        typedb.integer_type
       end
 
       def on_raw_get_true(*)
@@ -496,7 +496,7 @@ module Inkoc
       end
 
       def on_raw_array_length(*)
-        typedb.integer_instance
+        typedb.integer_type
       end
 
       def on_raw_array_at(node, _)
@@ -582,7 +582,7 @@ module Inkoc
 
         type.define_attribute(
           Config::OBJECT_NAME_INSTANCE_ATTRIBUTE,
-          typedb.string_instance
+          typedb.string_type
         )
 
         block_type = define_block_type_for_object(node, type)

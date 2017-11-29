@@ -170,13 +170,13 @@ module Inkoc
       end
 
       def on_integer(node, body)
-        register = body.register(typedb.integer_instance)
+        register = body.register(typedb.integer_type)
 
         body.instruct(:SetInteger, register, node.value, node.location)
       end
 
       def on_float(node, body)
-        register = body.register(typedb.float_instance)
+        register = body.register(typedb.float_type)
 
         body.instruct(:SetFloat, register, node.value, node.location)
       end
@@ -599,14 +599,14 @@ module Inkoc
       end
 
       def on_raw_integer_to_string(node, body)
-        register = body.register(typedb.string_instance)
+        register = body.register(typedb.string_type)
         value = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:IntegerToString, register, value, node.location)
       end
 
       def on_raw_stdout_write(node, body)
-        register = body.register(typedb.integer_instance)
+        register = body.register(typedb.integer_type)
         value = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:StdoutWrite, register, value, node.location)
@@ -805,7 +805,7 @@ module Inkoc
       end
 
       def set_string(value, body, location)
-        register = body.register(typedb.string_instance)
+        register = body.register(typedb.string_type)
 
         body.instruct(:SetString, register, value, location)
       end
