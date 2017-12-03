@@ -20,6 +20,7 @@ module Inkoc
       Pass::ValidateThrow,
       Pass::GenerateTir,
       Pass::DeadCode,
+      Pass::TailCallElimination,
       Pass::CodeGeneration,
       Pass::CodeWriter
     ].freeze

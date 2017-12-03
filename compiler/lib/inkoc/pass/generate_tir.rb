@@ -832,6 +832,7 @@ module Inkoc
             receiver,
             name_reg,
             [receiver, *arguments],
+            rec_type.lookup_method(name).type,
             location
           )
         end

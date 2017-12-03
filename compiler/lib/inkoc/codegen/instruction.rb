@@ -106,6 +106,7 @@ module Inkoc
         ArrayPush
         Throw
         SetRegister
+        TailCall
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

@@ -64,7 +64,7 @@ module Inkoc
       end
 
       def on_return(node, block_type)
-        process_node(node.value, block_type)
+        process_node(node.value, block_type) if node.value
       end
 
       def on_send(node, block_type)

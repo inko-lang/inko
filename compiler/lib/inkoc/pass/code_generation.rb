@@ -219,6 +219,13 @@ module Inkoc
           .instruct(:SendMessage, [reg, rec, name, *args], tir_ins.location)
       end
 
+      def on_tail_call(tir_ins, compiled_code, *)
+        arguments = tir_ins.arguments.map(&:id)
+
+        compiled_code
+          .instruct(:TailCall, arguments, tir_ins.location)
+      end
+
       def on_set_array(tir_ins, compiled_code, *)
         register = tir_ins.register.id
         values = tir_ins.values.map(&:id)

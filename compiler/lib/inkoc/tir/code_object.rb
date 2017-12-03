@@ -58,6 +58,8 @@ module Inkoc
       end
 
       def each_reachable_basic_block
+        return to_enum(__method__) unless block_given?
+
         block = start_block
 
         while block
