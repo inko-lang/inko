@@ -3,6 +3,7 @@ use std::io::{self, Write, Read, Seek, SeekFrom};
 
 use binding::Binding;
 use block::Block;
+use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
@@ -2169,6 +2170,25 @@ impl Machine {
 
                     context.set_register(instruction.arg(0), value);
                 }
+                // Performs a tail call on the current block.
+                //
+                // This instruction takes 0 or more arguments, each containing
+                // a register to set in the corresponding local variable.
+                InstructionType::TailCall => {
+                    context.binding.locals_mut().reset();
+
+                    self.prepare_new_context(
+                        process,
+                        instruction,
+                        &code,
+                        context,
+                        0,
+                    );
+
+                    context.register.values.reset();
+
+                    index = 0;
+                }
             };
         }
 
@@ -2241,50 +2261,61 @@ impl Machine {
         process: &RcProcess,
         instruction: &Instruction,
     ) {
+        let context = ExecutionContext::from_block(block, Some(return_register));
+
+        self.prepare_new_context(
+            process,
+            instruction,
+            &block.code,
+            &context,
+            arg_offset,
+        );
+
+        process.push_context(context);
+    }
+
+    fn prepare_new_context(
+        &self,
+        process: &RcProcess,
+        instruction: &Instruction,
+        code: &CompiledCodePointer,
+        context: &ExecutionContext,
+        arg_offset: usize,
+    ) {
         let ins_args_count = instruction.arguments.len();
         let arg_count = ins_args_count - arg_offset;
 
-        if !block.valid_number_of_arguments(arg_count) {
+        if !code.valid_number_of_arguments(arg_count) {
             panic!(
                 "{} takes {} arguments but {} were supplied",
-                block.name(),
-                block.label_for_number_of_arguments(),
+                code.name,
+                code.label_for_number_of_arguments(),
                 arg_count
             );
         }
 
-        let context = ExecutionContext::from_block(block, Some(return_register));
+        let locals = context.binding.locals_mut();
+        let max_index = arg_offset + code.number_of_arguments_to_set(arg_count);
+        let total = code.arguments();
 
-        {
-            // Add the arguments to the binding
-            let locals = context.binding.locals_mut();
-            let max_index = arg_offset +
-                block.number_of_arguments_to_set(arg_count);
+        for index in arg_offset..max_index {
+            let local_index = index - arg_offset;
 
-            let total = block.arguments();
-
-            for index in arg_offset..max_index {
-                let local_index = index - arg_offset;
-
-                locals[local_index] =
-                    process.get_register(instruction.arg(index));
-            }
-
-            // We can only reach this code if a rest argument is defined, thus
-            // we only need to check if too many arguments are passed.
-            if arg_count > total {
-                let rest_args = (max_index..ins_args_count)
-                    .map(|index| process.get_register(instruction.arg(index)))
-                    .collect::<Vec<ObjectPointer>>();
-
-                locals[total + 1] = process.allocate(
-                    object_value::array(rest_args),
-                    self.state.array_prototype,
-                );
-            }
+            locals[local_index] = process.get_register(instruction.arg(index));
         }
 
-        process.push_context(context);
+        // We can only reach this code if a rest argument is defined, thus
+        // we only need to check if too many arguments are passed.
+        if arg_count > total {
+            let rest_args = (max_index..ins_args_count)
+                .map(|index| process.get_register(instruction.arg(index)))
+                .collect::<Vec<ObjectPointer>>();
+
+            locals[total + 1] = process.allocate(
+                object_value::array(rest_args),
+                self.state.array_prototype,
+            );
+        }
     }
 
     fn throw(&self, process: &RcProcess, value: ObjectPointer) {

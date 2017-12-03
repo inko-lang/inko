@@ -17,19 +17,22 @@ pub struct Chunk<T> {
 
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
-        let vec = RawVec::with_capacity(capacity);
+        let mut chunk = Chunk { vec: RawVec::with_capacity(capacity) };
 
-        unsafe {
-            // We need to zero out the memory as otherwise we might get random
-            // garbage.
-            ptr::write_bytes(vec.ptr(), 0, capacity);
-        }
-
-        Chunk { vec: vec }
+        chunk.reset();
+        chunk
     }
 
     pub fn len(&self) -> usize {
         self.vec.cap()
+    }
+
+    pub fn reset(&mut self) {
+        unsafe {
+            // We need to zero out the memory as otherwise we might get random
+            // garbage.
+            ptr::write_bytes(self.vec.ptr(), 0, self.vec.cap());
+        }
     }
 }
 

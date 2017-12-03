@@ -31,54 +31,15 @@ impl Block {
         }
     }
 
-    #[inline(always)]
     pub fn arguments(&self) -> usize {
-        self.code.arguments as usize
+        self.code.arguments()
     }
 
-    #[inline(always)]
     pub fn required_arguments(&self) -> usize {
-        self.code.required_arguments as usize
+        self.code.required_arguments()
     }
 
     pub fn locals(&self) -> usize {
         self.code.locals as usize
-    }
-
-    pub fn has_rest_argument(&self) -> bool {
-        self.code.rest_argument
-    }
-
-    pub fn name(&self) -> &String {
-        &self.code.name
-    }
-
-    pub fn label_for_number_of_arguments(&self) -> String {
-        if self.has_rest_argument() {
-            format!("{}+", self.arguments())
-        } else {
-            format!("{}", self.arguments())
-        }
-    }
-
-    pub fn valid_number_of_arguments(&self, given: usize) -> bool {
-        let total = self.arguments();
-        let required = self.required_arguments();
-
-        if given < required {
-            return false;
-        }
-
-        if given > total && !self.has_rest_argument() {
-            return false;
-        }
-
-        true
-    }
-
-    pub fn number_of_arguments_to_set(&self, given: usize) -> usize {
-        let total = self.arguments();
-
-        if given <= total { given } else { total }
     }
 }

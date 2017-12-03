@@ -102,6 +102,45 @@ impl CompiledCode {
     pub fn instruction(&self, index: usize) -> &Instruction {
         unsafe { &self.instructions.get_unchecked(index) }
     }
+
+    #[inline(always)]
+    pub fn arguments(&self) -> usize {
+        self.arguments as usize
+    }
+
+    #[inline(always)]
+    pub fn required_arguments(&self) -> usize {
+        self.required_arguments as usize
+    }
+
+    pub fn label_for_number_of_arguments(&self) -> String {
+        if self.rest_argument {
+            format!("{}+", self.arguments())
+        } else {
+            format!("{}", self.arguments())
+        }
+    }
+
+    pub fn valid_number_of_arguments(&self, given: usize) -> bool {
+        let total = self.arguments();
+        let required = self.required_arguments();
+
+        if given < required {
+            return false;
+        }
+
+        if given > total && !self.rest_argument {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn number_of_arguments_to_set(&self, given: usize) -> usize {
+        let total = self.arguments();
+
+        if given <= total { given } else { total }
+    }
 }
 
 #[cfg(test)]

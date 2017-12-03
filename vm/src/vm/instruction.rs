@@ -104,6 +104,7 @@ pub enum InstructionType {
     ArrayPush,
     Throw,
     SetRegister,
+    TailCall,
 }
 
 /// Struct for storing information about a single instruction.
