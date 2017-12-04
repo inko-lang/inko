@@ -313,6 +313,15 @@ module Inkoc
         compiled_code.instruct(:IntegerAdd, [reg, base, add], tir_ins.location)
       end
 
+      def on_integer_smaller(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        base = tir_ins.base.id
+        other = tir_ins.other.id
+
+        compiled_code
+          .instruct(:IntegerSmaller, [reg, base, other], tir_ins.location)
+      end
+
       def on_stdout_write(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         val = tir_ins.value.id
