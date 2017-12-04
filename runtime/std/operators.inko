@@ -1,0 +1,11 @@
+trait Add!(T) {
+  def +(other: T) -> T
+}
+
+trait Smaller!(T) {
+  def <(other: T) -> Boolean
+}
+
+trait Greater!(T) {
+  def >(other: T) -> Boolean
+}
