@@ -1,0 +1,26 @@
+import std::string::ToString
+import std::operators::(Add, Smaller, Greater)
+
+impl ToString for Integer {
+  def to_string -> String {
+    _INKOC.integer_to_string(self)
+  }
+}
+
+impl Add!(Integer) for Integer {
+  def +(other: Integer) -> Integer {
+    _INKOC.integer_add(self, other)
+  }
+}
+
+impl Smaller!(Integer) for Integer {
+  def <(other: Integer) -> Boolean {
+    _INKOC.integer_smaller(self, other)
+  }
+}
+
+impl Greater!(Integer) for Integer {
+  def >(other: Integer) -> Boolean {
+    _INKOC.integer_greater(self, other)
+  }
+}
