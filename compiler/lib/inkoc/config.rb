@@ -36,6 +36,7 @@ module Inkoc
     STRING_CONST = 'String'
     TRUE_CONST = 'True'
     FALSE_CONST = 'False'
+    BOOLEAN_CONST = 'Boolean'
     NIL_CONST = 'Nil'
     ARRAY_TYPE_PARAMETER = 'T'
     HASH_MAP_KEY_TYPE_PARAMETER = 'K'

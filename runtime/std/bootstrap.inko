@@ -70,5 +70,10 @@ object Modules {}
 # define new modules in the first place.
 object Module {}
 
+# The boolean trait is defined in the top-level object so the compiler can more
+# easily refer to it, and code can depend on it before "std::boolean" is fully
+# defined.
+trait Boolean {}
+
 # Now we can define the object for the bootstrap module.
 _INKOC.set_attribute(Modules, 'std::bootstrap', Module.new)

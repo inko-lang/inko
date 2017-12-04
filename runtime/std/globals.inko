@@ -6,6 +6,7 @@
 ![import_globals: false]
 
 let Inko = _INKOC.get_toplevel
+let Boolean = Inko::Boolean
 let True = Inko::True
 let False = Inko::False
 let Nil = Inko::Nil

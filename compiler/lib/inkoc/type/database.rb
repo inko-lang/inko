@@ -34,6 +34,10 @@ module Inkoc
         @trait_type ||= top_level.type_of_attribute(Config::TRAIT_CONST)
       end
 
+      def boolean_type
+        @boolean_type ||= top_level.type_of_attribute(Config::BOOLEAN_CONST)
+      end
+
       def initialize_array_type
         type = Object.new(name: Config::ARRAY_CONST)
 
