@@ -878,6 +878,7 @@ module Inkoc
         define_return_type(node, type, scope.self_type)
         define_throw_type(node, type, scope.self_type)
         verify_block_type_parameters(node.type_parameters, scope.self_type)
+        type.define_call_method
       end
 
       def verify_block_type_parameters(params, receiver_type)

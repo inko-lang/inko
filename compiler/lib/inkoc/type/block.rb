@@ -9,11 +9,11 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :name, :arguments, :attributes, :block_type
+      attr_reader :arguments, :returns
 
-      attr_accessor :rest_argument, :throws, :returns,
+      attr_accessor :name, :rest_argument, :throws,
                     :required_arguments_count, :inferred, :prototype,
-                    :type_parameters
+                    :type_parameters, :attributes, :block_type
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -34,6 +34,28 @@ module Inkoc
         @required_arguments_count = 0
         @block_type = block_type
         @inferred = false
+      end
+
+      def returns=(value)
+        if (sym = attributes[Config::CALL_MESSAGE]) && sym.any?
+          sym.type.returns = value
+        end
+
+        @returns = value
+      end
+
+      def define_call_method
+        name = Config::CALL_MESSAGE
+        method = dup.tap do |m|
+          m.name = name
+          m.type_parameters = TypeParameterTable.new
+          m.block_type = :method
+          m.attributes = SymbolTable.new
+        end
+
+        attributes.define(name, method)
+
+        method
       end
 
       def implemented_traits

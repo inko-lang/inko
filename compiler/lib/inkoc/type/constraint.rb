@@ -48,6 +48,7 @@ module Inkoc
 
         required_methods[name] = block
 
+        block.define_call_method
         block
       end
 

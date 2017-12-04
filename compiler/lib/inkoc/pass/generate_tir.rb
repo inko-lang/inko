@@ -830,16 +830,19 @@ module Inkoc
         rec_type = receiver.type
         reg = body.register(rec_type.message_return_type(name))
         name_reg = set_string(name, body, location)
+        send_args = [receiver, *arguments]
 
         if send_initializes_array?(rec_type, name)
           body.instruct(:SetArray, reg, arguments, location)
+        elsif send_runs_block?(rec_type, name)
+          body.instruct(:RunBlock, reg, receiver, send_args, location)
         else
           body.instruct(
             :SendObjectMessage,
             reg,
             receiver,
             name_reg,
-            [receiver, *arguments],
+            send_args,
             rec_type.lookup_method(name).type,
             location
           )
@@ -852,6 +855,10 @@ module Inkoc
           receiver.prototype == typedb.array_type
 
         receiver_is_array && name == Config::NEW_MESSAGE
+      end
+
+      def send_runs_block?(receiver, name)
+        receiver.block? && name == Config::CALL_MESSAGE
       end
 
       def get_attribute(receiver, name, body, location)
