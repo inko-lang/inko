@@ -1,0 +1,3 @@
+impl Object {
+  def implement_trait(trait_to_implement) {}
+}

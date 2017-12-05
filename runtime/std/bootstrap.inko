@@ -58,7 +58,6 @@ impl Object {
   }
 
   def init {}
-  def implement_trait(thing) {}
 }
 
 # Inko::Modules contains all of the imported modules mapped to their fully
