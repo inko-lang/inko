@@ -114,6 +114,10 @@ module Inkoc
         @try_nesting -= 1
       end
 
+      def on_type_cast(node, block_type)
+        process_node(node.expression, block_type)
+      end
+
       def error_for_missing_throw_in_block(node)
         throws = throws? do
           process_nodes(node.arguments, node.block_type)

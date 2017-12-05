@@ -63,8 +63,12 @@ module Inkoc
       alias on_define_variable on_node_with_value
       alias on_reassign_variable on_node_with_value
 
-      def on_define_argument(node)
-        process_node(node.default) if node.default
+      def on_define_argument(node, outer)
+        process_node(node.default, outer) if node.default
+      end
+
+      def on_type_cast(node, outer)
+        process_node(node.expression, node, outer)
       end
     end
   end

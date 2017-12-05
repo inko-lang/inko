@@ -761,6 +761,14 @@ module Inkoc
         type
       end
 
+      def on_type_cast(node, scope)
+        define_type(node.expression, scope)
+
+        rtype = resolve_module_type(node.cast_to, scope.self_type)
+
+        wrap_optional_type(node.cast_to, rtype)
+      end
+
       def on_define_variable(node, scope)
         callback = node.variable.define_variable_visitor_method
         vtype = define_type(node.value, scope)

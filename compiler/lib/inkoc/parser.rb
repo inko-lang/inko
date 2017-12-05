@@ -252,7 +252,7 @@ module Inkoc
     end
 
     def expression(start)
-      binary_send(start)
+      type_cast(start)
     end
 
     def binary_send(start)
@@ -485,6 +485,19 @@ module Inkoc
           expression(start)
         end
       end
+    end
+
+    def type_cast(start)
+      node = binary_send(start)
+
+      if @lexer.next_type_is?(:as)
+        advance!
+
+        type = type_name(advance_and_expect!(:constant))
+        node = AST::TypeCast.new(node, type, start.location)
+      end
+
+      node
     end
 
     # rubocop: disable Metrics/CyclomaticComplexity

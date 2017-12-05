@@ -451,6 +451,10 @@ module Inkoc
         end
       end
 
+      def on_type_cast(node, body)
+        process_node(node.expression, body)
+      end
+
       def on_define_variable(node, body)
         callback = node.variable.define_variable_visitor_method
         value = process_node(node.value, body)
