@@ -11,6 +11,10 @@ module Inkoc
         end
       end
 
+      def implements_all_traits?(traits)
+        traits.all? { |trait| implements_trait?(trait) }
+      end
+
       def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return false if other.void?

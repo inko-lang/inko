@@ -67,7 +67,7 @@ module Inkoc
 
       def lookup_method_from_traits(name)
         implemented_traits.each do |trait|
-          if (method = trait.lookup_method(name)) && method.any?
+          if (method = trait.lookup_default_method(name)) && method.any?
             return method
           end
         end

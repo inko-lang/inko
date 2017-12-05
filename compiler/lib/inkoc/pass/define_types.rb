@@ -315,19 +315,8 @@ module Inkoc
       # type - The type of the argument that is being validated.
       # rest - If true the argument is supposed to be passed to a rest argument.
       def expected_type_for_argument(context, aname, type, rest = false)
-        expected = context.type_for_argument_or_rest(aname, rest)
-
-        if expected.type_parameter?
-          pname = expected.name
-
-          if (instance = context.type_parameter_instance(pname))
-            expected = instance
-          elsif type.type_compatible?(expected)
-            context.initialize_type_parameter(pname, type)
-          end
-        end
-
-        expected
+        context.type_for_argument_or_rest(aname, rest)
+          .initialize_as(type, context)
       end
 
       def verify_send_argument(argument, expected, location)
@@ -351,23 +340,7 @@ module Inkoc
         arg_type = argument.type
         expected = rest_type
           .lookup_type_parameter_instance(Config::ARRAY_TYPE_PARAMETER)
-
-        # Type parameters can be used in rest arguments (e.g. `*values: X`).
-        # This means we need to initialize then in similar fashion to regular
-        # arguments.
-        if expected.type_parameter?
-          pname = expected.name
-
-          if (instance = context.type_parameter_instance(pname))
-            expected = instance
-          elsif arg_type.type_compatible?(expected)
-            context.initialize_type_parameter(pname, arg_type)
-
-            # We've already determined the argument is valid, so there's no
-            # point in doing this again.
-            return
-          end
-        end
+          .initialize_as(arg_type, context)
 
         return if arg_type.type_compatible?(expected)
 
@@ -554,7 +527,7 @@ module Inkoc
           TypeScope.new(scope.self_type, node.try_block_type, scope.locals)
 
         try_type =
-          node.try_block_type.returns =
+          node.try_block_type.return_type_for_block_and_call =
             define_type(node.expression, try_scope)
 
         else_scope = node.type_scope_for_else(scope.self_type)
@@ -719,6 +692,8 @@ module Inkoc
 
           return false
         end
+
+        true
       end
 
       def on_method(node, scope)
@@ -777,7 +752,7 @@ module Inkoc
         rtype = node.body.type
         exp = type.return_type.resolve_type(scope.self_type)
 
-        type.returns = rtype if type.returns.dynamic?
+        type.return_type_for_block_and_call = rtype if type.returns.dynamic?
 
         unless rtype.type_compatible?(exp)
           diagnostics.return_type_error(exp, rtype, node.location)
@@ -948,18 +923,19 @@ module Inkoc
         rnode = node.returns
 
         unless rnode
-          block_type.returns = Type::Dynamic.new
+          block_type.return_type_for_block_and_call = Type::Dynamic.new
           return
         end
 
         if rnode.self_type?
-          block_type.returns = Type::SelfType.new
+          block_type.return_type_for_block_and_call = Type::SelfType.new
           return
         end
 
         rtype = resolve_type(rnode, self_type, [block_type, self_type, @module])
 
-        block_type.returns = wrap_optional_type(rnode, rtype)
+        block_type.return_type_for_block_and_call =
+          wrap_optional_type(rnode, rtype)
       end
 
       def define_throw_type(node, block_type, self_type)
@@ -1071,6 +1047,8 @@ module Inkoc
         args.each_with_index do |arg, index|
           type.define_argument(index.to_s, arg)
         end
+
+        type.define_call_method
 
         wrap_optional_type(node, type)
       end

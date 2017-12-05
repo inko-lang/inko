@@ -21,8 +21,15 @@ module Inkoc
         true
       end
 
-      def trait?
-        true
+      def initialize_as(type, context)
+        if (instance = context.type_parameter_instance(name))
+          instance
+        elsif type.implements_all_traits?(required_traits)
+          context.initialize_type_parameter(name, type)
+          type
+        else
+          self
+        end
       end
 
       def prototype

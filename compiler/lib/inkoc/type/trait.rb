@@ -38,7 +38,11 @@ module Inkoc
       end
 
       def lookup_method(name)
-        attributes[name].or_else { required_methods[name] }
+        lookup_default_method(name).or_else { required_methods[name] }
+      end
+
+      def lookup_default_method(name)
+        attributes[name]
       end
 
       def type_compatible?(other)

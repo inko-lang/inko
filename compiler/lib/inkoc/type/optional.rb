@@ -24,6 +24,14 @@ module Inkoc
         true
       end
 
+      def resolve_type(*args)
+        self.class.new(type.resolve_type(*args))
+      end
+
+      def initialize_as(*args)
+        self.class.new(type.initialize_as(*args))
+      end
+
       def type_name
         "?#{type.type_name}"
       end

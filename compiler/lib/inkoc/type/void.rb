@@ -16,6 +16,10 @@ module Inkoc
         nil
       end
 
+      def implements_all_traits?(*)
+        false
+      end
+
       def lookup_method(name)
         NullSymbol.new(name)
       end
@@ -28,13 +32,10 @@ module Inkoc
         false
       end
 
-      def type_compatible?(*)
-        true
+      def type_compatible?(other)
+        other.void? || other.dynamic?
       end
-
-      def strict_type_compatible?(other)
-        type_compatible?(other)
-      end
+      alias strict_type_compatible? type_compatible?
 
       def message_return_type(*)
         self

@@ -9,11 +9,11 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :arguments, :returns
+      attr_reader :arguments
 
       attr_accessor :name, :rest_argument, :throws,
                     :required_arguments_count, :inferred, :prototype,
-                    :type_parameters, :attributes, :block_type
+                    :type_parameters, :attributes, :block_type, :returns
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -36,9 +36,9 @@ module Inkoc
         @inferred = false
       end
 
-      def returns=(value)
+      def return_type_for_block_and_call=(value)
         if (sym = attributes[Config::CALL_MESSAGE]) && sym.any?
-          sym.type.returns = value
+          sym.type.return_type_for_block_and_call = value
         end
 
         @returns = value
@@ -64,6 +64,38 @@ module Inkoc
 
       def infer?
         closure? && !@inferred
+      end
+
+      def initialize_as(type, context)
+        if type.block?
+          new_shallow_instance(context.type_parameters).tap do |c|
+            c.initialize_arguments_as(type, context)
+            c.initialize_return_type_as(type, context)
+            c.initialize_throw_type_as(type, context)
+          end
+        else
+          super
+        end
+      end
+
+      def initialize_arguments_as(block, context)
+        theirs = block.arguments_without_self
+
+        arguments_without_self.each_with_index do |ours, index|
+          theirs = block.arguments[index + 1].type
+
+          ours.type.initialize_as(theirs, context)
+        end
+      end
+
+      def initialize_return_type_as(block, context)
+        @returns = returns.initialize_as(block.returns, context)
+      end
+
+      def initialize_throw_type_as(block, context)
+        return unless throws && block.throws
+
+        @throws = throws.initialize_as(block.throws, context)
       end
 
       def new_shallow_instance(tparams = type_parameters)
@@ -195,7 +227,9 @@ module Inkoc
       def argument_types_compatible?(other)
         return false if arguments.length != other.arguments.length
 
-        arguments.zip(other.arguments).all? do |ours, theirs|
+        their_args = other.arguments_without_self
+
+        arguments_without_self.zip(their_args).all? do |ours, theirs|
           ours = real_type_for(ours.type)
           theirs = real_type_for(theirs.type, other.type_parameters)
 
@@ -247,7 +281,10 @@ module Inkoc
       def real_type_for(type, type_params = type_parameters)
         if type&.type_parameter?
           resolved = type_params.instance_for(type.name) || type
-          resolved = Type::Optional.new(resolved) if type.optional?
+
+          if type.optional? && !resolved.optional?
+            resolved = Type::Optional.new(resolved)
+          end
 
           resolved
         else
@@ -255,14 +292,14 @@ module Inkoc
         end
       end
 
-      def argument_types_without_self
-        types = []
-
-        arguments.each do |arg|
-          types << arg.type unless arg.name == Config::SELF_LOCAL
+      def arguments_without_self
+        arguments.reject do |arg|
+          arg.name == Config::SELF_LOCAL
         end
+      end
 
-        types
+      def argument_types_without_self
+        arguments_without_self.map(&:type)
       end
 
       def type_name

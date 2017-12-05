@@ -7,6 +7,10 @@ module Inkoc
         type_parameters.any?
       end
 
+      def initialize_as(*)
+        self
+      end
+
       def define_type_parameter(name, required_traits = [])
         type_parameters.define(name, required_traits)
       end
