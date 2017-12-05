@@ -70,6 +70,12 @@ module Inkoc
       def if_physical_or_else
         self
       end
+
+      def implements_method?(method_type)
+        symbol = lookup_method(method_type.name)
+
+        symbol.type.implementation_of?(method_type)
+      end
     end
   end
 end

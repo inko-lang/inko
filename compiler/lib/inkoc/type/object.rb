@@ -74,12 +74,6 @@ module Inkoc
 
         NullSymbol.new(name)
       end
-
-      def implements_method?(method_type)
-        symbol = lookup_method(method_type.name)
-
-        symbol.type.implementation_of?(method_type)
-      end
     end
   end
 end
