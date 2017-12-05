@@ -1,0 +1,7 @@
+import std::string::ToString
+
+impl ToString for Nil {
+  def to_string -> String {
+    'Nil'
+  }
+}
