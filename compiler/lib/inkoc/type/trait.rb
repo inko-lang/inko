@@ -46,7 +46,7 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        return true if self == other
+        return true if self == other || other.dynamic?
 
         other.is_a?(self.class) &&
           required_traits == other.required_traits &&
