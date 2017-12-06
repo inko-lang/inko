@@ -69,6 +69,10 @@ module Inkoc
         false
       end
 
+      def if_physical_or_else
+        yield
+      end
+
       def ==(other)
         other.is_a?(Dynamic)
       end
