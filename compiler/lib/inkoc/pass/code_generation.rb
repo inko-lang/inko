@@ -25,7 +25,7 @@ module Inkoc
       end
 
       def process_instructions(compiled_code, code_object)
-        code_object.each_reachable_basic_block do |basic_block|
+        code_object.blocks.each do |basic_block|
           basic_block.instructions.each do |tir_ins|
             process_node(tir_ins, compiled_code, basic_block)
           end
@@ -38,12 +38,15 @@ module Inkoc
         compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
+        compiled_code.captures = code_object.captures
 
         set_catch_entries(compiled_code, code_object)
       end
 
       def set_catch_entries(compiled_code, code_object)
-        compiled_code.catch_table = code_object.catch_table.map do |entry|
+        entries = code_object.catch_table.entries
+
+        compiled_code.catch_table = entries.map do |entry|
           start = entry.try_block.instruction_offset
           stop = entry.try_block.instruction_end
           jump_to = entry.else_block.instruction_offset
@@ -124,8 +127,6 @@ module Inkoc
         variable = tir_ins.variable.index
         location = tir_ins.location
 
-        compiled_code.captures = true
-
         compiled_code
           .instruct(:GetParentLocal, [register, depth, variable], location)
       end
@@ -135,8 +136,6 @@ module Inkoc
         variable = tir_ins.variable.index
         value = tir_ins.value.id
         location = tir_ins.location
-
-        compiled_code.captures = true
 
         compiled_code
           .instruct(:SetParentLocal, [variable, depth, value], location)
@@ -195,9 +194,11 @@ module Inkoc
       end
 
       def on_return(tir_ins, compiled_code, *)
+        block_return = tir_ins.block_return ? 1 : 0
         register = tir_ins.register.id
 
-        compiled_code.instruct(:Return, [register], tir_ins.location)
+        compiled_code
+          .instruct(:Return, [block_return, register], tir_ins.location)
       end
 
       def on_run_block(tir_ins, compiled_code, *)

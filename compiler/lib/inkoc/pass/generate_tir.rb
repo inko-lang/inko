@@ -163,9 +163,9 @@ module Inkoc
         loc = ins ? ins.location : body.location
 
         if ins
-          body.instruct(:Return, ins.register, loc) unless ins.return?
+          body.instruct(:Return, false, ins.register, loc) unless ins.return?
         else
-          body.instruct(:Return, get_nil(body, loc), loc)
+          body.instruct(:Return, false, get_nil(body, loc), loc)
         end
       end
 
@@ -291,6 +291,7 @@ module Inkoc
         location
       )
         code_object = body.add_code_object(name, type, location, locals: locals)
+        code_object.captures = type.closure?
 
         define_block_arguments(code_object, arguments)
 
@@ -447,7 +448,7 @@ module Inkoc
         elsif node.receiver_type == @module.type
           get_global(Config::MODULE_GLOBAL, body, node.location)
         else
-          get_self(body, location)
+          get_self(body, node.location)
         end
       end
 
@@ -726,8 +727,9 @@ module Inkoc
           end
 
         register = body.register(value.type)
+        block_return = body.type.closure?
 
-        body.instruct(:Return, register, location)
+        body.instruct(:Return, block_return, register, location)
         body.add_basic_block
       end
 
@@ -758,9 +760,7 @@ module Inkoc
 
         # Block for everything that comes after our "try" expression.
         body.add_connected_basic_block
-
-        body.catch_table << TIR::CatchEntry
-          .new(try_block, else_block, catch_reg)
+        body.catch_table.add_entry(try_block, else_block, catch_reg)
 
         ret_reg
       end

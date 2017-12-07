@@ -146,6 +146,21 @@ impl ExecutionContext {
             .chain(self.register.pointers())
             .collect()
     }
+
+    /// Returns the top-most parent binding of the current binding.
+    pub fn top_binding_pointer(&self) -> *const Binding {
+        let mut current = self.binding();
+
+        while let Some(parent) = current.parent() {
+            current = parent;
+        }
+
+        &*current as *const Binding
+    }
+
+    pub fn binding_pointer(&self) -> *const Binding {
+        &*self.binding as *const Binding
+    }
 }
 
 impl<'a> Iterator for ExecutionContextIterator<'a> {

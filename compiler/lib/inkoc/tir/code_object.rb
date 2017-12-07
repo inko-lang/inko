@@ -8,6 +8,8 @@ module Inkoc
       attr_reader :name, :type, :locals, :registers, :location, :blocks,
                   :code_objects, :catch_table
 
+      attr_accessor :captures
+
       def initialize(name, type, location, locals: SymbolTable.new)
         @name = name
         @type = type
@@ -16,7 +18,8 @@ module Inkoc
         @location = location
         @blocks = []
         @code_objects = []
-        @catch_table = []
+        @catch_table = CatchTable.new
+        @captures = false
       end
 
       def arguments_count
@@ -70,7 +73,11 @@ module Inkoc
       end
 
       def reachable_basic_block?(block)
-        block == start_block || block.previous
+        catch_table.jump_to?(block) ||
+          block.empty? ||
+          block == start_block ||
+          current_block == block ||
+          block.previous
       end
 
       def define_local(name, type, mutable)

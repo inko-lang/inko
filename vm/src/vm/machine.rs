@@ -421,15 +421,29 @@ impl Machine {
                 }
                 // Returns the value in the given register.
                 //
-                // This instruction takes a single argument: the register
-                // containing the value to return. If this argument is not given
-                // a nil value is returned instead.
+                // This instruction takes two arguments:
+                //
+                // 1. An integer that indicates if we're performing a regular
+                //    return (0) or a block return (1).
+                // 2. The register containing the value to return. If no value
+                //    is given nil will be returned instead.
+                //
+                // When performing a block return we'll first unwind the call
+                // stack to the scope that defined the current block.
                 InstructionType::Return => {
-                    let object = if let Some(register) = instruction.arg_opt(0) {
+                    let block_return = instruction.arg(0) == 1;
+
+                    let object = if let Some(register) = instruction.arg_opt(1) {
                         context.get_register(register)
                     } else {
                         self.state.nil_object
                     };
+
+                    if block_return {
+                        self.unwind_until_defining_scope(process);
+
+                        context = &mut **process.context_mut();
+                    }
 
                     if let Some(register) = context.return_register {
                         if let Some(parent_context) = context.parent_mut() {
@@ -2335,10 +2349,23 @@ impl Machine {
 
             if process.pop_context() {
                 panic!(
-                    "A thrown value reached the top-level \
-                                        in process {}",
+                    "A thrown value reached the top-level in process {}",
                     process.pid
                 );
+            }
+        }
+    }
+
+    fn unwind_until_defining_scope(&self, process: &RcProcess) {
+        let top_binding = process.context().top_binding_pointer();
+
+        loop {
+            let context = process.context();
+
+            if context.binding_pointer() == top_binding {
+                return;
+            } else {
+                process.pop_context();
             }
         }
     }
