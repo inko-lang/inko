@@ -719,14 +719,13 @@ module Inkoc
 
       def on_return(node, body)
         location = node.location
-        value =
+        register =
           if node.value
             process_node(node.value, body)
           else
             get_nil(body, location)
           end
 
-        register = body.register(value.type)
         block_return = body.type.closure?
 
         body.instruct(:Return, block_return, register, location)
