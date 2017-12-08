@@ -29,7 +29,14 @@ module Inkoc
         basic_compat = basic_type_compatibility?(other)
 
         if basic_compat.nil?
-          prototype == other
+          # Generic types that are initialized set their prototype to the base
+          # type, so in this case we also need to compare with the prototype of
+          # the object we're comparing with.
+          if other.generic_type?
+            prototype == other || prototype == other.prototype
+          else
+            prototype == other
+          end
         else
           basic_compat
         end
