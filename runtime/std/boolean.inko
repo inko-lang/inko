@@ -1,0 +1,62 @@
+import std::conditional::Conditional
+import std::string::ToString
+
+impl Conditional for Boolean {
+  def if_true!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if_false!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+    Nil
+  }
+}
+
+impl Conditional for True {
+  def if_true!(R)(block: () -> R) -> ?R {
+    block.call
+  }
+
+  def if_false!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+    true.call
+  }
+}
+
+impl Conditional for False {
+  def if_true!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if_false!(R)(block: () -> R) -> ?R {
+    block.call
+  }
+
+  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+    false.call
+  }
+}
+
+impl ToString for Boolean {
+  def to_string -> String {
+    'Boolean'
+  }
+}
+
+impl ToString for True {
+  def to_string -> String {
+    'True'
+  }
+}
+
+impl ToString for False {
+  def to_string -> String {
+    'False'
+  }
+}

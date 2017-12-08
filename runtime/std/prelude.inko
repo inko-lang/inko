@@ -6,6 +6,7 @@
 
 import std::object
 import std::array
-import std::string
-import std::nil
+import std::boolean
 import std::integer
+import std::nil
+import std::string

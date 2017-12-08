@@ -1,0 +1,5 @@
+trait Conditional {
+  def if_true!(R)(block: () -> R) -> ?R
+  def if_false!(R)(block: () -> R) -> ?R
+  def if!(R)(true: () -> R, false: () -> R) -> ?R
+}

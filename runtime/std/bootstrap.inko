@@ -25,8 +25,6 @@ var Float = _INKOC.get_float_prototype
 var Block = _INKOC.get_block_prototype
 var Array = _INKOC.get_array_prototype
 
-_INKOC.set_prototype(True, Object)
-_INKOC.set_prototype(False, Object)
 _INKOC.set_prototype(Nil, Object)
 _INKOC.set_prototype(String, Object)
 _INKOC.set_prototype(Integer, Object)
@@ -49,8 +47,7 @@ _INKOC.set_attribute(Block, '@_name', 'Block')
 # creating of modules.
 impl Object {
   def new -> Self {
-    let permanent = _INKOC.get_false
-    let obj = _INKOC.set_object(permanent, self)
+    let obj = _INKOC.set_object(False, self)
 
     obj.init
 
@@ -60,6 +57,14 @@ impl Object {
   def init {}
 }
 
+# Boolean is defined slightly later on because it's not a type built into the
+# VM. Using the "object" keyword removes the need for manually setting the name,
+# prototype, etc.
+object Boolean {}
+
+_INKOC.set_prototype(True, Boolean)
+_INKOC.set_prototype(False, Boolean)
+
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.
 object Modules {}
@@ -68,11 +73,6 @@ object Modules {}
 # this object in the std::module module, but we need it here to allow us to
 # define new modules in the first place.
 object Module {}
-
-# The boolean trait is defined in the top-level object so the compiler can more
-# easily refer to it, and code can depend on it before "std::boolean" is fully
-# defined.
-trait Boolean {}
 
 # Now we can define the object for the bootstrap module.
 _INKOC.set_attribute(Modules, 'std::bootstrap', Module.new)
