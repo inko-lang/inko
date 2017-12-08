@@ -1,0 +1,17 @@
+impl Block {
+  def call {
+    _INKOC.run_block(self)
+  }
+
+  def while_false(block: ()) -> Nil {
+    call.if_true { return }
+    block.call
+    while_false(block)
+  }
+
+  def while_true(block: ()) -> Nil {
+    call.if_false { return }
+    block.call
+    while_true(block)
+  }
+}
