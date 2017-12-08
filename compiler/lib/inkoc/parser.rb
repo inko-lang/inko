@@ -255,6 +255,19 @@ module Inkoc
       type_cast(start)
     end
 
+    def type_cast(start)
+      node = binary_send(start)
+
+      if @lexer.next_type_is?(:as)
+        advance!
+
+        type = type_name(advance_and_expect!(:constant))
+        node = AST::TypeCast.new(node, type, start.location)
+      end
+
+      node
+    end
+
     def binary_send(start)
       node = send_chain(start)
 
@@ -381,12 +394,23 @@ module Inkoc
       while @lexer.next_type_is?(:dot)
         skip_one
 
-        name, location = send_name_and_location
-        args = send_chain_arguments(location.line)
-        node = AST::Send.new(name, node, args, location)
+        node = send_chain_with_receiver(node)
       end
 
       node
+    end
+
+    def send_chain_with_receiver(receiver)
+      name, location = send_name_and_location
+      args = []
+
+      if @lexer.next_type_is?(:paren_open)
+        args = arguments_with_parenthesis
+      elsif next_expression_is_argument?(location.line)
+        return send_without_parenthesis(receiver, name, location)
+      end
+
+      AST::Send.new(name, receiver, args, location)
     end
 
     # Returns the name and location to use for sending a message to an object.
@@ -394,17 +418,6 @@ module Inkoc
       token = advance!
 
       [message_name_for_token(token), token.location]
-    end
-
-    # Parses the arguments for a method call part of a method call chain.
-    def send_chain_arguments(line)
-      if @lexer.next_type_is?(:paren_open)
-        arguments_with_parenthesis
-      elsif next_expression_is_argument?(line)
-        arguments_without_parenthesis
-      else
-        []
-      end
     end
 
     # Returns true if the next expression is an argument to use when parsing
@@ -429,7 +442,7 @@ module Inkoc
       while (token = @lexer.advance) && token.valid?
         break if token.type == :paren_close
 
-        args << send_argument(token)
+        args << expression_or_keyword_argument(token)
 
         if @lexer.next_type_is?(:comma)
           skip_one
@@ -446,27 +459,41 @@ module Inkoc
     # Example:
     #
     #     10, 'foo', 'bar'
-    def arguments_without_parenthesis
+    def send_without_parenthesis(receiver, name, location)
       args = []
 
       while (token = @lexer.advance) && token.valid?
-        args << send_argument(token)
+        arg, is_block = argument_for_send_without_parenthesis(token)
+        args << arg
+
+        if is_block && @lexer.next_type_is?(:dot)
+          skip_one
+
+          node = AST::Send.new(name, receiver, args, location)
+
+          return send_chain_with_receiver(node)
+        end
 
         break unless @lexer.next_type_is?(:comma)
 
         skip_one
       end
 
-      args
+      AST::Send.new(name, receiver, args, location)
     end
 
-    # Parses an argument passed to a method call.
-    #
-    # Examples:
-    #
-    #     foo(10)
-    #     foo(number: 10)
-    def send_argument(start)
+    def argument_for_send_without_parenthesis(token)
+      case token.type
+      when :curly_open
+        [block_without_arguments(token), true]
+      when :do
+        [block(token), true]
+      else
+        [expression_or_keyword_argument(token), false]
+      end
+    end
+
+    def expression_or_keyword_argument(start)
       if @lexer.next_type_is?(:colon)
         skip_one
 
@@ -474,30 +501,8 @@ module Inkoc
 
         AST::KeywordArgument.new(start.value, value, start.location)
       else
-        # Blocks are parsed more "tightly" so that `foo { }.bar` translates into
-        # `foo({ }).bar`.
-        case start.type
-        when :curly_open
-          block_without_arguments(start)
-        when :do
-          block(start)
-        else
-          expression(start)
-        end
+        expression(start)
       end
-    end
-
-    def type_cast(start)
-      node = binary_send(start)
-
-      if @lexer.next_type_is?(:as)
-        advance!
-
-        type = type_name(advance_and_expect!(:constant))
-        node = AST::TypeCast.new(node, type, start.location)
-      end
-
-      node
     end
 
     # rubocop: disable Metrics/CyclomaticComplexity
@@ -561,9 +566,7 @@ module Inkoc
       elsif next_expression_is_argument?(start.line)
         # If an identifier is followed by another expression on the same line
         # we'll treat said expression as the start of an argument list.
-        args = arguments_without_parenthesis
-
-        AST::Send.new(start.value, nil, args, start.location)
+        send_without_parenthesis(nil, start.value, start.location)
       else
         identifier_from_token(start)
       end
@@ -621,7 +624,7 @@ module Inkoc
       AST::Block.new([], [], nil, nil, block_body(start), start.location)
     end
 
-    # Parses a block starting with the "fn" keyword.
+    # Parses a block starting with the "do" keyword.
     #
     # Examples:
     #
