@@ -38,7 +38,7 @@ module Inkoc
         compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
         compiled_code.registers = code_object.registers_count
-        compiled_code.captures = code_object.captures
+        compiled_code.captures = code_object.captures?
 
         set_catch_entries(compiled_code, code_object)
       end

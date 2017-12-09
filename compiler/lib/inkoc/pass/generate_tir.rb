@@ -291,7 +291,6 @@ module Inkoc
         location
       )
         code_object = body.add_code_object(name, type, location, locals: locals)
-        code_object.captures = type.closure?
 
         define_block_arguments(code_object, arguments)
 
@@ -474,8 +473,14 @@ module Inkoc
         body.instruct(:SetLocal, symbol, value, location)
       end
 
-      def get_local(name, body, location)
-        depth, symbol = body.locals.lookup_with_parent(name)
+      def get_local(name, body, location, in_root: false)
+        depth, symbol =
+          if in_root
+            body.locals.lookup_in_root(name)
+          else
+            body.locals.lookup_with_parent(name)
+          end
+
         register = body.register(symbol.type)
 
         if depth.positive?
@@ -810,7 +815,9 @@ module Inkoc
       end
 
       def get_self(body, location)
-        get_local(Config::SELF_LOCAL, body, location)
+        name = Config::SELF_LOCAL
+
+        get_local(name, body, location, in_root: body.type.closure?)
       end
 
       def get_nil(body, location)
@@ -838,7 +845,7 @@ module Inkoc
       end
 
       def send_object_message(receiver, name, arguments, body, location)
-        rec_type = receiver.type
+        rec_type = receiver.type.resolve_type(body.self_type)
         reg = body.register(rec_type.message_return_type(name))
         name_reg = set_string(name, body, location)
         send_args = [receiver, *arguments]

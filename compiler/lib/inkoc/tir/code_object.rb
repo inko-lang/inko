@@ -8,8 +8,6 @@ module Inkoc
       attr_reader :name, :type, :locals, :registers, :location, :blocks,
                   :code_objects, :catch_table
 
-      attr_accessor :captures
-
       def initialize(name, type, location, locals: SymbolTable.new)
         @name = name
         @type = type
@@ -19,7 +17,10 @@ module Inkoc
         @blocks = []
         @code_objects = []
         @catch_table = CatchTable.new
-        @captures = false
+      end
+
+      def captures?
+        type.closure?
       end
 
       def arguments_count

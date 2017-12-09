@@ -61,6 +61,18 @@ module Inkoc
       [0, NullSymbol.new(name_or_index)]
     end
 
+    def lookup_in_root(name_or_index)
+      source = self
+      depth = 0
+
+      while source.parent
+        depth += 1
+        source = source.parent
+      end
+
+      [depth, source[name_or_index]]
+    end
+
     def defined?(name)
       lookup_with_parent(name)[1].any?
     end

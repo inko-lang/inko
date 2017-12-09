@@ -56,7 +56,7 @@ module Inkoc
       end
 
       def message_return_type(name)
-        lookup_method(name).type.return_type
+        lookup_method(name).type.return_type.resolve_type(self)
       end
 
       def responds_to_message?(name)
