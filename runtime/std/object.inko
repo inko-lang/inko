@@ -1,3 +1,19 @@
+import std::conditional::Conditional
+
 impl Object {
   def implement_trait(trait_to_implement) {}
+}
+
+impl Conditional for Object {
+  def if_true!(R)(block: () -> R) -> ?R {
+    block.call
+  }
+
+  def if_false!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+    true.call
+  }
 }

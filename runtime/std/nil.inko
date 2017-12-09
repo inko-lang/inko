@@ -1,7 +1,22 @@
 import std::string::ToString
+import std::conditional::Conditional
 
 impl ToString for Nil {
   def to_string -> String {
     'Nil'
+  }
+}
+
+impl Conditional for Nil {
+  def if_true!(R)(block: () -> R) -> ?R {
+    Nil
+  }
+
+  def if_false!(R)(block: () -> R) -> ?R {
+    block.call
+  }
+
+  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+    false.call
   }
 }
