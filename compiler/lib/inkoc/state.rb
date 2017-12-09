@@ -51,5 +51,9 @@ module Inkoc
     def find_module_path(path)
       @module_paths_cache.absolute_path_for(path)
     end
+
+    def inspect
+      "Inkoc::State(modules: [#{modules.keys.join(', ')}])"
+    end
   end
 end

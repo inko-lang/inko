@@ -441,6 +441,10 @@ module Inkoc
         send_object_message(receiver, node.name, arg_regs, body, location)
       end
 
+      def on_keyword_argument(_node, _body)
+        raise NotImplementedError, 'keyword arguments are not yet supported'
+      end
+
       def receiver_for_send(node, body)
         if node.receiver
           process_node(node.receiver, body)

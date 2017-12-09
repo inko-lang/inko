@@ -2,16 +2,26 @@
 
 module Inkoc
   module Pass
-    class ValidateConstraints
+    # Pass that replaces keyword arguments with position arguments when passed
+    # in order.
+    #
+    # Consider this method:
+    #
+    #     def register(name: String, address: String) { }
+    #
+    # When called like this:
+    #
+    #     register(name: 'Elmo', address: 'Sesame Street')
+    #
+    # This pass will turn the call into this:
+    #
+    #     register('Elmo', 'Sesame Street')
+    class OptimizeKeywordArguments
       include VisitorMethods
 
       def initialize(mod, state)
         @module = mod
         @state = state
-      end
-
-      def diagnostics
-        @state.diagnostics
       end
 
       def run(node)
@@ -26,18 +36,6 @@ module Inkoc
 
       def on_block(node)
         process_nodes(node.body.expressions)
-      end
-
-      def on_send(node)
-        name = node.name
-        rtype = node.receiver&.type
-
-        if rtype&.unresolved_constraint? && !rtype.responds_to_message?(name)
-          diagnostics.undefined_method_error(rtype, name, node.location)
-        end
-
-        process_node(node.receiver) if node.receiver
-        process_nodes(node.arguments)
       end
 
       def on_node_with_body(node)
@@ -63,10 +61,33 @@ module Inkoc
       alias on_return on_node_with_value
       alias on_define_variable on_node_with_value
       alias on_reassign_variable on_node_with_value
-      alias on_keyword_argument on_node_with_value
 
       def on_type_cast(node)
         process_node(node.expression)
+      end
+
+      def on_send(node)
+        process_node(node.receiver) if node.receiver
+
+        node.arguments.map!.with_index do |arg, index|
+          if arg.keyword_argument?
+            on_keyword_argument(arg, index, node.block_type)
+          else
+            arg
+          end
+        end
+      end
+
+      def on_keyword_argument(node, position, block_type)
+        symbol = block_type.lookup_argument(node.name)
+
+        # We add +1 to the position since "self" is the first argument but isn't
+        # included explicitly in the argument list.
+        if symbol.index == position + 1
+          node.value
+        else
+          node
+        end
       end
     end
   end

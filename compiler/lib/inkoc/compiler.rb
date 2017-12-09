@@ -18,6 +18,7 @@ module Inkoc
       Pass::DefineTypes,
       Pass::ValidateConstraints,
       Pass::ValidateThrow,
+      Pass::OptimizeKeywordArguments,
       Pass::GenerateTir,
       Pass::DeadCode,
       Pass::TailCallElimination,
