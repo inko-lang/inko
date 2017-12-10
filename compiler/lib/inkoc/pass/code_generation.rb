@@ -68,13 +68,6 @@ module Inkoc
           .instruct(:GetBlockPrototype, [register], tir_ins.location)
       end
 
-      def on_get_boolean_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetBooleanPrototype, [register], tir_ins.location)
-      end
-
       def on_get_float_prototype(tir_ins, compiled_code, *)
         register = tir_ins.register.id
 
