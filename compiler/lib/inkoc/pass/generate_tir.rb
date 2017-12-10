@@ -652,6 +652,14 @@ module Inkoc
         body.instruct(:IntegerGreater, register, base, other, node.location)
       end
 
+      def on_raw_integer_equals(node, body)
+        register = body.register(node.type)
+        base = process_node(node.arguments.fetch(0), body)
+        other = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:IntegerEquals, register, base, other, node.location)
+      end
+
       def on_raw_stdout_write(node, body)
         register = body.register(typedb.integer_type)
         value = process_node(node.arguments.fetch(0), body)

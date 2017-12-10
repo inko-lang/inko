@@ -325,6 +325,15 @@ module Inkoc
           .instruct(:IntegerGreater, [reg, base, other], tir_ins.location)
       end
 
+      def on_integer_equals(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        base = tir_ins.base.id
+        other = tir_ins.other.id
+
+        compiled_code
+          .instruct(:IntegerEquals, [reg, base, other], tir_ins.location)
+      end
+
       def on_stdout_write(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         val = tir_ins.value.id
