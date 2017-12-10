@@ -376,6 +376,15 @@ module Inkoc
         compiled_code
           .instruct(:ArrayInsert, [reg, array, index, value], tir_ins.location)
       end
+
+      def on_object_equals(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        object = tir_ins.object.id
+        compare = tir_ins.compare_with.id
+
+        compiled_code
+          .instruct(:ObjectEquals, [reg, object, compare], tir_ins.location)
+      end
     end
   end
 end

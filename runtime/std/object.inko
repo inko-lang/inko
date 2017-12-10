@@ -1,4 +1,5 @@
 import std::conditional::Conditional
+import std::operators::Equal
 
 impl Object {
   def implement_trait(trait_to_implement) {}
@@ -15,5 +16,11 @@ impl Conditional for Object {
 
   def if!(R)(true: () -> R, false: () -> R) -> ?R {
     true.call
+  }
+}
+
+impl Equal!(Object) for Object {
+  def ==(other: Object) -> Boolean {
+    _INKOC.object_equals(self, other)
   }
 }

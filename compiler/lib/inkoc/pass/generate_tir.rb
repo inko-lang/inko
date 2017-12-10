@@ -612,6 +612,15 @@ module Inkoc
         end
       end
 
+      def on_raw_object_equals(node, body)
+        register = body.register(node.type)
+        object = process_node(node.arguments.fetch(0), body)
+        compare_with = process_node(node.arguments.fetch(1), body)
+        location = node.location
+
+        body.instruct(:ObjectEquals, register, object, compare_with, location)
+      end
+
       def on_raw_integer_to_string(node, body)
         register = body.register(typedb.string_type)
         value = process_node(node.arguments.fetch(0), body)

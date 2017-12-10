@@ -424,6 +424,10 @@ module Inkoc
         Type::Object.new(prototype: proto)
       end
 
+      def on_raw_object_equals(*)
+        typedb.boolean_type
+      end
+
       def on_raw_integer_to_string(*)
         typedb.string_type
       end

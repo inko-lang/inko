@@ -9,3 +9,7 @@ trait Smaller!(T) {
 trait Greater!(T) {
   def >(other: T) -> Boolean
 }
+
+trait Equal!(T) {
+  def ==(other: T) -> Boolean
+}
