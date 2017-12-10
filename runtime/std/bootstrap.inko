@@ -14,6 +14,7 @@
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this
 # point. This also means we need to manually set their prototypes and names.
+var Boolean = _INKOC.get_boolean_prototype
 var True = _INKOC.get_true
 var False = _INKOC.get_false
 var Nil = _INKOC.get_nil
@@ -31,6 +32,7 @@ _INKOC.set_prototype(Integer, Object)
 _INKOC.set_prototype(Float, Object)
 _INKOC.set_prototype(Array, Object)
 _INKOC.set_prototype(Block, Object)
+_INKOC.set_prototype(Boolean, Object)
 
 _INKOC.set_attribute(True, '@_name', 'True')
 _INKOC.set_attribute(False, '@_name', 'False')
@@ -56,14 +58,6 @@ impl Object {
 
   def init {}
 }
-
-# Boolean is defined slightly later on because it's not a type built into the
-# VM. Using the "object" keyword removes the need for manually setting the name,
-# prototype, etc.
-object Boolean {}
-
-_INKOC.set_prototype(True, Boolean)
-_INKOC.set_prototype(False, Boolean)
 
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.

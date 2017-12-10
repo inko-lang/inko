@@ -448,6 +448,10 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_get_boolean_prototype(*)
+        typedb.boolean_type
+      end
+
       def on_raw_get_true(*)
         typedb.true_type
       end

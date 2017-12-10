@@ -663,6 +663,12 @@ module Inkoc
         get_true(body, node.location)
       end
 
+      def on_raw_get_boolean_prototype(node, body)
+        reg = body.register(node.type)
+
+        body.instruct(:GetBooleanPrototype, reg, node.location)
+      end
+
       def on_raw_get_false(node, body)
         get_false(body, node.location)
       end
