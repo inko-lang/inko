@@ -1,5 +1,5 @@
 import std::string::ToString
-import std::operators::(Add, Smaller, Greater)
+import std::operators::(Add, Smaller, Greater, Equal)
 
 impl ToString for Integer {
   def to_string -> String {
@@ -22,5 +22,11 @@ impl Smaller!(Integer) for Integer {
 impl Greater!(Integer) for Integer {
   def >(other: Integer) -> Boolean {
     _INKOC.integer_greater(self, other)
+  }
+}
+
+impl Equal!(Integer) for Integer {
+  def ==(other: Integer) -> Boolean {
+    _INKOC.integer_equals(self, other)
   }
 }
