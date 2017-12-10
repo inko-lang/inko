@@ -43,6 +43,7 @@ _INKOC.set_attribute(Integer, '@_name', 'Integer')
 _INKOC.set_attribute(Float, '@_name', 'Float')
 _INKOC.set_attribute(Array, '@_name', 'Array')
 _INKOC.set_attribute(Block, '@_name', 'Block')
+_INKOC.set_attribute(Boolean, '@_name', 'Boolean')
 
 # Now that our core objects are set up we can start defining more of the
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow
