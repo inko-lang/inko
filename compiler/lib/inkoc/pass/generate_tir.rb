@@ -55,8 +55,9 @@ module Inkoc
         imported_mod = @state.module(qname)
         import_path = imported_mod.bytecode_import_path
         path_reg = set_string(import_path, body, location)
+        reg = body.register_dynamic
 
-        body.instruct(:LoadModule, body.register_dynamic, path_reg, location)
+        body.instruct(:Unary, :LoadModule, reg, path_reg, location)
       end
 
       def set_module_register(qname, body, location)
@@ -172,13 +173,13 @@ module Inkoc
       def on_integer(node, body)
         register = body.register(typedb.integer_type)
 
-        body.instruct(:SetInteger, register, node.value, node.location)
+        body.instruct(:SetLiteral, register, node.value, node.location)
       end
 
       def on_float(node, body)
         register = body.register(typedb.float_type)
 
-        body.instruct(:SetFloat, register, node.value, node.location)
+        body.instruct(:SetLiteral, register, node.value, node.location)
       end
 
       def on_string(node, body)
@@ -570,6 +571,27 @@ module Inkoc
         end
       end
 
+      def raw_nullary_instruction(name, node, body)
+        reg = body.register(node.type)
+
+        body.instruct(:Nullary, name, reg, node.location)
+      end
+
+      def raw_unary_instruction(name, node, body)
+        reg = body.register(node.type)
+        val = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Unary, name, reg, val, node.location)
+      end
+
+      def raw_binary_instruction(name, node, body)
+        register = body.register(node.type)
+        left = process_node(node.arguments.fetch(0), body)
+        right = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:Binary, name, register, left, right, node.location)
+      end
+
       def on_raw_get_toplevel(node, body)
         get_toplevel(body, node.location)
       end
@@ -591,11 +613,7 @@ module Inkoc
       end
 
       def on_raw_get_attribute(node, body)
-        register = body.register(node.type)
-        receiver = process_node(node.arguments.fetch(0), body)
-        name = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:GetAttribute, register, receiver, name, node.location)
+        raw_binary_instruction(:GetAttribute, node, body)
       end
 
       def on_raw_set_object(node, body)
@@ -613,58 +631,31 @@ module Inkoc
       end
 
       def on_raw_object_equals(node, body)
-        register = body.register(node.type)
-        object = process_node(node.arguments.fetch(0), body)
-        compare_with = process_node(node.arguments.fetch(1), body)
-        location = node.location
-
-        body.instruct(:ObjectEquals, register, object, compare_with, location)
+        raw_binary_instruction(:ObjectEquals, node, body)
       end
 
       def on_raw_integer_to_string(node, body)
-        register = body.register(typedb.string_type)
-        value = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:IntegerToString, register, value, node.location)
+        raw_unary_instruction(:IntegerToString, node, body)
       end
 
       def on_raw_integer_add(node, body)
-        register = body.register(node.type)
-        base = process_node(node.arguments.fetch(0), body)
-        add = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:IntegerAdd, register, base, add, node.location)
+        raw_binary_instruction(:IntegerAdd, node, body)
       end
 
       def on_raw_integer_smaller(node, body)
-        register = body.register(node.type)
-        base = process_node(node.arguments.fetch(0), body)
-        other = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:IntegerSmaller, register, base, other, node.location)
+        raw_binary_instruction(:IntegerSmaller, node, body)
       end
 
       def on_raw_integer_greater(node, body)
-        register = body.register(node.type)
-        base = process_node(node.arguments.fetch(0), body)
-        other = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:IntegerGreater, register, base, other, node.location)
+        raw_binary_instruction(:IntegerGreater, node, body)
       end
 
       def on_raw_integer_equals(node, body)
-        register = body.register(node.type)
-        base = process_node(node.arguments.fetch(0), body)
-        other = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:IntegerEquals, register, base, other, node.location)
+        raw_binary_instruction(:IntegerEquals, node, body)
       end
 
       def on_raw_stdout_write(node, body)
-        register = body.register(typedb.integer_type)
-        value = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:StdoutWrite, register, value, node.location)
+        raw_unary_instruction(:StdoutWrite, node, body)
       end
 
       def on_raw_get_true(node, body)
@@ -672,9 +663,7 @@ module Inkoc
       end
 
       def on_raw_get_boolean_prototype(node, body)
-        reg = body.register(node.type)
-
-        body.instruct(:GetBooleanPrototype, reg, node.location)
+        raw_nullary_instruction(:GetBooleanPrototype, node, body)
       end
 
       def on_raw_get_false(node, body)
@@ -694,49 +683,31 @@ module Inkoc
       end
 
       def on_raw_get_string_prototype(node, body)
-        register = body.register(typedb.string_type)
-
-        body.instruct(:GetStringPrototype, register, node.location)
+        raw_nullary_instruction(:GetStringPrototype, node, body)
       end
 
       def on_raw_get_integer_prototype(node, body)
-        register = body.register(typedb.integer_type)
-
-        body.instruct(:GetIntegerPrototype, register, node.location)
+        raw_nullary_instruction(:GetIntegerPrototype, node, body)
       end
 
       def on_raw_get_float_prototype(node, body)
-        register = body.register(typedb.float_type)
-
-        body.instruct(:GetFloatPrototype, register, node.location)
+        raw_nullary_instruction(:GetFloatPrototype, node, body)
       end
 
       def on_raw_get_array_prototype(node, body)
-        register = body.register(typedb.array_type)
-
-        body.instruct(:GetArrayPrototype, register, node.location)
+        raw_nullary_instruction(:GetArrayPrototype, node, body)
       end
 
       def on_raw_get_block_prototype(node, body)
-        register = body.register(typedb.block_type)
-
-        body.instruct(:GetBlockPrototype, register, node.location)
+        raw_nullary_instruction(:GetBlockPrototype, node, body)
       end
 
       def on_raw_array_length(node, body)
-        register = body.register(node.type)
-        array_register = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:ArrayLength, register, array_register, node.location)
+        raw_unary_instruction(:ArrayLength, node, body)
       end
 
       def on_raw_array_at(node, body)
-        register = body.register(node.type)
-        array_reg = process_node(node.arguments.fetch(0), body)
-        index_reg = process_node(node.arguments.fetch(1), body)
-        location = node.location
-
-        body.instruct(:ArrayAt, register, array_reg, index_reg, location)
+        raw_binary_instruction(:ArrayAt, node, body)
       end
 
       def on_raw_array_insert(node, body)
@@ -767,7 +738,7 @@ module Inkoc
       def on_throw(node, body)
         register = process_node(node.value, body)
 
-        body.instruct(:Throw, register, node.location)
+        body.instruct(:Nullary, :Throw, register, node.location)
 
         get_nil(body, node.location)
       end
@@ -780,14 +751,14 @@ module Inkoc
         try_block = body.add_connected_basic_block
         try_reg = process_node(node.expression, body)
 
-        body.instruct(:SetRegister, ret_reg, try_reg, node.location)
+        body.instruct(:Unary, :SetRegister, ret_reg, try_reg, node.location)
         body.instruct(:SkipNextBlock, node.location)
 
         # Block for error handling
         else_block = body.add_connected_basic_block
         else_reg = register_for_else_block(node, body, catch_reg)
 
-        body.instruct(:SetRegister, ret_reg, else_reg, node.location)
+        body.instruct(:Unary, :SetRegister, ret_reg, else_reg, node.location)
 
         # Block for everything that comes after our "try" expression.
         body.add_connected_basic_block
@@ -838,7 +809,7 @@ module Inkoc
       def get_toplevel(body, location)
         register = body.register(typedb.top_level)
 
-        body.instruct(:GetToplevel, register, location)
+        body.instruct(:Nullary, :GetToplevel, register, location)
       end
 
       def get_self(body, location)
@@ -850,25 +821,25 @@ module Inkoc
       def get_nil(body, location)
         register = body.register(typedb.nil_type)
 
-        body.instruct(:GetNil, register, location)
+        body.instruct(:Nullary, :GetNil, register, location)
       end
 
       def get_true(body, location)
         register = body.register(typedb.true_type)
 
-        body.instruct(:GetTrue, register, location)
+        body.instruct(:Nullary, :GetTrue, register, location)
       end
 
       def get_false(body, location)
         register = body.register(typedb.false_type)
 
-        body.instruct(:GetFalse, register, location)
+        body.instruct(:Nullary, :GetFalse, register, location)
       end
 
       def set_string(value, body, location)
         register = body.register(typedb.string_type)
 
-        body.instruct(:SetString, register, value, location)
+        body.instruct(:SetLiteral, register, value, location)
       end
 
       def send_object_message(receiver, name, arguments, body, location)
@@ -910,9 +881,9 @@ module Inkoc
         rec_type = receiver.type
         symbol = rec_type.lookup_attribute(name)
         name_reg = set_string(name, body, location)
-        register = body.register(symbol.type)
+        reg = body.register(symbol.type)
 
-        body.instruct(:GetAttribute, register, receiver, name_reg, location)
+        body.instruct(:Binary, :GetAttribute, reg, receiver, name_reg, location)
       end
 
       def set_attribute(receiver, name, value, body, location)

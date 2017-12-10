@@ -55,56 +55,6 @@ module Inkoc
         end
       end
 
-      def on_get_array_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code.instruct(:GetArrayPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_block_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetBlockPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_boolean_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetBooleanPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_float_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetFloatPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_integer_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetIntegerPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_string_prototype(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code
-          .instruct(:GetStringPrototype, [register], tir_ins.location)
-      end
-
-      def on_get_attribute(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-        receiver = tir_ins.receiver.id
-        name = tir_ins.name.id
-
-        compiled_code
-          .instruct(:GetAttribute, [register, receiver, name], tir_ins.location)
-      end
-
       def on_get_global(tir_ins, compiled_code, *)
         register = tir_ins.register.id
         variable = tir_ins.variable.index
@@ -141,30 +91,6 @@ module Inkoc
           .instruct(:SetParentLocal, [variable, depth, value], location)
       end
 
-      def on_get_nil(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code.instruct(:GetNil, [register], tir_ins.location)
-      end
-
-      def on_get_toplevel(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code.instruct(:GetToplevel, [register], tir_ins.location)
-      end
-
-      def on_get_true(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code.instruct(:GetTrue, [register], tir_ins.location)
-      end
-
-      def on_get_false(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-
-        compiled_code.instruct(:GetFalse, [register], tir_ins.location)
-      end
-
       def on_goto_next_block_if_true(tir_ins, compiled_code, basic_block)
         index = basic_block.next.instruction_offset
         register = tir_ins.register.id
@@ -176,13 +102,6 @@ module Inkoc
         index = basic_block.next.next.instruction_offset
 
         compiled_code.instruct(:Goto, [index], tir_ins.location)
-      end
-
-      def on_load_module(tir_ins, compiled_code, *)
-        register = tir_ins.register.id
-        path = tir_ins.path.id
-
-        compiled_code.instruct(:LoadModule, [register, path], tir_ins.location)
       end
 
       def on_local_exists(tir_ins, compiled_code, *)
@@ -299,81 +218,26 @@ module Inkoc
         compiled_code.instruct(:SetGlobal, [reg, var, val], tir_ins.location)
       end
 
-      def on_integer_to_string(tir_ins, compiled_code, *)
+      def on_nullary(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
-        val = tir_ins.value.id
 
-        compiled_code.instruct(:IntegerToString, [reg, val], tir_ins.location)
+        compiled_code.instruct(tir_ins.name, [reg], tir_ins.location)
       end
 
-      def on_integer_add(tir_ins, compiled_code, *)
+      def on_unary(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
-        base = tir_ins.base.id
-        add = tir_ins.add.id
+        operand = tir_ins.operand.id
 
-        compiled_code.instruct(:IntegerAdd, [reg, base, add], tir_ins.location)
+        compiled_code.instruct(tir_ins.name, [reg, operand], tir_ins.location)
       end
 
-      def on_integer_smaller(tir_ins, compiled_code, *)
+      def on_binary(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         base = tir_ins.base.id
         other = tir_ins.other.id
 
         compiled_code
-          .instruct(:IntegerSmaller, [reg, base, other], tir_ins.location)
-      end
-
-      def on_integer_greater(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        base = tir_ins.base.id
-        other = tir_ins.other.id
-
-        compiled_code
-          .instruct(:IntegerGreater, [reg, base, other], tir_ins.location)
-      end
-
-      def on_integer_equals(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        base = tir_ins.base.id
-        other = tir_ins.other.id
-
-        compiled_code
-          .instruct(:IntegerEquals, [reg, base, other], tir_ins.location)
-      end
-
-      def on_stdout_write(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        val = tir_ins.value.id
-
-        compiled_code.instruct(:StdoutWrite, [reg, val], tir_ins.location)
-      end
-
-      def on_throw(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-
-        compiled_code.instruct(:Throw, [reg], tir_ins.location)
-      end
-
-      def on_set_register(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        src_reg = tir_ins.source_register.id
-
-        compiled_code.instruct(:SetRegister, [reg, src_reg], tir_ins.location)
-      end
-
-      def on_array_length(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        array = tir_ins.array.id
-
-        compiled_code.instruct(:ArrayLength, [reg, array], tir_ins.location)
-      end
-
-      def on_array_at(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        array = tir_ins.array.id
-        index = tir_ins.index.id
-
-        compiled_code.instruct(:ArrayAt, [reg, array, index], tir_ins.location)
+          .instruct(tir_ins.name, [reg, base, other], tir_ins.location)
       end
 
       def on_array_insert(tir_ins, compiled_code, *)
@@ -384,15 +248,6 @@ module Inkoc
 
         compiled_code
           .instruct(:ArrayInsert, [reg, array, index, value], tir_ins.location)
-      end
-
-      def on_object_equals(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        object = tir_ins.object.id
-        compare = tir_ins.compare_with.id
-
-        compiled_code
-          .instruct(:ObjectEquals, [reg, object, compare], tir_ins.location)
       end
     end
   end

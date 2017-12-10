@@ -3,20 +3,20 @@
 module Inkoc
   module TIR
     module Instruction
-      class LoadModule
+      class SetLiteral
         include Predicates
         include Inspect
 
-        attr_reader :register, :path, :location
+        attr_reader :register, :value, :location
 
-        def initialize(register, path, location)
+        def initialize(register, value, location)
           @register = register
-          @path = path
+          @value = value
           @location = location
         end
 
         def visitor_method
-          :on_load_module
+          :on_set_literal
         end
       end
     end

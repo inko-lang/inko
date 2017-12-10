@@ -3,13 +3,14 @@
 module Inkoc
   module TIR
     module Instruction
-      class IntegerGreater
-        include Predicates
+      class Binary
         include Inspect
+        include Predicates
 
-        attr_reader :register, :base, :other, :location
+        attr_reader :name, :register, :base, :other, :location
 
-        def initialize(register, base, other, location)
+        def initialize(name, register, base, other, location)
+          @name = name
           @register = register
           @base = base
           @other = other
@@ -17,7 +18,7 @@ module Inkoc
         end
 
         def visitor_method
-          :on_integer_greater
+          :on_binary
         end
       end
     end

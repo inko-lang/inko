@@ -3,19 +3,20 @@
 module Inkoc
   module TIR
     module Instruction
-      class GetBlockPrototype
-        include Predicates
+      class Nullary
         include Inspect
+        include Predicates
 
-        attr_reader :register, :location
+        attr_reader :name, :register, :location
 
-        def initialize(register, location)
+        def initialize(name, register, location)
+          @name = name
           @register = register
           @location = location
         end
 
         def visitor_method
-          :on_get_block_prototype
+          :on_nullary
         end
       end
     end

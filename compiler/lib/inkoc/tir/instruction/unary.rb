@@ -3,20 +3,21 @@
 module Inkoc
   module TIR
     module Instruction
-      class ArrayLength
-        include Predicates
+      class Unary
         include Inspect
+        include Predicates
 
-        attr_reader :register, :array, :location
+        attr_reader :name, :register, :operand, :location
 
-        def initialize(register, array, location)
+        def initialize(name, register, operand, location)
+          @name = name
           @register = register
-          @array = array
+          @operand = operand
           @location = location
         end
 
         def visitor_method
-          :on_array_length
+          :on_unary
         end
       end
     end
