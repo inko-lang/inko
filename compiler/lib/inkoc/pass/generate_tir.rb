@@ -800,6 +800,20 @@ module Inkoc
         body.instruct(:ArrayInsert, register, array_reg, index_reg, vreg, loc)
       end
 
+      def on_raw_array_clear(node, body)
+        reg = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Nullary, :ArrayClear, reg, node.location)
+      end
+
+      def on_raw_array_push(node, body)
+        raw_binary_instruction(:ArrayPush, node, body)
+      end
+
+      def on_raw_array_remove(node, body)
+        raw_binary_instruction(:ArrayRemove, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

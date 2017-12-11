@@ -5,6 +5,19 @@ impl Array!(T) {
   def new!(V)(*values: V) -> Array!(V) {
     values
   }
+
+  def clear -> Self {
+    _INKOC.array_clear(self)
+    self
+  }
+
+  def push(value: T) -> T {
+    _INKOC.array_push(self, value)
+  }
+
+  def remove_at(index: Integer) -> ?T {
+    _INKOC.array_remove(self, index)
+  }
 }
 
 impl Length for Array!(T) {

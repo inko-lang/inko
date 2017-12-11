@@ -575,12 +575,7 @@ module Inkoc
         typedb.block_type
       end
 
-      def on_raw_array_length(*)
-        typedb.integer_type
-      end
-
-      def on_raw_array_at(node, _)
-        array = node.arguments.fetch(0).type
+      def optional_array_element_value(array)
         param = Config::ARRAY_TYPE_PARAMETER
         type =
           array.lookup_type_parameter_instance_or_parameter(param) ||
@@ -589,8 +584,32 @@ module Inkoc
         Type::Optional.new(type)
       end
 
+      def on_raw_array_length(*)
+        typedb.integer_type
+      end
+
+      def on_raw_array_at(node, _)
+        array = node.arguments.fetch(0).type
+
+        optional_array_element_value(array)
+      end
+
       def on_raw_array_insert(node, _)
         node.arguments.fetch(2).type
+      end
+
+      def on_raw_array_clear(*)
+        Type::Void.new
+      end
+
+      def on_raw_array_push(node, _)
+        node.arguments.fetch(1).type
+      end
+
+      def on_raw_array_remove(node, _)
+        array = node.arguments.fetch(0).type
+
+        optional_array_element_value(array)
       end
 
       def on_return(node, scope)
