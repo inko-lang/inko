@@ -17,6 +17,18 @@ module Inkoc
       def resolve_type(self_type, *)
         self_type
       end
+
+      def type_compatible?(other)
+        other.dynamic? || other.self_type?
+      end
+
+      def strict_type_compatible?(other)
+        other.self_type?
+      end
+
+      def initialize_as(type, *)
+        type
+      end
     end
   end
 end

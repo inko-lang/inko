@@ -20,50 +20,50 @@ impl ToString for Float {
   }
 }
 
-impl Add!(Float) for Float {
-  def +(other: Float) -> Float {
+impl Add for Float {
+  def +(other: Self) -> Self {
     _INKOC.float_add(self, other)
   }
 }
 
-impl Divide!(Float) for Float {
-  def /(other: Float) -> Float {
+impl Divide for Float {
+  def /(other: Self) -> Self {
     _INKOC.float_div(self, other)
   }
 }
 
-impl Multiply!(Float) for Float {
-  def *(other: Float) -> Float {
+impl Multiply for Float {
+  def *(other: Self) -> Self {
     _INKOC.float_mul(self, other)
   }
 }
 
-impl Subtract!(Float) for Float {
-  def -(other: Float) -> Float {
+impl Subtract for Float {
+  def -(other: Self) -> Self {
     _INKOC.float_sub(self, other)
   }
 }
 
-impl Modulo!(Float) for Float {
-  def %(other: Float) -> Float {
+impl Modulo for Float {
+  def %(other: Self) -> Self {
     _INKOC.float_mod(self, other)
   }
 }
 
-impl Smaller!(Float) for Float {
-  def <(other: Float) -> Boolean {
+impl Smaller for Float {
+  def <(other: Self) -> Boolean {
     _INKOC.float_smaller(self, other)
   }
 }
 
-impl Greater!(Float) for Float {
-  def >(other: Float) -> Boolean {
+impl Greater for Float {
+  def >(other: Self) -> Boolean {
     _INKOC.float_greater(self, other)
   }
 }
 
-impl Equal!(Float) for Float {
-  def ==(other: Float) -> Boolean {
+impl Equal for Float {
+  def ==(other: Self) -> Boolean {
     _INKOC.float_equals(self, other)
   }
 }

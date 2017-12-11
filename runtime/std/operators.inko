@@ -1,51 +1,51 @@
-trait Add!(T) {
-  def +(other: T) -> T
+trait Add {
+  def +(other: Self) -> Self
 }
 
-trait Divide!(T) {
-  def /(other: T) -> T
+trait Divide {
+  def /(other: Self) -> Self
 }
 
-trait Multiply!(T) {
-  def *(other: T) -> T
+trait Multiply {
+  def *(other: Self) -> Self
 }
 
-trait Subtract!(T) {
-  def -(other: T) -> T
+trait Subtract {
+  def -(other: Self) -> Self
 }
 
-trait Modulo!(T) {
-  def %(other: T) -> T
+trait Modulo {
+  def %(other: Self) -> Self
 }
 
-trait Smaller!(T) {
-  def <(other: T) -> Boolean
+trait Smaller {
+  def <(other: Self) -> Boolean
 }
 
-trait Greater!(T) {
-  def >(other: T) -> Boolean
+trait Greater {
+  def >(other: Self) -> Boolean
 }
 
-trait Equal!(T) {
-  def ==(other: T) -> Boolean
+trait Equal {
+  def ==(other: Self) -> Boolean
 }
 
-trait BitwiseAnd!(T) {
-  def &(other: T) -> T
+trait BitwiseAnd {
+  def &(other: Self) -> Self
 }
 
-trait BitwiseOr!(T) {
-  def |(other: T) -> T
+trait BitwiseOr {
+  def |(other: Self) -> Self
 }
 
-trait BitwiseXor!(T) {
-  def ^(other: T) -> T
+trait BitwiseXor {
+  def ^(other: Self) -> Self
 }
 
-trait ShiftLeft!(T) {
-  def <<(other: T) -> T
+trait ShiftLeft {
+  def <<(other: Self) -> Self
 }
 
-trait ShiftRight!(T) {
-  def >>(other: T) -> T
+trait ShiftRight {
+  def >>(other: Self) -> Self
 }

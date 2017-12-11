@@ -32,6 +32,8 @@ module Inkoc
       end
 
       def run(ast)
+        return if diagnostics.errors?
+
         locals = ast.locals
 
         on_module_body(ast, locals)
@@ -316,6 +318,7 @@ module Inkoc
       # rest - If true the argument is supposed to be passed to a rest argument.
       def expected_type_for_argument(context, aname, type, rest = false)
         context.type_for_argument_or_rest(aname, rest)
+          .resolve_type(context.receiver)
           .initialize_as(type, context)
       end
 

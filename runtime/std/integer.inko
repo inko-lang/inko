@@ -23,80 +23,80 @@ impl ToString for Integer {
   }
 }
 
-impl Add!(Integer) for Integer {
-  def +(other: Integer) -> Integer {
+impl Add for Integer {
+  def +(other: Self) -> Self {
     _INKOC.integer_add(self, other)
   }
 }
 
-impl Divide!(Integer) for Integer {
-  def /(other: Integer) -> Integer {
+impl Divide for Integer {
+  def /(other: Self) -> Self {
     _INKOC.integer_div(self, other)
   }
 }
 
-impl Multiply!(Integer) for Integer {
-  def *(other: Integer) -> Integer {
+impl Multiply for Integer {
+  def *(other: Self) -> Self {
     _INKOC.integer_mul(self, other)
   }
 }
 
-impl Subtract!(Integer) for Integer {
-  def -(other: Integer) -> Integer {
+impl Subtract for Integer {
+  def -(other: Self) -> Self {
     _INKOC.integer_sub(self, other)
   }
 }
 
-impl Modulo!(Integer) for Integer {
-  def %(other: Integer) -> Integer {
+impl Modulo for Integer {
+  def %(other: Self) -> Self {
     _INKOC.integer_mod(self, other)
   }
 }
 
-impl Smaller!(Integer) for Integer {
-  def <(other: Integer) -> Boolean {
+impl Smaller for Integer {
+  def <(other: Self) -> Boolean {
     _INKOC.integer_smaller(self, other)
   }
 }
 
-impl Greater!(Integer) for Integer {
-  def >(other: Integer) -> Boolean {
+impl Greater for Integer {
+  def >(other: Self) -> Boolean {
     _INKOC.integer_greater(self, other)
   }
 }
 
-impl Equal!(Integer) for Integer {
-  def ==(other: Integer) -> Boolean {
+impl Equal for Integer {
+  def ==(other: Self) -> Boolean {
     _INKOC.integer_equals(self, other)
   }
 }
 
-impl BitwiseAnd!(Integer) for Integer {
-  def &(other: Integer) -> Integer {
+impl BitwiseAnd for Integer {
+  def &(other: Self) -> Self {
     _INKOC.integer_bitwise_and(self, other)
   }
 }
 
-impl BitwiseOr!(Integer) for Integer {
-  def |(other: Integer) -> Integer {
+impl BitwiseOr for Integer {
+  def |(other: Self) -> Self {
     _INKOC.integer_bitwise_or(self, other)
   }
 }
 
-impl BitwiseXor!(Integer) for Integer {
-  def ^(other: Integer) -> Integer {
+impl BitwiseXor for Integer {
+  def ^(other: Self) -> Self {
     _INKOC.integer_bitwise_xor(self, other)
   }
 }
 
-impl ShiftLeft!(Integer) for Integer {
-  def <<(other: Integer) -> Integer {
+impl ShiftLeft for Integer {
+  def <<(other: Self) -> Self {
     _INKOC.integer_shift_left(self, other)
   }
 }
 
-impl ShiftRight!(Integer) for Integer {
-  def >>(other: Integer) -> Integer {
+impl ShiftRight for Integer {
+  def >>(other: Self) -> Self {
     _INKOC.integer_shift_right(self, other)
   }
 }

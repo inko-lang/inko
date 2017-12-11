@@ -19,8 +19,8 @@ impl Conditional for Object {
   }
 }
 
-impl Equal!(Object) for Object {
-  def ==(other: Object) -> Boolean {
+impl Equal for Object {
+  def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
 }
