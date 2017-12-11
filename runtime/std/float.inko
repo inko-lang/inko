@@ -1,0 +1,7 @@
+import std::operators::Equal
+
+impl Equal!(Float) for Float {
+  def ==(other: Float) -> Boolean {
+    _INKOC.float_equals(self, other)
+  }
+}

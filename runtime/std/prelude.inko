@@ -9,5 +9,6 @@ import std::array
 import std::block
 import std::boolean
 import std::integer
+import std::float
 import std::nil
 import std::string
