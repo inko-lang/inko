@@ -16,6 +16,14 @@ module Inkoc
 
       def prototype=(*); end
 
+      def required_traits
+        Set.new
+      end
+
+      def required_method_types(*)
+        []
+      end
+
       def prototype
         nil
       end

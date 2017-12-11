@@ -654,6 +654,10 @@ module Inkoc
         raw_binary_instruction(:IntegerEquals, node, body)
       end
 
+      def on_raw_float_equals(node, body)
+        raw_binary_instruction(:FloatEquals, node, body)
+      end
+
       def on_raw_stdout_write(node, body)
         raw_unary_instruction(:StdoutWrite, node, body)
       end

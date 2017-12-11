@@ -448,6 +448,10 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_float_equals(*)
+        typedb.boolean_type
+      end
+
       def on_raw_stdout_write(*)
         typedb.integer_type
       end
