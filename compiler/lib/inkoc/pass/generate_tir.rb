@@ -698,8 +698,8 @@ module Inkoc
         raw_unary_instruction(:FloatToString, node, body)
       end
 
-      def on_raw_float_to_float(node, body)
-        raw_unary_instruction(:FloatToFloat, node, body)
+      def on_raw_float_to_integer(node, body)
+        raw_unary_instruction(:FloatToInteger, node, body)
       end
 
       def on_raw_float_add(node, body)
