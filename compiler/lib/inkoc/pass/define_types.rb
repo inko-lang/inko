@@ -432,7 +432,47 @@ module Inkoc
         typedb.string_type
       end
 
+      def on_raw_integer_to_float(*)
+        typedb.float_type
+      end
+
       def on_raw_integer_add(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_div(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_mul(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_sub(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_mod(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_bitwise_and(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_bitwise_or(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_bitwise_xor(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_shift_left(*)
+        typedb.integer_type
+      end
+
+      def on_raw_integer_shift_right(*)
         typedb.integer_type
       end
 
@@ -445,6 +485,42 @@ module Inkoc
       end
 
       def on_raw_integer_equals(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_float_to_string(*)
+        typedb.string_type
+      end
+
+      def on_raw_float_to_integer(*)
+        typedb.integer_type
+      end
+
+      def on_raw_float_add(*)
+        typedb.float_type
+      end
+
+      def on_raw_float_div(*)
+        typedb.float_type
+      end
+
+      def on_raw_float_mul(*)
+        typedb.float_type
+      end
+
+      def on_raw_float_sub(*)
+        typedb.float_type
+      end
+
+      def on_raw_float_mod(*)
+        typedb.float_type
+      end
+
+      def on_raw_float_smaller(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_float_greater(*)
         typedb.boolean_type
       end
 

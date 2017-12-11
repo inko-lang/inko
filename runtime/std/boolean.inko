@@ -1,5 +1,5 @@
 import std::conditional::Conditional
-import std::string::ToString
+import std::conversion::ToString
 
 impl Conditional for Boolean {
   def if_true!(R)(block: () -> R) -> ?R {

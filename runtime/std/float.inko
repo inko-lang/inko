@@ -1,4 +1,66 @@
-import std::operators::Equal
+import std::conversion::(ToInteger, ToString, ToFloat)
+import std::operators::(Add, Divide, Multiply, Subtract, Modulo)
+import std::operators::(Smaller, Greater, Equal)
+
+impl ToInteger for Float {
+  def to_integer -> Integer {
+    _INKOC.float_to_integer(self)
+  }
+}
+
+impl ToFloat for Float {
+  def to_float -> Float {
+    self
+  }
+}
+
+impl ToString for Float {
+  def to_string -> String {
+    _INKOC.float_to_string(self)
+  }
+}
+
+impl Add!(Float) for Float {
+  def +(other: Float) -> Float {
+    _INKOC.float_add(self, other)
+  }
+}
+
+impl Divide!(Float) for Float {
+  def /(other: Float) -> Float {
+    _INKOC.float_div(self, other)
+  }
+}
+
+impl Multiply!(Float) for Float {
+  def *(other: Float) -> Float {
+    _INKOC.float_mul(self, other)
+  }
+}
+
+impl Subtract!(Float) for Float {
+  def -(other: Float) -> Float {
+    _INKOC.float_sub(self, other)
+  }
+}
+
+impl Modulo!(Float) for Float {
+  def %(other: Float) -> Float {
+    _INKOC.float_mod(self, other)
+  }
+}
+
+impl Smaller!(Float) for Float {
+  def <(other: Float) -> Boolean {
+    _INKOC.float_smaller(self, other)
+  }
+}
+
+impl Greater!(Float) for Float {
+  def >(other: Float) -> Boolean {
+    _INKOC.float_greater(self, other)
+  }
+}
 
 impl Equal!(Float) for Float {
   def ==(other: Float) -> Boolean {

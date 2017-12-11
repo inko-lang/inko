@@ -1,5 +1,17 @@
-import std::string::ToString
+import std::conversion::(ToString, ToFloat, ToInteger)
 import std::conditional::Conditional
+
+impl ToInteger for Nil {
+  def to_integer -> Integer {
+    0
+  }
+}
+
+impl ToFloat for Nil {
+  def to_float -> Float {
+    0.0
+  }
+}
 
 impl ToString for Nil {
   def to_string -> String {

@@ -638,6 +638,10 @@ module Inkoc
         raw_unary_instruction(:IntegerToString, node, body)
       end
 
+      def on_raw_integer_to_float(node, body)
+        raw_unary_instruction(:IntegerToFloat, node, body)
+      end
+
       def on_raw_integer_add(node, body)
         raw_binary_instruction(:IntegerAdd, node, body)
       end
@@ -646,12 +650,84 @@ module Inkoc
         raw_binary_instruction(:IntegerSmaller, node, body)
       end
 
+      def on_raw_integer_div(node, body)
+        raw_binary_instruction(:IntegerDiv, node, body)
+      end
+
+      def on_raw_integer_mul(node, body)
+        raw_binary_instruction(:IntegerMul, node, body)
+      end
+
+      def on_raw_integer_sub(node, body)
+        raw_binary_instruction(:IntegerSub, node, body)
+      end
+
+      def on_raw_integer_mod(node, body)
+        raw_binary_instruction(:IntegerMod, node, body)
+      end
+
+      def on_raw_integer_bitwise_and(node, body)
+        raw_binary_instruction(:IntegerBitwiseAnd, node, body)
+      end
+
+      def on_raw_integer_bitwise_or(node, body)
+        raw_binary_instruction(:IntegerBitwiseOr, node, body)
+      end
+
+      def on_raw_integer_bitwise_xor(node, body)
+        raw_binary_instruction(:IntegerBitwiseXor, node, body)
+      end
+
+      def on_raw_integer_shift_left(node, body)
+        raw_binary_instruction(:IntegerShiftLeft, node, body)
+      end
+
+      def on_raw_integer_shift_right(node, body)
+        raw_binary_instruction(:IntegerShiftRight, node, body)
+      end
+
       def on_raw_integer_greater(node, body)
         raw_binary_instruction(:IntegerGreater, node, body)
       end
 
       def on_raw_integer_equals(node, body)
         raw_binary_instruction(:IntegerEquals, node, body)
+      end
+
+      def on_raw_float_to_string(node, body)
+        raw_unary_instruction(:FloatToString, node, body)
+      end
+
+      def on_raw_float_to_float(node, body)
+        raw_unary_instruction(:FloatToFloat, node, body)
+      end
+
+      def on_raw_float_add(node, body)
+        raw_binary_instruction(:FloatAdd, node, body)
+      end
+
+      def on_raw_float_div(node, body)
+        raw_binary_instruction(:FloatDiv, node, body)
+      end
+
+      def on_raw_float_mul(node, body)
+        raw_binary_instruction(:FloatMul, node, body)
+      end
+
+      def on_raw_float_sub(node, body)
+        raw_binary_instruction(:FloatSub, node, body)
+      end
+
+      def on_raw_float_mod(node, body)
+        raw_binary_instruction(:FloatMod, node, body)
+      end
+
+      def on_raw_float_smaller(node, body)
+        raw_binary_instruction(:FloatSmaller, node, body)
+      end
+
+      def on_raw_float_greater(node, body)
+        raw_binary_instruction(:FloatGreater, node, body)
       end
 
       def on_raw_float_equals(node, body)

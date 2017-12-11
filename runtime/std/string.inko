@@ -1,6 +1,4 @@
-trait ToString {
-  def to_string -> String
-}
+import std::conversion::ToString
 
 impl ToString for String {
   def to_string -> String {

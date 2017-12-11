@@ -1,0 +1,11 @@
+trait ToFloat {
+  def to_float -> Float
+}
+
+trait ToString {
+  def to_string -> String
+}
+
+trait ToInteger {
+  def to_integer -> Integer
+}

@@ -1,5 +1,21 @@
-import std::string::ToString
-import std::operators::(Add, Smaller, Greater, Equal)
+import std::conversion::(ToInteger, ToString, ToFloat)
+import std::operators::*
+
+trait ToInteger {
+  def to_integer -> Integer
+}
+
+impl ToInteger for Integer {
+  def to_integer -> Integer {
+    self
+  }
+}
+
+impl ToFloat for Integer {
+  def to_float -> Float {
+    _INKOC.integer_to_float(self)
+  }
+}
 
 impl ToString for Integer {
   def to_string -> String {
@@ -10,6 +26,30 @@ impl ToString for Integer {
 impl Add!(Integer) for Integer {
   def +(other: Integer) -> Integer {
     _INKOC.integer_add(self, other)
+  }
+}
+
+impl Divide!(Integer) for Integer {
+  def /(other: Integer) -> Integer {
+    _INKOC.integer_div(self, other)
+  }
+}
+
+impl Multiply!(Integer) for Integer {
+  def *(other: Integer) -> Integer {
+    _INKOC.integer_mul(self, other)
+  }
+}
+
+impl Subtract!(Integer) for Integer {
+  def -(other: Integer) -> Integer {
+    _INKOC.integer_sub(self, other)
+  }
+}
+
+impl Modulo!(Integer) for Integer {
+  def %(other: Integer) -> Integer {
+    _INKOC.integer_mod(self, other)
   }
 }
 
@@ -28,5 +68,35 @@ impl Greater!(Integer) for Integer {
 impl Equal!(Integer) for Integer {
   def ==(other: Integer) -> Boolean {
     _INKOC.integer_equals(self, other)
+  }
+}
+
+impl BitwiseAnd!(Integer) for Integer {
+  def &(other: Integer) -> Integer {
+    _INKOC.integer_bitwise_and(self, other)
+  }
+}
+
+impl BitwiseOr!(Integer) for Integer {
+  def |(other: Integer) -> Integer {
+    _INKOC.integer_bitwise_or(self, other)
+  }
+}
+
+impl BitwiseXor!(Integer) for Integer {
+  def ^(other: Integer) -> Integer {
+    _INKOC.integer_bitwise_xor(self, other)
+  }
+}
+
+impl ShiftLeft!(Integer) for Integer {
+  def <<(other: Integer) -> Integer {
+    _INKOC.integer_shift_left(self, other)
+  }
+}
+
+impl ShiftRight!(Integer) for Integer {
+  def >>(other: Integer) -> Integer {
+    _INKOC.integer_shift_right(self, other)
   }
 }

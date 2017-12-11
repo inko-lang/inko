@@ -5,6 +5,7 @@
 ![import_prelude: false]
 
 import std::object
+import std::conversion
 import std::array
 import std::block
 import std::boolean

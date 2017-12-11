@@ -2,6 +2,22 @@ trait Add!(T) {
   def +(other: T) -> T
 }
 
+trait Divide!(T) {
+  def /(other: T) -> T
+}
+
+trait Multiply!(T) {
+  def *(other: T) -> T
+}
+
+trait Subtract!(T) {
+  def -(other: T) -> T
+}
+
+trait Modulo!(T) {
+  def %(other: T) -> T
+}
+
 trait Smaller!(T) {
   def <(other: T) -> Boolean
 }
@@ -12,4 +28,24 @@ trait Greater!(T) {
 
 trait Equal!(T) {
   def ==(other: T) -> Boolean
+}
+
+trait BitwiseAnd!(T) {
+  def &(other: T) -> T
+}
+
+trait BitwiseOr!(T) {
+  def |(other: T) -> T
+}
+
+trait BitwiseXor!(T) {
+  def ^(other: T) -> T
+}
+
+trait ShiftLeft!(T) {
+  def <<(other: T) -> T
+}
+
+trait ShiftRight!(T) {
+  def >>(other: T) -> T
 }
