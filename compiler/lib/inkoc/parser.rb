@@ -156,6 +156,8 @@ module Inkoc
         implement_trait(start)
       when :compiler_option_open
         compiler_option
+      when :module_documentation
+        module_documentation(start)
       else
         expression(start)
       end
@@ -529,6 +531,7 @@ module Inkoc
       when :try then try(start)
       when :colon_colon then global(start)
       when :paren_open then grouped_expression
+      when :documentation then documentation(start)
       else
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
@@ -1247,6 +1250,32 @@ module Inkoc
       advance_and_expect!(:bracket_close)
 
       opt
+    end
+
+    def documentation(start)
+      documentation_comment_of_type(start, :documentation, AST::Documentation)
+    end
+
+    def module_documentation(start)
+      documentation_comment_of_type(
+        start,
+        :module_documentation,
+        AST::ModuleDocumentation
+      )
+    end
+
+    def documentation_comment_of_type(start, type, klass)
+      values = [start.value] + token_sequence_values(type)
+
+      klass.new(values.join("\n"), start.location)
+    end
+
+    def token_sequence_values(type)
+      values = []
+
+      values << advance!.value while @lexer.next_type_is?(type)
+
+      values
     end
 
     def constant_from_token(token, receiver = nil)

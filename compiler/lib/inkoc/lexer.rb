@@ -89,7 +89,10 @@ module Inkoc
 
         case char
         when '@' then return attribute
-        when '#' then comment
+        when '#'
+          if (token = comment)
+            return token
+          end
         when NUMBER_RANGE then return number
         when '{' then return curly_open
         when '}' then return curly_close
@@ -181,18 +184,66 @@ module Inkoc
     end
 
     def comment
+      case @input[@position + 1]
+      when '#'
+        doc_comment
+      when '!'
+        module_comment
+      else
+        consume_comment_line
+      end
+    end
+
+    def doc_comment
+      consume_doc_comment(:documentation)
+    end
+
+    def module_comment
+      consume_doc_comment(:module_documentation)
+    end
+
+    def consume_doc_comment(type)
+      @position += 2
+      @column += 2
+
+      ignore_spaces
+
+      start = @position
+
+      consume_comment_line(advance_newline: false)
+
+      token = new_token_or_null_token(type, start, @position)
+
+      advance_line
+
+      token
+    end
+
+    def consume_comment_line(advance_newline: true)
       loop do
         char = @input[@position]
 
         return unless char
 
         if char == "\n"
-          advance_line
+          advance_line if advance_newline
           return
         end
 
         @position += 1
         @column += 1
+      end
+    end
+
+    def ignore_spaces
+      loop do
+        case @input[@position]
+        when ' ', "\t"
+          @position += 1
+          @column += 1
+        else
+          return
+        end
       end
     end
 

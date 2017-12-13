@@ -24,7 +24,8 @@ module Inkoc
       end
 
       def define_type(node, scope)
-        node.type = process_node(node, scope)
+        type = process_node(node, scope)
+        node.type = type if type
       end
 
       def define_types(nodes, scope)

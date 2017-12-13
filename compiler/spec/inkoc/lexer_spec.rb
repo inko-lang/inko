@@ -786,4 +786,29 @@ describe Inkoc::Lexer do
 
     expect(lexer.advance).to be_nil
   end
+
+  describe '#comment' do
+    it 'ignores regular comments' do
+      lexer = described_class.new('# foo')
+      token = lexer.comment
+
+      expect(token).to be_nil
+    end
+
+    it 'tokenizes documentation comments' do
+      lexer = described_class.new('## foo')
+      token = lexer.comment
+
+      expect(token.type).to eq(:documentation)
+      expect(token.value).to eq('foo')
+    end
+
+    it 'tokenizes module documentation comments' do
+      lexer = described_class.new('#! foo')
+      token = lexer.comment
+
+      expect(token.type).to eq(:module_documentation)
+      expect(token.value).to eq('foo')
+    end
+  end
 end
