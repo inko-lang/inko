@@ -1,38 +1,182 @@
+#! An ordered, contiguous growable sequence of values.
+#!
+#! Arrays (sometimes called vectors or lists) can be used to store values of the
+#! same type in order. Arrays are mutable and allow you to add new values or
+#! remove existing values.
+#!
+#! # Syntax
+#!
+#! Creating an Array is done using square brackets or by sending `new` to Array:
+#!
+#!     []        # this is an empty Array
+#!     Array.new # this is also an empty Array
+#!     'foo'
+#!
+#! # Indexing
+#!
+#! Like most programming languages Arrays indexes are zero based, with the first
+#! value being located at index 0.
+#!
+#! It's possible to use a negative index (e.g. -2) when accessing or setting
+#! indexes, in which case the value will be accessed starting at the back of the
+#! Array. This means that -1 will access the last value, -2 the value before
+#! that, etc.
+
 import std::index::(Index, SetIndex)
 import std::length::Length
 
 impl Array!(T) {
+  ## Returns a new Array containing the given values.
+  ##
+  ## # Examples
+  ##
+  ## Creating an empty Array:
+  ##
+  ##     Array.new # => []
+  ##
+  ## Creating an Array with values:
+  ##
+  ##     Array.new(10, 20, 30) # => [10, 20, 30]
   def new!(V)(*values: V) -> Array!(V) {
     values
   }
 
+  ## Removes all values of this Array, then returns self.
+  ##
+  ## # Examples
+  ##
+  ## Sending `clear` to an Array will remove all of its elements:
+  ##
+  ##     var array = [10, 20, 30]
+  ##
+  ##     array.clear
+  ##
+  ##     array # => []
+  ##
+  ## Clear will return the Array itself so you can chain message sends:
+  ##
+  ##     var array = [10, 20, 30]
+  ##
+  ##     array.clear.length # => 0
   def clear -> Self {
     _INKOC.array_clear(self)
     self
   }
 
+  ## Pushes a value to the back of the Array, returning the pushed value.
+  ##
+  ## # Examples
+  ##
+  ## Pushing a value into an Array:
+  ##
+  ##     var array = []
+  ##
+  ##     array.push(10)
+  ##
+  ##     array # => [10]
   def push(value: T) -> T {
     _INKOC.array_push(self, value)
   }
 
+  ## Removes the value at the given index, returning the removed value.
+  ##
+  ## # Examples
+  ##
+  ## Removing an existing value will result in the value being removed from the
+  ## Array and returned:
+  ##
+  ##     var array = [10]
+  ##
+  ##     array.remove_at(0) # => 10
+  ##     array              # => []
+  ##
+  ## When removing a non-existing value the Array won't be modified, and the
+  ## returned value will be Nil:
+  ##
+  ##     var array = [10]
+  ##
+  ##     array.remove_at(1) # => Nil
+  ##     array              # => []
   def remove_at(index: Integer) -> ?T {
     _INKOC.array_remove(self, index)
   }
 }
 
 impl Length for Array!(T) {
+  ## Returns the number of values in this Array.
+  ##
+  ## # Examples
+  ##
+  ## Getting the length of an empty Array:
+  ##
+  ##     [].length # => 0
+  ##
+  ## Getting the length of an Array with values:
+  ##
+  ##     [10].length # => 1
   def length -> Integer {
     _INKOC.array_length(self)
   }
 }
 
 impl Index!(Integer, T) for Array!(T) {
+  ## Returns the value at the given index, or Nil if no value was found.
+  ##
+  ## # Examples
+  ##
+  ## Retrieving a value by its index:
+  ##
+  ##     let array = [10, 20, 30]
+  ##
+  ##     array[1] # => 20
+  ##
+  ## We can also use a negative index to access a value from the back of the
+  ## Array:
+  ##
+  ##     let array = [10, 20, 30]
+  ##
+  ##     array[-2] # => 20
+  ##
+  ## Accessing an out-of-bounds index will produce a Nil:
+  ##
+  ##     let array = []
+  ##
+  ##     array[0] # => Nil
   def [](index: Integer) -> ?T {
     _INKOC.array_at(self, index)
   }
 }
 
 impl SetIndex!(Integer, T) for Array!(T) {
+  ## Stores a value at the given index, then returns it.
+  ##
+  ## If the index is out of bounds then all preceding indexes that are not set
+  ## will be filled with Nil values.
+  ##
+  ## This method will return the value that was added to the Array.
+  ##
+  ## # Examples
+  ##
+  ## Setting an index to a value:
+  ##
+  ##     var array = []
+  ##
+  ##     array[0] = 10 # => 10
+  ##     array         # => [10]
+  ##
+  ## Setting an out-of-bounds index:
+  ##
+  ##     var array = []
+  ##
+  ##     array[2] = 10 # => 10
+  ##     array         # => [Nil, Nil, 10]
+  ##
+  ## We can also use negative indexes:
+  ##
+  ##     var array = [10]
+  ##
+  ##     array[-1] = 20 # => 20
+  ##     array          # => [10, 20]
   def []=(index: Integer, value: T) -> T {
     _INKOC.array_insert(self, index, value)
   }
