@@ -99,8 +99,7 @@ impl Array!(T) {
   def pop -> ?T {
     (length > 0).if true: {
       remove_at(length - 1)
-    },
-    false: {
+    }, false: {
       Nil
     }
   }
