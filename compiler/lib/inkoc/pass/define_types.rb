@@ -603,10 +603,6 @@ module Inkoc
         Type::Void.new
       end
 
-      def on_raw_array_push(node, _)
-        node.arguments.fetch(1).type
-      end
-
       def on_raw_array_remove(node, _)
         array = node.arguments.fetch(0).type
 

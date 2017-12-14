@@ -75,7 +75,7 @@ impl Array!(T) {
   ##
   ##     array # => [10]
   def push(value: T) -> T {
-    _INKOC.array_push(self, value)
+    self[length] = value
   }
 
   ## Removes the value at the given index, returning the removed value.

@@ -5,6 +5,7 @@ module Inkoc
     class TypeParameter
       include Inspect
       include Predicates
+      include TypeCompatibility
 
       attr_reader :name, :required_traits
 
@@ -12,6 +13,8 @@ module Inkoc
         @name = name
         @required_traits = required_traits.to_set
       end
+
+      alias implemented_traits required_traits
 
       def new_instance(*)
         self
@@ -24,6 +27,8 @@ module Inkoc
       def initialize_as(type, context)
         if (instance = context.type_parameter_instance(name))
           instance
+        elsif type.type_parameter?
+          type
         elsif type.implements_all_traits?(required_traits)
           context.initialize_type_parameter(name, type)
           type

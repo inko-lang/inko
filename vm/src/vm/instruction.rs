@@ -101,7 +101,6 @@ pub enum InstructionType {
     GetGlobal,
     SetGlobal,
     SendMessage,
-    ArrayPush,
     Throw,
     SetRegister,
     TailCall,

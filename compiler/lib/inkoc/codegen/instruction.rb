@@ -103,7 +103,6 @@ module Inkoc
         GetGlobal
         SetGlobal
         SendMessage
-        ArrayPush
         Throw
         SetRegister
         TailCall

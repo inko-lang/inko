@@ -2136,30 +2136,6 @@ impl Machine {
 
                     enter_context!(process, context, code, index);
                 }
-                // Pushes a value to the end of an array.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the result in.
-                // 2. The register containing the array.
-                // 3. The register containing the value to push.
-                InstructionType::ArrayPush => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let value_ptr = context.get_register(instruction.arg(2));
-
-                    let vector = array_ptr.array_value_mut().unwrap();
-
-                    let value = copy_if_permanent!(
-                        self.state.permanent_allocator,
-                        value_ptr,
-                        array_ptr
-                    );
-
-                    vector.push(value);
-
-                    context.set_register(register, value);
-                }
                 // Throws a value
                 //
                 // This instruction requires one arguments: the register

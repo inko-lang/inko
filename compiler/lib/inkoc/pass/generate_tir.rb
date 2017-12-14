@@ -806,10 +806,6 @@ module Inkoc
         body.instruct(:Nullary, :ArrayClear, reg, node.location)
       end
 
-      def on_raw_array_push(node, body)
-        raw_binary_instruction(:ArrayPush, node, body)
-      end
-
       def on_raw_array_remove(node, body)
         raw_binary_instruction(:ArrayRemove, node, body)
       end
