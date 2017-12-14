@@ -38,7 +38,7 @@ module Inkoc
       end
 
       def tail_call?(code, instruction)
-        instruction.send_object_message? && instruction.block_type == code.type
+        instruction.run_block? && instruction.block_type == code.type
       end
     end
   end

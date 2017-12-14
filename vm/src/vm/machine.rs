@@ -2095,47 +2095,6 @@ impl Machine {
 
                     context.set_register(register, object);
                 }
-                // Sends a message to an object.
-                //
-                // This instruction takes the following arguments:
-                //
-                // 1. The register to store the method's return value in.
-                // 2. The register containing the receiver.
-                // 3. The register containing the message name as a string.
-                //
-                // Any additional arguments are passed as arguments to the
-                // method.
-                InstructionType::SendMessage => {
-                    context.line = instruction.line;
-
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-                    let method_opt = rec_ptr.lookup_attribute(&self.state, &name);
-
-                    let method = if let Some(found) = method_opt {
-                        found
-                    } else {
-                        panic!(
-                            "the object in register {} does not respond to {:?}",
-                            instruction.arg(1),
-                            name.string_value().unwrap()
-                        );
-                    };
-
-                    let block = method.block_value().unwrap();
-
-                    self.schedule_block(
-                        &block,
-                        register,
-                        3,
-                        process,
-                        instruction,
-                    );
-
-                    enter_context!(process, context, code, index);
-                }
                 // Throws a value
                 //
                 // This instruction requires one arguments: the register

@@ -102,7 +102,6 @@ module Inkoc
         MonotonicTimeMilliseconds
         GetGlobal
         SetGlobal
-        SendMessage
         Throw
         SetRegister
         TailCall

@@ -885,9 +885,10 @@ module Inkoc
       end
 
       def run_block(block, arguments, body, location)
-        register = body.register(block.type.return_type)
+        type = block.type
+        register = body.register(type.return_type)
 
-        body.instruct(:RunBlock, register, block, arguments, location)
+        body.instruct(:RunBlock, register, block, arguments, type, location)
       end
 
       def send_to_self(name, body, location)
@@ -930,27 +931,32 @@ module Inkoc
         body.instruct(:SetLiteral, register, value, location)
       end
 
-      def send_object_message(receiver, name, arguments, body, location)
-        rec_type = receiver.type.resolve_type(body.self_type)
-        reg = body.register(rec_type.message_return_type(name))
-        name_reg = set_string(name, body, location)
-        send_args = [receiver, *arguments]
+      def send_object_message(rec, name, arguments, body, location)
+        rec_type = rec.type.resolve_type(body.self_type)
+        send_args = [rec, *arguments]
 
         if send_initializes_array?(rec_type, name)
-          body.instruct(:SetArray, reg, arguments, location)
+          send_sets_array(rec_type, name, arguments, body, location)
         elsif send_runs_block?(rec_type, name)
-          body.instruct(:RunBlock, reg, receiver, send_args, location)
+          run_block(rec, send_args, body, location)
         else
-          body.instruct(
-            :SendObjectMessage,
-            reg,
-            receiver,
-            name_reg,
-            send_args,
-            rec_type.lookup_method(name).type,
-            location
-          )
+          lookup_and_run_block(rec, rec_type, name, send_args, body, location)
         end
+      end
+
+      def send_sets_array(receiver, name, arguments, body, location)
+        register = body.register(receiver.message_return_type(name))
+
+        body.instruct(:SetArray, register, arguments, location)
+      end
+
+      def lookup_and_run_block(rec, rec_type, name, arguments, body, location)
+        block = body.register(rec_type.lookup_method(name).type)
+        name_reg = set_string(name, body, location)
+
+        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, location)
+
+        run_block(block, arguments, body, location)
       end
 
       def send_initializes_array?(receiver, name)

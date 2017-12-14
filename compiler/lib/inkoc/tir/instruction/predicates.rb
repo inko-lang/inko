@@ -8,7 +8,7 @@ module Inkoc
           false
         end
 
-        def send_object_message?
+        def run_block?
           false
         end
       end

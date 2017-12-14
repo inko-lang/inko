@@ -100,7 +100,6 @@ pub enum InstructionType {
     MonotonicTimeMilliseconds,
     GetGlobal,
     SetGlobal,
-    SendMessage,
     Throw,
     SetRegister,
     TailCall,

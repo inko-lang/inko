@@ -129,16 +129,6 @@ module Inkoc
           .instruct(:RunBlock, [register, block, *args], tir_ins.location)
       end
 
-      def on_send_object_message(tir_ins, compiled_code, *)
-        reg = tir_ins.register.id
-        rec = tir_ins.receiver.id
-        name = tir_ins.name.id
-        args = tir_ins.arguments.map(&:id)
-
-        compiled_code
-          .instruct(:SendMessage, [reg, rec, name, *args], tir_ins.location)
-      end
-
       def on_tail_call(tir_ins, compiled_code, *)
         arguments = tir_ins.arguments.map(&:id)
 
