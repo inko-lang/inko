@@ -538,10 +538,10 @@ describe Inkoc::Lexer do
     end
   end
 
-  describe '#sub_or_arrow' do
+  describe '#sub_or_arrow_or_negative_number' do
     it 'tokenizes the subtraction operator' do
       lexer = described_class.new('-')
-      token = lexer.sub_or_arrow
+      token = lexer.sub_or_arrow_or_negative_number
 
       expect(token.type).to eq(:sub)
       expect(token.value).to eq('-')
@@ -549,7 +549,7 @@ describe Inkoc::Lexer do
 
     it 'tokenizes the subtraction-assign operator' do
       lexer = described_class.new('-=')
-      token = lexer.sub_or_arrow
+      token = lexer.sub_or_arrow_or_negative_number
 
       expect(token.type).to eq(:sub_assign)
       expect(token.value).to eq('-=')
@@ -557,10 +557,30 @@ describe Inkoc::Lexer do
 
     it 'tokenizes the arrow operator' do
       lexer = described_class.new('->')
-      token = lexer.sub_or_arrow
+      token = lexer.sub_or_arrow_or_negative_number
 
       expect(token.type).to eq(:arrow)
       expect(token.value).to eq('->')
+    end
+
+    it 'tokenizes a negative integer' do
+      lexer = described_class.new('-10')
+      token = lexer.advance
+
+      expect(token.type).to eq(:integer)
+      expect(token.value).to eq('-10')
+    end
+
+    it 'requires no whitespace after a sign to tokenize a negative integer' do
+      lexer = described_class.new('- 10')
+      token1 = lexer.advance
+      token2 = lexer.advance
+
+      expect(token1.type).to eq(:sub)
+      expect(token1.value).to eq('-')
+
+      expect(token2.type).to eq(:integer)
+      expect(token2.value).to eq('10')
     end
   end
 

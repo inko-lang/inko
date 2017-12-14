@@ -107,7 +107,7 @@ module Inkoc
         when '&' then return bitwise_and_or_boolean_and
         when '|' then return bitwise_or_or_boolean_or
         when '*' then return mul_or_pow
-        when '-' then return sub_or_arrow
+        when '-' then return sub_or_arrow_or_negative_number
         when '+' then return add
         when '=' then return assign_or_equal
         when '<' then return lower_or_shift_left
@@ -247,9 +247,11 @@ module Inkoc
       end
     end
 
-    def number
+    def number(skip_first: false)
       start = @position
       type = :integer
+
+      @position += 1 if skip_first
 
       loop do
         case @input[@position]
@@ -412,9 +414,13 @@ module Inkoc
       end
     end
 
-    def sub_or_arrow
-      if @input[@position + 1] == '>'
+    def sub_or_arrow_or_negative_number
+      peek = @input[@position + 1]
+
+      if peek == '>'
         new_token(:arrow, @position, @position += 2)
+      elsif NUMBER_RANGE.cover?(peek)
+        number(skip_first: true)
       else
         operator(1, :sub, :sub_assign)
       end

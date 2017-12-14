@@ -63,7 +63,6 @@ module Inkoc
         return
         self
         string
-        sub
         throw
         trait
         try
@@ -517,7 +516,6 @@ module Inkoc
       when :identifier then identifier_or_reassign(start)
       when :constant then constant(start)
       when :curly_open then block_without_arguments(start)
-      when :sub then negative_number(start)
       when :bracket_open then array(start)
       when :hash_open then hash(start)
       when :define then def_method(start)
@@ -654,28 +652,6 @@ module Inkoc
       end
 
       AST::Body.new(nodes, start.location)
-    end
-
-    # Parses a negative number.
-    #
-    # Examples:
-    #
-    #     -10
-    #     -10.5
-    def negative_number(start)
-      following = advance!
-
-      case following.type
-      when :integer
-        AST::Integer.new(-Integer(following.value), start.location)
-      when :float
-        AST::Float.new(-Float(following.value), start.location)
-      else
-        raise(
-          ParseError,
-          "Unexpected #{following.type}, expected a number instead"
-        )
-      end
     end
 
     # Parses an array literal
