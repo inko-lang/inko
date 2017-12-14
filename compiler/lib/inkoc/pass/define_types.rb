@@ -593,7 +593,7 @@ module Inkoc
         optional_array_element_value(array)
       end
 
-      def on_raw_array_insert(node, _)
+      def on_raw_array_set(node, _)
         node.arguments.fetch(2).type
       end
 

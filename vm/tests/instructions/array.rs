@@ -8,8 +8,10 @@ fn test_set_array() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::SetArray, vec![2, 0, 1]),
-             new_instruction(InstructionType::Return, vec![2])];
+        vec![
+            new_instruction(InstructionType::SetArray, vec![2, 0, 1]),
+            new_instruction(InstructionType::Return, vec![2]),
+        ];
 
     let value1 = process.allocate_empty();
     let value2 = process.allocate_empty();
@@ -33,12 +35,14 @@ fn test_set_array() {
 }
 
 #[test]
-fn test_array_insert() {
+fn test_array_set() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::ArrayInsert, vec![3, 0, 1, 2]),
-             new_instruction(InstructionType::Return, vec![3])];
+        vec![
+            new_instruction(InstructionType::ArraySet, vec![3, 0, 1, 2]),
+            new_instruction(InstructionType::Return, vec![3]),
+        ];
 
     let array =
         process.allocate_without_prototype(object_value::array(Vec::new()));
@@ -62,8 +66,10 @@ fn test_array_at() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]),
-             new_instruction(InstructionType::Return, vec![2])];
+        vec![
+            new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]),
+            new_instruction(InstructionType::Return, vec![2]),
+        ];
 
     let value = ObjectPointer::integer(5);
 
@@ -87,8 +93,10 @@ fn test_array_remove() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::ArrayRemove, vec![2, 0, 1]),
-             new_instruction(InstructionType::Return, vec![2])];
+        vec![
+            new_instruction(InstructionType::ArrayRemove, vec![2, 0, 1]),
+            new_instruction(InstructionType::Return, vec![2]),
+        ];
 
     let value = ObjectPointer::integer(5);
 
@@ -114,8 +122,10 @@ fn test_array_length() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::ArrayLength, vec![1, 0]),
-             new_instruction(InstructionType::Return, vec![1])];
+        vec![
+            new_instruction(InstructionType::ArrayLength, vec![1, 0]),
+            new_instruction(InstructionType::Return, vec![1]),
+        ];
 
     let value = process.allocate_empty();
     let array =
@@ -135,8 +145,10 @@ fn test_array_clear() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::ArrayClear, vec![0]),
-             new_instruction(InstructionType::Return, vec![0])];
+        vec![
+            new_instruction(InstructionType::ArrayClear, vec![0]),
+            new_instruction(InstructionType::Return, vec![0]),
+        ];
 
     let value = process.allocate_empty();
 

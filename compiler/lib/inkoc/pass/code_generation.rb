@@ -240,14 +240,14 @@ module Inkoc
           .instruct(tir_ins.name, [reg, base, other], tir_ins.location)
       end
 
-      def on_array_insert(tir_ins, compiled_code, *)
+      def on_array_set(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         array = tir_ins.array.id
         index = tir_ins.index.id
         value = tir_ins.value.id
 
         compiled_code
-          .instruct(:ArrayInsert, [reg, array, index, value], tir_ins.location)
+          .instruct(:ArraySet, [reg, array, index, value], tir_ins.location)
       end
     end
   end

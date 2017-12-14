@@ -3,7 +3,7 @@
 module Inkoc
   module TIR
     module Instruction
-      class ArrayInsert
+      class ArraySet
         include Predicates
         include Inspect
 
@@ -18,7 +18,7 @@ module Inkoc
         end
 
         def visitor_method
-          :on_array_insert
+          :on_array_set
         end
       end
     end

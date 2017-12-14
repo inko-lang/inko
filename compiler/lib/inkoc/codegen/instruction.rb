@@ -50,7 +50,7 @@ module Inkoc
         FloatSmaller
         FloatGreater
         FloatEquals
-        ArrayInsert
+        ArraySet
         ArrayAt
         ArrayRemove
         ArrayLength

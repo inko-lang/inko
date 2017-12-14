@@ -48,7 +48,7 @@ pub enum InstructionType {
     FloatSmaller,
     FloatGreater,
     FloatEquals,
-    ArrayInsert,
+    ArraySet,
     ArrayAt,
     ArrayRemove,
     ArrayLength,

@@ -205,6 +205,6 @@ impl SetIndex!(Integer, T) for Array!(T) {
   ##     array[-1] = 20 # => 20
   ##     array          # => [10, 20]
   def []=(index: Integer, value: T) -> T {
-    _INKOC.array_insert(self, index, value)
+    _INKOC.array_set(self, index, value)
   }
 }

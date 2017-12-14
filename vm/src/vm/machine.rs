@@ -821,7 +821,7 @@ impl Machine {
                 // If an index is out of bounds the array is filled with nil
                 // values. A negative index can be used to indicate a
                 // position from the end of the array.
-                InstructionType::ArrayInsert => {
+                InstructionType::ArraySet => {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
                     let index_ptr = context.get_register(instruction.arg(2));
