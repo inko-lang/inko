@@ -274,7 +274,7 @@ module Inkoc
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = bracket_send(@lexer.advance)
+        rhs = send_chain(@lexer.advance)
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
       end
 
