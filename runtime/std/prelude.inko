@@ -4,12 +4,16 @@
 
 ![import_prelude: false]
 
-import std::object
+# The order in which modules are imported is important as some modules may
+# depend on types / methods defined in other modules.
 import std::conversion
-import std::array
-import std::block
-import std::boolean
+
+import std::object
 import std::integer
 import std::float
+import std::boolean
 import std::nil
+
+import std::array
+import std::block
 import std::string

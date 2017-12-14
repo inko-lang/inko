@@ -71,11 +71,38 @@ impl Array!(T) {
   ##
   ##     var array = []
   ##
-  ##     array.push(10)
-  ##
-  ##     array # => [10]
+  ##     array.push(10) # => 10
+  ##     array          # => [10]
   def push(value: T) -> T {
     self[length] = value
+  }
+
+  ## Removes a value from the backe of the Array, returning the removed value.
+  ##
+  ## If the Array is empty this method will return Nil instead.
+  ##
+  ## ## Examples
+  ##
+  ## Popping an existing value:
+  ##
+  ##     var array = [10]
+  ##
+  ##     array.pop # => 10
+  ##     array     # => []
+  ##
+  ## Popping a value when the Array is empty:
+  ##
+  ##     var array = []
+  ##
+  ##     array.pop # => Nil
+  ##     array     # => []
+  def pop -> ?T {
+    (length > 0).if true: {
+      remove_at(length - 1)
+    },
+    false: {
+      Nil
+    }
   }
 
   ## Removes the value at the given index, returning the removed value.
