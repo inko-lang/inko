@@ -43,7 +43,10 @@ module Inkoc
       mod = module_for_name_and_path(name, path)
 
       passes.reduce([]) do |input, klass|
-        break unless (out = klass.new(mod, @state).run(*input))
+        out = klass.new(mod, @state).run(*input)
+
+        break if out.nil? || state.diagnostics.errors?
+
         out
       end
 

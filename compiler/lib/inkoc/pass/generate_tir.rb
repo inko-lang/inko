@@ -12,8 +12,6 @@ module Inkoc
       end
 
       def run(ast)
-        return if diagnostics.errors?
-
         on_module_body(ast, @module.body)
 
         []

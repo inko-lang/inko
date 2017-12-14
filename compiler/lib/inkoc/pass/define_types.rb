@@ -33,8 +33,6 @@ module Inkoc
       end
 
       def run(ast)
-        return if diagnostics.errors?
-
         locals = ast.locals
 
         on_module_body(ast, locals)
