@@ -37,7 +37,7 @@ module Inkoc
         required_methods.define(block_type.name, block_type)
       end
 
-      def lookup_method(name)
+      def lookup_method(name, *)
         lookup_default_method(name).or_else { required_methods[name] }
       end
 

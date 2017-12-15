@@ -50,6 +50,7 @@ module Inkoc
     # The name of the constant to use as the receiver for raw instructions.
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
     NEW_MESSAGE = 'new'
+    UNKNOWN_MESSAGE_MESSAGE = 'unknown_message'
     MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     CALL_MESSAGE = 'call'

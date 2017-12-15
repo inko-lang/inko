@@ -20,7 +20,7 @@ module Inkoc
         false
       end
 
-      def lookup_method(name)
+      def lookup_method(name, *)
         NullSymbol.new(name)
       end
 

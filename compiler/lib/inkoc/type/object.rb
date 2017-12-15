@@ -61,7 +61,7 @@ module Inkoc
         end
       end
 
-      def lookup_method(name)
+      def lookup_method(name, *)
         super.or_else { lookup_method_from_traits(name) }
       end
 

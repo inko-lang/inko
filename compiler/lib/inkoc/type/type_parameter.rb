@@ -41,7 +41,7 @@ module Inkoc
         nil
       end
 
-      def lookup_method(name)
+      def lookup_method(name, *)
         required_traits.each do |trait|
           if (method = trait.lookup_method(name)) && method.any?
             return method

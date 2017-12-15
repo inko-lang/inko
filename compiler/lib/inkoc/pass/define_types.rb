@@ -243,14 +243,14 @@ module Inkoc
               .returns
         end
 
-        symbol = receiver.lookup_method(name)
-        method_type = symbol.type
-
-        unless method_type.block?
+        unless receiver.responds_to_message?(name)
           diagnostics.undefined_method_error(receiver, name, location)
 
-          return method_type
+          return Type::Dynamic.new
         end
+
+        symbol = receiver.lookup_method(name)
+        method_type = symbol.type
 
         context = MessageContext.new(receiver, method_type, args, location)
 
