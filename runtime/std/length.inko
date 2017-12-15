@@ -1,3 +1,10 @@
+#! Trait for getting the length of an object.
+#!
+#! The length refers to the number of values or elements in an object. For
+#! example, for an `Array` the length would be the number of values in the
+#! `Array`.
+
 trait Length {
+  ## Returns the number of values in the object.
   def length -> Integer
 }

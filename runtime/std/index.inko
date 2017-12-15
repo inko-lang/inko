@@ -1,7 +1,13 @@
+#! Traits for accessing and setting indexes of objects.
+
+## Trait for accessing values of an object by an index.
 trait Index!(K, R) {
+  ## Returns the value for the given index.
   def [](index: K) -> ?R
 }
 
+## Trait for setting values in an object using an index.
 trait SetIndex!(K, V) {
+  ## Sets the given index to the given value, returning the value set.
   def []=(index: K, value: V) -> V
 }
