@@ -1489,13 +1489,10 @@ impl Machine {
                     };
 
                     if execute {
-                        self.schedule_block(
-                            &block,
-                            register,
-                            2,
-                            process,
-                            instruction,
-                        );
+                        let new_context =
+                            ExecutionContext::from_block(&block, Some(register));
+
+                        process.push_context(new_context);
 
                         enter_context!(process, context, code, index);
                     } else {
