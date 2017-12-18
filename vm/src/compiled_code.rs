@@ -154,6 +154,10 @@ impl CompiledCode {
 
         None
     }
+
+    pub fn rest_argument_index(&self) -> usize {
+        self.arguments_count() - 1
+    }
 }
 
 #[cfg(test)]

@@ -2283,7 +2283,7 @@ impl Machine {
         context: &ExecutionContext,
         given_positional: usize,
         given_keyword: usize,
-        positional_start: usize,
+        pos_start: usize,
         unpack_last: bool,
     ) {
         self.validate_number_of_arguments(
@@ -2292,24 +2292,22 @@ impl Machine {
             given_keyword,
         );
 
-        let (excessive, positional_args) =
+        let (excessive, pos_args) =
             context.code.number_of_arguments_to_set(given_positional);
 
-        let positional_end = positional_start + positional_args;
+        let pos_end = pos_start + pos_args;
+        let key_start = pos_start + given_positional;
 
         self.set_positional_arguments(
             process,
             context,
-            &instruction.arguments[positional_start..positional_end],
+            &instruction.arguments[pos_start..pos_end],
             unpack_last,
         );
 
         if excessive {
-            let local_index = context.code.arguments_count() - 1;
-            let additional = positional_end +
-                (given_positional - positional_args);
-
-            let extra = &instruction.arguments[positional_end..additional];
+            let local_index = context.code.rest_argument_index();
+            let extra = &instruction.arguments[(pos_end - 1)..key_start];
 
             self.pack_excessive_arguments(process, context, local_index, extra);
         }
@@ -2319,7 +2317,7 @@ impl Machine {
                 process,
                 instruction,
                 context,
-                positional_start + given_positional,
+                key_start,
             );
         }
     }
