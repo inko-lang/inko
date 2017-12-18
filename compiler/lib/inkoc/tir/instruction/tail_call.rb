@@ -7,10 +7,11 @@ module Inkoc
         include Predicates
         include Inspect
 
-        attr_reader :arguments, :location
+        attr_reader :arguments, :keyword_arguments, :location
 
-        def initialize(arguments, location)
+        def initialize(arguments, keyword_arguments, location)
           @arguments = arguments
+          @keyword_arguments = keyword_arguments
           @location = location
         end
 

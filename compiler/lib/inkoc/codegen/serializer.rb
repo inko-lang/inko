@@ -106,7 +106,7 @@ module Inkoc
         string(code.name) +
           string(code.file.to_s) +
           u16(code.line) +
-          u8(code.arguments) +
+          array(code.arguments, :literal) +
           u8(code.required_arguments) +
           boolean(code.rest_argument) +
           u16(code.locals) +

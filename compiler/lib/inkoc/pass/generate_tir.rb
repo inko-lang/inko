@@ -201,6 +201,7 @@ module Inkoc
             get_global(Config::MODULE_GLOBAL, body, loc),
             name,
             [],
+            [],
             body,
             loc
           )
@@ -358,7 +359,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [object], body, loc)
+        run_block(block, [object], [], body, loc)
 
         object
       end
@@ -372,6 +373,7 @@ module Inkoc
           object,
           Config::IMPLEMENT_TRAIT_MESSAGE,
           [trait],
+          [],
           body,
           loc
         )
@@ -386,7 +388,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [object], body, loc)
+        run_block(block, [object], [], body, loc)
 
         object
       end
@@ -405,7 +407,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [object], body, loc)
+        run_block(block, [object], [], body, loc)
 
         object
       end
@@ -435,13 +437,25 @@ module Inkoc
       def on_send(node, body)
         location = node.location
         receiver = receiver_for_send(node, body)
-        arg_regs = process_nodes(node.arguments, body)
+        args, kwargs = split_send_arguments(node.arguments, body)
 
-        send_object_message(receiver, node.name, arg_regs, body, location)
+        send_object_message(receiver, node.name, args, kwargs, body, location)
       end
 
-      def on_keyword_argument(_node, _body)
-        raise NotImplementedError, 'keyword arguments are not yet supported'
+      def split_send_arguments(arguments, body)
+        args = []
+        kwargs = []
+
+        arguments.each do |arg|
+          if arg.keyword_argument?
+            kwargs << set_string(arg.name, body, arg.location)
+            kwargs << process_node(arg.value, body)
+          else
+            args << process_node(arg, body)
+          end
+        end
+
+        [args, kwargs]
       end
 
       def receiver_for_send(node, body)
@@ -755,9 +769,9 @@ module Inkoc
       def on_raw_run_block(node, body)
         block = process_node(node.arguments.fetch(0), body)
         self_reg = get_self(body, node.location)
-        arguments = process_nodes(node.arguments[1..-1], body)
+        args, kwargs = split_send_arguments(node.arguments[1..-1], body)
 
-        run_block(block, [self_reg, *arguments], body, node.location)
+        run_block(block, [self_reg, *args], kwargs, body, node.location)
       end
 
       def on_raw_get_string_prototype(node, body)
@@ -806,6 +820,10 @@ module Inkoc
 
       def on_raw_array_remove(node, body)
         raw_binary_instruction(:ArrayRemove, node, body)
+      end
+
+      def on_raw_monotonic_time_milliseconds(node, body)
+        raw_nullary_instruction(:MonotonicTimeMilliseconds, node, body)
       end
 
       def on_return(node, body)
@@ -861,7 +879,7 @@ module Inkoc
           self_reg = get_self(body, node.else_body.location)
           else_loc = node.else_body.location
 
-          run_block(block_reg, [self_reg, catch_reg], body, else_loc)
+          run_block(block_reg, [self_reg, catch_reg], [], body, else_loc)
         else
           process_nodes(node.else_body.expressions, body).last ||
             get_nil(body, node.else_body.location)
@@ -884,15 +902,15 @@ module Inkoc
         body.instruct(:SetBlock, body.register(block_type), else_code, location)
       end
 
-      def run_block(block, arguments, body, location)
+      def run_block(block, args, kwargs, body, location)
         type = block.type
         register = body.register(type.return_type)
 
-        body.instruct(:RunBlock, register, block, arguments, type, location)
+        body.instruct(:RunBlock, register, block, args, kwargs, type, location)
       end
 
-      def send_to_self(name, body, location)
-        send_object_message(get_self(body, location), name, [], body, location)
+      def send_to_self(name, body, loc)
+        send_object_message(get_self(body, loc), name, [], [], body, loc)
       end
 
       def get_toplevel(body, location)
@@ -931,16 +949,16 @@ module Inkoc
         body.instruct(:SetLiteral, register, value, location)
       end
 
-      def send_object_message(rec, name, arguments, body, location)
+      def send_object_message(rec, name, arguments, kwargs, body, loc)
         rec_type = rec.type.resolve_type(body.self_type)
-        send_args = [rec, *arguments]
+        sargs = [rec, *arguments]
 
         if send_initializes_array?(rec_type, name)
-          send_sets_array(rec_type, name, arguments, body, location)
+          send_sets_array(rec_type, name, arguments, body, loc)
         elsif send_runs_block?(rec_type, name)
-          run_block(rec, send_args, body, location)
+          run_block(rec, sargs, kwargs, body, loc)
         else
-          lookup_and_run_block(rec, rec_type, name, send_args, body, location)
+          lookup_and_run_block(rec, rec_type, name, sargs, kwargs, body, loc)
         end
       end
 
@@ -950,13 +968,13 @@ module Inkoc
         body.instruct(:SetArray, register, arguments, location)
       end
 
-      def lookup_and_run_block(rec, rec_type, name, arguments, body, location)
+      def lookup_and_run_block(rec, rec_type, name, args, kwargs, body, loc)
         block = body.register(rec_type.lookup_method(name).type)
-        name_reg = set_string(name, body, location)
+        name_reg = set_string(name, body, loc)
 
-        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, location)
+        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
 
-        run_block(block, arguments, body, location)
+        run_block(block, args, kwargs, body, loc)
       end
 
       def send_initializes_array?(receiver, name)

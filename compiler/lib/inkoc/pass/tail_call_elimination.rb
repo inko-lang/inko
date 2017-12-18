@@ -30,7 +30,7 @@ module Inkoc
         return unless tail_call?(code, ins)
 
         block.instructions[-2] = TIR::Instruction::TailCall
-          .new(ins.arguments, ins.location)
+          .new(ins.arguments, ins.keyword_arguments, ins.location)
       end
 
       def diagnostics

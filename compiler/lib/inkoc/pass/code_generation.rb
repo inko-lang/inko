@@ -33,7 +33,7 @@ module Inkoc
       end
 
       def assign_compiled_code_metadata(compiled_code, code_object)
-        compiled_code.arguments = code_object.arguments_count_without_rest
+        compiled_code.arguments = code_object.argument_names
         compiled_code.required_arguments = code_object.required_arguments_count
         compiled_code.rest_argument = code_object.rest_argument?
         compiled_code.locals = code_object.local_variables_count
@@ -124,16 +124,27 @@ module Inkoc
         register = tir_ins.register.id
         block = tir_ins.block.id
         args = tir_ins.arguments.map(&:id)
+        kwargs = tir_ins.keyword_arguments.map(&:id)
+        ins_args = [
+          register,
+          block,
+          args.length,
+          kwargs.length / 2,
+          0,
+          *args,
+          *kwargs
+        ]
 
-        compiled_code
-          .instruct(:RunBlock, [register, block, *args], tir_ins.location)
+        compiled_code.instruct(:RunBlock, ins_args, tir_ins.location)
       end
 
       def on_tail_call(tir_ins, compiled_code, *)
-        arguments = tir_ins.arguments.map(&:id)
+        args = tir_ins.arguments.map(&:id)
+        kwargs = tir_ins.keyword_arguments.map(&:id)
+        ins_args = [args.length, kwargs.length / 2, 0, *args, *kwargs]
 
         compiled_code
-          .instruct(:TailCall, arguments, tir_ins.location)
+          .instruct(:TailCall, ins_args, tir_ins.location)
       end
 
       def on_set_array(tir_ins, compiled_code, *)

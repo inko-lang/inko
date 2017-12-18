@@ -13,7 +13,7 @@ module Inkoc
       def initialize(name, location)
         @name = name
         @location = location
-        @arguments = 0
+        @arguments = []
         @required_arguments = 0
         @rest_argument = false
         @locals = 0
