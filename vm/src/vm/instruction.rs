@@ -141,6 +141,10 @@ impl Instruction {
     pub fn arg_opt(&self, index: usize) -> Option<usize> {
         self.arguments.get(index).cloned()
     }
+
+    pub fn boolean(&self, index: usize) -> bool {
+        self.arg(index) == 1
+    }
 }
 
 #[cfg(test)]
@@ -181,5 +185,12 @@ mod tests {
 
         assert!(ins.arg_opt(0).is_some());
         assert_eq!(ins.arg_opt(0).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_boolean() {
+        let ins = new_instruction();
+
+        assert!(ins.boolean(0));
     }
 }

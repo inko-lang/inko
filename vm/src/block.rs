@@ -31,14 +31,6 @@ impl Block {
         }
     }
 
-    pub fn arguments(&self) -> usize {
-        self.code.arguments()
-    }
-
-    pub fn required_arguments(&self) -> usize {
-        self.code.required_arguments()
-    }
-
     pub fn locals(&self) -> usize {
         self.code.locals as usize
     }

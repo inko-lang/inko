@@ -1,5 +1,4 @@
 //! Sequences of bytecode instructions with associated literal values.
-
 use catch_table::CatchTable;
 use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
@@ -19,8 +18,8 @@ pub struct CompiledCode {
     /// The starting line number.
     pub line: u16,
 
-    /// The total number of arguments, excluding the rest argument.
-    pub arguments: u8,
+    /// The names of the arguments, as interned string pointers.
+    pub arguments: Vec<ObjectPointer>,
 
     /// The amount of required arguments.
     pub required_arguments: u8,
@@ -70,7 +69,7 @@ impl CompiledCode {
             name: name,
             file: file,
             line: line,
-            arguments: 0,
+            arguments: Vec::new(),
             required_arguments: 0,
             rest_argument: false,
             locals: 0,
@@ -104,8 +103,8 @@ impl CompiledCode {
     }
 
     #[inline(always)]
-    pub fn arguments(&self) -> usize {
-        self.arguments as usize
+    pub fn arguments_count(&self) -> usize {
+        self.arguments.len()
     }
 
     #[inline(always)]
@@ -115,14 +114,14 @@ impl CompiledCode {
 
     pub fn label_for_number_of_arguments(&self) -> String {
         if self.rest_argument {
-            format!("{}+", self.arguments())
+            format!("{}+", self.arguments_count())
         } else {
-            format!("{}", self.arguments())
+            format!("{}", self.arguments_count())
         }
     }
 
     pub fn valid_number_of_arguments(&self, given: usize) -> bool {
-        let total = self.arguments();
+        let total = self.arguments_count();
         let required = self.required_arguments();
 
         if given < required {
@@ -136,10 +135,24 @@ impl CompiledCode {
         true
     }
 
-    pub fn number_of_arguments_to_set(&self, given: usize) -> usize {
-        let total = self.arguments();
+    pub fn number_of_arguments_to_set(&self, given: usize) -> (bool, usize) {
+        let total = self.arguments_count();
 
-        if given <= total { given } else { total }
+        if given <= total {
+            (false, given)
+        } else {
+            (self.rest_argument, total)
+        }
+    }
+
+    pub fn argument_position(&self, name: &ObjectPointer) -> Option<usize> {
+        for (index, arg) in self.arguments.iter().enumerate() {
+            if name == arg {
+                return Some(index);
+            }
+        }
+
+        None
     }
 }
 

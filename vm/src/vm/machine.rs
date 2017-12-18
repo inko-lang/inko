@@ -2034,9 +2034,14 @@ impl Machine {
                 //
                 // 1. The register to store the return value in.
                 // 2. The register containing the Block object to run.
-                //
-                // Any extra arguments passed are passed as arguments to the
-                // block.
+                // 3. An integer indicating the number of positional arguments.
+                // 4. An integer indicating the number of keyword arguments.
+                // 5. A boolean (as 0 or 1) that specifies if the last
+                //    positional argument should be unpacked into separate
+                //    arguments.
+                // 6. A variable list of positional arguments.
+                // 7. A variable list of keyword argument and value pairs. The
+                //    keyword argument names must be interned strings.
                 InstructionType::RunBlock => {
                     context.line = instruction.line;
 
@@ -2044,13 +2049,20 @@ impl Machine {
                     let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value().unwrap();
 
-                    self.schedule_block(
-                        &block,
-                        register,
-                        2,
+                    let new_ctx =
+                        ExecutionContext::from_block(&block, Some(register));
+
+                    self.prepare_new_context(
                         process,
                         instruction,
+                        &new_ctx,
+                        instruction.arg(2),
+                        instruction.arg(3),
+                        5,
+                        instruction.boolean(4),
                     );
+
+                    process.push_context(new_ctx);
 
                     enter_context!(process, context, code, index);
                 }
@@ -2118,17 +2130,19 @@ impl Machine {
                 }
                 // Performs a tail call on the current block.
                 //
-                // This instruction takes 0 or more arguments, each containing
-                // a register to set in the corresponding local variable.
+                // This instruction takes the same arguments as RunBlock, except
+                // for the register and block arguments.
                 InstructionType::TailCall => {
                     context.binding.locals_mut().reset();
 
                     self.prepare_new_context(
                         process,
                         instruction,
-                        &code,
                         context,
-                        0,
+                        instruction.arg(0),
+                        instruction.arg(1),
+                        3,
+                        instruction.boolean(2),
                     );
 
                     context.register.values.reset();
@@ -2199,68 +2213,134 @@ impl Machine {
         self.state.gc_pool.schedule(request);
     }
 
-    fn schedule_block(
+    #[inline(always)]
+    fn validate_number_of_arguments(
         &self,
-        block: &Block,
-        return_register: usize,
-        arg_offset: usize,
-        process: &RcProcess,
-        instruction: &Instruction,
+        code: &CompiledCodePointer,
+        given_positional: usize,
+        given_keyword: usize,
     ) {
-        let context = ExecutionContext::from_block(block, Some(return_register));
+        let arguments = given_positional + given_keyword;
 
-        self.prepare_new_context(
-            process,
-            instruction,
-            &block.code,
-            &context,
-            arg_offset,
+        if !code.valid_number_of_arguments(arguments) {
+            panic!(
+                "{} takes {} arguments but {} were supplied",
+                code.name,
+                code.label_for_number_of_arguments(),
+                arguments
+            );
+        }
+    }
+
+    fn set_positional_arguments(
+        &self,
+        process: &RcProcess,
+        context: &ExecutionContext,
+        registers: &[usize],
+        unpack_last: bool,
+    ) {
+        let locals = context.binding.locals_mut();
+
+        for (index, register) in registers.iter().enumerate() {
+            locals[index] = process.get_register(*register);
+        }
+
+        if unpack_last {
+            let unpack_start = registers.len() - 1;
+            let pointer = locals[unpack_start];
+            let array = pointer.array_value().unwrap();
+
+            for (index, value) in array.iter().enumerate() {
+                locals[unpack_start + index] = *value;
+            }
+        }
+    }
+
+    fn pack_excessive_arguments(
+        &self,
+        process: &RcProcess,
+        context: &ExecutionContext,
+        pack_local: usize,
+        registers: &[usize],
+    ) {
+        let locals = context.binding.locals_mut();
+
+        let pointers = registers
+            .iter()
+            .map(|register| process.get_register(*register))
+            .collect::<Vec<ObjectPointer>>();
+
+        locals[pack_local] = process.allocate(
+            object_value::array(pointers),
+            self.state.array_prototype,
         );
-
-        process.push_context(context);
     }
 
     fn prepare_new_context(
         &self,
         process: &RcProcess,
         instruction: &Instruction,
-        code: &CompiledCodePointer,
         context: &ExecutionContext,
-        arg_offset: usize,
+        given_positional: usize,
+        given_keyword: usize,
+        positional_start: usize,
+        unpack_last: bool,
     ) {
-        let ins_args_count = instruction.arguments.len();
-        let arg_count = ins_args_count - arg_offset;
+        self.validate_number_of_arguments(
+            &context.code,
+            given_positional,
+            given_keyword,
+        );
 
-        if !code.valid_number_of_arguments(arg_count) {
-            panic!(
-                "{} takes {} arguments but {} were supplied",
-                code.name,
-                code.label_for_number_of_arguments(),
-                arg_count
-            );
+        let (excessive, positional_args) =
+            context.code.number_of_arguments_to_set(given_positional);
+
+        let positional_end = positional_start + positional_args;
+
+        self.set_positional_arguments(
+            process,
+            context,
+            &instruction.arguments[positional_start..positional_end],
+            unpack_last,
+        );
+
+        if excessive {
+            let local_index = context.code.arguments_count() - 1;
+            let additional = positional_end +
+                (given_positional - positional_args);
+
+            let extra = &instruction.arguments[positional_end..additional];
+
+            self.pack_excessive_arguments(process, context, local_index, extra);
         }
 
+        if given_keyword > 0 {
+            self.prepare_keyword_arguments(
+                process,
+                instruction,
+                context,
+                positional_start + given_positional,
+            );
+        }
+    }
+
+    fn prepare_keyword_arguments(
+        &self,
+        process: &RcProcess,
+        instruction: &Instruction,
+        context: &ExecutionContext,
+        keyword_start: usize,
+    ) {
+        let keyword_args = &instruction.arguments[keyword_start..];
         let locals = context.binding.locals_mut();
-        let max_index = arg_offset + code.number_of_arguments_to_set(arg_count);
-        let total = code.arguments();
 
-        for index in arg_offset..max_index {
-            let local_index = index - arg_offset;
+        for slice in keyword_args.chunks(2) {
+            let key = process.get_register(slice[0]);
+            let val = process.get_register(slice[1]);
 
-            locals[local_index] = process.get_register(instruction.arg(index));
-        }
-
-        // We can only reach this code if a rest argument is defined, thus
-        // we only need to check if too many arguments are passed.
-        if arg_count > total {
-            let rest_args = (max_index..ins_args_count)
-                .map(|index| process.get_register(instruction.arg(index)))
-                .collect::<Vec<ObjectPointer>>();
-
-            locals[total + 1] = process.allocate(
-                object_value::array(rest_args),
-                self.state.array_prototype,
-            );
+            if let Some(index) = context.code.argument_position(&key) {
+                locals[index] = val;
+            }
         }
     }
 

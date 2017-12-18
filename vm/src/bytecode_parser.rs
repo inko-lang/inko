@@ -251,7 +251,7 @@ fn read_compiled_code<T: Read>(
     let name = try!(read_string(bytes));
     let file = try!(read_string(bytes));
     let line = try!(read_u16(bytes));
-    let args = try!(read_u8(bytes));
+    let args = try!(read_literals_vector(state, bytes));
     let req_args = try!(read_u8(bytes));
     let rest_arg = try!(read_bool(bytes));
     let locals = try!(read_u16(bytes));
@@ -463,7 +463,7 @@ mod tests {
         pack_string!("main", buffer);
         pack_string!("test.inko", buffer);
         pack_u16!(4, buffer); // line
-        pack_u8!(0, buffer); // arguments
+        pack_u64!(0, buffer); // arguments
         pack_u8!(0, buffer); // required arguments
         pack_u8!(0, buffer); // rest argument
         pack_u16!(0, buffer); // locals
@@ -667,7 +667,18 @@ mod tests {
         pack_string!("main", buffer); // name
         pack_string!("test.inko", buffer); // file
         pack_u16!(4, buffer); // line
-        pack_u8!(3, buffer); // arguments
+
+        pack_u64!(3, buffer); // arguments
+
+        pack_u8!(2, buffer);
+        pack_string!("foo", buffer);
+
+        pack_u8!(2, buffer);
+        pack_string!("bar", buffer);
+
+        pack_u8!(2, buffer);
+        pack_string!("baz", buffer);
+
         pack_u8!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
         pack_u16!(1, buffer); // locals
@@ -718,7 +729,7 @@ mod tests {
         assert_eq!(object.line, 4);
         assert_eq!(object.locals, 1);
         assert_eq!(object.registers, 2);
-        assert_eq!(object.arguments, 3);
+        assert_eq!(object.arguments.len(), 3);
         assert_eq!(object.required_arguments, 2);
         assert_eq!(object.rest_argument, true);
         assert_eq!(object.instructions.len(), 2);
@@ -755,7 +766,7 @@ mod tests {
         pack_string!("main", buffer); // name
         pack_string!("test.inko", buffer); // file
         pack_u16!(4, buffer); // line
-        pack_u8!(3, buffer); // arguments
+        pack_u64!(0, buffer); // arguments
         pack_u8!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
         pack_u16!(1, buffer); // locals
@@ -789,7 +800,7 @@ mod tests {
         pack_string!("main", buffer); // name
         pack_string!("test.inko", buffer); // file
         pack_u16!(4, buffer); // line
-        pack_u8!(3, buffer); // arguments
+        pack_u64!(0, buffer); // arguments
         pack_u8!(2, buffer); // required args
         pack_u8!(1, buffer); // rest argument
         pack_u16!(1, buffer); // locals
