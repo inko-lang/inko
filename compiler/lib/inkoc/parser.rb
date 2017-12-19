@@ -270,11 +270,11 @@ module Inkoc
     end
 
     def binary_send(start)
-      node = send_chain(start)
+      node = bracket_send(start)
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = send_chain(@lexer.advance)
+        rhs = bracket_send(@lexer.advance)
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
       end
 
@@ -283,7 +283,7 @@ module Inkoc
 
     def bracket_send(start)
       start_line = start.line
-      node = value(start)
+      node = send_chain(start)
 
       while @lexer.next_type_is?(:bracket_open)
         # Only treat [x][y] as a send if [y] occurs on the same line. This
@@ -390,7 +390,7 @@ module Inkoc
 
     # Parses a chain of messages being sent to a receiver.
     def send_chain(start)
-      node = bracket_send(start)
+      node = value(start)
 
       while @lexer.next_type_is?(:dot)
         skip_one
