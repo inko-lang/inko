@@ -886,6 +886,56 @@ module Inkoc
         raw_nullary_instruction(:GetCurrentPid, node, body)
       end
 
+      def on_raw_remove_attribute(node, body)
+        raw_binary_instruction(:RemoveAttribute, node, body)
+      end
+
+      def on_raw_get_prototype(node, body)
+        raw_unary_instruction(:GetPrototype, node, body)
+      end
+
+      def on_raw_get_attribute_names(node, body)
+        raw_unary_instruction(:GetAttributeNames, node, body)
+      end
+
+      def on_raw_attribute_exists(node, body)
+        raw_binary_instruction(:AttributeExists, node, body)
+      end
+
+      def on_raw_file_flush(node, body)
+        file = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Nullary, :FileFlush, file, node.location)
+      end
+
+      def on_raw_file_open(node, body)
+        raw_binary_instruction(:FileOpen, node, body)
+      end
+
+      def on_raw_file_read(node, body)
+        raw_unary_instruction(:FileRead, node, body)
+      end
+
+      def on_raw_file_read_line(node, body)
+        raw_unary_instruction(:FileReadLine, node, body)
+      end
+
+      def on_raw_file_read_exact(node, body)
+        raw_binary_instruction(:FileReadExact, node, body)
+      end
+
+      def on_raw_file_seek(node, body)
+        raw_binary_instruction(:FileSeek, node, body)
+      end
+
+      def on_raw_file_size(node, body)
+        raw_unary_instruction(:FileSize, node, body)
+      end
+
+      def on_raw_file_write(node, body)
+        raw_binary_instruction(:FileWrite, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

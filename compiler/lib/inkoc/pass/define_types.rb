@@ -671,6 +671,63 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_remove_attribute(node, _)
+        object = node.arguments.fetch(0).type
+        name = node.arguments.fetch(1)
+
+        if name.string?
+          object.lookup_attribute(name.value).type
+        else
+          Type::Dynamic.new
+        end
+      end
+
+      def on_raw_get_prototype(node, _)
+        proto = node.arguments.fetch(0).type.prototype || typedb.nil_type
+
+        Type::Optional.new(proto)
+      end
+
+      def on_raw_get_attribute_names(*)
+        typedb.new_array_of_type(typedb.string_type)
+      end
+
+      def on_raw_attribute_exists(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_file_flush(*)
+        Type::Void.new
+      end
+
+      def on_raw_file_open(*)
+        typedb.file_type
+      end
+
+      def on_raw_file_read(*)
+        typedb.string_type
+      end
+
+      def on_raw_file_read_line(*)
+        typedb.string_type
+      end
+
+      def on_raw_file_read_exact(*)
+        typedb.string_type
+      end
+
+      def on_raw_file_seek(*)
+        typedb.integer_type
+      end
+
+      def on_raw_file_size(*)
+        typedb.integer_type
+      end
+
+      def on_raw_file_write(*)
+        typedb.integer_type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

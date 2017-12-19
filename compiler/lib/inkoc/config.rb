@@ -38,6 +38,7 @@ module Inkoc
     FALSE_CONST = 'False'
     BOOLEAN_CONST = 'Boolean'
     NIL_CONST = 'Nil'
+    FILE_CONST = 'File'
     ARRAY_TYPE_PARAMETER = 'T'
     HASH_MAP_KEY_TYPE_PARAMETER = 'K'
     HASH_MAP_VALUE_TYPE_PARAMETER = 'K'

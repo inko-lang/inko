@@ -74,8 +74,6 @@ module Inkoc
         FileSize
         FileSeek
         LoadModule
-        GetBindingPrototype
-        GetBinding
         SetAttribute
         GetAttribute
         SetPrototype
@@ -92,7 +90,7 @@ module Inkoc
         ObjectEquals
         GetToplevel
         GetNil
-        AttrExists
+        AttributeExists
         RemoveAttribute
         GetAttributeNames
         MonotonicTimeNanoseconds
