@@ -344,6 +344,10 @@ impl ObjectPointer {
         self.raw.bit_is_set(INTEGER_BIT)
     }
 
+    pub fn is_immutable(&self) -> bool {
+        self.is_tagged_integer() || self.get().value.is_immutable()
+    }
+
     pub fn integer_value(&self) -> Result<i64, String> {
         if self.is_tagged_integer() {
             Ok(self.raw.raw as i64 >> 1)
@@ -853,5 +857,14 @@ mod tests {
         let ptr_ptr2 = ptr.pointer();
 
         assert!(ptr_ptr1 == ptr_ptr2);
+    }
+
+    #[test]
+    fn test_is_immutable() {
+        let state = State::new(Config::new());
+        let name = state.intern(&"foo".to_string());
+
+        assert!(name.is_immutable());
+        assert!(ObjectPointer::integer(5).is_immutable());
     }
 }

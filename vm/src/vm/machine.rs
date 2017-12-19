@@ -1538,8 +1538,8 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let value_ptr = context.get_register(instruction.arg(3));
 
-                    if target_ptr.is_tagged_integer() {
-                        panic!("attributes can not be set for integers");
+                    if target_ptr.is_immutable() {
+                        panic!("can't modify immutable object");
                     }
 
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
@@ -1941,8 +1941,8 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    if rec_ptr.is_tagged_integer() {
-                        panic!("attributes can not be removed for integers");
+                    if rec_ptr.is_immutable() {
+                        panic!("can't modify immutable objects");
                     }
 
                     let obj = if let Some(attribute) =

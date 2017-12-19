@@ -167,6 +167,15 @@ impl ObjectValue {
             _ => true,
         }
     }
+
+    pub fn is_immutable(&self) -> bool {
+        match self {
+            &ObjectValue::Float(_) |
+            &ObjectValue::String(_) |
+            &ObjectValue::InternedString(_) => true,
+            _ => false,
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -492,5 +501,12 @@ mod tests {
         let b = Binding::new(0);
 
         assert!(binding(b).is_binding());
+    }
+
+    #[test]
+    fn test_is_immutable() {
+        assert!(string("a".to_string()).is_immutable());
+        assert!(float(10.5).is_immutable());
+        assert!(interned_string("a".to_string()).is_immutable());
     }
 }
