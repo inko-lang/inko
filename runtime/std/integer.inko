@@ -1,10 +1,6 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
-trait ToInteger {
-  def to_integer -> Integer
-}
-
 impl ToInteger for Integer {
   def to_integer -> Integer {
     self
