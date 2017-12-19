@@ -1508,28 +1508,6 @@ impl Machine {
                         context.set_register(register, self.state.nil_object);
                     }
                 }
-                InstructionType::GetBindingPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.binding_prototype,
-                    );
-                }
-                // Gets the Binding of the current scope and sets it in a
-                // register
-                //
-                // This instruction requires only one argument: the register
-                // to store the object in.
-                InstructionType::GetBinding => {
-                    let register = instruction.arg(0);
-                    let binding = context.binding.clone();
-
-                    let obj = process.allocate(
-                        object_value::binding(binding),
-                        self.state.binding_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
                 // Sets an attribute of an object.
                 //
                 // This instruction requires 3 arguments:
@@ -1882,7 +1860,7 @@ impl Machine {
                 // 2. The register containing the object to check.
                 // 3. The register containing the attribute name as a
                 //    string.
-                InstructionType::AttrExists => {
+                InstructionType::AttributeExists => {
                     let register = instruction.arg(0);
                     let source_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
