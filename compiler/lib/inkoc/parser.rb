@@ -270,30 +270,12 @@ module Inkoc
     end
 
     def binary_send(start)
-      node = bracket_send(start)
+      node = send_chain(start)
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = bracket_send(@lexer.advance)
+        rhs = send_chain(@lexer.advance)
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
-      end
-
-      node
-    end
-
-    def bracket_send(start)
-      start_line = start.line
-      node = send_chain(start)
-
-      while @lexer.next_type_is?(:bracket_open)
-        # Only treat [x][y] as a send if [y] occurs on the same line. This
-        # ensures that e.g. [x]\n[y] is parsed as two array literals.
-        break unless @lexer.peek.line == start_line
-
-        bracket = @lexer.advance
-        name, args = bracket_get_or_set
-
-        node = AST::Send.new(name, node, args, bracket.location)
       end
 
       node
@@ -392,10 +374,23 @@ module Inkoc
     def send_chain(start)
       node = value(start)
 
-      while @lexer.next_type_is?(:dot)
-        skip_one
+      loop do
+        case @lexer.peek.type
+        when :dot
+          skip_one
+          node = send_chain_with_receiver(node)
+        when :bracket_open
+          # Only treat [x][y] as a send if [y] occurs on the same line. This
+          # ensures that e.g. [x]\n[y] is parsed as two array literals.
+          break unless @lexer.peek.line == start.line
 
-        node = send_chain_with_receiver(node)
+          bracket = @lexer.advance
+          name, args = bracket_get_or_set
+
+          node = AST::Send.new(name, node, args, bracket.location)
+        else
+          break
+        end
       end
 
       node
