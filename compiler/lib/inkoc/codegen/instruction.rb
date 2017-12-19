@@ -94,7 +94,6 @@ module Inkoc
         GetNil
         AttrExists
         RemoveAttribute
-        GetAttributes
         GetAttributeNames
         MonotonicTimeNanoseconds
         MonotonicTimeMilliseconds

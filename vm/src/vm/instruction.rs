@@ -92,7 +92,6 @@ pub enum InstructionType {
     GetNil,
     AttrExists,
     RemoveAttribute,
-    GetAttributes,
     GetAttributeNames,
     MonotonicTimeNanoseconds,
     MonotonicTimeMilliseconds,

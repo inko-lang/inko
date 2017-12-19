@@ -1928,25 +1928,6 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
-                // Gets all the attributes available on an object.
-                //
-                // This instruction requires 2 arguments:
-                //
-                // 1. The register to store the attributes in.
-                // 2. The register containing the object for which to get
-                //    all attributes.
-                InstructionType::GetAttributes => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let attributes = rec_ptr.attributes();
-
-                    let obj = process.allocate(
-                        object_value::array(attributes),
-                        self.state.array_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
                 // Gets all the attributes names available on an object.
                 //
                 // This instruction requires 2 arguments:
