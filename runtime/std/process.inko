@@ -1,0 +1,24 @@
+import std::conversion::ToInteger
+
+let PRIMARY_POOL = 0
+let IO_POOL = 1
+
+def current -> Integer {
+  _INKOC.get_current_pid
+}
+
+def send!(T)(pid: ToInteger, message: T) -> T {
+  _INKOC.send_process_message(pid.to_integer, message)
+}
+
+def receive {
+  _INKOC.receive_process_message
+}
+
+def spawn(block: do) -> Integer {
+  _INKOC.spawn_process(block, PRIMARY_POOL)
+}
+
+def spawn_io(block: do) -> Integer {
+  _INKOC.spawn_process(block, IO_POOL)
+}
