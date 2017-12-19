@@ -40,6 +40,10 @@ module Inkoc
         process_nodes(node.arguments)
       end
 
+      def on_raw_instruction(node)
+        process_nodes(node.arguments)
+      end
+
       def on_node_with_body(node)
         process_node(node.body)
       end

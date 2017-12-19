@@ -1,7 +1,121 @@
 import std::conversion::ToString
+import std::length::Length
+import std::operators::Equal
+
+impl String {
+  ## Creates a `String` from the given `Array` of bytes.
+  ##
+  ## ## Examples
+  ##
+  ## Creating a `String` from a byte `Array`:
+  ##
+  ##     String.from_bytes([102, 111, 111]) # => 'foo'
+  def from_bytes(bytes: Array!(Integer)) -> String {
+    _INKOC.string_from_bytes(bytes)
+  }
+
+  ## Returns the uppercase equivalent of the current `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` containing only ASCII symbols:
+  ##
+  ##     'hello'.to_uppercase # => 'HELLO'
+  ##
+  ## Converting a `String` containing Unicode symbols:
+  ##
+  ##     'ä'.to_uppercase # => 'Ä'
+  ##
+  ## Converting a `String` containing both ASCII and Unicode symbols:
+  ##
+  ##     'aä'.to_uppercase # => 'AÄ'
+  def to_uppercase -> String {
+    _INKOC.string_to_upper(self)
+  }
+
+  ## Returns the lowercase equivalent of the current `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` containing only ASCII symbols:
+  ##
+  ##     'HELLO'.to_lowercase # => 'hello'
+  ##
+  ## Converting a `String` containing Unicode symbols:
+  ##
+  ##     'Ä'.to_lowercase # => 'ä'
+  ##
+  ## Converting a `String` containing both ASCII and Unicode symbols:
+  ##
+  ##     'AÄ'.to_lowercase # => 'aä'
+  def to_lowercase -> String {
+    _INKOC.string_to_lower(self)
+  }
+
+  ## Returns an `Array` containing the bytes of this `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` to an `Array` of bytes:
+  def to_bytes -> Array!(Integer) {
+    _INKOC.string_to_bytes(self)
+  }
+
+  ## Returns the size of the `String` in bytes.
+  ##
+  ## # Examples
+  ##
+  ## Getting the size of a `String`:
+  ##
+  ##     'foo'.bytesize # => 3
+  def bytesize -> Integer {
+    _INKOC.string_size(self)
+  }
+}
 
 impl ToString for String {
+  ## Returns the current `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` to a `String`:
+  ##
+  ##     'hello'.to_string # => 'hello'
   def to_string -> String {
     self
+  }
+}
+
+impl Length for String {
+  ## Returns the number of characters (_not_ bytes) in this `String`.
+  ##
+  ## # Examples
+  ##
+  ## Getting the length of an ASCII `String`:
+  ##
+  ##     'foo'.length # => 3
+  ##
+  ## Getting the length of a Unicode `String`:
+  ##
+  ##     '쿠키'.length # => 2
+  def length -> Integer {
+    _INKOC.string_length(self)
+  }
+}
+
+impl Equal for String {
+  ## Returns `True` if the current `String` and `other` are equal to each other.
+  ##
+  ## ## Examples
+  ##
+  ## Returns `True` if two Strings are equal:
+  ##
+  ##     'foo' == 'foo' # => True
+  ##
+  ## Returns `False` if two Strings are not equal:
+  ##
+  ##     'foo' == 'bar' # => False
+  def ==(other: Self) -> Boolean {
+    _INKOC.string_equals(self, other)
   }
 }

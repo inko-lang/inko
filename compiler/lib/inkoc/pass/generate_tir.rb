@@ -826,6 +826,66 @@ module Inkoc
         raw_nullary_instruction(:MonotonicTimeMilliseconds, node, body)
       end
 
+      def on_raw_monotonic_time_nanoseconds(node, body)
+        raw_nullary_instruction(:MonotonicTimeNanoseconds, node, body)
+      end
+
+      def on_raw_string_to_upper(node, body)
+        raw_unary_instruction(:StringToUpper, node, body)
+      end
+
+      def on_raw_string_to_lower(node, body)
+        raw_unary_instruction(:StringToLower, node, body)
+      end
+
+      def on_raw_string_to_bytes(node, body)
+        raw_unary_instruction(:StringToBytes, node, body)
+      end
+
+      def on_raw_string_size(node, body)
+        raw_unary_instruction(:StringSize, node, body)
+      end
+
+      def on_raw_string_length(node, body)
+        raw_unary_instruction(:StringLength, node, body)
+      end
+
+      def on_raw_string_equals(node, body)
+        raw_binary_instruction(:StringEquals, node, body)
+      end
+
+      def on_raw_string_from_bytes(node, body)
+        raw_unary_instruction(:StringFromBytes, node, body)
+      end
+
+      def on_raw_stdin_read_line(node, body)
+        raw_nullary_instruction(:StdinReadLine, node, body)
+      end
+
+      def on_raw_stdin_read_exact(node, body)
+        raw_unary_instruction(:StdinReadExact, node, body)
+      end
+
+      def on_raw_stderr_write(node, body)
+        raw_unary_instruction(:StderrWrite, node, body)
+      end
+
+      def on_raw_spawn_process(node, body)
+        raw_binary_instruction(:SpawnProcess, node, body)
+      end
+
+      def on_raw_send_process_message(node, body)
+        raw_binary_instruction(:SendProcessMessage, node, body)
+      end
+
+      def on_raw_receive_process_message(node, body)
+        raw_nullary_instruction(:ReceiveProcessMessage, node, body)
+      end
+
+      def on_raw_get_current_pid(node, body)
+        raw_nullary_instruction(:GetCurrentPid, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

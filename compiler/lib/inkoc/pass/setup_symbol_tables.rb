@@ -39,6 +39,10 @@ module Inkoc
         process_node(node.receiver, outer) if node.receiver
       end
 
+      def on_raw_instruction(node, outer)
+        process_nodes(node.arguments, outer)
+      end
+
       def on_node_with_body(node, *)
         process_node(node.body, node.body)
       end
@@ -69,7 +73,7 @@ module Inkoc
       end
 
       def on_type_cast(node, outer)
-        process_node(node.expression, node, outer)
+        process_node(node.expression, outer)
       end
     end
   end

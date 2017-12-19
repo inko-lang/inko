@@ -607,8 +607,68 @@ module Inkoc
         optional_array_element_value(array)
       end
 
-      def on_raw_monotonic_time_milliseconds(node, *)
+      def on_raw_monotonic_time_milliseconds(*)
         typedb.float_type
+      end
+
+      def on_raw_monotonic_time_nanoseconds(*)
+        typedb.integer_type
+      end
+
+      def on_raw_string_to_upper(*)
+        typedb.string_type
+      end
+
+      def on_raw_string_to_lower(*)
+        typedb.string_type
+      end
+
+      def on_raw_string_to_bytes(*)
+        typedb.new_array_of_type(typedb.integer_type)
+      end
+
+      def on_raw_string_size(*)
+        typedb.integer_type
+      end
+
+      def on_raw_string_length(*)
+        typedb.integer_type
+      end
+
+      def on_raw_string_equals(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_string_from_bytes(*)
+        typedb.string_type
+      end
+
+      def on_raw_stdin_read_line(*)
+        typedb.string_type
+      end
+
+      def on_raw_stdin_read_exact(*)
+        typedb.string_type
+      end
+
+      def on_raw_stderr_write(*)
+        typedb.integer_type
+      end
+
+      def on_raw_spawn_process(*)
+        typedb.integer_type
+      end
+
+      def on_raw_send_process_message(node, _)
+        node.arguments.fetch(1).type
+      end
+
+      def on_raw_receive_process_message(*)
+        Type::Dynamic.new
+      end
+
+      def on_raw_get_current_pid(*)
+        typedb.integer_type
       end
 
       def on_return(node, scope)
@@ -877,7 +937,12 @@ module Inkoc
       def on_type_cast(node, scope)
         define_type(node.expression, scope)
 
+        params = node.cast_to.type_parameters.map do |param|
+          resolve_module_type(param, scope.self_type)
+        end
+
         rtype = resolve_module_type(node.cast_to, scope.self_type)
+          .new_instance(params)
 
         wrap_optional_type(node.cast_to, rtype)
       end
