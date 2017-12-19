@@ -81,7 +81,6 @@ module Inkoc
         SetPrototype
         GetPrototype
         LocalExists
-        RespondsTo
         SpawnProcess
         SendProcessMessage
         ReceiveProcessMessage

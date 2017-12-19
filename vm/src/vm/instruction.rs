@@ -79,7 +79,6 @@ pub enum InstructionType {
     SetPrototype,
     GetPrototype,
     LocalExists,
-    RespondsTo,
     SpawnProcess,
     SendProcessMessage,
     ReceiveProcessMessage,

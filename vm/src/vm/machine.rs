@@ -1639,32 +1639,6 @@ impl Machine {
 
                     context.set_register(register, value);
                 }
-                // Checks if an object responds to a message.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the result in (either true or
-                //    false)
-                // 2. The register containing the object to check.
-                // 3. The register containing the name to look up, as a
-                //    string.
-                InstructionType::RespondsTo => {
-                    let register = instruction.arg(0);
-                    let source = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
-
-                    let result = if source
-                        .lookup_attribute(&self.state, &name)
-                        .is_some()
-                    {
-                        self.state.true_object.clone()
-                    } else {
-                        self.state.false_object.clone()
-                    };
-
-                    context.set_register(register, result);
-                }
                 // Spawns a new process.
                 //
                 // This instruction takes 3 arguments:
