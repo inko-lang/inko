@@ -77,6 +77,15 @@ macro_rules! int_to_vector_index {
     });
 }
 
+macro_rules! set_nil_if_immutable {
+    ($vm: expr, $context: expr, $pointer: expr, $register: expr) => ({
+        if $pointer.is_immutable() {
+            $context.set_register($register, $vm.state.nil_object);
+            continue;
+        }
+    });
+}
+
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
@@ -1538,9 +1547,7 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let value_ptr = context.get_register(instruction.arg(3));
 
-                    if target_ptr.is_immutable() {
-                        panic!("can't modify immutable object");
-                    }
+                    set_nil_if_immutable!(self, context, target_ptr, register);
 
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
@@ -1941,9 +1948,7 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self.state.intern_pointer(&name_ptr).unwrap();
 
-                    if rec_ptr.is_immutable() {
-                        panic!("can't modify immutable objects");
-                    }
+                    set_nil_if_immutable!(self, context, rec_ptr, register);
 
                     let obj = if let Some(attribute) =
                         rec_ptr.get_mut().remove_attribute(&name)
