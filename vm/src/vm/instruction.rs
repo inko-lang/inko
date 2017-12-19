@@ -89,7 +89,6 @@ pub enum InstructionType {
     StdinReadExact,
     ObjectEquals,
     GetToplevel,
-    GetNilPrototype,
     GetNil,
     AttrExists,
     RemoveAttribute,

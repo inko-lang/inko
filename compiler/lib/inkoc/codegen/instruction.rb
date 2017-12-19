@@ -91,7 +91,6 @@ module Inkoc
         StdinReadExact
         ObjectEquals
         GetToplevel
-        GetNilPrototype
         GetNil
         AttrExists
         RemoveAttribute

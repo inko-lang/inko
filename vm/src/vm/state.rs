@@ -80,9 +80,6 @@ pub struct State {
     /// The singleton "false" object.
     pub false_object: ObjectPointer,
 
-    /// The prototype for the "nil" object.
-    pub nil_prototype: ObjectPointer,
-
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
 }
@@ -107,14 +104,11 @@ impl State {
 
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
-
-        let nil_proto = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
 
         {
             true_obj.get_mut().set_prototype(bool_proto);
             false_obj.get_mut().set_prototype(bool_proto);
-            nil_obj.get_mut().set_prototype(nil_proto);
         }
 
         let gc_pool = Pool::new(config.gc_threads);
@@ -141,7 +135,6 @@ impl State {
             binding_prototype: binding_proto,
             true_object: true_obj,
             false_object: false_obj,
-            nil_prototype: nil_proto,
             nil_object: nil_obj,
         };
 

@@ -1864,12 +1864,6 @@ impl Machine {
                         self.state.top_level,
                     );
                 }
-                InstructionType::GetNilPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.nil_prototype,
-                    );
-                }
                 // Sets the nil singleton in a register.
                 //
                 // This instruction requires only one argument: the register
