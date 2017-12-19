@@ -20,15 +20,15 @@ impl ToString for Nil {
 }
 
 impl Conditional for Nil {
-  def if_true!(R)(block: () -> R) -> ?R {
+  def if_true!(R)(block: do -> R) -> ?R {
     Nil
   }
 
-  def if_false!(R)(block: () -> R) -> ?R {
+  def if_false!(R)(block: do -> R) -> ?R {
     block.call
   }
 
-  def if!(R)(true: () -> R, false: () -> R) -> ?R {
+  def if!(R)(true: do -> R, false: do -> R) -> ?R {
     false.call
   }
 }

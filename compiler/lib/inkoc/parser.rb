@@ -143,6 +143,7 @@ module Inkoc
       AST::Body.new(children, location)
     end
 
+    # rubocop: disable Metrics/CyclomaticComplexity
     def top_level(start)
       case start.type
       when :import
@@ -331,18 +332,22 @@ module Inkoc
     #
     # Examples:
     #
-    #     ()
-    #     (A)
-    #     (A, B)
-    #     (A) -> R
-    #     (A) !! X -> R
+    #     do
+    #     do (A)
+    #     do (A, B)
+    #     do (A) -> R
+    #     do (A) !! X -> R
     def block_type(start)
       args = []
 
-      while (token = @lexer.advance) && token.valid_but_not?(:paren_close)
-        args << type_name(token)
+      if @lexer.next_type_is?(:paren_open)
+        skip_one
 
-        break if comma_or_break_on(:paren_close)
+        while (token = @lexer.advance) && token.valid_but_not?(:paren_close)
+          args << type_name(token)
+
+          break if comma_or_break_on(:paren_close)
+        end
       end
 
       throws = optional_throw_type
@@ -501,7 +506,6 @@ module Inkoc
       end
     end
 
-    # rubocop: disable Metrics/CyclomaticComplexity
     # rubocop: disable Metrics/AbcSize
     def value(start)
       case start.type
@@ -1191,7 +1195,7 @@ module Inkoc
         case start.type
         when :constant
           type_name(start)
-        when :paren_open
+        when :do
           block_type(start)
         else
           raise(

@@ -16,15 +16,15 @@
 ##     object NullUser {}
 ##
 ##     impl Conditional for NullUser {
-##       def if_true!(R)(block: () -> R) -> ?R {
+##       def if_true!(R)(block: do -> R) -> ?R {
 ##         Nil
 ##       }
 ##
-##       def if_false!(R)(block: () -> R) -> ?R {
+##       def if_false!(R)(block: do -> R) -> ?R {
 ##         block.call
 ##       }
 ##
-##       def if!(R)(true: () -> R, false: () -> R) -> ?R {
+##       def if!(R)(true: do -> R, false: do -> R) -> ?R {
 ##         false.call
 ##       }
 ##     }
@@ -38,19 +38,19 @@ trait Conditional {
   ## When the receiver evaluates to True the return value will be whatever the
   ## supplied block returned. When evaluating to False this method will instead
   ## return Nil.
-  def if_true!(R)(block: () -> R) -> ?R
+  def if_true!(R)(block: do -> R) -> ?R
 
   ## Calls the supplied block if the receiver evaluates to false.
   ##
   ## When the receiver evaluates to False the return value will be whatever the
   ## supplied block returned. When evaluating to True this method will instead
   ## return Nil.
-  def if_false!(R)(block: () -> R) -> ?R
+  def if_false!(R)(block: do -> R) -> ?R
 
   ## Calls the `true` block if the receiver evaluates to True, otherwise the
   ## `false` block is called.
   ##
   ## The return value is whatever the block returned. Both the blocks must
   ## return a value of the same type.
-  def if!(R)(true: () -> R, false: () -> R) -> ?R
+  def if!(R)(true: do -> R, false: do -> R) -> ?R
 }
