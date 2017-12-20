@@ -1934,7 +1934,7 @@ impl Machine {
                 //
                 // This instruction requires one argument: the register to
                 // set the time in, as an integer.
-                InstructionType::MonotonicTimeNanoseconds => {
+                InstructionType::TimeMonotonicNanoseconds => {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
                     let nsec = (duration.as_secs() * 1000000000) +
@@ -1950,7 +1950,7 @@ impl Machine {
                 //
                 // This instruction requires one argument: the register to
                 // set the time in, as a float.
-                InstructionType::MonotonicTimeMilliseconds => {
+                InstructionType::TimeMonotonicMilliseconds => {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
 

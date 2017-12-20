@@ -93,8 +93,8 @@ module Inkoc
         AttributeExists
         RemoveAttribute
         GetAttributeNames
-        MonotonicTimeNanoseconds
-        MonotonicTimeMilliseconds
+        TimeMonotonicNanoseconds
+        TimeMonotonicMilliseconds
         GetGlobal
         SetGlobal
         Throw

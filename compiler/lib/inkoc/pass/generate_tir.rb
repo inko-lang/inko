@@ -822,12 +822,12 @@ module Inkoc
         raw_binary_instruction(:ArrayRemove, node, body)
       end
 
-      def on_raw_monotonic_time_milliseconds(node, body)
-        raw_nullary_instruction(:MonotonicTimeMilliseconds, node, body)
+      def on_raw_time_monotonic_milliseconds(node, body)
+        raw_nullary_instruction(:TimeMonotonicMilliseconds, node, body)
       end
 
-      def on_raw_monotonic_time_nanoseconds(node, body)
-        raw_nullary_instruction(:MonotonicTimeNanoseconds, node, body)
+      def on_raw_time_monotonic_nanoseconds(node, body)
+        raw_nullary_instruction(:TimeMonotonicNanoseconds, node, body)
       end
 
       def on_raw_string_to_upper(node, body)
