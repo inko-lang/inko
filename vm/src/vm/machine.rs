@@ -86,6 +86,23 @@ macro_rules! set_nil_if_immutable {
     });
 }
 
+macro_rules! safepoint_and_reduce {
+    ($vm: expr, $process: expr, $reductions: expr) => ({
+        if $vm.gc_safepoint(&$process) {
+            return;
+        }
+
+        // Reduce once we've exhausted all the instructions in a
+        // context.
+        if $reductions > 0 {
+            $reductions -= 1;
+        } else {
+            $vm.reschedule($process.clone());
+            return;
+        }
+    })
+}
+
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
@@ -467,18 +484,7 @@ impl Machine {
                         break 'exec_loop;
                     }
 
-                    if self.gc_safepoint(&process) {
-                        return;
-                    }
-
-                    // Reduce once we've exhausted all the instructions in a
-                    // context.
-                    if reductions > 0 {
-                        reductions -= 1;
-                    } else {
-                        self.reschedule(process.clone());
-                        return;
-                    }
+                    safepoint_and_reduce!(self, process, reductions);
 
                     reset_context!(process, context, code, index);
                 }
@@ -2078,6 +2084,8 @@ impl Machine {
                     context.register.values.reset();
 
                     index = 0;
+
+                    safepoint_and_reduce!(self, process, reductions);
                 }
             };
         }
