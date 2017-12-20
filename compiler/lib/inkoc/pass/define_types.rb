@@ -655,19 +655,19 @@ module Inkoc
         typedb.integer_type
       end
 
-      def on_raw_spawn_process(*)
+      def on_raw_process_spawn(*)
         typedb.integer_type
       end
 
-      def on_raw_send_process_message(node, _)
+      def on_raw_process_send_message(node, _)
         node.arguments.fetch(1).type
       end
 
-      def on_raw_receive_process_message(*)
+      def on_raw_process_receive_message(*)
         Type::Dynamic.new
       end
 
-      def on_raw_get_current_pid(*)
+      def on_raw_process_current_pid(*)
         typedb.integer_type
       end
 

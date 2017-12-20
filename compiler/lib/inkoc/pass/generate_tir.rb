@@ -870,20 +870,20 @@ module Inkoc
         raw_unary_instruction(:StderrWrite, node, body)
       end
 
-      def on_raw_spawn_process(node, body)
-        raw_binary_instruction(:SpawnProcess, node, body)
+      def on_raw_process_spawn(node, body)
+        raw_binary_instruction(:ProcessSpawn, node, body)
       end
 
-      def on_raw_send_process_message(node, body)
-        raw_binary_instruction(:SendProcessMessage, node, body)
+      def on_raw_process_send_message(node, body)
+        raw_binary_instruction(:ProcessSendMessage, node, body)
       end
 
-      def on_raw_receive_process_message(node, body)
-        raw_nullary_instruction(:ReceiveProcessMessage, node, body)
+      def on_raw_process_receive_message(node, body)
+        raw_nullary_instruction(:ProcessReceiveMessage, node, body)
       end
 
-      def on_raw_get_current_pid(node, body)
-        raw_nullary_instruction(:GetCurrentPid, node, body)
+      def on_raw_process_current_pid(node, body)
+        raw_nullary_instruction(:ProcessCurrentPid, node, body)
       end
 
       def on_raw_remove_attribute(node, body)

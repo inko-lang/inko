@@ -79,10 +79,10 @@ module Inkoc
         SetPrototype
         GetPrototype
         LocalExists
-        SpawnProcess
-        SendProcessMessage
-        ReceiveProcessMessage
-        GetCurrentPid
+        ProcessSpawn
+        ProcessSendMessage
+        ProcessReceiveMessage
+        ProcessCurrentPid
         SetParentLocal
         GetParentLocal
         FileReadExact

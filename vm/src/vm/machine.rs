@@ -1629,7 +1629,7 @@ impl Machine {
                 // 2. The register containing the Block to run in the process.
                 // 3. The register containing the ID of the process pool to schedule the
                 //    process on. Defaults to the ID of the primary pool.
-                InstructionType::SpawnProcess => {
+                InstructionType::ProcessSpawn => {
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
 
@@ -1663,7 +1663,7 @@ impl Machine {
                 //    to.
                 // 3. The register containing the message (an object) to
                 //    send to the process.
-                InstructionType::SendProcessMessage => {
+                InstructionType::ProcessSendMessage => {
                     let register = instruction.arg(0);
                     let pid_ptr = context.get_register(instruction.arg(1));
                     let msg_ptr = context.get_register(instruction.arg(2));
@@ -1685,7 +1685,7 @@ impl Machine {
                 // If no messages are available the current process will be
                 // suspended, and the instruction will be retried the next
                 // time the process is executed.
-                InstructionType::ReceiveProcessMessage => {
+                InstructionType::ProcessReceiveMessage => {
                     if let Some(msg_ptr) = process.receive_message() {
                         context.set_register(instruction.arg(0), msg_ptr);
                     } else {
@@ -1699,7 +1699,7 @@ impl Machine {
                 //
                 // This instruction requires one argument: the register to
                 // store the PID in (as an integer).
-                InstructionType::GetCurrentPid => {
+                InstructionType::ProcessCurrentPid => {
                     let register = instruction.arg(0);
                     let pid = ObjectPointer::integer(process.pid as i64);
 

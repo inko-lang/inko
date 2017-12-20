@@ -4,21 +4,21 @@ let PRIMARY_POOL = 0
 let IO_POOL = 1
 
 def current -> Integer {
-  _INKOC.get_current_pid
+  _INKOC.process_current_pid
 }
 
 def send!(T)(pid: ToInteger, message: T) -> T {
-  _INKOC.send_process_message(pid.to_integer, message)
+  _INKOC.process_send_message(pid.to_integer, message)
 }
 
 def receive {
-  _INKOC.receive_process_message
+  _INKOC.process_receive_message
 }
 
 def spawn(block: do nocapture) -> Integer {
-  _INKOC.spawn_process(block, PRIMARY_POOL)
+  _INKOC.process_spawn(block, PRIMARY_POOL)
 }
 
 def spawn_io(block: do nocapture) -> Integer {
-  _INKOC.spawn_process(block, IO_POOL)
+  _INKOC.process_spawn(block, IO_POOL)
 }
