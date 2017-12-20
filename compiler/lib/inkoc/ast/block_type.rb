@@ -7,15 +7,16 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :arguments, :returns, :throws, :location
+      attr_reader :arguments, :returns, :throws, :location, :allow_capturing
       attr_accessor :optional
 
-      def initialize(args, returns, throws, location)
+      def initialize(args, returns, throws, allow_capturing, location)
         @arguments = args
         @returns = returns
         @throws = throws
         @location = location
         @optional = false
+        @allow_capturing = allow_capturing
       end
 
       def optional?

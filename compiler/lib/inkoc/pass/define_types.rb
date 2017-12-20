@@ -1282,7 +1282,8 @@ module Inkoc
         type = Type::Block.new(
           prototype: typedb.block_type,
           returns: returns,
-          throws: throws
+          throws: throws,
+          allow_capturing: node.allow_capturing
         )
 
         type.define_self_argument(self_type)

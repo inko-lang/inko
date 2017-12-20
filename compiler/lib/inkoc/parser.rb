@@ -43,6 +43,7 @@ module Inkoc
         var
         for
         impl
+        nocapture
       ]
     ).freeze
 
@@ -67,6 +68,7 @@ module Inkoc
         trait
         try
         paren_open
+        nocapture
       ]
     ).freeze
 
@@ -333,12 +335,21 @@ module Inkoc
     # Examples:
     #
     #     do
+    #     do nocapture
     #     do (A)
     #     do (A, B)
     #     do (A) -> R
     #     do (A) !! X -> R
     def block_type(start)
       args = []
+
+      allow_capturing =
+        if @lexer.next_type_is?(:nocapture)
+          skip_one
+          false
+        else
+          true
+        end
 
       if @lexer.next_type_is?(:paren_open)
         skip_one
@@ -353,7 +364,7 @@ module Inkoc
       throws = optional_throw_type
       returns = optional_return_type
 
-      AST::BlockType.new(args, returns, throws, start.location)
+      AST::BlockType.new(args, returns, throws, allow_capturing, start.location)
     end
 
     # Parses a type argument.

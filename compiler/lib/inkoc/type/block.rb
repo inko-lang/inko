@@ -13,7 +13,8 @@ module Inkoc
 
       attr_accessor :name, :rest_argument, :throws,
                     :required_arguments_count, :inferred, :prototype,
-                    :type_parameters, :attributes, :block_type, :returns
+                    :type_parameters, :attributes, :block_type, :returns,
+                    :captures, :allow_capturing
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -21,7 +22,8 @@ module Inkoc
         returns: nil,
         throws: nil,
         type_parameters: TypeParameterTable.new,
-        block_type: :closure
+        block_type: :closure,
+        allow_capturing: true
       )
         @name = name
         @prototype = prototype
@@ -34,6 +36,9 @@ module Inkoc
         @required_arguments_count = 0
         @block_type = block_type
         @inferred = false
+
+        @captures = false
+        @allow_capturing = allow_capturing
       end
 
       def return_type_for_block_and_call=(value)
@@ -275,7 +280,12 @@ module Inkoc
           rest_argument == other.rest_argument &&
           argument_types_compatible?(other) &&
           throw_types_compatible?(other) &&
-          return_types_compatible?(other)
+          return_types_compatible?(other) &&
+          captures_compatible?(other)
+      end
+
+      def captures_compatible?(other)
+        other.allow_capturing ? true : !captures
       end
 
       def real_type_for(type, type_params = type_parameters)
@@ -309,12 +319,9 @@ module Inkoc
           real_type_for(arg).type_name
         end
 
-        tname =
-          if type_params.any?
-            "#{name} !(#{type_params.join(', ')})"
-          else
-            name
-          end
+        tname = name
+        tname += ' nocapture' unless allow_capturing
+        tname += " !(#{type_params.join(', ')})" if type_params.any?
 
         tname += " (#{args.join(', ')})" unless args.empty?
         tname += " !! #{real_type_for(throws).type_name}" if throws

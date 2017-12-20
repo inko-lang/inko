@@ -15,10 +15,10 @@ def receive {
   _INKOC.receive_process_message
 }
 
-def spawn(block: do) -> Integer {
+def spawn(block: do nocapture) -> Integer {
   _INKOC.spawn_process(block, PRIMARY_POOL)
 }
 
-def spawn_io(block: do) -> Integer {
+def spawn_io(block: do nocapture) -> Integer {
   _INKOC.spawn_process(block, IO_POOL)
 }
