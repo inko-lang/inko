@@ -67,6 +67,19 @@ impl ExecutionContext {
         }
     }
 
+    pub fn from_isolated_block(block: &Block) -> ExecutionContext {
+        ExecutionContext {
+            register: Register::new(block.code.registers as usize),
+            binding: Binding::new(block.locals()),
+            code: block.code,
+            parent: None,
+            instruction_index: 0,
+            return_register: None,
+            line: block.code.line,
+            global_scope: block.global_scope,
+        }
+    }
+
     pub fn file(&self) -> &String {
         &self.code.file
     }

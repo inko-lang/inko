@@ -125,7 +125,7 @@ impl Process {
         block: &Block,
         global_allocator: RcGlobalAllocator,
     ) -> RcProcess {
-        let context = ExecutionContext::from_block(block, None);
+        let context = ExecutionContext::from_isolated_block(block);
 
         Process::new(pid, pool_id, context, global_allocator)
     }
