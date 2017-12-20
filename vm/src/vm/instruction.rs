@@ -98,6 +98,7 @@ pub enum InstructionType {
     Throw,
     SetRegister,
     TailCall,
+    ProcessStatus,
 }
 
 /// Struct for storing information about a single instruction.

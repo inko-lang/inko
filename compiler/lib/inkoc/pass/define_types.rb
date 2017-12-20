@@ -671,6 +671,10 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_process_status(*)
+        typedb.integer_type
+      end
+
       def on_raw_remove_attribute(node, _)
         object = node.arguments.fetch(0).type
         name = node.arguments.fetch(1)

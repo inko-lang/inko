@@ -886,6 +886,10 @@ module Inkoc
         raw_nullary_instruction(:ProcessCurrentPid, node, body)
       end
 
+      def on_raw_process_status(node, body)
+        raw_unary_instruction(:ProcessStatus, node, body)
+      end
+
       def on_raw_remove_attribute(node, body)
         raw_binary_instruction(:RemoveAttribute, node, body)
       end

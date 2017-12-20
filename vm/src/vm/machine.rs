@@ -12,7 +12,7 @@ use object_pointer::ObjectPointer;
 use object_value;
 use pool::JoinGuard as PoolJoinGuard;
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
-use process::{RcProcess, Process};
+use process::{RcProcess, Process, ProcessStatus};
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -1704,6 +1704,35 @@ impl Machine {
                     let pid = ObjectPointer::integer(process.pid as i64);
 
                     context.set_register(register, pid);
+                }
+                // Gets the status of the given process as an integer.
+                //
+                // This instruction takes two arguments:
+                //
+                // 1. The register to store the status in.
+                // 2. The register containing the PID of the process to check.
+                //
+                // The mapping of integers to statuses is as follows:
+                //
+                // * 0: The process has been scheduled.
+                // * 1: The process is running.
+                // * 2: The process has been suspended for garbage collection.
+                // * 3: The process finished execution.
+                InstructionType::ProcessStatus => {
+                    let register = instruction.arg(0);
+                    let pid_ptr = process.get_register(instruction.arg(1));
+                    let pid = pid_ptr.integer_value().unwrap() as usize;
+                    let table = read_lock!(self.state.process_table);
+
+                    let status = if let Some(receiver) = table.get(&pid) {
+                        receiver.status_integer()
+                    } else {
+                        ProcessStatus::Finished as usize
+                    };
+
+                    let status_ptr = ObjectPointer::integer(status as i64);
+
+                    context.set_register(register, status_ptr);
                 }
                 // Sets a local variable in one of the parent bindings.
                 //

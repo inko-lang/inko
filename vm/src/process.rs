@@ -148,6 +148,15 @@ impl Process {
         target.set_parent(boxed);
     }
 
+    pub fn status_integer(&self) -> usize {
+        match *lock!(self.status) {
+            ProcessStatus::Scheduled => 0,
+            ProcessStatus::Running => 1,
+            ProcessStatus::SuspendForGc => 2,
+            ProcessStatus::Finished => 3,
+        }
+    }
+
     /// Pops an execution context.
     ///
     /// This method returns true if we're at the top of the execution context
