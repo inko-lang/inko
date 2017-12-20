@@ -241,6 +241,11 @@ module Inkoc
           .instruct(tir_ins.name, [reg, base, other], tir_ins.location)
       end
 
+      def on_process_suspend_current(tir_ins, compiled_code, *)
+        compiled_code
+          .instruct(:ProcessSuspendCurrent, [], tir_ins.location)
+      end
+
       def on_array_set(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
         array = tir_ins.array.id

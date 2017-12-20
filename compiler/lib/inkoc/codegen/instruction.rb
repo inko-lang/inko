@@ -101,6 +101,7 @@ module Inkoc
         SetRegister
         TailCall
         ProcessStatus
+        ProcessSuspendCurrent
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
@@ -109,7 +110,7 @@ module Inkoc
       attr_reader :index, :arguments, :location
 
       def self.named(name, arguments, location)
-        new(NAME_MAPPING[name], arguments, location)
+        new(NAME_MAPPING.fetch(name), arguments, location)
       end
 
       def initialize(index, arguments, location)

@@ -890,6 +890,10 @@ module Inkoc
         raw_unary_instruction(:ProcessStatus, node, body)
       end
 
+      def on_raw_process_suspend_current(node, body)
+        body.instruct(:ProcessSuspendCurrent, node.location)
+      end
+
       def on_raw_remove_attribute(node, body)
         raw_binary_instruction(:RemoveAttribute, node, body)
       end

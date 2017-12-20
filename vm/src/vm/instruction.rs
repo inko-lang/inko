@@ -99,6 +99,7 @@ pub enum InstructionType {
     SetRegister,
     TailCall,
     ProcessStatus,
+    ProcessSuspendCurrent,
 }
 
 /// Struct for storing information about a single instruction.

@@ -1734,6 +1734,14 @@ impl Machine {
 
                     context.set_register(register, status_ptr);
                 }
+                // Suspends the current process.
+                //
+                // This instruction does not take any arguments.
+                InstructionType::ProcessSuspendCurrent => {
+                    context.instruction_index = index;
+                    self.reschedule(process.clone());
+                    return;
+                }
                 // Sets a local variable in one of the parent bindings.
                 //
                 // This instruction requires 3 arguments:
