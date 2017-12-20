@@ -994,13 +994,22 @@ impl Machine {
                     let receiver_ptr = context.get_register(instruction.arg(1));
                     let arg_ptr = context.get_register(instruction.arg(2));
 
-                    let boolean = if receiver_ptr.string_value().unwrap() ==
-                        arg_ptr.string_value().unwrap()
-                    {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
+                    let boolean =
+                        if receiver_ptr.get().value.is_interned_string() {
+                            if receiver_ptr == arg_ptr {
+                                self.state.true_object
+                            } else {
+                                self.state.false_object
+                            }
+                        } else {
+                            if receiver_ptr.string_value().unwrap() ==
+                                arg_ptr.string_value().unwrap()
+                            {
+                                self.state.true_object
+                            } else {
+                                self.state.false_object
+                            }
+                        };
 
                     context.set_register(register, boolean);
                 }
