@@ -164,6 +164,7 @@ module Inkoc
         expression(start)
       end
     end
+    # rubocop: enable Metrics/CyclomaticComplexity
 
     # Parses an import statement.
     #
@@ -518,6 +519,7 @@ module Inkoc
     end
 
     # rubocop: disable Metrics/AbcSize
+    # rubocop: disable Metrics/CyclomaticComplexity
     def value(start)
       case start.type
       when :string then string(start)
@@ -544,6 +546,8 @@ module Inkoc
         raise ParseError, "A value can not start with a #{start.type.inspect}"
       end
     end
+    # rubocop: enable Metrics/AbcSize
+    # rubocop: enable Metrics/CyclomaticComplexity
 
     def string(start)
       AST::String.new(start.value, start.location)
@@ -570,7 +574,9 @@ module Inkoc
     end
 
     def identifier(start)
-      if @lexer.next_type_is?(:paren_open)
+      peeked = @lexer.peek
+
+      if peeked.type == :paren_open && peeked.line == start.line
         args = arguments_with_parenthesis
 
         AST::Send.new(start.value, nil, args, start.location)
@@ -750,6 +756,7 @@ module Inkoc
     end
 
     # Parses a list of argument definitions.
+    # rubocop: disable Metrics/CyclomaticComplexity
     def def_arguments
       args = []
 
@@ -772,6 +779,7 @@ module Inkoc
 
       args
     end
+    # rubocop: enable Metrics/CyclomaticComplexity
 
     def advance_if_rest_argument(token)
       if token.type == :mul
