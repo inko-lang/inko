@@ -481,8 +481,6 @@ impl Machine {
                     }
 
                     reset_context!(process, context, code, index);
-
-                    continue;
                 }
                 // Jumps to an instruction if a register is not set or set
                 // to false.
