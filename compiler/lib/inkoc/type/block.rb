@@ -14,7 +14,7 @@ module Inkoc
       attr_accessor :name, :rest_argument, :throws,
                     :required_arguments_count, :inferred, :prototype,
                     :type_parameters, :attributes, :block_type, :returns,
-                    :captures, :allow_capturing
+                    :captures
 
       def initialize(
         name: Config::BLOCK_TYPE_NAME,
@@ -22,8 +22,7 @@ module Inkoc
         returns: nil,
         throws: nil,
         type_parameters: TypeParameterTable.new,
-        block_type: :closure,
-        allow_capturing: true
+        block_type: :closure
       )
         @name = name
         @prototype = prototype
@@ -36,9 +35,7 @@ module Inkoc
         @required_arguments_count = 0
         @block_type = block_type
         @inferred = false
-
         @captures = false
-        @allow_capturing = allow_capturing
       end
 
       def return_type_for_block_and_call=(value)
@@ -145,6 +142,10 @@ module Inkoc
 
       def closure?
         @block_type == :closure
+      end
+
+      def lambda?
+        @block_type == :lambda
       end
 
       def method?
@@ -272,7 +273,15 @@ module Inkoc
       end
 
       def same_kind_of_block?(other)
-        other.block? && block_type == other.block_type
+        if other.method?
+          method?
+        elsif other.lambda?
+          lambda?
+        elsif other.closure?
+          closure? || lambda?
+        else
+          false
+        end
       end
 
       def block_type_compatible?(other)
@@ -280,12 +289,7 @@ module Inkoc
           rest_argument == other.rest_argument &&
           argument_types_compatible?(other) &&
           throw_types_compatible?(other) &&
-          return_types_compatible?(other) &&
-          captures_compatible?(other)
-      end
-
-      def captures_compatible?(other)
-        other.allow_capturing ? true : !captures
+          return_types_compatible?(other)
       end
 
       def real_type_for(type, type_params = type_parameters)
@@ -320,9 +324,8 @@ module Inkoc
         end
 
         tname = name
-        tname += ' nocapture' unless allow_capturing
-        tname += " !(#{type_params.join(', ')})" if type_params.any?
 
+        tname += " !(#{type_params.join(', ')})" if type_params.any?
         tname += " (#{args.join(', ')})" unless args.empty?
         tname += " !! #{real_type_for(throws).type_name}" if throws
         tname += " -> #{real_type_for(return_type).type_name}" if return_type

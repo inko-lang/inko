@@ -21,7 +21,7 @@ module Inkoc
       'as' => :as,
       'impl' => :impl,
       'for' => :for,
-      'nocapture' => :nocapture
+      'lambda' => :lambda
     }.freeze
 
     SPECIALS = Set.new(

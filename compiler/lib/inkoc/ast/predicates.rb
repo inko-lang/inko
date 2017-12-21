@@ -51,6 +51,26 @@ module Inkoc
         false
       end
 
+      def lambda_type?
+        false
+      end
+
+      def lambda_or_block_type?
+        false
+      end
+
+      def block?
+        false
+      end
+
+      def block_without_signature?
+        false
+      end
+
+      def lambda?
+        false
+      end
+
       def self_type?
         false
       end

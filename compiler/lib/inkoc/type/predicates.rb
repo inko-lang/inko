@@ -15,6 +15,14 @@ module Inkoc
         false
       end
 
+      def lambda?
+        false
+      end
+
+      def closure?
+        false
+      end
+
       def regular_object?
         false
       end

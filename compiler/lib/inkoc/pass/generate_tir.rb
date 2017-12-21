@@ -252,7 +252,7 @@ module Inkoc
 
       def on_block(node, body)
         define_block(
-          Config::BLOCK_NAME,
+          node.block_name,
           node.type,
           node.arguments,
           node.body,
@@ -261,6 +261,7 @@ module Inkoc
           node.location
         )
       end
+      alias on_lambda on_block
 
       def define_method(node, receiver, body)
         location = node.location
@@ -1040,7 +1041,11 @@ module Inkoc
       def get_self(body, location)
         name = Config::SELF_LOCAL
 
-        get_local(name, body, location, in_root: body.type.closure?)
+        if body.type.lambda?
+          get_global(Config::MODULE_GLOBAL, body, location)
+        else
+          get_local(name, body, location, in_root: body.type.closure?)
+        end
       end
 
       def get_nil(body, location)

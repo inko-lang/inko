@@ -34,6 +34,12 @@ module Inkoc
         process_nodes(node.body.expressions, node.body)
       end
 
+      def on_lambda(node, outer)
+        node.body.locals = SymbolTable.new
+
+        process_nodes(node.body.expressions, node.body)
+      end
+
       def on_send(node, outer)
         process_nodes(node.arguments, outer)
         process_node(node.receiver, outer) if node.receiver

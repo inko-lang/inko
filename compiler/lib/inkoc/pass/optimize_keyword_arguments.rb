@@ -37,6 +37,7 @@ module Inkoc
       def on_block(node)
         process_nodes(node.body.expressions)
       end
+      alias on_lambda on_block
 
       def on_node_with_body(node)
         process_node(node.body)

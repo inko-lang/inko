@@ -43,7 +43,6 @@ module Inkoc
         var
         for
         impl
-        nocapture
       ]
     ).freeze
 
@@ -68,7 +67,7 @@ module Inkoc
         trait
         try
         paren_open
-        nocapture
+        lambda
       ]
     ).freeze
 
@@ -336,21 +335,21 @@ module Inkoc
     # Examples:
     #
     #     do
-    #     do nocapture
     #     do (A)
     #     do (A, B)
     #     do (A) -> R
     #     do (A) !! X -> R
-    def block_type(start)
-      args = []
+    def block_type(start, type = :do)
+      args = block_type_arguments
+      throws = optional_throw_type
+      returns = optional_return_type
+      klass = type == :lambda ? AST::LambdaType : AST::BlockType
 
-      allow_capturing =
-        if @lexer.next_type_is?(:nocapture)
-          skip_one
-          false
-        else
-          true
-        end
+      klass.new(args, returns, throws, start.location)
+    end
+
+    def block_type_arguments
+      args = []
 
       if @lexer.next_type_is?(:paren_open)
         skip_one
@@ -362,10 +361,7 @@ module Inkoc
         end
       end
 
-      throws = optional_throw_type
-      returns = optional_return_type
-
-      AST::BlockType.new(args, returns, throws, allow_capturing, start.location)
+      args
     end
 
     # Parses a type argument.
@@ -501,6 +497,8 @@ module Inkoc
         [block_without_arguments(token), true]
       when :do
         [block(token), true]
+      when :lambda
+        [block(token, :lambda), true]
       else
         [expression_or_keyword_argument(token), false]
       end
@@ -531,7 +529,7 @@ module Inkoc
       when :bracket_open then array(start)
       when :hash_open then hash(start)
       when :define then def_method(start)
-      when :do then block(start)
+      when :do, :lambda then block(start, start.type)
       when :let then let_define(start)
       when :var then var_define(start)
       when :return then return_value(start)
@@ -638,7 +636,9 @@ module Inkoc
     #
     #     { body }
     def block_without_arguments(start)
-      AST::Block.new([], [], nil, nil, block_body(start), start.location)
+      loc = start.location
+
+      AST::Block.new([], [], nil, nil, block_body(start), loc, signature: false)
     end
 
     # Parses a block starting with the "do" keyword.
@@ -649,14 +649,15 @@ module Inkoc
     #     do (arg) { body }
     #     do (arg: T) { body }
     #     do (arg: T) -> T { body }
-    def block(start)
+    def block(start, type = :do)
       targs = optional_type_parameter_definitions
       args = optional_arguments
       throw_type = optional_throw_type
       ret_type = optional_return_type
       body = block_body(advance_and_expect!(:curly_open))
+      klass = type == :lambda ? AST::Lambda : AST::Block
 
-      AST::Block.new(targs, args, ret_type, throw_type, body, start.location)
+      klass.new(targs, args, ret_type, throw_type, body, start.location)
     end
 
     # Parses the body of a block.
@@ -1214,8 +1215,8 @@ module Inkoc
         case start.type
         when :constant
           type_name(start)
-        when :do
-          block_type(start)
+        when :do, :lambda
+          block_type(start, start.type)
         else
           raise(
             ParseError,

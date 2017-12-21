@@ -2,12 +2,14 @@
 
 module Inkoc
   class MessageContext
-    attr_reader :receiver, :block, :arguments, :type_parameters, :location
+    attr_reader :receiver, :block, :arguments, :type_parameters, :location,
+                :type_scope
 
-    def initialize(receiver, block, arguments, location)
+    def initialize(receiver, block, arguments, type_scope, location)
       @receiver = receiver
       @block = block
       @arguments = arguments
+      @type_scope = type_scope
       @location = location
 
       @type_parameters =

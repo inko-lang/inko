@@ -2,13 +2,13 @@
 
 module Inkoc
   module AST
-    class Block
+    class Lambda
       include TypeOperations
       include Predicates
       include Inspect
 
       attr_reader :arguments, :body, :throws, :returns, :location,
-                  :type_parameters, :signature
+                  :type_parameters
 
       # targs - The type arguments of this block.
       # arguments - The arguments of the block.
@@ -16,44 +16,29 @@ module Inkoc
       # returns - The return type of the block.
       # throws - The type that may be thrown.
       # location - The SourceLocation of the block.
-      # signature - Set to true when a signature was included.
-      def initialize(targs, args, returns, throws, body, loc, signature: true)
+      def initialize(targs, args, returns, throws, body, location)
         @type_parameters = targs
         @arguments = args
         @returns = returns
         @throws = throws
         @body = body
-        @location = loc
-        @signature = signature
-        @lambda = false
-      end
-
-      def infer_as_lambda
-        @lambda = true
+        @location = location
       end
 
       def visitor_method
-        :on_block
+        :on_lambda
       end
 
       def block_type
         type
       end
 
-      def block?
+      def lambda?
         true
       end
 
-      def lambda?
-        @lambda
-      end
-
-      def block_without_signature?
-        !signature
-      end
-
       def block_name
-        Config::BLOCK_NAME
+        Config::LAMBDA_NAME
       end
     end
   end

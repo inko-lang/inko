@@ -23,6 +23,7 @@ module Inkoc
       def on_block(node)
         process_nodes(node.body.expressions)
       end
+      alias on_lambda on_block
 
       def on_send(node)
         process_nodes(node.arguments)

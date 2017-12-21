@@ -2,7 +2,7 @@
 
 module Inkoc
   module AST
-    class BlockType
+    class LambdaType
       include TypeOperations
       include Predicates
       include Inspect
@@ -23,10 +23,10 @@ module Inkoc
       end
 
       def visitor_method
-        :on_block_type
+        :on_lambda_type
       end
 
-      def block_type?
+      def lambda_type?
         true
       end
 

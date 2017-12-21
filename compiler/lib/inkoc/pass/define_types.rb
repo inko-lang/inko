@@ -233,17 +233,23 @@ module Inkoc
       end
 
       def send_object_message(receiver, name, args, scope, location)
-        arg_types = define_types(args, scope)
+        if receiver.dynamic?
+          define_types(args, scope)
 
-        return receiver if receiver.dynamic?
+          return receiver
+        end
 
         if receiver.unresolved_constraint?
+          arg_types = define_types(args, scope)
+
           return receiver
               .define_required_method(receiver, name, arg_types, typedb)
               .returns
         end
 
         unless receiver.responds_to_message?(name)
+          define_types(args, scope)
+
           diagnostics.undefined_method_error(receiver, name, location)
 
           return Type::Dynamic.new
@@ -252,7 +258,8 @@ module Inkoc
         symbol = receiver.lookup_method(name)
         method_type = symbol.type
 
-        context = MessageContext.new(receiver, method_type, args, location)
+        context = MessageContext
+          .new(receiver, method_type, args, scope, location)
 
         verify_send_arguments(context)
 
@@ -290,7 +297,6 @@ module Inkoc
         end
       end
 
-      # receiver, type, arguments
       def verify_send_argument_types(context)
         max_args = context.arguments_count_without_self
         has_rest = context.rest_argument
@@ -300,6 +306,9 @@ module Inkoc
           arg_index = index + 1
           aname = arg.keyword_argument? ? arg.name : arg_index
           rest = arg_index >= max_args && has_rest
+
+          define_given_type(context, arg, aname, rest)
+
           expected =
             expected_type_for_argument(context, aname, arg.type, rest)
 
@@ -309,6 +318,16 @@ module Inkoc
             verify_send_argument(arg, expected, arg.location)
           end
         end
+      end
+
+      def define_given_type(context, arg, name, rest = false)
+        expected = context.type_for_argument_or_rest(name, rest)
+
+        # We don't define the argument type until here so we can correctly infer
+        # closures without signatures (e.g. `{ 10 }`) as lambdas.
+        arg.infer_as_lambda if expected.lambda? && arg.block_without_signature?
+
+        define_type(arg, context.type_scope)
       end
 
       # context - The MessageContext of the current call being validated.
@@ -981,8 +1000,23 @@ module Inkoc
       end
 
       def on_block(node, scope)
-        type = Type::Block.new(prototype: typedb.block_type)
-        new_scope = TypeScope.new(scope.self_type, type, node.body.locals)
+        if node.lambda?
+          block_name = Config::LAMBDA_TYPE_NAME
+          block_type = :lambda
+          self_type = @module.type
+        else
+          block_name = Config::BLOCK_TYPE_NAME
+          block_type = :closure
+          self_type = scope.self_type
+        end
+
+        type = Type::Block.new(
+          name: block_name,
+          prototype: typedb.block_type,
+          block_type: block_type
+        )
+
+        new_scope = TypeScope.new(self_type, type, node.body.locals)
 
         block_signature(node, type, new_scope, constraints: true)
         define_type(node.body, new_scope)
@@ -998,6 +1032,7 @@ module Inkoc
 
         type
       end
+      alias on_lambda on_block
 
       def on_type_cast(node, scope)
         define_type(node.expression, scope)
@@ -1252,7 +1287,10 @@ module Inkoc
       def resolve_type(node, self_type, sources)
         return Type::SelfType.new if node.self_type?
         return Type::Dynamic.new if node.dynamic_type?
-        return resolve_block_type(node, self_type, sources) if node.block_type?
+
+        if node.lambda_or_block_type?
+          return resolve_block_type(node, self_type, sources, node.lambda_type?)
+        end
 
         name = node.name
 
@@ -1272,7 +1310,7 @@ module Inkoc
         Type::Dynamic.new
       end
 
-      def resolve_block_type(node, self_type, sources)
+      def resolve_block_type(node, self_type, sources, is_lambda = false)
         args = node.arguments.map do |arg|
           resolve_type(arg, self_type, sources)
         end
@@ -1288,10 +1326,11 @@ module Inkoc
           end
 
         type = Type::Block.new(
+          name: is_lambda ? Config::LAMBDA_TYPE_NAME : Config::BLOCK_TYPE_NAME,
           prototype: typedb.block_type,
           returns: returns,
           throws: throws,
-          allow_capturing: node.allow_capturing
+          block_type: is_lambda ? :lambda : :closure
         )
 
         type.define_self_argument(self_type)
