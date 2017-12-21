@@ -5,38 +5,49 @@
 #!
 #! # Different types of blocks
 #!
-#! Unlike other programming languages there are no different types for methods,
-#! closures, etc; instead all of them are of type Block. We do however give
-#! these Blocks different names depending on how they are used or defined. For
-#! example, a Block that closes over the scope it is defined in is called a
-#! "closure". A Block bound to a name and stored in an object on the other hand
-#! is called a "method".
+#! Inko has 3 different kinds of blocks: methods, closures, and lambdas; all
+#! using the same type: `Block`. These different blocks have different purposes.
 #!
-#! # Syntax
+#! Methods are blocks bound to a name and stored in an object, and they can't
+#! capture any local variables from the scope the method is defined in.
 #!
-#! A `Block` can be created using either curly braces or the `do` keyword:
+#! Closures are blocks without a name that can capture local variables defined
+#! in the scope the closure was created in.
 #!
-#!     { 10 }
+#! Lambdas in turn are blocks without a name that _can't_ capture any variables,
+#! including `self`. This means that in these blocks `self` always refers to the
+#! module the lambda was defined in, regardless of what `self` refers to in the
+#! lambda's outer scope.
+#!
+#! # Closures
+#!
+#! A closure is created using the `do` keyword:
+#!
 #!     do { 10 }
 #!
-#! The `do` keyword is required when a `Block` accepts arguments or specifies
-#! the value it may return or throw. For example, we can define a `Block` with a
+#! You can also leave out the `do` keyword to create a closure that doesn't take
+#! any arguments:
+#!
+#!     { 10 }
+#!
+#! The `do` keyword is required when a closure accepts arguments or specifies
+#! the value it may return or throw. For example, we can define a closure with a
 #! required argument as follows:
 #!
 #!     do (number) { number }
 #!
 #! If we leave out the type signature of the argument its type will be inferred
-#! based on how the `Block` is used. We can also specify a type explicitly:
+#! based on how the closure is used. We can also specify a type explicitly:
 #!
 #!     do (number: Integer) { number }
 #!
 #! We can do the same for the return and throw types. The return type is
 #! specified using the `->` symbol, while throw types are specified using `!!`.
-#! For example, this block would return an integer:
+#! For example, this closure would return an integer:
 #!
 #!     do -> Integer { 10 }
 #!
-#! This block in turn will throw an integer:
+#! This closure in turn will throw an integer:
 #!
 #!     do !! Integer { 10 }
 #!
@@ -44,8 +55,35 @@
 #! cases it should not be necessary to specify these types explicitly and so we
 #! recommend you to leave them unspecified unless necessary.
 #!
-#! If a `Block` does not take any arguments it is recommended to omit the `do`
+#! If a closure does not take any arguments it is recommended to omit the `do`
 #! keyword.
+#!
+#! # Lambdas
+#!
+#! Lambdas are created using the exact same syntax except instead of using `do`
+#! you have to use the `lambda` keyword.
+#!
+#! When passing a closure created using just curly braces (e.g. `{ 10 }`) to a
+#! method that accepts a lambda the closure will instead be treated as a lambda.
+#! For example:
+#!
+#!     def example(block: lambda) {
+#!       block.call
+#!     }
+#!
+#!     example { 10 } # => 10
+#!
+#! This is valid because the closure is passed directly as an argument, thus the
+#! compiler is able to instead treat it as a lambda. This however does _not_
+#! work if you first assign the block:
+#!
+#!     def example(block: lambda) {
+#!       block.call
+#!     }
+#!
+#!     let block = { 10 }
+#!
+#!     example(block) # => type error!
 #!
 #! # Methods
 #!
