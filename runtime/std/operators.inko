@@ -30,6 +30,14 @@ trait Equal {
   def ==(other: Self) -> Boolean
 }
 
+trait GreaterOrEqual {
+  def >=(other: Self) -> Boolean
+}
+
+trait SmallerOrEqual {
+  def <=(other: Self) -> Boolean
+}
+
 trait BitwiseAnd {
   def &(other: Self) -> Self
 }

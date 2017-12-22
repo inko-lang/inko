@@ -100,6 +100,10 @@ pub enum InstructionType {
     TailCall,
     ProcessStatus,
     ProcessSuspendCurrent,
+    IntegerGreaterOrEqual,
+    IntegerSmallerOrEqual,
+    FloatGreaterOrEqual,
+    FloatSmallerOrEqual,
 }
 
 /// Struct for storing information about a single instruction.

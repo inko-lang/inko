@@ -1,6 +1,5 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
-import std::operators::(Add, Divide, Multiply, Subtract, Modulo)
-import std::operators::(Smaller, Greater, Equal)
+import std::operators::*
 
 impl ToInteger for Float {
   def to_integer -> Integer {
@@ -65,5 +64,17 @@ impl Greater for Float {
 impl Equal for Float {
   def ==(other: Self) -> Boolean {
     _INKOC.float_equals(self, other)
+  }
+}
+
+impl GreaterOrEqual for Float {
+  def >=(other: Self) -> Boolean {
+    _INKOC.float_greater_or_equal(self, other)
+  }
+}
+
+impl SmallerOrEqual for Float {
+  def <=(other: Self) -> Boolean {
+    _INKOC.float_smaller_or_equal(self, other)
   }
 }

@@ -67,6 +67,18 @@ impl Equal for Integer {
   }
 }
 
+impl GreaterOrEqual for Integer {
+  def >=(other: Self) -> Boolean {
+    _INKOC.integer_greater_or_equal(self, other)
+  }
+}
+
+impl SmallerOrEqual for Integer {
+  def <=(other: Self) -> Boolean {
+    _INKOC.integer_smaller_or_equal(self, other)
+  }
+}
+
 impl BitwiseAnd for Integer {
   def &(other: Self) -> Self {
     _INKOC.integer_bitwise_and(self, other)

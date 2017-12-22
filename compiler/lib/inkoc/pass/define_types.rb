@@ -509,6 +509,14 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_integer_greater_or_equal(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_integer_smaller_or_equal(*)
+        typedb.boolean_type
+      end
+
       def on_raw_float_to_string(*)
         typedb.string_type
       end
@@ -546,6 +554,14 @@ module Inkoc
       end
 
       def on_raw_float_equals(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_float_greater_or_equal(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_float_smaller_or_equal(*)
         typedb.boolean_type
       end
 

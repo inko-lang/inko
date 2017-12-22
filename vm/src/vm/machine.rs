@@ -697,6 +697,32 @@ impl Machine {
                 InstructionType::IntegerEquals => {
                     integer_bool_op!(self, process, instruction, ==);
                 }
+                // Checks if one integer is greater than or requal to the other.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the integer to compare.
+                // 3. The register containing the integer to compare with.
+                //
+                // The result of this instruction is either boolean true or
+                // false.
+                InstructionType::IntegerGreaterOrEqual => {
+                    integer_bool_op!(self, process, instruction, >=);
+                }
+                // Checks if one integer is smaller than or requal to the other.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the integer to compare.
+                // 3. The register containing the integer to compare with.
+                //
+                // The result of this instruction is either boolean true or
+                // false.
+                InstructionType::IntegerSmallerOrEqual => {
+                    integer_bool_op!(self, process, instruction, <=);
+                }
                 // Adds two floats
                 //
                 // This instruction requires 3 arguments:
@@ -819,6 +845,32 @@ impl Machine {
                 // false.
                 InstructionType::FloatEquals => {
                     float_bool_op!(self, process, instruction, ==);
+                }
+                // Checks if one float is greater than or requal to the other.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the float to compare.
+                // 3. The register containing the float to compare with.
+                //
+                // The result of this instruction is either boolean true or
+                // false.
+                InstructionType::FloatGreaterOrEqual => {
+                    float_bool_op!(self, process, instruction, >=);
+                }
+                // Checks if one float is smaller than or requal to the other.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the float to compare.
+                // 3. The register containing the float to compare with.
+                //
+                // The result of this instruction is either boolean true or
+                // false.
+                InstructionType::FloatSmallerOrEqual => {
+                    float_bool_op!(self, process, instruction, <=);
                 }
                 // Inserts a value in an array.
                 //

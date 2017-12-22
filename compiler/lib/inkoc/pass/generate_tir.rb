@@ -707,6 +707,14 @@ module Inkoc
         raw_binary_instruction(:IntegerEquals, node, body)
       end
 
+      def on_raw_integer_greater_or_equal(node, body)
+        raw_binary_instruction(:IntegerGreaterOrEqual, node, body)
+      end
+
+      def on_raw_integer_smaller_or_equal(node, body)
+        raw_binary_instruction(:IntegerSmallerOrEqual, node, body)
+      end
+
       def on_raw_float_to_string(node, body)
         raw_unary_instruction(:FloatToString, node, body)
       end
@@ -745,6 +753,14 @@ module Inkoc
 
       def on_raw_float_equals(node, body)
         raw_binary_instruction(:FloatEquals, node, body)
+      end
+
+      def on_raw_float_greater_or_equal(node, body)
+        raw_binary_instruction(:FloatGreaterOrEqual, node, body)
+      end
+
+      def on_raw_float_smaller_or_equal(node, body)
+        raw_binary_instruction(:FloatSmallerOrEqual, node, body)
       end
 
       def on_raw_stdout_write(node, body)
