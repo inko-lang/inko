@@ -3,22 +3,125 @@ import std::conversion::ToInteger
 let PRIMARY_POOL = 0
 let IO_POOL = 1
 
+## Returns the PID of the current process.
+##
+## # Examples
+##
+## Getting the PID of a process:
+##
+##     import std::process
+##
+##     process.current # => 0
 def current -> Integer {
   _INKOC.process_current_pid
 }
 
+## Sends a message to a process, returning the message that was sent.
+##
+## # Examples
+##
+## Sending a message:
+##
+##     import std::process
+##
+##     let pid = process.spawn {
+##       process.receive # => 'hello'
+##     }
+##
+##     process.send(pid, 'hello') # => 'hello'
 def send!(T)(pid: ToInteger, message: T) -> T {
   _INKOC.process_send_message(pid.to_integer, message)
 }
 
+## Receives a process message.
+##
+## Calling this method will block the current process until a message is
+## received.
+##
+## Messages are received in the same order in which they are sent.
+##
+## # Examples
+##
+## Sending a message to a process:
+##
+##     import std::process
+##
+##     process.send(process.current, 'hello')
+##
+##     process.receive # => 'hello'
 def receive {
   _INKOC.process_receive_message
 }
 
+## Spawns a new process that will execute the given lambda.
+##
+## Processes are completely isolated and as such "self" in the lambda will refer
+## to the module the lambda was created in.
+##
+## # Examples
+##
+## Spawning a process:
+##
+##     import std::process
+##
+##     process.spawn {
+##       10 # => 10
+##     }
 def spawn(block: lambda) -> Integer {
   _INKOC.process_spawn(block, PRIMARY_POOL)
 }
 
+## Spawns a process that will perform IO (or other blocking) operations.
+##
+## IO processes are scheduled on a separate process pool so they don't intervene
+## with regular processes.
+##
+## # Examples
+##
+## Spawning an IO process:
+##
+##     import std::process
+##
+##     process.spawn_io {
+##       10 # => 10
+##     }
+##
 def spawn_io(block: lambda) -> Integer {
   _INKOC.process_spawn(block, IO_POOL)
+}
+
+## Returns the status of a process as an `Integer`.
+##
+## The following values can be returned:
+##
+## * 0: The process has been scheduled.
+## * 1: The process is running.
+## * 2: The process has been suspended for garbage collection.
+## * 3: The process finished execution.
+##
+## If a process does not exist (any more) then the status will also be `3`.
+##
+## # Examples
+##
+## Getting the status of a process:
+##
+##     import std::process
+##
+##     process.status(process.current) # => 1
+def status(pid: ToInteger) -> Integer {
+  _INKOC.process_status(pid.to_integer)
+}
+
+## Suspends the current process until it is rescheduled.
+##
+## # Examples
+##
+## Suspending a process:
+##
+##     import std::process
+##
+##     process.suspend # => Nil
+def suspend -> Nil {
+  _INKOC.process_suspend_current
+  Nil
 }
