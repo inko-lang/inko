@@ -265,7 +265,7 @@ module Inkoc
       if @lexer.next_type_is?(:as)
         advance!
 
-        type = type_name(advance_and_expect!(:constant))
+        type = type(advance!)
         node = AST::TypeCast.new(node, type, start.location)
       end
 
@@ -1199,9 +1199,9 @@ module Inkoc
     #
     # Examples:
     #
-    #     def foo -> Integer
-    #     def foo -> ?Integer
-    #     def foo -> (T) -> R
+    #     Integer
+    #     ?Integer
+    #     (T) -> R
     def type(start)
       optional =
         if start.type == :question
