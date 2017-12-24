@@ -1,8 +1,15 @@
-#![cfg_attr(feature="system-allocator", feature(alloc_system))]
+#![cfg_attr(feature="system-allocator", feature(alloc_system, global_allocator))]
 #![feature(allocator_api, alloc)]
 
 #[cfg(feature = "system-allocator")]
 extern crate alloc_system;
+
+#[cfg(feature = "system-allocator")]
+use alloc_system::System;
+
+#[cfg(feature = "system-allocator")]
+#[global_allocator]
+static A: System = System;
 
 extern crate alloc;
 extern crate num_cpus;
@@ -38,6 +45,7 @@ pub mod process_table;
 pub mod queue;
 pub mod register;
 pub mod string_pool;
+pub mod suspension_list;
 pub mod tagged_pointer;
 pub mod timer;
 pub mod vm;
