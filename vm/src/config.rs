@@ -41,6 +41,10 @@ pub struct Config {
     /// Defaults to 1000.
     pub reductions: usize,
 
+    /// The number of milliseconds to wait between checking for suspended
+    /// processes.
+    pub suspension_check_interval: u64,
+
     /// The block allocation growth factor for the young generation.
     pub young_growth_factor: f64,
 
@@ -62,6 +66,7 @@ impl Config {
             gc_threads: cpu_count,
             secondary_threads: cpu_count,
             reductions: 1000,
+            suspension_check_interval: 100,
             young_growth_factor: 1.5,
             mature_growth_factor: 1.5,
             mailbox_growth_factor: 1.5,
@@ -75,6 +80,12 @@ impl Config {
         set_from_env!(self, gc_threads, "GC_THREADS", usize);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
+        set_from_env!(
+            self,
+            suspension_check_interval,
+            "SUSPENSION_CHECK_INTERVAL",
+            u64
+        );
 
         set_from_env!(self, young_growth_factor, "GC_YOUNG_GROWTH_FACTOR", f64);
         set_from_env!(self, mature_growth_factor, "GC_MATURE_GROWTH_FACTOR", f64);
@@ -118,6 +129,12 @@ impl Config {
     pub fn set_reductions(&mut self, reductions: usize) {
         if reductions > 0 {
             self.reductions = reductions;
+        }
+    }
+
+    pub fn set_suspension_check_interval(&mut self, interval: u64) {
+        if interval > 0 {
+            self.suspension_check_interval = interval;
         }
     }
 }

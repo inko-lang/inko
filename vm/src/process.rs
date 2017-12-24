@@ -27,8 +27,14 @@ pub enum ProcessStatus {
     /// The process is running.
     Running,
 
-    /// The process is suspended for garbage collection.
+    /// The process has been suspended.
+    Suspended,
+
+    /// The process has been suspended for garbage collection.
     SuspendForGc,
+
+    /// The process is waiting for a message to arrive.
+    WaitingForMessage,
 
     /// The process has finished execution.
     Finished,
@@ -152,8 +158,10 @@ impl Process {
         match *lock!(self.status) {
             ProcessStatus::Scheduled => 0,
             ProcessStatus::Running => 1,
-            ProcessStatus::SuspendForGc => 2,
-            ProcessStatus::Finished => 3,
+            ProcessStatus::Suspended => 2,
+            ProcessStatus::SuspendForGc => 3,
+            ProcessStatus::WaitingForMessage => 4,
+            ProcessStatus::Finished => 5,
         }
     }
 
@@ -244,6 +252,10 @@ impl Process {
         self.context_mut().line = line;
     }
 
+    pub fn advance_instruction_index(&self) {
+        self.local_data_mut().context.instruction_index += 1;
+    }
+
     pub fn binding(&self) -> RcBinding {
         self.context().binding()
     }
@@ -289,8 +301,36 @@ impl Process {
         self.set_status(ProcessStatus::Scheduled);
     }
 
+    pub fn suspended(&self) {
+        self.set_status(ProcessStatus::Suspended);
+    }
+
     pub fn suspend_for_gc(&self) {
         self.set_status(ProcessStatus::SuspendForGc);
+    }
+
+    pub fn waiting_for_message(&self) {
+        self.set_status(ProcessStatus::WaitingForMessage);
+    }
+
+    pub fn is_waiting_for_message(&self) -> bool {
+        match *lock!(self.status) {
+            ProcessStatus::WaitingForMessage => true,
+            _ => false,
+        }
+    }
+
+    pub fn wakeup_after_suspension_timeout(&self) {
+        if self.is_waiting_for_message() {
+            // When a timeout expires we don't want to retry the last
+            // instruction as otherwise we'd end up in an infinite loop if
+            // no message is received.
+            self.advance_instruction_index();
+        }
+    }
+
+    pub fn has_messages(&self) -> bool {
+        self.local_data().mailbox.has_messages()
     }
 
     pub fn should_collect_young_generation(&self) -> bool {

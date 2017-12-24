@@ -896,7 +896,7 @@ module Inkoc
       end
 
       def on_raw_process_receive_message(node, body)
-        raw_nullary_instruction(:ProcessReceiveMessage, node, body)
+        raw_unary_instruction(:ProcessReceiveMessage, node, body)
       end
 
       def on_raw_process_current_pid(node, body)
@@ -908,7 +908,9 @@ module Inkoc
       end
 
       def on_raw_process_suspend_current(node, body)
-        body.instruct(:ProcessSuspendCurrent, node.location)
+        timeout = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:ProcessSuspendCurrent, timeout, node.location)
       end
 
       def on_raw_remove_attribute(node, body)

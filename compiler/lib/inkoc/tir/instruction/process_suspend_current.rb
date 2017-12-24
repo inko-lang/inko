@@ -7,9 +7,10 @@ module Inkoc
         include Inspect
         include Predicates
 
-        attr_reader :location
+        attr_reader :timeout, :location
 
-        def initialize(location)
+        def initialize(timeout, location)
+          @timeout = timeout
           @location = location
         end
 

@@ -20,6 +20,7 @@ use pool::Pool;
 use pools::Pools;
 use process_table::ProcessTable;
 use process::RcProcess;
+use suspension_list::SuspensionList;
 use string_pool::StringPool;
 
 pub type RcState = Arc<State>;
@@ -49,6 +50,9 @@ pub struct State {
 
     /// The start time of the VM (more or less).
     pub start_time: time::Instant,
+
+    /// The list of suspended processes.
+    pub suspension_list: SuspensionList,
 
     /// The global top-level object.
     pub top_level: ObjectPointer,
@@ -121,6 +125,7 @@ impl State {
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
             start_time: time::Instant::now(),
+            suspension_list: SuspensionList::new(),
             top_level: top_level,
             integer_prototype: integer_proto,
             float_prototype: float_proto,

@@ -71,4 +71,18 @@ impl Mailbox {
             .map(|pointer| pointer.pointer())
             .collect()
     }
+
+    /// Returns true if the process has any messages available.
+    ///
+    /// This method should only be called when the owning processes is suspended
+    /// as otherwise the counts returned could be inaccurate.
+    pub fn has_messages(&self) -> bool {
+        if self.locals.len() > 0 || self.internal.len() > 0 {
+            return true;
+        }
+
+        let _lock = self.write_lock.lock();
+
+        self.external.len() > 0
+    }
 }

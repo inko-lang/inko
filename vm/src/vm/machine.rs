@@ -1,5 +1,6 @@
 //! Virtual Machine for running instructions
 use std::io::{self, Write, Read, Seek, SeekFrom};
+use std::thread;
 
 use binding::Binding;
 use block::Block;
@@ -103,6 +104,16 @@ macro_rules! safepoint_and_reduce {
     })
 }
 
+macro_rules! optional_timeout {
+    ($pointer: expr) => ({
+        if let Ok(time) = $pointer.integer_value() {
+            if time > 0 { Some(time as u64) } else { None }
+        } else {
+            None
+        }
+    })
+}
+
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
@@ -133,14 +144,19 @@ impl Machine {
     pub fn start(&self, file: &String) -> bool {
         let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
+        let secondary_guard = self.start_secondary_threads();
 
-        self.start_secondary_threads();
+        self.start_suspension_worker();
         self.start_main_process(file);
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output, so we just
         // return instead.
         if primary_guard.join().is_err() {
+            return false;
+        }
+
+        if secondary_guard.join().is_err() {
             return false;
         }
 
@@ -158,11 +174,19 @@ impl Machine {
         pool.run(move |process| machine.run(&process))
     }
 
-    fn start_secondary_threads(&self) {
+    fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
         let machine = self.clone();
         let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run(&process));
+        pool.run(move |process| machine.run(&process))
+    }
+
+    fn start_suspension_worker(&self) {
+        let state = self.state.clone();
+
+        thread::spawn(move || {
+            state.suspension_list.process_suspended_processes(&state)
+        });
     }
 
     /// Starts the garbage collection threads.
@@ -173,6 +197,7 @@ impl Machine {
     fn terminate(&self) {
         self.state.process_pools.terminate();
         self.state.gc_pool.terminate();
+        self.state.suspension_list.terminate();
     }
 
     /// Starts the main process
@@ -1734,24 +1759,54 @@ impl Machine {
                         .get(&pid)
                     {
                         receiver.send_message(&process, msg_ptr);
+
+                        if receiver.is_waiting_for_message() {
+                            self.state.suspension_list.wake_up();
+                        }
                     }
 
                     context.set_register(register, msg_ptr);
                 }
                 // Receives a message for the current process.
                 //
-                // This instruction takes 1 argument: the register to store
-                // the resulting message in.
+                // This instruction takes two arguments:
+                //
+                // 1. The register to store the received message in.
+                // 2. A timeout after which the process will resume,
+                //    even if no message is received. If the register is set to
+                //    nil or the value is negative the timeout is ignored.
                 //
                 // If no messages are available the current process will be
                 // suspended, and the instruction will be retried the next
                 // time the process is executed.
+                //
+                // If a timeout is given that expires the given register will be
+                // set to nil.
                 InstructionType::ProcessReceiveMessage => {
+                    let register = instruction.arg(0);
+
                     if let Some(msg_ptr) = process.receive_message() {
-                        context.set_register(instruction.arg(0), msg_ptr);
+                        context.set_register(register, msg_ptr);
                     } else {
+                        let time_ptr = context.get_register(instruction.arg(1));
+                        let timeout = optional_timeout!(time_ptr);
+
+                        // When resuming (except when the timeout expires) we
+                        // want to retry this instruction so we can store the
+                        // received message in the target register.
                         context.instruction_index = index - 1;
-                        self.reschedule(process.clone());
+
+                        // If the timeout expires we won't retry this
+                        // instruction so we need to ensure the register is
+                        // already set.
+                        context.set_register(register, self.state.nil_object);
+
+                        process.waiting_for_message();
+
+                        self.state.suspension_list.suspend(
+                            process.clone(),
+                            timeout,
+                        );
 
                         return;
                     }
@@ -1772,13 +1827,6 @@ impl Machine {
                 //
                 // 1. The register to store the status in.
                 // 2. The register containing the PID of the process to check.
-                //
-                // The mapping of integers to statuses is as follows:
-                //
-                // * 0: The process has been scheduled.
-                // * 1: The process is running.
-                // * 2: The process has been suspended for garbage collection.
-                // * 3: The process finished execution.
                 InstructionType::ProcessStatus => {
                     let register = instruction.arg(0);
                     let pid_ptr = process.get_register(instruction.arg(1));
@@ -1797,10 +1845,18 @@ impl Machine {
                 }
                 // Suspends the current process.
                 //
-                // This instruction does not take any arguments.
+                // This instruction takes one argument: a register
+                // containing the minimum amount of time (as an integer) the
+                // process should be suspended. If the register is set to nil or
+                // contains a negative value the timeout is ignored.
                 InstructionType::ProcessSuspendCurrent => {
+                    let time_ptr = context.get_register(instruction.arg(0));
+                    let timeout = optional_timeout!(time_ptr);
+
                     context.instruction_index = index;
-                    self.reschedule(process.clone());
+
+                    self.state.suspension_list.suspend(process.clone(), timeout);
+
                     return;
                 }
                 // Sets a local variable in one of the parent bindings.

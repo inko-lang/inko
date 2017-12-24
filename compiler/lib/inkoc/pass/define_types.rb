@@ -1263,7 +1263,7 @@ module Inkoc
       end
 
       def argument_types_incompatible?(defined_type, value_type)
-        defined_type && value_type && !defined_type.type_compatible?(value_type)
+        defined_type && value_type && !value_type.type_compatible?(defined_type)
       end
 
       def store_type(type, self_type, location, name = type.name)

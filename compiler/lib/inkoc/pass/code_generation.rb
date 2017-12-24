@@ -242,8 +242,10 @@ module Inkoc
       end
 
       def on_process_suspend_current(tir_ins, compiled_code, *)
+        timeout = tir_ins.timeout.id
+
         compiled_code
-          .instruct(:ProcessSuspendCurrent, [], tir_ins.location)
+          .instruct(:ProcessSuspendCurrent, [timeout], tir_ins.location)
       end
 
       def on_array_set(tir_ins, compiled_code, *)

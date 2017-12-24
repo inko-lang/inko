@@ -38,19 +38,29 @@ def send!(T)(pid: ToInteger, message: T) -> T {
 ## Calling this method will block the current process until a message is
 ## received.
 ##
+## The argument of this method can be used to set a timeout (in milliseconds).
+## If no message is received and the timeout expires this method will return
+## `Nil`.
+##
 ## Messages are received in the same order in which they are sent.
 ##
 ## # Examples
 ##
-## Sending a message to a process:
+## Receiving a message:
 ##
 ##     import std::process
 ##
 ##     process.send(process.current, 'hello')
 ##
 ##     process.receive # => 'hello'
-def receive {
-  _INKOC.process_receive_message
+##
+## Receiving a message with a timeout:
+##
+##     import std::process
+##
+##     process.receive(5) # => Nil
+def receive(timeout: ?Integer = Nil) {
+  _INKOC.process_receive_message(timeout)
 }
 
 ## Spawns a new process that will execute the given lambda.
@@ -96,8 +106,10 @@ def spawn_io(block: lambda) -> Integer {
 ##
 ## * 0: The process has been scheduled.
 ## * 1: The process is running.
-## * 2: The process has been suspended for garbage collection.
-## * 3: The process finished execution.
+## * 2: The process has been suspended.
+## * 3: The process has been suspended for garbage collection.
+## * 4: The process is waiting for a message to arrive.
+## * 5: The process finished execution.
 ##
 ## If a process does not exist (any more) then the status will also be `3`.
 ##
@@ -114,6 +126,10 @@ def status(pid: ToInteger) -> Integer {
 
 ## Suspends the current process until it is rescheduled.
 ##
+## The argument of this method can be used to set a minimum suspension time (in
+## milliseconds). If no timeout is specified the process may be rescheduled at
+## any time.
+##
 ## # Examples
 ##
 ## Suspending a process:
@@ -121,7 +137,13 @@ def status(pid: ToInteger) -> Integer {
 ##     import std::process
 ##
 ##     process.suspend # => Nil
-def suspend -> Nil {
-  _INKOC.process_suspend_current
+##
+## Suspending a process for a minimum amount of time:
+##
+##     import std::process
+##
+##     process.suspend(5) # => Nil
+def suspend(timeout: ?Integer = Nil) -> Nil {
+  _INKOC.process_suspend_current(timeout)
   Nil
 }
