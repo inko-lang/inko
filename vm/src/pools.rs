@@ -17,7 +17,12 @@ pub struct Pools {
 
 impl Pools {
     pub fn new(primary: usize, secondary: usize) -> Self {
-        Pools { pools: [Pool::new(primary), Pool::new(secondary)] }
+        Pools {
+            pools: [
+                Pool::new(primary, Some("primary".to_string())),
+                Pool::new(secondary, Some("secondary".to_string())),
+            ],
+        }
     }
 
     pub fn get(&self, index: usize) -> Option<&Pool<RcProcess>> {

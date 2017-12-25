@@ -111,7 +111,7 @@ impl State {
             false_obj.get_mut().set_prototype(bool_proto);
         }
 
-        let gc_pool = Pool::new(config.gc_threads);
+        let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
 
         let process_pools =
             Pools::new(config.primary_threads, config.secondary_threads);

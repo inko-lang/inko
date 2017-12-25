@@ -21,7 +21,7 @@
 //!
 //! Scheduling jobs is done using `Pool::schedule()`:
 //!
-//!     let pool = Pool::new(4);
+//!     let pool = Pool::new(4, None);
 //!
 //!     pool.schedule(4);
 //!     pool.schedule(8);
@@ -52,7 +52,7 @@
 //! Pools are active until they are explicitly shut down. Shutting down a pool
 //! can be done by calling `Pool::terminate()`. For example:
 //!
-//!     let pool = Pool::new(4);
+//!     let pool = Pool::new(4, None);
 //!     let guard = pool.run(move |job| do_something(job));
 //!
 //!     pool.schedule(10);
@@ -66,9 +66,11 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::{self, JoinHandle};
+use std::thread::{self, JoinHandle, Builder};
 
 use queue::{Queue, RcQueue};
+
+pub const STACK_SIZE: usize = 1024 * 1024;
 
 /// A job to be processed by a thread.
 pub enum Job<T: Send + 'static> {
@@ -102,6 +104,9 @@ pub struct PoolInner<T: Send + 'static> {
 pub struct Pool<T: Send + 'static> {
     /// The part of a pool that is shared between scheduler threads.
     pub inner: Arc<PoolInner<T>>,
+
+    /// The name of this pool, if any.
+    pub name: Option<String>,
 }
 
 /// A RAII guard wrapping multiple JoinHandles.
@@ -111,8 +116,11 @@ pub struct JoinGuard<T> {
 
 impl<T: Send + 'static> Pool<T> {
     /// Returns a new Pool with the given amount of queues.
-    pub fn new(amount: usize) -> Self {
-        Pool { inner: Arc::new(PoolInner::new(amount)) }
+    pub fn new(amount: usize, name: Option<String>) -> Self {
+        Pool {
+            inner: Arc::new(PoolInner::new(amount)),
+            name: name,
+        }
     }
 
     /// Starts a number of threads, each calling the supplied closure for every
@@ -128,8 +136,15 @@ impl<T: Send + 'static> Pool<T> {
         for idx in 0..amount {
             let inner = self.inner.clone();
             let closure = arc_closure.clone();
+            let mut builder = Builder::new().stack_size(STACK_SIZE);
 
-            handles.push(thread::spawn(move || inner.process(idx, closure)));
+            if let Some(name) = self.name.as_ref() {
+                builder = builder.name(format!("{} {}", name, idx));
+            }
+
+            let result = builder.spawn(move || inner.process(idx, closure));
+
+            handles.push(result.unwrap());
         }
 
         JoinGuard::new(handles)
@@ -250,14 +265,14 @@ mod tests {
 
     #[test]
     fn test_pool_new() {
-        let pool: Pool<()> = Pool::new(2);
+        let pool: Pool<()> = Pool::new(2, None);
 
         assert_eq!(pool.inner.queues.len(), 2);
     }
 
     #[test]
     fn test_pool_run() {
-        let pool = Pool::new(2);
+        let pool = Pool::new(2, None);
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
 
@@ -278,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_pool_schedule_balancing_jobs() {
-        let pool = Pool::new(2);
+        let pool = Pool::new(2, None);
 
         pool.schedule(1);
         pool.schedule(1);
@@ -289,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_pool_terminate() {
-        let pool: Pool<()> = Pool::new(2);
+        let pool: Pool<()> = Pool::new(2, None);
 
         pool.terminate();
 

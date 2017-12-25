@@ -33,8 +33,8 @@ pub struct Config {
     /// The number of secondary process threads to run.
     pub secondary_threads: usize,
 
-    /// The number of garbage collector threads to run. Defaults to the number
-    /// of CPU cores.
+    /// The number of garbage collector threads to run. Defaults to half the
+    /// number of CPU cores.
     pub gc_threads: usize,
 
     /// The number of reductions a process can perform before being suspended.
@@ -63,7 +63,7 @@ impl Config {
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
-            gc_threads: cpu_count,
+            gc_threads: (cpu_count as f64 / 2.0_f64).ceil() as usize,
             secondary_threads: cpu_count,
             reductions: 1000,
             suspension_check_interval: 100,

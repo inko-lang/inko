@@ -1,6 +1,7 @@
 //! Virtual Machine for running instructions
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::thread;
+use rayon;
 
 use binding::Binding;
 use block::Block;
@@ -11,7 +12,7 @@ use immix::copy_object::CopyObject;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
 use object_pointer::ObjectPointer;
 use object_value;
-use pool::JoinGuard as PoolJoinGuard;
+use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{RcProcess, Process, ProcessStatus};
 use vm::file_open_mode;
@@ -142,6 +143,8 @@ impl Machine {
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
     pub fn start(&self, file: &String) -> bool {
+        self.configure_rayon();
+
         let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
         let secondary_guard = self.start_secondary_threads();
@@ -167,6 +170,14 @@ impl Machine {
         true
     }
 
+    fn configure_rayon(&self) {
+        let config = rayon::Configuration::new()
+            .thread_name(|idx| format!("rayon {}", idx))
+            .stack_size(STACK_SIZE);
+
+        rayon::initialize(config).unwrap();
+    }
+
     fn start_primary_threads(&self) -> PoolJoinGuard<()> {
         let machine = self.clone();
         let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
@@ -184,9 +195,15 @@ impl Machine {
     fn start_suspension_worker(&self) {
         let state = self.state.clone();
 
-        thread::spawn(move || {
-            state.suspension_list.process_suspended_processes(&state)
-        });
+        let builder = thread::Builder::new().stack_size(STACK_SIZE).name(
+            "suspend worker".to_string(),
+        );
+
+        builder
+            .spawn(move || {
+                state.suspension_list.process_suspended_processes(&state)
+            })
+            .unwrap();
     }
 
     /// Starts the garbage collection threads.
