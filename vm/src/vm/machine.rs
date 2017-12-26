@@ -2007,6 +2007,31 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
+                // Checks if one object is a kind of another object.
+                //
+                // An object is considered a kind of another object when the
+                // object compared with is in the prototype chain of the object
+                // we're comparing.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in as a boolean.
+                // 2. The register containing the object to compare.
+                // 3. The register containing the object to compare with.
+                InstructionType::ObjectIsKindOf => {
+                    let register = instruction.arg(0);
+                    let compare = context.get_register(instruction.arg(1));
+                    let compare_with = context.get_register(instruction.arg(2));
+
+                    let result =
+                        if compare.is_kind_of(&self.state, compare_with) {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        };
+
+                    context.set_register(register, result);
+                }
                 // Sets the top-level object in a register.
                 //
                 // This instruction requires one argument: the register to
