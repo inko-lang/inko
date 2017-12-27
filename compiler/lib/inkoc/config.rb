@@ -64,7 +64,7 @@ module Inkoc
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
     IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
-    OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_name'
+    OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_object_name'
     INIT_MESSAGE = 'init'
 
     RESERVED_CONSTANTS = Set.new(
