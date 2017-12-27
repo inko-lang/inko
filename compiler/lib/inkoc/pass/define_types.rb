@@ -449,6 +449,10 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_object_is_kind_of(*)
+        typedb.boolean_type
+      end
+
       def on_raw_integer_to_string(*)
         typedb.string_type
       end

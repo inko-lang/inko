@@ -647,6 +647,10 @@ module Inkoc
         raw_binary_instruction(:ObjectEquals, node, body)
       end
 
+      def on_raw_object_is_kind_of(node, body)
+        raw_binary_instruction(:ObjectIsKindOf, node, body)
+      end
+
       def on_raw_integer_to_string(node, body)
         raw_unary_instruction(:IntegerToString, node, body)
       end
