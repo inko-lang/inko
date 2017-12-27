@@ -453,6 +453,10 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_copy_blocks(*)
+        Type::Void.new
+      end
+
       def on_raw_integer_to_string(*)
         typedb.string_type
       end

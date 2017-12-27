@@ -105,6 +105,7 @@ pub enum InstructionType {
     FloatGreaterOrEqual,
     FloatSmallerOrEqual,
     ObjectIsKindOf,
+    CopyBlocks,
 }
 
 /// Struct for storing information about a single instruction.

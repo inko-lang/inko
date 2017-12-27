@@ -257,6 +257,13 @@ module Inkoc
         compiled_code
           .instruct(:ArraySet, [reg, array, index, value], tir_ins.location)
       end
+
+      def on_copy_blocks(tir_ins, compiled_code, *)
+        to = tir_ins.to.id
+        from = tir_ins.from.id
+
+        compiled_code.instruct(:CopyBlocks, [to, from], tir_ins.location)
+      end
     end
   end
 end

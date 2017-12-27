@@ -2283,6 +2283,45 @@ impl Machine {
 
                     safepoint_and_reduce!(self, process, reductions);
                 }
+                // Copies all of the blocks of one object into another object.
+                // Only blocks defined directly on the source object will be
+                // copied.
+                //
+                // This instruction requires 2 arguments:
+                //
+                // 1. The register containing the object to copy the blocks to.
+                // 2. The register containing the object to copy the blocks
+                //    from.
+                InstructionType::CopyBlocks => {
+                    let obj_ptr = context.get_register(instruction.arg(0));
+                    let to_impl_ptr = context.get_register(instruction.arg(1));
+
+                    if obj_ptr.is_immutable() || to_impl_ptr.is_immutable() {
+                        // When using immutable objects there's nothing to copy
+                        // over so we'll just skip over the work.
+                        continue;
+                    }
+
+                    let mut object = obj_ptr.get_mut();
+                    let to_impl = to_impl_ptr.get();
+
+                    if let Some(map) = to_impl.attributes_map() {
+                        for (key, val) in map.iter() {
+                            if val.block_value().is_err() {
+                                continue;
+                            }
+
+                            let block = copy_if_permanent!(
+                                self.state.permanent_allocator,
+                                *val,
+                                obj_ptr
+                            );
+
+                            object.add_attribute(*key, block);
+                        }
+                    }
+
+                }
             };
         }
 

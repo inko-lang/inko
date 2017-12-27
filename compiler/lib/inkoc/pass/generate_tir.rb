@@ -651,6 +651,13 @@ module Inkoc
         raw_binary_instruction(:ObjectIsKindOf, node, body)
       end
 
+      def on_raw_copy_blocks(node, body)
+        to = process_node(node.arguments.fetch(0), body)
+        from = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:CopyBlocks, to, from, node.location)
+      end
+
       def on_raw_integer_to_string(node, body)
         raw_unary_instruction(:IntegerToString, node, body)
       end
