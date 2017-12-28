@@ -327,6 +327,10 @@ impl ObjectPointer {
         }
     }
 
+    pub fn set_prototype(&self, proto: ObjectPointer) {
+        self.get_mut().set_prototype(proto);
+    }
+
     pub fn prototype(&self, state: &RcState) -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
             Some(state.integer_prototype)

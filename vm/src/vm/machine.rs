@@ -308,7 +308,7 @@ impl Machine {
                 // 1. The register to store the object in.
                 // 2. A register containing a truthy/falsy object. When the
                 //    register contains a truthy object the new object will be a
-                //    global object.
+                //    permanent object.
                 // 3. An optional register containing the prototype for the
                 //    object.
                 InstructionType::SetObject => {
@@ -398,6 +398,12 @@ impl Machine {
                     context.set_register(
                         instruction.arg(0),
                         self.state.block_prototype,
+                    );
+                }
+                InstructionType::GetObjectPrototype => {
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.object_prototype,
                     );
                 }
                 // Sets a "true" value in a register.

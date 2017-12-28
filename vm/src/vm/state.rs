@@ -54,6 +54,10 @@ pub struct State {
     /// The list of suspended processes.
     pub suspension_list: SuspensionList,
 
+    /// The prototype of the base object, used as the prototype for all other
+    /// prototypes.
+    pub object_prototype: ObjectPointer,
+
     /// The global top-level object.
     pub top_level: ObjectPointer,
 
@@ -94,6 +98,7 @@ impl State {
         let mut perm_alloc =
             Box::new(PermanentAllocator::new(global_alloc.clone()));
 
+        let object_proto = perm_alloc.allocate_empty();
         let top_level = perm_alloc.allocate_empty();
         let integer_proto = perm_alloc.allocate_empty();
         let float_proto = perm_alloc.allocate_empty();
@@ -107,8 +112,17 @@ impl State {
         let nil_obj = perm_alloc.allocate_empty();
 
         {
-            true_obj.get_mut().set_prototype(bool_proto);
-            false_obj.get_mut().set_prototype(bool_proto);
+            top_level.set_prototype(object_proto);
+            integer_proto.set_prototype(object_proto);
+            float_proto.set_prototype(object_proto);
+            string_proto.set_prototype(object_proto);
+            array_proto.set_prototype(object_proto);
+            bool_proto.set_prototype(object_proto);
+            block_proto.set_prototype(object_proto);
+
+            nil_obj.set_prototype(object_proto);
+            true_obj.set_prototype(bool_proto);
+            false_obj.set_prototype(bool_proto);
         }
 
         let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
@@ -127,6 +141,7 @@ impl State {
             start_time: time::Instant::now(),
             suspension_list: SuspensionList::new(),
             top_level: top_level,
+            object_prototype: object_proto,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
             string_prototype: string_proto,
