@@ -1167,9 +1167,11 @@ module Inkoc
       end
 
       def set_object(type, permanent, body, location)
-        register = body.register(type)
+        prototype = body.register(typedb.object_type)
 
-        body.instruct(:SetObject, register, permanent, nil, location)
+        body.instruct(:Nullary, :GetObjectPrototype, prototype, location)
+
+        set_object_with_prototype(type, permanent, prototype, body, location)
       end
 
       def set_object_with_prototype(type, permanent, prototype, body, location)

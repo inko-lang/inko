@@ -411,13 +411,7 @@ module Inkoc
       end
 
       def on_raw_set_attribute(node, *)
-        object = node.arguments.fetch(0).type
-        name = node.arguments.fetch(1)
-        value = node.arguments.fetch(2).type
-
-        object.define_attribute(name.value, value) if name.string?
-
-        value
+        node.arguments.fetch(2).type
       end
 
       def on_raw_get_attribute(node, *)
@@ -435,7 +429,11 @@ module Inkoc
         proto =
           if (proto_node = node.arguments[1])
             proto_node.type
+          else
+            typedb.object_type
           end
+
+        proto = proto.type if proto.optional?
 
         Type::Object.new(prototype: proto)
       end
@@ -843,7 +841,7 @@ module Inkoc
       def on_object(node, scope)
         name = node.name
         proto = typedb.object_type
-        type = Type::Object.new(name: name, prototype: proto)
+        type = typedb.new_object_type(name, proto)
 
         type.define_attribute(
           Config::OBJECT_NAME_INSTANCE_ATTRIBUTE,
