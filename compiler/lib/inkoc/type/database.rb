@@ -7,29 +7,28 @@ module Inkoc
 
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :hash_map_type, :void_type, :boolean_type, :file_type
+                  :hash_map_type, :void_type, :boolean_type, :file_type,
+                  :object_type
 
       def initialize
-        @top_level = Object.new(name: 'Inko')
-        @true_type = Object.new(name: Config::TRUE_CONST)
-        @false_type = Object.new(name: Config::FALSE_CONST)
-        @boolean_type = Object.new(name: Config::BOOLEAN_CONST)
-        @nil_type = Nil.new
-        @block_type = Object.new(name: Config::BLOCK_CONST)
-        @integer_type = Object.new(name: Config::INTEGER_CONST)
-        @float_type = Object.new(name: Config::FLOAT_CONST)
-        @string_type = Object.new(name: Config::STRING_CONST)
+        @object_type = Object.new(name: Config::OBJECT_CONST)
+        @boolean_type = new_object_type(Config::BOOLEAN_CONST)
+        @top_level = new_object_type('Inko')
+
+        @true_type = new_object_type(Config::TRUE_CONST, boolean_type)
+        @false_type = new_object_type(Config::FALSE_CONST, boolean_type)
+        @nil_type = Nil.new(prototype: object_type)
+
+        @block_type = new_object_type(Config::BLOCK_CONST)
+        @integer_type = new_object_type(Config::INTEGER_CONST)
+        @float_type = new_object_type(Config::FLOAT_CONST)
+        @string_type = new_object_type(Config::STRING_CONST)
         @file_type = Object.new(name: Config::FILE_CONST)
         @array_type = initialize_array_type
         @hash_map_type = initialize_hash_map_type
+
         @void_type = Void.new
-
         @trait_type = nil
-        @object_type = nil
-      end
-
-      def object_type
-        @object_type ||= top_level.type_of_attribute(Config::OBJECT_CONST)
       end
 
       def trait_type
@@ -37,7 +36,7 @@ module Inkoc
       end
 
       def initialize_array_type
-        type = Object.new(name: Config::ARRAY_CONST)
+        type = new_object_type(Config::ARRAY_CONST)
 
         type.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
 
@@ -45,7 +44,7 @@ module Inkoc
       end
 
       def initialize_hash_map_type
-        type = Object.new(name: Config::HASH_MAP_CONST)
+        type = new_object_type(Config::HASH_MAP_CONST)
 
         type.define_type_parameter(Config::HASH_MAP_KEY_TYPE_PARAMETER)
         type.define_type_parameter(Config::HASH_MAP_VALUE_TYPE_PARAMETER)
@@ -58,6 +57,10 @@ module Inkoc
         array.initialize_type_parameter(Config::ARRAY_TYPE_PARAMETER, type)
 
         array
+      end
+
+      def new_object_type(name, proto = object_type)
+        Object.new(name: name, prototype: proto)
       end
     end
   end

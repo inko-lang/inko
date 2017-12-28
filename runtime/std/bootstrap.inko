@@ -19,20 +19,12 @@ var True = _INKOC.get_true
 var False = _INKOC.get_false
 var Nil = _INKOC.get_nil
 
-var Object = _INKOC.set_object(True)
+var Object = _INKOC.get_object_prototype
 var String = _INKOC.get_string_prototype
 var Integer = _INKOC.get_integer_prototype
 var Float = _INKOC.get_float_prototype
 var Block = _INKOC.get_block_prototype
 var Array = _INKOC.get_array_prototype
-
-_INKOC.set_prototype(Nil, Object)
-_INKOC.set_prototype(String, Object)
-_INKOC.set_prototype(Integer, Object)
-_INKOC.set_prototype(Float, Object)
-_INKOC.set_prototype(Array, Object)
-_INKOC.set_prototype(Block, Object)
-_INKOC.set_prototype(Boolean, Object)
 
 _INKOC.set_attribute(True, '@_object_name', 'True')
 _INKOC.set_attribute(False, '@_object_name', 'False')

@@ -407,12 +407,7 @@ module Inkoc
       end
 
       def on_raw_set_prototype(node, *)
-        object = node.arguments.fetch(0).type
-        proto = node.arguments.fetch(1).type
-
-        object.prototype = proto
-
-        proto
+        node.arguments.fetch(1).type
       end
 
       def on_raw_set_attribute(node, *)
@@ -607,6 +602,10 @@ module Inkoc
 
       def on_raw_get_float_prototype(*)
         typedb.float_type
+      end
+
+      def on_raw_get_object_prototype(*)
+        typedb.object_type
       end
 
       def on_raw_get_array_prototype(*)

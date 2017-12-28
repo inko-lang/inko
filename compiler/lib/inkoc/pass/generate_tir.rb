@@ -814,6 +814,10 @@ module Inkoc
         raw_nullary_instruction(:GetFloatPrototype, node, body)
       end
 
+      def on_raw_get_object_prototype(node, body)
+        raw_nullary_instruction(:GetObjectPrototype, node, body)
+      end
+
       def on_raw_get_array_prototype(node, body)
         raw_nullary_instruction(:GetArrayPrototype, node, body)
       end
