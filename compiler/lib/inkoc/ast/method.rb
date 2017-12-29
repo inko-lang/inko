@@ -14,6 +14,7 @@ module Inkoc
       # args - The arguments of the method.
       # returns - The return type of the method.
       # throws - The type being thrown by this method.
+      # required - If the method is a required method in a trait.
       # body - The body of the method.
       # loc - The SourceLocation of this method.
       def initialize(name, args, targs, returns, throws, required, body, loc)

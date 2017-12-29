@@ -1267,11 +1267,13 @@ module Inkoc
       end
 
       def defined_type_for_argument(arg, block_type, self_type)
-        return unless arg.type
+        unless (vtype = arg.value_type)
+          return
+        end
 
         wrap_optional_type(
-          arg.type,
-          resolve_type(arg.type, self_type, [block_type, self_type, @module])
+          vtype,
+          resolve_type(vtype, self_type, [block_type, self_type, @module])
         )
       end
 

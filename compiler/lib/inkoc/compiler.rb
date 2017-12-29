@@ -7,6 +7,7 @@ module Inkoc
       Pass::PathToSource,
       Pass::SourceToAst,
       Pass::AddDefaultForRestArguments,
+      Pass::DesugarObject,
       Pass::ConfigureModule,
       Pass::DefineModuleType,
       Pass::TrackModule,

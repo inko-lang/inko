@@ -7,18 +7,18 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :type, :rest, :location
+      attr_reader :name, :value_type, :rest, :location
       attr_accessor :default
 
       # name - The name of the argument.
-      # type - The type of the argument, if any.
+      # value_type - The type of the argument, if any.
       # default - The default value of the argument, if any.
       # rest - If the argument is a rest argument.
       # mutable - If the argument is mutable or not.
       # location - The SourceLocation of the argument.
-      def initialize(name, type, default, rest, mutable, location)
+      def initialize(name, value_type, default, rest, mutable, location)
         @name = name
-        @type = type
+        @value_type = value_type
         @default = default
         @rest = rest
         @mutable = mutable
