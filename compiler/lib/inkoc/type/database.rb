@@ -62,6 +62,10 @@ module Inkoc
       def new_object_type(name, proto = object_type)
         Object.new(name: name, prototype: proto)
       end
+
+      def new_empty_object
+        Object.new
+      end
     end
   end
 end

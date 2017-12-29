@@ -362,6 +362,22 @@ impl ObjectPointer {
         self.raw.bit_is_set(INTEGER_BIT)
     }
 
+    pub fn is_string(&self) -> bool {
+        if self.is_tagged_integer() {
+            false
+        } else {
+            self.get().value.is_string()
+        }
+    }
+
+    pub fn is_interned_string(&self) -> bool {
+        if self.is_tagged_integer() {
+            false
+        } else {
+            self.get().value.is_interned_string()
+        }
+    }
+
     pub fn is_immutable(&self) -> bool {
         self.is_tagged_integer() || self.get().value.is_immutable()
     }

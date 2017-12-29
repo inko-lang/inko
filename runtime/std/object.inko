@@ -2,7 +2,106 @@ import std::conditional::Conditional
 import std::operators::Equal
 
 impl Object {
-  def implement_trait(trait_to_implement) {}
+  ## Returns the prototype of the receiving object.
+  ##
+  ## A prototype is optional and thus this method may return `Nil`.
+  ##
+  ## # Examples
+  ##
+  ## Getting the prototype of an object:
+  ##
+  ##     let obj = Object.new
+  ##
+  ##     obj.prototype # => Object
+  def prototype {
+    _INKOC.get_prototype(self)
+  }
+
+  ## Sets the prototype of the receiving object.
+  ##
+  ## # Examples
+  ##
+  ## Changing the prototype of an object:
+  ##
+  ##     var obj1 = Object.new
+  ##     var obj2 = Object.new
+  ##
+  ##     obj2.prototype        # => Object
+  ##     obj2.prototype = obj1 # => obj1
+  ##     obj2.prototype        # => obj1
+  ##
+  def prototype=!(T)(proto: T) -> T {
+    _INKOC.set_prototype(self, proto)
+  }
+
+  ## Returns the value of an attribute.
+  ##
+  ## Since attributes may not be set this method can return a value of any type,
+  ## including `Nil`.
+  ##
+  ## # Examples
+  ##
+  ## Getting the value of an undefined attribute:
+  ##
+  ##     let obj = Object.new
+  ##
+  ##     obj.get_attribute('name') # => Nil
+  ##
+  ## Getting the value of an existing attribute:
+  ##
+  ##     var obj = Object.new
+  ##
+  ##     obj.set_attribute('name', 'Alice')
+  ##     obj.get_attribute('name') # => 'Alice'
+  def get_attribute(name: String) {
+    _INKOC.get_attribute(self, name)
+  }
+
+  ## Sets the attribute to the given value, returning the stored value.
+  ##
+  ## # Examples
+  ##
+  ## Setting an attribute:
+  ##
+  ##     var obj = Object.new
+  ##
+  ##     obj.set_attribute('name', 'Alice') # => 'Alice'
+  def set_attribute!(T)(name: String, value: T) -> T {
+    _INKOC.set_attribute(self, name, value)
+  }
+
+  ## Implements the given trait for the current object.
+  ##
+  ## Implementing a trait will result in all the trait's methods being copied
+  ## over to the receiving object. Once copied the trait is tracked in an
+  ## internal object so methods such as `Object.kind_of?` can make use of it.
+  ##
+  ## This method is not really meant for general use, instead it's called by the
+  ## compiler whenever implementing a trait using the `impl` keyword.
+  ##
+  ## # Examples
+  ##
+  ## Manually implementing a trait, ignoring any required methods:
+  ##
+  ##     trait MyTrait {
+  ##       def number -> Integer {
+  ##         42
+  ##       }
+  ##     }
+  ##
+  ##     object Person {}
+  ##
+  ##     Person.implement_trait(MyTrait) # => MyTrait
+  ##
+  ##     Person.new.number # => 42
+  def implement_trait(to_impl: Trait) -> Trait {
+    var traits = _INKOC.set_attribute_to_object(self, '@_implemented_traits')
+
+    _INKOC.copy_blocks(self, to_impl)
+    _INKOC.set_attribute(traits, to_impl, True)
+
+    to_impl
+  }
 }
 
 impl Conditional for Object {
@@ -19,7 +118,76 @@ impl Conditional for Object {
   }
 }
 
+# These methods can't be implemented until `if_true` is in place, thus we must
+# implement them after implementing `Conditional`.
+impl Object {
+  ## Returns `True` if the receiving object is an instance of the given object.
+  ##
+  ## Instance checking is performing by walking the prototype chain of the
+  ## receiving object and checking if any of the members are identical to the
+  ## given object.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a string is an instance of `String`:
+  ##
+  ##     'hello'.instance_of?(String) # => true
+  ##
+  ## Checking if an integer is an instance of `Integer`:
+  ##
+  ##     10.instance_of?(Integer) # => True
+  ##
+  ## Checking if an integer is an instance of the same integer:
+  ##
+  ##     10.instance_of?(10) # => False
+  def instance_of?(other) -> Boolean {
+    _INKOC.object_is_kind_of(self, other)
+  }
+
+  ## Returns `True` if the receiving object is a kind of the given object.
+  ##
+  ## This method combines `Object.instance_of?` with checking if `other` is a
+  ## `Trait` implemented by the receiver.
+  ##
+  ## # Examples
+  ##
+  ## Using two regular objects:
+  ##
+  ##     'hello'.kind_of?(String) # => True
+  ##
+  ## Comparing an object with a trait:
+  ##
+  ##     import std::conversion::ToString
+  ##
+  ##     'hello'.kind_of?(ToString) # => True
+  def kind_of?(other) -> Boolean {
+    instance_of?(other).if_true { return True }
+
+    _INKOC
+      .prototype_chain_attribute_contains(self, '@_implemented_traits', other)
+  }
+}
+
 impl Equal for Object {
+  ## Returns `True` if the receiving and given objects are exactly identical.
+  ##
+  ## Two objects are considered identical if they reside at the exact same
+  ## memory address.
+  ##
+  ## # Examples
+  ##
+  ## Checking two equal objects:
+  ##
+  ##     let obj = Object.new
+  ##
+  ##     obj == obj # => True
+  ##
+  ## Checking two objects that are not equal to each other:
+  ##
+  ##     let obj1 = Object.new
+  ##     let obj2 = Object.new
+  ##
+  ##     obj1 == obj2 # => False
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }

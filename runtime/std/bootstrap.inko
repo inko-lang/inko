@@ -52,6 +52,9 @@ impl Object {
   def init {}
 }
 
+# Now that the basics are in place we can define Trait the usual way.
+object Trait {}
+
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.
 object Modules {}

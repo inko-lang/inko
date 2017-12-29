@@ -605,6 +605,15 @@ module Inkoc
         body.instruct(:Binary, name, register, left, right, node.location)
       end
 
+      def raw_ternary_instruction(name, node, body)
+        register = body.register(node.type)
+        one = process_node(node.arguments.fetch(0), body)
+        two = process_node(node.arguments.fetch(1), body)
+        three = process_node(node.arguments.fetch(2), body)
+
+        body.instruct(:Ternary, name, register, one, two, three, node.location)
+      end
+
       def on_raw_get_toplevel(node, body)
         get_toplevel(body, node.location)
       end
@@ -623,6 +632,10 @@ module Inkoc
         value = process_node(args.fetch(2), body)
 
         set_attribute(receiver, name, value, body, node.location)
+      end
+
+      def on_raw_set_attribute_to_object(node, body)
+        raw_binary_instruction(:SetAttributeToObject, node, body)
       end
 
       def on_raw_get_attribute(node, body)
@@ -656,6 +669,10 @@ module Inkoc
         from = process_node(node.arguments.fetch(1), body)
 
         body.instruct(:CopyBlocks, to, from, node.location)
+      end
+
+      def on_raw_prototype_chain_attribute_contains(node, body)
+        raw_ternary_instruction(:PrototypeChainAttributeContains, node, body)
       end
 
       def on_raw_integer_to_string(node, body)

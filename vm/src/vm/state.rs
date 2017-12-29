@@ -163,7 +163,7 @@ impl State {
         &self,
         pointer: &ObjectPointer,
     ) -> Result<ObjectPointer, String> {
-        if pointer.get().value.is_interned_string() {
+        if pointer.is_interned_string() {
             Ok(*pointer)
         } else {
             Ok(self.intern(pointer.string_value()?))

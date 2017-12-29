@@ -414,6 +414,10 @@ module Inkoc
         node.arguments.fetch(2).type
       end
 
+      def on_raw_set_attribute_to_object(*)
+        typedb.new_empty_object
+      end
+
       def on_raw_get_attribute(node, *)
         object = node.arguments.fetch(0).type
         name = node.arguments.fetch(1)
@@ -448,6 +452,10 @@ module Inkoc
 
       def on_raw_copy_blocks(*)
         Type::Void.new
+      end
+
+      def on_raw_prototype_chain_attribute_contains(*)
+        typedb.boolean_type
       end
 
       def on_raw_integer_to_string(*)

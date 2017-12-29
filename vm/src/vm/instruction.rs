@@ -107,6 +107,8 @@ pub enum InstructionType {
     ObjectIsKindOf,
     CopyBlocks,
     GetObjectPrototype,
+    SetAttributeToObject,
+    PrototypeChainAttributeContains,
 }
 
 /// Struct for storing information about a single instruction.

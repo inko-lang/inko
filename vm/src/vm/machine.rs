@@ -1628,8 +1628,7 @@ impl Machine {
                 // 1. The register to store the written value in
                 // 2. The register containing the object for which to set
                 //    the attribute.
-                // 3. The register containing the attribute name as a
-                //    string.
+                // 3. The register containing the attribute name.
                 // 4. The register containing the object to set as the
                 //    value.
                 InstructionType::SetAttribute => {
@@ -1640,7 +1639,15 @@ impl Machine {
 
                     set_nil_if_immutable!(self, context, target_ptr, register);
 
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| {
+                            copy_if_permanent!(
+                                self.state.permanent_allocator,
+                                name_ptr,
+                                target_ptr
+                            )
+                        });
 
                     let value = copy_if_permanent!(
                         self.state.permanent_allocator,
@@ -1652,6 +1659,56 @@ impl Machine {
 
                     context.set_register(register, value);
                 }
+                // Sets the attribute of an object to an empty object, but only
+                // if the attribute is not already set.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the object set in.
+                // 2. The register containing the object to store the attribute
+                //    in.
+                // 3. The register containing the name of the attribute.
+                InstructionType::SetAttributeToObject => {
+                    let register = instruction.arg(0);
+                    let obj_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
+
+                    set_nil_if_immutable!(self, context, obj_ptr, register);
+
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| {
+                            copy_if_permanent!(
+                                self.state.permanent_allocator,
+                                name_ptr,
+                                obj_ptr
+                            )
+                        });
+
+                    let attribute = if let Some(ptr) =
+                        obj_ptr.get().lookup_attribute_in_self(&name)
+                    {
+                        ptr
+                    } else {
+                        let value = object_value::none();
+                        let proto = self.state.object_prototype;
+
+                        let ptr = if obj_ptr.is_permanent() {
+                            self.state
+                                .permanent_allocator
+                                .lock()
+                                .allocate_with_prototype(value, proto)
+                        } else {
+                            process.allocate(value, proto)
+                        };
+
+                        obj_ptr.add_attribute(&process, name, ptr);
+
+                        ptr
+                    };
+
+                    context.set_register(register, attribute);
+                }
                 // Gets an attribute from an object and stores it in a
                 // register.
                 //
@@ -1660,7 +1717,7 @@ impl Machine {
                 // 1. The register to store the attribute's value in.
                 // 2. The register containing the object from which to retrieve
                 //    the attribute.
-                // 3. The register containing the attribute name as a string.
+                // 3. The register containing the attribute name.
                 //
                 // If the attribute does not exist the target register is
                 // set to nil.
@@ -1668,7 +1725,10 @@ impl Machine {
                     let register = instruction.arg(0);
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| name_ptr);
 
                     let method = rec_ptr
                         .lookup_attribute(&self.state, &name)
@@ -2038,6 +2098,54 @@ impl Machine {
 
                     context.set_register(register, result);
                 }
+                // Checks if an object's attribute contains the given value.
+                // This instruction will walk the prototype chain until a match
+                // is found or we run out of objects.
+                //
+                // This instruction requires 4 attributes:
+                //
+                // 1. The register to set the result to as a boolean.
+                // 2. The object whos prototype chain to check.
+                // 3. The name of the attribute to check.
+                // 4. The value to check in the attribute.
+                InstructionType::PrototypeChainAttributeContains => {
+                    let register = instruction.arg(0);
+                    let obj_ptr = context.get_register(instruction.arg(1));
+                    let name_ptr = context.get_register(instruction.arg(2));
+                    let val_ptr = context.get_register(instruction.arg(3));
+
+                    let mut source = obj_ptr;
+                    let mut result = self.state.false_object;
+
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| name_ptr);
+
+                    // For every object in the prototype chain (including self)
+                    // we look up the target object, then we check if the value
+                    // is in said object.
+                    loop {
+                        if let Some(obj) = source
+                            .get()
+                            .lookup_attribute_in_self(&name)
+                        {
+                            if obj.lookup_attribute(&self.state, &val_ptr)
+                                .is_some()
+                            {
+                                result = self.state.true_object;
+                                break;
+                            }
+                        }
+
+                        if let Some(proto) = source.prototype(&self.state) {
+                            source = proto;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    context.set_register(register, result);
+                }
                 // Sets the top-level object in a register.
                 //
                 // This instruction requires one argument: the register to
@@ -2064,13 +2172,15 @@ impl Machine {
                 //
                 // 1. The register to store the result in (true or false).
                 // 2. The register containing the object to check.
-                // 3. The register containing the attribute name as a
-                //    string.
+                // 3. The register containing the attribute name.
                 InstructionType::AttributeExists => {
                     let register = instruction.arg(0);
                     let source_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
+
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| name_ptr);
 
                     let obj = if source_ptr
                         .lookup_attribute(&self.state, &name)
@@ -2090,7 +2200,7 @@ impl Machine {
                 // 1. The register to store the removed attribute in.
                 // 2. The register containing the object from which to
                 //    remove the attribute.
-                // 3. The register containing the attribute name as a string.
+                // 3. The register containing the attribute name.
                 //
                 // If the attribute did not exist the target register is set
                 // to nil instead.
@@ -2098,7 +2208,9 @@ impl Machine {
                     let register = instruction.arg(0);
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state.intern_pointer(&name_ptr).unwrap();
+                    let name = self.state
+                        .intern_pointer(&name_ptr)
+                        .unwrap_or_else(|_| name_ptr);
 
                     set_nil_if_immutable!(self, context, rec_ptr, register);
 
@@ -2326,7 +2438,6 @@ impl Machine {
                             object.add_attribute(*key, block);
                         }
                     }
-
                 }
             };
         }

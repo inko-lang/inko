@@ -241,6 +241,16 @@ module Inkoc
           .instruct(tir_ins.name, [reg, base, other], tir_ins.location)
       end
 
+      def on_ternary(tir_ins, compiled_code, *)
+        reg = tir_ins.register.id
+        one = tir_ins.one.id
+        two = tir_ins.two.id
+        three = tir_ins.three.id
+
+        compiled_code
+          .instruct(tir_ins.name, [reg, one, two, three], tir_ins.location)
+      end
+
       def on_process_suspend_current(tir_ins, compiled_code, *)
         timeout = tir_ins.timeout.id
 
