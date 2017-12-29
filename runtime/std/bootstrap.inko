@@ -13,13 +13,13 @@
 
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this
-# point. This also means we need to manually set their prototypes and names.
-var Boolean = _INKOC.get_boolean_prototype
+# point.
 var True = _INKOC.get_true
 var False = _INKOC.get_false
 var Nil = _INKOC.get_nil
 
 var Object = _INKOC.get_object_prototype
+var Boolean = _INKOC.get_boolean_prototype
 var String = _INKOC.get_string_prototype
 var Integer = _INKOC.get_integer_prototype
 var Float = _INKOC.get_float_prototype
