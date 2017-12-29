@@ -62,6 +62,10 @@ module Inkoc
       def unresolved_constraint?
         false
       end
+
+      def boolean?
+        false
+      end
     end
   end
 end

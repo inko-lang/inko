@@ -83,6 +83,16 @@ module Inkoc
 
         symbol.type.implementation_of?(method_type)
       end
+
+      def lookup_method_from_traits(name)
+        implemented_traits.each do |trait|
+          if (method = trait.lookup_default_method(name)) && method.any?
+            return method
+          end
+        end
+
+        NullSymbol.new(name)
+      end
     end
   end
 end

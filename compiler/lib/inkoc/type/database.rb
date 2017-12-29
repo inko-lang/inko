@@ -15,8 +15,8 @@ module Inkoc
         @boolean_type = new_object_type(Config::BOOLEAN_CONST)
         @top_level = new_object_type('Inko')
 
-        @true_type = new_object_type(Config::TRUE_CONST, boolean_type)
-        @false_type = new_object_type(Config::FALSE_CONST, boolean_type)
+        @true_type = Type::Boolean.new(prototype: boolean_type)
+        @false_type = Type::Boolean.new(prototype: boolean_type)
         @nil_type = Nil.new(prototype: object_type)
 
         @block_type = new_object_type(Config::BLOCK_CONST)
