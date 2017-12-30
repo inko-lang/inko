@@ -50,15 +50,6 @@ macro_rules! throw_io_error {
     });
 }
 
-macro_rules! throw_invalid_utf8_error {
-    ($machine: expr, $process: expr, $context: ident, $code: ident, $index: ident) => ({
-        let code = $crate::error_codes::STRING_INVALID_UTF8;
-        let value = ObjectPointer::integer(code);
-
-        throw_value!($machine, $process, value, $context, $code, $index);
-    })
-}
-
 macro_rules! enter_context {
     ($process: expr, $context: ident, $code: ident, $index: ident) => ({
         $context.instruction_index = $index;
@@ -1153,28 +1144,26 @@ impl Machine {
                     let arg_ptr = context.get_register(instruction.arg(1));
 
                     let array = arg_ptr.array_value().unwrap();
-                    let mut bytes = Vec::with_capacity(array.len());
 
-                    for ptr in array.iter() {
-                        bytes.push(ptr.integer_value().unwrap() as u8);
-                    }
+                    let string = {
+                        let mut bytes = Vec::with_capacity(array.len());
 
-                    if let Ok(string) = String::from_utf8(bytes) {
-                        let obj = process.allocate(
-                            object_value::string(string),
-                            self.state.string_prototype,
-                        );
+                        for ptr in array.iter() {
+                            bytes.push(ptr.integer_value().unwrap() as u8);
+                        }
 
-                        context.set_register(register, obj);
-                    } else {
-                        throw_invalid_utf8_error!(
-                            self,
-                            process,
-                            context,
-                            code,
-                            index
-                        );
-                    }
+                        // This will clone the list of bytes which is
+                        // unfortunate, but the alternative is not being able to
+                        // read non UTF8 (e.g. binary) data.
+                        String::from_utf8_lossy(&bytes).into_owned()
+                    };
+
+                    let obj = process.allocate(
+                        object_value::string(string),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, obj);
                 }
                 // Returns the amount of characters in a string.
                 //
@@ -1423,15 +1412,17 @@ impl Machine {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
                     let file = file_ptr.file_value_mut().unwrap();
-                    let mut buffer = String::new();
+                    let mut buffer = Vec::new();
 
-                    if let Err(err) = file.read_to_string(&mut buffer) {
+                    if let Err(err) = file.read_to_end(&mut buffer) {
                         throw_io_error!(self, process, err, context, code, index);
                         continue;
                     }
 
+                    let string = String::from_utf8_lossy(&buffer).into_owned();
+
                     let obj = process.allocate(
-                        object_value::string(buffer),
+                        object_value::string(string),
                         self.state.string_prototype,
                     );
 
@@ -1472,26 +1463,14 @@ impl Machine {
                         }
                     }
 
-                    // Shrink the buffer so we don't waste any additional memory
-                    // that was allocated when pushing bytes.
-                    buffer.shrink_to_fit();
+                    let string = String::from_utf8_lossy(&buffer).into_owned();
 
-                    if let Ok(string) = String::from_utf8(buffer) {
-                        let obj = process.allocate(
-                            object_value::string(string),
-                            self.state.string_prototype,
-                        );
+                    let obj = process.allocate(
+                        object_value::string(string),
+                        self.state.string_prototype,
+                    );
 
-                        context.set_register(register, obj);
-                    } else {
-                        throw_invalid_utf8_error!(
-                            self,
-                            process,
-                            context,
-                            code,
-                            index
-                        );
-                    }
+                    context.set_register(register, obj);
                 }
                 // Flushes a file.
                 //
@@ -1997,9 +1976,9 @@ impl Machine {
 
                     let file = file_ptr.file_value_mut().unwrap();
                     let size = size_ptr.integer_value().unwrap() as usize;
-                    let mut buffer = String::with_capacity(size);
+                    let mut buffer = Vec::with_capacity(size);
 
-                    if let Err(err) = file.take(size as u64).read_to_string(
+                    if let Err(err) = file.take(size as u64).read_to_end(
                         &mut buffer,
                     )
                     {
@@ -2007,8 +1986,10 @@ impl Machine {
                         continue;
                     }
 
+                    let string = String::from_utf8_lossy(&buffer).into_owned();
+
                     let obj = process.allocate(
-                        object_value::string(buffer),
+                        object_value::string(string),
                         self.state.string_prototype,
                     );
 

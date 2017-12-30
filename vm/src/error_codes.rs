@@ -1,9 +1,5 @@
 use std::io;
 
-// Generic errors
-
-pub const STRING_INVALID_UTF8: i64 = 1;
-
 // IO errors, ranging from 100 to 200.
 
 pub const IO_GENERIC: i64 = 100;
