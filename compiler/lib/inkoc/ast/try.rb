@@ -49,7 +49,7 @@ module Inkoc
       def define_else_argument_type
         return unless (arg_name = else_argument_name)
 
-        type = throw_type
+        type = throw_type || Type::Dynamic.new
 
         else_block_type.define_required_argument(arg_name, type)
         else_body.locals.define(arg_name, type)
