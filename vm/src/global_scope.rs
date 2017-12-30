@@ -21,7 +21,9 @@ pub type GlobalScopePointer = DerefPointer<GlobalScope>;
 
 impl GlobalScope {
     pub fn new() -> GlobalScope {
-        GlobalScope { variables: UnsafeCell::new(Vec::new()) }
+        GlobalScope {
+            variables: UnsafeCell::new(vec![ObjectPointer::null(); 32]),
+        }
     }
 
     /// Returns a global variable.
