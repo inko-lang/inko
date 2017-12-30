@@ -412,8 +412,9 @@ module Inkoc
     def send_chain_with_receiver(receiver)
       name, location = send_name_and_location
       args = []
+      peeked = @lexer.peek
 
-      if @lexer.next_type_is?(:paren_open)
+      if peeked.type == :paren_open && peeked.line == location.line
         args = arguments_with_parenthesis
       elsif next_expression_is_argument?(location.line)
         return send_without_parenthesis(receiver, name, location)
