@@ -19,5 +19,7 @@ parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
 
 [features]
+default = ["system-allocator"]
+
 # Use the system allocator instead of Rust's default (jemalloc)
 system-allocator = []
