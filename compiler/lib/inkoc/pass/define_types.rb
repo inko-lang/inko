@@ -1288,9 +1288,7 @@ module Inkoc
           diagnostics.redefine_reserved_constant_error(name, location)
         end
 
-        return if type.block? || !module_scope?(self_type)
-
-        @module.globals.define(name, type)
+        @module.globals.define(name, type) if module_scope?(self_type)
       end
 
       def module_scope?(self_type)
