@@ -28,7 +28,7 @@ pub trait CopyObject: Sized {
             ObjectValue::None => object_value::none(),
             ObjectValue::Float(num) => object_value::float(num),
             ObjectValue::String(ref string) => {
-                object_value::string(*string.clone())
+                ObjectValue::String(string.clone())
             }
             ObjectValue::InternedString(ref string) => {
                 object_value::interned_string(*string.clone())

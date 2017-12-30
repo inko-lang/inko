@@ -6,6 +6,7 @@
 
 use std::fs;
 use std::mem;
+use std::sync::Arc;
 
 use binding::RcBinding;
 use block::Block;
@@ -15,7 +16,7 @@ use object_pointer::ObjectPointer;
 pub enum ObjectValue {
     None,
     Float(f64),
-    String(Box<String>),
+    String(Arc<String>),
     InternedString(Box<String>),
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
@@ -104,7 +105,7 @@ impl ObjectValue {
 
     pub fn as_string(&self) -> Result<&String, String> {
         match self {
-            &ObjectValue::String(ref val) |
+            &ObjectValue::String(ref val) => Ok(val),
             &ObjectValue::InternedString(ref val) => Ok(val),
             _ => {
                 Err(
@@ -187,7 +188,7 @@ pub fn float(value: f64) -> ObjectValue {
 }
 
 pub fn string(value: String) -> ObjectValue {
-    ObjectValue::String(Box::new(value))
+    ObjectValue::String(Arc::new(value))
 }
 
 pub fn interned_string(value: String) -> ObjectValue {
