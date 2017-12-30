@@ -106,6 +106,18 @@ macro_rules! optional_timeout {
     })
 }
 
+macro_rules! vec_to_string {
+    ($vec: expr) => ({
+        match String::from_utf8($vec) {
+            Ok(string) => string,
+            Err(error) => {
+                String::from_utf8_lossy(&error.into_bytes())
+                    .into_owned()
+            }
+        }
+    })
+}
+
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
@@ -1142,21 +1154,14 @@ impl Machine {
                 InstructionType::StringFromBytes => {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
-
                     let array = arg_ptr.array_value().unwrap();
+                    let mut bytes = Vec::with_capacity(array.len());
 
-                    let string = {
-                        let mut bytes = Vec::with_capacity(array.len());
+                    for ptr in array.iter() {
+                        bytes.push(ptr.integer_value().unwrap() as u8);
+                    }
 
-                        for ptr in array.iter() {
-                            bytes.push(ptr.integer_value().unwrap() as u8);
-                        }
-
-                        // This will clone the list of bytes which is
-                        // unfortunate, but the alternative is not being able to
-                        // read non UTF8 (e.g. binary) data.
-                        String::from_utf8_lossy(&bytes).into_owned()
-                    };
+                    let string = vec_to_string!(bytes);
 
                     let obj = process.allocate(
                         object_value::string(string),
@@ -1419,7 +1424,7 @@ impl Machine {
                         continue;
                     }
 
-                    let string = String::from_utf8_lossy(&buffer).into_owned();
+                    let string = vec_to_string!(buffer);
 
                     let obj = process.allocate(
                         object_value::string(string),
@@ -1463,7 +1468,7 @@ impl Machine {
                         }
                     }
 
-                    let string = String::from_utf8_lossy(&buffer).into_owned();
+                    let string = vec_to_string!(buffer);
 
                     let obj = process.allocate(
                         object_value::string(string),
@@ -1986,7 +1991,7 @@ impl Machine {
                         continue;
                     }
 
-                    let string = String::from_utf8_lossy(&buffer).into_owned();
+                    let string = vec_to_string!(buffer);
 
                     let obj = process.allocate(
                         object_value::string(string),
