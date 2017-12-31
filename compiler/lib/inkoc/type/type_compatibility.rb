@@ -7,7 +7,15 @@ module Inkoc
         if trait.type_parameter?
           trait.required_traits.all? { |t| implements_trait?(t) }
         else
-          implemented_traits.include?(trait)
+          source = self
+
+          while source
+            return true if source.implemented_traits.include?(trait)
+
+            source = source.prototype
+          end
+
+          false
         end
       end
 
