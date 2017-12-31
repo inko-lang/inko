@@ -151,8 +151,8 @@ impl Machine {
         let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
         let secondary_guard = self.start_secondary_threads();
+        let suspend_guard = self.start_suspension_worker();
 
-        self.start_suspension_worker();
         self.start_main_process(file);
 
         // Joining the pools only fails in case of a panic. In this case we
@@ -167,6 +167,10 @@ impl Machine {
         }
 
         if gc_pool_guard.join().is_err() {
+            return false;
+        }
+
+        if suspend_guard.join().is_err() {
             return false;
         }
 
@@ -195,7 +199,7 @@ impl Machine {
         pool.run(move |process| machine.run(&process))
     }
 
-    fn start_suspension_worker(&self) {
+    fn start_suspension_worker(&self) -> thread::JoinHandle<()> {
         let state = self.state.clone();
 
         let builder = thread::Builder::new().stack_size(STACK_SIZE).name(
@@ -206,7 +210,7 @@ impl Machine {
             .spawn(move || {
                 state.suspension_list.process_suspended_processes(&state)
             })
-            .unwrap();
+            .unwrap()
     }
 
     /// Starts the garbage collection threads.

@@ -131,7 +131,8 @@ impl SuspensionList {
     }
 
     pub fn terminate(&self) {
-        self.process.store(true, Ordering::Relaxed);
+        self.wake_up();
+        self.process.store(false, Ordering::Relaxed);
     }
 
     pub fn should_process(&self) -> bool {
