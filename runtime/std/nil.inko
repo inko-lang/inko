@@ -1,5 +1,6 @@
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::conditional::Conditional
+import std::operators::(And, Or)
 
 impl ToInteger for Nil {
   def to_integer -> Integer {
@@ -30,5 +31,17 @@ impl Conditional for Nil {
 
   def if!(R)(true: do -> R, false: do -> R) -> ?R {
     false.call
+  }
+}
+
+impl And for Nil {
+  def &&(other: Conditional) -> Boolean {
+    False
+  }
+}
+
+impl Or for Nil {
+  def ||(other: Conditional) -> Boolean {
+    other.if true: { True }, false: { False }
   }
 }

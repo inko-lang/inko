@@ -1,5 +1,5 @@
 import std::conditional::Conditional
-import std::operators::Equal
+import std::operators::(Equal, And, Or)
 
 impl Object {
   ## Returns the prototype of the receiving object.
@@ -190,5 +190,25 @@ impl Equal for Object {
   ##     obj1 == obj2 # => False
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
+  }
+}
+
+impl And for Object {
+  def &&(other: Conditional) -> Boolean {
+    if true: {
+      other.if true: { True }, false: { False }
+    }, false: {
+      False
+    }
+  }
+}
+
+impl Or for Object {
+  def ||(other: Conditional) -> Boolean {
+    if true: {
+      True
+    }, false: {
+      other.if true: { True }, false: { False }
+    }
   }
 }

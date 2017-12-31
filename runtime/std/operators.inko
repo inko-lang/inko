@@ -1,3 +1,5 @@
+import std::conditional::Conditional
+
 trait Add {
   def +(other: Self) -> Self
 }
@@ -56,4 +58,12 @@ trait ShiftLeft {
 
 trait ShiftRight {
   def >>(other: Self) -> Self
+}
+
+trait And {
+  def &&(other: Conditional) -> Boolean
+}
+
+trait Or {
+  def ||(other: Conditional) -> Boolean
 }
