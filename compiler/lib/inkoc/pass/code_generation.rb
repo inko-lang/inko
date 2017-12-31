@@ -130,7 +130,6 @@ module Inkoc
           block,
           args.length,
           kwargs.length / 2,
-          0,
           *args,
           *kwargs
         ]
@@ -141,7 +140,7 @@ module Inkoc
       def on_tail_call(tir_ins, compiled_code, *)
         args = tir_ins.arguments.map(&:id)
         kwargs = tir_ins.keyword_arguments.map(&:id)
-        ins_args = [args.length, kwargs.length / 2, 0, *args, *kwargs]
+        ins_args = [args.length, kwargs.length / 2, *args, *kwargs]
 
         compiled_code
           .instruct(:TailCall, ins_args, tir_ins.location)

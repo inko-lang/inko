@@ -2276,11 +2276,8 @@ impl Machine {
                 // 2. The register containing the Block object to run.
                 // 3. An integer indicating the number of positional arguments.
                 // 4. An integer indicating the number of keyword arguments.
-                // 5. A boolean (as 0 or 1) that specifies if the last
-                //    positional argument should be unpacked into separate
-                //    arguments.
-                // 6. A variable list of positional arguments.
-                // 7. A variable list of keyword argument and value pairs. The
+                // 5. A variable list of positional arguments.
+                // 6. A variable list of keyword argument and value pairs. The
                 //    keyword argument names must be interned strings.
                 InstructionType::RunBlock => {
                     context.line = instruction.line;
@@ -2298,8 +2295,7 @@ impl Machine {
                         &new_ctx,
                         instruction.arg(2),
                         instruction.arg(3),
-                        5,
-                        instruction.boolean(4),
+                        4,
                     );
 
                     process.push_context(new_ctx);
@@ -2381,8 +2377,7 @@ impl Machine {
                         context,
                         instruction.arg(0),
                         instruction.arg(1),
-                        3,
-                        instruction.boolean(2),
+                        2,
                     );
 
                     context.register.values.reset();
@@ -2517,22 +2512,11 @@ impl Machine {
         process: &RcProcess,
         context: &ExecutionContext,
         registers: &[usize],
-        unpack_last: bool,
     ) {
         let locals = context.binding.locals_mut();
 
         for (index, register) in registers.iter().enumerate() {
             locals[index] = process.get_register(*register);
-        }
-
-        if unpack_last {
-            let unpack_start = registers.len() - 1;
-            let pointer = locals[unpack_start];
-            let array = pointer.array_value().unwrap();
-
-            for (index, value) in array.iter().enumerate() {
-                locals[unpack_start + index] = *value;
-            }
         }
     }
 
@@ -2564,7 +2548,6 @@ impl Machine {
         given_positional: usize,
         given_keyword: usize,
         pos_start: usize,
-        unpack_last: bool,
     ) {
         self.validate_number_of_arguments(
             &context.code,
@@ -2582,7 +2565,6 @@ impl Machine {
             process,
             context,
             &instruction.arguments[pos_start..pos_end],
-            unpack_last,
         );
 
         if excessive {
