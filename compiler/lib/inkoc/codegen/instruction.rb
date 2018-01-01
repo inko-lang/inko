@@ -111,6 +111,8 @@ module Inkoc
         GetObjectPrototype
         SetAttributeToObject
         PrototypeChainAttributeContains
+        FloatIsNan
+        FloatIsInfinite
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

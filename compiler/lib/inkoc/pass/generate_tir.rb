@@ -791,6 +791,14 @@ module Inkoc
         raw_binary_instruction(:FloatSmallerOrEqual, node, body)
       end
 
+      def on_raw_float_is_nan(node, body)
+        raw_unary_instruction(:FloatIsNan, node, body)
+      end
+
+      def on_raw_float_is_infinite(node, body)
+        raw_unary_instruction(:FloatIsInfinite, node, body)
+      end
+
       def on_raw_stdout_write(node, body)
         raw_unary_instruction(:StdoutWrite, node, body)
       end

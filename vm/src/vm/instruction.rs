@@ -109,6 +109,8 @@ pub enum InstructionType {
     GetObjectPrototype,
     SetAttributeToObject,
     PrototypeChainAttributeContains,
+    FloatIsNan,
+    FloatIsInfinite,
 }
 
 /// Struct for storing information about a single instruction.

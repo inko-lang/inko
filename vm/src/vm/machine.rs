@@ -2424,6 +2424,54 @@ impl Machine {
                         }
                     }
                 }
+                // Sets a register to true if a given float register is a NaN
+                // value.
+                //
+                // This instruction takes 2 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the float to check.
+                InstructionType::FloatIsNan => {
+                    let register = instruction.arg(0);
+                    let pointer = context.get_register(instruction.arg(1));
+
+                    let is_nan = match pointer.float_value() {
+                        Ok(float) => float.is_nan(),
+                        Err(_) => false,
+                    };
+
+                    let result = if is_nan {
+                        self.state.true_object
+                    } else {
+                        self.state.false_object
+                    };
+
+                    context.set_register(register, result);
+                }
+                // Sets a register to true if a given float register is an
+                // infinite number.
+                //
+                // This instruction takes 2 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the float to check.
+                InstructionType::FloatIsInfinite => {
+                    let register = instruction.arg(0);
+                    let pointer = context.get_register(instruction.arg(1));
+
+                    let is_inf = match pointer.float_value() {
+                        Ok(float) => float.is_infinite(),
+                        Err(_) => false,
+                    };
+
+                    let result = if is_inf {
+                        self.state.true_object
+                    } else {
+                        self.state.false_object
+                    };
+
+                    context.set_register(register, result);
+                }
             };
         }
 

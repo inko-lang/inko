@@ -595,6 +595,14 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_float_is_nan(*)
+        typedb.boolean_type
+      end
+
+      def on_raw_float_is_infinite(*)
+        typedb.boolean_type
+      end
+
       def on_raw_stdout_write(*)
         typedb.integer_type
       end

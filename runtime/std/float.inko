@@ -5,6 +5,16 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
+impl Float {
+  def not_a_number? -> Boolean {
+    _INKOC.float_is_nan(self)
+  }
+
+  def infinite? -> Boolean {
+    _INKOC.float_is_infinite(self)
+  }
+}
+
 impl ToInteger for Float {
   def to_integer -> Integer {
     _INKOC.float_to_integer(self)
@@ -82,3 +92,9 @@ impl SmallerOrEqual for Float {
     _INKOC.float_smaller_or_equal(self, other)
   }
 }
+
+## The NaN (Not A Number) value.
+let NaN = 0.0 / 0.0
+
+## The infinity value.
+let Infinity = 1.0 / 0.0
