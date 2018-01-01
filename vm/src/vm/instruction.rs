@@ -111,6 +111,9 @@ pub enum InstructionType {
     PrototypeChainAttributeContains,
     FloatIsNan,
     FloatIsInfinite,
+    FloatFloor,
+    FloatCeil,
+    FloatRound,
 }
 
 /// Struct for storing information about a single instruction.

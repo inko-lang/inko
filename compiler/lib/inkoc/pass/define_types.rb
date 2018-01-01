@@ -603,6 +603,18 @@ module Inkoc
         typedb.boolean_type
       end
 
+      def on_raw_float_ceil(*)
+        typedb.integer_type
+      end
+
+      def on_raw_float_floor(*)
+        typedb.integer_type
+      end
+
+      def on_raw_float_round(*)
+        typedb.integer_type
+      end
+
       def on_raw_stdout_write(*)
         typedb.integer_type
       end

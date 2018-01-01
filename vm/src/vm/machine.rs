@@ -2472,6 +2472,56 @@ impl Machine {
 
                     context.set_register(register, result);
                 }
+                // Gets the floor of a float, producing an integer as the
+                // result.
+                //
+                // This instruction takes 2 arguments:
+                //
+                // 1. The register to store the result in as an integer.
+                // 2. The register containing the float.
+                InstructionType::FloatFloor => {
+                    let register = instruction.arg(0);
+                    let pointer = context.get_register(instruction.arg(1));
+                    let integer = pointer.float_value().unwrap().floor() as i64;
+
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(integer),
+                    );
+                }
+                // Gets the ceiling of a float, producing an integer as the
+                // result.
+                //
+                // This instruction takes 2 arguments:
+                //
+                // 1. The register to store the result in as an integer.
+                // 2. The register containing the float.
+                InstructionType::FloatCeil => {
+                    let register = instruction.arg(0);
+                    let pointer = context.get_register(instruction.arg(1));
+                    let integer = pointer.float_value().unwrap().ceil() as i64;
+
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(integer),
+                    );
+                }
+                // Rounds a float to the nearest number.
+                //
+                // This instruction takes 2 arguments:
+                //
+                // 1. The register to store the result in as an integer.
+                // 2. The register containing the float.
+                InstructionType::FloatRound => {
+                    let register = instruction.arg(0);
+                    let pointer = context.get_register(instruction.arg(1));
+                    let integer = pointer.float_value().unwrap().round() as i64;
+
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(integer),
+                    );
+                }
             };
         }
 

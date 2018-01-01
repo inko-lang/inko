@@ -13,6 +13,18 @@ impl Float {
   def infinite? -> Boolean {
     _INKOC.float_is_infinite(self)
   }
+
+  def floor -> Integer {
+    _INKOC.float_floor(self)
+  }
+
+  def ceil -> Integer {
+    _INKOC.float_ceil(self)
+  }
+
+  def round -> Integer {
+    _INKOC.float_round(self)
+  }
 }
 
 impl ToInteger for Float {

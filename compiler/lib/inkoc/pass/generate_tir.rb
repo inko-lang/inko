@@ -799,6 +799,18 @@ module Inkoc
         raw_unary_instruction(:FloatIsInfinite, node, body)
       end
 
+      def on_raw_float_ceil(node, body)
+        raw_unary_instruction(:FloatCeil, node, body)
+      end
+
+      def on_raw_float_floor(node, body)
+        raw_unary_instruction(:FloatFloor, node, body)
+      end
+
+      def on_raw_float_round(node, body)
+        raw_unary_instruction(:FloatRound, node, body)
+      end
+
       def on_raw_stdout_write(node, body)
         raw_unary_instruction(:StdoutWrite, node, body)
       end
