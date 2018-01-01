@@ -250,9 +250,16 @@ module Inkoc
         unless receiver.responds_to_message?(name)
           define_types(args, scope)
 
-          diagnostics.undefined_method_error(receiver, name, location)
+          rtype =
+            if receiver.respond_to_unknown_message?
+              receiver.unknown_message_return_type
+            else
+              diagnostics.undefined_method_error(receiver, name, location)
 
-          return Type::Dynamic.new
+              Type::Dynamic.new
+            end
+
+          return rtype
         end
 
         symbol = receiver.lookup_method(name)

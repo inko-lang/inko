@@ -1078,6 +1078,100 @@ module Inkoc
         body.instruct(:RunBlock, register, block, args, kwargs, type, location)
       end
 
+      # Gets and executes a block, without using a fallback.
+      #
+      # rec - The register containing the receiver a message is sent to.
+      # rec_type - The type of the receiver.
+      # name - The name of the message being sent.
+      # args - The arguments passed to the block.
+      # kwargs - The keyword arguments passed to the block.
+      # body - The CompiledCode object to generate the instructions in.
+      # loc - The SourceLocation of the operation.
+      def run_block_without_unknown_message(
+        rec,
+        rec_type,
+        name,
+        args,
+        kwargs,
+        body,
+        loc
+      )
+        block = body.register(rec_type.lookup_method(name).type)
+        name_reg = set_string(name, body, loc)
+
+        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
+
+        run_block(block, args, kwargs, body, loc)
+      end
+
+      # Gets and executes a block, using a fallback if the block could not be
+      # found.
+      #
+      # rec - The register containing the receiver a message is sent to.
+      # rec_type - The type of the receiver.
+      # name - The name of the message being sent.
+      # args - The arguments passed to the block.
+      # kwargs - The keyword arguments passed to the block.
+      # body - The CompiledCode object to generate the instructions in.
+      # loc - The SourceLocation of the operation.
+      def run_block_with_unknown_message(
+        rec,
+        rec_type,
+        name,
+        args,
+        kwargs,
+        body,
+        loc
+      )
+        block_reg = body.register(rec_type.lookup_method(name).type)
+        ret_reg = body.register(block_reg.type.return_type)
+        args_reg = body.register(typedb.new_array_of_type(Type::Dynamic.new))
+
+        name_reg = set_string(name, body, loc)
+        alt_name_reg = set_string(Config::UNKNOWN_MESSAGE_MESSAGE, body, loc)
+
+        # Look up the block we're supposed to run.
+        body.instruct(:Binary, :GetAttribute, block_reg, rec, name_reg, loc)
+
+        # Look up the "unknown_message" block if the initial block was not
+        # found.
+        body.instruct(:GotoNextBlockIfTrue, block_reg, loc)
+        body.instruct(:Binary, :GetAttribute, block_reg, rec, alt_name_reg, loc)
+
+        # Store all the arguments passed (except "self") in the array and
+        # execute the "unknown_message" method.
+        body.instruct(:SetArray, args_reg, args[1..-1], loc)
+
+        body.instruct(
+          :RunBlock,
+          ret_reg,
+          block_reg,
+          [rec, name_reg, args_reg],
+          [],
+          block_reg.type,
+          loc
+        )
+
+        body.instruct(:SkipNextBlock, loc)
+
+        # The code we'd run if the method _is_ defined.
+        body.add_connected_basic_block
+
+        body.instruct(
+          :RunBlock,
+          ret_reg,
+          block_reg,
+          args,
+          kwargs,
+          block_reg.type,
+          loc
+        )
+
+        body.add_connected_basic_block
+
+        ret_reg
+      end
+
       def send_to_self(name, body, loc)
         send_object_message(get_self(body, loc), name, [], [], body, loc)
       end
@@ -1142,12 +1236,23 @@ module Inkoc
       end
 
       def lookup_and_run_block(rec, rec_type, name, args, kwargs, body, loc)
-        block = body.register(rec_type.lookup_method(name).type)
-        name_reg = set_string(name, body, loc)
+        message =
+          if rec_type.guard_unknown_message?(name)
+            :run_block_with_unknown_message
+          else
+            :run_block_without_unknown_message
+          end
 
-        body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
-
-        run_block(block, args, kwargs, body, loc)
+        public_send(
+          message,
+          rec,
+          rec_type,
+          name,
+          args,
+          kwargs,
+          body,
+          loc
+        )
       end
 
       def send_initializes_array?(receiver, name)

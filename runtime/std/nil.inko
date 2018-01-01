@@ -10,9 +10,10 @@
 #! may return `Nil` without having to include checks for `Nil` values all over
 #! the place.
 
-import std::conversion::(ToString, ToFloat, ToInteger)
 import std::conditional::Conditional
+import std::conversion::(ToString, ToFloat, ToInteger)
 import std::operators::(And, Or)
+import std::unknown_message::UnknownMessage
 
 impl ToInteger for Nil {
   ## Always return `0`.
@@ -76,5 +77,22 @@ impl Or for Nil {
   ## `False`.
   def ||(other: Conditional) -> Boolean {
     other.if true: { True }, false: { False }
+  }
+}
+
+impl UnknownMessage for Nil {
+  ## Always returns `Nil`.
+  ##
+  ## By always returning `Nil` we can safely work with methods that produce
+  ## `Nil` values without having to explicitly check for them every time (though
+  ## we're of course free to still do so where necessary).
+  ##
+  ## # Examples
+  ##
+  ## Sending a message to `Nil` produces another `Nil`:
+  ##
+  ##     Nil.hello # => Nil
+  def unknown_message(name: String, *arguments) -> Nil {
+    Nil
   }
 }

@@ -31,7 +31,7 @@ module Inkoc
         lookup_attribute(name).type
       end
 
-      def lookup_method(name, fallback: true)
+      def lookup_method(name)
         source = self
 
         while source
@@ -42,13 +42,7 @@ module Inkoc
           source = source.prototype
         end
 
-        # If we didn't find anything we'll return the last looked up value,
-        # which will be a NullSymbol.
-        if fallback
-          lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE, fallback: false)
-        else
-          method
-        end
+        NullSymbol.new(name)
       end
 
       def return_type
@@ -64,10 +58,7 @@ module Inkoc
       end
 
       def responds_to_message?(name)
-        symbol = lookup_method(name)
-          .or_else { lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE) }
-
-        symbol.type.block?
+        lookup_method(name).type.block?
       end
 
       def attribute?(name)
@@ -92,6 +83,18 @@ module Inkoc
         end
 
         NullSymbol.new(name)
+      end
+
+      def respond_to_unknown_message?
+        lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE).any?
+      end
+
+      def unknown_message_return_type
+        lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE).type.return_type
+      end
+
+      def guard_unknown_message?(name)
+        dynamic? || lookup_method(name).nil?
       end
     end
   end
