@@ -1,3 +1,8 @@
+#! The string type
+#!
+#! Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
+#! UTF-8.
+
 import std::conversion::ToString
 import std::length::Length
 import std::operators::Equal

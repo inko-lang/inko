@@ -1,6 +1,9 @@
 import std::conversion::ToInteger
 
+## The ID of the pool to schedule regular processes on.
 let PRIMARY_POOL = 0
+
+## The ID of the pool to schedule IO processes on.
 let IO_POOL = 1
 
 ## Returns the PID of the current process.

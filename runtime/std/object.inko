@@ -194,6 +194,17 @@ impl Equal for Object {
 }
 
 impl And for Object {
+  ## Returns `True` if `self` and the given object evaluate to `True`.
+  ##
+  ## # Examples
+  ##
+  ## Using two objects:
+  ##
+  ##     Object.new && Object.new # => True
+  ##
+  ## Using and object and `False`:
+  ##
+  ##     Object.new && False # => False
   def &&(other: Conditional) -> Boolean {
     if true: {
       other.if true: { True }, false: { False }
@@ -204,6 +215,17 @@ impl And for Object {
 }
 
 impl Or for Object {
+  ## Returns `True` if `self` or the given object evaluates to `True`.
+  ##
+  ## # Examples
+  ##
+  ## Using two objects:
+  ##
+  ##     Object.new || Object.new # => True
+  ##
+  ## Using an object and `False`:
+  ##
+  ##     Object.new || False # => True
   def ||(other: Conditional) -> Boolean {
     if true: {
       True

@@ -1,3 +1,5 @@
+#! The integer type.
+
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 

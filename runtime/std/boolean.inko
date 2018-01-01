@@ -1,3 +1,10 @@
+#! The boolean type.
+#!
+#! Unlike other languages booleans are just regular (singleton) objects. There
+#! are three boolean related types: `Boolean`, `True`, and `False`. `Boolean`
+#! acts as the base object for `True` and `False` and mostly exists so code can
+#! use a single type for booleans.
+
 import std::conditional::Conditional
 import std::conversion::ToString
 import std::operators::(And, Or)

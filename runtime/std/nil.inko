@@ -1,46 +1,79 @@
+#! The Nil type.
+#!
+#! Nil is used to represent nothingness. Unlike the usual `NULL` value found
+#! elsewhere `Nil` is an actual object you can send messages to.
+#!
+#! ## Sending Messages
+#!
+#! `Nil` implements a variety of methods, but sending any unknown messages to
+#! `Nil` will return another `Nil`. This makes it easy to work with methods that
+#! may return `Nil` without having to include checks for `Nil` values all over
+#! the place.
+
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::conditional::Conditional
 import std::operators::(And, Or)
 
 impl ToInteger for Nil {
+  ## Always return `0`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Nil` to an `Integer`:
+  ##
+  ##     Nil.to_integer # => 0
   def to_integer -> Integer {
     0
   }
 }
 
 impl ToFloat for Nil {
+  ## Always returns `0.0`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Nil` to a `Float`:
+  ##
+  ##     Nil.to_float # => 0.0
   def to_float -> Float {
     0.0
   }
 }
 
 impl ToString for Nil {
+  ## Always returns an empty string.
   def to_string -> String {
-    'Nil'
+    ''
   }
 }
 
 impl Conditional for Nil {
+  ## Always returns `Nil`.
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
   }
 
+  ## Always calls the supplied block.
   def if_false!(R)(block: do -> R) -> ?R {
     block.call
   }
 
+  ## Always calls the block provided in the `false` argument.
   def if!(R)(true: do -> R, false: do -> R) -> ?R {
     false.call
   }
 }
 
 impl And for Nil {
+  ## Always returns `False`.
   def &&(other: Conditional) -> Boolean {
     False
   }
 }
 
 impl Or for Nil {
+  ## Returns `True` if the given object evaluates to `True`, otherwise returns
+  ## `False`.
   def ||(other: Conditional) -> Boolean {
     other.if true: { True }, false: { False }
   }

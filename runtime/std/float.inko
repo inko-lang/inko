@@ -1,3 +1,7 @@
+#! The float type.
+#!
+#! Floats are implemented as IEEE 754 floats.
+
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
