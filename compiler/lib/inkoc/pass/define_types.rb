@@ -2,6 +2,7 @@
 
 module Inkoc
   module Pass
+    # rubocop: disable Metrics/ClassLength
     class DefineTypes
       include VisitorMethods
 
@@ -251,7 +252,7 @@ module Inkoc
           define_types(args, scope)
 
           rtype =
-            if receiver.respond_to_unknown_message?
+            if handle_unknown_message?(receiver)
               receiver.unknown_message_return_type
             else
               diagnostics.undefined_method_error(receiver, name, location)
@@ -271,6 +272,19 @@ module Inkoc
         verify_send_arguments(context)
 
         [context.initialized_return_type, method_type]
+      end
+
+      def handle_unknown_message?(receiver)
+        method = receiver.lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE)
+
+        return false if method.nil?
+
+        arg_types = method.type.argument_types_without_self
+        rest_type = typedb.new_array_of_type(Type::Dynamic.new)
+
+        arg_types.length == 2 &&
+          arg_types[0].type_compatible?(typedb.string_type) &&
+          arg_types[1].type_compatible?(rest_type)
       end
 
       def verify_send_arguments(context)
@@ -1386,5 +1400,6 @@ module Inkoc
         '#<Pass::DefineTypes>'
       end
     end
+    # rubocop: enable Metrics/ClassLength
   end
 end

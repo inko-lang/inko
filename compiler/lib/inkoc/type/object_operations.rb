@@ -85,16 +85,12 @@ module Inkoc
         NullSymbol.new(name)
       end
 
-      def respond_to_unknown_message?
-        lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE).any?
-      end
-
       def unknown_message_return_type
         lookup_method(Config::UNKNOWN_MESSAGE_MESSAGE).type.return_type
       end
 
       def guard_unknown_message?(name)
-        dynamic? || lookup_method(name).nil?
+        dynamic? || optional? || lookup_method(name).nil?
       end
     end
   end
