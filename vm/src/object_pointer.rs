@@ -170,13 +170,17 @@ impl ObjectPointer {
     /// Returns an immutable reference to the Object.
     #[inline(always)]
     pub fn get(&self) -> &Object {
-        self.raw.as_ref().unwrap()
+        self.raw.as_ref().expect(
+            "ObjectPointer::get() called on a NULL pointer",
+        )
     }
 
     /// Returns a mutable reference to the Object.
     #[inline(always)]
     pub fn get_mut(&self) -> &mut Object {
-        self.raw.as_mut().unwrap()
+        self.raw.as_mut().expect(
+            "ObjectPointer::get_mut() called on a NULL pointer",
+        )
     }
 
     /// Returns true if the current pointer is a null pointer.
