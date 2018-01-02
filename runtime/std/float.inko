@@ -5,24 +5,6 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
-impl ToInteger for Float {
-  def to_integer -> Integer {
-    _INKOC.float_to_integer(self)
-  }
-}
-
-impl ToFloat for Float {
-  def to_float -> Float {
-    self
-  }
-}
-
-impl ToString for Float {
-  def to_string -> String {
-    _INKOC.float_to_string(self)
-  }
-}
-
 impl Add for Float {
   def +(other: Self) -> Self {
     _INKOC.float_add(self, other)
@@ -186,6 +168,50 @@ impl Float {
   ##     NaN.round.not_a_number? # => True
   def round -> Float {
     _INKOC.float_round(self)
+  }
+}
+
+impl ToInteger for Float {
+  def to_integer -> Integer {
+    _INKOC.float_to_integer(self)
+  }
+}
+
+impl ToFloat for Float {
+  def to_float -> Float {
+    self
+  }
+}
+
+impl ToString for Float {
+  ## Converts `self` to a `String.
+  ##
+  ## # Examples
+  ##
+  ## Converting a positive float:
+  ##
+  ##     10.5.to_string # => '10.5'
+  ##
+  ## Converting a negative float:
+  ##
+  ##     -10.5.to_string # => '-10.5'
+  ##
+  ## Converting a NaN:
+  ##
+  ##     import std::float::NaN
+  ##
+  ##     NaN.to_string # => 'NaN'
+  ##
+  ## Converting an infinite number:
+  ##
+  ##     import std::float::Infinity
+  ##
+  ##     Infinity.to_string # => 'Infinity'
+  def to_string -> String {
+    infinite?.if_true { return 'Infinity' }
+    not_a_number?.if_true { return 'NaN' }
+
+    _INKOC.float_to_string(self)
   }
 }
 
