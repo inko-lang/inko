@@ -604,15 +604,15 @@ module Inkoc
       end
 
       def on_raw_float_ceil(*)
-        typedb.integer_type
+        typedb.float_type
       end
 
       def on_raw_float_floor(*)
-        typedb.integer_type
+        typedb.float_type
       end
 
       def on_raw_float_round(*)
-        typedb.integer_type
+        typedb.float_type
       end
 
       def on_raw_stdout_write(*)

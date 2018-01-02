@@ -5,28 +5,6 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
-impl Float {
-  def not_a_number? -> Boolean {
-    _INKOC.float_is_nan(self)
-  }
-
-  def infinite? -> Boolean {
-    _INKOC.float_is_infinite(self)
-  }
-
-  def floor -> Integer {
-    _INKOC.float_floor(self)
-  }
-
-  def ceil -> Integer {
-    _INKOC.float_ceil(self)
-  }
-
-  def round -> Integer {
-    _INKOC.float_round(self)
-  }
-}
-
 impl ToInteger for Float {
   def to_integer -> Integer {
     _INKOC.float_to_integer(self)
@@ -102,6 +80,112 @@ impl GreaterOrEqual for Float {
 impl SmallerOrEqual for Float {
   def <=(other: Self) -> Boolean {
     _INKOC.float_smaller_or_equal(self, other)
+  }
+}
+
+impl Float {
+  ## Returns `True` if `self` is not a number (NaN).
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     10.5.not_a_number? => False
+  ##
+  ## Using a NaN value:
+  ##
+  ##     (0.0 / 0.0).not_a_number? # => True
+  def not_a_number? -> Boolean {
+    _INKOC.float_is_nan(self)
+  }
+
+  ## Returns `True` if `self` is an infinite number.
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     10.5.infinite? # => False
+  ##
+  ## Using an infinite number:
+  ##
+  ##     (10.0 / 0.0).infinite? # => True
+  def infinite? -> Boolean {
+    _INKOC.float_is_infinite(self)
+  }
+
+  ## Returns `True` if `self` is neither infinite nor `NaN`.
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     10.5.finite? # => True
+  ##
+  ## Using a NaN value:
+  ##
+  ##     (0.0 / 0.0).finite? # => False
+  ##
+  ## Using an infinite value:
+  ##
+  ##     (10.0 / 0.0).finite? # => False
+  def finite? -> Boolean {
+    (not_a_number? || infinite?).if true: {
+      False
+    }, false: {
+      True
+    }
+  }
+
+  ## Returns the largest number less than or equal to `self`.
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     3.5.floor # => 3.0
+  ##
+  ## Using a NaN value will produce a new NaN:
+  ##
+  ##     import std::float::NaN
+  ##
+  ##     NaN.floor.not_a_number? # => True
+  def floor -> Float {
+    _INKOC.float_floor(self)
+  }
+
+  ## Returns the smallest number greater than or equal to `self`.
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     3.5.ceil # => 4.0
+  ##
+  ## Using a NaN value will produce a new NaN:
+  ##
+  ##     import std::float::NaN
+  ##
+  ##     NaN.ceil.not_a_number? # => True
+  def ceil -> Float {
+    _INKOC.float_ceil(self)
+  }
+
+  ## Rounds `self` to the nearest number.
+  ##
+  ## # Examples
+  ##
+  ## Using a regular float:
+  ##
+  ##     3.5.round # => 3.0
+  ##
+  ## Using a NaN value will produce a new NaN:
+  ##
+  ##     import std::float::NaN
+  ##
+  ##     NaN.round.not_a_number? # => True
+  def round -> Float {
+    _INKOC.float_round(self)
   }
 }
 

@@ -2472,54 +2472,61 @@ impl Machine {
 
                     context.set_register(register, result);
                 }
-                // Gets the floor of a float, producing an integer as the
-                // result.
+                // Gets the floor of a float.
                 //
                 // This instruction takes 2 arguments:
                 //
-                // 1. The register to store the result in as an integer.
+                // 1. The register to store the result in as a float.
                 // 2. The register containing the float.
                 InstructionType::FloatFloor => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let integer = pointer.float_value().unwrap().floor() as i64;
+                    let float = pointer.float_value().unwrap().floor();
 
                     context.set_register(
                         register,
-                        ObjectPointer::integer(integer),
+                        process.allocate(
+                            object_value::float(float),
+                            self.state.float_prototype,
+                        ),
                     );
                 }
-                // Gets the ceiling of a float, producing an integer as the
-                // result.
+                // Gets the ceiling of a float.
                 //
                 // This instruction takes 2 arguments:
                 //
-                // 1. The register to store the result in as an integer.
+                // 1. The register to store the result in as a float.
                 // 2. The register containing the float.
                 InstructionType::FloatCeil => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let integer = pointer.float_value().unwrap().ceil() as i64;
+                    let float = pointer.float_value().unwrap().ceil();
 
                     context.set_register(
                         register,
-                        ObjectPointer::integer(integer),
+                        process.allocate(
+                            object_value::float(float),
+                            self.state.float_prototype,
+                        ),
                     );
                 }
                 // Rounds a float to the nearest number.
                 //
                 // This instruction takes 2 arguments:
                 //
-                // 1. The register to store the result in as an integer.
+                // 1. The register to store the result in as a float.
                 // 2. The register containing the float.
                 InstructionType::FloatRound => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let integer = pointer.float_value().unwrap().round() as i64;
+                    let float = pointer.float_value().unwrap().round();
 
                     context.set_register(
                         register,
-                        ObjectPointer::integer(integer),
+                        process.allocate(
+                            object_value::float(float),
+                            self.state.float_prototype,
+                        ),
                     );
                 }
             };
