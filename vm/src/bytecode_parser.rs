@@ -16,6 +16,7 @@ use std::io::prelude::*;
 use std::io::Bytes;
 use std::fs::File;
 use std::mem;
+use num_bigint::BigInt;
 
 use catch_table::{CatchTable, CatchEntry};
 use compiled_code::CompiledCode;
@@ -58,11 +59,12 @@ macro_rules! read_instruction_vector {
 
 const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 const LITERAL_INTEGER: u8 = 0;
 const LITERAL_FLOAT: u8 = 1;
 const LITERAL_STRING: u8 = 2;
+const LITERAL_BIGINT: u8 = 3;
 
 #[derive(Debug)]
 pub enum ParserError {
@@ -70,6 +72,7 @@ pub enum ParserError {
     InvalidSignature,
     InvalidVersion,
     InvalidString,
+    InvalidByteArray,
     InvalidInteger,
     InvalidFloat,
     MissingByte,
@@ -134,6 +137,18 @@ fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
         Ok(string) => Ok(string),
         Err(_) => parser_error!(InvalidString),
     }
+}
+
+fn read_byte_array<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Vec<u8>> {
+    let size = try!(read_u64(bytes));
+
+    let mut buff: Vec<u8> = Vec::new();
+
+    for _ in 0..size {
+        buff.push(try_byte!(bytes.next(), InvalidByteArray));
+    }
+
+    Ok(buff)
 }
 
 fn read_u8<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u8> {
@@ -311,7 +326,21 @@ fn read_literal<T: Read>(
     let literal_type = try!(read_u8(bytes));
 
     let literal = match literal_type {
-        LITERAL_INTEGER => ObjectPointer::integer(try!(read_i64(bytes))),
+        LITERAL_INTEGER => {
+            let num = try!(read_i64(bytes));
+
+            if ObjectPointer::integer_too_large(num) {
+                state.allocate_permanent_integer(num)
+            } else {
+                ObjectPointer::integer(num)
+            }
+        }
+        LITERAL_BIGINT => {
+            let bytes = try!(read_byte_array(bytes));
+            let bigint = BigInt::parse_bytes(&bytes, 16).unwrap();
+
+            state.allocate_permanent_bigint(bigint)
+        }
         LITERAL_FLOAT => state.allocate_permanent_float(try!(read_f64(bytes))),
         LITERAL_STRING => state.intern(&try!(read_string(bytes))),
         _ => return Err(ParserError::InvalidLiteralType(literal_type)),
@@ -497,6 +526,17 @@ mod tests {
         let output = unwrap!(read!(read_string, buffer));
 
         assert_eq!(output, "inko".to_string());
+    }
+
+    #[test]
+    fn test_read_byte_array() {
+        let mut buffer = Vec::new();
+
+        pack_string!("inko", buffer);
+
+        let output = unwrap!(read!(read_byte_array, buffer));
+
+        assert_eq!(output, vec![105, 110, 107, 111]);
     }
 
     #[test]
@@ -698,7 +738,7 @@ mod tests {
         pack_u16!(2, buffer); // line number
 
         // literals
-        pack_u64!(3, buffer);
+        pack_u64!(4, buffer);
 
         // integer
         pack_u8!(0, buffer);
@@ -711,6 +751,10 @@ mod tests {
         // string
         pack_u8!(2, buffer);
         pack_string!("foo", buffer);
+
+        // bigint
+        pack_u8!(3, buffer);
+        pack_string!("a", buffer);
 
         // code objects
         pack_u64!(0, buffer);
@@ -741,11 +785,17 @@ mod tests {
         assert_eq!(ins.arguments[0], 6);
         assert_eq!(ins.line, 2);
 
-        assert_eq!(object.literals.len(), 3);
+        assert_eq!(object.literals.len(), 4);
 
         assert!(object.literals[0] == ObjectPointer::integer(10));
         assert_eq!(object.literals[1].float_value().unwrap(), 1.2);
         assert!(object.literals[2] == state.intern(&"foo".to_string()));
+
+        assert!(object.literals[3].is_bigint());
+        assert_eq!(
+            object.literals[3].bigint_value().unwrap(),
+            &BigInt::from(10)
+        );
 
         assert_eq!(object.code_objects.len(), 0);
         assert_eq!(object.catch_table.entries.len(), 1);

@@ -4,11 +4,17 @@ module Inkoc
   module Codegen
     class Serializer
       SIGNATURE = 'inko'.bytes
-      VERSION = 1
+      VERSION = 2
 
       INTEGER_LITERAL = 0
       FLOAT_LITERAL = 1
       STRING_LITERAL = 2
+      BIGINT_LITERAL = 3
+
+      # The range of values that can be encoded as an signed 64 bits integer.
+      #
+      # These values are based on Rust's `std::i64::MIN` and `std::i64::MAX`.
+      INTEGER_RANGE = -9_223_372_036_854_775_808..9_223_372_036_854_775_807
 
       def generate(code)
         sig = SIGNATURE.map { |num| u8(num) }.join('')
@@ -77,7 +83,15 @@ module Inkoc
       end
 
       def integer_literal(value)
-        u8(INTEGER_LITERAL) + i64(value)
+        if INTEGER_RANGE.cover?(value)
+          u8(INTEGER_LITERAL) + i64(value)
+        else
+          bigint_literal(value)
+        end
+      end
+
+      def bigint_literal(value)
+        u8(BIGINT_LITERAL) + string(value.to_s(16))
       end
 
       def float_literal(value)

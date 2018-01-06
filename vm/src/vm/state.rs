@@ -7,6 +7,7 @@
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
 use std::time;
+use num_bigint::BigInt;
 
 use gc::request::Request;
 
@@ -192,12 +193,25 @@ impl State {
         ptr
     }
 
-    /// Allocates a float in the permanent space.
     pub fn allocate_permanent_float(&self, float: f64) -> ObjectPointer {
         let mut alloc = self.permanent_allocator.lock();
         let value = object_value::float(float);
 
         alloc.allocate_with_prototype(value, self.float_prototype)
+    }
+
+    pub fn allocate_permanent_integer(&self, integer: i64) -> ObjectPointer {
+        let mut alloc = self.permanent_allocator.lock();
+        let value = object_value::integer(integer);
+
+        alloc.allocate_with_prototype(value, self.integer_prototype)
+    }
+
+    pub fn allocate_permanent_bigint(&self, bigint: BigInt) -> ObjectPointer {
+        let mut alloc = self.permanent_allocator.lock();
+        let value = object_value::bigint(bigint);
+
+        alloc.allocate_with_prototype(value, self.integer_prototype)
     }
 }
 

@@ -27,6 +27,10 @@ pub trait CopyObject: Sized {
         let value_copy = match to_copy.value {
             ObjectValue::None => object_value::none(),
             ObjectValue::Float(num) => object_value::float(num),
+            ObjectValue::Integer(num) => object_value::integer(num),
+            ObjectValue::BigInt(ref bigint) => {
+                ObjectValue::BigInt(bigint.clone())
+            }
             ObjectValue::String(ref string) => {
                 ObjectValue::String(string.clone())
             }

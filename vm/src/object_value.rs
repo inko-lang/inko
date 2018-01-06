@@ -7,6 +7,7 @@
 use std::fs;
 use std::mem;
 use std::sync::Arc;
+use num_bigint::BigInt;
 
 use binding::RcBinding;
 use block::Block;
@@ -16,12 +17,25 @@ use object_pointer::ObjectPointer;
 pub enum ObjectValue {
     None,
     Float(f64),
+
+    /// Strings use an Arc so they can be sent to other processes without
+    /// requiring a full copy of the data.
     String(Arc<String>),
+
+    /// An interned string is a string allocated on the permanent space. For
+    /// every unique interned string there is only one object allocated.
     InternedString(Box<String>),
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
     Block(Box<Block>),
     Binding(RcBinding),
+
+    /// An arbitrary precision integer stored on the heap.
+    BigInt(Box<BigInt>),
+
+    /// A heap allocated integer that doesn't fit in a tagged pointer, but is
+    /// too small for a BigInt.
+    Integer(i64),
 }
 
 impl ObjectValue {
@@ -78,6 +92,20 @@ impl ObjectValue {
     pub fn is_binding(&self) -> bool {
         match self {
             &ObjectValue::Binding(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_integer(&self) -> bool {
+        match self {
+            &ObjectValue::Integer(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bigint(&self) -> bool {
+        match self {
+            &ObjectValue::BigInt(_) => true,
             _ => false,
         }
     }
@@ -157,6 +185,26 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_bigint(&self) -> Result<&BigInt, String> {
+        match self {
+            &ObjectValue::BigInt(ref val) => Ok(val),
+            _ => {
+                Err(
+                    "ObjectValue::as_bigint() called on a non BigInt".to_string(),
+                )
+            }
+        }
+    }
+
+    pub fn as_integer(&self) -> Result<i64, String> {
+        match self {
+            &ObjectValue::Integer(val) => Ok(val),
+            _ => {
+                Err("ObjectValue::integer() called on a non integer".to_string())
+            }
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -173,6 +221,7 @@ impl ObjectValue {
         match self {
             &ObjectValue::Float(_) |
             &ObjectValue::String(_) |
+            &ObjectValue::BigInt(_) |
             &ObjectValue::InternedString(_) => true,
             _ => false,
         }
@@ -211,9 +260,18 @@ pub fn binding(value: RcBinding) -> ObjectValue {
     ObjectValue::Binding(value)
 }
 
+pub fn bigint(value: BigInt) -> ObjectValue {
+    ObjectValue::BigInt(Box::new(value))
+}
+
+pub fn integer(value: i64) -> ObjectValue {
+    ObjectValue::Integer(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use std::fs::File;
     use deref_pointer::DerefPointer;
     use block::Block;
@@ -242,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_is_string() {
-        assert!(ObjectValue::String(Box::new(String::new())).is_string());
+        assert!(ObjectValue::String(Arc::new(String::new())).is_string());
         assert_eq!(ObjectValue::None.is_string(), false);
     }
 
@@ -262,7 +320,7 @@ mod tests {
     #[test]
     fn test_is_interned_string_with_regular_string() {
         assert_eq!(
-            ObjectValue::String(Box::new(String::new())).is_interned_string(),
+            ObjectValue::String(Arc::new(String::new())).is_interned_string(),
             false
         );
     }
@@ -355,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_as_string_with_string() {
-        let string = Box::new("test".to_string());
+        let string = Arc::new("test".to_string());
         let value = ObjectValue::String(string);
         let result = value.as_string();
 

@@ -16,6 +16,7 @@ extern crate num_cpus;
 extern crate rayon;
 extern crate parking_lot;
 extern crate fnv;
+extern crate num_bigint;
 
 pub mod macros;
 
@@ -31,6 +32,7 @@ pub mod error_codes;
 pub mod execution_context;
 pub mod gc;
 pub mod global_scope;
+pub mod integer_operations;
 pub mod immix;
 pub mod mailbox;
 pub mod module;

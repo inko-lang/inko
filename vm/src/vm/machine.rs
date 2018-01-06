@@ -2,6 +2,7 @@
 use std::io::{self, Write, Read, Seek, SeekFrom};
 use std::thread;
 use rayon;
+use num_bigint::BigInt;
 
 use binding::Binding;
 use block::Block;
@@ -9,6 +10,7 @@ use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
+use integer_operations;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
 use object_pointer::ObjectPointer;
 use object_value;
@@ -585,7 +587,14 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerAdd => {
-                    integer_op!(process, instruction, +);
+                    integer_overflow_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        +,
+                        overflowing_add
+                    );
                 }
                 // Divides an integer
                 //
@@ -595,7 +604,14 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerDiv => {
-                    integer_op!(process, instruction, /);
+                    integer_overflow_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        /,
+                        overflowing_div
+                    );
                 }
                 // Multiplies an integer
                 //
@@ -605,7 +621,14 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerMul => {
-                    integer_op!(process, instruction, *);
+                    integer_overflow_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        *,
+                        overflowing_mul
+                    );
                 }
                 // Subtracts an integer
                 //
@@ -615,7 +638,14 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerSub => {
-                    integer_op!(process, instruction, -);
+                    integer_overflow_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        -,
+                        overflowing_sub
+                    );
                 }
                 // Gets the modulo of an integer
                 //
@@ -625,7 +655,14 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerMod => {
-                    integer_op!(process, instruction, %);
+                    integer_overflow_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        %,
+                        overflowing_rem
+                    );
                 }
                 // Converts an integer to a float
                 //
@@ -653,8 +690,15 @@ impl Machine {
                 // 2. The register of the integer to convert.
                 InstructionType::IntegerToString => {
                     let register = instruction.arg(0);
-                    let integer_ptr = context.get_register(instruction.arg(1));
-                    let result = integer_ptr.integer_value().unwrap().to_string();
+                    let rec_ptr = context.get_register(instruction.arg(1));
+
+                    let result = if rec_ptr.is_integer() {
+                        rec_ptr.integer_value().unwrap().to_string()
+                    } else if rec_ptr.is_bigint() {
+                        rec_ptr.bigint_value().unwrap().to_string()
+                    } else {
+                        panic!("IntegerToString can only be used with integers");
+                    };
 
                     let obj = process.allocate(
                         object_value::string(result),
@@ -701,7 +745,14 @@ impl Machine {
                 // 2. The register of the integer to operate on.
                 // 3. The register of the integer to use as the operand.
                 InstructionType::IntegerShiftLeft => {
-                    integer_op!(process, instruction, <<);
+                    integer_shift_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        integer_shift_left,
+                        bigint_shift_left
+                    );
                 }
                 // Shifts an integer to the right.
                 //
@@ -711,7 +762,14 @@ impl Machine {
                 // 2. The register of the integer to operate on.
                 // 3. The register of the integer to use as the operand.
                 InstructionType::IntegerShiftRight => {
-                    integer_op!(process, instruction, >>);
+                    integer_shift_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        integer_shift_right,
+                        bigint_shift_right
+                    );
                 }
                 // Checks if one integer is smaller than the other.
                 //
@@ -724,7 +782,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::IntegerSmaller => {
-                    integer_bool_op!(self, process, instruction, <);
+                    integer_bool_op!(self.state, context, instruction, <);
                 }
                 // Checks if one integer is greater than the other.
                 //
@@ -737,7 +795,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::IntegerGreater => {
-                    integer_bool_op!(self, process, instruction, >);
+                    integer_bool_op!(self.state, context, instruction, >);
                 }
                 // Checks if two integers are equal.
                 //
@@ -750,7 +808,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::IntegerEquals => {
-                    integer_bool_op!(self, process, instruction, ==);
+                    integer_bool_op!(self.state, context, instruction, ==);
                 }
                 // Checks if one integer is greater than or requal to the other.
                 //
@@ -763,7 +821,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::IntegerGreaterOrEqual => {
-                    integer_bool_op!(self, process, instruction, >=);
+                    integer_bool_op!(self.state, context, instruction, >=);
                 }
                 // Checks if one integer is smaller than or requal to the other.
                 //
@@ -776,7 +834,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::IntegerSmallerOrEqual => {
-                    integer_bool_op!(self, process, instruction, <=);
+                    integer_bool_op!(self.state, context, instruction, <=);
                 }
                 // Adds two floats
                 //
@@ -786,7 +844,7 @@ impl Machine {
                 // 2. The register of the receiver.
                 // 3. The register of the float to add.
                 InstructionType::FloatAdd => {
-                    float_op!(self, process, instruction, +);
+                    float_op!(self.state, process, instruction, +);
                 }
                 // Multiplies two floats
                 //
@@ -796,7 +854,7 @@ impl Machine {
                 // 2. The register of the receiver.
                 // 3. The register of the float to multiply with.
                 InstructionType::FloatMul => {
-                    float_op!(self, process, instruction, *);
+                    float_op!(self.state, process, instruction, *);
                 }
                 // Divides two floats
                 //
@@ -806,7 +864,7 @@ impl Machine {
                 // 2. The register of the receiver.
                 // 3. The register of the float to divide with.
                 InstructionType::FloatDiv => {
-                    float_op!(self, process, instruction, /);
+                    float_op!(self.state, process, instruction, /);
                 }
                 // Subtracts two floats
                 //
@@ -816,7 +874,7 @@ impl Machine {
                 // 2. The register of the receiver.
                 // 3. The register of the float to subtract.
                 InstructionType::FloatSub => {
-                    float_op!(self, process, instruction, -);
+                    float_op!(self.state, process, instruction, -);
                 }
                 // Gets the modulo of a float
                 //
@@ -826,7 +884,7 @@ impl Machine {
                 // 2. The register of the receiver.
                 // 3. The register of the float argument.
                 InstructionType::FloatMod => {
-                    float_op!(self, process, instruction, %);
+                    float_op!(self.state, process, instruction, %);
                 }
                 // Converts a float to an integer
                 //
@@ -873,7 +931,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatSmaller => {
-                    float_bool_op!(self, process, instruction, <);
+                    float_bool_op!(self.state, context, instruction, <);
                 }
                 // Checks if one float is greater than the other.
                 //
@@ -886,7 +944,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatGreater => {
-                    float_bool_op!(self, process, instruction, >);
+                    float_bool_op!(self.state, context, instruction, >);
                 }
                 // Checks if two floats are equal.
                 //
@@ -899,7 +957,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatEquals => {
-                    float_bool_op!(self, process, instruction, ==);
+                    float_bool_op!(self.state, context, instruction, ==);
                 }
                 // Checks if one float is greater than or requal to the other.
                 //
@@ -912,7 +970,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatGreaterOrEqual => {
-                    float_bool_op!(self, process, instruction, >=);
+                    float_bool_op!(self.state, context, instruction, >=);
                 }
                 // Checks if one float is smaller than or requal to the other.
                 //
@@ -925,7 +983,7 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatSmallerOrEqual => {
-                    float_bool_op!(self, process, instruction, <=);
+                    float_bool_op!(self.state, context, instruction, <=);
                 }
                 // Inserts a value in an array.
                 //

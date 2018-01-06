@@ -1,6 +1,9 @@
 use std::mem::transmute;
 use std::hash::{Hash, Hasher};
 use std::fs;
+use std::i64;
+use std::u32;
+use num_bigint::BigInt;
 
 use immix::bitmap::Bitmap;
 use immix::block;
@@ -43,6 +46,12 @@ macro_rules! def_value_getter {
         }
     )
 }
+
+/// The minimum integer value that can be stored as a tagged integer.
+pub const MIN_INTEGER: i64 = i64::MIN >> 1;
+
+/// The maximum integer value that can be stored as a tagged integer.
+pub const MAX_INTEGER: i64 = i64::MAX >> 1;
 
 pub type RawObjectPointer = *mut Object;
 
@@ -100,6 +109,11 @@ impl ObjectPointer {
                 INTEGER_BIT,
             ),
         }
+    }
+
+    /// Returns `true` if the given value is too large for a tagged pointer.
+    pub fn integer_too_large(value: i64) -> bool {
+        value < MIN_INTEGER || value > MAX_INTEGER
     }
 
     /// Creates a new null pointer.
@@ -382,6 +396,32 @@ impl ObjectPointer {
         }
     }
 
+    pub fn is_integer(&self) -> bool {
+        if self.is_tagged_integer() {
+            true
+        } else if self.get().value.is_integer() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_bigint(&self) -> bool {
+        if self.is_tagged_integer() {
+            false
+        } else {
+            self.get().value.is_bigint()
+        }
+    }
+
+    pub fn is_in_u32_range(&self) -> bool {
+        if let Ok(integer) = self.integer_value() {
+            integer >= u32::MIN as i64 && integer <= u32::MAX as i64
+        } else {
+            false
+        }
+    }
+
     pub fn is_immutable(&self) -> bool {
         self.is_tagged_integer() || self.get().value.is_immutable()
     }
@@ -389,6 +429,8 @@ impl ObjectPointer {
     pub fn integer_value(&self) -> Result<i64, String> {
         if self.is_tagged_integer() {
             Ok(self.raw.raw as i64 >> 1)
+        } else if let Ok(num) = self.get().value.as_integer() {
+            Ok(num)
         } else {
             Err(
                 "ObjectPointer::integer_value() called on a non integer object"
@@ -408,6 +450,7 @@ impl ObjectPointer {
 
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
+    def_value_getter!(bigint_value, get, as_bigint, &BigInt);
 }
 
 impl ObjectPointerPointer {
@@ -836,10 +879,35 @@ mod tests {
     }
 
     #[test]
+    fn test_object_pointer_integer_too_large() {
+        assert_eq!(ObjectPointer::integer_too_large(i64::MAX), true);
+        assert_eq!(ObjectPointer::integer_too_large(MAX_INTEGER), false);
+        assert_eq!(ObjectPointer::integer_too_large(5), false);
+    }
+
+    #[test]
     fn test_object_pointer_integer_value() {
         for i in 1..10 {
             assert_eq!(ObjectPointer::integer(i).integer_value().unwrap(), i);
         }
+    }
+
+    #[test]
+    fn test_object_pointer_maximum_value() {
+        let valid = ObjectPointer::integer(MAX_INTEGER);
+        let invalid = ObjectPointer::integer(MAX_INTEGER + 1);
+
+        assert_eq!(valid.integer_value().unwrap(), MAX_INTEGER);
+        assert_eq!(invalid.integer_value().unwrap(), MIN_INTEGER);
+    }
+
+    #[test]
+    fn test_object_pointer_minimum_value() {
+        let valid = ObjectPointer::integer(MIN_INTEGER);
+        let invalid = ObjectPointer::integer(MIN_INTEGER - 1);
+
+        assert_eq!(valid.integer_value().unwrap(), MIN_INTEGER);
+        assert_eq!(invalid.integer_value().unwrap(), MAX_INTEGER);
     }
 
     #[test]

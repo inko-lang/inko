@@ -18,6 +18,10 @@ rayon = "^0.9"
 parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
 
+[dependencies.num-bigint]
+version = "^0.1"
+default-features = false
+
 [features]
 default = ["system-allocator"]
 

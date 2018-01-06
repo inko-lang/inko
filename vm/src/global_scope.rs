@@ -71,7 +71,7 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_get_invalid() {
-            GlobalScope::new().get(0);
+            GlobalScope::new().get(35);
         }
 
         #[test]
