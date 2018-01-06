@@ -46,14 +46,13 @@ macro_rules! try_byte {
 
 macro_rules! read_u16_to_usize_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<usize, $byte_type>($bytes, read_u16_as_usize));
+        read_vector::<usize, $byte_type>($bytes, read_u16_as_usize)?;
     );
 }
 
 macro_rules! read_instruction_vector {
     ($byte_type: ident, $bytes: expr) => (
-        try!(read_vector::<Instruction, $byte_type>($bytes,
-                                                    read_instruction));
+        read_vector::<Instruction, $byte_type>($bytes, read_instruction)?;
     );
 }
 
@@ -119,13 +118,13 @@ pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
         parser_error!(InvalidVersion);
     }
 
-    let code = try!(read_compiled_code(state, bytes));
+    let code = read_compiled_code(state, bytes)?;
 
     Ok(code)
 }
 
 fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
-    let size = try!(read_u64(bytes));
+    let size = read_u64(bytes)?;
 
     let mut buff: Vec<u8> = Vec::new();
 
@@ -140,7 +139,7 @@ fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
 }
 
 fn read_byte_array<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Vec<u8>> {
-    let size = try!(read_u64(bytes));
+    let size = read_u64(bytes)?;
 
     let mut buff: Vec<u8> = Vec::new();
 
@@ -204,7 +203,7 @@ fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
 }
 
 fn read_u64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u64> {
-    Ok(try!(read_i64(bytes)) as u64)
+    Ok(read_i64(bytes)? as u64)
 }
 
 fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
@@ -224,11 +223,11 @@ fn read_vector<V, T: Read>(
     bytes: &mut Bytes<T>,
     reader: fn(&mut Bytes<T>) -> ParserResult<V>,
 ) -> ParserResult<Vec<V>> {
-    let amount = try!(read_u64(bytes)) as usize;
+    let amount = read_u64(bytes)? as usize;
     let mut buff: Vec<V> = Vec::with_capacity(amount);
 
     for _ in 0..amount {
-        buff.push(try!(reader(bytes)) as V);
+        buff.push(reader(bytes)? as V);
     }
 
     Ok(buff)
@@ -238,22 +237,21 @@ fn read_code_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<CompiledCode>> {
-    let amount = try!(read_u64(bytes)) as usize;
+    let amount = read_u64(bytes)? as usize;
     let mut buff = Vec::with_capacity(amount);
 
     for _ in 0..amount {
-        buff.push(try!(read_compiled_code(state, bytes)));
+        buff.push(read_compiled_code(state, bytes)?);
     }
 
     Ok(buff)
 }
 
 fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> {
-    let ins_type: InstructionType =
-        unsafe { mem::transmute(try!(read_u8(bytes))) };
+    let ins_type: InstructionType = unsafe { mem::transmute(read_u8(bytes)?) };
 
     let args = read_u16_to_usize_vector!(T, bytes);
-    let line = try!(read_u16(bytes));
+    let line = read_u16(bytes)?;
     let ins = Instruction::new(ins_type, args, line);
 
     Ok(ins)
@@ -263,15 +261,15 @@ fn read_compiled_code<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<CompiledCode> {
-    let name = try!(read_string(bytes));
-    let file = try!(read_string(bytes));
-    let line = try!(read_u16(bytes));
-    let args = try!(read_literals_vector(state, bytes));
-    let req_args = try!(read_u8(bytes));
-    let rest_arg = try!(read_bool(bytes));
-    let locals = try!(read_u16(bytes));
-    let registers = try!(read_u16(bytes));
-    let captures = try!(read_bool(bytes));
+    let name = read_string(bytes)?;
+    let file = read_string(bytes)?;
+    let line = read_u16(bytes)?;
+    let args = read_literals_vector(state, bytes)?;
+    let req_args = read_u8(bytes)?;
+    let rest_arg = read_bool(bytes)?;
+    let locals = read_u16(bytes)?;
+    let registers = read_u16(bytes)?;
+    let captures = read_bool(bytes)?;
     let instructions = read_instruction_vector!(T, bytes);
 
     // Make sure we always have a return at the end.
@@ -284,9 +282,9 @@ fn read_compiled_code<T: Read>(
         return Err(ParserError::MissingInstructions(file, line));
     }
 
-    let literals = try!(read_literals_vector(state, bytes));
-    let code_objects = try!(read_code_vector(state, bytes));
-    let catch_table = try!(read_catch_table(bytes));
+    let literals = read_literals_vector(state, bytes)?;
+    let code_objects = read_code_vector(state, bytes)?;
+    let catch_table = read_catch_table(bytes)?;
 
     Ok(CompiledCode {
         name: name,
@@ -309,11 +307,11 @@ fn read_literals_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<ObjectPointer>> {
-    let amount = try!(read_u64(bytes));
+    let amount = read_u64(bytes)?;
     let mut buff = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
-        buff.push(try!(read_literal(state, bytes)));
+        buff.push(read_literal(state, bytes)?);
     }
 
     Ok(buff)
@@ -323,11 +321,11 @@ fn read_literal<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<ObjectPointer> {
-    let literal_type = try!(read_u8(bytes));
+    let literal_type = read_u8(bytes)?;
 
     let literal = match literal_type {
         LITERAL_INTEGER => {
-            let num = try!(read_i64(bytes));
+            let num = read_i64(bytes)?;
 
             if ObjectPointer::integer_too_large(num) {
                 state.allocate_permanent_integer(num)
@@ -336,13 +334,13 @@ fn read_literal<T: Read>(
             }
         }
         LITERAL_BIGINT => {
-            let bytes = try!(read_byte_array(bytes));
+            let bytes = read_byte_array(bytes)?;
             let bigint = BigInt::parse_bytes(&bytes, 16).unwrap();
 
             state.allocate_permanent_bigint(bigint)
         }
-        LITERAL_FLOAT => state.allocate_permanent_float(try!(read_f64(bytes))),
-        LITERAL_STRING => state.intern(&try!(read_string(bytes))),
+        LITERAL_FLOAT => state.allocate_permanent_float(read_f64(bytes)?),
+        LITERAL_STRING => state.intern(&read_string(bytes)?),
         _ => return Err(ParserError::InvalidLiteralType(literal_type)),
     };
 
@@ -350,21 +348,21 @@ fn read_literal<T: Read>(
 }
 
 fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
-    let amount = try!(read_u64(bytes)) as usize;
+    let amount = read_u64(bytes)? as usize;
     let mut entries = Vec::with_capacity(amount);
 
     for _ in 0..amount {
-        entries.push(try!(read_catch_entry(bytes)));
+        entries.push(read_catch_entry(bytes)?);
     }
 
     Ok(CatchTable { entries: entries })
 }
 
 fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
-    let start = try!(read_u16_as_usize(bytes));
-    let end = try!(read_u16_as_usize(bytes));
-    let jump_to = try!(read_u16_as_usize(bytes));
-    let register = try!(read_u16_as_usize(bytes));
+    let start = read_u16_as_usize(bytes)?;
+    let end = read_u16_as_usize(bytes)?;
+    let jump_to = read_u16_as_usize(bytes)?;
+    let register = read_u16_as_usize(bytes)?;
 
     Ok(CatchEntry::new(start, end, jump_to, register))
 }
