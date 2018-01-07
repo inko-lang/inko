@@ -36,6 +36,13 @@ impl GlobalAllocator {
     pub fn add_block(&self, block: Box<Block>) {
         self.blocks.lock().push(block);
     }
+
+    /// Adds multiple blocks to the global allocator.
+    pub fn add_blocks(&self, mut to_add: Vec<Box<Block>>) {
+        let mut blocks = self.blocks.lock();
+
+        blocks.append(&mut to_add);
+    }
 }
 
 #[cfg(test)]

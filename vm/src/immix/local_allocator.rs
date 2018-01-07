@@ -120,15 +120,13 @@ impl LocalAllocator {
     /// Returns unused blocks to the global allocator.
     pub fn reclaim_blocks(&mut self, mature: bool) {
         for bucket in self.young_generation.iter_mut() {
-            for block in bucket.reclaim_blocks() {
-                self.global_allocator.add_block(block);
-            }
+            self.global_allocator.add_blocks(bucket.reclaim_blocks());
         }
 
         if mature {
-            for block in self.mature_generation.reclaim_blocks() {
-                self.global_allocator.add_block(block);
-            }
+            self.global_allocator.add_blocks(
+                self.mature_generation.reclaim_blocks(),
+            );
         } else {
             for block in self.mature_generation.all_blocks_mut() {
                 block.update_line_map();
