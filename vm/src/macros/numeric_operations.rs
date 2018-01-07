@@ -41,11 +41,9 @@ macro_rules! integer_shift_op {
         let arg_ptr = $context.get_register($instruction.arg(2));
 
         let pointer = if rec_ptr.is_integer() {
-            integer_operations::$int_op($process, rec_ptr, arg_ptr, $proto)
-                ?
+            integer_operations::$int_op($process, rec_ptr, arg_ptr, $proto)?
         } else if rec_ptr.is_bigint() {
-            integer_operations::$bigint_op($process, rec_ptr, arg_ptr, $proto)
-                ?
+            integer_operations::$bigint_op($process, rec_ptr, arg_ptr, $proto)?
         } else {
             return Err("Integer shifting only works with integers".to_string());
         };

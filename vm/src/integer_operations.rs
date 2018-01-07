@@ -93,12 +93,32 @@ macro_rules! invert_shift {
     });
 }
 
+/// Converts an integer or a bigint to a String.
+macro_rules! format_integer {
+    ($pointer: expr) => ({
+        if $pointer.is_bigint() {
+            $pointer.bigint_value()?.to_string()
+        } else {
+            $pointer.integer_value()?.to_string()
+        }
+    })
+}
+
+/// Generates an error message to display in the event of a shift error.
 macro_rules! shift_error {
-    ($to_shift: expr) => ({
-        format!(
-            "Can't shift integer {} as the shift value is too big",
-            $to_shift.integer_value()?.to_string()
-        )
+    ($to_shift: expr, $shift_with: expr) => ({
+        if $shift_with.is_integer() || $shift_with.is_bigint() {
+            format!(
+                "Can't shift integer {} with {} as the value is too big",
+                format_integer!($to_shift),
+                format_integer!($shift_with)
+            )
+        } else {
+            format!(
+                "Can't shift integer {} because the operand is not an integer",
+                format_integer!($to_shift),
+            )
+        }
     });
 }
 
@@ -148,7 +168,7 @@ pub fn integer_shift_left(
             integer_shift_right
         )
     } else {
-        Err(shift_error!(to_shift_ptr))
+        Err(shift_error!(to_shift_ptr, shift_with_ptr))
     }
 }
 
@@ -179,7 +199,7 @@ pub fn integer_shift_right(
             integer_shift_left
         )
     } else {
-        Err(shift_error!(to_shift_ptr))
+        Err(shift_error!(to_shift_ptr, shift_with_ptr))
     }
 }
 
@@ -202,7 +222,7 @@ pub fn bigint_shift_left(
             bigint_shift_right
         )
     } else {
-        Err(shift_error!(to_shift_ptr))
+        Err(shift_error!(to_shift_ptr, shift_with_ptr))
     }
 }
 
@@ -225,6 +245,6 @@ pub fn bigint_shift_right(
             bigint_shift_left
         )
     } else {
-        Err(shift_error!(to_shift_ptr))
+        Err(shift_error!(to_shift_ptr, shift_with_ptr))
     }
 }
