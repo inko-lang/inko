@@ -304,7 +304,6 @@ module Inkoc
         arguments.each do |arg|
           symbol = code_object.type.lookup_argument(arg.name)
 
-          # TODO: support rest argument defaults
           next unless arg.default
 
           define_argument_default(code_object, symbol, arg.default)
