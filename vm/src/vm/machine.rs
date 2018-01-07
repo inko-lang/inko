@@ -506,7 +506,7 @@ impl Machine {
                     let locals = cc.locals as usize;
 
                     let binding = if cc.captures {
-                        Binding::with_parent(context.binding.clone(), locals)
+                        context.binding.clone()
                     } else {
                         Binding::new(locals)
                     };

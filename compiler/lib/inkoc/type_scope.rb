@@ -23,7 +23,7 @@ module Inkoc
     def type_of_local(name)
       depth, local = locals.lookup_with_parent(name)
 
-      block_type.captures = true if depth.positive?
+      block_type.captures = true if depth >= 0
 
       local.type if local.any?
     end

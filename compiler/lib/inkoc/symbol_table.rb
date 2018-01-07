@@ -47,7 +47,7 @@ module Inkoc
 
     def lookup_with_parent(name_or_index)
       source = self
-      depth = 0
+      depth = -1
 
       while source
         found = source[name_or_index]
@@ -58,12 +58,12 @@ module Inkoc
         source = source.parent
       end
 
-      [0, NullSymbol.new(name_or_index)]
+      [-1, NullSymbol.new(name_or_index)]
     end
 
     def lookup_in_root(name_or_index)
       source = self
-      depth = 0
+      depth = -1
 
       while source.parent
         depth += 1

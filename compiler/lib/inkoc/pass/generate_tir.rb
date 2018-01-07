@@ -501,7 +501,7 @@ module Inkoc
 
         register = body.register(symbol.type)
 
-        if depth.positive?
+        if depth >= 0
           body.instruct(:GetParentLocal, register, depth, symbol, location)
         else
           body.instruct(:GetLocal, register, symbol, location)
@@ -565,7 +565,7 @@ module Inkoc
         loc = variable.location
         depth, symbol = body.locals.lookup_with_parent(name)
 
-        if depth.positive?
+        if depth >= 0
           body.instruct(:SetParentLocal, symbol, depth, value, loc)
         else
           set_local(symbol, value, body, loc)
