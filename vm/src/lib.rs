@@ -17,6 +17,7 @@ extern crate rayon;
 extern crate parking_lot;
 extern crate fnv;
 extern crate num_bigint;
+extern crate colored;
 
 pub mod macros;
 
@@ -46,6 +47,7 @@ pub mod process;
 pub mod process_table;
 pub mod queue;
 pub mod register;
+pub mod runtime_panic;
 pub mod string_pool;
 pub mod suspension_list;
 pub mod tagged_pointer;

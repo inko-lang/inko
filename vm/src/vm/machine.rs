@@ -17,6 +17,7 @@ use object_value;
 use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{RcProcess, Process, ProcessStatus};
+use runtime_panic;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -34,17 +35,31 @@ macro_rules! reset_context {
 }
 
 macro_rules! throw_value {
-    ($machine: expr, $process: expr, $value: expr, $context: ident, $code: ident, $index: ident) => ({
+    (
+        $machine: expr,
+        $process: expr,
+        $value: expr,
+        $context: ident,
+        $code: ident,
+        $index: ident
+    ) => ({
         $context.instruction_index = $index;
 
-        $machine.throw($process, $value);
+        $machine.throw($process, $value)?;
 
         reset_context!($process, $context, $code, $index);
     })
 }
 
 macro_rules! throw_io_error {
-    ($machine: expr, $process: expr, $error: expr, $context: ident, $code: ident, $index: ident) => ({
+    (
+        $machine: expr,
+        $process: expr,
+        $error: expr,
+        $context: ident,
+        $code: ident,
+        $index: ident
+    ) => ({
         let code = $crate::error_codes::from_io_error($error);
         let value = ObjectPointer::integer(code);
 
@@ -84,7 +99,7 @@ macro_rules! set_nil_if_immutable {
 macro_rules! safepoint_and_reduce {
     ($vm: expr, $process: expr, $reductions: expr) => ({
         if $vm.gc_safepoint(&$process) {
-            return;
+            return Ok(());
         }
 
         // Reduce once we've exhausted all the instructions in a
@@ -93,7 +108,7 @@ macro_rules! safepoint_and_reduce {
             $reductions -= 1;
         } else {
             $vm.reschedule($process.clone());
-            return;
+            return Ok(());
         }
     })
 }
@@ -176,7 +191,7 @@ impl Machine {
             return false;
         }
 
-        true
+        self.state.has_terminated_successfully()
     }
 
     fn configure_rayon(&self) {
@@ -191,14 +206,14 @@ impl Machine {
         let machine = self.clone();
         let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run(&process))
+        pool.run(move |process| machine.run_with_error_handling(&process))
     }
 
     fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
         let machine = self.clone();
         let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run(&process))
+        pool.run(move |process| machine.run_with_error_handling(&process))
     }
 
     fn start_suspension_worker(&self) -> thread::JoinHandle<()> {
@@ -273,8 +288,15 @@ impl Machine {
         Ok(process)
     }
 
+    /// Executes a single process, terminating in the event of an error.
+    pub fn run_with_error_handling(&self, process: &RcProcess) {
+        if let Err(message) = self.run(process) {
+            self.panic(process, message);
+        }
+    }
+
     /// Executes a single process.
-    pub fn run(&self, process: &RcProcess) {
+    pub fn run(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -673,7 +695,7 @@ impl Machine {
                 InstructionType::IntegerToFloat => {
                     let register = instruction.arg(0);
                     let integer_ptr = context.get_register(instruction.arg(1));
-                    let result = integer_ptr.integer_value().unwrap() as f64;
+                    let result = integer_ptr.integer_value()? as f64;
 
                     let obj = process.allocate(
                         object_value::float(result),
@@ -693,11 +715,14 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
 
                     let result = if rec_ptr.is_integer() {
-                        rec_ptr.integer_value().unwrap().to_string()
+                        rec_ptr.integer_value()?.to_string()
                     } else if rec_ptr.is_bigint() {
-                        rec_ptr.bigint_value().unwrap().to_string()
+                        rec_ptr.bigint_value()?.to_string()
                     } else {
-                        panic!("IntegerToString can only be used with integers");
+                        return Err(
+                            "IntegerToString can only be used with integers"
+                                .to_string(),
+                        );
                     };
 
                     let obj = process.allocate(
@@ -895,7 +920,7 @@ impl Machine {
                 InstructionType::FloatToInteger => {
                     let register = instruction.arg(0);
                     let float_ptr = context.get_register(instruction.arg(1));
-                    let result = float_ptr.float_value().unwrap() as i64;
+                    let result = float_ptr.float_value()? as i64;
 
                     context.set_register(
                         register,
@@ -911,7 +936,7 @@ impl Machine {
                 InstructionType::FloatToString => {
                     let register = instruction.arg(0);
                     let float_ptr = context.get_register(instruction.arg(1));
-                    let result = float_ptr.float_value().unwrap().to_string();
+                    let result = float_ptr.float_value()?.to_string();
 
                     let obj = process.allocate(
                         object_value::string(result),
@@ -1005,11 +1030,9 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let value_ptr = context.get_register(instruction.arg(3));
 
-                    let vector = array_ptr.array_value_mut().unwrap();
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value().unwrap()
-                    );
+                    let vector = array_ptr.array_value_mut()?;
+                    let index =
+                        int_to_vector_index!(vector, index_ptr.integer_value()?);
 
                     let value = copy_if_permanent!(
                         self.state.permanent_allocator,
@@ -1040,12 +1063,10 @@ impl Machine {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
                     let index_ptr = context.get_register(instruction.arg(2));
-                    let vector = array_ptr.array_value().unwrap();
+                    let vector = array_ptr.array_value()?;
 
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value().unwrap()
-                    );
+                    let index =
+                        int_to_vector_index!(vector, index_ptr.integer_value()?);
 
                     let value = vector.get(index).cloned().unwrap_or_else(|| {
                         self.state.nil_object
@@ -1070,11 +1091,9 @@ impl Machine {
                     let array_ptr = context.get_register(instruction.arg(1));
                     let index_ptr = context.get_register(instruction.arg(2));
 
-                    let vector = array_ptr.array_value_mut().unwrap();
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value().unwrap()
-                    );
+                    let vector = array_ptr.array_value_mut()?;
+                    let index =
+                        int_to_vector_index!(vector, index_ptr.integer_value()?);
 
                     let value = if index > vector.len() {
                         self.state.nil_object
@@ -1093,7 +1112,7 @@ impl Machine {
                 InstructionType::ArrayLength => {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
-                    let vector = array_ptr.array_value().unwrap();
+                    let vector = array_ptr.array_value()?;
                     let length = vector.len() as i64;
 
                     context.set_register(
@@ -1107,7 +1126,7 @@ impl Machine {
                 // array.
                 InstructionType::ArrayClear => {
                     let array_ptr = context.get_register(instruction.arg(0));
-                    let vector = array_ptr.array_value_mut().unwrap();
+                    let vector = array_ptr.array_value_mut()?;
 
                     vector.clear();
                 }
@@ -1120,7 +1139,7 @@ impl Machine {
                 InstructionType::StringToLower => {
                     let register = instruction.arg(0);
                     let source_ptr = context.get_register(instruction.arg(1));
-                    let lower = source_ptr.string_value().unwrap().to_lowercase();
+                    let lower = source_ptr.string_value()?.to_lowercase();
 
                     let obj = process.allocate(
                         object_value::string(lower),
@@ -1138,7 +1157,7 @@ impl Machine {
                 InstructionType::StringToUpper => {
                     let register = instruction.arg(0);
                     let source_ptr = context.get_register(instruction.arg(1));
-                    let upper = source_ptr.string_value().unwrap().to_uppercase();
+                    let upper = source_ptr.string_value()?.to_uppercase();
 
                     let obj = process.allocate(
                         object_value::string(upper),
@@ -1167,8 +1186,8 @@ impl Machine {
                                 self.state.false_object
                             }
                         } else {
-                            if receiver_ptr.string_value().unwrap() ==
-                                arg_ptr.string_value().unwrap()
+                            if receiver_ptr.string_value()? ==
+                                arg_ptr.string_value()?
                             {
                                 self.state.true_object
                             } else {
@@ -1190,8 +1209,7 @@ impl Machine {
                     let string_ptr = context.get_register(instruction.arg(1));
 
                     let array = string_ptr
-                        .string_value()
-                        .unwrap()
+                        .string_value()?
                         .as_bytes()
                         .iter()
                         .map(|&b| ObjectPointer::integer(b as i64))
@@ -1216,11 +1234,11 @@ impl Machine {
                 InstructionType::StringFromBytes => {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
-                    let array = arg_ptr.array_value().unwrap();
+                    let array = arg_ptr.array_value()?;
                     let mut bytes = Vec::with_capacity(array.len());
 
                     for ptr in array.iter() {
-                        bytes.push(ptr.integer_value().unwrap() as u8);
+                        bytes.push(ptr.integer_value()? as u8);
                     }
 
                     let string = vec_to_string!(bytes);
@@ -1242,8 +1260,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
 
-                    let length =
-                        arg_ptr.string_value().unwrap().chars().count() as i64;
+                    let length = arg_ptr.string_value()?.chars().count() as i64;
 
                     context.set_register(
                         register,
@@ -1259,7 +1276,7 @@ impl Machine {
                 InstructionType::StringSize => {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
-                    let size = arg_ptr.string_value().unwrap().len() as i64;
+                    let size = arg_ptr.string_value()?.len() as i64;
 
                     context.set_register(register, ObjectPointer::integer(size));
                 }
@@ -1275,7 +1292,7 @@ impl Machine {
                 InstructionType::StdoutWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
-                    let string = string_ptr.string_value().unwrap();
+                    let string = string_ptr.string_value()?;
                     let mut stdout = io::stdout();
 
                     let result =
@@ -1313,7 +1330,7 @@ impl Machine {
                 InstructionType::StderrWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
-                    let string = string_ptr.string_value().unwrap();
+                    let string = string_ptr.string_value()?;
                     let mut stderr = io::stderr();
 
                     let result =
@@ -1407,10 +1424,9 @@ impl Machine {
                     let path_ptr = context.get_register(instruction.arg(1));
                     let mode_ptr = context.get_register(instruction.arg(2));
 
-                    let path = path_ptr.string_value().unwrap();
-                    let mode = mode_ptr.integer_value().unwrap();
-                    let open_opts = file_open_mode::options_for_integer(mode)
-                        .unwrap();
+                    let path = path_ptr.string_value()?;
+                    let mode = mode_ptr.integer_value()?;
+                    let open_opts = file_open_mode::options_for_integer(mode)?;
 
                     match open_opts.open(path) {
                         Ok(file) => {
@@ -1446,8 +1462,8 @@ impl Machine {
                     let file_ptr = context.get_register(instruction.arg(1));
                     let string_ptr = context.get_register(instruction.arg(2));
 
-                    let file = file_ptr.file_value_mut().unwrap();
-                    let bytes = string_ptr.string_value().unwrap().as_bytes();
+                    let file = file_ptr.file_value_mut()?;
+                    let bytes = string_ptr.string_value()?.as_bytes();
 
                     match file.write(bytes) {
                         Ok(num_bytes) => {
@@ -1478,7 +1494,7 @@ impl Machine {
                 InstructionType::FileRead => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut()?;
                     let mut buffer = Vec::new();
 
                     if let Err(err) = file.read_to_end(&mut buffer) {
@@ -1506,7 +1522,7 @@ impl Machine {
                 InstructionType::FileReadLine => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut()?;
                     let mut buffer = Vec::new();
 
                     for result in file.bytes() {
@@ -1547,7 +1563,7 @@ impl Machine {
                 // This instruction will throw when encountering an IO error.
                 InstructionType::FileFlush => {
                     let file_ptr = context.get_register(instruction.arg(0));
-                    let file = file_ptr.file_value_mut().unwrap();
+                    let file = file_ptr.file_value_mut()?;
 
                     if let Err(err) = file.flush() {
                         throw_io_error!(self, process, err, context, code, index);
@@ -1565,7 +1581,7 @@ impl Machine {
                 InstructionType::FileSize => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value().unwrap();
+                    let file = file_ptr.file_value()?;
 
                     match file.metadata() {
                         Ok(meta) => {
@@ -1599,8 +1615,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
                     let offset_ptr = context.get_register(instruction.arg(2));
-                    let file = file_ptr.file_value_mut().unwrap();
-                    let offset = offset_ptr.integer_value().unwrap();
+                    let file = file_ptr.file_value_mut()?;
+                    let offset = offset_ptr.integer_value()?;
 
                     match file.seek(SeekFrom::Start(offset as u64)) {
                         Ok(cursor) => {
@@ -1635,15 +1651,15 @@ impl Machine {
                 InstructionType::LoadModule => {
                     let register = instruction.arg(0);
                     let path_ptr = context.get_register(instruction.arg(1));
-                    let path_str = path_ptr.string_value().unwrap();
+                    let path_str = path_ptr.string_value()?;
 
                     let (block, execute) = {
                         let mut registry = write_lock!(self.module_registry);
 
-                        let lookup = registry
-                            .get_or_set(path_str)
-                            .map_err(|err| err.message())
-                            .unwrap();
+                        let lookup =
+                            registry.get_or_set(path_str).map_err(
+                                |err| err.message(),
+                            )?;
 
                         let module = lookup.module;
 
@@ -1852,14 +1868,13 @@ impl Machine {
                         if let Some(pool_reg) = instruction.arg_opt(2) {
                             let ptr = context.get_register(pool_reg);
 
-                            ptr.integer_value().unwrap() as usize
+                            ptr.integer_value()? as usize
                         } else {
                             PRIMARY_POOL
                         };
 
-                    let block_obj = block_ptr.block_value().unwrap();
-                    let new_proc = self.allocate_process(pool_id, block_obj)
-                        .unwrap();
+                    let block_obj = block_ptr.block_value()?;
+                    let new_proc = self.allocate_process(pool_id, block_obj)?;
                     let new_pid = new_proc.pid;
 
                     self.state.process_pools.schedule(new_proc);
@@ -1882,7 +1897,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let pid_ptr = context.get_register(instruction.arg(1));
                     let msg_ptr = context.get_register(instruction.arg(2));
-                    let pid = pid_ptr.integer_value().unwrap() as usize;
+                    let pid = pid_ptr.integer_value()? as usize;
 
                     if let Some(receiver) = read_lock!(self.state.process_table)
                         .get(&pid)
@@ -1937,7 +1952,7 @@ impl Machine {
                             timeout,
                         );
 
-                        return;
+                        return Ok(());
                     }
                 }
                 // Gets the PID of the currently running process.
@@ -1959,7 +1974,7 @@ impl Machine {
                 InstructionType::ProcessStatus => {
                     let register = instruction.arg(0);
                     let pid_ptr = process.get_register(instruction.arg(1));
-                    let pid = pid_ptr.integer_value().unwrap() as usize;
+                    let pid = pid_ptr.integer_value()? as usize;
                     let table = read_lock!(self.state.process_table);
 
                     let status = if let Some(receiver) = table.get(&pid) {
@@ -1986,7 +2001,7 @@ impl Machine {
 
                     self.state.suspension_list.suspend(process.clone(), timeout);
 
-                    return;
+                    return Ok(());
                 }
                 // Sets a local variable in one of the parent bindings.
                 //
@@ -2004,7 +2019,7 @@ impl Machine {
                     if let Some(binding) = context.binding.find_parent(depth) {
                         binding.set_local(index, value);
                     } else {
-                        panic!("No binding for depth {}", depth);
+                        return Err(format!("No binding for depth {}", depth));
                     }
                 }
                 // Gets a local variable in one of the parent bindings.
@@ -2023,7 +2038,7 @@ impl Machine {
                     if let Some(binding) = context.binding.find_parent(depth) {
                         context.set_register(reg, binding.get_local(index));
                     } else {
-                        panic!("No binding for depth {}", depth);
+                        return Err(format!("No binding for depth {}", depth));
                     }
                 }
                 // Reads a given number of bytes from a file.
@@ -2041,8 +2056,8 @@ impl Machine {
                     let file_ptr = context.get_register(instruction.arg(1));
                     let size_ptr = context.get_register(instruction.arg(2));
 
-                    let file = file_ptr.file_value_mut().unwrap();
-                    let size = size_ptr.integer_value().unwrap() as usize;
+                    let file = file_ptr.file_value_mut()?;
+                    let size = size_ptr.integer_value()? as usize;
                     let mut buffer = Vec::with_capacity(size);
 
                     if let Err(err) = file.take(size as u64).read_to_end(
@@ -2075,7 +2090,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let size_ptr = context.get_register(instruction.arg(1));
 
-                    let size = size_ptr.integer_value().unwrap() as usize;
+                    let size = size_ptr.integer_value()? as usize;
                     let mut buffer = String::with_capacity(size);
                     let stdin = io::stdin();
 
@@ -2342,7 +2357,7 @@ impl Machine {
 
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
-                    let block = block_ptr.block_value().unwrap();
+                    let block = block_ptr.block_value()?;
 
                     let new_ctx =
                         ExecutionContext::from_block(&block, Some(register));
@@ -2354,7 +2369,7 @@ impl Machine {
                         instruction.arg(2),
                         instruction.arg(3),
                         4,
-                    );
+                    )?;
 
                     process.push_context(new_ctx);
 
@@ -2436,7 +2451,7 @@ impl Machine {
                         instruction.arg(0),
                         instruction.arg(1),
                         2,
-                    );
+                    )?;
 
                     context.register.values.reset();
 
@@ -2539,7 +2554,7 @@ impl Machine {
                 InstructionType::FloatFloor => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value().unwrap().floor();
+                    let float = pointer.float_value()?.floor();
 
                     context.set_register(
                         register,
@@ -2558,7 +2573,7 @@ impl Machine {
                 InstructionType::FloatCeil => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value().unwrap().ceil();
+                    let float = pointer.float_value()?.ceil();
 
                     context.set_register(
                         register,
@@ -2577,7 +2592,7 @@ impl Machine {
                 InstructionType::FloatRound => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value().unwrap().round();
+                    let float = pointer.float_value()?.round();
 
                     context.set_register(
                         register,
@@ -2598,6 +2613,8 @@ impl Machine {
         if process.is_main() {
             self.terminate();
         }
+
+        Ok(())
     }
 
     /// Collects a set of arguments from an instruction.
@@ -2657,17 +2674,19 @@ impl Machine {
         code: &CompiledCodePointer,
         given_positional: usize,
         given_keyword: usize,
-    ) {
+    ) -> Result<(), String> {
         let arguments = given_positional + given_keyword;
 
         if !code.valid_number_of_arguments(arguments) {
-            panic!(
+            return Err(format!(
                 "{} takes {} arguments but {} were supplied",
                 code.name,
                 code.label_for_number_of_arguments(),
                 arguments
-            );
+            ));
         }
+
+        Ok(())
     }
 
     fn set_positional_arguments(
@@ -2711,12 +2730,12 @@ impl Machine {
         given_positional: usize,
         given_keyword: usize,
         pos_start: usize,
-    ) {
+    ) -> Result<(), String> {
         self.validate_number_of_arguments(
             &context.code,
             given_positional,
             given_keyword,
-        );
+        )?;
 
         let (excessive, pos_args) =
             context.code.number_of_arguments_to_set(given_positional);
@@ -2745,6 +2764,8 @@ impl Machine {
                 key_start,
             );
         }
+
+        Ok(())
     }
 
     fn prepare_keyword_arguments(
@@ -2767,7 +2788,11 @@ impl Machine {
         }
     }
 
-    fn throw(&self, process: &RcProcess, value: ObjectPointer) {
+    fn throw(
+        &self,
+        process: &RcProcess,
+        value: ObjectPointer,
+    ) -> Result<(), String> {
         loop {
             let code = process.compiled_code();
             let context = process.context_mut();
@@ -2778,17 +2803,22 @@ impl Machine {
                     context.instruction_index = entry.jump_to;
                     context.set_register(entry.register, value);
 
-                    return;
+                    return Ok(());
                 }
             }
 
             if process.pop_context() {
-                panic!(
+                return Err(format!(
                     "A thrown value reached the top-level in process {}",
                     process.pid
-                );
+                ));
             }
         }
+    }
+
+    fn panic(&self, process: &RcProcess, message: String) {
+        runtime_panic::display_panic(process, message);
+        self.terminate();
     }
 
     fn unwind_until_defining_scope(&self, process: &RcProcess) {

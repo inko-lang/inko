@@ -6,6 +6,7 @@
 
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time;
 use num_bigint::BigInt;
 
@@ -30,6 +31,9 @@ pub type RcState = Arc<State>;
 pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
+
+    /// Boolean indicating if we terminated successfully or not.
+    pub terminated_successfully: AtomicBool,
 
     /// Table containing all processes.
     pub process_table: RwLock<ProcessTable<RcProcess>>,
@@ -133,6 +137,7 @@ impl State {
 
         let state = State {
             config: config,
+            terminated_successfully: AtomicBool::new(true),
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,
@@ -212,6 +217,14 @@ impl State {
         let value = object_value::bigint(bigint);
 
         alloc.allocate_with_prototype(value, self.integer_prototype)
+    }
+
+    pub fn has_terminated_successfully(&self) -> bool {
+        self.terminated_successfully.load(Ordering::Relaxed)
+    }
+
+    pub fn terminated_due_to_panic(&self) {
+        self.terminated_successfully.store(false, Ordering::Relaxed);
     }
 }
 

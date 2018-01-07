@@ -17,6 +17,7 @@ num_cpus = "^1.0"
 rayon = "^0.9"
 parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
+colored = "^1.6"
 
 [dependencies.num-bigint]
 version = "^0.1"

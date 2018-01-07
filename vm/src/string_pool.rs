@@ -135,7 +135,7 @@ mod tests {
             let mut pool = StringPool::new();
             let pointer = alloc.allocate_empty();
 
-            pool.add(pointer);
+            pool.add(pointer).is_err();
         }
 
         #[test]

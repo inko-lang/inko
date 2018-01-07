@@ -9,8 +9,8 @@ macro_rules! integer_op {
         let register = $ins.arg(0);
         let rec_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
-        let rec = rec_ptr.integer_value().unwrap();
-        let arg = arg_ptr.integer_value().unwrap();
+        let rec = rec_ptr.integer_value()?;
+        let arg = arg_ptr.integer_value()?;
         let result = to_expr!(rec $op arg);
 
         $process.set_register(register, ObjectPointer::integer(result));
@@ -42,12 +42,12 @@ macro_rules! integer_shift_op {
 
         let pointer = if rec_ptr.is_integer() {
             integer_operations::$int_op($process, rec_ptr, arg_ptr, $proto)
-                .unwrap()
+                ?
         } else if rec_ptr.is_bigint() {
             integer_operations::$bigint_op($process, rec_ptr, arg_ptr, $proto)
-                .unwrap()
+                ?
         } else {
-            panic!("Integer shifting only works with integers");
+            return Err("Integer shifting only works with integers".to_string());
         };
 
         $context.set_register(register, pointer);
@@ -83,8 +83,8 @@ macro_rules! integer_overflow_op {
             // This will produce a bigint if the produced integer overflowed or
             // doesn't fit in a tagged pointer.
 
-            let rec = rec_ptr.integer_value().unwrap();
-            let arg = arg_ptr.integer_value().unwrap();
+            let rec = rec_ptr.integer_value()?;
+            let arg = arg_ptr.integer_value()?;
             let (result, overflowed) = rec.$overflow(arg);
 
             if overflowed {
@@ -104,29 +104,32 @@ macro_rules! integer_overflow_op {
         } else if rec_ptr.is_bigint() && arg_ptr.is_integer() {
             // Example: bigint + int -> bigint
 
-            let rec = rec_ptr.bigint_value().unwrap().clone();
-            let arg = arg_ptr.integer_value().unwrap();
+            let rec = rec_ptr.bigint_value()?.clone();
+            let arg = arg_ptr.integer_value()?;
             let bigint = to_expr!(rec $op arg);
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: int + bigint -> bigint
 
-            let rec = BigInt::from(rec_ptr.integer_value().unwrap());
-            let arg = arg_ptr.bigint_value().unwrap();
+            let rec = BigInt::from(rec_ptr.integer_value()?);
+            let arg = arg_ptr.bigint_value()?;
             let bigint = to_expr!(rec $op arg);
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
             // Example: bigint + bigint -> bigint
 
-            let rec = rec_ptr.bigint_value().unwrap();
-            let arg = arg_ptr.bigint_value().unwrap();
+            let rec = rec_ptr.bigint_value()?;
+            let arg = arg_ptr.bigint_value()?;
             let bigint = to_expr!(rec.clone() $op arg);
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else {
-            panic!("Integer instructions can only be performed using integers");
+            return Err(
+                "Integer instructions can only be performed using integers"
+                    .to_string()
+            );
         };
 
         $context.set_register(register, result);
@@ -150,33 +153,36 @@ macro_rules! integer_bool_op {
         let result = if rec_ptr.is_integer() && arg_ptr.is_integer() {
             // Example: integer < integer
 
-            let rec = rec_ptr.integer_value().unwrap();
-            let arg = arg_ptr.integer_value().unwrap();
+            let rec = rec_ptr.integer_value()?;
+            let arg = arg_ptr.integer_value()?;
 
             to_expr!(rec $op arg)
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: integer < bigint
 
-            let rec = BigInt::from(rec_ptr.integer_value().unwrap());
-            let arg = arg_ptr.bigint_value().unwrap();
+            let rec = BigInt::from(rec_ptr.integer_value()?);
+            let arg = arg_ptr.bigint_value()?;
 
             to_expr!(&rec $op arg)
         } else if rec_ptr.is_bigint() && arg_ptr.is_integer() {
             // Example: bigint < integer
 
-            let rec = rec_ptr.bigint_value().unwrap();
-            let arg = BigInt::from(arg_ptr.integer_value().unwrap());
+            let rec = rec_ptr.bigint_value()?;
+            let arg = BigInt::from(arg_ptr.integer_value()?);
 
             to_expr!(rec $op &arg)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
             // Example: bigint < bigint
 
-            let rec = rec_ptr.bigint_value().unwrap();
-            let arg = arg_ptr.bigint_value().unwrap();
+            let rec = rec_ptr.bigint_value()?;
+            let arg = arg_ptr.bigint_value()?;
 
             to_expr!(rec $op arg)
         } else {
-            panic!("Integer instructions can only be performed using integers");
+            return Err(
+                "Integer instructions can only be performed using integers"
+                    .to_string()
+            );
         };
 
         let boolean = if result {
@@ -195,8 +201,8 @@ macro_rules! float_op {
         let register = $ins.arg(0);
         let rec_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
-        let rec = rec_ptr.float_value().unwrap();
-        let arg = arg_ptr.float_value().unwrap();
+        let rec = rec_ptr.float_value()?;
+        let arg = arg_ptr.float_value()?;
         let result = to_expr!(rec $op arg);
 
         let obj = $process
@@ -219,8 +225,8 @@ macro_rules! float_bool_op {
         let register = $ins.arg(0);
         let rec_ptr = $context.get_register($ins.arg(1));
         let arg_ptr = $context.get_register($ins.arg(2));
-        let rec = rec_ptr.float_value().unwrap();
-        let arg = arg_ptr.float_value().unwrap();
+        let rec = rec_ptr.float_value()?;
+        let arg = arg_ptr.float_value()?;
 
         let boolean = if to_expr!(rec $op arg) {
             $state.true_object

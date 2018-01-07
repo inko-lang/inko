@@ -248,10 +248,6 @@ impl Process {
         self.local_data_mut().mailbox.receive()
     }
 
-    pub fn advance_line(&self, line: u16) {
-        self.context_mut().line = line;
-    }
-
     pub fn advance_instruction_index(&self) {
         self.local_data_mut().context.instruction_index += 1;
     }
