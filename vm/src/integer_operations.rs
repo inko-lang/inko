@@ -109,7 +109,7 @@ macro_rules! shift_error {
     ($to_shift: expr, $shift_with: expr) => ({
         if $shift_with.is_integer() || $shift_with.is_bigint() {
             format!(
-                "Can't shift integer {} with {} as the value is too big",
+                "Can't shift integer {} with {} as the operand is too big",
                 format_integer!($to_shift),
                 format_integer!($shift_with)
             )
