@@ -21,7 +21,7 @@ macro_rules! test_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process);
+            machine.run(&process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -48,7 +48,7 @@ macro_rules! test_bool_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process);
+            machine.run(&process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -62,14 +62,16 @@ fn test_float_to_integer() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::FloatToInteger, vec![1, 0]),
-             new_instruction(InstructionType::Return, vec![1])];
+        vec![
+            new_instruction(InstructionType::FloatToInteger, vec![1, 0]),
+            new_instruction(InstructionType::Return, vec![1]),
+        ];
 
     let original = process.allocate_without_prototype(object_value::float(5.5));
 
     process.set_register(0, original);
 
-    machine.run(&process);
+    machine.run(&process).unwrap();
 
     let pointer = process.get_register(1);
 
@@ -81,14 +83,16 @@ fn test_float_to_string() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::FloatToString, vec![1, 0]),
-             new_instruction(InstructionType::Return, vec![1])];
+        vec![
+            new_instruction(InstructionType::FloatToString, vec![1, 0]),
+            new_instruction(InstructionType::Return, vec![1]),
+        ];
 
     let original = process.allocate_without_prototype(object_value::float(5.5));
 
     process.set_register(0, original);
 
-    machine.run(&process);
+    machine.run(&process).unwrap();
 
     let pointer = process.get_register(1);
 

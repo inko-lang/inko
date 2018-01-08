@@ -18,7 +18,7 @@ macro_rules! test_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process);
+            machine.run(&process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -43,7 +43,7 @@ macro_rules! test_bool_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process);
+            machine.run(&process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -66,7 +66,7 @@ macro_rules! test_cast_op {
 
             process.set_register(0, original);
 
-            machine.run(&process);
+            machine.run(&process).unwrap();
 
             let pointer = process.get_register(1);
             let object = pointer.get();
@@ -100,7 +100,9 @@ test_bool_op!(IntegerEquals, test_integer_equals, false_object);
 
 test_cast_op!(IntegerToFloat, test_integer_to_float, as_float, 5.0);
 
-test_cast_op!(IntegerToString,
-              test_integer_to_string,
-              as_string,
-              &"5".to_string());
+test_cast_op!(
+    IntegerToString,
+    test_integer_to_string,
+    as_string,
+    &"5".to_string()
+);

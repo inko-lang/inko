@@ -7,12 +7,14 @@ fn test_set_literal() {
     let (machine, mut block, process) = setup();
 
     block.code.instructions =
-        vec![new_instruction(InstructionType::SetLiteral, vec![0, 0]),
-             new_instruction(InstructionType::Return, vec![0])];
+        vec![
+            new_instruction(InstructionType::SetLiteral, vec![0, 0]),
+            new_instruction(InstructionType::Return, vec![0]),
+        ];
 
     block.code.literals.push(ObjectPointer::integer(10));
 
-    machine.run(&process);
+    machine.run(&process).unwrap();
 
     let pointer = process.get_register(0);
 
