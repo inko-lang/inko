@@ -8,7 +8,7 @@ use std::ptr;
 use std::iter::Chain;
 use std::slice::IterMut;
 
-use immix::block::Block;
+use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
 use immix::histogram::Histogram;
 use immix::global_allocator::RcGlobalAllocator;
 use object::Object;
@@ -72,8 +72,8 @@ impl Bucket {
             recyclable_blocks: Vec::new(),
             current_block: ptr::null::<Block>() as *mut Block,
             age: age,
-            available_histogram: Histogram::new(),
-            mark_histogram: Histogram::new(),
+            available_histogram: Histogram::new(MAX_HOLES),
+            mark_histogram: Histogram::new(LINES_PER_BLOCK),
             promote: false,
             lock: Mutex::new(()),
         }
@@ -256,10 +256,8 @@ impl Bucket {
 
             while available > required {
                 if let Some(bin) = iter.next() {
-                    required += self.mark_histogram.get(bin).unwrap() as isize;
-
-                    available -=
-                        self.available_histogram.get(bin).unwrap() as isize;
+                    required += self.mark_histogram.get(bin) as isize;
+                    available -= self.available_histogram.get(bin) as isize;
 
                     min_bin = Some(bin);
                 } else {
@@ -532,8 +530,8 @@ mod tests {
         assert_eq!(bucket.recyclable_blocks[0].holes, 1);
         assert_eq!(bucket.recyclable_blocks[1].holes, 2);
 
-        assert_eq!(bucket.mark_histogram.get(1).unwrap(), 1);
-        assert_eq!(bucket.mark_histogram.get(2).unwrap(), 1);
+        assert_eq!(bucket.mark_histogram.get(1), 1);
+        assert_eq!(bucket.mark_histogram.get(2), 1);
     }
 
     #[test]
@@ -562,7 +560,7 @@ mod tests {
         assert_eq!(bucket.prepare_for_collection(), false);
 
         // No evacuation needed means the available histogram is not updated.
-        assert!(bucket.available_histogram.get(1).is_none());
+        assert_eq!(bucket.available_histogram.get(1), 0);
 
         let block = bucket.current_block().unwrap();
 
@@ -584,7 +582,7 @@ mod tests {
 
         assert!(bucket.prepare_for_collection());
 
-        assert_eq!(bucket.available_histogram.get(1).unwrap(), 509);
+        assert_eq!(bucket.available_histogram.get(1), 509);
 
         let block = bucket.current_block().unwrap();
 
