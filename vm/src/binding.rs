@@ -113,7 +113,10 @@ impl Binding {
 
     /// Returns an iterator for traversing all pointers in this binding.
     pub fn pointers(&self) -> PointerIterator {
-        PointerIterator { binding: self, local_index: 0 }
+        PointerIterator {
+            binding: self,
+            local_index: 0,
+        }
     }
 
     /// Creates a new binding and recursively copies over all pointers to the

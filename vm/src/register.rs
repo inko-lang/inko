@@ -19,7 +19,9 @@ pub struct PointerIterator<'a> {
 impl Register {
     /// Creates a new Register.
     pub fn new(amount: usize) -> Register {
-        Register { values: Chunk::new(amount) }
+        Register {
+            values: Chunk::new(amount),
+        }
     }
 
     /// Sets the value of the given register.
@@ -41,7 +43,10 @@ impl Register {
 
     /// Returns an iterator for traversing all pointers in this register.
     pub fn pointers(&self) -> PointerIterator {
-        PointerIterator { register: self, index: 0 }
+        PointerIterator {
+            register: self,
+            index: 0,
+        }
     }
 }
 
@@ -66,7 +71,7 @@ impl<'a> Iterator for PointerIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::{RawObjectPointer, ObjectPointer};
+    use object_pointer::{ObjectPointer, RawObjectPointer};
 
     #[test]
     fn test_set_get() {

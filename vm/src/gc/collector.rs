@@ -194,18 +194,16 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute(
-            young_child,
-            young_child,
-        );
+        young_parent
+            .get_mut()
+            .add_attribute(young_child, young_child);
 
         young_parent.block_mut().fragmented = true;
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         mature.block_mut().fragmented = true;
 
@@ -229,18 +227,16 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute(
-            young_child,
-            young_child,
-        );
+        young_parent
+            .get_mut()
+            .add_attribute(young_child, young_child);
 
         young_parent.block_mut().fragmented = true;
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         mature.block_mut().fragmented = true;
 
@@ -262,16 +258,14 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute(
-            young_child,
-            young_child,
-        );
+        young_parent
+            .get_mut()
+            .add_attribute(young_child, young_child);
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let result = trace_pointers_without_moving(
             vec![young_parent.pointer(), mature.pointer()],
@@ -295,16 +289,14 @@ mod tests {
         let young_parent = process.allocate_empty();
         let young_child = process.allocate_empty();
 
-        young_parent.get_mut().add_attribute(
-            young_child,
-            young_child,
-        );
+        young_parent
+            .get_mut()
+            .add_attribute(young_child, young_child);
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let result = trace_pointers_without_moving(
             vec![young_parent.pointer(), mature.pointer()],

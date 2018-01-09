@@ -62,8 +62,7 @@ impl ObjectValue {
 
     pub fn is_string(&self) -> bool {
         match self {
-            &ObjectValue::String(_) |
-            &ObjectValue::InternedString(_) => true,
+            &ObjectValue::String(_) | &ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }
@@ -135,11 +134,8 @@ impl ObjectValue {
         match self {
             &ObjectValue::String(ref val) => Ok(val),
             &ObjectValue::InternedString(ref val) => Ok(val),
-            _ => {
-                Err(
-                    "ObjectValue::as_string() called on a non string".to_string(),
-                )
-            }
+            _ => Err("ObjectValue::as_string() called on a non string"
+                .to_string()),
         }
     }
 
@@ -153,55 +149,40 @@ impl ObjectValue {
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
         match self {
             &mut ObjectValue::File(ref mut val) => Ok(val),
-            _ => {
-                Err(
-                    "ObjectValue::as_file_mut() called on a non file".to_string(),
-                )
-            }
+            _ => Err("ObjectValue::as_file_mut() called on a non file"
+                .to_string()),
         }
     }
 
     pub fn as_block(&self) -> Result<&Box<Block>, String> {
         match self {
             &ObjectValue::Block(ref val) => Ok(val),
-            _ => {
-                Err(
-                    "ObjectValue::as_block() called on a non block object"
-                        .to_string(),
-                )
-            }
+            _ => Err("ObjectValue::as_block() called on a non block object"
+                .to_string()),
         }
     }
 
     pub fn as_binding(&self) -> Result<RcBinding, String> {
         match self {
             &ObjectValue::Binding(ref val) => Ok(val.clone()),
-            _ => {
-                Err(
-                    "ObjectValue::as_binding() called non a non Binding"
-                        .to_string(),
-                )
-            }
+            _ => Err("ObjectValue::as_binding() called non a non Binding"
+                .to_string()),
         }
     }
 
     pub fn as_bigint(&self) -> Result<&BigInt, String> {
         match self {
             &ObjectValue::BigInt(ref val) => Ok(val),
-            _ => {
-                Err(
-                    "ObjectValue::as_bigint() called on a non BigInt".to_string(),
-                )
-            }
+            _ => Err("ObjectValue::as_bigint() called on a non BigInt"
+                .to_string()),
         }
     }
 
     pub fn as_integer(&self) -> Result<i64, String> {
         match self {
             &ObjectValue::Integer(val) => Ok(val),
-            _ => {
-                Err("ObjectValue::integer() called on a non integer".to_string())
-            }
+            _ => Err("ObjectValue::integer() called on a non integer"
+                .to_string()),
         }
     }
 
@@ -219,10 +200,10 @@ impl ObjectValue {
 
     pub fn is_immutable(&self) -> bool {
         match self {
-            &ObjectValue::Float(_) |
-            &ObjectValue::String(_) |
-            &ObjectValue::BigInt(_) |
-            &ObjectValue::InternedString(_) => true,
+            &ObjectValue::Float(_)
+            | &ObjectValue::String(_)
+            | &ObjectValue::BigInt(_)
+            | &ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }
@@ -306,7 +287,9 @@ mod tests {
 
     #[test]
     fn test_is_string_with_interned_string() {
-        assert!(ObjectValue::InternedString(Box::new(String::new())).is_string());
+        assert!(
+            ObjectValue::InternedString(Box::new(String::new())).is_string()
+        );
     }
 
     #[test]

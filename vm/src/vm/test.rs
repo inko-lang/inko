@@ -35,8 +35,11 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let module = lookup.module;
         let scope = module.global_scope_ref();
 
-        let block =
-            Block::new(module.code(), Binding::new(module.code.locals()), scope);
+        let block = Block::new(
+            module.code(),
+            Binding::new(module.code.locals()),
+            scope,
+        );
 
         let process = machine.allocate_process(0, &block);
 

@@ -149,7 +149,9 @@ impl ExecutionContext {
     /// Returns an iterator for traversing the context chain, including the
     /// current context.
     pub fn contexts(&self) -> ExecutionContextIterator {
-        ExecutionContextIterator { current: Some(self) }
+        ExecutionContextIterator {
+            current: Some(self),
+        }
     }
 
     /// Returns pointers to all pointers stored in this context.

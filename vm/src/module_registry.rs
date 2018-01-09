@@ -45,7 +45,10 @@ impl ModuleError {
 
 impl<'a> LookupResult<'a> {
     pub fn new(module: &'a Module, parsed: bool) -> Self {
-        LookupResult { module: module, parsed: parsed }
+        LookupResult {
+            module: module,
+            parsed: parsed,
+        }
     }
 }
 
@@ -55,7 +58,10 @@ impl ModuleRegistry {
     }
 
     pub fn new(state: RcState) -> Self {
-        ModuleRegistry { state: state, parsed: HashMap::new() }
+        ModuleRegistry {
+            state: state,
+            parsed: HashMap::new(),
+        }
     }
 
     /// Returns true if the given module has been parsed.
@@ -71,9 +77,8 @@ impl ModuleRegistry {
         let full_path = self.find_path(path)?;
 
         if !self.parsed.contains_key(&full_path) {
-            self.parse_module(&full_path).map(|module| {
-                LookupResult::new(module, true)
-            })
+            self.parse_module(&full_path)
+                .map(|module| LookupResult::new(module, true))
         } else {
             Ok(LookupResult::new(
                 self.parsed.get(&full_path).unwrap(),
@@ -110,11 +115,8 @@ impl ModuleRegistry {
 
     /// Parses a full file path pointing to a module.
     pub fn parse_module(&mut self, path: &str) -> Result<&Module, ModuleError> {
-        let code = bytecode_parser::parse_file(&self.state, path).map_err(
-            |err| {
-                ModuleError::FailedToParse(path.to_string(), err)
-            },
-        )?;
+        let code = bytecode_parser::parse_file(&self.state, path)
+            .map_err(|err| ModuleError::FailedToParse(path.to_string(), err))?;
 
         self.add_module(path, Module::new(code));
 

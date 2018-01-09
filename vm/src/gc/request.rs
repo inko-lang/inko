@@ -56,7 +56,7 @@ impl Request {
 
         println!(
             "Finished {:?} collection in {:.2} ms, {} marked, {} \
-                  promoted, {} evacuated",
+             promoted, {} evacuated",
             _profile.collection_type,
             _profile.total.duration_msec(),
             _profile.marked,

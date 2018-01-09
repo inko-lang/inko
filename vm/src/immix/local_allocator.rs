@@ -124,9 +124,8 @@ impl LocalAllocator {
         }
 
         if mature {
-            self.global_allocator.add_blocks(
-                self.mature_generation.reclaim_blocks(),
-            );
+            self.global_allocator
+                .add_blocks(self.mature_generation.reclaim_blocks());
         } else {
             for block in self.mature_generation.all_blocks_mut() {
                 block.update_line_map();
@@ -209,8 +208,8 @@ impl LocalAllocator {
     pub fn increment_young_block_allocations(&mut self) {
         self.young_block_allocations += 1;
 
-        if self.young_block_allocation_threshold_exceeded() &&
-            !self.collect_young
+        if self.young_block_allocation_threshold_exceeded()
+            && !self.collect_young
         {
             self.collect_young = true;
         }
@@ -219,8 +218,8 @@ impl LocalAllocator {
     pub fn increment_mature_block_allocations(&mut self) {
         self.mature_block_allocations += 1;
 
-        if self.mature_block_allocation_threshold_exceeded() &&
-            !self.collect_mature
+        if self.mature_block_allocation_threshold_exceeded()
+            && !self.collect_mature
         {
             self.collect_mature = true;
         }
@@ -228,32 +227,28 @@ impl LocalAllocator {
 
     /// Increments the young generation allocation threshold.
     pub fn increment_young_threshold(&mut self, factor: f64) {
-        let threshold = (self.young_block_allocation_threshold as f64 * factor)
-            .ceil();
+        let threshold =
+            (self.young_block_allocation_threshold as f64 * factor).ceil();
 
         self.young_block_allocation_threshold = threshold as usize;
     }
 
     /// Increments the mature generation allocation threshold.
     pub fn increment_mature_threshold(&mut self, factor: f64) {
-        let threshold = (self.mature_block_allocation_threshold as f64 * factor)
-            .ceil();
+        let threshold =
+            (self.mature_block_allocation_threshold as f64 * factor).ceil();
 
         self.mature_block_allocation_threshold = threshold as usize;
     }
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.young_generation[self.eden_index].allocate(
-            &self.global_allocator,
-            object,
-        )
+        self.young_generation[self.eden_index]
+            .allocate(&self.global_allocator, object)
     }
 
     fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.mature_generation.allocate(
-            &self.global_allocator,
-            object,
-        )
+        self.mature_generation
+            .allocate(&self.global_allocator, object)
     }
 }
 
@@ -366,7 +361,8 @@ mod tests {
     #[test]
     fn test_allocate_without_prototype() {
         let mut alloc = local_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
+        let pointer =
+            alloc.allocate_without_prototype(object_value::float(5.0));
 
         assert!(pointer.get().prototype().is_none());
         assert!(pointer.get().value.is_float());
@@ -386,9 +382,8 @@ mod tests {
         let mut alloc = local_allocator();
         let ptr1 = alloc.allocate_eden(Object::new(object_value::none()));
 
-        let ptr2 = alloc.allocate_eden(
-            Object::new(object_value::string("a".to_string())),
-        );
+        let ptr2 = alloc
+            .allocate_eden(Object::new(object_value::string("a".to_string())));
 
         assert_eq!(alloc.young_block_allocations, 1);
 
@@ -401,9 +396,9 @@ mod tests {
         let mut alloc = local_allocator();
         let ptr1 = alloc.allocate_mature(Object::new(object_value::none()));
 
-        let ptr2 = alloc.allocate_mature(
-            Object::new(object_value::string("a".to_string())),
-        );
+        let ptr2 = alloc.allocate_mature(Object::new(object_value::string(
+            "a".to_string(),
+        )));
 
         assert_eq!(alloc.mature_block_allocations, 1);
 
@@ -474,8 +469,8 @@ mod tests {
 
         assert_eq!(alloc.young_block_allocation_threshold_exceeded(), false);
 
-        alloc.young_block_allocations = alloc.young_block_allocation_threshold +
-            1;
+        alloc.young_block_allocations =
+            alloc.young_block_allocation_threshold + 1;
 
         assert!(alloc.young_block_allocation_threshold_exceeded());
     }
@@ -520,8 +515,8 @@ mod tests {
 
         assert_eq!(alloc.mature_block_allocation_threshold_exceeded(), false);
 
-        alloc.mature_block_allocations = alloc.mature_block_allocation_threshold +
-            1;
+        alloc.mature_block_allocations =
+            alloc.mature_block_allocation_threshold + 1;
 
         assert!(alloc.mature_block_allocation_threshold_exceeded());
     }
@@ -551,7 +546,8 @@ mod tests {
     #[test]
     fn test_copy_object() {
         let mut alloc = local_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
+        let pointer =
+            alloc.allocate_without_prototype(object_value::float(5.0));
         let copy = alloc.copy_object(pointer);
 
         assert!(copy.is_young());

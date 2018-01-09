@@ -7,10 +7,10 @@ use std::ops::Drop;
 use std::ptr;
 use std::heap::{Alloc, Heap, Layout};
 
-use immix::bitmap::{Bitmap, ObjectMap, LineMap};
+use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::bucket::Bucket;
 use object::Object;
-use object_pointer::{RawObjectPointer, ObjectPointer};
+use object_pointer::{ObjectPointer, RawObjectPointer};
 
 /// The number of bytes in a block.
 pub const BLOCK_SIZE: usize = 32 * 1024;
@@ -40,7 +40,8 @@ pub const OBJECT_START_SLOT: usize = LINE_SIZE / BYTES_PER_OBJECT;
 pub const LINE_START_SLOT: usize = 1;
 
 /// The offset (in bytes) of the first object in a block.
-pub const FIRST_OBJECT_BYTE_OFFSET: usize = OBJECT_START_SLOT * BYTES_PER_OBJECT;
+pub const FIRST_OBJECT_BYTE_OFFSET: usize =
+    OBJECT_START_SLOT * BYTES_PER_OBJECT;
 
 /// The mask to apply to go from a pointer to the mark bitmap's start.
 pub const OBJECT_BITMAP_MASK: isize = !(BLOCK_SIZE as isize - 1);
@@ -281,8 +282,8 @@ impl Block {
     /// Finalizes all unmarked objects.
     pub fn finalize(&mut self) {
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
-            if self.finalize_bitmap.is_set(index) &&
-                !self.marked_objects_bitmap.is_set(index)
+            if self.finalize_bitmap.is_set(index)
+                && !self.marked_objects_bitmap.is_set(index)
             {
                 unsafe {
                     let ptr = self.lines.offset(index as isize);
@@ -396,7 +397,6 @@ mod tests {
         assert_eq!(header.block().holes, 1);
     }
 
-
     #[test]
     fn test_block_header_block_mut() {
         let mut block = Block::new();
@@ -499,19 +499,29 @@ mod tests {
         assert!(block.free_pointer == block.start_address());
 
         assert!(block.bump_allocate(obj).get().value.is_float());
-        assert!(block.free_pointer == unsafe { block.start_address().offset(1) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(1) }
+        );
 
         block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(block.free_pointer == unsafe { block.start_address().offset(2) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(2) }
+        );
 
         block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(block.free_pointer == unsafe { block.start_address().offset(3) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(3) }
+        );
 
         block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(4) }
+        );
 
         block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(block.free_pointer == unsafe { block.start_address().offset(5) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(5) }
+        );
 
         assert!(block.finalize_bitmap.is_set(4));
         assert_eq!(block.finalize_bitmap.is_set(5), false);
@@ -554,7 +564,9 @@ mod tests {
         block.used_lines_bitmap.set(1);
         block.recycle();
 
-        assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(4) }
+        );
         assert!(block.end_pointer == block.end_address());
 
         // first line is available, followed by a used line
@@ -563,7 +575,9 @@ mod tests {
         block.recycle();
 
         assert!(block.free_pointer == block.start_address());
-        assert!(block.end_pointer == unsafe { block.start_address().offset(4) });
+        assert!(
+            block.end_pointer == unsafe { block.start_address().offset(4) }
+        );
     }
 
     #[test]
@@ -598,10 +612,9 @@ mod tests {
 
         block.find_available_hole_starting_at(1);
 
-        assert_eq!(
-            block.free_pointer,
-            unsafe { block.start_address().offset(8) }
-        );
+        assert_eq!(block.free_pointer, unsafe {
+            block.start_address().offset(8)
+        });
     }
 
     #[test]
@@ -631,8 +644,8 @@ mod tests {
             block.start_address().offset(2 * OBJECTS_PER_LINE as isize)
         };
 
-        let end_pointer = (block.end_address() as usize - LINE_SIZE) as
-            *mut Object;
+        let end_pointer =
+            (block.end_address() as usize - LINE_SIZE) as *mut Object;
 
         assert!(block.free_pointer == start_pointer);
         assert!(block.end_pointer == end_pointer);

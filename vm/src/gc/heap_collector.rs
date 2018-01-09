@@ -50,11 +50,11 @@ pub fn trace(
     mature: bool,
 ) -> TraceResult {
     let mut result = if move_objects {
-        trace_mailbox_locals_with_moving(process, mature) +
-            trace_with_moving(process, mature)
+        trace_mailbox_locals_with_moving(process, mature)
+            + trace_with_moving(process, mature)
     } else {
-        trace_mailbox_locals_without_moving(process, mature) +
-            trace_without_moving(process, mature)
+        trace_mailbox_locals_without_moving(process, mature)
+            + trace_without_moving(process, mature)
     };
 
     if mature {
@@ -193,11 +193,10 @@ mod tests {
 
         let young = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         process.set_register(0, young);
         process.set_register(1, mature);
@@ -215,11 +214,10 @@ mod tests {
 
         let young = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         process.set_register(0, young);
         process.set_register(1, mature);
@@ -237,11 +235,10 @@ mod tests {
 
         let young = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         young.block_mut().fragmented = true;
 
@@ -261,11 +258,10 @@ mod tests {
 
         let young = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         young.block_mut().fragmented = true;
         mature.block_mut().fragmented = true;
@@ -286,9 +282,9 @@ mod tests {
 
         let local_data = process.local_data_mut();
 
-        let pointer1 = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let pointer1 = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         local_data.remembered_set.insert(pointer1);
 
@@ -307,9 +303,9 @@ mod tests {
 
         let local_data = process.local_data_mut();
 
-        let pointer1 = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let pointer1 = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         pointer1.block_mut().fragmented = true;
 
@@ -330,13 +326,13 @@ mod tests {
 
         let local_data = process.local_data_mut();
 
-        let pointer1 = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let pointer1 = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
-        let pointer2 = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let pointer2 = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         pointer2.mark();
 
@@ -355,9 +351,9 @@ mod tests {
         let young = process.allocate_empty();
         let local_data = process.local_data_mut();
 
-        let mature = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let mature = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         young.block_mut().fragmented = true;
 
@@ -381,9 +377,9 @@ mod tests {
         let young = process.allocate_empty();
         let local_data = process.local_data_mut();
 
-        let mature = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let mature = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         young.block_mut().fragmented = true;
 
@@ -407,9 +403,9 @@ mod tests {
         let young = process.allocate_empty();
         let local_data = process.local_data_mut();
 
-        let mature = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let mature = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         local_data.mailbox.send_from_self(young);
         local_data.mailbox.send_from_self(mature);
@@ -432,9 +428,9 @@ mod tests {
         let young = process.allocate_empty();
         let local_data = process.local_data_mut();
 
-        let mature = local_data.allocator.allocate_mature(
-            Object::new(object_value::none()),
-        );
+        let mature = local_data
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         local_data.mailbox.send_from_self(young);
         local_data.mailbox.send_from_self(mature);
@@ -457,11 +453,10 @@ mod tests {
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
         let new_block = Block::new(code, Binding::new(0), block.global_scope);
@@ -492,11 +487,10 @@ mod tests {
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
         let new_block = Block::new(code, Binding::new(0), block.global_scope);
@@ -527,11 +521,10 @@ mod tests {
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
         let new_block = Block::new(code, Binding::new(0), block.global_scope);
@@ -562,11 +555,10 @@ mod tests {
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
 
-        let mature = process.local_data_mut().allocator.allocate_mature(
-            Object::new(
-                object_value::none(),
-            ),
-        );
+        let mature = process
+            .local_data_mut()
+            .allocator
+            .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
         let new_block = Block::new(code, Binding::new(0), block.global_scope);

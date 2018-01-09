@@ -17,7 +17,9 @@ pub struct Chunk<T> {
 
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
-        let mut chunk = Chunk { vec: RawVec::with_capacity(capacity) };
+        let mut chunk = Chunk {
+            vec: RawVec::with_capacity(capacity),
+        };
 
         chunk.reset();
         chunk

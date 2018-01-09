@@ -11,7 +11,9 @@ unsafe impl<T> Send for DerefPointer<T> {}
 
 impl<T> DerefPointer<T> {
     pub fn new(value: &T) -> Self {
-        DerefPointer { pointer: value as *const T }
+        DerefPointer {
+            pointer: value as *const T,
+        }
     }
 }
 
@@ -31,7 +33,9 @@ impl<T> DerefMut for DerefPointer<T> {
 
 impl<T> Clone for DerefPointer<T> {
     fn clone(&self) -> DerefPointer<T> {
-        DerefPointer { pointer: self.pointer }
+        DerefPointer {
+            pointer: self.pointer,
+        }
     }
 }
 

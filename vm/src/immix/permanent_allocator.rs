@@ -92,7 +92,8 @@ mod tests {
     #[test]
     fn test_allocate_without_prototype() {
         let mut alloc = permanent_allocator();
-        let pointer = alloc.allocate_without_prototype(object_value::float(5.0));
+        let pointer =
+            alloc.allocate_without_prototype(object_value::float(5.0));
 
         assert!(pointer.get().prototype().is_none());
         assert!(pointer.get().value.is_float());

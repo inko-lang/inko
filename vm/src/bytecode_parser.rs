@@ -18,10 +18,10 @@ use std::fs::File;
 use std::mem;
 use num_bigint::BigInt;
 
-use catch_table::{CatchTable, CatchEntry};
+use catch_table::{CatchEntry, CatchTable};
 use compiled_code::CompiledCode;
 use object_pointer::ObjectPointer;
-use vm::instruction::{InstructionType, Instruction};
+use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
 macro_rules! parser_error {
@@ -247,7 +247,9 @@ fn read_code_vector<T: Read>(
     Ok(buff)
 }
 
-fn read_instruction<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Instruction> {
+fn read_instruction<T: Read>(
+    bytes: &mut Bytes<T>,
+) -> ParserResult<Instruction> {
     let ins_type: InstructionType = unsafe { mem::transmute(read_u8(bytes)?) };
 
     let args = read_u16_to_usize_vector!(T, bytes);
@@ -373,7 +375,7 @@ mod tests {
     use std::mem;
     use config::Config;
     use vm::instruction::InstructionType;
-    use vm::state::{State, RcState};
+    use vm::state::{RcState, State};
 
     fn state() -> RcState {
         State::new(Config::new())

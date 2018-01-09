@@ -364,9 +364,9 @@ impl Process {
     }
 
     pub fn prepare_for_collection(&self, mature: bool) -> bool {
-        self.local_data_mut().allocator.prepare_for_collection(
-            mature,
-        )
+        self.local_data_mut()
+            .allocator
+            .prepare_for_collection(mature)
     }
 
     pub fn reclaim_blocks(&self, mature: bool) {
@@ -382,16 +382,16 @@ impl Process {
         local_data.allocator.increment_young_ages();
         local_data.allocator.young_block_allocations = 0;
 
-        local_data.allocator.increment_young_threshold(
-            config.young_growth_factor,
-        );
+        local_data
+            .allocator
+            .increment_young_threshold(config.young_growth_factor);
 
         if mature {
             local_data.allocator.mature_block_allocations = 0;
 
-            local_data.allocator.increment_mature_threshold(
-                config.mature_growth_factor,
-            );
+            local_data
+                .allocator
+                .increment_mature_threshold(config.mature_growth_factor);
 
             local_data.mature_collections += 1;
         } else {
@@ -407,9 +407,10 @@ impl Process {
         local_data.mailbox.allocator.collect = false;
         local_data.mailbox.allocator.block_allocations = 0;
 
-        local_data.mailbox.allocator.increment_threshold(
-            config.mailbox_growth_factor,
-        );
+        local_data
+            .mailbox
+            .allocator
+            .increment_threshold(config.mailbox_growth_factor);
     }
 
     pub fn is_main(&self) -> bool {
@@ -499,7 +500,9 @@ mod tests {
         assert_eq!(local_data.young_collections, 0);
         assert_eq!(local_data.mature_collections, 1);
 
-        assert!(allocator.young_block_allocation_threshold > old_young_threshold);
+        assert!(
+            allocator.young_block_allocation_threshold > old_young_threshold
+        );
 
         assert!(
             allocator.mature_block_allocation_threshold > old_mature_threshold

@@ -249,10 +249,8 @@ mod tests {
     #[test]
     fn test_intern_pointer_with_string() {
         let state = State::new(Config::new());
-        let string = state
-            .permanent_allocator
-            .lock()
-            .allocate_without_prototype(
+        let string =
+            state.permanent_allocator.lock().allocate_without_prototype(
                 object_value::interned_string("hello".to_string()),
             );
 

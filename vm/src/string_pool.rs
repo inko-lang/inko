@@ -20,7 +20,9 @@ pub struct StringPool {
 
 impl StringPointer {
     pub fn new(pointer: &String) -> Self {
-        StringPointer { raw: pointer as *const String }
+        StringPointer {
+            raw: pointer as *const String,
+        }
     }
 
     pub fn as_ref(&self) -> &String {
@@ -47,7 +49,9 @@ impl Hash for StringPointer {
 
 impl StringPool {
     pub fn new() -> Self {
-        StringPool { mapping: HashMap::new() }
+        StringPool {
+            mapping: HashMap::new(),
+        }
     }
 
     pub fn get(&self, string: &String) -> Option<ObjectPointer> {

@@ -18,7 +18,9 @@ pub struct GlobalAllocator {
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
     pub fn new() -> RcGlobalAllocator {
-        Arc::new(GlobalAllocator { blocks: Mutex::new(Vec::new()) })
+        Arc::new(GlobalAllocator {
+            blocks: Mutex::new(Vec::new()),
+        })
     }
 
     /// Requests a new free block from the pool

@@ -212,7 +212,13 @@ pub fn bigint_shift_left(
     prototype: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     if shift_with_ptr.is_in_u32_range() {
-        shift_big_integer!(process, to_shift_ptr, shift_with_ptr, prototype, shl)
+        shift_big_integer!(
+            process,
+            to_shift_ptr,
+            shift_with_ptr,
+            prototype,
+            shl
+        )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(
             process,
@@ -235,7 +241,13 @@ pub fn bigint_shift_right(
     prototype: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     if shift_with_ptr.is_in_u32_range() {
-        shift_big_integer!(process, to_shift_ptr, shift_with_ptr, prototype, shr)
+        shift_big_integer!(
+            process,
+            to_shift_ptr,
+            shift_with_ptr,
+            prototype,
+            shr
+        )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(
             process,

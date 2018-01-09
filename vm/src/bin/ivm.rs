@@ -1,5 +1,5 @@
-extern crate libinko;
 extern crate getopts;
+extern crate libinko;
 
 use std::io::{self, Write};
 use std::env;

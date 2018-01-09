@@ -159,7 +159,11 @@ impl Object {
     }
 
     /// Adds a new attribute to the current object.
-    pub fn add_attribute(&mut self, name: ObjectPointer, object: ObjectPointer) {
+    pub fn add_attribute(
+        &mut self,
+        name: ObjectPointer,
+        object: ObjectPointer,
+    ) {
         self.allocate_attributes_map();
 
         self.attributes_map_mut().unwrap().insert(name, object);
@@ -213,15 +217,15 @@ impl Object {
         }
 
         match self.value {
-            ObjectValue::Array(ref array) => {
-                for pointer in array.iter() {
-                    pointers.push(pointer.pointer());
-                }
-            }
+            ObjectValue::Array(ref array) => for pointer in array.iter() {
+                pointers.push(pointer.pointer());
+            },
             ObjectValue::Block(ref block) => {
                 block.binding.push_pointers(pointers)
             }
-            ObjectValue::Binding(ref binding) => binding.push_pointers(pointers),
+            ObjectValue::Binding(ref binding) => {
+                binding.push_pointers(pointers)
+            }
             _ => {}
         }
     }

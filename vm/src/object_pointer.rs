@@ -7,7 +7,7 @@ use num_bigint::BigInt;
 
 use immix::bitmap::Bitmap;
 use immix::block;
-use immix::bucket::{MATURE, MAILBOX, PERMANENT};
+use immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
 
 use binding::RcBinding;
@@ -98,7 +98,9 @@ fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
 
 impl ObjectPointer {
     pub fn new(pointer: RawObjectPointer) -> ObjectPointer {
-        ObjectPointer { raw: TaggedPointer::new(pointer) }
+        ObjectPointer {
+            raw: TaggedPointer::new(pointer),
+        }
     }
 
     /// Creates a new tagged integer.
@@ -118,7 +120,9 @@ impl ObjectPointer {
 
     /// Creates a new null pointer.
     pub fn null() -> ObjectPointer {
-        ObjectPointer { raw: TaggedPointer::null() }
+        ObjectPointer {
+            raw: TaggedPointer::null(),
+        }
     }
 
     /// Returns a forwarding pointer to the current pointer.
@@ -173,7 +177,8 @@ impl ObjectPointer {
             // Since object pointers are _usually_ immutable we have to use an
             // extra layer of indirection to update "self".
             unsafe {
-                let self_ptr = self as *const ObjectPointer as *mut ObjectPointer;
+                let self_ptr =
+                    self as *const ObjectPointer as *mut ObjectPointer;
                 let self_ref = &mut *self_ptr;
 
                 self_ref.raw = raw_proto.without_tags();
@@ -184,17 +189,17 @@ impl ObjectPointer {
     /// Returns an immutable reference to the Object.
     #[inline(always)]
     pub fn get(&self) -> &Object {
-        self.raw.as_ref().expect(
-            "ObjectPointer::get() called on a NULL pointer",
-        )
+        self.raw
+            .as_ref()
+            .expect("ObjectPointer::get() called on a NULL pointer")
     }
 
     /// Returns a mutable reference to the Object.
     #[inline(always)]
     pub fn get_mut(&self) -> &mut Object {
-        self.raw.as_mut().expect(
-            "ObjectPointer::get_mut() called on a NULL pointer",
-        )
+        self.raw
+            .as_mut()
+            .expect("ObjectPointer::get_mut() called on a NULL pointer")
     }
 
     /// Returns true if the current pointer is a null pointer.
@@ -205,24 +210,26 @@ impl ObjectPointer {
 
     /// Returns true if the current pointer points to a permanent object.
     pub fn is_permanent(&self) -> bool {
-        self.is_tagged_integer() ||
-            self.block().bucket().unwrap().age == PERMANENT
+        self.is_tagged_integer()
+            || self.block().bucket().unwrap().age == PERMANENT
     }
 
     /// Returns true if the current pointer points to a mature object.
     pub fn is_mature(&self) -> bool {
-        !self.is_tagged_integer() && self.block().bucket().unwrap().age == MATURE
+        !self.is_tagged_integer()
+            && self.block().bucket().unwrap().age == MATURE
     }
 
     /// Returns true if the current pointer points to a mailbox object.
     pub fn is_mailbox(&self) -> bool {
-        !self.is_tagged_integer() && self.block().bucket().unwrap().age == MAILBOX
+        !self.is_tagged_integer()
+            && self.block().bucket().unwrap().age == MAILBOX
     }
 
     /// Returns true if the current pointer points to a young object.
     pub fn is_young(&self) -> bool {
-        !self.is_tagged_integer() &&
-            self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
+        !self.is_tagged_integer()
+            && self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
     pub fn mark_for_finalization(&self) {
@@ -443,7 +450,12 @@ impl ObjectPointer {
     def_value_getter!(string_value, get, as_string, &String);
 
     def_value_getter!(array_value, get, as_array, &Vec<ObjectPointer>);
-    def_value_getter!(array_value_mut, get_mut, as_array_mut, &mut Vec<ObjectPointer>);
+    def_value_getter!(
+        array_value_mut,
+        get_mut,
+        as_array_mut,
+        &mut Vec<ObjectPointer>
+    );
 
     def_value_getter!(file_value, get, as_file, &fs::File);
     def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut fs::File);
@@ -455,7 +467,9 @@ impl ObjectPointer {
 
 impl ObjectPointerPointer {
     pub fn new(pointer: &ObjectPointer) -> ObjectPointerPointer {
-        ObjectPointerPointer { raw: pointer as *const ObjectPointer }
+        ObjectPointerPointer {
+            raw: pointer as *const ObjectPointer,
+        }
     }
 
     #[inline(always)]
@@ -499,7 +513,7 @@ mod tests {
     use config::Config;
     use immix::bitmap::Bitmap;
     use immix::block::Block;
-    use immix::bucket::{Bucket, MATURE, MAILBOX, PERMANENT};
+    use immix::bucket::{Bucket, MAILBOX, MATURE, PERMANENT};
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
     use object::{Object, ObjectStatus};
@@ -532,11 +546,10 @@ mod tests {
             bucket.add_block(Block::new());
         }
 
-        bucket.current_block_mut().unwrap().bump_allocate(
-            Object::new(
-                ObjectValue::None,
-            ),
-        )
+        bucket
+            .current_block_mut()
+            .unwrap()
+            .bump_allocate(Object::new(ObjectValue::None))
     }
 
     #[test]
@@ -680,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_resolve_forwarding_pointer_in_vector_with_pointer_pointers(
-){
+) {
         let proto = Object::new(ObjectValue::None);
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));
@@ -917,10 +930,10 @@ mod tests {
         let name = state.intern(&"foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
-        state.integer_prototype.get_mut().add_attribute(
-            name,
-            method,
-        );
+        state
+            .integer_prototype
+            .get_mut()
+            .add_attribute(name, method);
 
         assert!(ptr.lookup_attribute(&state, &name).unwrap() == method);
     }

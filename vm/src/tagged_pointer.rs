@@ -34,7 +34,9 @@ impl<T> TaggedPointer<T> {
 
     /// Returns a null pointer.
     pub fn null() -> TaggedPointer<T> {
-        TaggedPointer { raw: ptr::null::<T>() as *mut T }
+        TaggedPointer {
+            raw: ptr::null::<T>() as *mut T,
+        }
     }
 
     /// Returns the wrapped pointer without any tags.

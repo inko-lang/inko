@@ -187,9 +187,9 @@ impl Bucket {
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        for mut block in self.blocks.drain(0..).chain(
-            self.recyclable_blocks.drain(0..),
-        )
+        for mut block in self.blocks
+            .drain(0..)
+            .chain(self.recyclable_blocks.drain(0..))
         {
             block.update_line_map();
             block.finalize();
@@ -201,10 +201,8 @@ impl Bucket {
                 block.update_hole_count();
 
                 if block.holes > 0 {
-                    self.mark_histogram.increment(
-                        block.holes,
-                        block.marked_lines_count(),
-                    );
+                    self.mark_histogram
+                        .increment(block.holes, block.marked_lines_count());
 
                     // Recyclable blocks should be stored separately.
                     if !block.fragmented {
@@ -237,9 +235,9 @@ impl Bucket {
         let mut required: isize = 0;
         let evacuate = self.should_evacuate();
 
-        for block in self.blocks.iter_mut().chain(
-            self.recyclable_blocks.iter_mut(),
-        )
+        for block in self.blocks
+            .iter_mut()
+            .chain(self.recyclable_blocks.iter_mut())
         {
             if evacuate && block.holes > 0 {
                 let count = block.available_lines_count();
@@ -260,8 +258,8 @@ impl Bucket {
                 if let Some(bin) = iter.next() {
                     required += self.mark_histogram.get(bin).unwrap() as isize;
 
-                    available -= self.available_histogram.get(bin).unwrap() as
-                        isize;
+                    available -=
+                        self.available_histogram.get(bin).unwrap() as isize;
 
                     min_bin = Some(bin);
                 } else {
@@ -300,9 +298,9 @@ impl Bucket {
     pub fn all_blocks_mut(
         &mut self,
     ) -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
-        self.blocks.iter_mut().chain(
-            self.recyclable_blocks.iter_mut(),
-        )
+        self.blocks
+            .iter_mut()
+            .chain(self.recyclable_blocks.iter_mut())
     }
 }
 
@@ -311,7 +309,7 @@ mod tests {
     use super::*;
     use immix::block::Block;
     use immix::bitmap::Bitmap;
-    use immix::global_allocator::{RcGlobalAllocator, GlobalAllocator};
+    use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
     use object::Object;
     use object_value;
 
@@ -437,7 +435,9 @@ mod tests {
 
         let block = bucket.current_block().unwrap();
 
-        assert!(block.free_pointer == unsafe { block.start_address().offset(4) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(4) }
+        );
     }
 
     #[test]
@@ -453,11 +453,15 @@ mod tests {
 
         let block = pointer.block();
 
-        assert!(block.free_pointer == unsafe { block.start_address().offset(1) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(1) }
+        );
 
         bucket.allocate(&global_alloc, Object::new(object_value::none()));
 
-        assert!(block.free_pointer == unsafe { block.start_address().offset(2) });
+        assert!(
+            block.free_pointer == unsafe { block.start_address().offset(2) }
+        );
     }
 
     #[test]
@@ -475,16 +479,17 @@ mod tests {
         assert_eq!(bucket.recyclable_blocks.len(), 1);
         assert_eq!(bucket.blocks.len(), 0);
 
-        let (new_block, new_pointer) =
-            bucket.allocate(&global_alloc, Object::new(object_value::float(4.0)));
+        let (new_block, new_pointer) = bucket
+            .allocate(&global_alloc, Object::new(object_value::float(4.0)));
 
         assert!(new_block);
         assert!(pointer.get().value.is_none());
         assert!(new_pointer.get().value.is_float());
 
         assert!(
-            bucket.blocks[0].free_pointer ==
-                unsafe { bucket.blocks[0].start_address().offset(5) }
+            bucket.blocks[0].free_pointer == unsafe {
+                bucket.blocks[0].start_address().offset(5)
+            }
         );
     }
 

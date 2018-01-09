@@ -66,7 +66,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::{self, JoinHandle, Builder};
+use std::thread::{self, Builder, JoinHandle};
 
 use queue::{Queue, RcQueue};
 

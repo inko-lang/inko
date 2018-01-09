@@ -6,9 +6,9 @@
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::sync::{Mutex, Condvar};
+use std::sync::{Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 use process::RcProcess;
 use vm::state::RcState;
@@ -168,11 +168,13 @@ impl SuspensionList {
         let inner = self.inner_mut();
 
         if inner.len() > 0 {
-            inner.retain(|entry| if entry.should_reschedule() {
-                state.process_pools.schedule(entry.process.clone());
-                false
-            } else {
-                true
+            inner.retain(|entry| {
+                if entry.should_reschedule() {
+                    state.process_pools.schedule(entry.process.clone());
+                    false
+                } else {
+                    true
+                }
             });
         }
     }

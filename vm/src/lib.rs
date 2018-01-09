@@ -1,4 +1,5 @@
-#![cfg_attr(feature="system-allocator", feature(alloc_system, global_allocator))]
+#![cfg_attr(feature = "system-allocator",
+            feature(alloc_system, global_allocator))]
 #![feature(allocator_api, alloc)]
 
 #[cfg(feature = "system-allocator")]
@@ -12,12 +13,12 @@ use alloc_system::System;
 static A: System = System;
 
 extern crate alloc;
-extern crate num_cpus;
-extern crate rayon;
-extern crate parking_lot;
+extern crate colored;
 extern crate fnv;
 extern crate num_bigint;
-extern crate colored;
+extern crate num_cpus;
+extern crate parking_lot;
+extern crate rayon;
 
 pub mod macros;
 

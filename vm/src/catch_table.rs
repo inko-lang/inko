@@ -40,6 +40,8 @@ impl CatchEntry {
 
 impl CatchTable {
     pub fn new() -> Self {
-        CatchTable { entries: Vec::new() }
+        CatchTable {
+            entries: Vec::new(),
+        }
     }
 }

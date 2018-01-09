@@ -79,7 +79,8 @@ impl MailboxAllocator {
 
     /// Increments the allocation threshold by the given factor.
     pub fn increment_threshold(&mut self, factor: f64) {
-        let threshold = (self.block_allocation_threshold as f64 * factor).ceil();
+        let threshold =
+            (self.block_allocation_threshold as f64 * factor).ceil();
 
         self.block_allocation_threshold = threshold as usize;
     }

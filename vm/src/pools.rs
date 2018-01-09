@@ -36,8 +36,7 @@ impl Pools {
         } else {
             panic!(
                 "The pool ID ({}) for process {} is invalid",
-                process.pool_id,
-                process.pid
+                process.pool_id, process.pid
             );
         }
     }

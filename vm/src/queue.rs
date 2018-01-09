@@ -8,7 +8,7 @@
 //! Values are processed in FIFO order.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, Condvar};
+use std::sync::{Arc, Condvar, Mutex};
 
 pub struct Queue<T> {
     values: Mutex<VecDeque<T>>,
