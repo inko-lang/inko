@@ -22,6 +22,7 @@ extern crate rayon;
 
 pub mod macros;
 
+pub mod arc_without_weak;
 pub mod binding;
 pub mod block;
 pub mod bytecode_parser;

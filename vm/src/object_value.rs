@@ -6,12 +6,12 @@
 
 use std::fs;
 use std::mem;
-use std::sync::Arc;
 use num_bigint::BigInt;
 
 use binding::RcBinding;
 use block::Block;
 use object_pointer::ObjectPointer;
+use arc_without_weak::ArcWithoutWeak;
 
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
@@ -20,7 +20,7 @@ pub enum ObjectValue {
 
     /// Strings use an Arc so they can be sent to other processes without
     /// requiring a full copy of the data.
-    String(Arc<String>),
+    String(ArcWithoutWeak<String>),
 
     /// An interned string is a string allocated on the permanent space. For
     /// every unique interned string there is only one object allocated.
@@ -218,7 +218,7 @@ pub fn float(value: f64) -> ObjectValue {
 }
 
 pub fn string(value: String) -> ObjectValue {
-    ObjectValue::String(Arc::new(value))
+    ObjectValue::String(ArcWithoutWeak::new(value))
 }
 
 pub fn interned_string(value: String) -> ObjectValue {
@@ -252,7 +252,6 @@ pub fn integer(value: i64) -> ObjectValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use std::fs::File;
     use deref_pointer::DerefPointer;
     use block::Block;
@@ -281,7 +280,9 @@ mod tests {
 
     #[test]
     fn test_is_string() {
-        assert!(ObjectValue::String(Arc::new(String::new())).is_string());
+        assert!(
+            ObjectValue::String(ArcWithoutWeak::new(String::new())).is_string()
+        );
         assert_eq!(ObjectValue::None.is_string(), false);
     }
 
@@ -303,7 +304,8 @@ mod tests {
     #[test]
     fn test_is_interned_string_with_regular_string() {
         assert_eq!(
-            ObjectValue::String(Arc::new(String::new())).is_interned_string(),
+            ObjectValue::String(ArcWithoutWeak::new(String::new()))
+                .is_interned_string(),
             false
         );
     }
@@ -396,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_as_string_with_string() {
-        let string = Arc::new("test".to_string());
+        let string = ArcWithoutWeak::new("test".to_string());
         let value = ObjectValue::String(string);
         let result = value.as_string();
 
