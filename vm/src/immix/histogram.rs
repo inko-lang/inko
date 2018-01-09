@@ -3,11 +3,15 @@
 //! A Histogram is used to track the distribution of marked and available lines
 //! across Immix blocks. Each bin represents the number of holes with the values
 //! representing the number of marked lines.
+//!
+//! Histograms are of a fixed size and use atomic operations for incrementing
+//! bucket values, allowing concurrent use of the same histogram.
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_VALUE: usize = 0;
 
 pub struct Histogram {
-    values: Vec<usize>,
+    values: Vec<AtomicUsize>,
 }
 
 /// Iterator for traversing the most fragmented bins in a histogram.
@@ -18,27 +22,31 @@ pub struct HistogramIterator<'a> {
 
 impl Histogram {
     pub fn new(capacity: usize) -> Self {
-        Histogram {
-            values: vec![DEFAULT_VALUE; capacity],
+        let mut vec = Vec::with_capacity(capacity);
+
+        for index in 0..vec.capacity() {
+            vec.insert(index, AtomicUsize::new(DEFAULT_VALUE));
         }
+
+        Histogram { values: vec }
     }
 
     /// Increments a bin by the given value.
     #[inline]
-    pub fn increment(&mut self, index: usize, value: usize) {
-        self.values[index] += value;
+    pub fn increment(&self, index: usize, value: usize) {
+        self.values[index].fetch_add(value, Ordering::Relaxed);
     }
 
     /// Returns the value for the given bin.
     #[inline]
     pub fn get(&self, index: usize) -> usize {
-        self.values[index]
+        self.values[index].load(Ordering::Relaxed)
     }
 
     /// Returns the most fragmented bin.
     pub fn most_fragmented_bin(&self) -> usize {
         for (bin, value) in self.values.iter().enumerate().rev() {
-            if *value > DEFAULT_VALUE {
+            if value.load(Ordering::Relaxed) > DEFAULT_VALUE {
                 return bin;
             }
         }
@@ -58,7 +66,7 @@ impl Histogram {
     /// Removes all values from the histogram.
     pub fn reset(&mut self) {
         for index in 0..self.values.len() {
-            self.values[index] = DEFAULT_VALUE;
+            self.values[index].store(DEFAULT_VALUE, Ordering::Relaxed);
         }
     }
 }
@@ -88,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_increment_within_bounds() {
-        let mut histo = Histogram::new(1);
+        let histo = Histogram::new(1);
 
         histo.increment(0, 10);
 
@@ -97,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_increment_successive_within_bounds() {
-        let mut histo = Histogram::new(1);
+        let histo = Histogram::new(1);
 
         histo.increment(0, 5);
         histo.increment(0, 5);
@@ -108,14 +116,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_increment_out_of_bounds() {
-        let mut histo = Histogram::new(1);
+        let histo = Histogram::new(1);
 
         histo.increment(2, 10);
     }
 
     #[test]
     fn test_most_fragmented_bin() {
-        let mut histo = Histogram::new(2);
+        let histo = Histogram::new(2);
 
         histo.increment(0, 5);
         histo.increment(1, 7);
@@ -125,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_iter() {
-        let mut histo = Histogram::new(3);
+        let histo = Histogram::new(3);
 
         histo.increment(0, 10);
         histo.increment(1, 20);
