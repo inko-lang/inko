@@ -192,12 +192,13 @@ impl Bucket {
             .chain(self.recyclable_blocks.drain(0..))
         {
             block.update_line_map();
-            block.finalize();
 
             if block.is_empty() {
                 block.reset();
                 reclaim.push(block);
             } else {
+                block.finalize();
+
                 block.update_hole_count();
 
                 if block.holes > 0 {
