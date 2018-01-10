@@ -32,13 +32,11 @@ impl Histogram {
     }
 
     /// Increments a bin by the given value.
-    #[inline]
     pub fn increment(&self, index: usize, value: usize) {
         self.values[index].fetch_add(value, Ordering::Relaxed);
     }
 
     /// Returns the value for the given bin.
-    #[inline]
     pub fn get(&self, index: usize) -> usize {
         self.values[index].load(Ordering::Relaxed)
     }
