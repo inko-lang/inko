@@ -54,6 +54,9 @@ pub struct Config {
     /// The block allocation growth factor for the mailbox space of every
     /// process..
     pub mailbox_growth_factor: f64,
+
+    /// Enables or disables parallel finalization of garbage collected objects.
+    pub parallel_finalization: bool,
 }
 
 impl Config {
@@ -70,6 +73,7 @@ impl Config {
             young_growth_factor: 1.5,
             mature_growth_factor: 1.5,
             mailbox_growth_factor: 1.5,
+            parallel_finalization: !cfg!(feature = "system-allocator"),
         }
     }
 
@@ -100,6 +104,13 @@ impl Config {
             mailbox_growth_factor,
             "GC_MAILBOX_GROWTH_FACTOR",
             f64
+        );
+
+        set_from_env!(
+            self,
+            parallel_finalization,
+            "PARALLEL_FINALIZATION",
+            bool
         );
     }
 

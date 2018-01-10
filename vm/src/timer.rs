@@ -15,6 +15,14 @@ impl Timer {
         }
     }
 
+    pub fn now() -> Self {
+        let mut timer = Timer::new();
+
+        timer.start();
+
+        timer
+    }
+
     /// Returns the duration in nanoseconds.
     ///
     /// Since this method returns the time as a u64 care should be taken to
@@ -39,6 +47,10 @@ impl Timer {
     /// Returns the duration in seconds.
     pub fn duration_sec(&self) -> f64 {
         self.duration_nanosec() as f64 / 1000000000.0
+    }
+
+    pub fn set_start_time(&mut self, time: Instant) {
+        self.start = Some(time);
     }
 
     pub fn start(&mut self) {
@@ -66,6 +78,13 @@ mod tests {
 
         assert!(timer.start.is_none());
         assert!(timer.stop.is_none());
+    }
+
+    #[test]
+    fn test_now() {
+        let timer = Timer::now();
+
+        assert!(timer.start.is_some());
     }
 
     #[test]
@@ -99,6 +118,15 @@ mod tests {
         timer.stop();
 
         assert!(timer.duration_sec() >= 0.01);
+    }
+
+    #[test]
+    fn test_set_start_time() {
+        let mut timer = Timer::new();
+
+        timer.set_start_time(Instant::now());
+
+        assert!(timer.start.is_some());
     }
 
     #[test]

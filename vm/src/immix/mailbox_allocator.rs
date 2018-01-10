@@ -10,6 +10,7 @@ use immix::copy_object::CopyObject;
 use immix::bucket::{Bucket, MAILBOX};
 use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
+use immix::finalization_list::FinalizationList;
 
 use object::Object;
 use object_pointer::ObjectPointer;
@@ -59,10 +60,12 @@ impl MailboxAllocator {
     }
 
     /// Returns unused blocks to the global allocator.
-    pub fn reclaim_blocks(&mut self) {
-        for block in self.bucket.reclaim_blocks() {
-            self.global_allocator.add_block(block);
-        }
+    pub fn reclaim_blocks(&mut self) -> FinalizationList {
+        let (reclaim, finalize) = self.bucket.reclaim_blocks();
+
+        self.global_allocator.add_blocks(reclaim);
+
+        finalize
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {

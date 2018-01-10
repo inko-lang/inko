@@ -10,6 +10,7 @@ use compiled_code::CompiledCodePointer;
 use config::Config;
 use execution_context::ExecutionContext;
 use global_scope::GlobalScopePointer;
+use immix::finalization_list::FinalizationList;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
@@ -369,8 +370,8 @@ impl Process {
             .prepare_for_collection(mature)
     }
 
-    pub fn reclaim_blocks(&self, mature: bool) {
-        self.local_data_mut().allocator.reclaim_blocks(mature);
+    pub fn reclaim_blocks(&self, mature: bool) -> FinalizationList {
+        self.local_data_mut().allocator.reclaim_blocks(mature)
     }
 
     pub fn update_collection_statistics(&self, config: &Config, mature: bool) {

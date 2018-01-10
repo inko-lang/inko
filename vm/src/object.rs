@@ -235,10 +235,17 @@ impl Object {
         let mut new_obj =
             Object::with_prototype(self.value.take(), self.prototype);
 
-        new_obj.attributes = self.attributes;
-        self.attributes = ptr::null::<AttributesMap>();
+        new_obj.attributes = self.take_attributes();
 
         new_obj
+    }
+
+    pub fn take_attributes(&mut self) -> *const AttributesMap {
+        let attrs = self.attributes;
+
+        self.attributes = ptr::null::<AttributesMap>();
+
+        attrs
     }
 
     /// Forwards this object to the given pointer.

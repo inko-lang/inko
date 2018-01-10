@@ -8,16 +8,9 @@ use gc::trace_result::TraceResult;
 use process::RcProcess;
 use vm::state::RcState;
 
-pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
+pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     let collect_mature = process.should_collect_mature_generation();
 
-    let mut profile = if collect_mature {
-        Profile::full()
-    } else {
-        Profile::young()
-    };
-
-    profile.total.start();
     profile.prepare.start();
 
     let move_objects = process.prepare_for_collection(collect_mature);
@@ -30,17 +23,21 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
     profile.trace.stop();
     profile.reclaim.start();
 
-    process.reclaim_blocks(collect_mature);
+    let finalize = process.reclaim_blocks(collect_mature);
+
     process.update_collection_statistics(&vm_state.config, collect_mature);
 
     profile.reclaim.stop();
-    profile.total.stop();
-
-    profile.populate_tracing_statistics(trace_result);
+    profile.suspended.stop();
 
     vm_state.process_pools.schedule(process.clone());
 
-    profile
+    profile.finalize.start();
+    collector::finalize(finalize, vm_state);
+    profile.finalize.stop();
+
+    profile.total.stop();
+    profile.populate_tracing_statistics(trace_result);
 }
 
 /// Traces through and marks all reachable objects.
@@ -175,10 +172,11 @@ mod tests {
         let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
         let pointer = process.allocate_empty();
+        let mut profile = Profile::young();
 
         process.set_register(0, pointer);
 
-        let profile = collect(&state, &process);
+        collect(&state, &process, &mut profile);
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);

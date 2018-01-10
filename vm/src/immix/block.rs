@@ -9,6 +9,7 @@ use std::heap::{Alloc, Heap, Layout};
 
 use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::bucket::Bucket;
+use immix::finalization_list::FinalizationList;
 use object::Object;
 use object_pointer::{ObjectPointer, RawObjectPointer};
 
@@ -265,8 +266,7 @@ impl Block {
 
     /// Resets the block to a pristine state.
     ///
-    /// Allocated objects are _not_ released as this is up to an allocator to
-    /// take care of.
+    /// Allocated objects are not released or finalized automatically.
     pub fn reset(&mut self) {
         self.fragmented = false;
 
@@ -279,26 +279,40 @@ impl Block {
 
         self.used_lines_bitmap.reset();
         self.marked_objects_bitmap.reset();
-
-        self.finalize();
         self.finalize_bitmap.reset();
     }
 
-    /// Finalizes all unmarked objects.
-    pub fn finalize(&mut self) {
+    pub fn push_pointers_to_finalize(
+        &mut self,
+        pointers: &mut FinalizationList,
+    ) {
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
             if self.finalize_bitmap.is_set(index)
                 && !self.marked_objects_bitmap.is_set(index)
             {
-                unsafe {
-                    let ptr = self.lines.offset(index as isize);
+                let mut object =
+                    unsafe { &mut *self.lines.offset(index as isize) };
 
-                    ptr::drop_in_place(ptr);
+                let attributes = object.take_attributes();
+
+                pointers.push_value(object.value.take());
+
+                if !attributes.is_null() {
+                    pointers.push_attributes(attributes);
                 }
 
                 self.finalize_bitmap.unset(index);
             }
         }
+    }
+
+    /// Finalizes all unmarked objects right away.
+    pub fn finalize(&mut self) {
+        let mut pointers = FinalizationList::new();
+
+        self.push_pointers_to_finalize(&mut pointers);
+
+        pointers.finalize();
     }
 
     /// Updates the number of holes in this block.

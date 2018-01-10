@@ -4,6 +4,8 @@ use gc::trace_result::TraceResult;
 use process::RcProcess;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use object::ObjectStatus;
+use vm::state::RcState;
+use immix::finalization_list::FinalizationList;
 
 /// Macro used for conditionally moving objects or resolving forwarding
 /// pointers.
@@ -26,6 +28,15 @@ macro_rules! move_object {
 macro_rules! can_skip_pointer {
     ($pointer: expr, $mature: expr) =>
         ( $pointer.is_marked() || !$mature && $pointer.is_mature() );
+}
+
+/// Finalizes a list of objects.
+pub fn finalize(pointers: FinalizationList, state: &RcState) {
+    if state.config.parallel_finalization {
+        pointers.parallel_finalize();
+    } else {
+        pointers.finalize();
+    }
 }
 
 /// Promotes an object to the mature generation.

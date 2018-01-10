@@ -1,5 +1,4 @@
 //! Functions for performing garbage collection of a process mailbox.
-
 use gc::collector;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
@@ -7,11 +6,7 @@ use mailbox::Mailbox;
 use process::RcProcess;
 use vm::state::RcState;
 
-pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
-    let mut profile = Profile::mailbox();
-
-    profile.total.start();
-
+pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     let local_data = process.local_data_mut();
     let ref mut mailbox = local_data.mailbox;
 
@@ -28,18 +23,22 @@ pub fn collect(vm_state: &RcState, process: &RcProcess) -> Profile {
     profile.trace.stop();
     profile.reclaim.start();
 
-    mailbox.allocator.reclaim_blocks();
+    let finalize = mailbox.allocator.reclaim_blocks();
+
     process.update_mailbox_collection_statistics(&vm_state.config);
     drop(lock); // unlock as soon as possible
 
     profile.reclaim.stop();
-    profile.total.stop();
-
-    profile.populate_tracing_statistics(trace_result);
+    profile.suspended.stop();
 
     vm_state.process_pools.schedule(process.clone());
 
-    profile
+    profile.finalize.start();
+    collector::finalize(finalize, vm_state);
+    profile.finalize.stop();
+
+    profile.total.stop();
+    profile.populate_tracing_statistics(trace_result);
 }
 
 pub fn trace(
@@ -67,7 +66,7 @@ mod tests {
     fn test_collect() {
         let (_machine, _block, process) = setup();
         let state = State::new(Config::new());
-
+        let mut profile = Profile::young();
         let local_data = process.local_data_mut();
 
         local_data
@@ -76,7 +75,7 @@ mod tests {
 
         local_data.mailbox.allocator.prepare_for_collection();
 
-        let profile = collect(&state, &process);
+        collect(&state, &process, &mut profile);
 
         assert!(local_data.mailbox.external[0].is_marked());
 

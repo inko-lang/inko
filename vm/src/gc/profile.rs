@@ -37,6 +37,12 @@ pub struct Profile {
 
     /// The time spent reclaiming blocks.
     pub reclaim: Timer,
+
+    /// The time spent finalizing native data such as strings.
+    pub finalize: Timer,
+
+    /// The total time the process was suspended.
+    pub suspended: Timer,
 }
 
 impl Profile {
@@ -46,10 +52,12 @@ impl Profile {
             marked: 0,
             evacuated: 0,
             promoted: 0,
-            total: Timer::new(),
+            total: Timer::now(),
             prepare: Timer::new(),
             trace: Timer::new(),
             reclaim: Timer::new(),
+            finalize: Timer::new(),
+            suspended: Timer::now(),
         }
     }
 

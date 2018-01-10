@@ -9,6 +9,7 @@ use immix::copy_object::CopyObject;
 use immix::bucket::{Bucket, MATURE};
 use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
+use immix::finalization_list::FinalizationList;
 
 use object::Object;
 use object_value;
@@ -118,19 +119,30 @@ impl LocalAllocator {
     }
 
     /// Returns unused blocks to the global allocator.
-    pub fn reclaim_blocks(&mut self, mature: bool) {
+    ///
+    /// This method will return a vector of pointers that need to be finalized.
+    pub fn reclaim_blocks(&mut self, mature: bool) -> FinalizationList {
+        let mut finalize = FinalizationList::new();
+
         for bucket in self.young_generation.iter_mut() {
-            self.global_allocator.add_blocks(bucket.reclaim_blocks());
+            let (reclaim, fin) = bucket.reclaim_blocks();
+
+            finalize.append(fin);
+            self.global_allocator.add_blocks(reclaim);
         }
 
         if mature {
-            self.global_allocator
-                .add_blocks(self.mature_generation.reclaim_blocks());
+            let (reclaim, fin) = self.mature_generation.reclaim_blocks();
+
+            finalize.append(fin);
+            self.global_allocator.add_blocks(reclaim);
         } else {
             for block in self.mature_generation.all_blocks_mut() {
                 block.update_line_map();
             }
         }
+
+        finalize
     }
 
     pub fn allocate_with_prototype(

@@ -11,6 +11,7 @@ use std::slice::IterMut;
 use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
 use immix::histogram::Histogram;
 use immix::global_allocator::RcGlobalAllocator;
+use immix::finalization_list::FinalizationList;
 use object::Object;
 use object_pointer::ObjectPointer;
 
@@ -179,26 +180,26 @@ impl Bucket {
     ///
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
-    pub fn reclaim_blocks(&mut self) -> Vec<Box<Block>> {
-        let mut keep = Vec::new();
-        let mut recycle = Vec::new();
+    pub fn reclaim_blocks(&mut self) -> (Vec<Box<Block>>, FinalizationList) {
         let mut reclaim = Vec::new();
+        let mut finalize = FinalizationList::new();
 
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        for mut block in self.blocks
+        let blocks = self.blocks
             .drain(0..)
             .chain(self.recyclable_blocks.drain(0..))
-        {
+            .collect::<Vec<Box<Block>>>();
+
+        for mut block in blocks {
             block.update_line_map();
+            block.push_pointers_to_finalize(&mut finalize);
 
             if block.is_empty() {
                 block.reset();
                 reclaim.push(block);
             } else {
-                block.finalize();
-
                 block.update_hole_count();
 
                 if block.holes > 0 {
@@ -208,24 +209,21 @@ impl Bucket {
                     // Recyclable blocks should be stored separately.
                     if !block.fragmented {
                         block.recycle();
-                        recycle.push(block);
+                        self.recyclable_blocks.push(block);
 
                         continue;
                     }
                 }
 
-                keep.push(block);
+                self.blocks.push(block);
             }
         }
-
-        self.blocks = keep;
-        self.recyclable_blocks = recycle;
 
         // At this point "self.blocks" only contains either full or fragmented
         // blocks.
         self.current_block = ptr::null::<Block>() as *mut Block;
 
-        reclaim
+        (reclaim, finalize)
     }
 
     /// Prepares this bucket for a collection.
