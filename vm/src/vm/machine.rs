@@ -232,7 +232,7 @@ impl Machine {
 
     /// Starts the garbage collection threads.
     fn start_gc_threads(&self) -> PoolJoinGuard<()> {
-        self.state.gc_pool.run(move |request| request.perform())
+        self.state.gc_pool.run(move |mut request| request.perform())
     }
 
     fn terminate(&self) {
