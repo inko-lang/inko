@@ -1,13 +1,13 @@
 //! Variable Bindings
 //!
 //! A binding contains the local variables available to a certain scope.
-use std::rc::Rc;
 use std::cell::UnsafeCell;
 
 use block::Block;
 use chunk::Chunk;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use arc_without_weak::ArcWithoutWeak;
 
 pub struct Binding {
     /// The local variables in the current binding.
@@ -25,7 +25,7 @@ pub struct PointerIterator<'a> {
     local_index: usize,
 }
 
-pub type RcBinding = Rc<Binding>;
+pub type RcBinding = ArcWithoutWeak<Binding>;
 
 impl Binding {
     /// Returns a new binding.
@@ -35,7 +35,7 @@ impl Binding {
             parent: None,
         };
 
-        Rc::new(bind)
+        ArcWithoutWeak::new(bind)
     }
 
     /// Returns a new binding with a parent binding and a defalt capacity for
@@ -46,7 +46,7 @@ impl Binding {
             parent: Some(parent_binding),
         };
 
-        Rc::new(bind)
+        ArcWithoutWeak::new(bind)
     }
 
     #[inline(always)]
@@ -139,7 +139,7 @@ impl Binding {
             }
         }
 
-        Rc::new(Binding {
+        ArcWithoutWeak::new(Binding {
             locals: UnsafeCell::new(new_locals),
             parent: parent,
         })
