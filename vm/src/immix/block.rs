@@ -394,10 +394,16 @@ impl Drop for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
     use immix::bitmap::Bitmap;
     use immix::bucket::Bucket;
     use object::Object;
     use object_value::ObjectValue;
+
+    #[test]
+    fn test_block_header_type_size() {
+        assert!(mem::size_of::<BlockHeader>() <= LINE_SIZE);
+    }
 
     #[test]
     fn test_block_header_new() {
