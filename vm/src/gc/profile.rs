@@ -11,6 +11,9 @@ pub enum CollectionType {
 
     /// A mailbox collection.
     Mailbox,
+
+    /// A collection for a finished process.
+    Finished,
 }
 
 pub struct Profile {
@@ -71,6 +74,10 @@ impl Profile {
 
     pub fn mailbox() -> Self {
         Self::new(CollectionType::Mailbox)
+    }
+
+    pub fn finished() -> Self {
+        Self::new(CollectionType::Finished)
     }
 
     pub fn populate_tracing_statistics(&mut self, result: TraceResult) {

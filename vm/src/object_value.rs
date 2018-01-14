@@ -190,6 +190,14 @@ impl ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
 
+    pub fn take_option(&mut self) -> Option<ObjectValue> {
+        if self.is_none() {
+            None
+        } else {
+            Some(self.take())
+        }
+    }
+
     /// Returns true if this value should be deallocated explicitly.
     pub fn should_deallocate_native(&self) -> bool {
         match self {
@@ -489,6 +497,17 @@ mod tests {
         assert!(val1.is_none());
         assert!(val2.is_float());
         assert_eq!(val2.as_float().unwrap(), 5.0);
+    }
+
+    #[test]
+    fn test_take_option() {
+        let mut val1 = ObjectValue::Float(5.0);
+        let val2 = val1.take_option();
+
+        assert!(val1.is_none());
+        assert!(val2.is_some());
+
+        assert_eq!(val2.unwrap().as_float().unwrap(), 5.0);
     }
 
     #[test]

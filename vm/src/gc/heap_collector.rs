@@ -25,14 +25,15 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
 
     let finalize = process.reclaim_blocks(collect_mature);
 
-    process.update_collection_statistics(&vm_state.config, collect_mature);
+    process.update_collection_statistics(collect_mature);
 
     profile.reclaim.stop();
-    profile.suspended.stop();
 
     vm_state.process_pools.schedule(process.clone());
 
+    profile.suspended.stop();
     profile.finalize.start();
+
     collector::finalize(finalize, vm_state);
     profile.finalize.stop();
 

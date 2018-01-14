@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use parking_lot::Mutex;
 
+use config::Config;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::mailbox_allocator::MailboxAllocator;
@@ -15,12 +16,12 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new(global_allocator: RcGlobalAllocator) -> Self {
+    pub fn new(global_allocator: RcGlobalAllocator, config: &Config) -> Self {
         Mailbox {
             external: VecDeque::new(),
             internal: VecDeque::new(),
             locals: VecDeque::new(),
-            allocator: MailboxAllocator::new(global_allocator),
+            allocator: MailboxAllocator::new(global_allocator, config),
             write_lock: Mutex::new(()),
         }
     }

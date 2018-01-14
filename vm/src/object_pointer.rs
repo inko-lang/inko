@@ -529,7 +529,7 @@ mod tests {
     }
 
     fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::new())
+        LocalAllocator::new(GlobalAllocator::new(), &Config::new())
     }
 
     fn buckets_for_all_ages() -> (Bucket, Bucket, Bucket, Bucket) {
@@ -935,6 +935,8 @@ mod tests {
             .get_mut()
             .add_attribute(name, method);
 
+        state.integer_prototype.mark_for_finalization();
+
         assert!(ptr.lookup_attribute(&state, &name).unwrap() == method);
     }
 
@@ -955,6 +957,7 @@ mod tests {
         let value = state.permanent_allocator.lock().allocate_empty();
 
         ptr.get_mut().add_attribute(name, value);
+        ptr.mark_for_finalization();
 
         assert!(ptr.lookup_attribute(&state, &name).unwrap() == value);
     }

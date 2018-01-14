@@ -64,6 +64,7 @@ mod tests {
     use object_pointer::ObjectPointer;
     use immix::local_allocator::LocalAllocator;
     use immix::global_allocator::GlobalAllocator;
+    use config::Config;
 
     mod global_scope {
         use super::*;
@@ -78,7 +79,8 @@ mod tests {
         #[should_panic]
         fn test_set_not_permanent() {
             let scope = GlobalScope::new();
-            let mut alloc = LocalAllocator::new(GlobalAllocator::new());
+            let mut alloc =
+                LocalAllocator::new(GlobalAllocator::new(), &Config::new());
             let pointer = alloc.allocate_empty();
 
             scope.set(0, pointer);

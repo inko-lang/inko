@@ -45,15 +45,31 @@ pub struct Config {
     /// processes.
     pub suspension_check_interval: u64,
 
-    /// The block allocation growth factor for the young generation.
-    pub young_growth_factor: f64,
+    /// The amount of memory that can be allocated in the young generation
+    /// before triggering a young collection.
+    pub young_threshold: usize,
 
-    /// The block allocation growth factor for the mature generation.
-    pub mature_growth_factor: f64,
+    /// The amount of memory that can be allocated in the mature generation
+    /// before triggering a full collection.
+    pub mature_threshold: usize,
 
-    /// The block allocation growth factor for the mailbox space of every
-    /// process..
+    /// The block allocation growth factor for the heap.
+    pub heap_growth_factor: f64,
+
+    /// The percentage of memory in the heap (relative to its threshold) that
+    /// should be used before increasing the heap size.
+    pub heap_growth_threshold: f64,
+
+    /// The amount of memory that can be allocated for a mailbox before
+    /// triggering a mailbox collection.
+    pub mailbox_threshold: usize,
+
+    /// The block allocation growth factor for the mailbox heap.
     pub mailbox_growth_factor: f64,
+
+    /// The percentage of memory in the mailbox heap that should be used before
+    /// increasing the size.
+    pub mailbox_growth_threshold: f64,
 
     /// Enables or disables parallel finalization of garbage collected objects.
     pub parallel_finalization: bool,
@@ -70,9 +86,13 @@ impl Config {
             secondary_threads: cpu_count,
             reductions: 1000,
             suspension_check_interval: 100,
-            young_growth_factor: 1.5,
-            mature_growth_factor: 1.5,
+            young_threshold: 8 * 1024 * 1024,
+            mature_threshold: 16 * 1024 * 1024,
+            heap_growth_factor: 1.5,
+            heap_growth_threshold: 0.9,
+            mailbox_threshold: 1024 * 1024,
             mailbox_growth_factor: 1.5,
+            mailbox_growth_threshold: 0.9,
             parallel_finalization: !cfg!(feature = "system-allocator"),
         }
     }
@@ -91,18 +111,30 @@ impl Config {
             u64
         );
 
-        set_from_env!(self, young_growth_factor, "GC_YOUNG_GROWTH_FACTOR", f64);
+        set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", usize);
+        set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", usize);
+        set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f64);
+
         set_from_env!(
             self,
-            mature_growth_factor,
-            "GC_MATURE_GROWTH_FACTOR",
+            heap_growth_threshold,
+            "HEAP_GROWTH_THRESHOLD",
+            f64
+        );
+
+        set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", usize);
+
+        set_from_env!(
+            self,
+            mailbox_growth_factor,
+            "MAILBOX_GROWTH_FACTOR",
             f64
         );
 
         set_from_env!(
             self,
-            mailbox_growth_factor,
-            "GC_MAILBOX_GROWTH_FACTOR",
+            mailbox_growth_threshold,
+            "MAILBOX_GROWTH_THRESHOLD",
             f64
         );
 
@@ -173,7 +205,7 @@ mod tests {
     #[test]
     fn test_populate_from_env() {
         env::set_var("INKO_PRIMARY_THREADS", "42");
-        env::set_var("INKO_GC_YOUNG_GROWTH_FACTOR", "4.2");
+        env::set_var("INKO_HEAP_GROWTH_FACTOR", "4.2");
 
         let mut config = Config::new();
 
@@ -181,10 +213,10 @@ mod tests {
 
         // Unset before any assertions may fail.
         env::remove_var("INKO_PROCESS_THREADS");
-        env::remove_var("INKO_GC_YOUNG_GROWTH_FACTOR");
+        env::remove_var("INKO_HEAP_GROWTH_FACTOR");
 
         assert_eq!(config.primary_threads, 42);
-        assert_eq!(config.young_growth_factor, 4.2);
+        assert_eq!(config.heap_growth_factor, 4.2);
     }
 
     #[test]

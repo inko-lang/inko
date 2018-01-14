@@ -281,6 +281,7 @@ impl Machine {
             pool_id,
             block,
             self.state.global_allocator.clone(),
+            &self.state.config,
         );
 
         process_table.map(pid, process.clone());
@@ -2650,6 +2651,11 @@ impl Machine {
 
         write_lock!(self.state.process_table).release(&process.pid);
 
+        // We must clean up _after_ removing the process from the process table
+        // to prevent a cleanup from happening while the process is still
+        // receiving messages as this could lead to memory not being reclaimed.
+        self.schedule_gc_for_finished_process(&process);
+
         // Terminate once the main process has finished execution.
         if process.is_main() {
             self.terminate();
@@ -2708,6 +2714,11 @@ impl Machine {
 
     fn schedule_gc_request(&self, request: GcRequest) {
         request.process.suspend_for_gc();
+        self.state.gc_pool.schedule(request);
+    }
+
+    fn schedule_gc_for_finished_process(&self, process: &RcProcess) {
+        let request = GcRequest::finished(self.state.clone(), process.clone());
         self.state.gc_pool.schedule(request);
     }
 

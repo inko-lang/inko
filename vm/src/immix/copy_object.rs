@@ -96,6 +96,7 @@ mod tests {
     use global_scope::{GlobalScope, GlobalScopePointer};
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
+    use config::Config;
     use object::Object;
     use object_pointer::ObjectPointer;
     use object_value;
@@ -109,7 +110,7 @@ mod tests {
             let global_alloc = GlobalAllocator::new();
 
             DummyAllocator {
-                allocator: LocalAllocator::new(global_alloc),
+                allocator: LocalAllocator::new(global_alloc, &Config::new()),
             }
         }
     }
@@ -150,6 +151,7 @@ mod tests {
         let name = dummy.allocator.allocate_empty();
 
         ptr1.get_mut().add_attribute(name, ptr2);
+        ptr1.mark_for_finalization();
 
         let copy = dummy.copy_object(ptr1);
 

@@ -93,6 +93,10 @@ impl Bucket {
         self.age += 1;
     }
 
+    pub fn number_of_blocks(&self) -> usize {
+        self.blocks.len() + self.recyclable_blocks.len()
+    }
+
     pub fn current_block(&self) -> Option<&Block> {
         if self.current_block.is_null() {
             None
@@ -187,12 +191,7 @@ impl Bucket {
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        let blocks = self.blocks
-            .drain(0..)
-            .chain(self.recyclable_blocks.drain(0..))
-            .collect::<Vec<Box<Block>>>();
-
-        for mut block in blocks {
+        for mut block in self.drain_all_blocks() {
             block.update_line_map();
             block.push_pointers_to_finalize(&mut finalize);
 
@@ -291,6 +290,13 @@ impl Bucket {
         evacuate
     }
 
+    pub fn drain_all_blocks(&mut self) -> Vec<Box<Block>> {
+        self.blocks
+            .drain(0..)
+            .chain(self.recyclable_blocks.drain(0..))
+            .collect()
+    }
+
     /// Returns a mutable iterator for all blocks.
     pub fn all_blocks_mut(
         &mut self,
@@ -298,6 +304,21 @@ impl Bucket {
         self.blocks
             .iter_mut()
             .chain(self.recyclable_blocks.iter_mut())
+    }
+}
+
+#[cfg(test)]
+use std::ops::Drop;
+
+#[cfg(test)]
+impl Drop for Bucket {
+    fn drop(&mut self) {
+        // To prevent memory leaks in the tests we automatically finalize any
+        // data, removing the need for doing this manually in every test.
+        for mut block in self.drain_all_blocks() {
+            block.reset_mark_bitmaps();
+            block.finalize();
+        }
     }
 }
 

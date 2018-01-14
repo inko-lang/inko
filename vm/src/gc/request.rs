@@ -3,6 +3,7 @@
 //! A garbage collection request specifies what to collect (a heap or mailbox),
 //! and what process to collect.
 
+use gc::finished_collector;
 use gc::heap_collector;
 use gc::mailbox_collector;
 use gc::profile::Profile;
@@ -10,8 +11,14 @@ use process::RcProcess;
 use vm::state::RcState;
 
 pub enum CollectionType {
+    /// A request to collect the regular heap of a process.
     Heap,
+
+    /// A request to collect the mailbox heap of a process.
     Mailbox,
+
+    /// A request to collect a process after it finished.
+    Finished,
 }
 
 pub struct Request {
@@ -36,6 +43,7 @@ impl Request {
                 }
             }
             CollectionType::Mailbox => Profile::mailbox(),
+            CollectionType::Finished => Profile::finished(),
         };
 
         Request {
@@ -56,6 +64,11 @@ impl Request {
         Self::new(CollectionType::Mailbox, vm_state, process)
     }
 
+    /// Returns a request for collecting all process data after it finished.
+    pub fn finished(vm_state: RcState, process: RcProcess) -> Self {
+        Self::new(CollectionType::Finished, vm_state, process)
+    }
+
     /// Performs the garbage collection request.
     pub fn perform(&mut self) {
         match self.collection_type {
@@ -69,13 +82,19 @@ impl Request {
                 &self.process,
                 &mut self.profile,
             ),
+            CollectionType::Finished => finished_collector::collect(
+                &self.vm_state,
+                &self.process,
+                &mut self.profile,
+            ),
         };
 
         println!(
-            "Finished {:?} collection in {:.2} ms, {:.2} ms tracing, \
+            "Finished {:?} collection for PID {} in {:.2} ms, {:.2} ms tracing, \
              {:.2} ms reclaiming, {:.2} ms finalizing, {:.2} ms suspended, \
              {} marked, {} promoted, {} evacuated",
             self.profile.collection_type,
+            self.process.pid,
             self.profile.total.duration_msec(),
             self.profile.trace.duration_msec(),
             self.profile.reclaim.duration_msec(),
@@ -103,7 +122,7 @@ mod tests {
 
         assert!(match request.collection_type {
             CollectionType::Heap => true,
-            CollectionType::Mailbox => false,
+            _ => false,
         });
     }
 
@@ -115,7 +134,7 @@ mod tests {
 
         assert!(match request.collection_type {
             CollectionType::Heap => true,
-            CollectionType::Mailbox => false,
+            _ => false,
         });
     }
 
@@ -126,8 +145,8 @@ mod tests {
         let request = Request::mailbox(state, process);
 
         assert!(match request.collection_type {
-            CollectionType::Heap => false,
             CollectionType::Mailbox => true,
+            _ => false,
         });
     }
 

@@ -122,19 +122,20 @@ mod tests {
         use immix::global_allocator::GlobalAllocator;
         use immix::local_allocator::LocalAllocator;
         use immix::permanent_allocator::PermanentAllocator;
+        use config::Config;
         use object_value;
 
         fn allocator() -> Box<PermanentAllocator> {
             let global_alloc = GlobalAllocator::new();
 
-            Box::new(PermanentAllocator::new(global_alloc))
+            Box::new(PermanentAllocator::new(global_alloc, false))
         }
 
         #[test]
         #[should_panic]
         fn test_add_regular() {
             let global_alloc = GlobalAllocator::new();
-            let mut alloc = LocalAllocator::new(global_alloc);
+            let mut alloc = LocalAllocator::new(global_alloc, &Config::new());
 
             let mut pool = StringPool::new();
             let pointer = alloc.allocate_empty();

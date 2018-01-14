@@ -180,6 +180,7 @@ mod tests {
     use object_value;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
+    use config::Config;
 
     #[test]
     fn test_new() {
@@ -297,7 +298,8 @@ mod tests {
 
     #[test]
     fn test_push_pointers() {
-        let mut alloc = LocalAllocator::new(GlobalAllocator::new());
+        let mut alloc =
+            LocalAllocator::new(GlobalAllocator::new(), &Config::new());
 
         let local1 = alloc.allocate_empty();
         let binding1 = Binding::new(1);
@@ -321,7 +323,8 @@ mod tests {
 
     #[test]
     fn test_pointers() {
-        let mut alloc = LocalAllocator::new(GlobalAllocator::new());
+        let mut alloc =
+            LocalAllocator::new(GlobalAllocator::new(), &Config::new());
 
         let b1_local1 = alloc.allocate_empty();
         let b1_local2 = alloc.allocate_empty();
@@ -351,8 +354,9 @@ mod tests {
     #[test]
     fn test_clone_to() {
         let global_alloc = GlobalAllocator::new();
-        let mut alloc1 = LocalAllocator::new(global_alloc.clone());
-        let mut alloc2 = LocalAllocator::new(global_alloc);
+        let mut alloc1 =
+            LocalAllocator::new(global_alloc.clone(), &Config::new());
+        let mut alloc2 = LocalAllocator::new(global_alloc, &Config::new());
 
         let ptr1 = alloc1.allocate_without_prototype(object_value::float(5.0));
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));

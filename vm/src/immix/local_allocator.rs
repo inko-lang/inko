@@ -3,14 +3,13 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
-use std::ops::Drop;
-
 use immix::copy_object::CopyObject;
 use immix::bucket::{Bucket, MATURE};
-use immix::block::BLOCK_SIZE;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::finalization_list::FinalizationList;
+use immix::generation_config::GenerationConfig;
 
+use config::Config;
 use object::Object;
 use object_value;
 use object_value::ObjectValue;
@@ -26,7 +25,7 @@ pub struct LocalAllocator {
     pub global_allocator: RcGlobalAllocator,
 
     /// The buckets to use for the eden and young survivor spaces.
-    pub young_generation: [Bucket; 4],
+    pub young_generation: [Bucket; YOUNG_MAX_AGE as usize + 1],
 
     /// The position of the eden bucket in the young generation.
     pub eden_index: usize,
@@ -34,31 +33,30 @@ pub struct LocalAllocator {
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
 
-    /// The number of blocks allocated for the young generation since the last
-    /// garbage collection cycle.
-    pub young_block_allocations: usize,
+    /// The configuration for the young generation.
+    pub young_config: GenerationConfig,
 
-    /// The number of blocks that need to be allocated for the young generation
-    /// before a garbage collection occurs.
-    pub young_block_allocation_threshold: usize,
-
-    /// The number of blocks allocated for the mature generation since the last
-    /// garbage collection cycle.
-    pub mature_block_allocations: usize,
-
-    /// The number of blocks that need to be allocated for the mature generation
-    /// before a garbage collection occurs.
-    pub mature_block_allocation_threshold: usize,
-
-    /// Boolean indicating if the young generation should be collected.
-    pub collect_young: bool,
-
-    /// Boolean indicating if the mature generation should be collected.
-    pub collect_mature: bool,
+    /// The configuration for the mature generation.
+    pub mature_config: GenerationConfig,
 }
 
 impl LocalAllocator {
-    pub fn new(global_allocator: RcGlobalAllocator) -> LocalAllocator {
+    pub fn new(
+        global_allocator: RcGlobalAllocator,
+        config: &Config,
+    ) -> LocalAllocator {
+        let young_config = GenerationConfig::new(
+            config.young_threshold,
+            config.heap_growth_threshold,
+            config.heap_growth_factor,
+        );
+
+        let mature_config = GenerationConfig::new(
+            config.mature_threshold,
+            config.heap_growth_threshold,
+            config.heap_growth_factor,
+        );
+
         LocalAllocator {
             global_allocator: global_allocator,
             young_generation: [
@@ -69,12 +67,8 @@ impl LocalAllocator {
             ],
             eden_index: 0,
             mature_generation: Bucket::with_age(MATURE),
-            young_block_allocations: 0,
-            young_block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
-            mature_block_allocations: 0,
-            mature_block_allocation_threshold: (1 * 1024 * 1024) / BLOCK_SIZE,
-            collect_young: false,
-            collect_mature: false,
+            young_config: young_config,
+            mature_config: mature_config,
         }
     }
 
@@ -82,8 +76,20 @@ impl LocalAllocator {
         self.global_allocator.clone()
     }
 
+    pub fn eden_space(&self) -> &Bucket {
+        &self.young_generation[self.eden_index]
+    }
+
     pub fn eden_space_mut(&mut self) -> &mut Bucket {
         &mut self.young_generation[self.eden_index]
+    }
+
+    pub fn should_collect_young(&self) -> bool {
+        self.young_config.collect
+    }
+
+    pub fn should_collect_mature(&self) -> bool {
+        self.mature_config.collect
     }
 
     /// Prepares for a garbage collection.
@@ -173,7 +179,7 @@ impl LocalAllocator {
         let (new_block, pointer) = self.allocate_eden_raw(object);
 
         if new_block {
-            self.increment_young_block_allocations();
+            self.young_config.increment_allocations();
         }
 
         pointer
@@ -183,7 +189,7 @@ impl LocalAllocator {
         let (new_block, pointer) = self.allocate_mature_raw(object);
 
         if new_block {
-            self.increment_mature_block_allocations();
+            self.mature_config.increment_allocations();
         }
 
         pointer
@@ -205,52 +211,32 @@ impl LocalAllocator {
         }
     }
 
-    /// Returns true if the number of allocated blocks for the young generation
-    /// exceeds its threshold.
-    pub fn young_block_allocation_threshold_exceeded(&self) -> bool {
-        self.young_block_allocations >= self.young_block_allocation_threshold
+    pub fn update_block_allocations(&mut self) {
+        self.young_config.block_allocations = self.young_generation
+            .iter()
+            .map(|bucket| bucket.number_of_blocks())
+            .sum();
+
+        self.mature_config.block_allocations =
+            self.mature_generation.number_of_blocks();
     }
 
-    /// Returns true if the number of allocated blocks for the mature generation
-    /// exceeds its threshold.
-    pub fn mature_block_allocation_threshold_exceeded(&self) -> bool {
-        self.mature_block_allocations >= self.mature_block_allocation_threshold
-    }
+    pub fn update_collection_statistics(&mut self) {
+        self.young_config.collect = false;
+        self.mature_config.collect = false;
 
-    pub fn increment_young_block_allocations(&mut self) {
-        self.young_block_allocations += 1;
+        self.increment_young_ages();
+        self.update_block_allocations();
 
-        if self.young_block_allocation_threshold_exceeded()
-            && !self.collect_young
-        {
-            self.collect_young = true;
+        if self.mature_config.should_increment() {
+            // If the mature generation is running full we also want
+            // to increase the young generation to reduce the number of
+            // objects that are promoted prematurely.
+            self.young_config.increment_threshold();
+            self.mature_config.increment_threshold();
+        } else if self.young_config.should_increment() {
+            self.young_config.increment_threshold();
         }
-    }
-
-    pub fn increment_mature_block_allocations(&mut self) {
-        self.mature_block_allocations += 1;
-
-        if self.mature_block_allocation_threshold_exceeded()
-            && !self.collect_mature
-        {
-            self.collect_mature = true;
-        }
-    }
-
-    /// Increments the young generation allocation threshold.
-    pub fn increment_young_threshold(&mut self, factor: f64) {
-        let threshold =
-            (self.young_block_allocation_threshold as f64 * factor).ceil();
-
-        self.young_block_allocation_threshold = threshold as usize;
-    }
-
-    /// Increments the mature generation allocation threshold.
-    pub fn increment_mature_threshold(&mut self, factor: f64) {
-        let threshold =
-            (self.mature_block_allocation_threshold as f64 * factor).ceil();
-
-        self.mature_block_allocation_threshold = threshold as usize;
     }
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
@@ -270,32 +256,17 @@ impl CopyObject for LocalAllocator {
     }
 }
 
-impl Drop for LocalAllocator {
-    fn drop(&mut self) {
-        for bucket in self.young_generation.iter_mut() {
-            for mut block in bucket.blocks.drain(0..) {
-                block.reset();
-                self.global_allocator.add_block(block);
-            }
-        }
-
-        for mut block in self.mature_generation.blocks.drain(0..) {
-            block.reset();
-            self.global_allocator.add_block(block);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use immix::global_allocator::GlobalAllocator;
     use immix::copy_object::CopyObject;
+    use config::Config;
     use object::Object;
     use object_value;
 
     fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::new())
+        LocalAllocator::new(GlobalAllocator::new(), &Config::new())
     }
 
     #[test]
@@ -308,9 +279,6 @@ mod tests {
         assert_eq!(alloc.young_generation[3].age, -3);
 
         assert_eq!(alloc.eden_index, 0);
-
-        assert_eq!(alloc.young_block_allocations, 0);
-        assert_eq!(alloc.mature_block_allocations, 0);
     }
 
     #[test]
@@ -397,8 +365,6 @@ mod tests {
         let ptr2 = alloc
             .allocate_eden(Object::new(object_value::string("a".to_string())));
 
-        assert_eq!(alloc.young_block_allocations, 1);
-
         assert!(ptr1.is_young());
         assert!(ptr2.is_young());
     }
@@ -411,8 +377,6 @@ mod tests {
         let ptr2 = alloc.allocate_mature(Object::new(object_value::string(
             "a".to_string(),
         )));
-
-        assert_eq!(alloc.mature_block_allocations, 1);
 
         assert!(ptr1.is_mature());
         assert!(ptr2.is_mature());
@@ -476,109 +440,14 @@ mod tests {
     }
 
     #[test]
-    fn test_young_block_allocation_threshold_exceeded() {
-        let mut alloc = local_allocator();
-
-        assert_eq!(alloc.young_block_allocation_threshold_exceeded(), false);
-
-        alloc.young_block_allocations =
-            alloc.young_block_allocation_threshold + 1;
-
-        assert!(alloc.young_block_allocation_threshold_exceeded());
-    }
-
-    #[test]
-    fn test_increment_young_block_allocations() {
-        let mut alloc = local_allocator();
-
-        alloc.young_block_allocation_threshold = 2;
-
-        alloc.increment_young_block_allocations();
-
-        assert_eq!(alloc.young_block_allocations, 1);
-        assert_eq!(alloc.collect_young, false);
-
-        alloc.increment_young_block_allocations();
-
-        assert_eq!(alloc.young_block_allocations, 2);
-        assert_eq!(alloc.collect_young, true);
-    }
-
-    #[test]
-    fn test_increment_mature_block_allocations() {
-        let mut alloc = local_allocator();
-
-        alloc.mature_block_allocation_threshold = 2;
-
-        alloc.increment_mature_block_allocations();
-
-        assert_eq!(alloc.mature_block_allocations, 1);
-        assert_eq!(alloc.collect_mature, false);
-
-        alloc.increment_mature_block_allocations();
-
-        assert_eq!(alloc.mature_block_allocations, 2);
-        assert_eq!(alloc.collect_mature, true);
-    }
-
-    #[test]
-    fn test_mature_block_allocation_threshold_exceeded() {
-        let mut alloc = local_allocator();
-
-        assert_eq!(alloc.mature_block_allocation_threshold_exceeded(), false);
-
-        alloc.mature_block_allocations =
-            alloc.mature_block_allocation_threshold + 1;
-
-        assert!(alloc.mature_block_allocation_threshold_exceeded());
-    }
-
-    #[test]
-    fn test_increment_young_threshold() {
-        let mut alloc = local_allocator();
-
-        alloc.young_block_allocation_threshold = 1;
-
-        alloc.increment_young_threshold(1.5);
-
-        assert_eq!(alloc.young_block_allocation_threshold, 2);
-    }
-
-    #[test]
-    fn test_increment_mature_threshold() {
-        let mut alloc = local_allocator();
-
-        alloc.mature_block_allocation_threshold = 1;
-
-        alloc.increment_mature_threshold(1.5);
-
-        assert_eq!(alloc.mature_block_allocation_threshold, 2);
-    }
-
-    #[test]
     fn test_copy_object() {
         let mut alloc = local_allocator();
         let pointer =
             alloc.allocate_without_prototype(object_value::float(5.0));
+
         let copy = alloc.copy_object(pointer);
 
         assert!(copy.is_young());
         assert!(copy.get().value.is_float());
-    }
-
-    #[test]
-    fn test_drop() {
-        let mut alloc = local_allocator();
-        let global_alloc = alloc.global_allocator();
-
-        let block1 = global_alloc.request_block();
-        let block2 = global_alloc.request_block();
-
-        alloc.eden_space_mut().add_block(block1);
-        alloc.mature_generation.add_block(block2);
-
-        drop(alloc);
-
-        assert_eq!(global_alloc.blocks.lock().len(), 2);
     }
 }

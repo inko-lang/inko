@@ -1,5 +1,6 @@
 pub mod copy_object;
 pub mod finalization_list;
+pub mod generation_config;
 pub mod bitmap;
 pub mod block;
 pub mod bucket;

@@ -6,8 +6,8 @@ use std::cell::UnsafeCell;
 
 use binding::RcBinding;
 use block::Block;
-use compiled_code::CompiledCodePointer;
 use config::Config;
+use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
 use global_scope::GlobalScopePointer;
 use immix::finalization_list::FinalizationList;
@@ -105,12 +105,13 @@ impl Process {
         pool_id: usize,
         context: ExecutionContext,
         global_allocator: RcGlobalAllocator,
+        config: &Config,
     ) -> RcProcess {
         let local_data = LocalData {
-            allocator: LocalAllocator::new(global_allocator.clone()),
+            allocator: LocalAllocator::new(global_allocator.clone(), config),
             context: Box::new(context),
             remembered_set: HashSet::new(),
-            mailbox: Mailbox::new(global_allocator),
+            mailbox: Mailbox::new(global_allocator, config),
             young_collections: 0,
             mature_collections: 0,
             mailbox_collections: 0,
@@ -131,10 +132,11 @@ impl Process {
         pool_id: usize,
         block: &Block,
         global_allocator: RcGlobalAllocator,
+        config: &Config,
     ) -> RcProcess {
         let context = ExecutionContext::from_isolated_block(block);
 
-        Process::new(pid, pool_id, context, global_allocator)
+        Process::new(pid, pool_id, context, global_allocator, config)
     }
 
     pub fn local_data_mut(&self) -> &mut LocalData {
@@ -331,15 +333,15 @@ impl Process {
     }
 
     pub fn should_collect_young_generation(&self) -> bool {
-        self.local_data().allocator.collect_young
+        self.local_data().allocator.should_collect_young()
     }
 
     pub fn should_collect_mature_generation(&self) -> bool {
-        self.local_data().allocator.collect_mature
+        self.local_data().allocator.should_collect_mature()
     }
 
     pub fn should_collect_mailbox(&self) -> bool {
-        self.local_data().mailbox.allocator.collect
+        self.local_data().mailbox.allocator.should_collect()
     }
 
     pub fn contexts(&self) -> Vec<&ExecutionContext> {
@@ -374,44 +376,58 @@ impl Process {
         self.local_data_mut().allocator.reclaim_blocks(mature)
     }
 
-    pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
+    pub fn reclaim_and_finalize(&self, parallel_finalization: bool) {
+        let local_data = self.local_data_mut();
+        let mut blocks = Vec::new();
+        let mut finalize = FinalizationList::new();
+
+        for bucket in local_data.allocator.young_generation.iter_mut() {
+            blocks.append(&mut bucket.drain_all_blocks());
+        }
+
+        blocks.append(&mut local_data
+            .allocator
+            .mature_generation
+            .drain_all_blocks());
+
+        blocks.append(&mut local_data
+            .mailbox
+            .allocator
+            .bucket
+            .drain_all_blocks());
+
+        for block in blocks.iter_mut() {
+            block.reset_mark_bitmaps();
+            block.push_pointers_to_finalize(&mut finalize);
+            block.reset();
+        }
+
+        if parallel_finalization {
+            finalize.parallel_finalize();
+        } else {
+            finalize.finalize();
+        }
+
+        local_data.allocator.global_allocator.add_blocks(blocks);
+    }
+
+    pub fn update_collection_statistics(&self, mature: bool) {
         let local_data = self.local_data_mut();
 
-        local_data.allocator.collect_young = false;
-        local_data.allocator.collect_mature = false;
-
-        local_data.allocator.increment_young_ages();
-        local_data.allocator.young_block_allocations = 0;
-
-        local_data
-            .allocator
-            .increment_young_threshold(config.young_growth_factor);
+        local_data.allocator.update_collection_statistics();
 
         if mature {
-            local_data.allocator.mature_block_allocations = 0;
-
-            local_data
-                .allocator
-                .increment_mature_threshold(config.mature_growth_factor);
-
             local_data.mature_collections += 1;
         } else {
             local_data.young_collections += 1;
         }
     }
 
-    pub fn update_mailbox_collection_statistics(&self, config: &Config) {
+    pub fn update_mailbox_collection_statistics(&self) {
         let local_data = self.local_data_mut();
 
         local_data.mailbox_collections += 1;
-
-        local_data.mailbox.allocator.collect = false;
-        local_data.mailbox.allocator.block_allocations = 0;
-
-        local_data
-            .mailbox
-            .allocator
-            .increment_threshold(config.mailbox_growth_factor);
+        local_data.mailbox.allocator.update_collection_statistics();
     }
 
     pub fn is_main(&self) -> bool {
@@ -435,7 +451,6 @@ impl Hash for Process {
 
 #[cfg(test)]
 mod tests {
-    use config::Config;
     use vm::test::setup;
 
     #[test]
@@ -448,93 +463,34 @@ mod tests {
     #[test]
     fn test_update_collection_statistics_without_mature() {
         let (_machine, _block, process) = setup();
-        let config = Config::new();
 
-        let old_threshold = process
-            .local_data()
-            .allocator
-            .young_block_allocation_threshold;
-
-        process.local_data_mut().allocator.young_block_allocations = 1;
-
-        process.update_collection_statistics(&config, false);
+        process.update_collection_statistics(false);
 
         let local_data = process.local_data();
-        let ref allocator = local_data.allocator;
 
-        assert_eq!(allocator.young_block_allocations, 0);
         assert_eq!(local_data.young_collections, 1);
-
-        assert!(allocator.young_block_allocation_threshold > old_threshold);
     }
 
     #[test]
     fn test_update_collection_statistics_with_mature() {
         let (_machine, _block, process) = setup();
-        let config = Config::new();
 
-        {
-            let local_data = process.local_data_mut();
-
-            local_data.allocator.young_block_allocations = 1;
-            local_data.allocator.mature_block_allocations = 1;
-        }
-
-        let old_young_threshold = process
-            .local_data()
-            .allocator
-            .young_block_allocation_threshold;
-
-        let old_mature_threshold = process
-            .local_data()
-            .allocator
-            .mature_block_allocation_threshold;
-
-        process.update_collection_statistics(&config, true);
+        process.update_collection_statistics(true);
 
         let local_data = process.local_data();
-        let ref allocator = local_data.allocator;
-
-        assert_eq!(allocator.young_block_allocations, 0);
-        assert_eq!(allocator.mature_block_allocations, 0);
 
         assert_eq!(local_data.young_collections, 0);
         assert_eq!(local_data.mature_collections, 1);
-
-        assert!(
-            allocator.young_block_allocation_threshold > old_young_threshold
-        );
-
-        assert!(
-            allocator.mature_block_allocation_threshold > old_mature_threshold
-        );
     }
 
     #[test]
     fn test_update_mailbox_collection_statistics() {
         let (_machine, _block, process) = setup();
-        let config = Config::new();
 
-        {
-            let local_data = process.local_data_mut();
-
-            local_data.mailbox.allocator.block_allocations = 1;
-        }
-
-        let old_threshold = process
-            .local_data()
-            .mailbox
-            .allocator
-            .block_allocation_threshold;
-
-        process.update_mailbox_collection_statistics(&config);
+        process.update_mailbox_collection_statistics();
 
         let local_data = process.local_data();
-        let ref mailbox = local_data.mailbox;
 
         assert_eq!(local_data.mailbox_collections, 1);
-        assert_eq!(mailbox.allocator.block_allocations, 0);
-
-        assert!(mailbox.allocator.block_allocation_threshold > old_threshold);
     }
 }

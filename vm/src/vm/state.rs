@@ -4,11 +4,11 @@
 //! garbage collections, the configuration, the files that have been parsed,
 //! etc.
 
-use parking_lot::Mutex;
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time;
 use num_bigint::BigInt;
+use parking_lot::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time;
 
 use gc::request::Request;
 
@@ -100,8 +100,10 @@ impl State {
 
         // Boxed since moving around the allocator can break pointers from the
         // blocks back to the allocator's bucket.
-        let mut perm_alloc =
-            Box::new(PermanentAllocator::new(global_alloc.clone()));
+        let mut perm_alloc = Box::new(PermanentAllocator::new(
+            global_alloc.clone(),
+            config.parallel_finalization,
+        ));
 
         let object_proto = perm_alloc.allocate_empty();
         let top_level = perm_alloc.allocate_empty();
@@ -192,6 +194,10 @@ impl State {
 
             alloc.allocate_with_prototype(value, self.string_prototype)
         };
+
+        if ptr.is_finalizable() {
+            ptr.mark_for_finalization();
+        }
 
         pool.add(ptr);
 

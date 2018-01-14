@@ -277,9 +277,13 @@ impl Block {
         self.end_pointer = self.end_address();
         self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
+        self.reset_mark_bitmaps();
+        self.finalize_bitmap.reset();
+    }
+
+    pub fn reset_mark_bitmaps(&mut self) {
         self.used_lines_bitmap.reset();
         self.marked_objects_bitmap.reset();
-        self.finalize_bitmap.reset();
     }
 
     pub fn push_pointers_to_finalize(
@@ -293,12 +297,12 @@ impl Block {
                 let mut object =
                     unsafe { &mut *self.lines.offset(index as isize) };
 
-                let attributes = object.take_attributes();
-
-                pointers.push_value(object.value.take());
-
-                if !attributes.is_null() {
+                if let Some(attributes) = object.take_attributes() {
                     pointers.push_attributes(attributes);
+                }
+
+                if let Some(value) = object.value.take_option() {
+                    pointers.push_value(value);
                 }
 
                 self.finalize_bitmap.unset(index);
@@ -382,11 +386,6 @@ impl Block {
 impl Drop for Block {
     fn drop(&mut self) {
         unsafe {
-            // Finalize all objects, marked or not
-            self.used_lines_bitmap.reset();
-            self.marked_objects_bitmap.reset();
-            self.finalize();
-
             Heap.dealloc(self.lines as *mut u8, heap_layout_for_block());
         }
     }
