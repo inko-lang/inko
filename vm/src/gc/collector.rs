@@ -207,14 +207,14 @@ mod tests {
 
         young_parent.add_attribute(&process, young_child, young_child);
 
-        young_parent.block_mut().fragmented = true;
+        young_parent.block_mut().set_fragmented();
 
         let mature = process
             .local_data_mut()
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        mature.block_mut().fragmented = true;
+        mature.block_mut().set_fragmented();
 
         let result = trace_pointers_with_moving(
             &process,
@@ -238,14 +238,14 @@ mod tests {
 
         young_parent.add_attribute(&process, young_child, young_child);
 
-        young_parent.block_mut().fragmented = true;
+        young_parent.block_mut().set_fragmented();
 
         let mature = process
             .local_data_mut()
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        mature.block_mut().fragmented = true;
+        mature.block_mut().set_fragmented();
 
         let result = trace_pointers_with_moving(
             &process,

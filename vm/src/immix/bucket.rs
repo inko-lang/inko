@@ -26,6 +26,16 @@ pub const PERMANENT: isize = 300;
 
 /// Structure storing data of a single bucket.
 pub struct Bucket {
+    // The available space histogram for the blocks in this bucket.
+    pub available_histogram: Histogram,
+
+    /// The mark histogram for the blocks in this bucket.
+    pub mark_histogram: Histogram,
+
+    /// Lock used whenever moving objects around (e.g. when evacuating or
+    /// promoting them).
+    pub lock: Mutex<()>,
+
     /// Blocks to allocate into.
     ///
     /// At the end of a collection cycle all these blocks are either full or
@@ -45,18 +55,8 @@ pub struct Bucket {
     /// The age of the objects in the current bucket.
     pub age: isize,
 
-    // The available space histogram for the blocks in this bucket.
-    pub available_histogram: Histogram,
-
-    /// The mark histogram for the blocks in this bucket.
-    pub mark_histogram: Histogram,
-
     /// The objects in this bucket should be promoted to the mature generation.
     pub promote: bool,
-
-    /// Lock used whenever moving objects around (e.g. when evacuating or
-    /// promoting them).
-    pub lock: Mutex<()>,
 }
 
 unsafe impl Send for Bucket {}
@@ -170,14 +170,7 @@ impl Bucket {
             return true;
         }
 
-        // TODO: use a counter instead of iterating over blocks
-        for block in self.blocks.iter() {
-            if block.fragmented {
-                return true;
-            }
-        }
-
-        false
+        self.blocks.iter().any(|block| block.is_fragmented())
     }
 
     /// Reclaims the blocks in this bucket
@@ -201,12 +194,14 @@ impl Bucket {
             } else {
                 block.update_hole_count();
 
-                if block.holes > 0 {
+                let holes = block.holes();
+
+                if holes > 0 {
                     self.mark_histogram
-                        .increment(block.holes, block.marked_lines_count());
+                        .increment(holes, block.marked_lines_count());
 
                     // Recyclable blocks should be stored separately.
-                    if !block.fragmented {
+                    if !block.is_fragmented() {
                         block.recycle();
                         self.recyclable_blocks.push(block);
 
@@ -237,10 +232,12 @@ impl Bucket {
             .iter_mut()
             .chain(self.recyclable_blocks.iter_mut())
         {
-            if evacuate && block.holes > 0 {
+            let holes = block.holes();
+
+            if evacuate && holes > 0 {
                 let count = block.available_lines_count();
 
-                self.available_histogram.increment(block.holes, count);
+                self.available_histogram.increment(holes, count);
 
                 available += count as isize;
             }
@@ -265,7 +262,7 @@ impl Bucket {
 
             if let Some(bin) = min_bin {
                 for block in self.blocks.iter_mut() {
-                    if block.holes >= bin {
+                    if block.holes() >= bin {
                         block.set_fragmented();
                     }
                 }
@@ -275,7 +272,7 @@ impl Bucket {
                 let mut recyclable = Vec::new();
 
                 for mut block in self.recyclable_blocks.drain(0..) {
-                    if block.holes >= bin {
+                    if block.holes() >= bin {
                         block.set_fragmented();
                         self.blocks.push(block);
                     } else {
@@ -413,7 +410,7 @@ mod tests {
         bucket.add_block(Block::new());
 
         assert_eq!(bucket.blocks.len(), 1);
-        assert_eq!(bucket.blocks[0].bucket.is_null(), false);
+        assert!(bucket.blocks[0].bucket().is_some());
 
         assert!(bucket.current_block == &mut *bucket.blocks[0] as *mut Block);
 
@@ -547,8 +544,8 @@ mod tests {
         assert_eq!(bucket.blocks.len(), 0);
         assert_eq!(bucket.recyclable_blocks.len(), 2);
 
-        assert_eq!(bucket.recyclable_blocks[0].holes, 1);
-        assert_eq!(bucket.recyclable_blocks[1].holes, 2);
+        assert_eq!(bucket.recyclable_blocks[0].holes(), 1);
+        assert_eq!(bucket.recyclable_blocks[1].holes(), 2);
 
         assert_eq!(bucket.mark_histogram.get(1), 1);
         assert_eq!(bucket.mark_histogram.get(2), 1);
@@ -606,7 +603,7 @@ mod tests {
 
         let block = bucket.current_block().unwrap();
 
-        assert!(block.fragmented);
+        assert!(block.is_fragmented());
         assert!(block.marked_objects_bitmap.is_empty());
     }
 }

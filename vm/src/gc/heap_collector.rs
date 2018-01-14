@@ -239,7 +239,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        young.block_mut().fragmented = true;
+        young.block_mut().set_fragmented();
 
         process.set_register(0, young);
         process.set_register(1, mature);
@@ -262,8 +262,8 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        young.block_mut().fragmented = true;
-        mature.block_mut().fragmented = true;
+        young.block_mut().set_fragmented();
+        mature.block_mut().set_fragmented();
 
         process.set_register(0, young);
         process.set_register(1, mature);
@@ -306,7 +306,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        pointer1.block_mut().fragmented = true;
+        pointer1.block_mut().set_fragmented();
 
         local_data.remembered_set.insert(pointer1);
 
@@ -354,7 +354,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        young.block_mut().fragmented = true;
+        young.block_mut().set_fragmented();
 
         local_data.mailbox.send_from_self(young);
         local_data.mailbox.send_from_self(mature);
@@ -380,7 +380,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        young.block_mut().fragmented = true;
+        young.block_mut().set_fragmented();
 
         local_data.mailbox.send_from_self(young);
         local_data.mailbox.send_from_self(mature);
@@ -467,7 +467,7 @@ mod tests {
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
-        pointer1.block_mut().fragmented = true;
+        pointer1.block_mut().set_fragmented();
 
         process.prepare_for_collection(false);
 
@@ -501,7 +501,7 @@ mod tests {
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
-        pointer1.block_mut().fragmented = true;
+        pointer1.block_mut().set_fragmented();
 
         process.prepare_for_collection(true);
 
@@ -535,7 +535,7 @@ mod tests {
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
-        pointer1.block_mut().fragmented = true;
+        pointer1.block_mut().set_fragmented();
 
         process.prepare_for_collection(false);
 
@@ -569,7 +569,7 @@ mod tests {
         process.set_register(0, pointer2);
         process.set_register(1, mature);
 
-        pointer1.block_mut().fragmented = true;
+        pointer1.block_mut().set_fragmented();
 
         process.prepare_for_collection(true);
 

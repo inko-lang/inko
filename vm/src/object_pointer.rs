@@ -151,7 +151,7 @@ impl ObjectPointer {
             return ObjectStatus::Promote;
         }
 
-        if block.fragmented {
+        if block.is_fragmented() {
             return ObjectStatus::Evacuate;
         }
 

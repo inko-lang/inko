@@ -61,53 +61,32 @@ unsafe fn heap_layout_for_block() -> Layout {
 
 /// Structure stored in the first line of a block, used to allow objects to
 /// retrieve data from the block they belong to.
-pub struct BlockHeader {
-    pub block: *mut Block,
-}
-
-/// Structure representing a single block.
 ///
-/// Allocating these structures will use a little bit more memory than the block
-/// size due to the various types used.
-pub struct Block {
-    /// The memory to use for the mark bitmap and allocating objects. The first
-    /// 128 bytes of this field are reserved and used for storing a BlockHeader.
-    ///
-    /// Memory is aligned to 32 KB.
-    pub lines: RawObjectPointer,
-
-    /// This block is fragmented and objects should be evacuated.
-    pub fragmented: bool,
-
-    /// Bitmap used for tracking which object slots are live.
-    pub marked_objects_bitmap: ObjectMap,
-
-    /// Bitmap used to track which lines contain one or more reachable objects.
-    pub used_lines_bitmap: LineMap,
-
-    /// Bitmap used to track which objects need to be finalized.
-    pub finalize_bitmap: ObjectMap,
-
-    /// The pointer to use for allocating a new object.
-    pub free_pointer: RawObjectPointer,
-
-    /// Pointer marking the end of the free pointer. Objects may not be
-    /// allocated into or beyond this pointer.
-    pub end_pointer: RawObjectPointer,
+/// Because this structure is stored in the first line its size _must_ be less
+/// than or equal to the size of a single line (= 128 bytes). Fields are ordered
+/// so the struct takes up as little space as possible.
+pub struct BlockHeader {
+    /// A pointer to the block this header belongs to.
+    pub block: *mut Block,
 
     /// Pointer to the bucket that manages this block.
     pub bucket: *mut Bucket,
 
     /// The number of holes in this block.
     pub holes: usize,
-}
 
-unsafe impl Send for Block {}
-unsafe impl Sync for Block {}
+    /// This block is fragmented and objects should be evacuated.
+    pub fragmented: bool,
+}
 
 impl BlockHeader {
     pub fn new(block: *mut Block) -> BlockHeader {
-        BlockHeader { block: block }
+        BlockHeader {
+            block: block,
+            bucket: ptr::null::<Bucket>() as *mut Bucket,
+            holes: 1,
+            fragmented: false,
+        }
     }
 
     /// Returns an immutable reference to the block.
@@ -121,7 +100,60 @@ impl BlockHeader {
     pub fn block_mut(&self) -> &mut Block {
         unsafe { &mut *self.block }
     }
+
+    pub fn bucket(&self) -> Option<&Bucket> {
+        if self.bucket.is_null() {
+            None
+        } else {
+            Some(unsafe { &*self.bucket })
+        }
+    }
+
+    pub fn bucket_mut(&mut self) -> Option<&mut Bucket> {
+        if self.bucket.is_null() {
+            None
+        } else {
+            Some(unsafe { &mut *self.bucket })
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.fragmented = false;
+        self.holes = 1;
+        self.bucket = ptr::null::<Bucket>() as *mut Bucket;
+    }
 }
+
+/// Structure representing a single block.
+///
+/// Allocating these structures will use a little bit more memory than the block
+/// size due to the various types used.
+pub struct Block {
+    /// The pointer to use for allocating a new object.
+    pub free_pointer: RawObjectPointer,
+
+    /// Pointer marking the end of the free pointer. Objects may not be
+    /// allocated into or beyond this pointer.
+    pub end_pointer: RawObjectPointer,
+
+    /// The memory to use for the mark bitmap and allocating objects. The first
+    /// 128 bytes of this field are reserved and used for storing a BlockHeader.
+    ///
+    /// Memory is aligned to 32 KB.
+    pub lines: RawObjectPointer,
+
+    /// Bitmap used to track which lines contain one or more reachable objects.
+    pub used_lines_bitmap: LineMap,
+
+    /// Bitmap used for tracking which object slots are live.
+    pub marked_objects_bitmap: ObjectMap,
+
+    /// Bitmap used to track which objects need to be finalized.
+    pub finalize_bitmap: ObjectMap,
+}
+
+unsafe impl Send for Block {}
+unsafe impl Sync for Block {}
 
 impl Block {
     pub fn new() -> Box<Block> {
@@ -131,14 +163,11 @@ impl Block {
 
         let mut block = Box::new(Block {
             lines: lines,
-            fragmented: false,
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
             finalize_bitmap: ObjectMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
-            bucket: ptr::null::<Bucket>() as *mut Bucket,
-            holes: 1,
         });
 
         block.free_pointer = block.start_address();
@@ -165,32 +194,53 @@ impl Block {
         self.used_lines_bitmap.reset_previous_marks();
     }
 
-    /// Returns an immutable reference to the bucket of this block.
+    /// Returns an immutable reference to the header of this block.
     #[inline(always)]
-    pub fn bucket(&self) -> Option<&Bucket> {
-        if self.bucket.is_null() {
-            None
-        } else {
-            Some(unsafe { &*self.bucket })
+    pub fn header(&self) -> &BlockHeader {
+        unsafe {
+            let pointer = self.lines.offset(0) as *const BlockHeader;
+
+            &*pointer
         }
     }
 
-    /// Returns a mutable reference to the bucket of htis block.
-    pub fn bucket_mut(&mut self) -> Option<&mut Bucket> {
-        if self.bucket.is_null() {
-            None
-        } else {
-            Some(unsafe { &mut *self.bucket })
+    /// Returns a mutable reference to the header of this block.
+    #[inline(always)]
+    pub fn header_mut(&mut self) -> &mut BlockHeader {
+        unsafe {
+            let pointer = self.lines.offset(0) as *mut BlockHeader;
+
+            &mut *pointer
         }
+    }
+
+    /// Returns an immutable reference to the bucket of this block.
+    #[inline(always)]
+    pub fn bucket(&self) -> Option<&Bucket> {
+        self.header().bucket()
+    }
+
+    /// Returns a mutable reference to the bucket of htis block.
+    #[inline(always)]
+    pub fn bucket_mut(&mut self) -> Option<&mut Bucket> {
+        self.header_mut().bucket_mut()
     }
 
     /// Sets the bucket of this block.
     pub fn set_bucket(&mut self, bucket: *mut Bucket) {
-        self.bucket = bucket;
+        self.header_mut().bucket = bucket;
     }
 
     pub fn set_fragmented(&mut self) {
-        self.fragmented = true;
+        self.header_mut().fragmented = true;
+    }
+
+    pub fn is_fragmented(&self) -> bool {
+        self.header().fragmented
+    }
+
+    pub fn holes(&self) -> usize {
+        self.header().holes
     }
 
     /// Returns true if all lines in this block are available.
@@ -268,14 +318,10 @@ impl Block {
     ///
     /// Allocated objects are not released or finalized automatically.
     pub fn reset(&mut self) {
-        self.fragmented = false;
-
-        // All lines are empty, thus there's only 1 hole.
-        self.holes = 1;
+        self.header_mut().reset();
 
         self.free_pointer = self.start_address();
         self.end_pointer = self.end_address();
-        self.bucket = ptr::null::<Bucket>() as *mut Bucket;
 
         self.reset_mark_bitmaps();
         self.finalize_bitmap.reset();
@@ -322,8 +368,7 @@ impl Block {
     /// Updates the number of holes in this block.
     pub fn update_hole_count(&mut self) {
         let mut in_hole = false;
-
-        self.holes = 0;
+        let mut holes = 0;
 
         for index in LINE_START_SLOT..LINES_PER_BLOCK {
             let is_set = self.used_lines_bitmap.is_set(index);
@@ -332,9 +377,11 @@ impl Block {
                 in_hole = false;
             } else if !in_hole && !is_set {
                 in_hole = true;
-                self.holes += 1;
+                holes += 1;
             }
         }
+
+        self.header_mut().holes = holes;
     }
 
     /// Returns the number of marked lines in this block.
@@ -418,7 +465,7 @@ mod tests {
         let mut block = Block::new();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
-        assert_eq!(header.block().holes, 1);
+        assert_eq!(header.block().holes(), 1);
     }
 
     #[test]
@@ -426,7 +473,7 @@ mod tests {
         let mut block = Block::new();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
-        assert_eq!(header.block_mut().holes, 1);
+        assert_eq!(header.block_mut().holes(), 1);
     }
 
     #[test]
@@ -436,7 +483,7 @@ mod tests {
         assert_eq!(block.lines.is_null(), false);
         assert_eq!(block.free_pointer.is_null(), false);
         assert_eq!(block.end_pointer.is_null(), false);
-        assert!(block.bucket.is_null());
+        assert!(block.bucket().is_none());
     }
 
     #[test]
@@ -483,11 +530,11 @@ mod tests {
     fn test_block_set_fragmented() {
         let mut block = Block::new();
 
-        assert_eq!(block.fragmented, false);
+        assert_eq!(block.is_fragmented(), false);
 
         block.set_fragmented();
 
-        assert!(block.fragmented);
+        assert!(block.is_fragmented());
     }
 
     #[test]
@@ -681,7 +728,7 @@ mod tests {
         let mut bucket = Bucket::new();
 
         block.set_fragmented();
-        block.holes = 4;
+        block.header_mut().holes = 4;
 
         block.free_pointer = block.end_address();
         block.end_pointer = block.start_address();
@@ -691,11 +738,11 @@ mod tests {
 
         block.reset();
 
-        assert_eq!(block.fragmented, false);
-        assert_eq!(block.holes, 1);
+        assert_eq!(block.is_fragmented(), false);
+        assert_eq!(block.holes(), 1);
         assert!(block.free_pointer == block.start_address());
         assert!(block.end_pointer == block.end_address());
-        assert!(block.bucket.is_null());
+        assert!(block.bucket().is_none());
         assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
         assert!(block.finalize_bitmap.is_empty());
@@ -723,7 +770,7 @@ mod tests {
 
         block.update_hole_count();
 
-        assert_eq!(block.holes, 3);
+        assert_eq!(block.holes(), 3);
     }
 
     #[test]

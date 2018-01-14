@@ -113,7 +113,7 @@ mod tests {
             .mailbox
             .send_from_external(process.allocate_empty());
 
-        local_data.mailbox.external[0].block_mut().fragmented = true;
+        local_data.mailbox.external[0].block_mut().set_fragmented();
 
         local_data.mailbox.allocator.prepare_for_collection();
 
