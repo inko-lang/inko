@@ -332,23 +332,28 @@ impl Block {
         self.marked_objects_bitmap.reset();
     }
 
+    /// Pushes the pointers of objects to finalize into the given finalization
+    /// list.
+    ///
+    /// This method may be called very frequently and as such should perform as
+    /// few writes as possible.
     pub fn push_pointers_to_finalize(
         &mut self,
         pointers: &mut FinalizationList,
     ) {
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
-            if self.finalize_bitmap.is_set(index)
-                && !self.marked_objects_bitmap.is_set(index)
+            if !self.marked_objects_bitmap.is_set(index)
+                && self.finalize_bitmap.is_set(index)
             {
                 let mut object =
                     unsafe { &mut *self.lines.offset(index as isize) };
 
-                if let Some(attributes) = object.take_attributes() {
-                    pointers.push_attributes(attributes);
+                if object.has_attributes() {
+                    pointers.push_attributes(object.take_attributes().unwrap());
                 }
 
-                if let Some(value) = object.value.take_option() {
-                    pointers.push_value(value);
+                if object.value.is_some() {
+                    pointers.push_value(object.value.take());
                 }
 
                 self.finalize_bitmap.unset(index);
