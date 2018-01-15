@@ -6,8 +6,9 @@
 use binding::{Binding, RcBinding};
 use block::Block;
 use compiled_code::CompiledCodePointer;
+use gc::work_list::WorkList;
 use global_scope::GlobalScopePointer;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use object_pointer::ObjectPointer;
 use register::Register;
 
 pub struct ExecutionContext {
@@ -155,11 +156,14 @@ impl ExecutionContext {
     }
 
     /// Returns pointers to all pointers stored in this context.
-    pub fn pointers(&self) -> Vec<ObjectPointerPointer> {
-        self.binding
-            .pointers()
-            .chain(self.register.pointers())
-            .collect()
+    pub fn pointers(&self) -> WorkList {
+        let mut pointers = WorkList::new();
+
+        for pointer in self.binding.pointers().chain(self.register.pointers()) {
+            pointers.push(pointer);
+        }
+
+        pointers
     }
 
     /// Returns the top-most parent binding of the current binding.
@@ -290,8 +294,9 @@ mod tests {
         context.register.set(0, pointer);
         context.binding.set_local(0, pointer);
 
-        let pointers = context.pointers();
+        let mut pointers = context.pointers();
 
-        assert_eq!(pointers.len(), 2);
+        assert!(pointers.pop().is_some());
+        assert!(pointers.pop().is_some());
     }
 }

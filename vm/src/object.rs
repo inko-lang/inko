@@ -8,7 +8,8 @@ use fnv::FnvHashMap;
 use std::ops::Drop;
 use std::ptr;
 
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use gc::work_list::WorkList;
+use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
 
 macro_rules! push_collection {
@@ -203,7 +204,7 @@ impl Object {
     }
 
     /// Pushes all pointers in this object into the given Vec.
-    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
+    pub fn push_pointers(&self, pointers: &mut WorkList) {
         if !self.prototype.is_null() {
             pointers.push(self.prototype.pointer());
         }
@@ -467,24 +468,24 @@ mod tests {
     #[test]
     fn test_object_push_pointers_without_pointers() {
         let obj = new_object();
-        let mut pointers = Vec::new();
+        let mut pointers = WorkList::new();
 
         obj.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 0);
+        assert!(pointers.pop().is_none());
     }
 
     #[test]
     fn test_object_push_pointers_with_pointers() {
         let mut obj = new_object();
         let name = fake_pointer();
-        let mut pointers = Vec::new();
+        let mut pointers = WorkList::new();
 
         obj.add_attribute(name, fake_pointer());
 
         obj.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 1);
+        assert!(pointers.pop().is_some());
     }
 
     #[test]

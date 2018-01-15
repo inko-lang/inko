@@ -1,3 +1,4 @@
+#![feature(core_intrinsics)]
 #![cfg_attr(feature = "system-allocator",
             feature(alloc_system, global_allocator))]
 #![feature(allocator_api, alloc)]

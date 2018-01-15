@@ -2,10 +2,11 @@ use std::collections::VecDeque;
 use parking_lot::Mutex;
 
 use config::Config;
+use gc::work_list::WorkList;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::mailbox_allocator::MailboxAllocator;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use object_pointer::ObjectPointer;
 
 pub struct Mailbox {
     pub external: VecDeque<ObjectPointer>,
@@ -56,19 +57,24 @@ impl Mailbox {
         self.locals.len() > 0
     }
 
-    pub fn mailbox_pointers(&self) -> Vec<ObjectPointerPointer> {
-        self.internal
-            .iter()
-            .chain(self.external.iter())
-            .map(|p| p.pointer())
-            .collect()
+    pub fn mailbox_pointers(&self) -> WorkList {
+        let mut pointers = WorkList::new();
+
+        for pointer in self.internal.iter().chain(self.external.iter()) {
+            pointers.push(pointer.pointer());
+        }
+
+        pointers
     }
 
-    pub fn local_pointers(&self) -> Vec<ObjectPointerPointer> {
-        self.locals
-            .iter()
-            .map(|pointer| pointer.pointer())
-            .collect()
+    pub fn local_pointers(&self) -> WorkList {
+        let mut pointers = WorkList::new();
+
+        for pointer in self.locals.iter() {
+            pointers.push(pointer.pointer());
+        }
+
+        pointers
     }
 
     /// Returns true if the process has any messages available.

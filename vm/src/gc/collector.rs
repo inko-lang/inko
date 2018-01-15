@@ -1,8 +1,9 @@
 //! Functions and macros for performing garbage collection.
 use gc::trace_result::TraceResult;
+use gc::work_list::WorkList;
 
 use process::RcProcess;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use object_pointer::ObjectPointer;
 use object::ObjectStatus;
 use vm::state::RcState;
 use immix::finalization_list::FinalizationList;
@@ -79,7 +80,7 @@ pub fn evacuate(process: &RcProcess, pointer: &mut ObjectPointer) {
 /// Traces through the given pointers, and potentially moves objects around.
 pub fn trace_pointers_with_moving(
     process: &RcProcess,
-    mut objects: Vec<ObjectPointerPointer>,
+    mut objects: WorkList,
     mature: bool,
 ) -> TraceResult {
     let local_data = process.local_data();
@@ -134,7 +135,7 @@ pub fn trace_pointers_with_moving(
 /// Traces through the roots and all their child pointers, without moving
 /// objects around.
 pub fn trace_pointers_without_moving(
-    mut objects: Vec<ObjectPointerPointer>,
+    mut objects: WorkList,
     mature: bool,
 ) -> TraceResult {
     let mut marked = 0;
@@ -216,11 +217,12 @@ mod tests {
 
         mature.block_mut().set_fragmented();
 
-        let result = trace_pointers_with_moving(
-            &process,
-            vec![young_parent.pointer(), mature.pointer()],
-            false,
-        );
+        let mut pointers = WorkList::new();
+
+        pointers.push(young_parent.pointer());
+        pointers.push(mature.pointer());
+
+        let result = trace_pointers_with_moving(&process, pointers, false);
 
         assert_eq!(mature.is_marked(), false);
 
@@ -247,11 +249,12 @@ mod tests {
 
         mature.block_mut().set_fragmented();
 
-        let result = trace_pointers_with_moving(
-            &process,
-            vec![young_parent.pointer(), mature.pointer()],
-            true,
-        );
+        let mut pointers = WorkList::new();
+
+        pointers.push(young_parent.pointer());
+        pointers.push(mature.pointer());
+
+        let result = trace_pointers_with_moving(&process, pointers, true);
 
         assert_eq!(result.marked, 3);
         assert_eq!(result.evacuated, 3);
@@ -272,10 +275,12 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let result = trace_pointers_without_moving(
-            vec![young_parent.pointer(), mature.pointer()],
-            false,
-        );
+        let mut pointers = WorkList::new();
+
+        pointers.push(young_parent.pointer());
+        pointers.push(mature.pointer());
+
+        let result = trace_pointers_without_moving(pointers, false);
 
         assert!(young_parent.is_marked());
         assert!(young_child.is_marked());
@@ -301,10 +306,12 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        let result = trace_pointers_without_moving(
-            vec![young_parent.pointer(), mature.pointer()],
-            true,
-        );
+        let mut pointers = WorkList::new();
+
+        pointers.push(young_parent.pointer());
+        pointers.push(mature.pointer());
+
+        let result = trace_pointers_without_moving(pointers, true);
 
         assert!(young_parent.is_marked());
         assert!(young_child.is_marked());

@@ -3,6 +3,7 @@
 use rayon::prelude::*;
 
 use gc::collector;
+use gc::work_list::WorkList;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
 use process::RcProcess;
@@ -75,12 +76,11 @@ pub fn trace_remembered_set(
     process: &RcProcess,
     move_objects: bool,
 ) -> TraceResult {
-    let pointers = process
-        .local_data_mut()
-        .remembered_set
-        .iter()
-        .map(|p| p.pointer())
-        .collect();
+    let mut pointers = WorkList::new();
+
+    for pointer in process.local_data_mut().remembered_set.iter() {
+        pointers.push(pointer.pointer());
+    }
 
     if move_objects {
         collector::trace_pointers_with_moving(process, pointers, true)

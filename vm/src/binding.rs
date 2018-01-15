@@ -5,6 +5,7 @@ use std::cell::UnsafeCell;
 
 use block::Block;
 use chunk::Chunk;
+use gc::work_list::WorkList;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
 use arc_without_weak::ArcWithoutWeak;
@@ -105,7 +106,7 @@ impl Binding {
     }
 
     /// Pushes all pointers in this binding into the supplied vector.
-    pub fn push_pointers(&self, pointers: &mut Vec<ObjectPointerPointer>) {
+    pub fn push_pointers(&self, pointers: &mut WorkList) {
         for pointer in self.pointers() {
             pointers.push(pointer);
         }
@@ -311,14 +312,12 @@ mod tests {
 
         binding2.set_local(0, local2);
 
-        let mut pointers = Vec::new();
+        let mut pointers = WorkList::new();
 
         binding2.push_pointers(&mut pointers);
 
-        assert_eq!(pointers.len(), 2);
-
-        assert!(*pointers[0].get() == local2);
-        assert!(*pointers[1].get() == local1);
+        assert!(*pointers.pop().unwrap().get() == local2);
+        assert!(*pointers.pop().unwrap().get() == local1);
     }
 
     #[test]
