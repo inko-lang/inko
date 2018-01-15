@@ -16,8 +16,10 @@
 //! In the best case scenario using this technique can improve tracing
 //! performance by 20-30%.
 
-use std::collections::VecDeque;
+#![cfg(feature = "prefetch")]
 use std::intrinsics;
+
+use std::collections::VecDeque;
 use object_pointer::ObjectPointerPointer;
 
 /// The number of pointers to prefetch when the buffer is empty. This size is
@@ -68,15 +70,27 @@ impl WorkList {
     pub fn prefetch(&mut self, amount: usize) {
         for _ in 0..amount {
             if let Some(prefetch) = self.stack.pop_front() {
-                unsafe {
-                    intrinsics::prefetch_read_data(prefetch.raw, 0);
-                }
-
-                self.prefetch_buffer.push_back(prefetch);
+                self.push_to_prefetch_buffer(prefetch);
             } else {
                 break;
             }
         }
+    }
+
+    #[cfg(feature = "prefetch")]
+    #[inline(always)]
+    pub fn push_to_prefetch_buffer(&mut self, pointer: ObjectPointerPointer) {
+        unsafe {
+            intrinsics::prefetch_read_data(pointer.raw, 0);
+        }
+
+        self.prefetch_buffer.push_back(pointer);
+    }
+
+    #[cfg(not(feature = "prefetch"))]
+    #[inline(always)]
+    pub fn push_to_prefetch_buffer(&mut self, pointer: ObjectPointerPointer) {
+        self.prefetch_buffer.push_back(pointer);
     }
 }
 

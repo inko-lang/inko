@@ -24,7 +24,11 @@ version = "^0.1"
 default-features = false
 
 [features]
-default = ["system-allocator"]
+default = ["system-allocator", "prefetch"]
 
 # Use the system allocator instead of Rust's default (jemalloc)
 system-allocator = []
+
+# Enables the use of prefetching to improve performance in various areas. This
+# requires a nightly build of Rust.
+prefetch = []
