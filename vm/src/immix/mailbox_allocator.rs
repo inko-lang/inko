@@ -58,9 +58,9 @@ impl MailboxAllocator {
 
     /// Returns unused blocks to the global allocator.
     pub fn reclaim_blocks(&mut self) -> FinalizationList {
-        let (reclaim, finalize) = self.bucket.reclaim_blocks();
+        let (mut reclaim, finalize) = self.bucket.reclaim_blocks();
 
-        self.global_allocator.add_blocks(reclaim);
+        self.global_allocator.add_blocks(&mut reclaim);
 
         finalize
     }

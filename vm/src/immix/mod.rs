@@ -1,9 +1,10 @@
+pub mod bitmap;
+pub mod block;
+pub mod block_list;
+pub mod bucket;
 pub mod copy_object;
 pub mod finalization_list;
 pub mod generation_config;
-pub mod bitmap;
-pub mod block;
-pub mod bucket;
 pub mod global_allocator;
 pub mod histogram;
 pub mod local_allocator;

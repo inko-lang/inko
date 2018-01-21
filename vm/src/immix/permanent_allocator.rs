@@ -6,8 +6,8 @@ use std::ops::Drop;
 
 use immix::bucket::{Bucket, PERMANENT};
 use immix::copy_object::CopyObject;
-use immix::global_allocator::RcGlobalAllocator;
 use immix::finalization_list::FinalizationList;
+use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
 use object_value;
@@ -72,7 +72,7 @@ impl CopyObject for PermanentAllocator {
 impl Drop for PermanentAllocator {
     fn drop(&mut self) {
         let mut finalize = FinalizationList::new();
-        let mut blocks = self.bucket.drain_all_blocks();
+        let blocks = &mut self.bucket.blocks;
 
         for block in blocks.iter_mut() {
             block.reset_mark_bitmaps();

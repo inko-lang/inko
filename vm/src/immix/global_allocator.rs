@@ -7,19 +7,20 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 
 use immix::block::Block;
+use immix::block_list::BlockList;
 
 pub type RcGlobalAllocator = Arc<GlobalAllocator>;
 
 /// Structure used for storing the state of the global allocator.
 pub struct GlobalAllocator {
-    pub blocks: Mutex<Vec<Box<Block>>>,
+    pub blocks: Mutex<BlockList>,
 }
 
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
     pub fn new() -> RcGlobalAllocator {
         Arc::new(GlobalAllocator {
-            blocks: Mutex::new(Vec::new()),
+            blocks: Mutex::new(BlockList::new()),
         })
     }
 
@@ -27,8 +28,8 @@ impl GlobalAllocator {
     pub fn request_block(&self) -> Box<Block> {
         let mut blocks = self.blocks.lock();
 
-        if blocks.len() > 0 {
-            blocks.pop().unwrap()
+        if let Some(block) = blocks.pop_front() {
+            block
         } else {
             Block::new()
         }
@@ -36,14 +37,14 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        self.blocks.lock().push(block);
+        self.blocks.lock().push_back(block);
     }
 
     /// Adds multiple blocks to the global allocator.
-    pub fn add_blocks(&self, mut to_add: Vec<Box<Block>>) {
+    pub fn add_blocks(&self, to_add: &mut BlockList) {
         let mut blocks = self.blocks.lock();
 
-        blocks.append(&mut to_add);
+        blocks.append(to_add);
     }
 }
 

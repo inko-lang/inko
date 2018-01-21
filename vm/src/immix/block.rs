@@ -7,6 +7,7 @@ use std::ops::Drop;
 use std::ptr;
 use std::heap::{Alloc, Heap, Layout};
 
+use immix::block_list::BlockIteratorMut;
 use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::bucket::Bucket;
 use immix::finalization_list::FinalizationList;
@@ -75,6 +76,9 @@ pub struct BlockHeader {
     /// The number of holes in this block.
     pub holes: usize,
 
+    /// The next block in the list this block belongs to.
+    pub next: Option<Box<Block>>,
+
     /// This block is fragmented and objects should be evacuated.
     pub fragmented: bool,
 }
@@ -85,6 +89,7 @@ impl BlockHeader {
             block: block,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
             holes: 1,
+            next: None,
             fragmented: false,
         }
     }
@@ -115,6 +120,10 @@ impl BlockHeader {
         } else {
             Some(unsafe { &mut *self.bucket })
         }
+    }
+
+    pub fn set_next(&mut self, block: Box<Block>) {
+        self.next = Some(block);
     }
 
     pub fn reset(&mut self) {
@@ -314,6 +323,17 @@ impl Block {
         self.find_available_hole_starting_at(line_index);
     }
 
+    pub fn is_available_for_allocation(&mut self) -> bool {
+        if self.is_fragmented() {
+            false
+        } else if self.can_bump_allocate() {
+            true
+        } else {
+            self.find_available_hole();
+            self.can_bump_allocate()
+        }
+    }
+
     /// Resets the block to a pristine state.
     ///
     /// Allocated objects are not released or finalized automatically.
@@ -370,8 +390,9 @@ impl Block {
         pointers.finalize();
     }
 
-    /// Updates the number of holes in this block.
-    pub fn update_hole_count(&mut self) {
+    /// Updates the number of holes in this block, returning the new number of
+    /// holes.
+    pub fn update_hole_count(&mut self) -> usize {
         let mut in_hole = false;
         let mut holes = 0;
 
@@ -387,6 +408,8 @@ impl Block {
         }
 
         self.header_mut().holes = holes;
+
+        holes
     }
 
     /// Returns the number of marked lines in this block.
@@ -397,6 +420,12 @@ impl Block {
     /// Returns the number of available lines in this block.
     pub fn available_lines_count(&self) -> usize {
         (LINES_PER_BLOCK - 1) - self.marked_lines_count()
+    }
+
+    /// Returns an iterator over mutable block references, starting at the
+    /// current block.
+    pub fn iter_mut(&mut self) -> BlockIteratorMut {
+        BlockIteratorMut::starting_at(self)
     }
 
     fn find_available_hole_starting_at(&mut self, index: usize) {
@@ -676,6 +705,18 @@ mod tests {
         assert_eq!(block.line_index_of_pointer(pointer1.raw.raw), 1);
         assert_eq!(block.line_index_of_pointer(pointer2.raw.raw), 2);
         assert_eq!(block.line_index_of_pointer(pointer3.raw.raw), 4);
+    }
+
+    #[test]
+    fn test_is_available_for_allocation() {
+        let mut block = Block::new();
+
+        assert!(block.is_available_for_allocation());
+
+        block.bump_allocate(Object::new(ObjectValue::None));
+        block.used_lines_bitmap.set(1);
+
+        assert!(block.is_available_for_allocation());
     }
 
     #[test]

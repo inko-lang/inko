@@ -4,10 +4,8 @@
 //! same age.
 use parking_lot::{Mutex, MutexGuard};
 
-use std::ptr;
-use std::iter::Chain;
-use std::slice::IterMut;
-
+use deref_pointer::DerefPointer;
+use immix::block_list::BlockList;
 use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
 use immix::histogram::Histogram;
 use immix::global_allocator::RcGlobalAllocator;
@@ -36,21 +34,13 @@ pub struct Bucket {
     /// promoting them).
     pub lock: Mutex<()>,
 
-    /// Blocks to allocate into.
-    ///
-    /// At the end of a collection cycle all these blocks are either full or
-    /// marked for evacuation.
-    pub blocks: Vec<Box<Block>>,
-
-    /// Blocks that can be recycled by the allocator.
-    ///
-    /// These blocks _may_ still contain live objects.
-    pub recyclable_blocks: Vec<Box<Block>>,
+    /// The blocks managed by this bucket.
+    pub blocks: BlockList,
 
     /// The current block to allocate into.
     ///
     /// This pointer may be NULL to indicate no block is present yet.
-    pub current_block: *mut Block,
+    pub current_block: DerefPointer<Block>,
 
     /// The age of the objects in the current bucket.
     pub age: isize,
@@ -69,9 +59,8 @@ impl Bucket {
 
     pub fn with_age(age: isize) -> Self {
         Bucket {
-            blocks: Vec::new(),
-            recyclable_blocks: Vec::new(),
-            current_block: ptr::null::<Block>() as *mut Block,
+            blocks: BlockList::new(),
+            current_block: DerefPointer::null(),
             age: age,
             available_histogram: Histogram::new(MAX_HOLES),
             mark_histogram: Histogram::new(LINES_PER_BLOCK),
@@ -94,52 +83,65 @@ impl Bucket {
     }
 
     pub fn number_of_blocks(&self) -> usize {
-        self.blocks.len() + self.recyclable_blocks.len()
+        self.blocks.len()
     }
 
-    pub fn current_block(&self) -> Option<&Block> {
+    pub fn current_block(&self) -> Option<&DerefPointer<Block>> {
         if self.current_block.is_null() {
             None
         } else {
-            Some(unsafe { &*self.current_block })
+            Some(&self.current_block)
         }
     }
 
-    pub fn current_block_mut(&mut self) -> Option<&mut Block> {
+    pub fn current_block_mut(&mut self) -> Option<&mut DerefPointer<Block>> {
         if self.current_block.is_null() {
             None
         } else {
-            Some(unsafe { &mut *self.current_block })
+            Some(&mut self.current_block)
         }
     }
 
-    pub fn add_block(&mut self, block: Box<Block>) {
-        self.current_block = &*block as *const Block as *mut Block;
+    pub fn add_block(&mut self, mut block: Box<Block>) {
+        block.set_bucket(self as *mut Bucket);
 
-        self.blocks.push(block);
-
-        let block_ptr = self as *mut Bucket;
-        let block = self.current_block_mut().unwrap();
-
-        block.set_bucket(block_ptr);
+        self.current_block = DerefPointer::new(&*block);
+        self.blocks.push_back(block);
     }
 
     // Finds a hole to allocate into.
     //
     // Returns true if a hole was found.
     pub fn find_available_hole(&mut self) -> bool {
-        if let Some(block) = self.current_block_mut() {
-            if block.can_bump_allocate() {
-                true
-            } else {
-                // Hole consumed, try to find a new one in the current block
-                block.find_available_hole();
-
-                block.can_bump_allocate()
+        if let Some(current) = self.current_block_mut() {
+            if current.is_available_for_allocation() {
+                return true;
             }
+        } else {
+            return false;
+        }
+
+        // We have a block but we can't allocate into it. This means we need to
+        // find another block to allocate into, if there are any at all.
+        if let Some(block) = self.find_next_available_block() {
+            self.current_block = block;
+
+            true
         } else {
             false
         }
+    }
+
+    pub fn find_next_available_block(&mut self) -> Option<DerefPointer<Block>> {
+        if let Some(current) = self.current_block_mut() {
+            for block in current.iter_mut() {
+                if block.is_available_for_allocation() {
+                    return Some(DerefPointer::new(block));
+                }
+            }
+        }
+
+        None
     }
 
     /// Allocates an object into this bucket
@@ -151,11 +153,7 @@ impl Bucket {
         let found_hole = self.find_available_hole();
 
         if !found_hole {
-            if let Some(block) = self.recyclable_blocks.pop() {
-                self.add_block(block);
-            } else {
-                self.add_block(global_allocator.request_block());
-            }
+            self.add_block(global_allocator.request_block());
         }
 
         (
@@ -166,10 +164,12 @@ impl Bucket {
 
     /// Returns true if this bucket contains blocks that need to be evacuated.
     pub fn should_evacuate(&self) -> bool {
-        if self.recyclable_blocks.len() > 0 {
-            return true;
-        }
-
+        // The Immix paper states that one should evacuate when there are one or
+        // more recyclable or fragmented blocks. In IVM all objects are the same
+        // size and thus it's not possible to have any recyclable blocks left by
+        // the time we start a collection (as they have all been consumed). As
+        // such we don't check for these and instead only check for fragmented
+        // blocks.
         self.blocks.iter().any(|block| block.is_fragmented())
     }
 
@@ -177,45 +177,38 @@ impl Bucket {
     ///
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
-    pub fn reclaim_blocks(&mut self) -> (Vec<Box<Block>>, FinalizationList) {
-        let mut reclaim = Vec::new();
+    pub fn reclaim_blocks(&mut self) -> (BlockList, FinalizationList) {
+        let mut reclaim = BlockList::new();
         let mut finalize = FinalizationList::new();
 
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        for mut block in self.drain_all_blocks() {
+        for mut block in self.blocks.drain() {
             block.update_line_map();
             block.push_pointers_to_finalize(&mut finalize);
 
             if block.is_empty() {
                 block.reset();
-                reclaim.push(block);
+                reclaim.push_back(block);
             } else {
-                block.update_hole_count();
-
-                let holes = block.holes();
+                let holes = block.update_hole_count();
 
                 if holes > 0 {
                     self.mark_histogram
                         .increment(holes, block.marked_lines_count());
 
-                    // Recyclable blocks should be stored separately.
-                    if !block.is_fragmented() {
-                        block.recycle();
-                        self.recyclable_blocks.push(block);
-
-                        continue;
-                    }
+                    block.recycle();
                 }
 
-                self.blocks.push(block);
+                self.blocks.push_back(block);
             }
         }
 
-        // At this point "self.blocks" only contains either full or fragmented
-        // blocks.
-        self.current_block = ptr::null::<Block>() as *mut Block;
+        self.current_block = self.blocks
+            .head()
+            .map(|block| DerefPointer::new(block))
+            .unwrap_or_else(|| DerefPointer::null());
 
         (reclaim, finalize)
     }
@@ -228,10 +221,7 @@ impl Bucket {
         let mut required: isize = 0;
         let evacuate = self.should_evacuate();
 
-        for block in self.blocks
-            .iter_mut()
-            .chain(self.recyclable_blocks.iter_mut())
-        {
+        for block in self.blocks.iter_mut() {
             let holes = block.holes();
 
             if evacuate && holes > 0 {
@@ -266,41 +256,10 @@ impl Bucket {
                         block.set_fragmented();
                     }
                 }
-
-                // Recyclable blocks that need to be evacuated have to be moved
-                // to the regular list of blocks.
-                let mut recyclable = Vec::new();
-
-                for mut block in self.recyclable_blocks.drain(0..) {
-                    if block.holes() >= bin {
-                        block.set_fragmented();
-                        self.blocks.push(block);
-                    } else {
-                        recyclable.push(block);
-                    }
-                }
-
-                self.recyclable_blocks = recyclable;
             }
         }
 
         evacuate
-    }
-
-    pub fn drain_all_blocks(&mut self) -> Vec<Box<Block>> {
-        self.blocks
-            .drain(0..)
-            .chain(self.recyclable_blocks.drain(0..))
-            .collect()
-    }
-
-    /// Returns a mutable iterator for all blocks.
-    pub fn all_blocks_mut(
-        &mut self,
-    ) -> Chain<IterMut<Box<Block>>, IterMut<Box<Block>>> {
-        self.blocks
-            .iter_mut()
-            .chain(self.recyclable_blocks.iter_mut())
     }
 }
 
@@ -312,7 +271,7 @@ impl Drop for Bucket {
     fn drop(&mut self) {
         // To prevent memory leaks in the tests we automatically finalize any
         // data, removing the need for doing this manually in every test.
-        for mut block in self.drain_all_blocks() {
+        for mut block in self.blocks.drain() {
             block.reset_mark_bitmaps();
             block.finalize();
         }
@@ -410,15 +369,22 @@ mod tests {
         bucket.add_block(Block::new());
 
         assert_eq!(bucket.blocks.len(), 1);
+        assert_eq!(bucket.current_block.is_null(), false);
         assert!(bucket.blocks[0].bucket().is_some());
 
-        assert!(bucket.current_block == &mut *bucket.blocks[0] as *mut Block);
+        assert!(
+            &*bucket.current_block as *const Block
+                == &bucket.blocks[0] as *const Block
+        );
 
         bucket.add_block(Block::new());
 
         assert_eq!(bucket.blocks.len(), 2);
 
-        assert!(bucket.current_block == &mut *bucket.blocks[1] as *mut Block);
+        assert!(
+            &*bucket.current_block as *const Block
+                == &bucket.blocks[1] as *const Block
+        );
     }
 
     #[test]
@@ -491,39 +457,28 @@ mod tests {
 
         bucket.reclaim_blocks();
 
-        assert_eq!(bucket.recyclable_blocks.len(), 1);
-        assert_eq!(bucket.blocks.len(), 0);
+        assert_eq!(bucket.blocks.len(), 1);
 
         let (new_block, new_pointer) = bucket
             .allocate(&global_alloc, Object::new(object_value::float(4.0)));
 
-        assert!(new_block);
+        assert_eq!(new_block, false);
         assert!(pointer.get().value.is_none());
         assert!(new_pointer.get().value.is_float());
 
-        assert!(
-            bucket.blocks[0].free_pointer == unsafe {
-                bucket.blocks[0].start_address().offset(5)
-            }
-        );
-    }
+        let head = bucket.blocks.head().unwrap();
 
-    #[test]
-    fn test_should_evacuate_with_recyclable_blocks() {
-        let mut bucket = Bucket::new();
-
-        bucket.recyclable_blocks.push(Block::new());
-
-        assert!(bucket.should_evacuate());
+        assert!(head.free_pointer == unsafe { head.start_address().offset(5) });
     }
 
     #[test]
     fn test_should_evacuate_with_fragmented_blocks() {
         let mut bucket = Bucket::new();
+        let mut block = Block::new();
 
-        bucket.add_block(Block::new());
+        block.set_fragmented();
 
-        bucket.blocks[0].set_fragmented();
+        bucket.add_block(block);
 
         assert!(bucket.should_evacuate());
     }
@@ -531,21 +486,22 @@ mod tests {
     #[test]
     fn test_reclaim_blocks() {
         let mut bucket = Bucket::new();
+        let mut block1 = Block::new();
+        let block2 = Block::new();
+        let mut block3 = Block::new();
 
-        bucket.add_block(Block::new());
-        bucket.add_block(Block::new());
-        bucket.add_block(Block::new());
+        block1.used_lines_bitmap.set(255);
+        block3.used_lines_bitmap.set(2);
 
-        bucket.blocks[0].used_lines_bitmap.set(255);
-        bucket.blocks[2].used_lines_bitmap.set(2);
-
+        bucket.add_block(block1);
+        bucket.add_block(block2);
+        bucket.add_block(block3);
         bucket.reclaim_blocks();
 
-        assert_eq!(bucket.blocks.len(), 0);
-        assert_eq!(bucket.recyclable_blocks.len(), 2);
+        assert_eq!(bucket.blocks.len(), 2);
 
-        assert_eq!(bucket.recyclable_blocks[0].holes(), 1);
-        assert_eq!(bucket.recyclable_blocks[1].holes(), 2);
+        assert_eq!(bucket.blocks[0].holes(), 1);
+        assert_eq!(bucket.blocks[1].holes(), 2);
 
         assert_eq!(bucket.mark_histogram.get(1), 1);
         assert_eq!(bucket.mark_histogram.get(2), 1);
@@ -554,17 +510,17 @@ mod tests {
     #[test]
     fn test_reclaim_blocks_full() {
         let mut bucket = Bucket::new();
-
-        bucket.add_block(Block::new());
+        let mut block = Block::new();
 
         for i in 0..256 {
-            bucket.blocks[0].used_lines_bitmap.set(i);
+            block.used_lines_bitmap.set(i);
         }
 
+        bucket.add_block(block);
         bucket.reclaim_blocks();
 
         assert_eq!(bucket.blocks.len(), 1);
-        assert!(bucket.current_block.is_null());
+        assert_eq!(bucket.current_block.is_null(), false);
     }
 
     #[test]
@@ -587,10 +543,14 @@ mod tests {
     #[test]
     fn test_prepare_for_collection_with_evacuation() {
         let mut bucket = Bucket::new();
+        let mut block1 = Block::new();
+        let block2 = Block::new();
 
-        bucket.add_block(Block::new());
-        bucket.recyclable_blocks.push(Block::new());
-        bucket.current_block_mut().unwrap().used_lines_bitmap.set(1);
+        block1.used_lines_bitmap.set(1);
+        block1.set_fragmented();
+
+        bucket.add_block(block1);
+        bucket.add_block(block2);
 
         // Normally the collector updates the mark histogram at the end of a
         // cycle. Since said code is not executed by the function we're testing

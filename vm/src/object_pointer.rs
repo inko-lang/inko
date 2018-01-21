@@ -542,7 +542,7 @@ mod tests {
     }
 
     fn allocate_in_bucket(bucket: &mut Bucket) -> ObjectPointer {
-        if bucket.blocks.len() == 0 {
+        if bucket.blocks.is_empty() {
             bucket.add_block(Block::new());
         }
 
