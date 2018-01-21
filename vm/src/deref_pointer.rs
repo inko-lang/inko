@@ -1,4 +1,5 @@
 //! Pointers that automatically dereference to their underlying types.
+use std::ptr;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -14,6 +15,16 @@ impl<T> DerefPointer<T> {
         DerefPointer {
             pointer: value as *const T,
         }
+    }
+
+    pub fn null() -> Self {
+        DerefPointer {
+            pointer: ptr::null::<T>(),
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.pointer.is_null()
     }
 }
 
@@ -44,6 +55,13 @@ impl<T> Copy for DerefPointer<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_null() {
+        let ptr: DerefPointer<()> = DerefPointer::null();
+
+        assert!(ptr.is_null());
+    }
 
     #[test]
     fn test_deref() {
