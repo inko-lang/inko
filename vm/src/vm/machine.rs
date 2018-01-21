@@ -1,8 +1,8 @@
 //! Virtual Machine for running instructions
+use num_bigint::BigInt;
+use rayon;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::thread;
-use rayon;
-use num_bigint::BigInt;
 
 use binding::Binding;
 use block::Block;

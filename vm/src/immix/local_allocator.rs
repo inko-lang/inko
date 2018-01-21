@@ -3,17 +3,17 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
-use immix::copy_object::CopyObject;
 use immix::bucket::{Bucket, MATURE};
-use immix::global_allocator::RcGlobalAllocator;
+use immix::copy_object::CopyObject;
 use immix::finalization_list::FinalizationList;
 use immix::generation_config::GenerationConfig;
+use immix::global_allocator::RcGlobalAllocator;
 
 use config::Config;
 use object::Object;
+use object_pointer::ObjectPointer;
 use object_value;
 use object_value::ObjectValue;
-use object_pointer::ObjectPointer;
 
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: isize = 3;
@@ -259,9 +259,9 @@ impl CopyObject for LocalAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::copy_object::CopyObject;
     use config::Config;
+    use immix::copy_object::CopyObject;
+    use immix::global_allocator::GlobalAllocator;
     use object::Object;
     use object_value;
 

@@ -1,8 +1,8 @@
-use std::collections::HashSet;
-use std::mem;
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
 use std::cell::UnsafeCell;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
+use std::mem;
+use std::sync::{Arc, Mutex};
 
 use binding::RcBinding;
 use block::Block;

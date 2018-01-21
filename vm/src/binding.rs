@@ -3,12 +3,12 @@
 //! A binding contains the local variables available to a certain scope.
 use std::cell::UnsafeCell;
 
+use arc_without_weak::ArcWithoutWeak;
 use block::Block;
 use chunk::Chunk;
 use gc::work_list::WorkList;
 use immix::copy_object::CopyObject;
 use object_pointer::{ObjectPointer, ObjectPointerPointer};
-use arc_without_weak::ArcWithoutWeak;
 
 pub struct Binding {
     /// The local variables in the current binding.
@@ -177,11 +177,11 @@ impl<'a> Iterator for PointerIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::ObjectPointer;
-    use object_value;
+    use config::Config;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use config::Config;
+    use object_pointer::ObjectPointer;
+    use object_value;
 
     #[test]
     fn test_new() {

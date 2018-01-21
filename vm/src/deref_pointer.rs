@@ -1,7 +1,7 @@
 //! Pointers that automatically dereference to their underlying types.
-use std::ptr;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr;
 
 pub struct DerefPointer<T> {
     pointer: *const T,

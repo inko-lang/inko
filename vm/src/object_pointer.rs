@@ -1,9 +1,9 @@
-use std::mem::transmute;
-use std::hash::{Hash, Hasher};
-use std::fs;
-use std::i64;
-use std::u32;
 use num_bigint::BigInt;
+use std::fs;
+use std::hash::{Hash, Hasher};
+use std::i64;
+use std::mem::transmute;
+use std::u32;
 
 use immix::bitmap::Bitmap;
 use immix::block;
@@ -507,8 +507,8 @@ impl Eq for ObjectPointerPointer {}
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use super::*;
+    use std::collections::HashSet;
 
     use config::Config;
     use immix::bitmap::Bitmap;

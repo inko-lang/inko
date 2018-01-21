@@ -3,12 +3,12 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
+use std::heap::{Alloc, Heap, Layout};
 use std::ops::Drop;
 use std::ptr;
-use std::heap::{Alloc, Heap, Layout};
 
-use immix::block_list::BlockIteratorMut;
 use immix::bitmap::{Bitmap, LineMap, ObjectMap};
+use immix::block_list::BlockIteratorMut;
 use immix::bucket::Bucket;
 use immix::finalization_list::FinalizationList;
 use object::Object;
@@ -475,11 +475,11 @@ impl Drop for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
     use immix::bitmap::Bitmap;
     use immix::bucket::Bucket;
     use object::Object;
     use object_value::ObjectValue;
+    use std::mem;
 
     #[test]
     fn test_block_header_type_size() {

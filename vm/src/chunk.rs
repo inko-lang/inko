@@ -6,10 +6,9 @@
 ///
 /// Chunks do not drop the individual values. This means that code using a Chunk
 /// must take care of this itself.
-
 use alloc::raw_vec::RawVec;
-use std::ptr;
 use std::ops::{Index, IndexMut};
+use std::ptr;
 
 pub struct Chunk<T> {
     vec: RawVec<T>,

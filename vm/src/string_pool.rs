@@ -4,8 +4,8 @@
 //! objects. Mapping is done in such a way that the raw string only has to be
 //! stored once.
 
-use std::hash::{Hash, Hasher};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use object_pointer::ObjectPointer;
 
@@ -119,10 +119,10 @@ mod tests {
     mod string_pool {
         use super::*;
 
+        use config::Config;
         use immix::global_allocator::GlobalAllocator;
         use immix::local_allocator::LocalAllocator;
         use immix::permanent_allocator::PermanentAllocator;
-        use config::Config;
         use object_value;
 
         fn allocator() -> Box<PermanentAllocator> {

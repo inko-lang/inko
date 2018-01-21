@@ -31,8 +31,8 @@
 //! available PIDs. This can happen when many processes are added and kept
 //! around. Callers should ensure they can handle such a scenario.
 
-use std::usize;
 use std::collections::HashMap;
+use std::usize;
 
 /// The type of a PID.
 pub type PID = usize;

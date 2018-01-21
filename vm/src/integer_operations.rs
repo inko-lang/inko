@@ -1,7 +1,7 @@
 //! Operations for manipulating integers that may overflow into big integers.
 
-use std::ops::{Shl, Shr};
 use num_bigint::BigInt;
+use std::ops::{Shl, Shr};
 
 use object_pointer::ObjectPointer;
 use object_value;

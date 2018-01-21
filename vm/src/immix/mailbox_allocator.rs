@@ -4,11 +4,11 @@
 //! copied into this heap. When a message is received its copied from the
 //! mailbox heap to the process local heap.
 
-use immix::copy_object::CopyObject;
 use immix::bucket::{Bucket, MAILBOX};
-use immix::global_allocator::RcGlobalAllocator;
+use immix::copy_object::CopyObject;
 use immix::finalization_list::FinalizationList;
 use immix::generation_config::GenerationConfig;
+use immix::global_allocator::RcGlobalAllocator;
 
 use config::Config;
 use object::Object;
@@ -92,10 +92,10 @@ impl CopyObject for MailboxAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::Config;
+    use immix::copy_object::CopyObject;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use immix::copy_object::CopyObject;
-    use config::Config;
     use object::Object;
     use object_value;
 

@@ -1,7 +1,7 @@
 //! Parsing and caching of bytecode modules.
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 use bytecode_parser;
 use module::Module;
@@ -131,8 +131,8 @@ impl ModuleRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vm::state::State;
     use config::Config;
+    use vm::state::State;
 
     fn new_config() -> Config {
         let mut config = Config::new();

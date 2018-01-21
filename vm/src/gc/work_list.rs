@@ -19,8 +19,8 @@
 #![cfg(feature = "prefetch")]
 use std::intrinsics;
 
-use std::collections::VecDeque;
 use object_pointer::ObjectPointerPointer;
+use std::collections::VecDeque;
 
 /// The number of pointers to prefetch when the buffer is empty. This size is
 /// based on the number of pointers that fit in a typical single cache line (=

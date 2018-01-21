@@ -5,11 +5,11 @@
 use parking_lot::{Mutex, MutexGuard};
 
 use deref_pointer::DerefPointer;
-use immix::block_list::BlockList;
 use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
-use immix::histogram::Histogram;
-use immix::global_allocator::RcGlobalAllocator;
+use immix::block_list::BlockList;
 use immix::finalization_list::FinalizationList;
+use immix::global_allocator::RcGlobalAllocator;
+use immix::histogram::Histogram;
 use object::Object;
 use object_pointer::ObjectPointer;
 
@@ -281,8 +281,8 @@ impl Drop for Bucket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::block::Block;
     use immix::bitmap::Bitmap;
+    use immix::block::Block;
     use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
     use object::Object;
     use object_value;

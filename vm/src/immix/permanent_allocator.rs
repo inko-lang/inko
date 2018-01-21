@@ -10,9 +10,9 @@ use immix::finalization_list::FinalizationList;
 use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
+use object_pointer::ObjectPointer;
 use object_value;
 use object_value::ObjectValue;
-use object_pointer::ObjectPointer;
 
 pub struct PermanentAllocator {
     global_allocator: RcGlobalAllocator,

@@ -6,8 +6,8 @@
 
 use num_bigint::BigInt;
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time;
 
 use gc::request::Request;
@@ -20,10 +20,10 @@ use object_pointer::ObjectPointer;
 use object_value;
 use pool::Pool;
 use pools::Pools;
-use process_table::ProcessTable;
 use process::RcProcess;
-use suspension_list::SuspensionList;
+use process_table::ProcessTable;
 use string_pool::StringPool;
+use suspension_list::SuspensionList;
 
 pub type RcState = Arc<State>;
 

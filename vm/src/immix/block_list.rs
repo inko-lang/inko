@@ -4,10 +4,10 @@
 //! conserve space the pointer to the next block is stored in each block's
 //! header.
 
-use std::ops::Index;
-use std::ops::Drop;
 use deref_pointer::DerefPointer;
 use immix::block::Block;
+use std::ops::Drop;
+use std::ops::Index;
 
 /// A linked list of blocks.
 pub struct BlockList {

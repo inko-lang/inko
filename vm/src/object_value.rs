@@ -4,14 +4,14 @@
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
+use num_bigint::BigInt;
 use std::fs;
 use std::mem;
-use num_bigint::BigInt;
 
+use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
 use object_pointer::ObjectPointer;
-use arc_without_weak::ArcWithoutWeak;
 
 /// Enum for storing different values in an Object.
 pub enum ObjectValue {
@@ -256,13 +256,13 @@ pub fn integer(value: i64) -> ObjectValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use deref_pointer::DerefPointer;
-    use block::Block;
     use binding::Binding;
+    use block::Block;
     use compiled_code::CompiledCode;
+    use deref_pointer::DerefPointer;
     use global_scope::{GlobalScope, GlobalScopePointer};
     use object_pointer::ObjectPointer;
+    use std::fs::File;
 
     #[test]
     fn test_is_none() {

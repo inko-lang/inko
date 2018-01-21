@@ -4,8 +4,8 @@
 //! references are supported. This makes ArcWithoutWeak ideal for performance
 //! sensitive code where weak references are not needed.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The inner value of a pointer.
 pub struct Inner<T> {

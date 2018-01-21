@@ -2,11 +2,11 @@
 use gc::trace_result::TraceResult;
 use gc::work_list::WorkList;
 
-use process::RcProcess;
-use object_pointer::ObjectPointer;
-use object::ObjectStatus;
-use vm::state::RcState;
 use immix::finalization_list::FinalizationList;
+use object::ObjectStatus;
+use object_pointer::ObjectPointer;
+use process::RcProcess;
+use vm::state::RcState;
 
 /// Macro used for conditionally moving objects or resolving forwarding
 /// pointers.

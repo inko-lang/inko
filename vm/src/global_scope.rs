@@ -61,10 +61,10 @@ impl GlobalScope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::ObjectPointer;
-    use immix::local_allocator::LocalAllocator;
-    use immix::global_allocator::GlobalAllocator;
     use config::Config;
+    use immix::global_allocator::GlobalAllocator;
+    use immix::local_allocator::LocalAllocator;
+    use object_pointer::ObjectPointer;
 
     mod global_scope {
         use super::*;

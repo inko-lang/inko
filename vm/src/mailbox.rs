@@ -1,5 +1,5 @@
-use std::collections::VecDeque;
 use parking_lot::Mutex;
+use std::collections::VecDeque;
 
 use config::Config;
 use gc::work_list::WorkList;

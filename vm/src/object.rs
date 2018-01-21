@@ -291,9 +291,9 @@ impl Drop for Object {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
-    use object_value::ObjectValue;
     use object_pointer::{ObjectPointer, RawObjectPointer};
+    use object_value::ObjectValue;
+    use std::mem;
 
     fn fake_pointer() -> ObjectPointer {
         ObjectPointer::new(0x4 as RawObjectPointer)

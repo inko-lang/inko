@@ -3,9 +3,9 @@
 use rayon::prelude::*;
 
 use gc::collector;
-use gc::work_list::WorkList;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
+use gc::work_list::WorkList;
 use process::RcProcess;
 use vm::state::RcState;
 
@@ -165,8 +165,8 @@ mod tests {
     use execution_context::ExecutionContext;
     use object::Object;
     use object_value;
-    use vm::test::setup;
     use vm::state::State;
+    use vm::test::setup;
 
     #[test]
     fn test_collect() {

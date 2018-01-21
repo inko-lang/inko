@@ -1,8 +1,8 @@
 extern crate getopts;
 extern crate libinko;
 
-use std::io::{self, Write};
 use std::env;
+use std::io::{self, Write};
 use std::process;
 
 use libinko::config::Config;

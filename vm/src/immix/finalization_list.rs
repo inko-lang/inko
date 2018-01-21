@@ -1,6 +1,6 @@
 //! Data structure for storing pointers to finalize.
-use std::ops::Drop;
 use rayon::prelude::*;
+use std::ops::Drop;
 
 use object::AttributesMap;
 use object_value::ObjectValue;

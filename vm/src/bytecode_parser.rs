@@ -12,11 +12,11 @@
 //!
 //!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
-use std::io::prelude::*;
-use std::io::Bytes;
-use std::fs::File;
-use std::mem;
 use num_bigint::BigInt;
+use std::fs::File;
+use std::io::Bytes;
+use std::io::prelude::*;
+use std::mem;
 
 use catch_table::{CatchEntry, CatchTable};
 use compiled_code::CompiledCode;
@@ -372,8 +372,8 @@ fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem;
     use config::Config;
+    use std::mem;
     use vm::instruction::InstructionType;
     use vm::state::{RcState, State};
 

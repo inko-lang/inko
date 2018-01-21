@@ -5,9 +5,9 @@
 
 use block::Block;
 use object::{AttributesMap, Object};
+use object_pointer::ObjectPointer;
 use object_value;
 use object_value::ObjectValue;
-use object_pointer::ObjectPointer;
 
 pub trait CopyObject: Sized {
     /// Allocates a copied object.
@@ -92,11 +92,11 @@ mod tests {
     use super::*;
     use binding::Binding;
     use compiled_code::CompiledCode;
+    use config::Config;
     use deref_pointer::DerefPointer;
     use global_scope::{GlobalScope, GlobalScopePointer};
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
-    use config::Config;
     use object::Object;
     use object_pointer::ObjectPointer;
     use object_value;
