@@ -64,7 +64,7 @@
 //!     // Wait for threads to terminate
 //!     guard.join().unwrap();
 
-use std::sync::Arc;
+use arc_without_weak::ArcWithoutWeak;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, Builder, JoinHandle};
 
@@ -103,7 +103,7 @@ pub struct PoolInner<T: Send + 'static> {
 /// A pool of threads, each processing jobs of a given type.
 pub struct Pool<T: Send + 'static> {
     /// The part of a pool that is shared between scheduler threads.
-    pub inner: Arc<PoolInner<T>>,
+    pub inner: ArcWithoutWeak<PoolInner<T>>,
 
     /// The name of this pool, if any.
     pub name: Option<String>,
@@ -118,7 +118,7 @@ impl<T: Send + 'static> Pool<T> {
     /// Returns a new Pool with the given amount of queues.
     pub fn new(amount: usize, name: Option<String>) -> Self {
         Pool {
-            inner: Arc::new(PoolInner::new(amount)),
+            inner: ArcWithoutWeak::new(PoolInner::new(amount)),
             name: name,
         }
     }
@@ -129,7 +129,7 @@ impl<T: Send + 'static> Pool<T> {
     where
         F: Fn(T) + Sync + Send + 'static,
     {
-        let arc_closure = Arc::new(closure);
+        let arc_closure = ArcWithoutWeak::new(closure);
         let amount = self.inner.queues.len();
         let mut handles = Vec::with_capacity(amount);
 
@@ -194,7 +194,7 @@ impl<T: Send + 'static> PoolInner<T> {
     }
 
     /// Processes jobs from a queue.
-    pub fn process<F>(&self, index: usize, closure: Arc<F>)
+    pub fn process<F>(&self, index: usize, closure: ArcWithoutWeak<F>)
     where
         F: Fn(T) + Sync + Send + 'static,
     {
@@ -259,7 +259,6 @@ impl<T> JoinGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
 
@@ -273,7 +272,7 @@ mod tests {
     #[test]
     fn test_pool_run() {
         let pool = Pool::new(2, None);
-        let counter = Arc::new(AtomicUsize::new(0));
+        let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
 
         pool.schedule(1);
@@ -339,13 +338,13 @@ mod tests {
 
     #[test]
     fn test_pool_inner_process() {
-        let inner = Arc::new(PoolInner::new(1));
-        let counter = Arc::new(AtomicUsize::new(0));
+        let inner = ArcWithoutWeak::new(PoolInner::new(1));
+        let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
 
         let t_inner = inner.clone();
         let t_counter = counter.clone();
 
-        let closure = Arc::new(move |number| {
+        let closure = ArcWithoutWeak::new(move |number| {
             t_counter.fetch_add(number, Ordering::Relaxed);
         });
 

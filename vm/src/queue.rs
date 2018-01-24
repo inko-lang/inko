@@ -7,15 +7,16 @@
 //!
 //! Values are processed in FIFO order.
 
+use arc_without_weak::ArcWithoutWeak;
+use parking_lot::{Condvar, Mutex};
 use std::collections::VecDeque;
-use std::sync::{Arc, Condvar, Mutex};
 
 pub struct Queue<T> {
     values: Mutex<VecDeque<T>>,
     signaler: Condvar,
 }
 
-pub type RcQueue<T> = Arc<Queue<T>>;
+pub type RcQueue<T> = ArcWithoutWeak<Queue<T>>;
 
 impl<T> Queue<T> {
     /// Returns a new Queue.
@@ -27,8 +28,8 @@ impl<T> Queue<T> {
     }
 
     /// Returns a new queue that can be shared between threads.
-    pub fn with_rc() -> Arc<Self> {
-        Arc::new(Self::new())
+    pub fn with_rc() -> ArcWithoutWeak<Self> {
+        ArcWithoutWeak::new(Self::new())
     }
 
     /// Pushes a value to the end of the queue.
@@ -40,7 +41,7 @@ impl<T> Queue<T> {
     ///     queue.push(10);
     ///     queue.push(20);
     pub fn push(&self, value: T) {
-        let mut values = lock!(self.values);
+        let mut values = self.values.lock();
 
         values.push_back(value);
 
@@ -61,14 +62,14 @@ impl<T> Queue<T> {
     ///     queue.push(10);
     ///     queue.pop();
     pub fn pop(&self) -> T {
-        if let Some(value) = lock!(self.values).pop_front() {
+        if let Some(value) = self.values.lock().pop_front() {
             return value;
         }
 
-        let mut values = lock!(self.values);
+        let mut values = self.values.lock();
 
         while values.len() == 0 {
-            values = self.signaler.wait(values).unwrap();
+            self.signaler.wait(&mut values);
         }
 
         values.pop_front().unwrap()
@@ -77,12 +78,12 @@ impl<T> Queue<T> {
     /// Removes the first value from the queue without blocking the caller if
     /// there are no values in the queue.
     pub fn pop_nonblock(&self) -> Option<T> {
-        lock!(self.values).pop_front()
+        self.values.lock().pop_front()
     }
 
     /// Pops all messages off the queue.
     pub fn pop_all(&self) -> VecDeque<T> {
-        let mut values = lock!(self.values);
+        let mut values = self.values.lock();
         let mut popped = VecDeque::with_capacity(values.len());
 
         for pointer in values.drain(0..) {
@@ -94,7 +95,7 @@ impl<T> Queue<T> {
 
     /// Returns the amount of values in the queue.
     pub fn len(&self) -> usize {
-        lock!(self.values).len()
+        self.values.lock().len()
     }
 }
 
