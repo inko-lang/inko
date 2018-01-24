@@ -23,19 +23,15 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     profile.trace.stop();
     profile.reclaim.start();
 
-    let finalize = mailbox.allocator.reclaim_blocks();
-
+    mailbox.allocator.reclaim_blocks(vm_state);
     process.update_mailbox_collection_statistics();
+
     drop(lock); // unlock as soon as possible
 
     profile.reclaim.stop();
     profile.suspended.stop();
 
     vm_state.process_pools.schedule(process.clone());
-
-    profile.finalize.start();
-    collector::finalize(finalize, vm_state);
-    profile.finalize.stop();
 
     profile.total.stop();
     profile.populate_tracing_statistics(trace_result);

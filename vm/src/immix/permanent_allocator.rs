@@ -6,7 +6,6 @@ use std::ops::Drop;
 
 use immix::bucket::{Bucket, PERMANENT};
 use immix::copy_object::CopyObject;
-use immix::finalization_list::FinalizationList;
 use immix::global_allocator::RcGlobalAllocator;
 
 use object::Object;
@@ -17,21 +16,14 @@ use object_value::ObjectValue;
 pub struct PermanentAllocator {
     global_allocator: RcGlobalAllocator,
 
-    /// If objects should be finalized in parallel.
-    parallel_finalization: bool,
-
     /// The bucket to allocate objects into.
     bucket: Bucket,
 }
 
 impl PermanentAllocator {
-    pub fn new(
-        global_allocator: RcGlobalAllocator,
-        parallel_finalize: bool,
-    ) -> Self {
+    pub fn new(global_allocator: RcGlobalAllocator) -> Self {
         PermanentAllocator {
             global_allocator: global_allocator,
-            parallel_finalization: parallel_finalize,
             bucket: Bucket::with_age(PERMANENT),
         }
     }
@@ -71,21 +63,15 @@ impl CopyObject for PermanentAllocator {
 
 impl Drop for PermanentAllocator {
     fn drop(&mut self) {
-        let mut finalize = FinalizationList::new();
         let blocks = &mut self.bucket.blocks;
 
         for block in blocks.iter_mut() {
             block.reset_mark_bitmaps();
-            block.push_pointers_to_finalize(&mut finalize);
-            block.reset();
-        }
 
-        // When dropping the permanent allocator there's no separate thread to
-        // push our work to, thus we finalize pointers right away.
-        if self.parallel_finalization {
-            finalize.parallel_finalize();
-        } else {
-            finalize.finalize();
+            // When dropping the permanent allocator there's no separate thread
+            // to push our work to, thus we finalize pointers right away.
+            block.finalize();
+            block.reset();
         }
 
         self.global_allocator.add_blocks(blocks);
@@ -99,7 +85,7 @@ mod tests {
     use object_value;
 
     fn permanent_allocator() -> PermanentAllocator {
-        PermanentAllocator::new(GlobalAllocator::new(), false)
+        PermanentAllocator::new(GlobalAllocator::new())
     }
 
     #[test]

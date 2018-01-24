@@ -3,17 +3,16 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 
+use config::Config;
 use immix::bucket::{Bucket, MATURE};
 use immix::copy_object::CopyObject;
-use immix::finalization_list::FinalizationList;
 use immix::generation_config::GenerationConfig;
 use immix::global_allocator::RcGlobalAllocator;
-
-use config::Config;
 use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
 use object_value::ObjectValue;
+use vm::state::RcState;
 
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: isize = 3;
@@ -124,31 +123,19 @@ impl LocalAllocator {
         move_objects
     }
 
-    /// Returns unused blocks to the global allocator.
-    ///
-    /// This method will return a vector of pointers that need to be finalized.
-    pub fn reclaim_blocks(&mut self, mature: bool) -> FinalizationList {
-        let mut finalize = FinalizationList::new();
-
+    /// Reclaims blocks in the young (and mature) generation.
+    pub fn reclaim_blocks(&mut self, state: &RcState, mature: bool) {
         for bucket in self.young_generation.iter_mut() {
-            let (mut reclaim, fin) = bucket.reclaim_blocks();
-
-            finalize.append(fin);
-            self.global_allocator.add_blocks(&mut reclaim);
+            bucket.reclaim_blocks(state);
         }
 
         if mature {
-            let (mut reclaim, fin) = self.mature_generation.reclaim_blocks();
-
-            finalize.append(fin);
-            self.global_allocator.add_blocks(&mut reclaim);
+            self.mature_generation.reclaim_blocks(state);
         } else {
             for block in self.mature_generation.blocks.iter_mut() {
                 block.update_line_map();
             }
         }
-
-        finalize
     }
 
     pub fn allocate_with_prototype(
@@ -264,14 +251,18 @@ mod tests {
     use immix::global_allocator::GlobalAllocator;
     use object::Object;
     use object_value;
+    use vm::state::{RcState, State};
 
-    fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::new(), &Config::new())
+    fn local_allocator() -> (RcState, LocalAllocator) {
+        let state = State::new(Config::new());
+        let alloc = LocalAllocator::new(GlobalAllocator::new(), &state.config);
+
+        (state, alloc)
     }
 
     #[test]
     fn test_new() {
-        let alloc = local_allocator();
+        let (_, alloc) = local_allocator();
 
         assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, -1);
@@ -283,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_global_allocator() {
-        let alloc = local_allocator();
+        let (_, alloc) = local_allocator();
         let global_alloc = alloc.global_allocator();
 
         assert_eq!(global_alloc.blocks.lock().len(), 0);
@@ -291,14 +282,14 @@ mod tests {
 
     #[test]
     fn test_eden_space_mut() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
 
         assert_eq!(alloc.eden_space_mut().age, 0);
     }
 
     #[test]
     fn test_prepare_for_collection() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
 
         assert_eq!(alloc.prepare_for_collection(true), false);
 
@@ -309,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_reclaim_blocks() {
-        let mut alloc = local_allocator();
+        let (state, mut alloc) = local_allocator();
 
         let block1 = alloc.global_allocator.request_block();
         let block2 = alloc.global_allocator.request_block();
@@ -317,19 +308,19 @@ mod tests {
         alloc.eden_space_mut().add_block(block1);
         alloc.mature_generation.add_block(block2);
 
-        alloc.reclaim_blocks(false);
+        alloc.reclaim_blocks(&state, false);
 
         assert_eq!(alloc.eden_space_mut().blocks.len(), 0);
         assert_eq!(alloc.mature_generation.blocks.len(), 1);
 
-        alloc.reclaim_blocks(true);
+        alloc.reclaim_blocks(&state, true);
 
         assert_eq!(alloc.mature_generation.blocks.len(), 0);
     }
 
     #[test]
     fn test_allocate_with_prototype() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let proto = alloc.allocate_empty();
         let pointer =
             alloc.allocate_with_prototype(object_value::float(5.0), proto);
@@ -340,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_allocate_without_prototype() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let pointer =
             alloc.allocate_without_prototype(object_value::float(5.0));
 
@@ -350,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_allocate_empty() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let pointer = alloc.allocate_empty();
 
         assert!(pointer.get().value.is_none());
@@ -359,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_allocate_eden() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let ptr1 = alloc.allocate_eden(Object::new(object_value::none()));
 
         let ptr2 = alloc
@@ -371,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_allocate_mature() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let ptr1 = alloc.allocate_mature(Object::new(object_value::none()));
 
         let ptr2 = alloc.allocate_mature(Object::new(object_value::string(
@@ -384,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_increment_young_ages() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
 
         assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, -1);
@@ -441,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_copy_object() {
-        let mut alloc = local_allocator();
+        let (_, mut alloc) = local_allocator();
         let pointer =
             alloc.allocate_without_prototype(object_value::float(5.0));
 

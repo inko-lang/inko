@@ -8,16 +8,17 @@ use binding::RcBinding;
 use block::Block;
 use compiled_code::CompiledCodePointer;
 use config::Config;
+use deref_pointer::DerefPointer;
 use execution_context::ExecutionContext;
 use global_scope::GlobalScopePointer;
 use immix::block_list::BlockList;
-use immix::finalization_list::FinalizationList;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
 use process_table::PID;
+use vm::state::RcState;
 
 pub type RcProcess = Arc<Process>;
 
@@ -373,14 +374,15 @@ impl Process {
             .prepare_for_collection(mature)
     }
 
-    pub fn reclaim_blocks(&self, mature: bool) -> FinalizationList {
-        self.local_data_mut().allocator.reclaim_blocks(mature)
+    pub fn reclaim_blocks(&self, state: &RcState, mature: bool) {
+        self.local_data_mut()
+            .allocator
+            .reclaim_blocks(state, mature);
     }
 
-    pub fn reclaim_and_finalize(&self, parallel_finalization: bool) {
+    pub fn reclaim_all_blocks(&self) -> BlockList {
         let local_data = self.local_data_mut();
         let mut blocks = BlockList::new();
-        let mut finalize = FinalizationList::new();
 
         for bucket in local_data.allocator.young_generation.iter_mut() {
             blocks.append(&mut bucket.blocks);
@@ -389,22 +391,21 @@ impl Process {
         blocks.append(&mut local_data.allocator.mature_generation.blocks);
         blocks.append(&mut local_data.mailbox.allocator.bucket.blocks);
 
+        blocks
+    }
+
+    pub fn reclaim_and_finalize(&self, state: &RcState) {
+        let mut blocks = self.reclaim_all_blocks();
+
         for block in blocks.iter_mut() {
             block.reset_mark_bitmaps();
-            block.push_pointers_to_finalize(&mut finalize);
+            block.prepare_finalization();
             block.reset();
+
+            state.finalizer_pool.schedule(DerefPointer::new(block));
         }
 
-        if parallel_finalization {
-            finalize.parallel_finalize();
-        } else {
-            finalize.finalize();
-        }
-
-        local_data
-            .allocator
-            .global_allocator
-            .add_blocks(&mut blocks);
+        state.global_allocator.add_blocks(&mut blocks);
     }
 
     pub fn update_collection_statistics(&self, mature: bool) {

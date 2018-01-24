@@ -3,15 +3,16 @@
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
 use parking_lot::{Mutex, MutexGuard};
+use rayon::prelude::*;
 
 use deref_pointer::DerefPointer;
 use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
 use immix::block_list::BlockList;
-use immix::finalization_list::FinalizationList;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::histogram::Histogram;
 use object::Object;
 use object_pointer::ObjectPointer;
+use vm::state::RcState;
 
 /// The age of a bucket containing mature objects.
 pub const MATURE: isize = 100;
@@ -135,13 +136,32 @@ impl Bucket {
     pub fn find_next_available_block(&mut self) -> Option<DerefPointer<Block>> {
         if let Some(current) = self.current_block_mut() {
             for block in current.iter_mut() {
-                if block.is_available_for_allocation() {
+                if block.is_available_for_allocation() && !block.is_fragmented()
+                {
                     return Some(DerefPointer::new(block));
                 }
             }
         }
 
         None
+    }
+
+    pub fn reset_current_block(&mut self) {
+        let pointer = self.blocks.head().map(|block| DerefPointer::new(block));
+
+        if let Some(block) = pointer {
+            self.current_block = block;
+
+            // This little dance ensures that the allocator starts off with a
+            // block it can actually allocate into.
+            if self.current_block.is_fragmented() {
+                self.find_next_available_block();
+            }
+
+            self.find_available_hole();
+        } else {
+            self.current_block = DerefPointer::null();
+        }
     }
 
     /// Allocates an object into this bucket
@@ -177,40 +197,51 @@ impl Bucket {
     ///
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
-    pub fn reclaim_blocks(&mut self) -> (BlockList, FinalizationList) {
+    pub fn reclaim_blocks(&mut self, state: &RcState) {
         let mut reclaim = BlockList::new();
-        let mut finalize = FinalizationList::new();
 
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        for mut block in self.blocks.drain() {
-            block.update_line_map();
-            block.push_pointers_to_finalize(&mut finalize);
+        self.blocks
+            .pointers()
+            .into_par_iter()
+            .for_each(|mut block| {
+                block.update_line_map();
 
-            if block.is_empty() {
-                block.reset();
-                reclaim.push_back(block);
-            } else {
-                let holes = block.update_hole_count();
+                let finalize = block.prepare_finalization();
 
-                if holes > 0 {
-                    self.mark_histogram
-                        .increment(holes, block.marked_lines_count());
+                if block.is_empty() {
+                    block.reset();
+                } else {
+                    let holes = block.update_hole_count();
 
-                    block.recycle();
+                    if holes > 0 {
+                        self.mark_histogram
+                            .increment(holes, block.marked_lines_count());
+
+                        block.recycle();
+                    }
                 }
 
+                if finalize {
+                    state.finalizer_pool.schedule(block);
+                }
+            });
+
+        // We partition the blocks in sequence so we don't need to synchronise
+        // access to the destination lists.
+        for mut block in self.blocks.drain() {
+            if block.is_empty() {
+                reclaim.push_back(block);
+            } else {
                 self.blocks.push_back(block);
             }
         }
 
-        self.current_block = self.blocks
-            .head()
-            .map(|block| DerefPointer::new(block))
-            .unwrap_or_else(|| DerefPointer::null());
+        self.reset_current_block();
 
-        (reclaim, finalize)
+        state.global_allocator.add_blocks(&mut reclaim);
     }
 
     /// Prepares this bucket for a collection.
@@ -281,11 +312,13 @@ impl Drop for Bucket {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::Config;
     use immix::bitmap::Bitmap;
     use immix::block::Block;
     use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
     use object::Object;
     use object_value;
+    use vm::state::State;
 
     fn global_allocator() -> RcGlobalAllocator {
         GlobalAllocator::new()
@@ -447,6 +480,7 @@ mod tests {
 
     #[test]
     fn test_allocate_with_recyclable_blocks() {
+        let state = State::new(Config::new());
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
 
@@ -455,7 +489,7 @@ mod tests {
 
         pointer.mark();
 
-        bucket.reclaim_blocks();
+        bucket.reclaim_blocks(&state);
 
         assert_eq!(bucket.blocks.len(), 1);
 
@@ -489,6 +523,7 @@ mod tests {
         let mut block1 = Block::new();
         let block2 = Block::new();
         let mut block3 = Block::new();
+        let state = State::new(Config::new());
 
         block1.used_lines_bitmap.set(255);
         block3.used_lines_bitmap.set(2);
@@ -496,7 +531,7 @@ mod tests {
         bucket.add_block(block1);
         bucket.add_block(block2);
         bucket.add_block(block3);
-        bucket.reclaim_blocks();
+        bucket.reclaim_blocks(&state);
 
         assert_eq!(bucket.blocks.len(), 2);
 
@@ -511,13 +546,14 @@ mod tests {
     fn test_reclaim_blocks_full() {
         let mut bucket = Bucket::new();
         let mut block = Block::new();
+        let state = State::new(Config::new());
 
         for i in 0..256 {
             block.used_lines_bitmap.set(i);
         }
 
         bucket.add_block(block);
-        bucket.reclaim_blocks();
+        bucket.reclaim_blocks(&state);
 
         assert_eq!(bucket.blocks.len(), 1);
         assert_eq!(bucket.current_block.is_null(), false);

@@ -33,18 +33,18 @@ impl Histogram {
 
     /// Increments a bin by the given value.
     pub fn increment(&self, index: usize, value: usize) {
-        self.values[index].fetch_add(value, Ordering::Relaxed);
+        self.values[index].fetch_add(value, Ordering::Release);
     }
 
     /// Returns the value for the given bin.
     pub fn get(&self, index: usize) -> usize {
-        self.values[index].load(Ordering::Relaxed)
+        self.values[index].load(Ordering::Acquire)
     }
 
     /// Returns the most fragmented bin.
     pub fn most_fragmented_bin(&self) -> usize {
         for (bin, value) in self.values.iter().enumerate().rev() {
-            if value.load(Ordering::Relaxed) > DEFAULT_VALUE {
+            if value.load(Ordering::Acquire) > DEFAULT_VALUE {
                 return bin;
             }
         }
@@ -64,7 +64,7 @@ impl Histogram {
     /// Removes all values from the histogram.
     pub fn reset(&mut self) {
         for index in 0..self.values.len() {
-            self.values[index].store(DEFAULT_VALUE, Ordering::Relaxed);
+            self.values[index].store(DEFAULT_VALUE, Ordering::Release);
         }
     }
 }

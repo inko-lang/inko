@@ -4,15 +4,14 @@
 //! copied into this heap. When a message is received its copied from the
 //! mailbox heap to the process local heap.
 
+use config::Config;
 use immix::bucket::{Bucket, MAILBOX};
 use immix::copy_object::CopyObject;
-use immix::finalization_list::FinalizationList;
 use immix::generation_config::GenerationConfig;
 use immix::global_allocator::RcGlobalAllocator;
-
-use config::Config;
 use object::Object;
 use object_pointer::ObjectPointer;
+use vm::state::RcState;
 
 pub struct MailboxAllocator {
     global_allocator: RcGlobalAllocator,
@@ -57,12 +56,8 @@ impl MailboxAllocator {
     }
 
     /// Returns unused blocks to the global allocator.
-    pub fn reclaim_blocks(&mut self) -> FinalizationList {
-        let (mut reclaim, finalize) = self.bucket.reclaim_blocks();
-
-        self.global_allocator.add_blocks(&mut reclaim);
-
-        finalize
+    pub fn reclaim_blocks(&mut self, state: &RcState) {
+        self.bucket.reclaim_blocks(state);
     }
 
     pub fn should_collect(&self) -> bool {

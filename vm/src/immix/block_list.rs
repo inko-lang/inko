@@ -133,6 +133,11 @@ impl BlockList {
             current: self.head.take(),
         }
     }
+
+    /// Returns a vector containing pointers to the blocks in this list.
+    pub fn pointers(&self) -> Vec<DerefPointer<Block>> {
+        self.iter().map(|block| DerefPointer::new(block)).collect()
+    }
 }
 
 impl Index<usize> for BlockList {
@@ -442,6 +447,15 @@ mod tests {
 
             assert!(block1.header().next.is_none());
             assert!(block2.header().next.is_none());
+        }
+
+        #[test]
+        fn test_pointers() {
+            let mut list = BlockList::new();
+
+            list.push_back(Block::new());
+
+            assert_eq!(list.pointers().len(), 1);
         }
     }
 }

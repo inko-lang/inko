@@ -33,9 +33,16 @@ pub struct Config {
     /// The number of secondary process threads to run.
     pub secondary_threads: usize,
 
-    /// The number of garbage collector threads to run. Defaults to half the
-    /// number of CPU cores.
+    /// The number of garbage collector threads to run. Defaults to 2 threads.
     pub gc_threads: usize,
+
+    /// The number of finalizer threads to run. Defaults to 2 threads.
+    pub finalizer_threads: usize,
+
+    /// The number of threads to use for various generic parallel tasks such as
+    /// scanning stack frames during garbage collection. Defaults to the number
+    /// of physical CPU cores.
+    pub generic_parallel_threads: usize,
 
     /// The number of reductions a process can perform before being suspended.
     /// Defaults to 1000.
@@ -70,9 +77,6 @@ pub struct Config {
     /// The percentage of memory in the mailbox heap that should be used before
     /// increasing the size.
     pub mailbox_growth_threshold: f64,
-
-    /// Enables or disables parallel finalization of garbage collected objects.
-    pub parallel_finalization: bool,
 }
 
 impl Config {
@@ -82,8 +86,12 @@ impl Config {
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
-            gc_threads: (cpu_count as f64 / 2.0_f64).ceil() as usize,
+            gc_threads: 2,
+            finalizer_threads: 2,
             secondary_threads: cpu_count,
+            // Using the number of physical (and not physical + hyper-threaded)
+            // cores appears to improve rayon's performance.
+            generic_parallel_threads: num_cpus::get_physical(),
             reductions: 1000,
             suspension_check_interval: 100,
             young_threshold: 8 * 1024 * 1024,
@@ -93,7 +101,6 @@ impl Config {
             mailbox_threshold: 1024 * 1024,
             mailbox_growth_factor: 1.5,
             mailbox_growth_threshold: 0.9,
-            parallel_finalization: !cfg!(feature = "system-allocator"),
         }
     }
 
@@ -102,6 +109,13 @@ impl Config {
         set_from_env!(self, primary_threads, "PRIMARY_THREADS", usize);
         set_from_env!(self, secondary_threads, "SECONDARY_THREADS", usize);
         set_from_env!(self, gc_threads, "GC_THREADS", usize);
+        set_from_env!(self, finalizer_threads, "FINALIZER_THREADS", usize);
+        set_from_env!(
+            self,
+            generic_parallel_threads,
+            "GENERIC_PARALLEL_THREADS",
+            usize
+        );
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
         set_from_env!(
@@ -136,13 +150,6 @@ impl Config {
             mailbox_growth_threshold,
             "MAILBOX_GROWTH_THRESHOLD",
             f64
-        );
-
-        set_from_env!(
-            self,
-            parallel_finalization,
-            "PARALLEL_FINALIZATION",
-            bool
         );
     }
 

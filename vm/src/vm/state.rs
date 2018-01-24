@@ -12,10 +12,11 @@ use std::time;
 
 use gc::request::Request;
 
+use config::Config;
+use deref_pointer::DerefPointer;
+use immix::block::Block;
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
-
-use config::Config;
 use object_pointer::ObjectPointer;
 use object_value;
 use pool::Pool;
@@ -40,6 +41,9 @@ pub struct State {
 
     /// The pool to use for garbage collection.
     pub gc_pool: Pool<Request>,
+
+    /// The pool to use for finalizing objects.
+    pub finalizer_pool: Pool<DerefPointer<Block>>,
 
     /// The process pools to use.
     pub process_pools: Pools,
@@ -100,10 +104,8 @@ impl State {
 
         // Boxed since moving around the allocator can break pointers from the
         // blocks back to the allocator's bucket.
-        let mut perm_alloc = Box::new(PermanentAllocator::new(
-            global_alloc.clone(),
-            config.parallel_finalization,
-        ));
+        let mut perm_alloc =
+            Box::new(PermanentAllocator::new(global_alloc.clone()));
 
         let object_proto = perm_alloc.allocate_empty();
         let top_level = perm_alloc.allocate_empty();
@@ -134,6 +136,9 @@ impl State {
 
         let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
 
+        let finalizer_pool =
+            Pool::new(config.finalizer_threads, Some("finalizer".to_string()));
+
         let process_pools =
             Pools::new(config.primary_threads, config.secondary_threads);
 
@@ -143,6 +148,7 @@ impl State {
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,
+            finalizer_pool: finalizer_pool,
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),

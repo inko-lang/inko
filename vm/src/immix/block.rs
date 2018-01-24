@@ -3,14 +3,15 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
+use parking_lot::Mutex;
 use std::heap::{Alloc, Heap, Layout};
 use std::ops::Drop;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::block_list::BlockIteratorMut;
 use immix::bucket::Bucket;
-use immix::finalization_list::FinalizationList;
 use object::Object;
 use object_pointer::{ObjectPointer, RawObjectPointer};
 
@@ -151,14 +152,27 @@ pub struct Block {
     /// Memory is aligned to 32 KB.
     pub lines: RawObjectPointer,
 
+    /// A flag that is set to true when this block is being finalized. This flag
+    /// is separate from the lock so we can effeciently check if we need to
+    /// finalize, without first having to acquire a lock.
+    pub finalizing: AtomicBool,
+
     /// Bitmap used to track which lines contain one or more reachable objects.
     pub used_lines_bitmap: LineMap,
 
     /// Bitmap used for tracking which object slots are live.
     pub marked_objects_bitmap: ObjectMap,
 
-    /// Bitmap used to track which objects need to be finalized.
+    /// Bitmap used to track which objects need to be finalized when they are
+    /// garbage collected.
     pub finalize_bitmap: ObjectMap,
+
+    /// Bitmap used to store which objects need to be finalized right now. This
+    /// bitmap will only contain entries for unmarked objects.
+    ///
+    /// While an ObjectMap can be modified concurrently we wrap it in a mutex so
+    /// we can also synchronise any corresponding drop operations.
+    pub pending_finalization_bitmap: Mutex<ObjectMap>,
 }
 
 unsafe impl Send for Block {}
@@ -177,6 +191,8 @@ impl Block {
             finalize_bitmap: ObjectMap::new(),
             free_pointer: ptr::null::<Object>() as RawObjectPointer,
             end_pointer: ptr::null::<Object>() as RawObjectPointer,
+            finalizing: AtomicBool::new(false),
+            pending_finalization_bitmap: Mutex::new(ObjectMap::new()),
         });
 
         block.free_pointer = block.start_address();
@@ -273,6 +289,14 @@ impl Block {
 
     /// Bump allocates an object into the current block.
     pub fn bump_allocate(&mut self, object: Object) -> ObjectPointer {
+        // If the block is supposed to be finalized we'll finalize the entire
+        // block right away. This is much simpler to implement and removes the
+        // need for additional checks in future allocations into the current
+        // block.
+        if self.is_finalizing() {
+            self.finalize_pending();
+        }
+
         unsafe {
             ptr::write(self.free_pointer, object);
         }
@@ -324,9 +348,7 @@ impl Block {
     }
 
     pub fn is_available_for_allocation(&mut self) -> bool {
-        if self.is_fragmented() {
-            false
-        } else if self.can_bump_allocate() {
+        if self.can_bump_allocate() {
             true
         } else {
             self.find_available_hole();
@@ -344,6 +366,9 @@ impl Block {
         self.end_pointer = self.end_address();
 
         self.reset_mark_bitmaps();
+
+        // We do not reset the "pending_finalization_bitmap" bitmap because this
+        // bitmap is cleared automatically during finalization / allocation.
         self.finalize_bitmap.reset();
     }
 
@@ -352,42 +377,68 @@ impl Block {
         self.marked_objects_bitmap.reset();
     }
 
-    /// Pushes the pointers of objects to finalize into the given finalization
-    /// list.
+    /// Finalizes all unmarked objects right away.
+    pub fn finalize(&mut self) {
+        self.prepare_finalization();
+        self.finalize_pending();
+    }
+
+    /// Finalizes any pending objects. This may happen while the mutator is
+    /// running, thus extra synchronisation is required.
+    pub fn finalize_pending(&mut self) {
+        // We acquire the lock once for all pointers so we don't have to
+        // constantly lock and unlock it for every object that we need to
+        // finalize.
+        let mut bitmap = self.pending_finalization_bitmap.lock();
+
+        // It's possible another thread already finalized this block. To save us
+        // from doing redundant work we'll just bail out if this is the case.
+        if !self.is_finalizing() {
+            return;
+        }
+
+        for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
+            if bitmap.is_set(index) {
+                unsafe {
+                    ptr::drop_in_place(self.lines.offset(index as isize));
+                }
+
+                bitmap.unset(index);
+            }
+        }
+
+        self.finalizing.store(false, Ordering::Release);
+    }
+
+    /// Prepares this block for concurrent finalization.
     ///
-    /// This method may be called very frequently and as such should perform as
-    /// few writes as possible.
-    pub fn push_pointers_to_finalize(
-        &mut self,
-        pointers: &mut FinalizationList,
-    ) {
+    /// Returns true if this block should be finalized.
+    pub fn prepare_finalization(&mut self) -> bool {
+        // With blocks being scheduled in separate threads it's possible for us
+        // to collect a block that is still being finalized. In this case we'll
+        // try to complete the work before updating the pending bitmap with new
+        // entries.
+        if self.is_finalizing() {
+            self.finalize_pending();
+        }
+
+        let mut pending_bitmap = self.pending_finalization_bitmap.lock();
+
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
             if !self.marked_objects_bitmap.is_set(index)
                 && self.finalize_bitmap.is_set(index)
             {
-                let mut object =
-                    unsafe { &mut *self.lines.offset(index as isize) };
-
-                if object.has_attributes() {
-                    pointers.push_attributes(object.take_attributes().unwrap());
-                }
-
-                if object.value.is_some() {
-                    pointers.push_value(object.value.take());
-                }
-
+                pending_bitmap.set(index);
                 self.finalize_bitmap.unset(index);
             }
         }
-    }
 
-    /// Finalizes all unmarked objects right away.
-    pub fn finalize(&mut self) {
-        let mut pointers = FinalizationList::new();
-
-        self.push_pointers_to_finalize(&mut pointers);
-
-        pointers.finalize();
+        if pending_bitmap.is_empty() {
+            false
+        } else {
+            self.finalizing.store(true, Ordering::Release);
+            true
+        }
     }
 
     /// Updates the number of holes in this block, returning the new number of
@@ -428,6 +479,11 @@ impl Block {
         BlockIteratorMut::starting_at(self)
     }
 
+    #[inline(always)]
+    pub fn is_finalizing(&self) -> bool {
+        self.finalizing.load(Ordering::Acquire)
+    }
+
     fn find_available_hole_starting_at(&mut self, index: usize) {
         let mut start_set = false;
         let mut stop_set = false;
@@ -466,6 +522,13 @@ impl Block {
 
 impl Drop for Block {
     fn drop(&mut self) {
+        // Because we schedule block _pointers_ for finalization (and not owned
+        // blocks) it's possible we're about to drop a block that is still being
+        // finalized.
+        if self.is_finalizing() {
+            self.finalize_pending();
+        }
+
         unsafe {
             Heap.dealloc(self.lines as *mut u8, heap_layout_for_block());
         }
@@ -804,6 +867,44 @@ mod tests {
         block.finalize();
 
         assert!(block.finalize_bitmap.is_empty());
+    }
+
+    #[test]
+    fn test_block_finalize_pending() {
+        let mut block = Block::new();
+
+        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        block.prepare_finalization();
+        block.finalize_pending();
+
+        assert_eq!(block.is_finalizing(), false);
+        assert!(block.finalize_bitmap.is_empty());
+        assert!(block.pending_finalization_bitmap.lock().is_empty());
+    }
+
+    #[test]
+    fn test_block_prepare_finalization() {
+        let mut block = Block::new();
+
+        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        block.prepare_finalization();
+
+        assert!(block.is_finalizing());
+        assert!(block.finalize_bitmap.is_empty());
+        assert_eq!(block.pending_finalization_bitmap.lock().is_empty(), false);
+    }
+
+    #[test]
+    fn test_block_prepare_finalization_twice() {
+        let mut block = Block::new();
+
+        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        block.prepare_finalization();
+        block.prepare_finalization();
+
+        assert_eq!(block.is_finalizing(), false);
+        assert!(block.finalize_bitmap.is_empty());
+        assert!(block.pending_finalization_bitmap.lock().is_empty());
     }
 
     #[test]

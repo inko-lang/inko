@@ -5,10 +5,6 @@ use process::RcProcess;
 use vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
-    profile.finalize.start();
-
-    process.reclaim_and_finalize(vm_state.config.parallel_finalization);
-
-    profile.finalize.stop();
+    process.reclaim_and_finalize(vm_state);
     profile.total.stop();
 }

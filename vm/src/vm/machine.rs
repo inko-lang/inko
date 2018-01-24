@@ -167,6 +167,7 @@ impl Machine {
 
         let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
+        let finalizer_pool_guard = self.start_finalizer_threads();
         let secondary_guard = self.start_secondary_threads();
         let suspend_guard = self.start_suspension_worker();
 
@@ -187,6 +188,10 @@ impl Machine {
             return false;
         }
 
+        if finalizer_pool_guard.join().is_err() {
+            return false;
+        }
+
         if suspend_guard.join().is_err() {
             return false;
         }
@@ -197,6 +202,7 @@ impl Machine {
     fn configure_rayon(&self) {
         let config = rayon::Configuration::new()
             .thread_name(|idx| format!("rayon {}", idx))
+            .num_threads(self.state.config.generic_parallel_threads)
             .stack_size(STACK_SIZE);
 
         rayon::initialize(config).unwrap();
@@ -235,9 +241,16 @@ impl Machine {
         self.state.gc_pool.run(move |mut request| request.perform())
     }
 
+    pub fn start_finalizer_threads(&self) -> PoolJoinGuard<()> {
+        self.state
+            .finalizer_pool
+            .run(move |mut block| block.finalize_pending())
+    }
+
     fn terminate(&self) {
         self.state.process_pools.terminate();
         self.state.gc_pool.terminate();
+        self.state.finalizer_pool.terminate();
         self.state.suspension_list.terminate();
     }
 

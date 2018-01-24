@@ -128,7 +128,7 @@ mod tests {
         fn allocator() -> Box<PermanentAllocator> {
             let global_alloc = GlobalAllocator::new();
 
-            Box::new(PermanentAllocator::new(global_alloc, false))
+            Box::new(PermanentAllocator::new(global_alloc))
         }
 
         #[test]

@@ -1,12 +1,9 @@
 //! Functions and macros for performing garbage collection.
 use gc::trace_result::TraceResult;
 use gc::work_list::WorkList;
-
-use immix::finalization_list::FinalizationList;
 use object::ObjectStatus;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
-use vm::state::RcState;
 
 /// Macro used for conditionally moving objects or resolving forwarding
 /// pointers.
@@ -29,15 +26,6 @@ macro_rules! move_object {
 macro_rules! can_skip_pointer {
     ($pointer: expr, $mature: expr) =>
         ( $pointer.is_marked() || !$mature && $pointer.is_mature() );
-}
-
-/// Finalizes a list of objects.
-pub fn finalize(pointers: FinalizationList, state: &RcState) {
-    if state.config.parallel_finalization {
-        pointers.parallel_finalize();
-    } else {
-        pointers.finalize();
-    }
 }
 
 /// Promotes an object to the mature generation.

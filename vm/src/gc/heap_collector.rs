@@ -24,8 +24,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     profile.trace.stop();
     profile.reclaim.start();
 
-    let finalize = process.reclaim_blocks(collect_mature);
-
+    process.reclaim_blocks(vm_state, collect_mature);
     process.update_collection_statistics(collect_mature);
 
     profile.reclaim.stop();
@@ -33,10 +32,6 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     vm_state.process_pools.schedule(process.clone());
 
     profile.suspended.stop();
-    profile.finalize.start();
-
-    collector::finalize(finalize, vm_state);
-    profile.finalize.stop();
 
     profile.total.stop();
     profile.populate_tracing_statistics(trace_result);
