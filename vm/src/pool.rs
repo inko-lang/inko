@@ -175,9 +175,8 @@ impl<T: Send + 'static> PoolInner<T> {
                 job
             } else if let Some(job) = self.steal_excluding(index) {
                 job
-            } else if let Some(jobs) = self.global_queue.pop_half() {
-                queue.push_multiple(jobs);
-                queue.pop_nonblock().unwrap()
+            } else if let Some(job) = self.steal_from_global(&queue) {
+                job
             } else {
                 if let Ok(job) = self.global_queue.pop() {
                     job
@@ -208,6 +207,13 @@ impl<T: Send + 'static> PoolInner<T> {
         }
 
         None
+    }
+
+    pub fn steal_from_global(&self, ours: &RcQueue<T>) -> Option<T> {
+        self.global_queue.pop_half().and_then(|jobs| {
+            ours.push_multiple(jobs);
+            ours.pop_nonblock()
+        })
     }
 }
 
