@@ -203,10 +203,10 @@ impl Bucket {
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        self.blocks
+        let finalize = self.blocks
             .pointers()
             .into_par_iter()
-            .for_each(|mut block| {
+            .filter_map(|mut block| {
                 block.update_line_map();
 
                 let finalize = block.prepare_finalization();
@@ -225,9 +225,14 @@ impl Bucket {
                 }
 
                 if finalize {
-                    state.finalizer_pool.schedule(block);
+                    Some(block)
+                } else {
+                    None
                 }
-            });
+            })
+            .collect();
+
+        state.finalizer_pool.schedule_multiple(finalize);
 
         // We partition the blocks in sequence so we don't need to synchronise
         // access to the destination lists.

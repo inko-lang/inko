@@ -93,7 +93,7 @@ mod tests {
 
         pools.terminate();
 
-        assert_eq!(pools.pools[0].inner.should_process(), false);
-        assert_eq!(pools.pools[1].inner.should_process(), false);
+        assert!(pools.pools[0].inner.queues[0].should_terminate());
+        assert!(pools.pools[1].inner.queues[0].should_terminate());
     }
 }

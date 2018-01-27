@@ -65,39 +65,20 @@
 //!     guard.join().unwrap();
 
 use arc_without_weak::ArcWithoutWeak;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::VecDeque;
 use std::thread::{self, Builder, JoinHandle};
 
 use queue::{Queue, RcQueue};
 
 pub const STACK_SIZE: usize = 1024 * 1024;
 
-/// A job to be processed by a thread.
-pub enum Job<T: Send + 'static> {
-    /// A thread should terminate itself.
-    Terminate,
-
-    /// A thread should perform the given job
-    Perform(T),
-}
-
-impl<T: Send + 'static> Job<T> {
-    pub fn can_steal(&self) -> bool {
-        match self {
-            &Job::Perform(_) => true,
-            _ => false,
-        }
-    }
-}
-
 /// The part of a pool that is shared between threads.
 pub struct PoolInner<T: Send + 'static> {
     /// The queues containing jobs to process, one for every thread.
-    pub queues: Vec<RcQueue<Job<T>>>,
+    pub queues: Vec<RcQueue<T>>,
 
-    /// Boolean used by schedulers to determine if they should pull jobs from
-    /// the queues.
-    pub process: AtomicBool,
+    /// The global queue new messages are scheduled into.
+    pub global_queue: RcQueue<T>,
 }
 
 /// A pool of threads, each processing jobs of a given type.
@@ -152,31 +133,20 @@ impl<T: Send + 'static> Pool<T> {
 
     /// Schedules a new job for processing.
     pub fn schedule(&self, value: T) {
-        let mut queue_index = 0;
-        let mut queue_size = self.inner.queues[0].len();
+        self.inner.global_queue.push(value);
+    }
 
-        for (index, queue) in self.inner.queues.iter().enumerate() {
-            let current_size = queue.len();
-
-            if current_size < queue_size {
-                queue_index = index;
-                queue_size = current_size;
-            }
-        }
-
-        self.inner.queues[queue_index].push(Job::Perform(value));
+    pub fn schedule_multiple(&self, values: VecDeque<T>) {
+        self.inner.global_queue.push_multiple(values);
     }
 
     /// Terminates all the schedulers, ignoring any remaining jobs
     pub fn terminate(&self) {
-        self.inner.stop_processing();
-        self.schedule_termination();
-    }
-
-    fn schedule_termination(&self) {
         for queue in self.inner.queues.iter() {
-            queue.push(Job::Terminate);
+            queue.terminate_queue();
         }
+
+        self.inner.global_queue.terminate_queue();
     }
 }
 
@@ -189,7 +159,7 @@ impl<T: Send + 'static> PoolInner<T> {
 
         PoolInner {
             queues: (0..amount).map(|_| Queue::with_rc()).collect(),
-            process: AtomicBool::new(true),
+            global_queue: Queue::with_rc(),
         }
     }
 
@@ -200,15 +170,23 @@ impl<T: Send + 'static> PoolInner<T> {
     {
         let ref queue = self.queues[index];
 
-        while self.should_process() {
-            let job = queue.pop_nonblock().unwrap_or_else(|| {
-                self.steal_excluding(index).unwrap_or_else(|| queue.pop())
-            });
-
-            match job {
-                Job::Terminate => break,
-                Job::Perform(value) => closure(value),
+        while !queue.should_terminate() {
+            let job = if let Some(job) = queue.pop_nonblock() {
+                job
+            } else if let Some(job) = self.steal_excluding(index) {
+                job
+            } else if let Some(jobs) = self.global_queue.pop_half() {
+                queue.push_multiple(jobs);
+                queue.pop_nonblock().unwrap()
+            } else {
+                if let Ok(job) = self.global_queue.pop() {
+                    job
+                } else {
+                    break;
+                }
             };
+
+            closure(job);
         }
     }
 
@@ -216,28 +194,20 @@ impl<T: Send + 'static> PoolInner<T> {
     ///
     /// This method won't steal jobs from the queue at the given position. This
     /// allows a thread to steal jobs without checking its own queue.
-    pub fn steal_excluding(&self, excluding: usize) -> Option<Job<T>> {
+    pub fn steal_excluding(&self, excluding: usize) -> Option<T> {
+        let ours = &self.queues[excluding];
+
         for (index, queue) in self.queues.iter().enumerate() {
             if index != excluding {
-                if let Some(job) = queue.pop_nonblock() {
-                    if job.can_steal() {
-                        return Some(job);
-                    } else {
-                        queue.push(job);
-                    }
+                if let Some(jobs) = queue.pop_half() {
+                    ours.push_multiple(jobs);
+
+                    return ours.pop_nonblock();
                 }
             }
         }
 
         None
-    }
-
-    pub fn should_process(&self) -> bool {
-        self.process.load(Ordering::Relaxed)
-    }
-
-    pub fn stop_processing(&self) {
-        self.process.store(false, Ordering::Relaxed);
     }
 }
 
@@ -259,8 +229,17 @@ impl<T> JoinGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::thread;
+    use std::time::Duration;
+
+    macro_rules! wait_while {
+        ($condition: expr) => ({
+            while $condition {
+                thread::sleep(Duration::from_millis(5));
+            }
+        });
+    }
 
     #[test]
     fn test_pool_new() {
@@ -282,8 +261,10 @@ mod tests {
             counter_clone.fetch_add(number, Ordering::Relaxed);
         });
 
-        // We're not using "terminate" here to ensure all jobs are processed.
-        pool.schedule_termination();
+        // Wait until all jobs have been completed.
+        wait_while!(pool.inner.global_queue.len() > 0);
+
+        pool.terminate();
 
         guard.join().unwrap();
 
@@ -291,14 +272,13 @@ mod tests {
     }
 
     #[test]
-    fn test_pool_schedule_balancing_jobs() {
+    fn test_pool_schedule() {
         let pool = Pool::new(2, None);
 
         pool.schedule(1);
         pool.schedule(1);
 
-        assert_eq!(pool.inner.queues[0].len(), 1);
-        assert_eq!(pool.inner.queues[1].len(), 1);
+        assert_eq!(pool.inner.global_queue.len(), 2);
     }
 
     #[test]
@@ -307,20 +287,8 @@ mod tests {
 
         pool.terminate();
 
-        assert_eq!(pool.inner.queues[0].len(), 1);
-        assert_eq!(pool.inner.queues[1].len(), 1);
-
-        assert!(match pool.inner.queues[0].pop() {
-            Job::Terminate => true,
-            _ => false,
-        });
-
-        assert!(match pool.inner.queues[1].pop() {
-            Job::Terminate => true,
-            _ => false,
-        });
-
-        assert_eq!(pool.inner.should_process(), false);
+        assert!(pool.inner.queues[0].should_terminate());
+        assert!(pool.inner.queues[1].should_terminate());
     }
 
     #[test]
@@ -340,19 +308,26 @@ mod tests {
     fn test_pool_inner_process() {
         let inner = ArcWithoutWeak::new(PoolInner::new(1));
         let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
+        let started = ArcWithoutWeak::new(AtomicBool::new(false));
 
         let t_inner = inner.clone();
         let t_counter = counter.clone();
+        let t_started = started.clone();
 
         let closure = ArcWithoutWeak::new(move |number| {
+            t_started.store(true, Ordering::Release);
             t_counter.fetch_add(number, Ordering::Relaxed);
         });
+
+        inner.queues[0].push(1);
 
         let t_closure = closure.clone();
         let handle = thread::spawn(move || t_inner.process(0, t_closure));
 
-        inner.queues[0].push(Job::Perform(1));
-        inner.queues[0].push(Job::Terminate);
+        wait_while!(!started.load(Ordering::Acquire));
+
+        inner.global_queue.terminate_queue();
+        inner.queues[0].terminate_queue();
 
         handle.join().unwrap();
 
@@ -363,36 +338,16 @@ mod tests {
     fn test_pool_inner_steal_excluding() {
         let inner = PoolInner::new(2);
 
-        inner.queues[0].push(Job::Perform(10));
-        inner.queues[0].push(Job::Perform(20));
-        inner.queues[1].push(Job::Perform(30));
+        inner.queues[1].push(10);
+        inner.queues[1].push(20);
+        inner.queues[1].push(30);
 
         let job = inner.steal_excluding(0);
 
         assert!(job.is_some());
 
-        match job.unwrap() {
-            Job::Terminate => panic!("expected Perform, got Terminate"),
-            Job::Perform(val) => assert_eq!(val, 30),
-        }
-
-        assert_eq!(inner.queues[0].len(), 2);
-        assert_eq!(inner.queues[1].len(), 0);
-    }
-
-    #[test]
-    fn test_pool_inner_should_process() {
-        let inner: PoolInner<()> = PoolInner::new(1);
-
-        assert!(inner.should_process());
-    }
-
-    #[test]
-    fn test_pool_inner_stop_processing() {
-        let inner: PoolInner<()> = PoolInner::new(1);
-
-        inner.stop_processing();
-
-        assert_eq!(inner.should_process(), false);
+        assert_eq!(job.unwrap(), 20);
+        assert_eq!(inner.queues[0].len(), 1);
+        assert_eq!(inner.queues[1].len(), 1);
     }
 }
