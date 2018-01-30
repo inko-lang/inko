@@ -20,12 +20,12 @@ module Inkoc
       locals.define(name, self_type) if locals[name].nil?
     end
 
-    def type_of_local(name)
+    def depth_and_symbol_for_local(name)
       depth, local = locals.lookup_with_parent(name)
 
       block_type.captures = true if depth >= 0
 
-      local.type if local.any?
+      [depth, local] if local.any?
     end
 
     def closure?

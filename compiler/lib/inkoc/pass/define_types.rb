@@ -186,8 +186,10 @@ module Inkoc
         self_type = scope.self_type
 
         rtype, block_type =
-          if (local_type = scope.type_of_local(name))
-            local_type
+          if (depth_sym = scope.depth_and_symbol_for_local(name))
+            node.depth = depth_sym[0]
+            node.symbol = depth_sym[1]
+            node.symbol.type
           elsif self_type.responds_to_message?(name)
             send_object_message(self_type, name, [], scope, loc)
           elsif @module.responds_to_message?(name)

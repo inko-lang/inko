@@ -192,8 +192,8 @@ module Inkoc
         name = node.name
         loc = node.location
 
-        if body.locals.defined?(name)
-          get_local(name, body, loc)
+        if node.symbol && node.depth
+          get_local_symbol(node.depth, node.symbol, body, loc)
         elsif body.self_type.responds_to_message?(name)
           send_to_self(name, body, loc)
         elsif @module.responds_to_message?(name)
@@ -498,6 +498,10 @@ module Inkoc
             body.locals.lookup_with_parent(name)
           end
 
+        get_local_symbol(depth, symbol, body, location)
+      end
+
+      def get_local_symbol(depth, symbol, body, location)
         register = body.register(symbol.type)
 
         if depth >= 0
