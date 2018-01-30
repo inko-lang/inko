@@ -88,22 +88,6 @@ impl Request {
                 &mut self.profile,
             ),
         };
-
-        println!(
-            "Finished {:?} collection for PID {} in {:.2} ms, \
-             {:.2} ms preparing, {:.2} ms tracing, {:.2} ms reclaiming, \
-             {:.2} ms suspended, {} marked, {} promoted, {} evacuated",
-            self.profile.collection_type,
-            self.process.pid,
-            self.profile.total.duration_msec(),
-            self.profile.prepare.duration_msec(),
-            self.profile.trace.duration_msec(),
-            self.profile.reclaim.duration_msec(),
-            self.profile.suspended.duration_msec(),
-            self.profile.marked,
-            self.profile.promoted,
-            self.profile.evacuated
-        );
     }
 }
 
