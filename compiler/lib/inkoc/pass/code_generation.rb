@@ -273,6 +273,12 @@ module Inkoc
 
         compiled_code.instruct(:CopyBlocks, [to, from], tir_ins.location)
       end
+
+      def on_drop(tir_ins, compiled_code, *)
+        object = tir_ins.object.id
+
+        compiled_code.instruct(:Drop, [object], tir_ins.location)
+      end
     end
   end
 end

@@ -2657,6 +2657,28 @@ impl Machine {
                         ),
                     );
                 }
+                // Immediately drops the value of an object, if any.
+                //
+                // This instruction takes one argument: the register containing
+                // the object for which to drop the value.
+                //
+                // If the object has no value this instruction won't do
+                // anything.
+                //
+                // Once dropped the value of the object should no longer be used
+                // as its memory may have been deallocated.
+                InstructionType::Drop => {
+                    let pointer = context.get_register(instruction.arg(0));
+                    let object = pointer.get_mut();
+
+                    if object.value.is_some() {
+                        drop(object.value.take());
+
+                        if !object.has_attributes() {
+                            pointer.unmark_for_finalization();
+                        }
+                    }
+                }
             };
         }
 

@@ -2,6 +2,7 @@
 
 module Inkoc
   module Pass
+    # rubocop: disable Metrics/ClassLength
     class GenerateTir
       include TypeVerification
       include VisitorMethods
@@ -1033,6 +1034,12 @@ module Inkoc
         raw_binary_instruction(:FileWrite, node, body)
       end
 
+      def on_raw_drop(node, body)
+        object = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Drop, object, node.location)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
@@ -1358,5 +1365,6 @@ module Inkoc
         '#<Pass::GenerateTir>'
       end
     end
+    # rubocop: enable Metrics/ClassLength
   end
 end
