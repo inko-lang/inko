@@ -304,21 +304,36 @@ module Inkoc
         arguments.each do |arg|
           symbol = code_object.type.lookup_argument(arg.name)
 
-          next unless arg.default
-
-          define_argument_default(code_object, symbol, arg.default)
+          if arg.default
+            define_argument_default(code_object, symbol, arg)
+          elsif arg.rest?
+            define_rest_default(code_object, symbol, arg)
+          end
         end
       end
 
-      def define_argument_default(body, local, vnode)
+      def define_argument_default(body, local, arg)
+        generate_argument_default(body, local, arg.default.location) do
+          process_node(arg.default, body)
+        end
+      end
+
+      def define_rest_default(body, local, arg)
+        generate_argument_default(body, local, arg.location) do
+          array_reg = body.register(typedb.new_array_of_type(arg.type))
+
+          body.instruct(:SetArray, array_reg, [], arg.location)
+        end
+      end
+
+      def generate_argument_default(body, local, location)
         body.add_connected_basic_block("#{local.name}_default")
 
-        location = vnode.location
         exists_reg = local_exists(local, body, location)
 
         body.instruct(:GotoNextBlockIfTrue, exists_reg, location)
 
-        set_local(local, process_node(vnode, body), body, location)
+        set_local(local, yield, body, location)
       end
 
       def on_object(node, body)
