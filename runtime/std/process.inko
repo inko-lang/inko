@@ -84,7 +84,8 @@ def spawn(block: lambda) -> Integer {
   _INKOC.process_spawn(block, PRIMARY_POOL)
 }
 
-## Executes the supplied closure in the secondary pool, returning its result.
+## Executes the supplied closure in a separate thread pool, returning its
+## result once it finishes executing.
 ##
 ## Using this method you can move (potentially) blocking (or otherwise slow)
 ## operations out of the primary pool, preventing threads of that pool from
@@ -96,12 +97,12 @@ def spawn(block: lambda) -> Integer {
 ##
 ##     import std::process
 ##
-##     let result = process.run_in_secondary_pool {
+##     let result = process.await {
 ##       10 + 2
 ##     }
 ##
 ##     result # => 12
-def run_in_secondary_pool!(R)(block: do -> R) -> R {
+def await!(R)(block: do -> R) -> R {
   _INKOC.move_to_pool(SECONDARY_POOL)
 
   let result = block.call
