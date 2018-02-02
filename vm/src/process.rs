@@ -80,14 +80,14 @@ pub struct LocalData {
 
     /// The number of mailbox collections that have been performed.
     pub mailbox_collections: usize,
+
+    /// The ID of the pool that this process belongs to.
+    pub pool_id: usize,
 }
 
 pub struct Process {
     /// The process identifier of this process.
     pub pid: PID,
-
-    /// The ID of the pool that this process belongs to.
-    pub pool_id: usize,
 
     /// The status of this process.
     pub status: Mutex<ProcessStatus>,
@@ -117,11 +117,11 @@ impl Process {
             young_collections: 0,
             mature_collections: 0,
             mailbox_collections: 0,
+            pool_id: pool_id,
         };
 
         let process = Process {
             pid: pid,
-            pool_id: pool_id,
             status: Mutex::new(ProcessStatus::Scheduled),
             local_data: UnsafeCell::new(local_data),
         };
@@ -139,6 +139,14 @@ impl Process {
         let context = ExecutionContext::from_isolated_block(block);
 
         Process::new(pid, pool_id, context, global_allocator, config)
+    }
+
+    pub fn set_pool_id(&self, id: usize) {
+        self.local_data_mut().pool_id = id;
+    }
+
+    pub fn pool_id(&self) -> usize {
+        self.local_data().pool_id
     }
 
     pub fn local_data_mut(&self) -> &mut LocalData {

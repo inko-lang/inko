@@ -3,8 +3,8 @@ import std::conversion::ToInteger
 ## The ID of the pool to schedule regular processes on.
 let PRIMARY_POOL = 0
 
-## The ID of the pool to schedule IO processes on.
-let IO_POOL = 1
+## The ID of the pool to use for slow or (potentially) blocking operations.
+let SECONDARY_POOL = 1
 
 ## Returns the PID of the current process.
 ##
@@ -84,23 +84,31 @@ def spawn(block: lambda) -> Integer {
   _INKOC.process_spawn(block, PRIMARY_POOL)
 }
 
-## Spawns a process that will perform IO (or other blocking) operations.
+## Executes the supplied closure in the secondary pool, returning its result.
 ##
-## IO processes are scheduled on a separate process pool so they don't intervene
-## with regular processes.
+## Using this method you can move (potentially) blocking (or otherwise slow)
+## operations out of the primary pool, preventing threads of that pool from
+## getting blocked.
 ##
 ## # Examples
 ##
-## Spawning an IO process:
+## Running a simple operation:
 ##
 ##     import std::process
 ##
-##     process.spawn_io {
-##       10 # => 10
+##     let result = process.run_in_secondary_pool {
+##       10 + 2
 ##     }
 ##
-def spawn_io(block: lambda) -> Integer {
-  _INKOC.process_spawn(block, IO_POOL)
+##     result # => 12
+def run_in_secondary_pool!(R)(block: do -> R) -> R {
+  _INKOC.move_to_pool(SECONDARY_POOL)
+
+  let result = block.call
+
+  _INKOC.move_to_pool(PRIMARY_POOL)
+
+  result
 }
 
 ## Returns the status of a process as an `Integer`.

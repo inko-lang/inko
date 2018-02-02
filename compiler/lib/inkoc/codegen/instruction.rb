@@ -117,6 +117,7 @@ module Inkoc
         FloatCeil
         FloatRound
         Drop
+        MoveToPool
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

@@ -114,7 +114,8 @@ pub enum InstructionType {
     FloatFloor,
     FloatCeil,
     FloatRound,
-    Drop
+    Drop,
+    MoveToPool,
 }
 
 /// Struct for storing information about a single instruction.

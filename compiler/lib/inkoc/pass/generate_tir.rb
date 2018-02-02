@@ -1040,6 +1040,12 @@ module Inkoc
         body.instruct(:Drop, object, node.location)
       end
 
+      def on_raw_move_to_pool(node, body)
+        id = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:MoveToPool, id, node.location)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

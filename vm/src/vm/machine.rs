@@ -2679,6 +2679,37 @@ impl Machine {
                         }
                     }
                 }
+                // Moves the current process to the given pool.
+                //
+                // This instruction takes one argument: the register containing
+                // the pool ID to move to.
+                //
+                // If the process is already running in the given pool this
+                // instruction does nothing.
+                InstructionType::MoveToPool => {
+                    let pool_ptr = context.get_register(instruction.arg(0));
+                    let pool_id = pool_ptr.integer_value()?;
+
+                    if !self.state.process_pools.pool_id_is_valid(pool_id) {
+                        return Err(format!(
+                            "The process pool ID {} is invalid",
+                            pool_id
+                        ));
+                    }
+
+                    if pool_id as usize != process.pool_id() {
+                        process.set_pool_id(pool_id as usize);
+
+                        context.instruction_index = index;
+
+                        // After this we can _not_ perform any operations on the
+                        // process any more as it might be concurrently modified
+                        // by the pool we just moved it to.
+                        self.state.process_pools.schedule(process.clone());
+
+                        return Ok(());
+                    }
+                }
             };
         }
 

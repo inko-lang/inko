@@ -831,6 +831,10 @@ module Inkoc
         Type::Void.new
       end
 
+      def on_raw_move_to_pool(*)
+        typedb.integer_type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

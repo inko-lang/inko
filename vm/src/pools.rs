@@ -30,13 +30,15 @@ impl Pools {
     }
 
     pub fn schedule(&self, process: RcProcess) {
-        if let Some(pool) = self.get(process.pool_id) {
+        let pool_id = process.pool_id();
+
+        if let Some(pool) = self.get(pool_id) {
             process.scheduled();
             pool.schedule(process);
         } else {
             panic!(
                 "The pool ID ({}) for process {} is invalid",
-                process.pool_id, process.pid
+                pool_id, process.pid
             );
         }
     }
@@ -45,6 +47,10 @@ impl Pools {
         for pool in self.pools.iter() {
             pool.terminate();
         }
+    }
+
+    pub fn pool_id_is_valid(&self, id: i64) -> bool {
+        id < self.pools.len() as i64
     }
 }
 
