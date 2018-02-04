@@ -27,6 +27,7 @@ module Inkoc
         # instruction that preceeds it.
         ins = block.instructions[-2]
 
+        return unless ins
         return unless tail_call?(code, ins)
 
         block.instructions[-2] = TIR::Instruction::TailCall

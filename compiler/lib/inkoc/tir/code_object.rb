@@ -55,6 +55,13 @@ module Inkoc
         @blocks.last
       end
 
+      def last_instruction
+        block = current_block
+        block = block.previous while block.empty? && block.previous
+
+        block.instructions.last
+      end
+
       def each_reachable_basic_block
         return to_enum(__method__) unless block_given?
 

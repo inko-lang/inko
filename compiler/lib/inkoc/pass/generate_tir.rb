@@ -159,7 +159,7 @@ module Inkoc
       def add_explicit_return(body)
         return unless body.reachable_basic_block?(body.current_block)
 
-        ins = body.current_block.instructions.last
+        ins = body.last_instruction
         loc = ins ? ins.location : body.location
 
         if ins
