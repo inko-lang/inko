@@ -5,6 +5,7 @@ module Inkoc
     class Optional
       include Inspect
       include Predicates
+      include ObjectOperations
 
       extend Forwardable
 
@@ -40,6 +41,7 @@ module Inkoc
       def method_missing(name, *args, &block)
         type.public_send(name, *args, &block)
       end
+      # rubocop: enable Style/MethodMissing
 
       def respond_to_missing?(name, include_private = false)
         type.respond_to?(name, include_private)
