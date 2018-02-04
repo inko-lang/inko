@@ -60,8 +60,8 @@ macro_rules! throw_io_error {
         $code: ident,
         $index: ident
     ) => ({
-        let code = $crate::error_codes::from_io_error($error);
-        let value = ObjectPointer::integer(code);
+        let message = $crate::error_messages::from_io_error($error);
+        let value = $machine.state.intern(&message.to_string());
 
         throw_value!($machine, $process, value, $context, $code, $index);
     });

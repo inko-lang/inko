@@ -32,7 +32,7 @@ pub mod chunk;
 pub mod compiled_code;
 pub mod config;
 pub mod deref_pointer;
-pub mod error_codes;
+pub mod error_messages;
 pub mod execution_context;
 pub mod gc;
 pub mod global_scope;
