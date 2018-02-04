@@ -48,6 +48,17 @@ module Inkoc
           AST::Identifier.new(arg.name, loc)
         end
 
+        send_init = AST::Send.new(
+          Config::INIT_MESSAGE,
+          AST::Identifier.new('obj', loc),
+          arg_names,
+          loc
+        )
+
+        if init.throws
+          send_init = AST::Try.new(send_init, AST::Body.new([], loc), nil, loc)
+        end
+
         exprs = [
           # var obj = _INKOC.set_object(False, self)
           AST::DefineVariable.new(
@@ -67,12 +78,7 @@ module Inkoc
           ),
 
           # obj.init(...)
-          AST::Send.new(
-            Config::INIT_MESSAGE,
-            AST::Identifier.new('obj', loc),
-            arg_names,
-            loc
-          ),
+          send_init,
 
           # return obj
           AST::Return.new(
