@@ -110,6 +110,15 @@ module Inkoc
           else
             error_for_undefined_throw(node.throw_type, block_type, loc)
           end
+
+          thrown = node.throw_type
+          expected = block_type.throws
+
+          if thrown && expected && !thrown.type_compatible?(expected)
+            diagnostics.type_error(expected, thrown, loc)
+          end
+
+          increment_throws
         end
 
         @try_nesting -= 1
