@@ -38,6 +38,10 @@ module Inkoc
       def type_compatible?(other)
         other.optional? ? true : super
       end
+
+      def nil_type?
+        true
+      end
     end
   end
 end

@@ -875,11 +875,18 @@ module Inkoc
 
         if try_type.physical_type? &&
            else_type.physical_type? &&
+           !else_type.nil_type? &&
            !else_type.type_compatible?(try_type)
           diagnostics.type_error(try_type, else_type, node.else_body.location)
         end
 
-        try_type.if_physical_or_else { else_type }
+        rtype = try_type.if_physical_or_else { else_type }
+
+        if else_type.nil_type?
+          Type::Optional.new(rtype)
+        else
+          rtype
+        end
       end
 
       def else_type_for_try(node, scope)

@@ -66,6 +66,10 @@ module Inkoc
       def boolean?
         false
       end
+
+      def nil_type?
+        false
+      end
     end
   end
 end
