@@ -44,7 +44,7 @@ module Inkoc
       end
 
       def on_method(node, *)
-        error_for_missing_throw_in_block(node)
+        error_for_missing_throw_in_block(node) unless node.required?
       end
 
       def on_node_with_body(node, *)
