@@ -883,7 +883,9 @@ module Inkoc
       end
 
       def else_type_for_try(node, scope)
-        if node.else_body.empty?
+        if node.explicit_block_for_else_body? && node.else_body.empty?
+          node.else_body.type = typedb.nil_type
+        elsif node.else_body.empty?
           node.else_body.type = Type::Void.new
         else
           define_type(node.else_body, scope)
