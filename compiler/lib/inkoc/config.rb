@@ -46,6 +46,7 @@ module Inkoc
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
     DYNAMIC_TYPE = 'Dynamic'
+    VOID_TYPE = 'Void'
     MODULES_ATTRIBUTE = 'Modules'
 
     # The name of the constant to use as the receiver for raw instructions.

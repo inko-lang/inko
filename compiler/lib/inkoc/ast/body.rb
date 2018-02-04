@@ -23,7 +23,7 @@ module Inkoc
       end
 
       def multiple_expressions?
-        @expressions.length > 1
+        @expressions.length >= 1
       end
 
       def last_expression

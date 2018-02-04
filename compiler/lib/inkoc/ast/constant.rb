@@ -37,6 +37,10 @@ module Inkoc
         name == Config::DYNAMIC_TYPE
       end
 
+      def void_type?
+        name == Config::VOID_TYPE
+      end
+
       def visitor_method
         :on_constant
       end

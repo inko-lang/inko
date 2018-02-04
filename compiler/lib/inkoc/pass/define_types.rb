@@ -1369,6 +1369,7 @@ module Inkoc
       def resolve_type(node, self_type, sources)
         return Type::SelfType.new if node.self_type?
         return Type::Dynamic.new if node.dynamic_type?
+        return Type::Void.new if node.void_type?
 
         if node.lambda_or_block_type?
           return resolve_block_type(node, self_type, sources, node.lambda_type?)

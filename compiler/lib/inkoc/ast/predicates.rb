@@ -78,6 +78,10 @@ module Inkoc
       def dynamic_type?
         false
       end
+
+      def void_type?
+        false
+      end
     end
   end
 end
