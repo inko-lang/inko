@@ -9,7 +9,7 @@ module Inkoc
       include TypeCompatibility
       include GenericTypeOperations
 
-      attr_reader :arguments
+      attr_reader :arguments, :thrown_types
 
       attr_accessor :name, :rest_argument, :throws,
                     :required_arguments_count, :inferred, :prototype,
@@ -36,6 +36,7 @@ module Inkoc
         @block_type = block_type
         @inferred = false
         @captures = false
+        @thrown_types = []
       end
 
       def return_type_for_block_and_call=(value)

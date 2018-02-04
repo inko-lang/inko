@@ -9,7 +9,6 @@ module Inkoc
         @module = mod
         @state = state
         @try_nesting = 0
-        @throws = []
       end
 
       def diagnostics
@@ -22,8 +21,8 @@ module Inkoc
         [ast]
       end
 
-      def on_block(node, *)
-        error_for_missing_throw_in_block(node)
+      def on_block(node, block_type)
+        error_for_missing_throw_in_block(node, block_type)
       end
       alias on_lambda on_block
 
@@ -44,7 +43,9 @@ module Inkoc
       end
 
       def on_method(node, *)
-        error_for_missing_throw_in_block(node) unless node.required?
+        return if node.required?
+
+        error_for_missing_throw_in_block(node, node.block_type)
       end
 
       def on_node_with_body(node, *)
@@ -84,12 +85,13 @@ module Inkoc
 
         location = node.location
         exp_throw = block_type.throws
+        thrown = node.value.type
 
-        if exp_throw && !node.value.type.type_compatible?(exp_throw)
-          diagnostics.type_error(exp_throw, node.value.type, location)
+        if exp_throw && !thrown.type_compatible?(exp_throw)
+          diagnostics.type_error(exp_throw, thrown, location)
         end
 
-        increment_throws
+        block_type.thrown_types << thrown
 
         return if in_try?
 
@@ -118,7 +120,7 @@ module Inkoc
             diagnostics.type_error(expected, thrown, loc)
           end
 
-          increment_throws
+          block_type.thrown_types << thrown
         end
 
         @try_nesting -= 1
@@ -128,17 +130,15 @@ module Inkoc
         process_node(node.expression, block_type)
       end
 
-      def error_for_missing_throw_in_block(node)
-        throws = throws? do
-          process_nodes(node.arguments, node.block_type)
-          process_node(node.body, node.block_type)
-        end
+      def error_for_missing_throw_in_block(node, block_type)
+        process_nodes(node.arguments, block_type)
+        process_node(node.body, block_type)
 
-        ttype = node.block_type.throws
+        expected = block_type.throws
 
-        return if throws || !ttype
+        return if block_type.thrown_types.any? || !expected
 
-        diagnostics.missing_throw_error(ttype, node.location)
+        diagnostics.missing_throw_error(expected, node.location)
       end
 
       def error_for_missing_try(node)
@@ -156,20 +156,6 @@ module Inkoc
 
       def in_try?
         @try_nesting.positive?
-      end
-
-      def throws?
-        @throws << 0
-        yield
-        @throws.pop.positive?
-      end
-
-      def increment_throws
-        @throws[-1] += 1 if track_throw?
-      end
-
-      def track_throw?
-        @throws.any?
       end
 
       def inspect
