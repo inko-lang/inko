@@ -1103,7 +1103,14 @@ module Inkoc
         self_reg = get_self(body, node.else_body.location)
         else_loc = node.else_body.location
 
-        run_block(block_reg, [self_reg, catch_reg], [], body, else_loc)
+        arguments =
+          if node.else_argument
+            [self_reg, catch_reg]
+          else
+            [self_reg]
+          end
+
+        run_block(block_reg, arguments, [], body, else_loc)
       end
 
       def define_block_for_else(node, body)
