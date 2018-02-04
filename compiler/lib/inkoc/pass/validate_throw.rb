@@ -104,7 +104,7 @@ module Inkoc
         process_node(node.expression, block_type)
         process_node(node.else_body, block_type)
 
-        if node.else_body.empty?
+        unless node.explicit_block_for_else_body?
           if block_type == @module.body.type
             diagnostics.throw_at_top_level_error(node.throw_type, loc)
           else
