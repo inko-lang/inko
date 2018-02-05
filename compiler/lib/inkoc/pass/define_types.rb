@@ -738,6 +738,10 @@ module Inkoc
         typedb.string_type
       end
 
+      def on_raw_stdin_read(*)
+        typedb.string_type
+      end
+
       def on_raw_stdin_read_exact(*)
         typedb.string_type
       end

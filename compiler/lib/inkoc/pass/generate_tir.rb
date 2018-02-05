@@ -956,6 +956,10 @@ module Inkoc
         raw_unary_instruction(:StringFromBytes, node, body)
       end
 
+      def on_raw_stdin_read(node, body)
+        raw_nullary_instruction(:StdinRead, node, body)
+      end
+
       def on_raw_stdin_read_line(node, body)
         raw_nullary_instruction(:StdinReadLine, node, body)
       end
