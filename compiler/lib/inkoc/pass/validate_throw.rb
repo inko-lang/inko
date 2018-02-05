@@ -22,7 +22,8 @@ module Inkoc
       end
 
       def on_block(node, block_type)
-        error_for_missing_throw_in_block(node, block_type)
+        process_nodes(node.arguments, block_type)
+        process_node(node.body, block_type)
       end
       alias on_lambda on_block
 
