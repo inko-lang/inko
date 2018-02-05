@@ -1,0 +1,18 @@
+import std::process
+import std::conversion::ToString
+import std::io::(Write, Error as IOError)
+
+impl Write for ThisModule {
+  def write(data: ToString) !! IOError -> Integer {
+    process.await {
+      try _INKOC.stdout_write(data.to_string) else (error) {
+        throw IOError.new(error as String)
+      }
+    }
+  }
+
+  def flush -> Nil {
+    _INKOC.stdout_flush
+    Nil
+  }
+}
