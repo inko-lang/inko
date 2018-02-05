@@ -1334,6 +1334,23 @@ impl Machine {
                         }
                     }
                 }
+                // Flushes all output to STDOUT.
+                //
+                // This instruction does not take any arguments.
+                //
+                // This instruction will throw when encountering an IO error.
+                InstructionType::StdoutFlush => {
+                    if let Err(err) = io::stdout().flush() {
+                        throw_io_error!(
+                            self,
+                            process,
+                            err,
+                            context,
+                            code,
+                            index
+                        );
+                    }
+                }
                 // Writes a string to STDERR and returns the amount of
                 // written bytes.
                 //
@@ -1369,6 +1386,23 @@ impl Machine {
                                 index
                             );
                         }
+                    }
+                }
+                // Flushes all output to STDERR.
+                //
+                // This instruction does not take any arguments.
+                //
+                // This instruction will throw when encountering an IO error.
+                InstructionType::StderrFlush => {
+                    if let Err(err) = io::stderr().flush() {
+                        throw_io_error!(
+                            self,
+                            process,
+                            err,
+                            context,
+                            code,
+                            index
+                        );
                     }
                 }
                 // Reads all the data from STDIN.
@@ -1610,7 +1644,6 @@ impl Machine {
                             code,
                             index
                         );
-                        continue;
                     }
                 }
                 // Returns the size of a file in bytes.

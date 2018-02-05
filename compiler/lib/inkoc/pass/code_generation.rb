@@ -285,6 +285,14 @@ module Inkoc
 
         compiled_code.instruct(:MoveToPool, [id], tir_ins.location)
       end
+
+      def on_stdout_flush(tir_ins, compiled_code, *)
+        compiled_code.instruct(:StdoutFlush, [], tir_ins.location)
+      end
+
+      def on_stderr_flush(tir_ins, compiled_code, *)
+        compiled_code.instruct(:StderrFlush, [], tir_ins.location)
+      end
     end
   end
 end

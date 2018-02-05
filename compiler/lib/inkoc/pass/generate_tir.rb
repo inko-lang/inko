@@ -834,6 +834,14 @@ module Inkoc
         raw_unary_instruction(:StdoutWrite, node, body)
       end
 
+      def on_raw_stdout_flush(node, body)
+        body.instruct(:StdoutFlush, node.location)
+      end
+
+      def on_raw_stderr_flush(node, body)
+        body.instruct(:StderrFlush, node.location)
+      end
+
       def on_raw_get_true(node, body)
         get_true(body, node.location)
       end

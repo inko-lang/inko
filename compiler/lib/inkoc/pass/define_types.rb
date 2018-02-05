@@ -799,6 +799,14 @@ module Inkoc
         Type::Void.new
       end
 
+      def on_raw_stdout_flush(*)
+        Type::Void.new
+      end
+
+      def on_raw_stderr_flush(*)
+        Type::Void.new
+      end
+
       def on_raw_file_open(*)
         typedb.file_type
       end

@@ -116,6 +116,8 @@ pub enum InstructionType {
     FloatRound,
     Drop,
     MoveToPool,
+    StdoutFlush,
+    StderrFlush,
 }
 
 /// Struct for storing information about a single instruction.

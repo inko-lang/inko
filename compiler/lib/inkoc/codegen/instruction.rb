@@ -118,6 +118,8 @@ module Inkoc
         FloatRound
         Drop
         MoveToPool
+        StdoutFlush
+        StderrFlush
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
