@@ -1156,8 +1156,16 @@ module Inkoc
     #     try foo else bar
     #     try foo else (error) { error }
     def try(start)
+      with_curly =
+        if @lexer.next_type_is?(:curly_open)
+          advance!
+          true
+        end
+
       expression = expression(advance!)
       else_arg = nil
+
+      advance_and_expect!(:curly_close) if with_curly
 
       else_body =
         if @lexer.next_type_is?(:else)
