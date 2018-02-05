@@ -1,0 +1,57 @@
+#! Methods for writing to STDERR.
+#!
+#! This module provides various methods for writing to STDERR. For example,
+#! printing a message to STDERR can be done as follows:
+#!
+#!     import std::stdio::stderr
+#!
+#!     stderr.print('Hello world!') # => Nil
+#!
+#! Unlike other IO methods the methods in this module will not throw any errors,
+#! instead they will swallow them silently. This is done to make writing to
+#! STDERR more convenient as in almost all (if not all) cases a developer
+#! doesn't care if a write to STDERR succeeds or not.
+
+import std::conversion::ToString
+import std::io::Write
+import std::process
+
+impl Write for ThisModule {
+  ## Writes the given string-like object to STDERR.
+  ##
+  ## # Examples
+  ##
+  ## Writing to STDERR:
+  ##
+  ##     import std::stdio::stderr
+  ##
+  ##     stderr.write('hello') # => 5
+  def write(data: ToString) -> Integer {
+    process.await {
+      try _INKOC.stderr_write(data.to_string) else 0
+    }
+  }
+
+  ## Writes the given string-like object to STDERR, followed by a newline.
+  ##
+  ## # Examples
+  ##
+  ## Writing to STDERR:
+  ##
+  ##     import std::stdio::stderr
+  ##
+  ##     stderr.print('hello') # => Nil
+  def print(data: ToString) -> Nil {
+    process.await {
+      write(data)
+      write("\n")
+    }
+
+    Nil
+  }
+
+  ## Flushes all pending writes to STDERR.
+  def flush -> Nil {
+    try _INKOC.stderr_flush else Nil
+  }
+}

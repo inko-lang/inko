@@ -1,4 +1,8 @@
-#! Types and methods for core IO functionality.
+#! Types for core IO functionality.
+#!
+#! The IO module provides the basic building blocks for IO operations such as
+#! reading from and writing to a file.
+
 import std::process
 import std::conversion::ToString
 

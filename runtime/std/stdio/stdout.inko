@@ -1,0 +1,57 @@
+#! Methods for writing to STDOUT.
+#!
+#! This module provides various methods for writing to STDOUT. For example,
+#! printing a message to STDOUT can be done as follows:
+#!
+#!     import std::stdio::stdout
+#!
+#!     stdout.print('Hello world!') # => Nil
+#!
+#! Unlike other IO methods the methods in this module will not throw any errors,
+#! instead they will swallow them silently. This is done to make writing to
+#! STDOUT more convenient as in almost all (if not all) cases a developer
+#! doesn't care if a write to STDOUT succeeds or not.
+
+import std::conversion::ToString
+import std::io::Write
+import std::process
+
+impl Write for ThisModule {
+  ## Writes the given string-like object to STDOUT.
+  ##
+  ## # Examples
+  ##
+  ## Writing to STDOUT:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     stdout.write('hello') # => 5
+  def write(data: ToString) -> Integer {
+    process.await {
+      try _INKOC.stdout_write(data.to_string) else 0
+    }
+  }
+
+  ## Writes the given string-like object to STDOUT, followed by a newline.
+  ##
+  ## # Examples
+  ##
+  ## Writing to STDOUT:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     stdout.print('hello') # => Nil
+  def print(data: ToString) -> Nil {
+    process.await {
+      write(data)
+      write("\n")
+    }
+
+    Nil
+  }
+
+  ## Flushes all pending writes to STDOUT.
+  def flush -> Nil {
+    try _INKOC.stdout_flush else Nil
+  }
+}
