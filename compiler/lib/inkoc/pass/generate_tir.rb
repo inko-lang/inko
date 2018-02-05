@@ -836,10 +836,12 @@ module Inkoc
 
       def on_raw_stdout_flush(node, body)
         body.instruct(:StdoutFlush, node.location)
+        get_nil(body, node.location)
       end
 
       def on_raw_stderr_flush(node, body)
         body.instruct(:StderrFlush, node.location)
+        get_nil(body, node.location)
       end
 
       def on_raw_get_true(node, body)
@@ -1012,6 +1014,8 @@ module Inkoc
         file = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:Nullary, :FileFlush, file, node.location)
+
+        get_nil(body, node.location)
       end
 
       def on_raw_file_open(node, body)

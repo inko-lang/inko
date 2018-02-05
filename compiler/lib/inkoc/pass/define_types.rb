@@ -796,15 +796,15 @@ module Inkoc
       end
 
       def on_raw_file_flush(*)
-        Type::Void.new
+        typedb.nil_type
       end
 
       def on_raw_stdout_flush(*)
-        Type::Void.new
+        typedb.nil_type
       end
 
       def on_raw_stderr_flush(*)
-        Type::Void.new
+        typedb.nil_type
       end
 
       def on_raw_file_open(*)
