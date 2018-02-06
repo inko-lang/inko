@@ -118,6 +118,7 @@ pub enum InstructionType {
     MoveToPool,
     StdoutFlush,
     StderrFlush,
+    FileRemove,
 }
 
 /// Struct for storing information about a single instruction.

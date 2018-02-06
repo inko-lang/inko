@@ -1053,6 +1053,10 @@ module Inkoc
         raw_binary_instruction(:FileWrite, node, body)
       end
 
+      def on_raw_file_remove(node, body)
+        raw_unary_instruction(:FileRemove, node, body)
+      end
+
       def on_raw_drop(node, body)
         object = process_node(node.arguments.fetch(0), body)
 

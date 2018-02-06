@@ -839,6 +839,10 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_file_remove(*)
+        typedb.nil_type
+      end
+
       def on_raw_drop(*)
         typedb.nil_type
       end

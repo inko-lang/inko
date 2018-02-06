@@ -1,6 +1,7 @@
 //! Virtual Machine for running instructions
 use num_bigint::BigInt;
 use rayon;
+use std::fs;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::thread;
 
@@ -2742,6 +2743,33 @@ impl Machine {
 
                         return Ok(());
                     }
+                }
+                // Removes a file.
+                //
+                // This instruction takes two arguments:
+                //
+                // 1. The register to store the result in. This register will be
+                //    set to nil upon success.
+                // 2. The register containing the path to the file to remove.
+                //
+                // This instruction will throw when encountering an IO error.
+                InstructionType::FileRemove => {
+                    let register = instruction.arg(0);
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let path_str = path_ptr.string_value()?;
+
+                    match fs::remove_file(path_str) {
+                        Ok(_) => context
+                            .set_register(register, self.state.nil_object),
+                        Err(err) => throw_io_error!(
+                            self,
+                            process,
+                            err,
+                            context,
+                            code,
+                            index
+                        ),
+                    };
                 }
             };
         }

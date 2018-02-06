@@ -120,6 +120,7 @@ module Inkoc
         MoveToPool
         StdoutFlush
         StderrFlush
+        FileRemove
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
