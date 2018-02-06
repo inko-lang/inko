@@ -1337,20 +1337,25 @@ impl Machine {
                 }
                 // Flushes all output to STDOUT.
                 //
-                // This instruction does not take any arguments.
+                // This instruction takes one argument: a register to set to nil
+                // if the output was flushed successfully.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::StdoutFlush => {
-                    if let Err(err) = io::stdout().flush() {
-                        throw_io_error!(
+                    let register = instruction.arg(0);
+
+                    match io::stdout().flush() {
+                        Ok(_) => context
+                            .set_register(register, self.state.nil_object),
+                        Err(err) => throw_io_error!(
                             self,
                             process,
                             err,
                             context,
                             code,
                             index
-                        );
-                    }
+                        ),
+                    };
                 }
                 // Writes a string to STDERR and returns the amount of
                 // written bytes.
@@ -1391,20 +1396,25 @@ impl Machine {
                 }
                 // Flushes all output to STDERR.
                 //
-                // This instruction does not take any arguments.
+                // This instruction takes one argument: a register to set to nil
+                // if the output was flushed successfully.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::StderrFlush => {
-                    if let Err(err) = io::stderr().flush() {
-                        throw_io_error!(
+                    let register = instruction.arg(0);
+
+                    match io::stderr().flush() {
+                        Ok(_) => context
+                            .set_register(register, self.state.nil_object),
+                        Err(err) => throw_io_error!(
                             self,
                             process,
                             err,
                             context,
                             code,
                             index
-                        );
-                    }
+                        ),
+                    };
                 }
                 // Reads all the data from STDIN.
                 //
