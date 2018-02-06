@@ -973,33 +973,35 @@ module Inkoc
         loc = node.location
 
         trait = resolve_module_type(node.trait_name, self_type)
-        object = resolve_module_type(node.object_name, self_type)
 
-        verify_same_type_parameters(node.object_name, object)
+        node.object_names.each do |object_name|
+          object = resolve_module_type(object_name, self_type)
 
-        param_instances = type_parameter_instances_for(node.trait_name, object)
-        block_type = define_block_type_for_object(node, object)
-        new_scope = TypeScope.new(object, block_type, node.body.locals)
+          verify_same_type_parameters(object_name, object)
 
-        # TODO: check if the methods of the trait don't conflict with existing
-        # ones.
+          param_instances =
+            type_parameter_instances_for(node.trait_name, object)
 
-        # We add the trait to the object first so type checks comparing the
-        # object and trait will pass.
-        object.implemented_traits << trait
+          block_type = define_block_type_for_object(node, object)
+          new_scope = TypeScope.new(object, block_type, node.body.locals)
 
-        define_type(node.body, new_scope)
+          # We add the trait to the object first so type checks comparing the
+          # object and trait will pass.
+          object.implemented_traits << trait
 
-        traits_implemented = required_traits_implemented?(object, trait, loc)
+          define_type(node.body, new_scope)
 
-        methods_implemented =
-          required_methods_implemented?(object, trait, param_instances, loc)
+          traits_implemented = required_traits_implemented?(object, trait, loc)
 
-        unless traits_implemented && methods_implemented
-          object.implemented_traits.delete(trait)
+          methods_implemented =
+            required_methods_implemented?(object, trait, param_instances, loc)
+
+          unless traits_implemented && methods_implemented
+            object.implemented_traits.delete(trait)
+          end
         end
 
-        object
+        trait
       end
 
       def type_parameter_instances_for(node, self_type)

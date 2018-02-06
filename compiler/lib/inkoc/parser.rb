@@ -1021,10 +1021,11 @@ module Inkoc
     # Example:
     #
     #     impl ToString for Object {
-    #
+    #       ...
     #     }
     #
-    #     impl Object {
+    #     impl ToString for Foo, Bar {
+    #       ...
     #     }
     def implement_trait(start)
       trait_or_object_name = type_name(advance_and_expect!(:constant))
@@ -1032,17 +1033,29 @@ module Inkoc
       if @lexer.next_type_is?(:for)
         advance_and_expect!(:for)
 
-        object_name = type_name(advance_and_expect!(:constant))
+        object_names = trait_object_names
         body = block_body(advance_and_expect!(:curly_open))
 
         AST::TraitImplementation
-          .new(trait_or_object_name, object_name, body, start.location)
+          .new(trait_or_object_name, object_names, body, start.location)
       else
         body = block_body(advance_and_expect!(:curly_open))
 
         AST::ReopenObject
           .new(trait_or_object_name, body, start.location)
       end
+    end
+
+    def trait_object_names
+      names = []
+
+      while @lexer.next_type_is?(:constant)
+        names << type_name(advance_and_expect!(:constant))
+
+        advance! if @lexer.next_type_is?(:comma)
+      end
+
+      names
     end
 
     # Parses a return statement.

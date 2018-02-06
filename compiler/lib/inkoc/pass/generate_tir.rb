@@ -382,31 +382,34 @@ module Inkoc
 
       def on_trait_implementation(node, body)
         loc = node.location
-        object = get_global(node.object_name.name, body, loc)
         trait = get_global(node.trait_name.name, body, loc)
 
-        send_object_message(
-          object,
-          Config::IMPLEMENT_TRAIT_MESSAGE,
-          [trait],
-          [],
-          body,
-          loc
-        )
+        node.object_names.each do |object_name|
+          object = get_global(object_name.name, body, loc)
 
-        block = define_block(
-          Config::IMPL_NAME,
-          node.block_type,
-          [],
-          node.body,
-          node.body.locals,
-          body,
-          loc
-        )
+          send_object_message(
+            object,
+            Config::IMPLEMENT_TRAIT_MESSAGE,
+            [trait],
+            [],
+            body,
+            loc
+          )
 
-        run_block(block, [object], [], body, loc)
+          block = define_block(
+            Config::IMPL_NAME,
+            node.block_type,
+            [],
+            node.body,
+            node.body.locals,
+            body,
+            loc
+          )
 
-        object
+          run_block(block, [object], [], body, loc)
+        end
+
+        trait
       end
 
       def on_reopen_object(node, body)
