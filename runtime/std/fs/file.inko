@@ -1,0 +1,167 @@
+#! Operations and types for manipulating filesystem objects.
+#!
+#! This module contains various types and methods that can be used for operating
+#! on files stored in the local filesystem.
+#!
+#! Unlike many other languages there's no single "File" type to represent a
+#! file, instead there are different types that are used based on the mode a
+#! file is opened in. For example, when opening a file in read-only mode you
+#! will be given a `ReadOnlyFile` object while opening a file in write-only mode
+#! produces a `WriteOnlyFile` object.
+
+import std::conversion::ToString
+import std::io::(Close, Error as IOError, Read, Write, Seek)
+import std::process
+import std::stdio::stdout
+
+let READ_ONLY = 0
+let WRITE_ONLY = 1
+let APPEND_ONLY = 2
+let READ_WRITE = 3
+let READ_APPEND = 4
+
+## A file that can only be used for read operations.
+object ReadOnlyFile {
+  def init(path: ToString) !! IOError {
+    let @path = path.to_string
+    let @file = try _open(@path, READ_ONLY)
+  }
+}
+
+## A file that can only be used for write (or append) operations.
+object WriteOnlyFile {
+  def init(path: ToString, append = False) !! IOError {
+    let mode = append.if true: {
+      APPEND_ONLY
+    }, false: {
+      WRITE_ONLY
+    }
+
+    let @path = path.to_string
+    let @file = try _open(@path, mode)
+  }
+
+  ## Removes this file from the filesystem.
+  def remove !! IOError -> Nil {
+    try ThisModule.remove(@path)
+  }
+}
+
+## A file that can be used for both read and write operations.
+object ReadWriteFile {
+  def init(path: ToString, append = False) !! IOError {
+    let mode = append.if true: {
+      READ_APPEND
+    }, false: {
+      READ_WRITE
+    }
+
+    let @path = path.to_string
+    let @file = try _open(@path, mode)
+  }
+
+  ## Removes this file from the filesystem.
+  def remove !! IOError -> Nil {
+    try ThisModule.remove(@path)
+  }
+}
+
+impl Read for ReadOnlyFile, ReadWriteFile {
+  def read !! IOError -> String {
+    process.await {
+      try _INKOC.file_read(@file) else (err) throw IOError.new(err as String)
+    }
+  }
+
+  def read_exact(amount: Integer) !! IOError -> String {
+    process.await {
+      try {
+        _INKOC.file_read_exact(@file, amount)
+      } else (err) {
+        throw IOError.new(err as String)
+      }
+    }
+  }
+}
+
+impl Write for WriteOnlyFile, ReadWriteFile {
+  def write(data: ToString) !! IOError -> Integer {
+    process.await {
+      try {
+        _INKOC.file_write(@file, data.to_string)
+      } else (err) {
+        throw IOError.new(err as String)
+      }
+    }
+  }
+
+  def flush !! IOError -> Nil {
+    process.await {
+      try _INKOC.file_flush(@file) else (err) throw IOError.new(err as String)
+    }
+  }
+}
+
+impl Seek for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+  def seek(position: Integer) !! IOError -> Integer {
+    process.await {
+      try {
+        _INKOC.file_seek(@file, position)
+      } else (err) {
+        throw IOError.new(err as String)
+      }
+    }
+  }
+}
+
+impl Close for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+  def close -> Nil {
+    _INKOC.drop(@file)
+  }
+}
+
+## Opens a file in the given mode, returning a raw file object.
+def _open(path: ToString, mode: Integer) !! IOError {
+  process.await {
+    try {
+      _INKOC.file_open(path.to_string, mode)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}
+
+def remove(path: ToString) !! IOError -> Nil {
+  process.await {
+    try {
+      _INKOC.file_remove(path.to_string)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}
+
+## Opens a file that can only be used for reading data.
+def read_only(path: ToString) !! IOError -> ReadOnlyFile {
+  try ReadOnlyFile.new(path)
+}
+
+## Opens a file that can only be used for writing data.
+def write_only(path: ToString) !! IOError -> WriteOnlyFile {
+  try WriteOnlyFile.new(path)
+}
+
+## Opens a file that can only be used for appending data.
+def append_only(path: ToString) !! IOError -> WriteOnlyFile {
+  try WriteOnlyFile.new(path: path, append: True)
+}
+
+## Opens a file that can be used for both reading and writing data.
+def read_write(path: ToString) !! IOError -> ReadWriteFile {
+  try ReadWriteFile.new(path: path)
+}
+
+## Opens a file that can be used for both reading and appending data.
+def read_append(path: ToString) !! IOError -> ReadWriteFile {
+  try ReadWriteFile.new(path: path, append: True)
+}

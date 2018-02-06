@@ -28,7 +28,7 @@ trait Close {
   ##
   ## Sending `close` multiple times to the same object is allowed and should not
   ## result in any errors being thrown or panics being triggered.
-  def close
+  def close -> Nil
 }
 
 ## Trait for performing read operations on an object.
