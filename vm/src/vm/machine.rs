@@ -2781,6 +2781,20 @@ impl Machine {
                         ),
                     };
                 }
+                // Produces a VM panic.
+                //
+                // A VM panic will result in a stack trace and error message
+                // being displayed, after which the VM will terminate.
+                //
+                // This instruction requires one argument: the register
+                // containing the error message to display.
+                InstructionType::Panic => {
+                    context.line = instruction.line;
+
+                    let message_ptr = context.get_register(instruction.arg(0));
+
+                    return Err(message_ptr.string_value()?.clone());
+                }
             };
         }
 

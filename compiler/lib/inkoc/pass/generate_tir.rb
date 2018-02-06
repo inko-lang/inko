@@ -1069,6 +1069,12 @@ module Inkoc
         body.instruct(:MoveToPool, id, node.location)
       end
 
+      def on_raw_panic(node, body)
+        message = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Panic, message, node.location)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

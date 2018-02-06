@@ -285,6 +285,12 @@ module Inkoc
 
         compiled_code.instruct(:MoveToPool, [id], tir_ins.location)
       end
+
+      def on_panic(tir_ins, compiled_code, *)
+        message = tir_ins.message.id
+
+        compiled_code.instruct(:Panic, [message], tir_ins.location)
+      end
     end
   end
 end
