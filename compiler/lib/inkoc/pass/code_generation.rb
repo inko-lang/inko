@@ -185,7 +185,7 @@ module Inkoc
 
       def on_set_object(tir_ins, compiled_code, *)
         reg = tir_ins.register.id
-        perm = tir_ins.permanent? ? 1 : 0
+        perm = tir_ins.permanent.id
         args =
           if (proto = tir_ins.prototype)
             [reg, perm, proto.id]
