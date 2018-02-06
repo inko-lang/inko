@@ -840,7 +840,7 @@ module Inkoc
       end
 
       def on_raw_drop(*)
-        Type::Void.new
+        typedb.nil_type
       end
 
       def on_raw_move_to_pool(*)

@@ -1057,6 +1057,8 @@ module Inkoc
         object = process_node(node.arguments.fetch(0), body)
 
         body.instruct(:Drop, object, node.location)
+
+        get_nil(body, node.location)
       end
 
       def on_raw_move_to_pool(node, body)
