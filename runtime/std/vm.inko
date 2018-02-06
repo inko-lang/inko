@@ -1,0 +1,26 @@
+#! Methods for obtaining information about and terminating the VM.
+
+import std::conversion::ToString
+
+## Triggers a panic, terminating the VM.
+##
+## A panic will result in a stack trace being displayed followed by a custom
+## message. Once printed the virtual machine will terminate right away.
+##
+## A panic should only be triggered as a last resort when no better alternative
+## is available. For errors that may happen regularly (e.g. network timeouts)
+## it's better to throw an error using the `throw` keyword.
+##
+## This method will never return.
+##
+## # Examples
+##
+## Triggering a panic:
+##
+##     import std::vm
+##
+##     vm.panic('Uh-oh, something bad happened!')
+##
+def panic(message: ToString) -> Void {
+  _INKOC.panic(message.to_string)
+}
