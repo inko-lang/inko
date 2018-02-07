@@ -22,6 +22,12 @@ object Error {
   }
 }
 
+impl ToString for Error {
+  def to_string -> String {
+    @message
+  }
+}
+
 ## A trait providing a common way for disposing of objects.
 trait Close {
   ## Diposes of any external resources that may be associated with `self`.
