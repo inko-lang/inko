@@ -165,6 +165,24 @@ module Inkoc
 
       token.type = ident_mapping if ident_mapping
 
+      if transform_to_try_bang?(token)
+        transform_to_try_bang(token)
+      else
+        token
+      end
+    end
+
+    def transform_to_try_bang?(token)
+      token.type == :try && @input[@position] == '!'
+    end
+
+    def transform_to_try_bang(token)
+      @position += 1
+      @column += 1
+
+      token.value = 'try!'
+      token.type = :try_bang
+
       token
     end
 

@@ -43,6 +43,7 @@ module Inkoc
         var
         for
         impl
+        try
       ]
     ).freeze
 
@@ -66,6 +67,7 @@ module Inkoc
         throw
         trait
         try
+        try_bang
         paren_open
         lambda
       ]
@@ -538,6 +540,7 @@ module Inkoc
       when :self then self_object(start)
       when :throw then throw_value(start)
       when :try then try(start)
+      when :try_bang then try_bang(start)
       when :colon_colon then global(start)
       when :paren_open then grouped_expression
       when :documentation then documentation(start)
@@ -1169,16 +1172,8 @@ module Inkoc
     #     try foo else bar
     #     try foo else (error) { error }
     def try(start)
-      with_curly =
-        if @lexer.next_type_is?(:curly_open)
-          advance!
-          true
-        end
-
-      expression = expression(advance!)
+      expression = try_expression
       else_arg = nil
-
-      advance_and_expect!(:curly_close) if with_curly
 
       else_body =
         if @lexer.next_type_is?(:else)
@@ -1192,6 +1187,49 @@ module Inkoc
         end
 
       AST::Try.new(expression, else_body, else_arg, start.location)
+    end
+
+    # Parses a "try!" statement
+    def try_bang(start)
+      expression = try_expression
+      else_arg, else_body = try_bang_else(start)
+
+      AST::Try.new(expression, else_body, else_arg, start.location)
+    end
+
+    def try_expression
+      with_curly =
+        if @lexer.next_type_is?(:curly_open)
+          advance!
+          true
+        end
+
+      expression = expression(advance!)
+
+      advance_and_expect!(:curly_close) if with_curly
+
+      expression
+    end
+
+    def try_bang_else(start)
+      arg = try_bang_else_arg(start)
+      loc = start.location
+
+      body = [
+        # _INKOC.panic(error.to_string)
+        AST::Send.new(
+          Config::PANIC_MESSAGE,
+          AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
+          [AST::Send.new(Config::TO_STRING_MESSAGE, arg, [], loc)],
+          loc
+        )
+      ]
+
+      [arg, AST::Body.new(body, loc)]
+    end
+
+    def try_bang_else_arg(start)
+      AST::Identifier.new('error', start.location)
     end
 
     def block_with_optional_curly_braces

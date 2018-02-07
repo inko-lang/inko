@@ -56,6 +56,8 @@ module Inkoc
     MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     CALL_MESSAGE = 'call'
+    PANIC_MESSAGE = 'panic'
+    TO_STRING_MESSAGE = 'to_string'
     MODULE_SEPARATOR = '::'
     BLOCK_TYPE_NAME = 'do'
     LAMBDA_TYPE_NAME = 'lambda'
