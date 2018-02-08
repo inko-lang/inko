@@ -20,7 +20,25 @@ import std::conversion::ToString
 ##     import std::vm
 ##
 ##     vm.panic('Uh-oh, something bad happened!')
-##
 def panic(message: ToString) -> Void {
   _INKOC.panic(message.to_string)
+}
+
+## Terminates the VM immediately with the given exit status.
+##
+## The exit status can be a number between -2147483648 and 2147483647.
+##
+## While calling this method will result in the VM terminating it is technically
+## possible another process sets the exit status around the same time. In this
+## case the exit status will be set to most recent value.
+##
+## # Examples
+##
+## Terminating the VM:
+##
+##     import std::vm
+##
+##     vm.exit(1)
+def exit(status: Integer) -> Void {
+  _INKOC.exit(status)
 }
