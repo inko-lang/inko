@@ -1081,6 +1081,10 @@ module Inkoc
         body.instruct(:Exit, status, node.location)
       end
 
+      def on_raw_platform(node, body)
+        raw_nullary_instruction(:Platform, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

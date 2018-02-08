@@ -1,0 +1,27 @@
+#! Module for retrieving operating system related information.
+
+## Returns a `String` describing the current platform.
+##
+## Possible values are:
+##
+## * unix
+## * windows
+## * other
+##
+## # Examples
+##
+## Getting the platform a program is running on:
+##
+##     import std::os
+##
+##     os.platform # => 'unix'
+def platform -> String {
+  _INKOC.platform
+}
+
+## The newline separator to use on the current platform.
+let NEWLINE = (platform == 'windows').if true: {
+  "\r\n"
+}, false: {
+  "\n"
+}

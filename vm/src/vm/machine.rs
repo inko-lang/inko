@@ -2802,6 +2802,24 @@ impl Machine {
                     self.terminate();
                     return Ok(());
                 }
+                // Stores the name of the current platform as a string into the
+                // given register.
+                //
+                // This instruction requires one argument: a register to store
+                // the resulting platform name in.
+                InstructionType::Platform => {
+                    let register = instruction.arg(0);
+
+                    let platform = if cfg!(windows) {
+                        self.state.intern(&"windows".to_string())
+                    } else if cfg!(unix) {
+                        self.state.intern(&"unix".to_string())
+                    } else {
+                        self.state.intern(&"other".to_string())
+                    };
+
+                    context.set_register(register, platform);
+                }
             };
         }
 

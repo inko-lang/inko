@@ -4,6 +4,7 @@
 #! reading from and writing to a file.
 
 import std::process
+import std::os::NEWLINE
 import std::conversion::ToString
 
 ## Object for storing error details of a failed IO operation.
@@ -58,7 +59,7 @@ trait Write {
   def print(data: ToString) !! Error -> Nil {
     process.await {
       try write(data)
-      try write("\n")
+      try write(NEWLINE)
     }
 
     Nil
