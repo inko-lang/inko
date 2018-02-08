@@ -122,6 +122,7 @@ module Inkoc
         StderrFlush
         FileRemove
         Panic
+        Exit
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

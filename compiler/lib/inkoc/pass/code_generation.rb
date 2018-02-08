@@ -291,6 +291,12 @@ module Inkoc
 
         compiled_code.instruct(:Panic, [message], tir_ins.location)
       end
+
+      def on_exit(tir_ins, compiled_code, *)
+        status = tir_ins.status.id
+
+        compiled_code.instruct(:Exit, [status], tir_ins.location)
+      end
     end
   end
 end

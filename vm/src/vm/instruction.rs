@@ -120,6 +120,7 @@ pub enum InstructionType {
     StderrFlush,
     FileRemove,
     Panic,
+    Exit,
 }
 
 /// Struct for storing information about a single instruction.

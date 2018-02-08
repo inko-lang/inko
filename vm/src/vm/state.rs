@@ -7,7 +7,6 @@
 use num_bigint::BigInt;
 use parking_lot::Mutex;
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time;
 
 use gc::request::Request;
@@ -32,9 +31,6 @@ pub type RcState = Arc<State>;
 pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
-
-    /// Boolean indicating if we terminated successfully or not.
-    pub terminated_successfully: AtomicBool,
 
     /// Table containing all processes.
     pub process_table: RwLock<ProcessTable<RcProcess>>,
@@ -62,6 +58,9 @@ pub struct State {
 
     /// The list of suspended processes.
     pub suspension_list: SuspensionList,
+
+    /// The exit status to use when the VM terminates.
+    pub exit_status: Mutex<i32>,
 
     /// The prototype of the base object, used as the prototype for all other
     /// prototypes.
@@ -144,7 +143,6 @@ impl State {
 
         let state = State {
             config: config,
-            terminated_successfully: AtomicBool::new(true),
             process_table: RwLock::new(ProcessTable::new()),
             process_pools: process_pools,
             gc_pool: gc_pool,
@@ -153,6 +151,7 @@ impl State {
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
             start_time: time::Instant::now(),
+            exit_status: Mutex::new(0),
             suspension_list: SuspensionList::new(),
             top_level: top_level,
             object_prototype: object_proto,
@@ -231,12 +230,12 @@ impl State {
         alloc.allocate_with_prototype(value, self.integer_prototype)
     }
 
-    pub fn has_terminated_successfully(&self) -> bool {
-        self.terminated_successfully.load(Ordering::Relaxed)
+    pub fn set_exit_status(&self, new_status: i32) {
+        *self.exit_status.lock() = new_status;
     }
 
-    pub fn terminated_due_to_panic(&self) {
-        self.terminated_successfully.store(false, Ordering::Relaxed);
+    pub fn current_exit_status(&self) -> i32 {
+        *self.exit_status.lock()
     }
 }
 

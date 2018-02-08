@@ -2,6 +2,7 @@
 use num_bigint::BigInt;
 use rayon;
 use std::fs;
+use std::i32;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::thread;
 
@@ -163,7 +164,7 @@ impl Machine {
     ///
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
-    pub fn start(&self, file: &String) -> bool {
+    pub fn start(&self, file: &String) {
         self.configure_rayon();
 
         let primary_guard = self.start_primary_threads();
@@ -175,29 +176,14 @@ impl Machine {
         self.start_main_process(file);
 
         // Joining the pools only fails in case of a panic. In this case we
-        // don't want to re-panic as this clutters the error output, so we just
-        // return instead.
-        if primary_guard.join().is_err() {
-            return false;
+        // don't want to re-panic as this clutters the error output.
+        if primary_guard.join().is_err() || secondary_guard.join().is_err()
+            || gc_pool_guard.join().is_err()
+            || finalizer_pool_guard.join().is_err()
+            || suspend_guard.join().is_err()
+        {
+            self.state.set_exit_status(1);
         }
-
-        if secondary_guard.join().is_err() {
-            return false;
-        }
-
-        if gc_pool_guard.join().is_err() {
-            return false;
-        }
-
-        if finalizer_pool_guard.join().is_err() {
-            return false;
-        }
-
-        if suspend_guard.join().is_err() {
-            return false;
-        }
-
-        self.state.has_terminated_successfully()
     }
 
     fn configure_rayon(&self) {
@@ -2795,6 +2781,27 @@ impl Machine {
 
                     return Err(message_ptr.string_value()?.clone());
                 }
+                // Terminates the VM with a given exit status.
+                //
+                // This instruction takes one argument: a register containing an
+                // integer to use for the exit status.
+                InstructionType::Exit => {
+                    let status_ptr = context.get_register(instruction.arg(0));
+                    let status = status_ptr.integer_value()?;
+                    let min = i32::MIN as i64;
+                    let max = i32::MAX as i64;
+
+                    if status < min || status > max {
+                        return Err(format!(
+                            "{} is not a valid exit code",
+                            status
+                        ));
+                    }
+
+                    self.state.set_exit_status(status as i32);
+                    self.terminate();
+                    return Ok(());
+                }
             };
         }
 
@@ -3023,6 +3030,8 @@ impl Machine {
 
     fn panic(&self, process: &RcProcess, message: String) {
         runtime_panic::display_panic(process, message);
+
+        self.state.set_exit_status(1);
         self.terminate();
     }
 

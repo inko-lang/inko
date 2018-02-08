@@ -855,6 +855,10 @@ module Inkoc
         typedb.void_type
       end
 
+      def on_raw_exit(*)
+        typedb.void_type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

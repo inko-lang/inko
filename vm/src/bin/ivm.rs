@@ -9,10 +9,8 @@ use libinko::config::Config;
 use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
-fn print_usage(options: &getopts::Options) -> ! {
+fn print_usage(options: &getopts::Options) {
     print_stderr(format!("{}", options.usage("Usage: ivm FILE [OPTIONS]")));
-
-    process::exit(1);
 }
 
 fn print_stderr(message: String) {
@@ -23,7 +21,7 @@ fn print_stderr(message: String) {
     stderr.flush().unwrap();
 }
 
-fn main() {
+fn run() -> i32 {
     let args: Vec<String> = env::args().collect();
     let mut options = getopts::Options::new();
 
@@ -37,22 +35,28 @@ fn main() {
         "DIR",
     );
 
-    let matches = options.parse(&args[1..]).unwrap_or_else(|err| {
-        print_stderr(format!("{}\n", err));
-        print_usage(&options);
-    });
+    let matches = match options.parse(&args[1..]) {
+        Ok(matches) => matches,
+        Err(err) => {
+            print_stderr(format!("{}\n", err));
+            print_usage(&options);
+            return 1;
+        }
+    };
 
     if matches.opt_present("h") {
         print_usage(&options);
+        return 0;
     }
 
     if matches.opt_present("v") {
         println!("ivm {}", env!("CARGO_PKG_VERSION"));
-        return;
+        return 0;
     }
 
     if matches.free.is_empty() {
         print_usage(&options);
+        return 1;
     } else {
         let mut config = Config::new();
         let ref path = matches.free[0];
@@ -67,8 +71,11 @@ fn main() {
 
         let machine = Machine::default(State::new(config));
 
-        if !machine.start(path) {
-            process::exit(1);
-        }
+        machine.start(path);
+        machine.state.current_exit_status()
     }
+}
+
+fn main() {
+    process::exit(run());
 }

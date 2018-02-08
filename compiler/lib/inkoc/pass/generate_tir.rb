@@ -1075,6 +1075,12 @@ module Inkoc
         body.instruct(:Panic, message, node.location)
       end
 
+      def on_raw_exit(node, body)
+        status = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Exit, status, node.location)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
