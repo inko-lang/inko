@@ -38,6 +38,11 @@ trait Close {
   def close -> Nil
 }
 
+## Trait for retrieving the size of an IO object.
+trait Size {
+  def size !! Error -> Integer
+}
+
 ## Trait for performing read operations on an object.
 trait Read {
   ## Reads all available data and returns it as a `String`.

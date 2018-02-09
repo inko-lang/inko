@@ -1,0 +1,117 @@
+#! Cross-platform paths to files and directories.
+#!
+#! This module provides two types: the `Path` object and the `ToPath` trait. A
+#! `Path` is used for file or directory paths while `ToPath` is used for
+#! converting an object into a `Path`.
+#!
+#! ## Using ToPath for generic path inputs
+#!
+#! Sometimes you may have a method that should accept both a `String` and a
+#! `Path` as the input. Using `ToPath` we can easily implement this as follows:
+#!
+#!     import std::fs::path::ToPath
+#!
+#!     def example_method(input: ToPath) {
+#!       let path = input.to_path
+#!     }
+#!
+#! Here we specify that the input type should be `ToPath` instead of `Path` or
+#! `String`, we then send the `to_path` message to said input object. This
+#! allows you to pass any object to this method as long as it implements the
+#! `ToPath` trait:
+#!
+#!     import std::fs::path::(Path, ToPath)
+#!
+#!     def example_method(input: ToPath) {
+#!       let path = input.to_path
+#!     }
+#!
+#!     example_method('/tmp/hello.txt')
+#!     example_method(Path.new('/tmp/hello.txt'))
+#!
+#! A more realistic example would be the `std::fs::file` module which uses this
+#! technique to support opening files using either a `String` or a `Path`
+#! object:
+#!
+#!     import std::fs::file
+#!     import std::fs::path::Path
+#!
+#!     file.read_only('/dev/urandom')
+#!     file.read_only(Path.new('/dev/urandom'))
+
+import std::conversion::ToString
+import std::io::(Error as IOError, Size)
+
+let MISSING_TYPE = 0
+let FILE_TYPE = 1
+let DIRECTORY_TYPE = 2
+
+## A path to a file or directory.
+##
+## A `Path` can be used to retrieve information about a path to a file or
+## directory such as the size or file type. `Path` objects can be created by
+## either using `Path.new` or by sending `to_path` to a `String`.
+##
+## # Examples
+##
+## Creating a new `Path` using a `String`:
+##
+##     import std::fs::path::Path
+##
+##     Path.new('/tmp/hello.txt')
+##
+## Converting a `String` to a `Path`:
+##
+##     import std::fs::path::Path
+##
+##     '/tmp/hello.txt'.to_path
+object Path {
+  def init(path: String) {
+    let @path = path
+  }
+
+  ## Returns `True` if the path points to a file.
+  def file? -> Boolean {
+    _INKOC.file_type(@path) == FILE_TYPE
+  }
+
+  ## Returns `True` if the path points to a directory.
+  def directory? -> Boolean {
+    _INKOC.file_type(@path) == DIRECTORY_TYPE
+  }
+
+  ## Returns `True` if the path points to an existing file or directory.
+  def exists? -> Boolean {
+    _INKOC.file_type(@path) > MISSING_TYPE
+  }
+}
+
+## Trait for converting an object to a `Path`.
+trait ToPath {
+  def to_path -> Path
+}
+
+impl ToString for Path {
+  def to_string -> String {
+    @path
+  }
+}
+
+impl Size for Path {
+  ## Returns the size of the path in bytes.
+  def size !! IOError -> Integer {
+    try _INKOC.file_size(@path) else (err) throw IOError.new(err as String)
+  }
+}
+
+impl ToPath for Path {
+  def to_path -> Path {
+    self
+  }
+}
+
+impl ToPath for String {
+  def to_path -> Path {
+    Path.new(self)
+  }
+}

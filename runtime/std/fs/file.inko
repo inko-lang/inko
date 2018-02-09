@@ -10,7 +10,8 @@
 #! produces a `WriteOnlyFile` object.
 
 import std::conversion::ToString
-import std::io::(Close, Error as IOError, Read, Write, Seek)
+import std::fs::path::(Path, ToPath)
+import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
 import std::stdio::stdout
 
@@ -22,28 +23,28 @@ let READ_APPEND = 4
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
-  def path -> String
+  def path -> Path
 }
 
 ## A file that can only be used for read operations.
 object ReadOnlyFile {
-  def init(path: ToString) !! IOError {
-    let @path = path.to_string
-    let @file = try _open(@path, READ_ONLY)
+  def init(path: ToPath) !! IOError {
+    let @path = path.to_path
+    let @file = try _open(@path.to_string, READ_ONLY)
   }
 }
 
 ## A file that can only be used for write (or append) operations.
 object WriteOnlyFile {
-  def init(path: ToString, append = False) !! IOError {
+  def init(path: ToPath, append = False) !! IOError {
     let mode = append.if true: {
       APPEND_ONLY
     }, false: {
       WRITE_ONLY
     }
 
-    let @path = path.to_string
-    let @file = try _open(@path, mode)
+    let @path = path.to_path
+    let @file = try _open(@path.to_string, mode)
   }
 
   ## Removes this file from the filesystem.
@@ -54,15 +55,15 @@ object WriteOnlyFile {
 
 ## A file that can be used for both read and write operations.
 object ReadWriteFile {
-  def init(path: ToString, append = False) !! IOError {
+  def init(path: ToPath, append = False) !! IOError {
     let mode = append.if true: {
       READ_APPEND
     }, false: {
       READ_WRITE
     }
 
-    let @path = path.to_string
-    let @file = try _open(@path, mode)
+    let @path = path.to_path
+    let @file = try _open(@path.to_string, mode)
   }
 
   ## Removes this file from the filesystem.
@@ -119,8 +120,14 @@ impl Seek for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
   }
 }
 
+impl Size for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+  def size !! IOError -> Integer {
+    try @path.size
+  }
+}
+
 impl FilePath for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
-  def path -> String {
+  def path -> Path {
     @path
   }
 }
@@ -150,15 +157,14 @@ def _open(path: ToString, mode: Integer) !! IOError {
 ##
 ##     import std::fs::file
 ##
-##     try! file
-##       .write_only('/tmp/test.txt')
-##       .write('hello')
+##     let handle = try! file.write_only('/tmp/test.txt')
 ##
+##     try! handle.write('hello')
 ##     try! file.remove('/tmp/test.txt') # => Nil
-def remove(path: ToString) !! IOError -> Nil {
+def remove(path: ToPath) !! IOError -> Nil {
   process.await {
     try {
-      _INKOC.file_remove(path.to_string)
+      _INKOC.file_remove(path.to_path.to_string)
     } else (err) {
       throw IOError.new(err as String)
     }
@@ -174,40 +180,39 @@ def remove(path: ToString) !! IOError -> Nil {
 ##
 ##     import std::fs::file
 ##
-##     try! file
-##       .write_only('/tmp/test.txt')
-##       .write('hello')
+##     let handle = try! file.write_only('/tmp/test.txt')
 ##
+##     try! handle.write('hello')
 ##     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
-def copy(from: ToString, to: ToString) !! IOError -> Integer {
+def copy(from: ToPath, to: ToPath) !! IOError -> Integer {
   try {
-    _INKOC.file_copy(from.to_string, to.to_string)
+    _INKOC.file_copy(from.to_path.to_string, to.to_path.to_string)
   } else (error) {
     throw IOError.new(error as String)
   }
 }
 
 ## Opens a file that can only be used for reading data.
-def read_only(path: ToString) !! IOError -> ReadOnlyFile {
+def read_only(path: ToPath) !! IOError -> ReadOnlyFile {
   try ReadOnlyFile.new(path)
 }
 
 ## Opens a file that can only be used for writing data.
-def write_only(path: ToString) !! IOError -> WriteOnlyFile {
+def write_only(path: ToPath) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path)
 }
 
 ## Opens a file that can only be used for appending data.
-def append_only(path: ToString) !! IOError -> WriteOnlyFile {
+def append_only(path: ToPath) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path: path, append: True)
 }
 
 ## Opens a file that can be used for both reading and writing data.
-def read_write(path: ToString) !! IOError -> ReadWriteFile {
+def read_write(path: ToPath) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path)
 }
 
 ## Opens a file that can be used for both reading and appending data.
-def read_append(path: ToString) !! IOError -> ReadWriteFile {
+def read_append(path: ToPath) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path, append: True)
 }
