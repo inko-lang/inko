@@ -1,6 +1,6 @@
 //! Virtual Machine for running instructions
-use num_bigint::BigInt;
 use rayon;
+use rug::Integer;
 use std::fs;
 use std::i32;
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -742,7 +742,13 @@ impl Machine {
                 // 2. The register of the integer to operate on.
                 // 3. The register of the integer to use as the operand.
                 InstructionType::IntegerBitwiseAnd => {
-                    integer_op!(process, instruction, &);
+                    integer_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        &
+                    );
                 }
                 // Performs an integer bitwise OR.
                 //
@@ -752,7 +758,13 @@ impl Machine {
                 // 2. The register of the integer to operate on.
                 // 3. The register of the integer to use as the operand.
                 InstructionType::IntegerBitwiseOr => {
-                    integer_op!(process, instruction, |);
+                    integer_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        |
+                    );
                 }
                 // Performs an integer bitwise XOR.
                 //
@@ -762,7 +774,13 @@ impl Machine {
                 // 2. The register of the integer to operate on.
                 // 3. The register of the integer to use as the operand.
                 InstructionType::IntegerBitwiseXor => {
-                    integer_op!(process, instruction, ^);
+                    integer_op!(
+                        process,
+                        context,
+                        self.state.integer_prototype,
+                        instruction,
+                        ^
+                    );
                 }
                 // Shifts an integer to the left.
                 //

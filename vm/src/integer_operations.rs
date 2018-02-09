@@ -1,6 +1,6 @@
 //! Operations for manipulating integers that may overflow into big integers.
 
-use num_bigint::BigInt;
+use rug::Integer;
 use std::ops::{Shl, Shr};
 
 use object_pointer::ObjectPointer;
@@ -31,7 +31,13 @@ macro_rules! shift_integer {
         let (res, overflowed) = to_shift.$overflow_op(shift_with as u32);
 
         let pointer = if overflowed {
-            let bigint = BigInt::from(to_shift).$op(shift_with as usize);
+            let to_shift_big = Integer::from(to_shift);
+
+            let bigint = if $shift_with.is_in_i32_range() {
+                to_shift_big.$op(shift_with as i32)
+            } else {
+                return Err(shift_error!($to_shift, $shift_with));
+            };
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if ObjectPointer::integer_too_large(res) {
@@ -61,9 +67,9 @@ macro_rules! shift_big_integer {
         $proto: expr,
         $op: ident
     ) => ({
-        let to_shift = $to_shift.bigint_value()?;
-        let shift_with = $shift_with.integer_value()? as usize;
-        let res = to_shift.clone().$op(shift_with);
+        let to_shift = $to_shift.bigint_value()?.clone();
+        let shift_with = $shift_with.integer_value()?;
+        let res = to_shift.$op(shift_with as i32);
 
         Ok($process.allocate(object_value::bigint(res), $proto))
     });
@@ -211,7 +217,7 @@ pub fn bigint_shift_left(
     shift_with_ptr: ObjectPointer,
     prototype: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    if shift_with_ptr.is_in_u32_range() {
+    if shift_with_ptr.is_in_i32_range() {
         shift_big_integer!(
             process,
             to_shift_ptr,
@@ -240,7 +246,7 @@ pub fn bigint_shift_right(
     shift_with_ptr: ObjectPointer,
     prototype: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    if shift_with_ptr.is_in_u32_range() {
+    if shift_with_ptr.is_in_i32_range() {
         shift_big_integer!(
             process,
             to_shift_ptr,

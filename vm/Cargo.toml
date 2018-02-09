@@ -19,9 +19,10 @@ parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
 colored = "^1.6"
 
-[dependencies.num-bigint]
-version = "^0.1"
+[dependencies.rug]
+version = "^0.9"
 default-features = false
+features = ["integer"]
 
 [features]
 default = ["system-allocator", "prefetch"]

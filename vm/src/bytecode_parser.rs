@@ -12,11 +12,12 @@
 //!
 //!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
-use num_bigint::BigInt;
+use rug::Integer;
 use std::fs::File;
 use std::io::Bytes;
 use std::io::prelude::*;
 use std::mem;
+use std::str;
 
 use catch_table::{CatchEntry, CatchTable};
 use compiled_code::CompiledCode;
@@ -73,6 +74,7 @@ pub enum ParserError {
     InvalidString,
     InvalidByteArray,
     InvalidInteger,
+    InvalidBigInteger,
     InvalidFloat,
     MissingByte,
     InvalidLiteralType(u8),
@@ -337,7 +339,10 @@ fn read_literal<T: Read>(
         }
         LITERAL_BIGINT => {
             let bytes = read_byte_array(bytes)?;
-            let bigint = BigInt::parse_bytes(&bytes, 16).unwrap();
+            let slice = str::from_utf8(&bytes)
+                .map_err(|_| ParserError::InvalidBigInteger)?;
+
+            let bigint = Integer::from_str_radix(slice, 16).unwrap();
 
             state.allocate_permanent_bigint(bigint)
         }
@@ -794,7 +799,7 @@ mod tests {
         assert!(object.literals[3].is_bigint());
         assert_eq!(
             object.literals[3].bigint_value().unwrap(),
-            &BigInt::from(10)
+            &Integer::from(10)
         );
 
         assert_eq!(object.code_objects.len(), 0);

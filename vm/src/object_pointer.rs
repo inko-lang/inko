@@ -1,6 +1,7 @@
-use num_bigint::BigInt;
+use rug::Integer;
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::i32;
 use std::i64;
 use std::mem::transmute;
 use std::u32;
@@ -429,6 +430,14 @@ impl ObjectPointer {
         }
     }
 
+    pub fn is_in_i32_range(&self) -> bool {
+        if let Ok(integer) = self.integer_value() {
+            integer >= i32::MIN as i64 && integer <= i32::MAX as i64
+        } else {
+            false
+        }
+    }
+
     pub fn is_immutable(&self) -> bool {
         self.is_tagged_integer() || self.get().value.is_immutable()
     }
@@ -462,7 +471,7 @@ impl ObjectPointer {
 
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
-    def_value_getter!(bigint_value, get, as_bigint, &BigInt);
+    def_value_getter!(bigint_value, get, as_bigint, &Integer);
 }
 
 impl ObjectPointerPointer {

@@ -16,10 +16,10 @@ static A: System = System;
 extern crate alloc;
 extern crate colored;
 extern crate fnv;
-extern crate num_bigint;
 extern crate num_cpus;
 extern crate parking_lot;
 extern crate rayon;
+extern crate rug;
 
 pub mod macros;
 

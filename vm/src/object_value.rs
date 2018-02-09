@@ -4,7 +4,7 @@
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
-use num_bigint::BigInt;
+use rug::Integer;
 use std::fs;
 use std::mem;
 
@@ -31,7 +31,7 @@ pub enum ObjectValue {
     Binding(RcBinding),
 
     /// An arbitrary precision integer stored on the heap.
-    BigInt(Box<BigInt>),
+    BigInt(Box<Integer>),
 
     /// A heap allocated integer that doesn't fit in a tagged pointer, but is
     /// too small for a BigInt.
@@ -138,8 +138,7 @@ impl ObjectValue {
         match self {
             &ObjectValue::String(ref val) => Ok(val),
             &ObjectValue::InternedString(ref val) => Ok(val),
-            _ => Err("ObjectValue::as_string() called on a non string"
-                .to_string()),
+            _ => Err("ObjectValue::as_string() called on a non string".to_string()),
         }
     }
 
@@ -153,8 +152,7 @@ impl ObjectValue {
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
         match self {
             &mut ObjectValue::File(ref mut val) => Ok(val),
-            _ => Err("ObjectValue::as_file_mut() called on a non file"
-                .to_string()),
+            _ => Err("ObjectValue::as_file_mut() called on a non file".to_string()),
         }
     }
 
@@ -174,19 +172,17 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_bigint(&self) -> Result<&BigInt, String> {
+    pub fn as_bigint(&self) -> Result<&Integer, String> {
         match self {
             &ObjectValue::BigInt(ref val) => Ok(val),
-            _ => Err("ObjectValue::as_bigint() called on a non BigInt"
-                .to_string()),
+            _ => Err("ObjectValue::as_bigint() called on a non BigInt".to_string()),
         }
     }
 
     pub fn as_integer(&self) -> Result<i64, String> {
         match self {
             &ObjectValue::Integer(val) => Ok(val),
-            _ => Err("ObjectValue::integer() called on a non integer"
-                .to_string()),
+            _ => Err("ObjectValue::integer() called on a non integer".to_string()),
         }
     }
 
@@ -245,7 +241,7 @@ pub fn binding(value: RcBinding) -> ObjectValue {
     ObjectValue::Binding(value)
 }
 
-pub fn bigint(value: BigInt) -> ObjectValue {
+pub fn bigint(value: Integer) -> ObjectValue {
     ObjectValue::BigInt(Box::new(value))
 }
 

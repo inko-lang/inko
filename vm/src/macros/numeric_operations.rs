@@ -4,16 +4,77 @@ macro_rules! to_expr {
     ($e: expr) => ($e);
 }
 
+/// Performs an integer operation that won't overflow.
+///
+/// This macro takes the following arguments:
+///
+/// * `$process`: the process that is performing the operation.
+/// * `$context`: the current ExecutionContext.
+/// * `$proto`: the prototype (as an ObjectPointer) to use for allocations.
+/// * `$instruction`: the instruction that is executed.
+/// * `$op`: the function to use for the operation.
 macro_rules! integer_op {
-    ($process: expr, $ins: expr, $op: tt) => ({
-        let register = $ins.arg(0);
-        let rec_ptr = $process.get_register($ins.arg(1));
-        let arg_ptr = $process.get_register($ins.arg(2));
-        let rec = rec_ptr.integer_value()?;
-        let arg = arg_ptr.integer_value()?;
-        let result = to_expr!(rec $op arg);
+    (
+        $process: expr,
+        $context: expr,
+        $proto: expr,
+        $instruction: expr,
+        $op: tt
+    ) => ({
 
-        $process.set_register(register, ObjectPointer::integer(result));
+        let register = $instruction.arg(0);
+        let rec_ptr = $context.get_register($instruction.arg(1));
+        let arg_ptr = $context.get_register($instruction.arg(2));
+
+        let pointer = if rec_ptr.is_integer() && arg_ptr.is_integer() {
+            // int | int
+
+            let rec = rec_ptr.integer_value()?;
+            let arg = arg_ptr.integer_value()?;
+            let result = to_expr!(rec $op arg);
+
+            if ObjectPointer::integer_too_large(result) {
+                $process.allocate(object_value::integer(result), $proto)
+            } else {
+                ObjectPointer::integer(result)
+            }
+        } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
+            // int | bigint
+
+            let rec = Integer::from(rec_ptr.integer_value()?);
+            let arg = arg_ptr.bigint_value()?;
+            let result = to_expr!(rec $op arg);
+
+            $process.allocate(object_value::bigint(result), $proto)
+        } else if rec_ptr.is_bigint() && arg_ptr.is_integer() {
+            // bigint | int
+
+            let rec = rec_ptr.bigint_value()?.clone();
+            let arg = arg_ptr.integer_value()?;
+
+            let result = if arg_ptr.is_in_i32_range() {
+                to_expr!(rec $op arg as i32)
+            } else {
+                to_expr!(rec $op Integer::from(arg))
+            };
+
+            $process.allocate(object_value::bigint(result), $proto)
+        } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
+            // bigint | bigint
+
+            let rec = rec_ptr.bigint_value()?.clone();
+            let arg = arg_ptr.bigint_value()?;
+            let result = to_expr!(rec $op arg);
+
+            $process.allocate(object_value::bigint(result), $proto)
+        } else {
+            return Err(
+                "Integer instructions can only be performed using integers"
+                    .to_string()
+            );
+        };
+
+        $context.set_register(register, pointer);
     });
 }
 
@@ -88,7 +149,8 @@ macro_rules! integer_overflow_op {
             if overflowed {
                 // If the operation overflowed we need to retry it but using
                 // big integers.
-                let result = to_expr!(BigInt::from(rec) $op arg);
+                let result =
+                    to_expr!(Integer::from(rec) $op Integer::from(arg));
 
                 $process.allocate(object_value::bigint(result), $proto)
             } else if ObjectPointer::integer_too_large(result) {
@@ -104,13 +166,18 @@ macro_rules! integer_overflow_op {
 
             let rec = rec_ptr.bigint_value()?.clone();
             let arg = arg_ptr.integer_value()?;
-            let bigint = to_expr!(rec $op arg);
+
+            let bigint = if arg_ptr.is_in_i32_range() {
+                to_expr!(rec $op arg as i32)
+            } else {
+                to_expr!(rec $op Integer::from(arg))
+            };
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: int + bigint -> bigint
 
-            let rec = BigInt::from(rec_ptr.integer_value()?);
+            let rec = Integer::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
             let bigint = to_expr!(rec $op arg);
 
@@ -158,7 +225,7 @@ macro_rules! integer_bool_op {
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: integer < bigint
 
-            let rec = BigInt::from(rec_ptr.integer_value()?);
+            let rec = Integer::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
 
             to_expr!(&rec $op arg)
@@ -166,7 +233,7 @@ macro_rules! integer_bool_op {
             // Example: bigint < integer
 
             let rec = rec_ptr.bigint_value()?;
-            let arg = BigInt::from(arg_ptr.integer_value()?);
+            let arg = Integer::from(arg_ptr.integer_value()?);
 
             to_expr!(rec $op &arg)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
