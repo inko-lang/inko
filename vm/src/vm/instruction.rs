@@ -123,6 +123,7 @@ pub enum InstructionType {
     Exit,
     Platform,
     FileCopy,
+    FileType,
 }
 
 /// Struct for storing information about a single instruction.

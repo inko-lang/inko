@@ -1666,15 +1666,15 @@ impl Machine {
                 // This instruction requires two arguments:
                 //
                 // 1. The register to store the size of the file in.
-                // 2. The register containing the file.
+                // 2. The register containing the path to the file.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::FileSize => {
                     let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value()?;
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let path = path_ptr.string_value()?;
 
-                    match file.metadata() {
+                    match fs::metadata(path) {
                         Ok(meta) => {
                             let obj = ObjectPointer::integer(meta.len() as i64);
 
@@ -2870,6 +2870,38 @@ impl Machine {
                             );
                         }
                     };
+                }
+                // Gets the file type of a path.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in as an integer.
+                // 2. The register containing the path to check.
+                //
+                // This instruction can produce the following values:
+                //
+                // 1. `0`: the path does not exist.
+                // 2. `1`: the path is a file.
+                // 3. `2`: the path is a directory.
+                InstructionType::FileType => {
+                    let register = instruction.arg(0);
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let path = path_ptr.string_value()?;
+
+                    let file_type = if let Ok(meta) = fs::metadata(path) {
+                        if meta.is_dir() {
+                            2
+                        } else {
+                            1
+                        }
+                    } else {
+                        0
+                    };
+
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(file_type),
+                    );
                 }
             };
         }
