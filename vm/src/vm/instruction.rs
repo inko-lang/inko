@@ -122,6 +122,7 @@ pub enum InstructionType {
     Panic,
     Exit,
     Platform,
+    FileCopy,
 }
 
 /// Struct for storing information about a single instruction.

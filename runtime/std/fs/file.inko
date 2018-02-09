@@ -131,6 +131,19 @@ def _open(path: ToString, mode: Integer) !! IOError {
   }
 }
 
+## Removes the file for the given file path.
+##
+## # Examples
+##
+## Removing a file:
+##
+##     import std::fs::file
+##
+##     try! file
+##       .write_only('/tmp/test.txt')
+##       .write('hello')
+##
+##     try! file.remove('/tmp/test.txt') # => Nil
 def remove(path: ToString) !! IOError -> Nil {
   process.await {
     try {
@@ -138,6 +151,28 @@ def remove(path: ToString) !! IOError -> Nil {
     } else (err) {
       throw IOError.new(err as String)
     }
+  }
+}
+
+## Copies a file from the source destination to the target destination,
+## returning the number of copied bytes.
+##
+## # Examples
+##
+## Copying a file:
+##
+##     import std::fs::file
+##
+##     try! file
+##       .write_only('/tmp/test.txt')
+##       .write('hello')
+##
+##     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
+def copy(from: ToString, to: ToString) !! IOError -> Integer {
+  try {
+    _INKOC.file_copy(from.to_string, to.to_string)
+  } else (error) {
+    throw IOError.new(error as String)
   }
 }
 

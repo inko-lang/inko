@@ -124,6 +124,7 @@ module Inkoc
         Panic
         Exit
         Platform
+        FileCopy
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

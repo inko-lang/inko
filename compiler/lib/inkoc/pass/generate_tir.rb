@@ -1055,6 +1055,10 @@ module Inkoc
         raw_unary_instruction(:FileRemove, node, body)
       end
 
+      def on_raw_file_copy(node, body)
+        raw_binary_instruction(:FileCopy, node, body)
+      end
+
       def on_raw_drop(node, body)
         object = process_node(node.arguments.fetch(0), body)
 

@@ -2838,6 +2838,39 @@ impl Machine {
 
                     context.set_register(register, platform);
                 }
+                // Copies a file from one location to another.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the number of copied bytes in as an
+                //    integer.
+                // 2. The register containing the file path to copy.
+                // 3. The register containing the new path of the file.
+                InstructionType::FileCopy => {
+                    let register = instruction.arg(0);
+                    let src_ptr = context.get_register(instruction.arg(1));
+                    let dst_ptr = context.get_register(instruction.arg(2));
+                    let src = src_ptr.string_value()?;
+                    let dst = dst_ptr.string_value()?;
+
+                    match fs::copy(src, dst) {
+                        Ok(bytes) => {
+                            let pointer = ObjectPointer::integer(bytes as i64);
+
+                            context.set_register(register, pointer);
+                        }
+                        Err(error) => {
+                            throw_io_error!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
+                        }
+                    };
+                }
             };
         }
 
