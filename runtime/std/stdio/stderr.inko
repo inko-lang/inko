@@ -14,6 +14,7 @@
 
 import std::conversion::ToString
 import std::io::Write
+import std::os::NEWLINE
 import std::process
 
 impl Write for ThisModule {
@@ -44,7 +45,7 @@ impl Write for ThisModule {
   def print(data: ToString) -> Nil {
     process.await {
       write(data)
-      write("\n")
+      write(NEWLINE)
     }
 
     Nil
