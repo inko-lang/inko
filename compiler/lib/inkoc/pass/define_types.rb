@@ -851,6 +851,18 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_file_created_at(*)
+        Type::Optional.new(typedb.integer_type)
+      end
+
+      def on_raw_file_modified_at(*)
+        Type::Optional.new(typedb.integer_type)
+      end
+
+      def on_raw_file_accessed_at(*)
+        Type::Optional.new(typedb.integer_type)
+      end
+
       def on_raw_drop(*)
         typedb.nil_type
       end

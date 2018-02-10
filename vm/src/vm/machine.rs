@@ -10,6 +10,7 @@ use binding::Binding;
 use block::Block;
 use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
+use file_times;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
 use integer_operations;
@@ -132,6 +133,50 @@ macro_rules! vec_to_string {
             Err(error) => {
                 String::from_utf8_lossy(&error.into_bytes())
                     .into_owned()
+            }
+        }
+    })
+}
+
+macro_rules! file_time_operation {
+    (
+        $operation: ident,
+        $vm: expr,
+        $process: expr,
+        $context: ident,
+        $code: ident,
+        $instruction: ident,
+        $index: ident
+    ) => ({
+        let register = $instruction.arg(0);
+        let path_ptr = $context.get_register($instruction.arg(1));
+        let path = path_ptr.string_value()?;
+
+        match fs::metadata(path) {
+            Ok(meta) => {
+                let pointer = if let Some(time) = file_times::$operation(meta) {
+                    if ObjectPointer::integer_too_large(time) {
+                        let proto = $vm.state.integer_prototype;
+
+                        $process.allocate(object_value::integer(time), proto)
+                    } else {
+                        ObjectPointer::integer(time)
+                    }
+                } else {
+                    $vm.state.nil_object
+                };
+
+                $context.set_register(register, pointer);
+            }
+            Err(error) => {
+                throw_io_error!(
+                    $vm,
+                    $process,
+                    error,
+                    $context,
+                    $code,
+                    $index
+                );
             }
         }
     })
@@ -2901,6 +2946,72 @@ impl Machine {
                     context.set_register(
                         register,
                         ObjectPointer::integer(file_type),
+                    );
+                }
+                // Gets the creation time of a file.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the file path of the file.
+                //
+                // The result will be an integer if a timestamp could be
+                // retrieved and `nil` if no timestamp was available.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::FileCreatedAt => {
+                    file_time_operation!(
+                        created_at,
+                        self,
+                        process,
+                        context,
+                        code,
+                        instruction,
+                        index
+                    );
+                }
+                // Gets the modification time of a file.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the file path of the file.
+                //
+                // The result will be an integer if a timestamp could be
+                // retrieved and `nil` if no timestamp was available.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::FileModifiedAt => {
+                    file_time_operation!(
+                        modified_at,
+                        self,
+                        process,
+                        context,
+                        code,
+                        instruction,
+                        index
+                    );
+                }
+                // Gets the access time of a file.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the file path of the file.
+                //
+                // The result will be an integer if a timestamp could be
+                // retrieved and `nil` if no timestamp was available.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::FileAccessedAt => {
+                    file_time_operation!(
+                        accessed_at,
+                        self,
+                        process,
+                        context,
+                        code,
+                        instruction,
+                        index
                     );
                 }
             };

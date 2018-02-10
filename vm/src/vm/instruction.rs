@@ -124,6 +124,9 @@ pub enum InstructionType {
     Platform,
     FileCopy,
     FileType,
+    FileModifiedAt,
+    FileCreatedAt,
+    FileAccessedAt,
 }
 
 /// Struct for storing information about a single instruction.

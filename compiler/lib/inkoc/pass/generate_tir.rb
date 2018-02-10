@@ -1063,6 +1063,18 @@ module Inkoc
         raw_unary_instruction(:FileType, node, body)
       end
 
+      def on_raw_file_created_at(node, body)
+        raw_unary_instruction(:FileCreatedAt, node, body)
+      end
+
+      def on_raw_file_modified_at(node, body)
+        raw_unary_instruction(:FileModifiedAt, node, body)
+      end
+
+      def on_raw_file_accessed_at(node, body)
+        raw_unary_instruction(:FileAccessedAt, node, body)
+      end
+
       def on_raw_drop(node, body)
         object = process_node(node.arguments.fetch(0), body)
 
