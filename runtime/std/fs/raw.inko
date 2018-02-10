@@ -1,0 +1,66 @@
+#! Raw file system operations
+#!
+#! The methods in this module should not be used directly, instead they serve as
+#! building blocks for other modules such as `std::fs::file`.
+
+import std::io::(Error as IOError)
+import std::process
+
+let MISSING_TYPE = 0
+let FILE_TYPE = 1
+let DIRECTORY_TYPE = 2
+
+let READ_ONLY = 0
+let WRITE_ONLY = 1
+let APPEND_ONLY = 2
+let READ_WRITE = 3
+let READ_APPEND = 4
+
+## Opens a file in the given mode, returning a raw file object.
+def open(path: String, mode: Integer) !! IOError {
+  process.await {
+    try _INKOC.file_open(path, mode) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Copies a file from the source destination to the target destination
+def copy(from: String, to: String) !! IOError -> Integer {
+  process.await {
+    try _INKOC.file_copy(from, to) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Returns the size (in bytes) of the given path.
+def size(path: String) !! IOError -> Integer {
+  process.await {
+    try _INKOC.file_size(path) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Removes the file for the given path.
+def remove(path: String) !! IOError -> Nil {
+  process.await {
+    try _INKOC.file_remove(path) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Returns `True` if the path points to a file.
+def file?(path: String) -> Boolean {
+  process.await {
+    _INKOC.file_type(path) == FILE_TYPE
+  }
+}
+
+## Returns `True` if the path points to a directory.
+def directory?(path: String) -> Boolean {
+  process.await {
+    _INKOC.file_type(path) == DIRECTORY_TYPE
+  }
+}
+
+## Returns `True` if the path points to an existing file or directory.
+def exists?(path: String) -> Boolean {
+  process.await {
+    _INKOC.file_type(path) > MISSING_TYPE
+  }
+}

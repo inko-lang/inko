@@ -40,11 +40,8 @@
 #!     file.read_only(Path.new('/dev/urandom'))
 
 import std::conversion::ToString
+import std::fs::raw
 import std::io::(Error as IOError, Size)
-
-let MISSING_TYPE = 0
-let FILE_TYPE = 1
-let DIRECTORY_TYPE = 2
 
 ## A path to a file or directory.
 ##
@@ -72,26 +69,38 @@ object Path {
 
   ## Returns `True` if the path points to a file.
   def file? -> Boolean {
-    _INKOC.file_type(@path) == FILE_TYPE
+    raw.file?(@path)
   }
 
   ## Returns `True` if the path points to a directory.
   def directory? -> Boolean {
-    _INKOC.file_type(@path) == DIRECTORY_TYPE
+    raw.directory?(@path)
   }
 
   ## Returns `True` if the path points to an existing file or directory.
   def exists? -> Boolean {
-    _INKOC.file_type(@path) > MISSING_TYPE
+    raw.exists?(@path)
   }
 }
 
 ## Trait for converting an object to a `Path`.
 trait ToPath {
+  ## Converts `Self` to a `Path`.
   def to_path -> Path
 }
 
 impl ToString for Path {
+  ## Converts a `Path` to a `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Path`:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('/dev/null')
+  ##
+  ##     path.to_string # => '/dev/null'
   def to_string -> String {
     @path
   }
@@ -99,8 +108,18 @@ impl ToString for Path {
 
 impl Size for Path {
   ## Returns the size of the path in bytes.
+  ##
+  ## # Examples
+  ##
+  ## Getting the size of a path:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('/dev/null')
+  ##
+  ##     try! path.size # => 0
   def size !! IOError -> Integer {
-    try _INKOC.file_size(@path) else (err) throw IOError.new(err as String)
+    try raw.size(@path)
   }
 }
 
