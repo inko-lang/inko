@@ -154,19 +154,20 @@ input validation errors. Panics in turn should be used for everything else.
 ## Mutability
 
 Unlike many other OO languages data in Inko is immutable by default, requiring
-you explicitly mark it as mutable. For example, the `let` keyword can be used to
-define an immutable variable while `var` can be used to define a mutable one:
+you explicitly mark it as mutable. To define a variable you use the `let`
+keyword, which will make it immutable by default. To define a mutable variable
+you have to use `let mut`:
 
     let a = 10
-    var b = 10
+    let mut b = 10
 
     a = 20 # => error
     b = 20 # => this is OK
 
 The same applies to method arguments, which are immutable by default but can be
-made mutable using the `var` keyword:
+made mutable using the `mut` keyword:
 
-    def append_to(var array) {
+    def append_to(mut array) {
       ...
     }
 
@@ -197,9 +198,9 @@ You will have to write:
     let x: Dynamic = something
 
 Dynamic typing does not automatically allow the reassignment of variables, for
-this you will need to use the `var` keyword:
+this you will need to use `let mut`:
 
-    var x = 10
+    let mut x = 10
     x = 20
 
 ## Optional Values
@@ -296,11 +297,10 @@ implement the trait:
 ## Syntax
 
 Inko uses curly braces for blocks, and only has 14 keywords. Most of the
-language relies heavily on message passing. Variables are defined using `let`
-and `var`:
+language relies heavily on message passing. Variables are defined using `let`:
 
-    let a = 10
-    var b = 20
+    let a = 10     # an immutable variable
+    let mut b = 20 # a mutable variable
 
 Methods are defined using the `def` keyword:
 

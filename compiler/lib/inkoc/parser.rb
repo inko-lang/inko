@@ -40,7 +40,7 @@ module Inkoc
         sub
         throw
         trait
-        var
+        mut
         for
         impl
         try
@@ -534,7 +534,6 @@ module Inkoc
       when :define then def_method(start)
       when :do, :lambda then block(start, start.type)
       when :let then let_define(start)
-      when :var then var_define(start)
       when :return then return_value(start)
       when :attribute then attribute_or_reassign(start)
       when :self then self_object(start)
@@ -795,7 +794,7 @@ module Inkoc
     end
 
     def advance_if_mutable_argument(token)
-      if token.type == :var
+      if token.type == :mut
         [advance!, true]
       else
         [token, false]
@@ -886,30 +885,26 @@ module Inkoc
       type(advance!)
     end
 
-    # Parses a definition of an immutable variable.
+    # Parses a definition of a variable.
     #
     # Example:
     #
     #     let number = 10
+    #     let mut number = 10
     def let_define(start)
+      mutable =
+        if @lexer.next_type_is?(:mut)
+          skip_one
+          true
+        else
+          false
+        end
+
       name = variable_name
       vtype = optional_variable_type
       value = variable_value
 
-      AST::DefineVariable.new(name, value, vtype, false, start.location)
-    end
-
-    # Parses a definition of a mutable variable.
-    #
-    # Example:
-    #
-    #     var number = 10
-    def var_define(start)
-      name = variable_name
-      vtype = optional_variable_type
-      value = variable_value
-
-      AST::DefineVariable.new(name, value, vtype, true, start.location)
+      AST::DefineVariable.new(name, value, vtype, mutable, start.location)
     end
 
     # Parses the name of a variable definition.

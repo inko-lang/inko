@@ -166,7 +166,7 @@ impl Block {
   ##
   ## Decrementing a number:
   ##
-  ##     var number = 10
+  ##     let mut number = 10
   ##
   ##     { number == 0 }.while_false {
   ##       number -= 1
@@ -186,7 +186,7 @@ impl Block {
   ##
   ## Incrementing a number:
   ##
-  ##     var number = 0
+  ##     let mut number = 0
   ##
   ##     { number < 10 }.while_true {
   ##       number += 1

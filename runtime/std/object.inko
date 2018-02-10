@@ -23,8 +23,8 @@ impl Object {
   ##
   ## Changing the prototype of an object:
   ##
-  ##     var obj1 = Object.new
-  ##     var obj2 = Object.new
+  ##     let mut obj1 = Object.new
+  ##     let mut obj2 = Object.new
   ##
   ##     obj2.prototype        # => Object
   ##     obj2.prototype = obj1 # => obj1
@@ -49,7 +49,7 @@ impl Object {
   ##
   ## Getting the value of an existing attribute:
   ##
-  ##     var obj = Object.new
+  ##     let mut obj = Object.new
   ##
   ##     obj.set_attribute('name', 'Alice')
   ##     obj.get_attribute('name') # => 'Alice'
@@ -63,7 +63,7 @@ impl Object {
   ##
   ## Setting an attribute:
   ##
-  ##     var obj = Object.new
+  ##     let mut obj = Object.new
   ##
   ##     obj.set_attribute('name', 'Alice') # => 'Alice'
   def set_attribute!(T)(name: String, value: T) -> T {
@@ -95,7 +95,7 @@ impl Object {
   ##
   ##     Person.new.number # => 42
   def implement_trait(to_impl: Trait) -> Trait {
-    var traits = _INKOC.set_attribute_to_object(self, '@_implemented_traits')
+    let mut traits = _INKOC.set_attribute_to_object(self, '@_implemented_traits')
 
     _INKOC.copy_blocks(self, to_impl)
     _INKOC.set_attribute(traits, to_impl, True)

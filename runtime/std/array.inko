@@ -47,7 +47,7 @@ impl Array!(T) {
   ##
   ## Sending `clear` to an Array will remove all of its elements:
   ##
-  ##     var array = [10, 20, 30]
+  ##     let mut array = [10, 20, 30]
   ##
   ##     array.clear
   ##
@@ -55,7 +55,7 @@ impl Array!(T) {
   ##
   ## Clear will return the Array itself so you can chain message sends:
   ##
-  ##     var array = [10, 20, 30]
+  ##     let mut array = [10, 20, 30]
   ##
   ##     array.clear.length # => 0
   def clear -> Self {
@@ -69,7 +69,7 @@ impl Array!(T) {
   ##
   ## Pushing a value into an Array:
   ##
-  ##     var array = []
+  ##     let mut array = []
   ##
   ##     array.push(10) # => 10
   ##     array          # => [10]
@@ -85,14 +85,14 @@ impl Array!(T) {
   ##
   ## Popping an existing value:
   ##
-  ##     var array = [10]
+  ##     let mut array = [10]
   ##
   ##     array.pop # => 10
   ##     array     # => []
   ##
   ## Popping a value when the Array is empty:
   ##
-  ##     var array = []
+  ##     let mut array = []
   ##
   ##     array.pop # => Nil
   ##     array     # => []
@@ -111,7 +111,7 @@ impl Array!(T) {
   ## Removing an existing value will result in the value being removed from the
   ## Array and returned:
   ##
-  ##     var array = [10]
+  ##     let mut array = [10]
   ##
   ##     array.remove_at(0) # => 10
   ##     array              # => []
@@ -119,7 +119,7 @@ impl Array!(T) {
   ## When removing a non-existing value the Array won't be modified, and the
   ## returned value will be Nil:
   ##
-  ##     var array = [10]
+  ##     let mut array = [10]
   ##
   ##     array.remove_at(1) # => Nil
   ##     array              # => []
@@ -185,21 +185,21 @@ impl SetIndex!(Integer, T) for Array!(T) {
   ##
   ## Setting an index to a value:
   ##
-  ##     var array = []
+  ##     let mut array = []
   ##
   ##     array[0] = 10 # => 10
   ##     array         # => [10]
   ##
   ## Setting an out-of-bounds index:
   ##
-  ##     var array = []
+  ##     let mut array = []
   ##
   ##     array[2] = 10 # => 10
   ##     array         # => [Nil, Nil, 10]
   ##
   ## We can also use negative indexes:
   ##
-  ##     var array = [10]
+  ##     let mut array = [10]
   ##
   ##     array[-1] = 20 # => 20
   ##     array          # => [10, 20]
