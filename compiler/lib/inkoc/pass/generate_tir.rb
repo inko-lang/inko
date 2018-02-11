@@ -921,12 +921,8 @@ module Inkoc
         raw_binary_instruction(:ArrayRemove, node, body)
       end
 
-      def on_raw_time_monotonic_milliseconds(node, body)
-        raw_nullary_instruction(:TimeMonotonicMilliseconds, node, body)
-      end
-
-      def on_raw_time_monotonic_nanoseconds(node, body)
-        raw_nullary_instruction(:TimeMonotonicNanoseconds, node, body)
+      def on_raw_time_monotonic(node, body)
+        raw_nullary_instruction(:TimeMonotonic, node, body)
       end
 
       def on_raw_time_system(node, body)

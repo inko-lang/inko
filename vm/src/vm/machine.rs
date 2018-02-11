@@ -2448,40 +2448,20 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
-                // Gets the current value of a monotonic clock in
-                // nanoseconds.
-                //
-                // This instruction requires one argument: the register to
-                // set the time in, as an integer.
-                InstructionType::TimeMonotonicNanoseconds => {
-                    let register = instruction.arg(0);
-                    let duration = self.state.start_time.elapsed();
-                    let nsec = (duration.as_secs() * 1000000000)
-                        + duration.subsec_nanos() as u64;
-
-                    context.set_register(
-                        register,
-                        ObjectPointer::integer(nsec as i64),
-                    );
-                }
-                // Gets the current value of a monotonic clock in
-                // milliseconds.
+                // Gets the current value of a monotonic clock in seconds.
                 //
                 // This instruction requires one argument: the register to
                 // set the time in, as a float.
-                InstructionType::TimeMonotonicMilliseconds => {
+                InstructionType::TimeMonotonic => {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
-
-                    let msec = (duration.as_secs() * 1_000) as f64
-                        + duration.subsec_nanos() as f64 / 1_000_000.0;
-
-                    let obj = process.allocate(
-                        object_value::float(msec),
+                    let seconds = time::duration_to_f64(duration);
+                    let pointer = process.allocate(
+                        object_value::float(seconds),
                         self.state.float_prototype,
                     );
 
-                    context.set_register(register, obj);
+                    context.set_register(register, pointer);
                 }
                 // Executes a Block object.
                 //

@@ -698,12 +698,8 @@ module Inkoc
         optional_array_element_value(array)
       end
 
-      def on_raw_time_monotonic_milliseconds(*)
+      def on_raw_time_monotonic(*)
         typedb.float_type
-      end
-
-      def on_raw_time_monotonic_nanoseconds(*)
-        typedb.integer_type
       end
 
       def on_raw_time_system(*)
