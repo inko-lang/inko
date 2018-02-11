@@ -1,0 +1,119 @@
+#! Types and methods for dealing with time.
+import std::conversion::(ToFloat, ToInteger)
+
+## The year of the Unix epoch.
+let EPOCH_YEAR = 1970
+
+## The number of Unix seconds per day.
+let SECONDS_PER_DAY = 86_400
+
+## The number of days in a regular year.
+let DAYS_PER_REGULAR_YEAR = 365
+
+## The number of days in a leap year.
+let DAYS_PER_LEAP_YEAR = 366
+
+## An object representing the current system time.
+##
+## A `SystemTime` object represents the current real time in seconds relative to
+## the Unix epoch. Because `SystemTime` uses the system clock it's possible for
+## a `SystemTime` to go back in time due to time zone changes, clock
+## adjustments, or leap seconds. If you need a monotonically increasing clock
+## you should use `MonotonicTime` instead.
+object SystemTime {
+  ## Returns a `SystemTime` corresponding to the current time.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::SystemTime
+  ##
+  ##     SystemTime.now
+  def now -> Self {
+    new(_INKOC.time_system)
+  }
+
+  def init(mut time: Float) {
+    let @time = time
+    let @sub_seconds = 0.0
+    let @seconds = 0
+    let @minutes = 0
+    let @hours = 0
+    let @day = 0
+    let @month = 0
+    let @year = 0
+  }
+
+  ## Returns the hour of the day from 0 to 23.
+  def hours -> Integer {
+    @hours
+  }
+
+  ## Returns the minutes of the hour from 0 to 59.
+  def minutes -> Integer {
+    @minutes
+  }
+
+  ## Returns the seconds of the minute from 0 to 59.
+  def seconds -> Integer {
+    @seconds
+  }
+
+  ## Returns the fractional part in seconds.
+  def sub_seconds -> Float {
+    @sub_seconds
+  }
+
+  ## Returns the year of the current time.
+  def year -> Integer {
+    @year
+  }
+
+  ## Returns the month of the year, from 1 to 12.
+  def month -> Integer {
+    @month
+  }
+
+  ## Returns the day of the month, from 1 to 31.
+  def day -> Integer {
+    @day
+  }
+}
+
+## A monotonically increasing clock.
+##
+## `MonotonicTime` objects represent the number of seconds relative to (roughly)
+## the start time of the program. Unlike a system clock a monotonic clock never
+## decreases, making it useful for tasks such as measuring the execution time of
+## a block of code.
+object MonotonicTime {
+  ## Returns a `MonotonicTime` corresponding to the current time.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now
+  def now -> Self {
+    new(_INKOC.time_monotonic)
+  }
+
+  def init(time: Float) {
+    let @time = time
+  }
+}
+
+impl ToFloat for SystemTime, MonotonicTime {
+  def to_float -> Float {
+    @time
+  }
+}
+
+impl ToInteger for SystemTime, MonotonicTime {
+  def to_integer -> Integer {
+    @time.to_integer
+  }
+}
