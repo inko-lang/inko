@@ -34,7 +34,7 @@ pub mod config;
 pub mod deref_pointer;
 pub mod error_messages;
 pub mod execution_context;
-pub mod file_times;
+pub mod time;
 pub mod gc;
 pub mod global_scope;
 pub mod integer_operations;

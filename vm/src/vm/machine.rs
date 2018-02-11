@@ -10,7 +10,6 @@ use binding::Binding;
 use block::Block;
 use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
-use file_times;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
 use integer_operations;
@@ -21,6 +20,7 @@ use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
+use time;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -154,7 +154,7 @@ macro_rules! file_time_operation {
 
         match fs::metadata(path) {
             Ok(meta) => {
-                let pointer = file_times::$operation(meta)
+                let pointer = time::$operation(meta)
                     .map(|time| {
                         $process.allocate(
                             object_value::float(time),
@@ -3010,6 +3010,19 @@ impl Machine {
                         instruction,
                         index
                     );
+                }
+                // Gets the current system time.
+                //
+                // This instruction requires one argument: the register to store
+                // the system time in as a float.
+                InstructionType::TimeSystem => {
+                    let register = instruction.arg(0);
+                    let pointer = process.allocate(
+                        object_value::float(time::system_time()),
+                        self.state.float_prototype,
+                    );
+
+                    context.set_register(register, pointer);
                 }
             };
         }

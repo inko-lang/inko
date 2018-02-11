@@ -706,6 +706,10 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_time_system(*)
+        typedb.float_type
+      end
+
       def on_raw_string_to_upper(*)
         typedb.string_type
       end
