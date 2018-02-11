@@ -154,17 +154,14 @@ macro_rules! file_time_operation {
 
         match fs::metadata(path) {
             Ok(meta) => {
-                let pointer = if let Some(time) = file_times::$operation(meta) {
-                    if ObjectPointer::integer_too_large(time) {
-                        let proto = $vm.state.integer_prototype;
-
-                        $process.allocate(object_value::integer(time), proto)
-                    } else {
-                        ObjectPointer::integer(time)
-                    }
-                } else {
-                    $vm.state.nil_object
-                };
+                let pointer = file_times::$operation(meta)
+                    .map(|time| {
+                        $process.allocate(
+                            object_value::float(time),
+                            $vm.state.float_prototype,
+                        )
+                    })
+                    .unwrap_or_else(|| $vm.state.nil_object);
 
                 $context.set_register(register, pointer);
             }
@@ -2955,8 +2952,8 @@ impl Machine {
                 // 1. The register to store the result in.
                 // 2. The register containing the file path of the file.
                 //
-                // The result will be an integer if a timestamp could be
-                // retrieved and `nil` if no timestamp was available.
+                // The result will be a float if a timestamp could be retrieved
+                // and `nil` if no timestamp was available.
                 //
                 // This instruction may throw an IO error.
                 InstructionType::FileCreatedAt => {
@@ -2977,8 +2974,8 @@ impl Machine {
                 // 1. The register to store the result in.
                 // 2. The register containing the file path of the file.
                 //
-                // The result will be an integer if a timestamp could be
-                // retrieved and `nil` if no timestamp was available.
+                // The result will be a float if a timestamp could be retrieved
+                // and `nil` if no timestamp was available.
                 //
                 // This instruction may throw an IO error.
                 InstructionType::FileModifiedAt => {
@@ -2999,8 +2996,8 @@ impl Machine {
                 // 1. The register to store the result in.
                 // 2. The register containing the file path of the file.
                 //
-                // The result will be an integer if a timestamp could be
-                // retrieved and `nil` if no timestamp was available.
+                // The result will be a float if a timestamp could be retrieved
+                // and `nil` if no timestamp was available.
                 //
                 // This instruction may throw an IO error.
                 InstructionType::FileAccessedAt => {
