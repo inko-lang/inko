@@ -1,17 +1,8 @@
 #! Types and methods for dealing with time.
 import std::conversion::(ToFloat, ToInteger)
 
-## The year of the Unix epoch.
-let EPOCH_YEAR = 1970
-
-## The number of Unix seconds per day.
-let SECONDS_PER_DAY = 86_400
-
-## The number of days in a regular year.
-let DAYS_PER_REGULAR_YEAR = 365
-
-## The number of days in a leap year.
-let DAYS_PER_LEAP_YEAR = 366
+## The number to divide a value in nanoseconds by to convert it to seconds.
+let NANOSECONDS_TO_SECONDS = 1_000_000_000.0
 
 ## An object representing the current system time.
 ##
@@ -20,64 +11,58 @@ let DAYS_PER_LEAP_YEAR = 366
 ## a `SystemTime` to go back in time due to time zone changes, clock
 ## adjustments, or leap seconds. If you need a monotonically increasing clock
 ## you should use `MonotonicTime` instead.
+##
+## # Examples
+##
+## Getting the current time:
+##
+##     import std::time::SystemTime
+##
+##     SystemTime.new
 object SystemTime {
-  ## Returns a `SystemTime` corresponding to the current time.
-  ##
-  ## # Examples
-  ##
-  ## Getting the current time:
-  ##
-  ##     import std::time::SystemTime
-  ##
-  ##     SystemTime.now
-  def now -> Self {
-    new(_INKOC.time_system)
-  }
+  def allocate -> Self {
+    let obj = _INKOC.time_system as SystemTime
 
-  def init(mut time: Float) {
-    let @time = time
-    let @sub_seconds = 0.0
-    let @seconds = 0
-    let @minutes = 0
-    let @hours = 0
-    let @day = 0
-    let @month = 0
-    let @year = 0
+    _INKOC.set_prototype(obj, self)
+
+    obj
   }
 
   ## Returns the hour of the day from 0 to 23.
-  def hours -> Integer {
-    @hours
+  def hour -> Integer {
+    _INKOC.time_get_value(self, 3) as Integer
   }
 
-  ## Returns the minutes of the hour from 0 to 59.
-  def minutes -> Integer {
-    @minutes
+  ## Returns the minute of the hour from 0 to 59.
+  def minute -> Integer {
+    _INKOC.time_get_value(self, 2) as Integer
   }
 
-  ## Returns the seconds of the minute from 0 to 59.
-  def seconds -> Integer {
-    @seconds
+  ## Returns the second of the minute from 0 to 60.
+  def second -> Integer {
+    _INKOC.time_get_value(self, 0) as Integer
   }
 
-  ## Returns the fractional part in seconds.
-  def sub_seconds -> Float {
-    @sub_seconds
+  ## Returns the fractional part of the second, in seconds.
+  def sub_second -> Float {
+    let nsec = _INKOC.time_get_value(self, 1) as Integer
+
+    nsec.to_float / NANOSECONDS_TO_SECONDS
   }
 
   ## Returns the year of the current time.
   def year -> Integer {
-    @year
+    _INKOC.time_get_value(self, 6)
   }
 
   ## Returns the month of the year, from 1 to 12.
   def month -> Integer {
-    @month
+    _INKOC.time_get_value(self, 5)
   }
 
   ## Returns the day of the month, from 1 to 31.
   def day -> Integer {
-    @day
+    _INKOC.time_get_value(self, 4)
   }
 }
 
@@ -87,33 +72,42 @@ object SystemTime {
 ## the start time of the program. Unlike a system clock a monotonic clock never
 ## decreases, making it useful for tasks such as measuring the execution time of
 ## a block of code.
+##
+## # Examples
+##
+## Getting the current time:
+##
+##     import std::time::MonotonicTime
+##
+##     MonotonicTime.new
 object MonotonicTime {
-  ## Returns a `MonotonicTime` corresponding to the current time.
-  ##
-  ## # Examples
-  ##
-  ## Getting the current time:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     MonotonicTime.now
-  def now -> Self {
-    new(_INKOC.time_monotonic)
-  }
-
-  def init(time: Float) {
+  def init(time = _INKOC.time_monotonic) {
     let @time = time
   }
 }
 
-impl ToFloat for SystemTime, MonotonicTime {
+impl ToInteger for MonotonicTime {
+  def to_integer -> Integer {
+    @time.to_integer
+  }
+}
+
+impl ToFloat for MonotonicTime {
   def to_float -> Float {
     @time
   }
 }
 
-impl ToInteger for SystemTime, MonotonicTime {
+impl ToInteger for SystemTime {
   def to_integer -> Integer {
-    @time.to_integer
+    _INKOC.time_get_value(self, 11) as Integer
+  }
+}
+
+impl ToFloat for SystemTime {
+  def to_float -> Float {
+    let nsec = _INKOC.time_get_value(self, 12) as Integer
+
+    to_integer.to_float + (nsec.to_float / NANOSECONDS_TO_SECONDS)
   }
 }

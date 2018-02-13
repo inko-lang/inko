@@ -7,6 +7,7 @@
 use rug::Integer;
 use std::fs;
 use std::mem;
+use time::Tm;
 
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
@@ -36,6 +37,9 @@ pub enum ObjectValue {
     /// A heap allocated integer that doesn't fit in a tagged pointer, but is
     /// too small for a BigInt.
     Integer(i64),
+
+    /// A calendar date and time value.
+    DateTime(Box<Tm>),
 }
 
 impl ObjectValue {
@@ -182,7 +186,17 @@ impl ObjectValue {
     pub fn as_integer(&self) -> Result<i64, String> {
         match self {
             &ObjectValue::Integer(val) => Ok(val),
-            _ => Err("ObjectValue::integer() called on a non integer".to_string()),
+            _ => Err("ObjectValue::as_integer() called on a non integer".to_string()),
+        }
+    }
+
+    pub fn as_date_time(&self) -> Result<&Tm, String> {
+        match self {
+            &ObjectValue::DateTime(ref val) => Ok(val),
+            _ => Err(
+                "ObjectValue::as_date_time() called on a non date time object"
+                    .to_string(),
+            ),
         }
     }
 
@@ -247,6 +261,10 @@ pub fn bigint(value: Integer) -> ObjectValue {
 
 pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
+}
+
+pub fn date_time(value: Tm) -> ObjectValue {
+    ObjectValue::DateTime(Box::new(value))
 }
 
 #[cfg(test)]

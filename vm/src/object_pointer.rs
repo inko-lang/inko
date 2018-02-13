@@ -5,6 +5,7 @@ use std::i32;
 use std::i64;
 use std::mem::transmute;
 use std::u32;
+use time;
 
 use immix::bitmap::Bitmap;
 use immix::block;
@@ -472,6 +473,7 @@ impl ObjectPointer {
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &Integer);
+    def_value_getter!(date_time_value, get, as_date_time, &time::Tm);
 }
 
 impl ObjectPointerPointer {

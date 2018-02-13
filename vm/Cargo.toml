@@ -18,6 +18,7 @@ rayon = "^0.9"
 parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
 colored = "^1.6"
+time = "^0.1"
 
 [dependencies.rug]
 version = "^0.9"

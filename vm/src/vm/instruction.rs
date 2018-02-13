@@ -127,6 +127,7 @@ pub enum InstructionType {
     FileCreatedAt,
     FileAccessedAt,
     TimeSystem,
+    TimeGetValue,
 }
 
 /// Struct for storing information about a single instruction.

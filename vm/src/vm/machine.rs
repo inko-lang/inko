@@ -20,7 +20,7 @@ use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
-use time;
+use time_helpers;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -154,11 +154,10 @@ macro_rules! file_time_operation {
 
         match fs::metadata(path) {
             Ok(meta) => {
-                let pointer = time::$operation(meta)
+                let pointer = time_helpers::$operation(meta)
                     .map(|time| {
-                        $process.allocate(
-                            object_value::float(time),
-                            $vm.state.float_prototype,
+                        $process.allocate_without_prototype(
+                            object_value::date_time(time),
                         )
                     })
                     .unwrap_or_else(|| $vm.state.nil_object);
@@ -2455,7 +2454,7 @@ impl Machine {
                 InstructionType::TimeMonotonic => {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
-                    let seconds = time::duration_to_f64(duration);
+                    let seconds = time_helpers::duration_to_f64(duration);
                     let pointer = process.allocate(
                         object_value::float(seconds),
                         self.state.float_prototype,
@@ -2991,16 +2990,41 @@ impl Machine {
                         index
                     );
                 }
-                // Gets the current system time.
+                // Gets the current system (= local) time.
                 //
-                // This instruction requires one argument: the register to store
-                // the system time in as a float.
+                // This instruction takes one argument: the register to store
+                // the time object in. The stored object does not have a
+                // prototype.
                 InstructionType::TimeSystem => {
                     let register = instruction.arg(0);
-                    let pointer = process.allocate(
-                        object_value::float(time::system_time()),
-                        self.state.float_prototype,
+                    let time = time_helpers::system_time();
+                    let pointer = process.allocate_without_prototype(
+                        object_value::date_time(time),
                     );
+
+                    context.set_register(register, pointer);
+                }
+                // Reads a value from a DateTime object.
+                //
+                // This instruction takes three arguments:
+                //
+                // 1. The register to store the result in, as an integer or nil
+                //    if no value was found.
+                // 2. The register containing the DateTime object.
+                // 3. The register containing an integer describing which field
+                //    to read.
+                InstructionType::TimeGetValue => {
+                    let register = instruction.arg(0);
+                    let obj_ptr = context.get_register(instruction.arg(1));
+                    let field_ptr = context.get_register(instruction.arg(2));
+
+                    let date_time = obj_ptr.date_time_value()?;
+                    let field = field_ptr.integer_value()?;
+
+                    let pointer =
+                        time_helpers::read_date_time_field(&date_time, field)
+                            .map(|val| self.allocate_integer(process, val))
+                            .unwrap_or(self.state.nil_object);
 
                     context.set_register(register, pointer);
                 }
@@ -3248,6 +3272,21 @@ impl Machine {
             } else {
                 process.pop_context();
             }
+        }
+    }
+
+    fn allocate_integer(
+        &self,
+        process: &RcProcess,
+        value: i64,
+    ) -> ObjectPointer {
+        if ObjectPointer::integer_too_large(value) {
+            process.allocate(
+                object_value::integer(value),
+                self.state.integer_prototype,
+            )
+        } else {
+            ObjectPointer::integer(value)
         }
     }
 }

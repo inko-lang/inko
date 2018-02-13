@@ -129,6 +129,7 @@ module Inkoc
         FileCreatedAt
         FileAccessedAt
         TimeSystem
+        TimeGetValue
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

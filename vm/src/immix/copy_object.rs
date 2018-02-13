@@ -60,6 +60,9 @@ pub trait CopyObject: Sized {
 
                 object_value::binding(new_binding)
             }
+            ObjectValue::DateTime(ref date_time) => {
+                object_value::date_time((**date_time).clone())
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
