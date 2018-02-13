@@ -5,15 +5,14 @@ use std::i32;
 use std::i64;
 use std::mem::transmute;
 use std::u32;
-use time;
 
+use binding::RcBinding;
+use block::Block;
+use date_time::DateTime;
 use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
-
-use binding::RcBinding;
-use block::Block;
 use object::{Object, ObjectStatus};
 use process::RcProcess;
 use tagged_pointer::TaggedPointer;
@@ -473,7 +472,7 @@ impl ObjectPointer {
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &Integer);
-    def_value_getter!(date_time_value, get, as_date_time, &time::Tm);
+    def_value_getter!(date_time_value, get, as_date_time, &DateTime);
 }
 
 impl ObjectPointerPointer {

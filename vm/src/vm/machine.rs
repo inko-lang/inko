@@ -9,6 +9,7 @@ use std::thread;
 use binding::Binding;
 use block::Block;
 use compiled_code::CompiledCodePointer;
+use date_time::DateTime;
 use execution_context::ExecutionContext;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
@@ -20,7 +21,6 @@ use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
-use time_helpers;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -138,14 +138,28 @@ macro_rules! vec_to_string {
     })
 }
 
+/// Retrieves and stores the creation/modification/access time of a file path.
 macro_rules! file_time_operation {
     (
+        // The method to use for retrieving the timestamp (e.g. "accessed").
         $operation: ident,
+
+        // The currently running machine.
         $vm: expr,
+
+        // The process that is running the instruction.
         $process: expr,
+
+        // The current ExecutionContext.
         $context: ident,
+
+        // The current CompiledCode.
         $code: ident,
+
+        // The current Instruction.
         $instruction: ident,
+
+        // The position of the current Instruction.
         $index: ident
     ) => ({
         let register = $instruction.arg(0);
@@ -154,10 +168,13 @@ macro_rules! file_time_operation {
 
         match fs::metadata(path) {
             Ok(meta) => {
-                let pointer = time_helpers::$operation(meta)
-                    .map(|time| {
+                let pointer = meta.$operation()
+                    .ok()
+                    .map(|stime| {
+                        let dtime = DateTime::from_system_time(stime);
+
                         $process.allocate_without_prototype(
-                            object_value::date_time(time),
+                            object_value::date_time(dtime),
                         )
                     })
                     .unwrap_or_else(|| $vm.state.nil_object);
@@ -2454,7 +2471,9 @@ impl Machine {
                 InstructionType::TimeMonotonic => {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
-                    let seconds = time_helpers::duration_to_f64(duration);
+                    let seconds = duration.as_secs() as f64
+                        + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
+
                     let pointer = process.allocate(
                         object_value::float(seconds),
                         self.state.float_prototype,
@@ -2937,7 +2956,7 @@ impl Machine {
                 // This instruction may throw an IO error.
                 InstructionType::FileCreatedAt => {
                     file_time_operation!(
-                        created_at,
+                        created,
                         self,
                         process,
                         context,
@@ -2959,7 +2978,7 @@ impl Machine {
                 // This instruction may throw an IO error.
                 InstructionType::FileModifiedAt => {
                     file_time_operation!(
-                        modified_at,
+                        modified,
                         self,
                         process,
                         context,
@@ -2981,7 +3000,7 @@ impl Machine {
                 // This instruction may throw an IO error.
                 InstructionType::FileAccessedAt => {
                     file_time_operation!(
-                        accessed_at,
+                        accessed,
                         self,
                         process,
                         context,
@@ -2997,9 +3016,8 @@ impl Machine {
                 // prototype.
                 InstructionType::TimeSystem => {
                     let register = instruction.arg(0);
-                    let time = time_helpers::system_time();
                     let pointer = process.allocate_without_prototype(
-                        object_value::date_time(time),
+                        object_value::date_time(DateTime::now()),
                     );
 
                     context.set_register(register, pointer);
@@ -3021,10 +3039,10 @@ impl Machine {
                     let date_time = obj_ptr.date_time_value()?;
                     let field = field_ptr.integer_value()?;
 
-                    let pointer =
-                        time_helpers::read_date_time_field(&date_time, field)
-                            .map(|val| self.allocate_integer(process, val))
-                            .unwrap_or(self.state.nil_object);
+                    let pointer = date_time
+                        .get(field)
+                        .map(|val| self.allocate_integer(process, val))
+                        .unwrap_or(self.state.nil_object);
 
                     context.set_register(register, pointer);
                 }

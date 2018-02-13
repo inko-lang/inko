@@ -7,11 +7,11 @@
 use rug::Integer;
 use std::fs;
 use std::mem;
-use time::Tm;
 
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
+use date_time::DateTime;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
@@ -39,7 +39,7 @@ pub enum ObjectValue {
     Integer(i64),
 
     /// A calendar date and time value.
-    DateTime(Box<Tm>),
+    DateTime(Box<DateTime>),
 }
 
 impl ObjectValue {
@@ -190,7 +190,7 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_date_time(&self) -> Result<&Tm, String> {
+    pub fn as_date_time(&self) -> Result<&DateTime, String> {
         match self {
             &ObjectValue::DateTime(ref val) => Ok(val),
             _ => Err(
@@ -263,7 +263,7 @@ pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
 }
 
-pub fn date_time(value: Tm) -> ObjectValue {
+pub fn date_time(value: DateTime) -> ObjectValue {
     ObjectValue::DateTime(Box::new(value))
 }
 
