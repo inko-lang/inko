@@ -42,11 +42,15 @@ _INKOC.set_attribute(Boolean, '@_object_name', 'Boolean')
 # creating of modules.
 impl Object {
   def new -> Self {
-    let obj = _INKOC.set_object(False, self)
+    let mut obj = self.allocate
 
     obj.init
 
     obj
+  }
+
+  def allocate -> Self {
+    _INKOC.set_object(False, self)
   }
 
   def init {}

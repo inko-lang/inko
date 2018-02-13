@@ -60,18 +60,10 @@ module Inkoc
         end
 
         exprs = [
-          # var obj = _INKOC.set_object(False, self)
+          # let mut obj = self.allocate
           AST::DefineVariable.new(
             AST::Identifier.new('obj', loc),
-            AST::Send.new(
-              'set_object',
-              AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
-              [
-                AST::Constant.new(Config::FALSE_CONST, nil, loc),
-                AST::Self.new(loc)
-              ],
-              loc
-            ),
+            AST::Send.new('allocate', AST::Self.new(loc), [], loc),
             nil,
             true,
             loc
