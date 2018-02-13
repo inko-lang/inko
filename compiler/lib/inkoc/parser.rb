@@ -615,9 +615,19 @@ module Inkoc
     #
     #     ::Foo
     def global(start)
-      name = advance_and_expect!(:constant)
+      token = advance!
 
-      AST::Global.new(name.value, start.location)
+      name =
+        if token.type == :identifier || token.type == :constant
+          token.value
+        else
+          raise(
+            ParseError,
+            "Unexpected #{token.type}, expected an identifier or constant"
+          )
+        end
+
+      AST::Global.new(name, start.location)
     end
 
     # Parses a grouped expression.
