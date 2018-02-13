@@ -9,23 +9,27 @@ module Inkoc
       include GenericTypeOperations
       include TypeCompatibility
 
-      attr_reader :attributes, :implemented_traits, :type_parameters
+      attr_reader :attributes, :implemented_traits, :type_parameters, :singleton
       attr_accessor :name, :prototype
 
       def initialize(
         name: Config::OBJECT_CONST,
         prototype: nil,
         implemented_traits: Set.new,
-        type_parameters: TypeParameterTable.new
+        type_parameters: TypeParameterTable.new,
+        singleton: false
       )
         @name = name
         @prototype = prototype
         @attributes = SymbolTable.new
         @implemented_traits = implemented_traits
         @type_parameters = type_parameters
+        @singleton = singleton
       end
 
       def new_instance(params = type_parameters)
+        return self if singleton
+
         new_params = TypeParameterTable.new(type_parameters)
         new_params.initialize_in_order(params)
 

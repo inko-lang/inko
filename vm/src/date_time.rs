@@ -109,11 +109,6 @@ impl DateTime {
         self.time.to_timespec().sec
     }
 
-    /// Returns the nanoseconds relative to the seconds of the Unix epoch.
-    pub fn nanoseconds_since_epoch_seconds(&self) -> i64 {
-        self.time.to_timespec().nsec as i64
-    }
-
     /// Returns the value of a field based on the given index.
     pub fn get(&self, field: i64) -> Option<i64> {
         match field {
@@ -129,7 +124,6 @@ impl DateTime {
             9 => Some(self.dst_active()),
             10 => Some(self.utc_offset()),
             11 => Some(self.seconds_since_epoch()),
-            12 => Some(self.nanoseconds_since_epoch_seconds()),
             _ => None,
         }
     }

@@ -20,9 +20,9 @@ module Inkoc
         @nil_type = Nil.new(prototype: object_type)
 
         @block_type = new_object_type(Config::BLOCK_CONST)
-        @integer_type = new_object_type(Config::INTEGER_CONST)
-        @float_type = new_object_type(Config::FLOAT_CONST)
-        @string_type = new_object_type(Config::STRING_CONST)
+        @integer_type = new_object_type(Config::INTEGER_CONST, singleton: true)
+        @float_type = new_object_type(Config::FLOAT_CONST, singleton: true)
+        @string_type = new_object_type(Config::STRING_CONST, singleton: true)
         @file_type = Object.new(name: Config::FILE_CONST)
         @array_type = initialize_array_type
         @hash_map_type = initialize_hash_map_type
@@ -60,8 +60,8 @@ module Inkoc
         array
       end
 
-      def new_object_type(name, proto = object_type)
-        Object.new(name: name, prototype: proto)
+      def new_object_type(name, proto = object_type, singleton: false)
+        Object.new(name: name, prototype: proto, singleton: singleton)
       end
 
       def new_empty_object

@@ -2,7 +2,20 @@
 import std::conversion::(ToFloat, ToInteger)
 
 ## The number to divide a value in nanoseconds by to convert it to seconds.
-let NANOSECONDS_TO_SECONDS = 1_000_000_000.0
+let NANOSEC_TO_SEC = 1_000_000_000.0
+
+let SEC = 0
+let SUB_SEC = 1
+let MINUTE = 2
+let HOUR = 3
+let DAY = 4
+let MONTH = 5
+let YEAR = 6
+let DAY_OF_WEEK = 7
+let DAY_OF_YEAR = 8
+let DST = 9
+let UTC_OFFSET = 10
+let SEC_SINCE_EPOCH = 11
 
 ## An object representing the current system time.
 ##
@@ -23,6 +36,8 @@ object SystemTime {
   def allocate -> Self {
     let obj = _INKOC.time_system as SystemTime
 
+    # VM DateTime objects don't have a prototype so we'll need to manually set
+    # it to the `SystemTime` object.
     _INKOC.set_prototype(obj, self)
 
     obj
@@ -30,39 +45,81 @@ object SystemTime {
 
   ## Returns the hour of the day from 0 to 23.
   def hour -> Integer {
-    _INKOC.time_get_value(self, 3) as Integer
+    _INKOC.time_get_value(self, HOUR) as Integer
   }
 
   ## Returns the minute of the hour from 0 to 59.
   def minute -> Integer {
-    _INKOC.time_get_value(self, 2) as Integer
+    _INKOC.time_get_value(self, MINUTE) as Integer
   }
 
   ## Returns the second of the minute from 0 to 60.
   def second -> Integer {
-    _INKOC.time_get_value(self, 0) as Integer
+    _INKOC.time_get_value(self, SEC) as Integer
   }
 
   ## Returns the fractional part of the second, in seconds.
   def sub_second -> Float {
-    let nsec = _INKOC.time_get_value(self, 1) as Integer
+    let nsec = _INKOC.time_get_value(self, SUB_SEC) as Integer
 
-    nsec.to_float / NANOSECONDS_TO_SECONDS
+    nsec.to_float / NANOSEC_TO_SEC
   }
 
   ## Returns the year of the current time.
   def year -> Integer {
-    _INKOC.time_get_value(self, 6)
+    _INKOC.time_get_value(self, YEAR) as Integer
   }
 
-  ## Returns the month of the year, from 1 to 12.
+  ## Returns the month of the year from 1 to 12.
   def month -> Integer {
-    _INKOC.time_get_value(self, 5)
+    _INKOC.time_get_value(self, MONTH) as Integer
   }
 
-  ## Returns the day of the month, from 1 to 31.
+  ## Returns the day of the month from 1 to 31.
   def day -> Integer {
-    _INKOC.time_get_value(self, 4)
+    _INKOC.time_get_value(self, DAY) as Integer
+  }
+
+  ## Returns the day of the week from 1 to 7.
+  ##
+  ## Per ISO 8601 the first day of the week starts on Monday, not Sunday.
+  def day_of_week -> Integer {
+    _INKOC.time_get_value(self, DAY_OF_WEEK) as Integer
+  }
+
+  ## Returns the day of the year from 1 to 366.
+  def day_of_year -> Integer {
+    _INKOC.time_get_value(self, DAY_OF_YEAR) as Integer
+  }
+
+  ## Returns `True` if Daylight Saving Time is active.
+  def dst? -> Boolean {
+    (_INKOC.time_get_value(self, DST) as Integer) == 1
+  }
+
+  ## Returns the offset in seconds relative to UTC.
+  def utc_offset -> Integer {
+    _INKOC.time_get_value(self, UTC_OFFSET) as Integer
+  }
+
+  ## Returns the number of seconds since the Unix epoch in UTC.
+  def seconds_since_epoch -> Integer {
+    _INKOC.time_get_value(self, SEC_SINCE_EPOCH) as Integer
+  }
+}
+
+impl ToInteger for SystemTime {
+  ## Returns the timestamp since the Unix epoch.
+  def to_integer -> Integer {
+    seconds_since_epoch
+  }
+}
+
+impl ToFloat for SystemTime {
+  ## Returns the timestamp since the Unix epoch, the including fractional
+  ## seconds.
+  def to_float -> Float {
+    seconds_since_epoch.to_float + sub_second
   }
 }
 
@@ -95,19 +152,5 @@ impl ToInteger for MonotonicTime {
 impl ToFloat for MonotonicTime {
   def to_float -> Float {
     @time
-  }
-}
-
-impl ToInteger for SystemTime {
-  def to_integer -> Integer {
-    _INKOC.time_get_value(self, 11) as Integer
-  }
-}
-
-impl ToFloat for SystemTime {
-  def to_float -> Float {
-    let nsec = _INKOC.time_get_value(self, 12) as Integer
-
-    to_integer.to_float + (nsec.to_float / NANOSECONDS_TO_SECONDS)
   }
 }
