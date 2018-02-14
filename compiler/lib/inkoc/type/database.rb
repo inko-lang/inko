@@ -23,7 +23,7 @@ module Inkoc
         @integer_type = new_object_type(Config::INTEGER_CONST, singleton: true)
         @float_type = new_object_type(Config::FLOAT_CONST, singleton: true)
         @string_type = new_object_type(Config::STRING_CONST, singleton: true)
-        @file_type = Object.new(name: Config::FILE_CONST)
+        @file_type = new_object_type(Config::FILE_CONST)
         @array_type = initialize_array_type
         @hash_map_type = initialize_hash_map_type
         @date_time_type = new_object_type(Config::DATE_TIME_CONST)

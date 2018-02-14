@@ -1512,8 +1512,9 @@ impl Machine {
 
                     match open_opts.open(path) {
                         Ok(file) => {
-                            let obj = process.allocate_without_prototype(
+                            let obj = process.allocate(
                                 object_value::file(file),
+                                self.state.object_prototype,
                             );
 
                             context.set_register(register, obj);
