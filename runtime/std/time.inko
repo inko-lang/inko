@@ -262,6 +262,12 @@ object SystemTime {
     time as SystemTime
   }
 
+  ## Returns a new `SystemTime` from the given number of seconds since the Unix
+  ## epoch.
+  def from_timestamp(time: ToFloat) -> Self {
+    new(_INKOC.time_from_seconds(time.to_float))
+  }
+
   ## Returns the hour of the day from 0 to 23.
   def hour -> Integer {
     _INKOC.time_get_value(self, HOUR)

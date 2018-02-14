@@ -1,5 +1,7 @@
 //! DateTime objects for the virtual machine and runtime.
 
+use std::i32;
+use std::i64;
 use std::time::{SystemTime, UNIX_EPOCH};
 use time::{self, Timespec, Tm};
 
@@ -12,10 +14,33 @@ pub struct DateTime {
 /// The year the "tm_year" values are relative to.
 const TM_START_YEAR: i64 = 1900;
 
+/// The number of nanoseconds in a second.
+const NANOS_PER_SEC: f64 = 1_000_000_000.0;
+
 impl DateTime {
     /// Returns the current system time.
     pub fn now() -> Self {
         DateTime { time: time::now() }
+    }
+
+    /// Returns a `DateTime` starting at the given number of seconds since the
+    /// Unix epoch.
+    pub fn from_seconds(secs: f64) -> Option<Self> {
+        if secs > (i64::MAX as f64) {
+            return None;
+        }
+
+        let nanos = secs.fract() * NANOS_PER_SEC;
+
+        if nanos <= (i32::MAX as f64) {
+            let time_spec = Timespec::new(secs as i64, nanos as i32);
+
+            Some(DateTime {
+                time: time::at(time_spec),
+            })
+        } else {
+            None
+        }
     }
 
     /// Creates a `DateTime` from a `SystemTime` object.

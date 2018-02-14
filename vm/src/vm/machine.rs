@@ -3001,6 +3001,32 @@ impl Machine {
                         return Err(format!("{} is not a valid field", field));
                     }
                 }
+                // Creates a primitive DateTime object from the given number of
+                // seconds (as a float) since the Unix epoch. The primitive
+                // DateTime uses the local timezone.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the primitive DateTime object in.
+                // 2. The register containing the number of seconds since the
+                //    Unix epoch, in UTC.
+                //
+                // This instruction will panic if the given timestamp is too
+                // great or otherwise unsupported.
+                InstructionType::TimeFromSeconds => {
+                    let register = instruction.arg(0);
+                    let sec_ptr = context.get_register(instruction.arg(1));
+                    let sec = sec_ptr.float_value()?;
+
+                    if let Some(dt) = DateTime::from_seconds(sec) {
+                        let pointer = process.allocate(
+                            object_value::date_time(dt),
+                            self.state.object_prototype,
+                        );
+
+                        context.set_register(register, pointer);
+                    }
+                }
             };
         }
 
