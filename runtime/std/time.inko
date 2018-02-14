@@ -24,21 +24,20 @@ let SEC_SINCE_EPOCH = 11
 ## a `SystemTime` to go back in time due to time zone changes, clock
 ## adjustments, or leap seconds. If you need a monotonically increasing clock
 ## you should use `MonotonicTime` instead.
-##
-## # Examples
-##
-## Getting the current time:
-##
-##     import std::time::SystemTime
-##
-##     SystemTime.new
 object SystemTime {
-  def allocate -> Self {
-    from_primitive_date_time(_INKOC.time_system)
-  }
-
-  ## Creates a new `SystemTime` from a primitive DateTime object.
-  def from_primitive_date_time(time: Object) -> Self {
+  ## Returns a new `SystemTime` representing the current time.
+  ##
+  ## The argument is a primitive DateTime object and should not be
+  ## used/specified directly by code outside of the standard library.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::SystemTime
+  ##
+  ##     SystemTime.new
+  def new(time = _INKOC.time_system) -> Self {
     time.prototype = self
     time as SystemTime
   }

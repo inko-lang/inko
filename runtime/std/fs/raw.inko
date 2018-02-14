@@ -28,6 +28,22 @@ def open(path: String, mode: Integer) !! IOError {
   }
 }
 
+def mode_for_write(append = False) -> Integer {
+  append.if true: {
+    APPEND_ONLY
+  }, false: {
+    WRITE_ONLY
+  }
+}
+
+def mode_for_read_write(append = False) -> Integer {
+  append.if true: {
+    READ_APPEND
+  }, false: {
+    READ_WRITE
+  }
+}
+
 ## Copies a file from the source destination to the target destination
 def copy(from: String, to: String) !! IOError -> Integer {
   process.await {
@@ -79,6 +95,6 @@ def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
       throw IOError.new(error as String)
     }
 
-    SystemTime.from_primitive_date_time(primitive)
+    SystemTime.new(primitive)
   }
 }

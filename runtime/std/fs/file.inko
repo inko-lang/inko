@@ -11,8 +11,7 @@
 
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
-import std::fs::raw::(CREATED_AT, MODIFIED_AT, ACCESSED_AT)
-import std::fs::raw::(self, READ_ONLY, WRITE_ONLY, APPEND_ONLY, READ_WRITE, READ_APPEND)
+import std::fs::raw::(self, CREATED_AT, MODIFIED_AT, ACCESSED_AT, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
 import std::time::SystemTime
@@ -22,63 +21,103 @@ trait FilePath {
   def path -> Path
 }
 
+## An object that allows the removal of an associated file on the filesystem.
+trait Remove {}
+
 ## A file that can only be used for read operations.
 object ReadOnlyFile {
-  def init(path: ToPath) !! IOError {
-    let @path = path.to_path
-    let @file = try raw.open(path: @path.to_string, mode: READ_ONLY)
+  ## Returns a new `ReadOnlyFile`.
+  ##
+  ## # Examples
+  ##
+  ## Opening a file in read-only mode:
+  ##
+  ##     import std::fs::file::ReadOnlyFile
+  ##
+  ##     let handle = try! ReadOnlyFile.new('/dev/null')
+  def new(path: ToPath) !! IOError -> Self {
+    let conv_path = path.to_path
+    let file = try {
+      raw.open(path: conv_path.to_string, mode: READ_ONLY)
+    } as ReadOnlyFile
+
+    file.prototype = self
+    file.init(conv_path)
+    file
+  }
+
+  def init(path: Path) {
+    let @path = path
   }
 }
 
 ## A file that can only be used for write (or append) operations.
 object WriteOnlyFile {
-  def init(path: ToPath, append = False) !! IOError {
-    let mode = append.if true: {
-      APPEND_ONLY
-    }, false: {
-      WRITE_ONLY
-    }
+  ## Returns a new `WriteOnlyFile`.
+  ##
+  ## # Examples
+  ##
+  ## Opening a file in write-only mode:
+  ##
+  ##     import std::fs::file::WriteOnlyFile
+  ##
+  ##     let handle = try! WriteOnlyFile.new('/dev/null')
+  def new(path: ToPath, append = False) !! IOError -> Self {
+    let mode = raw.mode_for_write(append)
+    let conv_path = path.to_path
+    let file = try {
+      raw.open(path: conv_path.to_string, mode: mode)
+    } as WriteOnlyFile
 
-    let @path = path.to_path
-    let @file = try raw.open(path: @path.to_string, mode: mode)
+    file.prototype = self
+    file.init(conv_path)
+    file
   }
 
-  ## Removes this file from the filesystem.
-  def remove !! IOError -> Nil {
-    try ThisModule.remove(@path)
+  def init(path: Path) {
+    let @path = path
   }
 }
 
 ## A file that can be used for both read and write operations.
 object ReadWriteFile {
-  def init(path: ToPath, append = False) !! IOError {
-    let mode = append.if true: {
-      READ_APPEND
-    }, false: {
-      READ_WRITE
-    }
+  ## Returns a new `ReadWriteFile`.
+  ##
+  ## # Examples
+  ##
+  ## Opening a file for both reads and writes:
+  ##
+  ##     import std::fs::file::ReadWriteFile
+  ##
+  ##     let handle = try! ReadWriteFile.new('/dev/null')
+  def new(path: ToPath, append = False) !! IOError -> Self {
+    let mode = raw.mode_for_read_write(append)
+    let conv_path = path.to_path
+    let file = try {
+      raw.open(path: conv_path.to_string, mode: mode)
+    } as ReadWriteFile
 
-    let @path = path.to_path
-    let @file = try raw.open(path: @path.to_string, mode: mode)
+    file.prototype = self
+    file.init(conv_path)
+    file
   }
 
-  ## Removes this file from the filesystem.
-  def remove !! IOError -> Nil {
-    try ThisModule.remove(@path)
+  def init(path: Path) {
+    let @path = path
   }
 }
 
 impl Read for ReadOnlyFile, ReadWriteFile {
   def read !! IOError -> String {
     process.await {
-      try _INKOC.file_read(@file) else (err) throw IOError.new(err as String)
+      try _INKOC.file_read(self) else (err) throw IOError.new(err as String)
     }
   }
 
   def read_exact(amount: Integer) !! IOError -> String {
     process.await {
       try {
-        _INKOC.file_read_exact(@file, amount)
+        _INKOC.file_read_exact(self, amount)
       } else (err) {
         throw IOError.new(err as String)
       }
@@ -90,7 +129,7 @@ impl Write for WriteOnlyFile, ReadWriteFile {
   def write(data: ToString) !! IOError -> Integer {
     process.await {
       try {
-        _INKOC.file_write(@file, data.to_string)
+        _INKOC.file_write(self, data.to_string)
       } else (err) {
         throw IOError.new(err as String)
       }
@@ -99,7 +138,7 @@ impl Write for WriteOnlyFile, ReadWriteFile {
 
   def flush !! IOError -> Nil {
     process.await {
-      try _INKOC.file_flush(@file) else (err) throw IOError.new(err as String)
+      try _INKOC.file_flush(self) else (err) throw IOError.new(err as String)
     }
   }
 }
@@ -108,7 +147,7 @@ impl Seek for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
   def seek(position: Integer) !! IOError -> Integer {
     process.await {
       try {
-        _INKOC.file_seek(@file, position)
+        _INKOC.file_seek(self, position)
       } else (err) {
         throw IOError.new(err as String)
       }
@@ -130,7 +169,14 @@ impl FilePath for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
 
 impl Close for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
   def close -> Nil {
-    _INKOC.drop(@file)
+    _INKOC.drop(self)
+  }
+}
+
+impl Remove for WriteOnlyFile, ReadWriteFile {
+  ## Removes the file.
+  def remove !! IOError -> Nil {
+    try ThisModule.remove(@path)
   }
 }
 
