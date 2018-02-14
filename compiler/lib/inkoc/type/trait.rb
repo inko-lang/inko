@@ -38,7 +38,19 @@ module Inkoc
       end
 
       def lookup_method(name, *)
-        lookup_default_method(name).or_else { required_methods[name] }
+        lookup_default_method(name)
+          .or_else { required_methods[name] }
+          .or_else { lookup_method_from_required_traits(name) }
+      end
+
+      def lookup_method_from_required_traits(name)
+        required_traits.each do |trait|
+          if (symbol = trait.lookup_method(name)) && symbol.any?
+            return symbol
+          end
+        end
+
+        NullSymbol.new(name)
       end
 
       def lookup_default_method(name)
