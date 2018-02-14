@@ -1,0 +1,30 @@
+#! Types for error handling.
+import std::conversion::ToString
+
+## A type for building custom error objects.
+trait Error: ToString {
+  ## Returns the error message.
+  def message -> String
+}
+
+## A simple `Error` object that stores only an error message.
+##
+## The `StandardError` is a simple `Error` object suitable for cases where you
+## only want to provide the developer with a human-readable error message.
+object StandardError {
+  def init(message: String) {
+    let @message = message
+  }
+}
+
+impl ToString for StandardError {
+  def to_string -> String {
+    @message
+  }
+}
+
+impl Error for StandardError {
+  def message -> String {
+    @message
+  }
+}

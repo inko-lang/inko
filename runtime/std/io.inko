@@ -3,31 +3,16 @@
 #! The IO module provides the basic building blocks for IO operations such as
 #! reading from and writing to a file.
 
-import std::process
-import std::os::NEWLINE
 import std::conversion::ToString
+import std::error::StandardError
+import std::os::NEWLINE
+import std::process
 
-## Object for storing error details of a failed IO operation.
-object Error {
-  ## Creates a new IO error.
-  ##
-  ## The `message` argument should contain more information (in a human readable
-  ## format) about the error.
-  def init(message: String) {
-    let @message = message
-  }
-
-  ## Returns the error message.
-  def message -> String {
-    @message
-  }
-}
-
-impl ToString for Error {
-  def to_string -> String {
-    @message
-  }
-}
+## The object to use when throwing IO related errors.
+##
+## This is simply a re-exported `StandardError` so code using this type doesn't
+## have to be changed if we ever decide to use a custom object for errors.
+let Error = StandardError
 
 ## A trait providing a common way for disposing of objects.
 trait Close {
