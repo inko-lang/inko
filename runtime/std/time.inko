@@ -1,9 +1,241 @@
 #! Types and methods for dealing with time.
 import std::conversion::(ToFloat, ToInteger)
+import std::operators::(Add, Subtract)
+import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual)
 import std::time::raw::*
 
 ## The number to divide a value in nanoseconds by to convert it to seconds.
 let NANOSEC_TO_SEC = 1_000_000_000.0
+
+## The number to divide a value in milliseconds by to convert it to seconds.
+let MILLISEC_TO_SEC = 1000.0
+
+## A span of time measured in seconds.
+##
+## A `Duration` can be used to measure the span of time without having to worry
+## about casting the time to different scales yourself. A `Duration` can be
+## created using various scales such as seconds and milliseconds.
+object Duration {
+  ## Creates a new `Duration` from the given number of seconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(10.5)
+  def from_seconds(seconds: ToFloat) -> Self {
+    new(seconds.to_float)
+  }
+
+  ## Creates a new `Duration` from the given number of milliseconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_milliseconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_milliseconds(10.5)
+  def from_milliseconds(milliseconds: ToFloat) -> Self {
+    new(milliseconds.to_float / MILLISEC_TO_SEC)
+  }
+
+  ## Creates a new `Duration` from the given number of nanoseconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_nanoseconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_nanoseconds(10.5)
+  def from_nanoseconds(nanoseconds: ToFloat) -> Self {
+    new(nanoseconds.to_float / NANOSEC_TO_SEC)
+  }
+
+  def init(seconds: Float) {
+    let @seconds = seconds
+  }
+
+  ## Returns the duration in seconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the seconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let duration = Duration.from_seconds(5)
+  ##
+  ##     duration.as_seconds # => 5.0
+  def as_seconds -> Float {
+    @seconds
+  }
+
+  ## Returns the duration in milliseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the milliseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let duration = Duration.from_seconds(5)
+  ##
+  ##     duration.as_milliseconds # => 5000.0
+  def as_milliseconds -> Float {
+    @seconds * MILLISEC_TO_SEC
+  }
+
+  ## Returns the duration in nanoseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the nanoseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let duration = Duration.from_seconds(5)
+  ##
+  ##     duration.as_nanoseconds # => 5000000000.0
+  def as_nanoseconds -> Float {
+    @seconds * NANOSEC_TO_SEC
+  }
+}
+
+impl ToInteger for Duration {
+  ## Returns the number of seconds in the `Duration`.
+  def to_integer -> Integer {
+    @seconds.to_integer
+  }
+}
+
+impl ToFloat for Duration {
+  ## Returns the number of seconds in the `Duration`.
+  def to_float -> Float {
+    @seconds
+  }
+}
+
+impl Add!(Self) for Duration {
+  ## Adds two `Duration` objects together.
+  ##
+  ## # Examples
+  ##
+  ## Adding two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let first = Duration.from_seconds(5)
+  ##     let second = Duration.from_seconds(2)
+  ##     let third = first + second
+  ##
+  ##     third.as_seconds # => 7.0
+  def +(other: Self) -> Self {
+    Duration.new(@seconds + other.as_seconds)
+  }
+}
+
+impl Subtract!(Self) for Duration {
+  ## Subtracts the given `Duration` from `self`.
+  ##
+  ## # Examples
+  ##
+  ## Subtracting a `Duration` from another `Duration`
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let first = Duration.from_seconds(5)
+  ##     let second = Duration.from_seconds(2)
+  ##     let third = first - second
+  ##
+  ##     third.as_seconds # => 3.0
+  def -(other: Self) -> Self {
+    Duration.new(@seconds - other.as_seconds)
+  }
+}
+
+impl Smaller for Duration {
+  ## Returns `True` if `self` is smaller than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) < Duration.from_seconds(10) # => True
+  def <(other: Self) -> Boolean {
+    @seconds < other.as_seconds
+  }
+}
+
+impl Greater for Duration {
+  ## Returns `True` if `self` is greater than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) > Duration.from_seconds(10) # => False
+  def >(other: Self) -> Boolean {
+    @seconds > other.as_seconds
+  }
+}
+
+impl SmallerOrEqual for Duration {
+  ## Returns `True` if `self` is smaller than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) <= Duration.from_seconds(10) # => True
+  ##     Duration.from_seconds(5) <= Duration.from_seconds(5)  # => True
+  def <=(other: Self) -> Boolean {
+    @seconds <= other.as_seconds
+  }
+}
+
+impl GreaterOrEqual for Duration {
+  ## Returns `True` if `self` is greater than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) >= Duration.from_seconds(10) # => False
+  ##     Duration.from_seconds(5) >= Duration.from_seconds(5)  # => True
+  def >=(other: Self) -> Boolean {
+    @seconds >= other.as_seconds
+  }
+}
 
 ## An object representing the current system time.
 ##
