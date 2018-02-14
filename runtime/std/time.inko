@@ -1,21 +1,9 @@
 #! Types and methods for dealing with time.
 import std::conversion::(ToFloat, ToInteger)
+import std::time::raw::*
 
 ## The number to divide a value in nanoseconds by to convert it to seconds.
 let NANOSEC_TO_SEC = 1_000_000_000.0
-
-let SEC = 0
-let SUB_SEC = 1
-let MINUTE = 2
-let HOUR = 3
-let DAY = 4
-let MONTH = 5
-let YEAR = 6
-let DAY_OF_WEEK = 7
-let DAY_OF_YEAR = 8
-let DST = 9
-let UTC_OFFSET = 10
-let SEC_SINCE_EPOCH = 11
 
 ## An object representing the current system time.
 ##

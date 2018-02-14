@@ -1,0 +1,14 @@
+#! Raw types for the "std::time" module.
+
+let SEC = 0
+let SUB_SEC = 1
+let MINUTE = 2
+let HOUR = 3
+let DAY = 4
+let MONTH = 5
+let YEAR = 6
+let DAY_OF_WEEK = 7
+let DAY_OF_YEAR = 8
+let DST = 9
+let UTC_OFFSET = 10
+let SEC_SINCE_EPOCH = 11
