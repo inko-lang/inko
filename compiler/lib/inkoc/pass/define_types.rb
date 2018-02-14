@@ -710,6 +710,10 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_time_from_seconds(*)
+        typedb.date_time_type
+      end
+
       def on_raw_string_to_upper(*)
         typedb.string_type
       end

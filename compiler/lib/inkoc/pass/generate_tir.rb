@@ -933,6 +933,10 @@ module Inkoc
         raw_binary_instruction(:TimeGetValue, node, body)
       end
 
+      def on_raw_time_from_seconds(node, body)
+        raw_unary_instruction(:TimeFromSeconds, node, body)
+      end
+
       def on_raw_string_to_upper(node, body)
         raw_unary_instruction(:StringToUpper, node, body)
       end

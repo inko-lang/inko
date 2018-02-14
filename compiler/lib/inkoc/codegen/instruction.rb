@@ -128,6 +128,7 @@ module Inkoc
         FileTime
         TimeSystem
         TimeGetValue
+        TimeFromSeconds
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
