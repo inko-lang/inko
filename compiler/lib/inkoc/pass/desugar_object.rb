@@ -23,6 +23,14 @@ module Inkoc
       def on_object(node)
         method = nil
 
+        defines_new = node.body.expressions.any? do |expr|
+          expr.method? && expr.name == Config::NEW_MESSAGE
+        end
+
+        # If an object defines a custom "new" method we don't want to overwrite
+        # it.
+        return if defines_new
+
         node.body.expressions.each do |expr|
           next unless expr.method?
           next unless expr.name == Config::INIT_MESSAGE
