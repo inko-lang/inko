@@ -21,7 +21,7 @@ impl ToString for Integer {
   }
 }
 
-impl Add for Integer {
+impl Add!(Self) for Integer {
   def +(other: Self) -> Self {
     _INKOC.integer_add(self, other)
   }
@@ -39,7 +39,7 @@ impl Multiply for Integer {
   }
 }
 
-impl Subtract for Integer {
+impl Subtract!(Self) for Integer {
   def -(other: Self) -> Self {
     _INKOC.integer_sub(self, other)
   }

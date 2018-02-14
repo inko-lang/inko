@@ -3,9 +3,10 @@
 import std::conditional::Conditional
 
 ## The binary `+` operator.
-trait Add {
-  ## Adds two objects together, producing a new one of the same type.
-  def +(other: Self) -> Self
+trait Add!(T) {
+  ## Adds the given object to `self`, producing a new instance of the same type
+  ## as `self`.
+  def +(other: T) -> Self
 }
 
 ## The binary `/` operator.
@@ -22,10 +23,10 @@ trait Multiply {
 }
 
 ## The binary `-` operator.
-trait Subtract {
-  ## Subtracts the given object from `self`, producing a new one of the same
-  ## type.
-  def -(other: Self) -> Self
+trait Subtract!(T) {
+  ## Subtracts the given object from `self`, producing a new instance of the
+  ## same type as `self`.
+  def -(other: T) -> Self
 }
 
 ## The binary `%` operator.

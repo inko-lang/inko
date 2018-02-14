@@ -5,7 +5,7 @@
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::operators::*
 
-impl Add for Float {
+impl Add!(Self) for Float {
   def +(other: Self) -> Self {
     _INKOC.float_add(self, other)
   }
@@ -23,7 +23,7 @@ impl Multiply for Float {
   }
 }
 
-impl Subtract for Float {
+impl Subtract!(Self) for Float {
   def -(other: Self) -> Self {
     _INKOC.float_sub(self, other)
   }
