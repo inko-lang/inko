@@ -707,7 +707,7 @@ module Inkoc
       end
 
       def on_raw_time_get_value(*)
-        Type::Optional.new(typedb.integer_type)
+        typedb.integer_type
       end
 
       def on_raw_string_to_upper(*)

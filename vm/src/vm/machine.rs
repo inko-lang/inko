@@ -2981,6 +2981,8 @@ impl Machine {
                 // 2. The register containing the DateTime object.
                 // 3. The register containing an integer describing which field
                 //    to read.
+                //
+                // This instruction will panic if the given field is invalid.
                 InstructionType::TimeGetValue => {
                     let register = instruction.arg(0);
                     let obj_ptr = context.get_register(instruction.arg(1));
@@ -2989,12 +2991,14 @@ impl Machine {
                     let date_time = obj_ptr.date_time_value()?;
                     let field = field_ptr.integer_value()?;
 
-                    let pointer = date_time
+                    if let Some(pointer) = date_time
                         .get(field)
                         .map(|val| self.allocate_integer(process, val))
-                        .unwrap_or(self.state.nil_object);
-
-                    context.set_register(register, pointer);
+                    {
+                        context.set_register(register, pointer);
+                    } else {
+                        return Err(format!("{} is not a valid field", field));
+                    }
                 }
             };
         }
