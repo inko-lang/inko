@@ -1,6 +1,5 @@
+use std::error::Error;
 use std::io;
-
-pub const IO_GENERIC: &'static str = "A generic IO error occurred.";
 
 pub const IO_PERMISSION_DENIED: &'static str =
     "The operation lacked the necessary privileges to complete.";
@@ -47,9 +46,9 @@ pub const IO_UNEXPECTED_EOF: &'static str =
 
 pub const IO_NOT_FOUND: &'static str = "The resource could not be found.";
 
-/// Returns an error code for a Rust IO error.
-pub fn from_io_error(error: io::Error) -> &'static str {
-    match error.kind() {
+/// Returns an error message from a Rust IO error.
+pub fn from_io_error(error: io::Error) -> String {
+    let slice = match error.kind() {
         io::ErrorKind::NotFound => IO_NOT_FOUND,
         io::ErrorKind::PermissionDenied => IO_PERMISSION_DENIED,
         io::ErrorKind::ConnectionRefused => IO_CONNECTION_REFUSED,
@@ -67,6 +66,8 @@ pub fn from_io_error(error: io::Error) -> &'static str {
         io::ErrorKind::WriteZero => IO_WRITE_ZERO,
         io::ErrorKind::Interrupted => IO_INTERRUPTED,
         io::ErrorKind::UnexpectedEof => IO_UNEXPECTED_EOF,
-        _ => IO_GENERIC,
-    }
+        _ => error.description(),
+    };
+
+    slice.to_string()
 }

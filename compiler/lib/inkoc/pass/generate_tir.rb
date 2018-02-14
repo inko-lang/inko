@@ -1067,16 +1067,8 @@ module Inkoc
         raw_unary_instruction(:FileType, node, body)
       end
 
-      def on_raw_file_created_at(node, body)
-        raw_unary_instruction(:FileCreatedAt, node, body)
-      end
-
-      def on_raw_file_modified_at(node, body)
-        raw_unary_instruction(:FileModifiedAt, node, body)
-      end
-
-      def on_raw_file_accessed_at(node, body)
-        raw_unary_instruction(:FileAccessedAt, node, body)
+      def on_raw_file_time(node, body)
+        raw_binary_instruction(:FileTime, node, body)
       end
 
       def on_raw_drop(node, body)

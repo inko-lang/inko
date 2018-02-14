@@ -34,13 +34,13 @@ let SEC_SINCE_EPOCH = 11
 ##     SystemTime.new
 object SystemTime {
   def allocate -> Self {
-    let obj = _INKOC.time_system as SystemTime
+    from_primitive_date_time(_INKOC.time_system)
+  }
 
-    # VM DateTime objects don't have a prototype so we'll need to manually set
-    # it to the `SystemTime` object.
-    _INKOC.set_prototype(obj, self)
-
-    obj
+  ## Creates a new `SystemTime` from a primitive DateTime object.
+  def from_primitive_date_time(time: Object) -> Self {
+    time.prototype = self
+    time as SystemTime
   }
 
   ## Returns the hour of the day from 0 to 23.

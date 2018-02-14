@@ -125,9 +125,7 @@ module Inkoc
         Platform
         FileCopy
         FileType
-        FileModifiedAt
-        FileCreatedAt
-        FileAccessedAt
+        FileTime
         TimeSystem
         TimeGetValue
       ]

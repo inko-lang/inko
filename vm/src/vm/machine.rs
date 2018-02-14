@@ -64,7 +64,10 @@ macro_rules! throw_io_error {
         $index: ident
     ) => ({
         let message = $crate::error_messages::from_io_error($error);
-        let value = $machine.state.intern(&message.to_string());
+        let value = $process.allocate(
+            object_value::string(message),
+            $machine.state.string_prototype
+        );
 
         throw_value!($machine, $process, value, $context, $code, $index);
     });
@@ -133,63 +136,6 @@ macro_rules! vec_to_string {
             Err(error) => {
                 String::from_utf8_lossy(&error.into_bytes())
                     .into_owned()
-            }
-        }
-    })
-}
-
-/// Retrieves and stores the creation/modification/access time of a file path.
-macro_rules! file_time_operation {
-    (
-        // The method to use for retrieving the timestamp (e.g. "accessed").
-        $operation: ident,
-
-        // The currently running machine.
-        $vm: expr,
-
-        // The process that is running the instruction.
-        $process: expr,
-
-        // The current ExecutionContext.
-        $context: ident,
-
-        // The current CompiledCode.
-        $code: ident,
-
-        // The current Instruction.
-        $instruction: ident,
-
-        // The position of the current Instruction.
-        $index: ident
-    ) => ({
-        let register = $instruction.arg(0);
-        let path_ptr = $context.get_register($instruction.arg(1));
-        let path = path_ptr.string_value()?;
-
-        match fs::metadata(path) {
-            Ok(meta) => {
-                let pointer = meta.$operation()
-                    .ok()
-                    .map(|stime| {
-                        let dtime = DateTime::from_system_time(stime);
-
-                        $process.allocate_without_prototype(
-                            object_value::date_time(dtime),
-                        )
-                    })
-                    .unwrap_or_else(|| $vm.state.nil_object);
-
-                $context.set_register(register, pointer);
-            }
-            Err(error) => {
-                throw_io_error!(
-                    $vm,
-                    $process,
-                    error,
-                    $context,
-                    $code,
-                    $index
-                );
             }
         }
     })
@@ -2943,81 +2889,85 @@ impl Machine {
                         ObjectPointer::integer(file_type),
                     );
                 }
-                // Gets the creation time of a file.
+                // Gets the creation, modification or access time of a file.
                 //
-                // This instruction requires two arguments:
+                // This instruction requires three arguments:
                 //
-                // 1. The register to store the result in.
+                // 1. The register to store the result in as a primitive
+                //    DateTime object.
                 // 2. The register containing the file path of the file.
+                // 3. The register containing an integer indicating what kind of
+                //    timestamp to retrieve.
                 //
-                // The result will be a float if a timestamp could be retrieved
-                // and `nil` if no timestamp was available.
+                // This instruction will throw an error message (as a String) if
+                // the file's metadata could not be retrieved.
                 //
-                // This instruction may throw an IO error.
-                InstructionType::FileCreatedAt => {
-                    file_time_operation!(
-                        created,
-                        self,
-                        process,
-                        context,
-                        code,
-                        instruction,
-                        index
-                    );
-                }
-                // Gets the modification time of a file.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the result in.
-                // 2. The register containing the file path of the file.
-                //
-                // The result will be a float if a timestamp could be retrieved
-                // and `nil` if no timestamp was available.
-                //
-                // This instruction may throw an IO error.
-                InstructionType::FileModifiedAt => {
-                    file_time_operation!(
-                        modified,
-                        self,
-                        process,
-                        context,
-                        code,
-                        instruction,
-                        index
-                    );
-                }
-                // Gets the access time of a file.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the result in.
-                // 2. The register containing the file path of the file.
-                //
-                // The result will be a float if a timestamp could be retrieved
-                // and `nil` if no timestamp was available.
-                //
-                // This instruction may throw an IO error.
-                InstructionType::FileAccessedAt => {
-                    file_time_operation!(
-                        accessed,
-                        self,
-                        process,
-                        context,
-                        code,
-                        instruction,
-                        index
-                    );
+                // This instruction will panic if the timestamp kind is invalid.
+                InstructionType::FileTime => {
+                    let register = instruction.arg(0);
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let kind_ptr = context.get_register(instruction.arg(2));
+
+                    let path = path_ptr.string_value()?;
+                    let kind = kind_ptr.integer_value()?;
+
+                    match fs::metadata(path) {
+                        Ok(meta) => {
+                            let time_result = match kind {
+                                0 => meta.created(),
+                                1 => meta.modified(),
+                                2 => meta.accessed(),
+                                _ => {
+                                    return Err(format!(
+                                        "{} is not a valid type of timestamp",
+                                        kind
+                                    ))
+                                }
+                            };
+
+                            match time_result {
+                                Ok(st) => {
+                                    let dt = DateTime::from_system_time(st);
+                                    let ptr = process.allocate(
+                                        object_value::date_time(dt),
+                                        self.state.object_prototype,
+                                    );
+
+                                    context.set_register(register, ptr);
+                                }
+                                Err(error) => {
+                                    throw_io_error!(
+                                        self,
+                                        process,
+                                        error,
+                                        context,
+                                        code,
+                                        index
+                                    );
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            throw_io_error!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
+                        }
+                    }
                 }
                 // Gets the current system (= local) time.
                 //
                 // This instruction takes one argument: the register to store
-                // the time object in. The stored object does not have a
-                // prototype.
+                // the time object in.
                 InstructionType::TimeSystem => {
                     let register = instruction.arg(0);
-                    let pointer = process.allocate_without_prototype(
+                    let pointer = process.allocate(
                         object_value::date_time(DateTime::now()),
+                        self.state.object_prototype,
                     );
 
                     context.set_register(register, pointer);

@@ -703,7 +703,7 @@ module Inkoc
       end
 
       def on_raw_time_system(*)
-        typedb.date_time_type.new_instance
+        typedb.date_time_type
       end
 
       def on_raw_time_get_value(*)
@@ -816,7 +816,7 @@ module Inkoc
       end
 
       def on_raw_file_open(*)
-        typedb.file_type.new_instance
+        typedb.file_type
       end
 
       def on_raw_file_read(*)
@@ -855,16 +855,8 @@ module Inkoc
         typedb.integer_type
       end
 
-      def on_raw_file_created_at(*)
-        Type::Optional.new(typedb.float_type)
-      end
-
-      def on_raw_file_modified_at(*)
-        Type::Optional.new(typedb.float_type)
-      end
-
-      def on_raw_file_accessed_at(*)
-        Type::Optional.new(typedb.float_type)
+      def on_raw_file_time(*)
+        typedb.date_time_type
       end
 
       def on_raw_drop(*)

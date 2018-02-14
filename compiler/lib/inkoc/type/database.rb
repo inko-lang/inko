@@ -26,7 +26,7 @@ module Inkoc
         @file_type = Object.new(name: Config::FILE_CONST)
         @array_type = initialize_array_type
         @hash_map_type = initialize_hash_map_type
-        @date_time_type = Object.new(name: Config::DATE_TIME_CONST)
+        @date_time_type = new_object_type(Config::DATE_TIME_CONST)
 
         @void_type = Void.new
         @trait_type = nil

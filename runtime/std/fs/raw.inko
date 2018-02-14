@@ -5,6 +5,7 @@
 
 import std::io::(Error as IOError)
 import std::process
+import std::time::SystemTime
 
 let MISSING_TYPE = 0
 let FILE_TYPE = 1
@@ -15,6 +16,10 @@ let WRITE_ONLY = 1
 let APPEND_ONLY = 2
 let READ_WRITE = 3
 let READ_APPEND = 4
+
+let CREATED_AT = 0
+let MODIFIED_AT = 1
+let ACCESSED_AT = 2
 
 ## Opens a file in the given mode, returning a raw file object.
 def open(path: String, mode: Integer) !! IOError {
@@ -62,5 +67,18 @@ def directory?(path: String) -> Boolean {
 def exists?(path: String) -> Boolean {
   process.await {
     _INKOC.file_type(path) > MISSING_TYPE
+  }
+}
+
+## Returns the creation, modification or access time of a file path.
+def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
+  process.await {
+    let primitive = try {
+      _INKOC.file_time(path, kind)
+    } else (error) {
+      throw IOError.new(error as String)
+    }
+
+    SystemTime.from_primitive_date_time(primitive)
   }
 }

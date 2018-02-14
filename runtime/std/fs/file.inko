@@ -10,10 +10,12 @@
 #! produces a `WriteOnlyFile` object.
 
 import std::conversion::ToString
-import std::fs::raw::(self, READ_ONLY, WRITE_ONLY, APPEND_ONLY, READ_WRITE, READ_APPEND)
 import std::fs::path::(Path, ToPath)
+import std::fs::raw::(CREATED_AT, MODIFIED_AT, ACCESSED_AT)
+import std::fs::raw::(self, READ_ONLY, WRITE_ONLY, APPEND_ONLY, READ_WRITE, READ_APPEND)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
+import std::time::SystemTime
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
@@ -176,6 +178,21 @@ def copy(from: ToPath, to: ToPath) !! IOError -> Integer {
 ##     try! file.size('/dev/null') # => 0
 def size(path: ToPath) !! IOError -> Integer {
   try raw.size(path.to_path.to_string)
+}
+
+## Returns the creation time of a path.
+def created_at(path: ToPath) !! IOError -> SystemTime {
+  try raw.file_time(path.to_path.to_string, CREATED_AT)
+}
+
+## Returns the modification time of a path.
+def modified_at(path: ToPath) !! IOError -> SystemTime {
+  try raw.file_time(path.to_path.to_string, MODIFIED_AT)
+}
+
+## Returns the access time of a path.
+def accessed_at(path: ToPath) !! IOError -> SystemTime {
+  try raw.file_time(path.to_path.to_string, ACCESSED_AT)
 }
 
 ## Opens a file that can only be used for reading data.
