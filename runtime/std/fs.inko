@@ -32,3 +32,18 @@ def modified_at(path: ToPath) !! IOError -> Time {
 def accessed_at(path: ToPath) !! IOError -> Time {
   try raw.file_time(path.to_path.to_string, ACCESSED_AT)
 }
+
+## Returns `True` if the path points to a file.
+def file?(path: ToPath) -> Boolean {
+  raw.file?(path.to_path.to_string)
+}
+
+## Returns `True` if the path points to a directory.
+def directory?(path: ToPath) -> Boolean {
+  raw.directory?(path.to_path.to_string)
+}
+
+## Returns `True` if the path points to an existing file or directory.
+def exists?(path: ToPath) -> Boolean {
+  raw.exists?(path.to_path.to_string)
+}
