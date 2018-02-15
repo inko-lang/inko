@@ -1,5 +1,5 @@
 //! Virtual Machine for running instructions
-use rayon;
+use rayon::ThreadPoolBuilder;
 use rug::Integer;
 use std::fs;
 use std::i32;
@@ -211,12 +211,12 @@ impl Machine {
     }
 
     fn configure_rayon(&self) {
-        let config = rayon::Configuration::new()
+        ThreadPoolBuilder::new()
             .thread_name(|idx| format!("rayon {}", idx))
             .num_threads(self.state.config.generic_parallel_threads)
-            .stack_size(STACK_SIZE);
-
-        rayon::initialize(config).unwrap();
+            .stack_size(STACK_SIZE)
+            .build_global()
+            .unwrap();
     }
 
     fn start_primary_threads(&self) -> PoolJoinGuard<()> {

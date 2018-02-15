@@ -14,7 +14,7 @@ test = false
 [dependencies]
 getopts = "^0.2"
 num_cpus = "^1.0"
-rayon = "^0.9"
+rayon = "^1.0"
 parking_lot = { version = "^0.5", features = ["nightly"] }
 fnv = "^1.0"
 colored = "^1.6"
