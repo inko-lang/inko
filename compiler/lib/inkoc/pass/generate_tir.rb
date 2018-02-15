@@ -926,7 +926,7 @@ module Inkoc
       end
 
       def on_raw_time_system(node, body)
-        raw_nullary_instruction(:TimeSystem, node, body)
+        raw_unary_instruction(:TimeSystem, node, body)
       end
 
       def on_raw_time_get_value(node, body)
@@ -934,7 +934,7 @@ module Inkoc
       end
 
       def on_raw_time_from_seconds(node, body)
-        raw_unary_instruction(:TimeFromSeconds, node, body)
+        raw_binary_instruction(:TimeFromSeconds, node, body)
       end
 
       def on_raw_string_to_upper(node, body)

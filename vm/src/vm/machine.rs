@@ -2962,12 +2962,24 @@ impl Machine {
                 }
                 // Gets the current system (= local) time.
                 //
-                // This instruction takes one argument: the register to store
-                // the time object in.
+                // This instruction takes two arguments:
+                //
+                // 1. The register to store the primitive DateTime object in.
+                // 2. A register containing a boolean. If set to true the
+                //    primitive DateTime object will use UTC as the time zone,
+                //    otherwise the local time zone is used.
                 InstructionType::TimeSystem => {
                     let register = instruction.arg(0);
+                    let use_utc = context.get_register(instruction.arg(1));
+
+                    let dt = if is_false!(self, use_utc) {
+                        DateTime::now()
+                    } else {
+                        DateTime::now_utc()
+                    };
+
                     let pointer = process.allocate(
-                        object_value::date_time(DateTime::now()),
+                        object_value::date_time(dt),
                         self.state.object_prototype,
                     );
 
@@ -3005,20 +3017,30 @@ impl Machine {
                 // seconds (as a float) since the Unix epoch. The primitive
                 // DateTime uses the local timezone.
                 //
-                // This instruction requires two arguments:
+                // This instruction requires three arguments:
                 //
                 // 1. The register to store the primitive DateTime object in.
                 // 2. The register containing the number of seconds since the
                 //    Unix epoch, in UTC.
+                // 3. A register containing a boolean. If set to true the
+                //    primitive DateTime will use UTC as the timezone, otherwise
+                //    the local timezone is used instead.
                 //
                 // This instruction will panic if the given timestamp is too
                 // great or otherwise unsupported.
                 InstructionType::TimeFromSeconds => {
                     let register = instruction.arg(0);
                     let sec_ptr = context.get_register(instruction.arg(1));
+                    let utc_ptr = context.get_register(instruction.arg(2));
                     let sec = sec_ptr.float_value()?;
 
-                    if let Some(dt) = DateTime::from_seconds(sec) {
+                    let dt_opt = if is_false!(self, utc_ptr) {
+                        DateTime::from_seconds(sec)
+                    } else {
+                        DateTime::from_seconds_utc(sec)
+                    };
+
+                    if let Some(dt) = dt_opt {
                         let pointer = process.allocate(
                             object_value::date_time(dt),
                             self.state.object_prototype,

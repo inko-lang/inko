@@ -17,30 +17,47 @@ const TM_START_YEAR: i64 = 1900;
 /// The number of nanoseconds in a second.
 const NANOS_PER_SEC: f64 = 1_000_000_000.0;
 
+fn seconds_to_timespec(secs: f64) -> Option<Timespec> {
+    if secs > (i64::MAX as f64) {
+        return None;
+    }
+
+    let nanos = secs.fract() * NANOS_PER_SEC;
+
+    if nanos <= (i32::MAX as f64) {
+        let timespec = Timespec::new(secs as i64, nanos as i32);
+
+        Some(timespec)
+    } else {
+        None
+    }
+}
+
 impl DateTime {
     /// Returns the current system time.
     pub fn now() -> Self {
         DateTime { time: time::now() }
     }
 
+    /// Returns the current time in UTC.
+    pub fn now_utc() -> Self {
+        DateTime {
+            time: time::now_utc(),
+        }
+    }
+
     /// Returns a `DateTime` starting at the given number of seconds since the
-    /// Unix epoch.
+    /// Unix epoch, using the local timezone.
     pub fn from_seconds(secs: f64) -> Option<Self> {
-        if secs > (i64::MAX as f64) {
-            return None;
-        }
+        seconds_to_timespec(secs).map(|ts| DateTime { time: time::at(ts) })
+    }
 
-        let nanos = secs.fract() * NANOS_PER_SEC;
-
-        if nanos <= (i32::MAX as f64) {
-            let time_spec = Timespec::new(secs as i64, nanos as i32);
-
-            Some(DateTime {
-                time: time::at(time_spec),
-            })
-        } else {
-            None
-        }
+    /// Returns a `DateTime` starting at the given number of seconds since the
+    /// Unix epoch, using UTC as the timezone.
+    pub fn from_seconds_utc(secs: f64) -> Option<Self> {
+        seconds_to_timespec(secs).map(|ts| DateTime {
+            time: time::at_utc(ts),
+        })
     }
 
     /// Creates a `DateTime` from a `SystemTime` object.

@@ -244,10 +244,18 @@ impl GreaterOrEqual for Duration {
 ## influenced by time zone changes, clock adjustments, or leap seconds. If you
 ## need a monotonically increasing clock you should use `MonotonicTime` instead.
 object Time {
-  ## Returns a new `Time` representing the current time.
+  ## Returns a new `Time` representing the current time using the local
+  ## timezone.
   ##
   ## The argument is a primitive DateTime object and should not be
   ## used/specified directly by code outside of the standard library.
+  def new(time = _INKOC.time_system(False)) -> Self {
+    time.prototype = self
+    time as Time
+  }
+
+  ## Returns a new `Time` representing the current time using the local
+  ## timezone.
   ##
   ## # Examples
   ##
@@ -255,15 +263,33 @@ object Time {
   ##
   ##     import std::time::Time
   ##
-  ##     Time.new
-  def new(time = _INKOC.time_system) -> Self {
-    time.prototype = self
-    time as Time
+  ##     Time.now
+  def now -> Self {
+    new
   }
 
-  ## Returns a new `Time` from the given number of seconds since the Unix epoch.
+  ## Returns a new `Time` representing the current time using UTC as the
+  ## timezone.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     Time.now_utc
+  def now_utc -> Self {
+    new(_INKOC.time_system(True))
+  }
+
+  ## Returns a new `Time` from a Unix timestamp using the local timezone.
   def from_timestamp(time: ToFloat) -> Self {
-    new(_INKOC.time_from_seconds(time.to_float))
+    new(_INKOC.time_from_seconds(time.to_float, False))
+  }
+
+  ## Returns a new `Time` from a Unix timestamp using UTC as the timezone.
+  def from_utc_timestamp(time: ToFloat) -> Self {
+    new(_INKOC.time_from_seconds(time.to_float, True))
   }
 
   ## Returns the hour of the day from 0 to 23.
