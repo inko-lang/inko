@@ -378,7 +378,8 @@ impl ToFloat for Time {
 }
 
 impl Add!(ToFloat) for Time {
-  ## Returns a `Time` by adding the given number of seconds to `self`.
+  ## Adds the given number of seconds to `self`, returning the result as a new
+  ## `Time`.
   ##
   ## # Examples
   ##
@@ -405,7 +406,8 @@ impl Add!(ToFloat) for Time {
 }
 
 impl Subtract!(ToFloat) for Time {
-  ## Returns a `Time` by subtracting the given number of seconds from `self`.
+  ## Subtracts the given number of seconds from `self`, returning the result as
+  ## a new `Time`.
   ##
   ## # Examples
   ##
@@ -437,15 +439,20 @@ impl Subtract!(ToFloat) for Time {
 ## the start time of the program. Unlike a system clock a monotonic clock never
 ## decreases, making it useful for tasks such as measuring the execution time of
 ## a block of code.
-##
-## # Examples
-##
-## Getting the current time:
-##
-##     import std::time::MonotonicTime
-##
-##     MonotonicTime.new
 object MonotonicTime {
+  ## Returns a `MonotonicTime` representing the current time.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now
+  def now -> Self {
+    new
+  }
+
   def init(time = _INKOC.time_monotonic) {
     let @time = time
   }
@@ -460,5 +467,47 @@ impl ToInteger for MonotonicTime {
 impl ToFloat for MonotonicTime {
   def to_float -> Float {
     @time
+  }
+}
+
+impl Add!(ToFloat) for MonotonicTime {
+  ## Adds the given number of seconds to `self`, returning the result as a new
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Adding a `Duration` to a `MonotonicTime`:
+  ##
+  ##     import std::time::(Duration, MonotonicTime)
+  ##
+  ##     MonotonicTime.new + Duration.from_seconds(5)
+  ##
+  ## Adding an `Integer` to a `MonotonicTime`:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now + 5
+  def +(other: ToFloat) -> Self {
+    MonotonicTime.new(@time + other.to_float)
+  }
+}
+
+impl Subtract!(ToFloat) for MonotonicTime {
+  ## Subtracts the given number of seconds from `self`, returning the result as
+  ## a new `MonotonicTime`.
+  ##
+  ## Subtracting a `Duration` from a `MonotonicTime`:
+  ##
+  ##     import std::time::(Duration, MonotonicTime)
+  ##
+  ##     MonotonicTime.new - Duration.from_seconds(5)
+  ##
+  ## Subtracting an `Integer` from a `MonotonicTime`:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now - 5
+  def -(other: ToFloat) -> Self {
+    MonotonicTime.new(@time - other.to_float)
   }
 }
