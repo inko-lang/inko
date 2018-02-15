@@ -433,12 +433,86 @@ impl Subtract!(ToFloat) for Time {
   }
 }
 
+impl Smaller for Time {
+  ## Returns `True` if `self` is smaller than the given `Time`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Time` objects:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let before = Time.now
+  ##     let after = before + 5
+  ##
+  ##     before < after # => True
+  def <(other: Self) -> Boolean {
+    to_float < other.to_float
+  }
+}
+
+impl SmallerOrEqual for Time {
+  ## Returns `True` if `self` is smaller than or equal to the given `Time`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Time` objects:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let before = Time.now
+  ##     let after = before + 5
+  ##
+  ##     before <= after  # => True
+  ##     before <= before # => True
+  def <=(other: Self) -> Boolean {
+    to_float <= other.to_float
+  }
+}
+
+impl Greater for Time {
+  ## Returns `True` if `self` is greater than the given `Time`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Time` objects:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let before = Time.now
+  ##     let after = before + 5
+  ##
+  ##     after > before # => True
+  def >(other: Self) -> Boolean {
+    to_float > other.to_float
+  }
+}
+
+impl GreaterOrEqual for Time {
+  ## Returns `True` if `self` is greater than or equal to the given `Time`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Time` objects:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let before = Time.now
+  ##     let after = before + 5
+  ##
+  ##     after >= before # => True
+  ##     after >= after  # => True
+  def >=(other: Self) -> Boolean {
+    to_float >= other.to_float
+  }
+}
+
 ## A monotonically increasing clock.
 ##
-## `MonotonicTime` objects represent the number of seconds relative to (roughly)
-## the start time of the program. Unlike a system clock a monotonic clock never
-## decreases, making it useful for tasks such as measuring the execution time of
-## a block of code.
+## `MonotonicTime` objects represent the number of seconds relative to an
+## unspecified epoch. Unlike a system clock a monotonic clock never decreases,
+## making it useful for tasks such as measuring the execution time of a block of
+## code.
 object MonotonicTime {
   ## Returns a `MonotonicTime` representing the current time.
   ##
@@ -459,12 +533,14 @@ object MonotonicTime {
 }
 
 impl ToInteger for MonotonicTime {
+  ## Returns the number of seconds since the epoch.
   def to_integer -> Integer {
     @time.to_integer
   }
 }
 
 impl ToFloat for MonotonicTime {
+  ## Returns the number of seconds since the epoch.
   def to_float -> Float {
     @time
   }
@@ -509,5 +585,81 @@ impl Subtract!(ToFloat) for MonotonicTime {
   ##     MonotonicTime.now - 5
   def -(other: ToFloat) -> Self {
     MonotonicTime.new(@time - other.to_float)
+  }
+}
+
+impl Smaller for MonotonicTime {
+  ## Returns `True` if `self` is smaller than the given `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     before < after # => True
+  def <(other: Self) -> Boolean {
+    to_float < other.to_float
+  }
+}
+
+impl SmallerOrEqual for MonotonicTime {
+  ## Returns `True` if `self` is smaller than or equal to the given
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     before <= after  # => True
+  ##     before <= before # => True
+  def <=(other: Self) -> Boolean {
+    to_float <= other.to_float
+  }
+}
+
+impl Greater for MonotonicTime {
+  ## Returns `True` if `self` is greater than the given `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     after > before # => True
+  def >(other: Self) -> Boolean {
+    to_float > other.to_float
+  }
+}
+
+impl GreaterOrEqual for MonotonicTime {
+  ## Returns `True` if `self` is greater than or equal to the given
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     after >= before # => True
+  ##     after >= after  # => True
+  def >=(other: Self) -> Boolean {
+    to_float >= other.to_float
   }
 }
