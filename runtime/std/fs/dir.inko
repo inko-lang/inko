@@ -1,0 +1,37 @@
+#! Types and methods for manipulating directories on a filesystem.
+
+import std::fs::path::(Path, ToPath)
+import std::io::(Error as IOError)
+import std::process
+
+## Creates a new empty directory at the given path.
+##
+## This method may throw if the user lacks the necessary permissions to create
+## the directory or if the directory already exists.
+##
+## Setting the `recursive` argument to `True` will result in any missing
+## directories in the given path being created automatically. Existing
+## directories will be skipped in this case.
+##
+## # Examples
+##
+## Creating a directory:
+##
+##     import std::fs::dir
+##
+##     try! dir.create('/tmp/test')
+##
+## Creating a directory recursively:
+##
+##     import std::fs::dir
+##
+##     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
+def create(path: ToPath, recursive = False) !! IOError -> Nil {
+  process.await {
+    try {
+      _INKOC.directory_create(path.to_path.to_string, recursive)
+    } else (error) {
+      throw IOError.new(error as String)
+    }
+  }
+}

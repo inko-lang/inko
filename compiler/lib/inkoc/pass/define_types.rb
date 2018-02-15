@@ -863,6 +863,10 @@ module Inkoc
         typedb.date_time_type
       end
 
+      def on_raw_directory_create(*)
+        typedb.nil_type
+      end
+
       def on_raw_drop(*)
         typedb.nil_type
       end

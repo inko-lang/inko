@@ -3049,6 +3049,42 @@ impl Machine {
                         context.set_register(register, pointer);
                     }
                 }
+                // Creates a new directory.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in, which is always
+                //    `nil`.
+                // 2. The register containing the path to create.
+                // 3. A register containing a boolean. When set to `true` the
+                //    path is created recursively.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::DirectoryCreate => {
+                    let register = instruction.arg(0);
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(2));
+                    let path = path_ptr.string_value()?;
+
+                    let result = if is_false!(self, rec_ptr) {
+                        fs::create_dir(path)
+                    } else {
+                        fs::create_dir_all(path)
+                    };
+
+                    if let Err(error) = result {
+                        throw_io_error!(
+                            self,
+                            process,
+                            error,
+                            context,
+                            code,
+                            index
+                        );
+                    } else {
+                        context.set_register(register, self.state.nil_object);
+                    }
+                }
             };
         }
 
