@@ -351,6 +351,11 @@ object Time {
     _INKOC.time_get_value(self, UTC_OFFSET)
   }
 
+  ## Returns `True` if UTC is used.
+  def utc? -> Boolean {
+    utc_offset == 0
+  }
+
   ## Returns the number of seconds since the Unix epoch in UTC.
   def seconds_since_epoch -> Integer {
     _INKOC.time_get_value(self, SEC_SINCE_EPOCH)
@@ -369,6 +374,60 @@ impl ToFloat for Time {
   ## seconds.
   def to_float -> Float {
     seconds_since_epoch.to_float + sub_second
+  }
+}
+
+impl Add!(ToFloat) for Time {
+  ## Returns a `Time` by adding the given number of seconds to `self`.
+  ##
+  ## # Examples
+  ##
+  ## Adding a `Duration` to a `Time`:
+  ##
+  ##     import std::time::(Duration, Time)
+  ##
+  ##     Time.now + Duration.from_seconds(5)
+  ##
+  ## Adding an `Integer` to a `Time`:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     Time.now + 5
+  def +(other: ToFloat) -> Self {
+    let timestamp = to_float + other.to_float
+
+    utc?.if true: {
+      Time.from_utc_timestamp(timestamp)
+    }, false: {
+      Time.from_timestamp(timestamp)
+    }
+  }
+}
+
+impl Subtract!(ToFloat) for Time {
+  ## Returns a `Time` by subtracting the given number of seconds from `self`.
+  ##
+  ## # Examples
+  ##
+  ## Subtracting a `Duration` from a `Time`:
+  ##
+  ##     import std::time::(Duration, Time)
+  ##
+  ##     Time.now - Duration.from_seconds(5)
+  ##
+  ## Subtracting an `Integer` from a `Time`:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     Time.now - 5
+  def -(other: ToFloat) -> Self {
+    let timestamp = to_float - other.to_float
+
+    utc?.if true: {
+      Time.from_utc_timestamp(timestamp)
+    }, false: {
+      Time.from_timestamp(timestamp)
+    }
   }
 }
 
