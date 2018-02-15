@@ -360,6 +360,11 @@ object Time {
   def seconds_since_epoch -> Integer {
     _INKOC.time_get_value(self, SEC_SINCE_EPOCH)
   }
+
+  ## Converts the `Time` to another `Time` that uses UTC as the timezone.
+  def to_utc -> Self {
+    Time.from_utc_timestamp(to_float)
+  }
 }
 
 impl ToInteger for Time {
