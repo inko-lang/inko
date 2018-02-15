@@ -239,13 +239,12 @@ impl GreaterOrEqual for Duration {
 
 ## An object representing the current system time.
 ##
-## A `SystemTime` object represents the current real time in seconds relative to
-## the Unix epoch. Because `SystemTime` uses the system clock it's possible for
-## a `SystemTime` to go back in time due to time zone changes, clock
-## adjustments, or leap seconds. If you need a monotonically increasing clock
-## you should use `MonotonicTime` instead.
-object SystemTime {
-  ## Returns a new `SystemTime` representing the current time.
+## A `Time` object represents the current system in seconds relative to the Unix
+## epoch. Due to the use of the system clock an instance of `Time` can be
+## influenced by time zone changes, clock adjustments, or leap seconds. If you
+## need a monotonically increasing clock you should use `MonotonicTime` instead.
+object Time {
+  ## Returns a new `Time` representing the current time.
   ##
   ## The argument is a primitive DateTime object and should not be
   ## used/specified directly by code outside of the standard library.
@@ -254,16 +253,15 @@ object SystemTime {
   ##
   ## Getting the current time:
   ##
-  ##     import std::time::SystemTime
+  ##     import std::time::Time
   ##
-  ##     SystemTime.new
+  ##     Time.new
   def new(time = _INKOC.time_system) -> Self {
     time.prototype = self
-    time as SystemTime
+    time as Time
   }
 
-  ## Returns a new `SystemTime` from the given number of seconds since the Unix
-  ## epoch.
+  ## Returns a new `Time` from the given number of seconds since the Unix epoch.
   def from_timestamp(time: ToFloat) -> Self {
     new(_INKOC.time_from_seconds(time.to_float))
   }
@@ -333,14 +331,14 @@ object SystemTime {
   }
 }
 
-impl ToInteger for SystemTime {
+impl ToInteger for Time {
   ## Returns the timestamp since the Unix epoch.
   def to_integer -> Integer {
     seconds_since_epoch
   }
 }
 
-impl ToFloat for SystemTime {
+impl ToFloat for Time {
   ## Returns the timestamp since the Unix epoch, the including fractional
   ## seconds.
   def to_float -> Float {

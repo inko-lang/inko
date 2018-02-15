@@ -14,7 +14,7 @@ import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, CREATED_AT, MODIFIED_AT, ACCESSED_AT, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
-import std::time::SystemTime
+import std::time::Time
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
@@ -227,17 +227,17 @@ def size(path: ToPath) !! IOError -> Integer {
 }
 
 ## Returns the creation time of a path.
-def created_at(path: ToPath) !! IOError -> SystemTime {
+def created_at(path: ToPath) !! IOError -> Time {
   try raw.file_time(path.to_path.to_string, CREATED_AT)
 }
 
 ## Returns the modification time of a path.
-def modified_at(path: ToPath) !! IOError -> SystemTime {
+def modified_at(path: ToPath) !! IOError -> Time {
   try raw.file_time(path.to_path.to_string, MODIFIED_AT)
 }
 
 ## Returns the access time of a path.
-def accessed_at(path: ToPath) !! IOError -> SystemTime {
+def accessed_at(path: ToPath) !! IOError -> Time {
   try raw.file_time(path.to_path.to_string, ACCESSED_AT)
 }
 
