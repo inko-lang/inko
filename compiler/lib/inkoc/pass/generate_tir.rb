@@ -1079,6 +1079,10 @@ module Inkoc
         raw_binary_instruction(:DirectoryCreate, node, body)
       end
 
+      def on_raw_directory_remove(node, body)
+        raw_binary_instruction(:DirectoryRemove, node, body)
+      end
+
       def on_raw_drop(node, body)
         object = process_node(node.arguments.fetch(0), body)
 

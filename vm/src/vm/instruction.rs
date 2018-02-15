@@ -128,6 +128,7 @@ pub enum InstructionType {
     TimeGetValue,
     TimeFromSeconds,
     DirectoryCreate,
+    DirectoryRemove,
 }
 
 /// Struct for storing information about a single instruction.

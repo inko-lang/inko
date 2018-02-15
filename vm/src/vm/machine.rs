@@ -141,6 +141,26 @@ macro_rules! vec_to_string {
     })
 }
 
+macro_rules! create_or_remove_path {
+    (
+        $vm: expr,
+        $instruction: expr,
+        $context: expr,
+        $op: ident,
+        $recursive_op: ident
+    ) => ({
+        let path_ptr = $context.get_register($instruction.arg(1));
+        let rec_ptr = $context.get_register($instruction.arg(2));
+        let path = path_ptr.string_value()?;
+
+        if is_false!($vm, rec_ptr) {
+            fs::$op(path)
+        } else {
+            fs::$recursive_op(path)
+        }
+    })
+}
+
 #[derive(Clone)]
 pub struct Machine {
     pub state: RcState,
@@ -3062,15 +3082,48 @@ impl Machine {
                 // This instruction may throw an IO error.
                 InstructionType::DirectoryCreate => {
                     let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let rec_ptr = context.get_register(instruction.arg(2));
-                    let path = path_ptr.string_value()?;
+                    let result = create_or_remove_path!(
+                        self,
+                        instruction,
+                        context,
+                        create_dir,
+                        create_dir_all
+                    );
 
-                    let result = if is_false!(self, rec_ptr) {
-                        fs::create_dir(path)
+                    if let Err(error) = result {
+                        throw_io_error!(
+                            self,
+                            process,
+                            error,
+                            context,
+                            code,
+                            index
+                        );
                     } else {
-                        fs::create_dir_all(path)
-                    };
+                        context.set_register(register, self.state.nil_object);
+                    }
+                }
+                // Removes an existing directory.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in, which is always
+                //    `nil`.
+                // 2. The register containing the path to remove.
+                // 3. A register containing a boolean. When set to `true` the
+                //    contents of the directory are removed before removing the
+                //    directory itself.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::DirectoryRemove => {
+                    let register = instruction.arg(0);
+                    let result = create_or_remove_path!(
+                        self,
+                        instruction,
+                        context,
+                        remove_dir,
+                        remove_dir_all
+                    );
 
                     if let Err(error) = result {
                         throw_io_error!(

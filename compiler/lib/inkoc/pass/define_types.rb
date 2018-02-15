@@ -867,6 +867,10 @@ module Inkoc
         typedb.nil_type
       end
 
+      def on_raw_directory_remove(*)
+        typedb.nil_type
+      end
+
       def on_raw_drop(*)
         typedb.nil_type
       end
