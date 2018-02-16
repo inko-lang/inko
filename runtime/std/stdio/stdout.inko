@@ -42,7 +42,14 @@ impl Write for ThisModule {
   ##     import std::stdio::stdout
   ##
   ##     stdout.print('hello') # => Nil
-  def print(data: ToString) -> Nil {
+  ##
+  ## You can also leave out a message to write, in which case only a newline is
+  ## written:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     stdout.print # => Nil
+  def print(data: ?ToString = Nil) -> Nil {
     process.await {
       write(data)
       write(NEWLINE)

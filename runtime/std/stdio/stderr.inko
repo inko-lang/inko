@@ -42,7 +42,7 @@ impl Write for ThisModule {
   ##     import std::stdio::stderr
   ##
   ##     stderr.print('hello') # => Nil
-  def print(data: ToString) -> Nil {
+  def print(data: ?ToString = Nil) -> Nil {
     process.await {
       write(data)
       write(NEWLINE)
