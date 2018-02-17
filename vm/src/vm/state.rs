@@ -27,6 +27,31 @@ use suspension_list::SuspensionList;
 
 pub type RcState = Arc<State>;
 
+macro_rules! intern_string {
+    ($state: expr, $lookup: expr, $store: expr) => ({
+        let mut pool = $state.string_pool.lock();
+
+        if let Some(value) = pool.get($lookup) {
+            return value;
+        }
+
+        let ptr = {
+            let mut alloc = $state.permanent_allocator.lock();
+            let value = object_value::interned_string($store);
+
+            alloc.allocate_with_prototype(value, $state.string_prototype)
+        };
+
+        if ptr.is_finalizable() {
+            ptr.mark_for_finalization();
+        }
+
+        pool.add(ptr);
+
+        ptr
+    })
+}
+
 /// The state of a virtual machine.
 pub struct State {
     /// The virtual machine's configuration.
@@ -183,30 +208,16 @@ impl State {
         }
     }
 
-    /// Interns a string.
+    /// Interns a borrowed String.
     ///
     /// If a string was not yet interned it's allocated in the permanent space.
     pub fn intern(&self, string: &String) -> ObjectPointer {
-        let mut pool = self.string_pool.lock();
+        intern_string!(self, string, string.clone())
+    }
 
-        if let Some(value) = pool.get(string) {
-            return value;
-        }
-
-        let ptr = {
-            let mut alloc = self.permanent_allocator.lock();
-            let value = object_value::interned_string(string.clone());
-
-            alloc.allocate_with_prototype(value, self.string_prototype)
-        };
-
-        if ptr.is_finalizable() {
-            ptr.mark_for_finalization();
-        }
-
-        pool.add(ptr);
-
-        ptr
+    /// Interns an owned String.
+    pub fn intern_owned(&self, string: String) -> ObjectPointer {
+        intern_string!(self, &string, string)
     }
 
     pub fn allocate_permanent_float(&self, float: f64) -> ObjectPointer {

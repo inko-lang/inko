@@ -127,8 +127,7 @@ pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
 
 fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
     let size = read_u64(bytes)?;
-
-    let mut buff: Vec<u8> = Vec::new();
+    let mut buff: Vec<u8> = Vec::with_capacity(size as usize);
 
     for _ in 0..size {
         buff.push(try_byte!(bytes.next(), InvalidString));
@@ -142,8 +141,7 @@ fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
 
 fn read_byte_array<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Vec<u8>> {
     let size = read_u64(bytes)?;
-
-    let mut buff: Vec<u8> = Vec::new();
+    let mut buff: Vec<u8> = Vec::with_capacity(size as usize);
 
     for _ in 0..size {
         buff.push(try_byte!(bytes.next(), InvalidByteArray));
@@ -347,7 +345,7 @@ fn read_literal<T: Read>(
             state.allocate_permanent_bigint(bigint)
         }
         LITERAL_FLOAT => state.allocate_permanent_float(read_f64(bytes)?),
-        LITERAL_STRING => state.intern(&read_string(bytes)?),
+        LITERAL_STRING => state.intern_owned(read_string(bytes)?),
         _ => return Err(ParserError::InvalidLiteralType(literal_type)),
     };
 
@@ -794,7 +792,7 @@ mod tests {
 
         assert!(object.literals[0] == ObjectPointer::integer(10));
         assert_eq!(object.literals[1].float_value().unwrap(), 1.2);
-        assert!(object.literals[2] == state.intern(&"foo".to_string()));
+        assert!(object.literals[2] == state.intern_owned("foo".to_string()));
 
         assert!(object.literals[3].is_bigint());
         assert_eq!(

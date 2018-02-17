@@ -937,7 +937,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_integer() {
         let state = State::new(Config::new());
         let ptr = ObjectPointer::integer(5);
-        let name = state.intern(&"foo".to_string());
+        let name = state.intern_owned("foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
         state
@@ -954,7 +954,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_integer_without_attribute() {
         let state = State::new(Config::new());
         let ptr = ObjectPointer::integer(5);
-        let name = state.intern(&"foo".to_string());
+        let name = state.intern_owned("foo".to_string());
 
         assert!(ptr.lookup_attribute(&state, &name).is_none());
     }
@@ -963,7 +963,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_object() {
         let state = State::new(Config::new());
         let ptr = state.permanent_allocator.lock().allocate_empty();
-        let name = state.intern(&"foo".to_string());
+        let name = state.intern_owned("foo".to_string());
         let value = state.permanent_allocator.lock().allocate_empty();
 
         ptr.get_mut().add_attribute(name, value);
@@ -994,7 +994,7 @@ mod tests {
     #[test]
     fn test_is_immutable() {
         let state = State::new(Config::new());
-        let name = state.intern(&"foo".to_string());
+        let name = state.intern_owned("foo".to_string());
 
         assert!(name.is_immutable());
         assert!(ObjectPointer::integer(5).is_immutable());
