@@ -7,6 +7,10 @@ module Inkoc
         type_parameters.any?
       end
 
+      def initialize_generic_type?
+        type_parameters.partially_initialized?
+      end
+
       def initialize_as(*)
         self
       end

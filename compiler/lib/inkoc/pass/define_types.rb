@@ -1058,6 +1058,12 @@ module Inkoc
         end
       end
 
+      def type_parameter_instances_for_block(node, block_type, self_type)
+        node.type_parameters.map do |name|
+          resolve_type(name, self_type, [block_type, self_type, @module])
+        end
+      end
+
       def on_reopen_object(node, scope)
         self_type = scope.self_type
         object = resolve_module_type(node.name, self_type)
@@ -1188,10 +1194,7 @@ module Inkoc
       def on_type_cast(node, scope)
         define_type(node.expression, scope)
 
-        params = node.cast_to.type_parameters.map do |param|
-          resolve_module_type(param, scope.self_type)
-        end
-
+        params = type_parameter_instances_for(node.cast_to, scope.self_type)
         rtype = resolve_module_type(node.cast_to, scope.self_type)
           .new_instance(params)
 
@@ -1369,7 +1372,7 @@ module Inkoc
           return
         end
 
-        rtype = resolve_type(rnode, self_type, [block_type, self_type, @module])
+        rtype = resolve_block_type(rnode, block_type, self_type)
 
         block_type.return_type_for_block_and_call =
           wrap_optional_type(rnode, rtype)
@@ -1395,7 +1398,7 @@ module Inkoc
 
         wrap_optional_type(
           vtype,
-          resolve_type(vtype, self_type, [block_type, self_type, @module])
+          resolve_block_type(vtype, block_type, self_type)
         )
       end
 
@@ -1435,13 +1438,22 @@ module Inkoc
         resolve_type(node, self_type, [self_type, @module])
       end
 
-      def resolve_type(node, self_type, sources)
-        return Type::SelfType.new if node.self_type?
-        return Type::Dynamic.new if node.dynamic_type?
-        return Type::Void.new if node.void_type?
+      def resolve_block_type(node, block_type, self_type)
+        type = resolve_type(node, self_type, [block_type, self_type, @module])
 
-        if node.lambda_or_block_type?
-          return resolve_block_type(node, self_type, sources, node.lambda_type?)
+        if node.constant? && node.type_parameters.any?
+          params =
+            type_parameter_instances_for_block(node, block_type, self_type)
+
+          type = type.new_instance(params)
+        end
+
+        type
+      end
+
+      def resolve_type(node, self_type, sources)
+        if (special_type = resolve_special_type(node, self_type, sources))
+          return special_type
         end
 
         name = node.name
@@ -1462,7 +1474,19 @@ module Inkoc
         Type::Dynamic.new
       end
 
-      def resolve_block_type(node, self_type, sources, is_lambda = false)
+      def resolve_special_type(node, self_type, sources)
+        if node.self_type?
+          Type::SelfType.new
+        elsif node.dynamic_type?
+          Type::Dynamic.new
+        elsif node.void_type?
+          Type::Void.new
+        elsif node.lambda_or_block_type?
+          build_block_type(node, self_type, sources, node.lambda_type?)
+        end
+      end
+
+      def build_block_type(node, self_type, sources, is_lambda = false)
         args = node.arguments.map do |arg|
           resolve_type(arg, self_type, sources)
         end

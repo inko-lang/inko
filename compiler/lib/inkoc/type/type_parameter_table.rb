@@ -76,6 +76,10 @@ module Inkoc
         @parameters.empty?
       end
 
+      def partially_initialized?
+        @instances.length < @parameters.length
+      end
+
       def define(name, required_traits = [])
         param = TypeParameter.new(name: name, required_traits: required_traits)
 

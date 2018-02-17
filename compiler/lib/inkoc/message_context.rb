@@ -65,9 +65,12 @@ module Inkoc
     def initialized_return_type
       rtype = block.return_type
       rtype = rtype.resolve_type(receiver, type_parameters)
-      rtype = rtype.new_instance(type_parameters) if rtype.generic_type?
 
-      rtype
+      if rtype.initialize_generic_type?
+        rtype.new_instance(type_parameters)
+      else
+        rtype
+      end
     end
   end
 end

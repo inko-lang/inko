@@ -7,6 +7,10 @@ module Inkoc
         false
       end
 
+      def initialize_generic_type?
+        false
+      end
+
       def optional?
         false
       end
