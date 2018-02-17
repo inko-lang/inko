@@ -129,6 +129,7 @@ pub enum InstructionType {
     TimeFromSeconds,
     DirectoryCreate,
     DirectoryRemove,
+    DirectoryList,
 }
 
 /// Struct for storing information about a single instruction.

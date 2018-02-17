@@ -36,6 +36,7 @@ pub mod date_time;
 pub mod deref_pointer;
 pub mod error_messages;
 pub mod execution_context;
+pub mod filesystem;
 pub mod gc;
 pub mod global_scope;
 pub mod integer_operations;

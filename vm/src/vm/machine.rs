@@ -11,6 +11,7 @@ use block::Block;
 use compiled_code::CompiledCodePointer;
 use date_time::DateTime;
 use execution_context::ExecutionContext;
+use filesystem;
 use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
 use integer_operations;
@@ -54,6 +55,24 @@ macro_rules! throw_value {
     })
 }
 
+macro_rules! throw_error_message {
+    (
+        $machine: expr,
+        $process: expr,
+        $message: expr,
+        $context: ident,
+        $code: ident,
+        $index: ident
+    ) => ({
+        let value = $process.allocate(
+            object_value::string($message),
+            $machine.state.string_prototype,
+        );
+
+        throw_value!($machine, $process, value, $context, $code, $index);
+    });
+}
+
 macro_rules! throw_io_error {
     (
         $machine: expr,
@@ -63,13 +82,9 @@ macro_rules! throw_io_error {
         $code: ident,
         $index: ident
     ) => ({
-        let message = $crate::error_messages::from_io_error($error);
-        let value = $process.allocate(
-            object_value::string(message),
-            $machine.state.string_prototype
-        );
+        let msg = $crate::error_messages::from_io_error($error);
 
-        throw_value!($machine, $process, value, $context, $code, $index);
+        throw_error_message!($machine, $process, msg, $context, $code, $index);
     });
 }
 
@@ -2894,16 +2909,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let path_ptr = context.get_register(instruction.arg(1));
                     let path = path_ptr.string_value()?;
-
-                    let file_type = if let Ok(meta) = fs::metadata(path) {
-                        if meta.is_dir() {
-                            2
-                        } else {
-                            1
-                        }
-                    } else {
-                        0
-                    };
+                    let file_type = filesystem::type_of_path(path);
 
                     context.set_register(
                         register,
@@ -2932,44 +2938,17 @@ impl Machine {
                     let path = path_ptr.string_value()?;
                     let kind = kind_ptr.integer_value()?;
 
-                    match fs::metadata(path) {
-                        Ok(meta) => {
-                            let time_result = match kind {
-                                0 => meta.created(),
-                                1 => meta.modified(),
-                                2 => meta.accessed(),
-                                _ => {
-                                    return Err(format!(
-                                        "{} is not a valid type of timestamp",
-                                        kind
-                                    ))
-                                }
-                            };
+                    match filesystem::date_time_for_path(path, kind) {
+                        Ok(dt) => {
+                            let ptr = process.allocate(
+                                object_value::date_time(dt),
+                                self.state.object_prototype,
+                            );
 
-                            match time_result {
-                                Ok(st) => {
-                                    let dt = DateTime::from_system_time(st);
-                                    let ptr = process.allocate(
-                                        object_value::date_time(dt),
-                                        self.state.object_prototype,
-                                    );
-
-                                    context.set_register(register, ptr);
-                                }
-                                Err(error) => {
-                                    throw_io_error!(
-                                        self,
-                                        process,
-                                        error,
-                                        context,
-                                        code,
-                                        index
-                                    );
-                                }
-                            }
+                            context.set_register(register, ptr);
                         }
                         Err(error) => {
-                            throw_io_error!(
+                            throw_error_message!(
                                 self,
                                 process,
                                 error,
@@ -3136,6 +3115,40 @@ impl Machine {
                         );
                     } else {
                         context.set_register(register, self.state.nil_object);
+                    }
+                }
+                // Lists the contents of a directory.
+                //
+                // This instruction requirs two arguments:
+                //
+                // 1. The register to store the result in, as an Array of
+                //    Strings.
+                // 2. The register containing the path to the directory.
+                //
+                // This instruction may throw an IO error.
+                InstructionType::DirectoryList => {
+                    let register = instruction.arg(0);
+                    let path_ptr = context.get_register(instruction.arg(1));
+                    let path = path_ptr.string_value()?;
+
+                    match filesystem::list_directory_as_pointers(
+                        &self.state,
+                        process,
+                        path,
+                    ) {
+                        Ok(array) => {
+                            context.set_register(register, array);
+                        }
+                        Err(error) => {
+                            throw_error_message!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
+                        }
                     }
                 }
             };
