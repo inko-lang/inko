@@ -714,6 +714,14 @@ module Inkoc
         typedb.date_time_type
       end
 
+      def on_raw_time_format(*)
+        typedb.string_type
+      end
+
+      def on_raw_time_parse(*)
+        typedb.date_time_type
+      end
+
       def on_raw_string_to_upper(*)
         typedb.string_type
       end

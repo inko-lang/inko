@@ -3151,6 +3151,69 @@ impl Machine {
                         }
                     }
                 }
+                // Formats a primitive DateTime object as a String.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in as a String.
+                // 2. The register containing the primitive DateTime object.
+                // 3. The register containing the format as a String.
+                //
+                // This instruction will panic if the format is invalid.
+                InstructionType::TimeFormat => {
+                    let register = instruction.arg(0);
+                    let time_ptr = context.get_register(instruction.arg(1));
+                    let fmt_ptr = context.get_register(instruction.arg(2));
+                    let time = time_ptr.date_time_value()?;
+                    let fmt = fmt_ptr.string_value()?;
+
+                    let pointer = process.allocate(
+                        object_value::string(time.format(fmt)?),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, pointer);
+                }
+                // Parses a String into a primitive DateTime object.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the String to parse.
+                // 3. The register containing the pattern to use for parsing the
+                //    String.
+                //
+                // This instruction will throw if the String could not be
+                // parsed.
+                InstructionType::TimeParse => {
+                    let register = instruction.arg(0);
+                    let str_ptr = context.get_register(instruction.arg(1));
+                    let fmt_ptr = context.get_register(instruction.arg(2));
+
+                    let string = str_ptr.string_value()?;
+                    let format = fmt_ptr.string_value()?;
+
+                    match DateTime::parse(string, format) {
+                        Ok(dt) => {
+                            let pointer = process.allocate(
+                                object_value::date_time(dt),
+                                self.state.object_prototype,
+                            );
+
+                            context.set_register(register, pointer);
+                        }
+                        Err(error) => {
+                            throw_error_message!(
+                                self,
+                                process,
+                                error,
+                                context,
+                                code,
+                                index
+                            );
+                        }
+                    }
+                }
             };
         }
 

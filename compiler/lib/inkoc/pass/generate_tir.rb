@@ -937,6 +937,14 @@ module Inkoc
         raw_binary_instruction(:TimeFromSeconds, node, body)
       end
 
+      def on_raw_time_format(node, body)
+        raw_binary_instruction(:TimeFormat, node, body)
+      end
+
+      def on_raw_time_parse(node, body)
+        raw_binary_instruction(:TimeParse, node, body)
+      end
+
       def on_raw_string_to_upper(node, body)
         raw_unary_instruction(:StringToUpper, node, body)
       end

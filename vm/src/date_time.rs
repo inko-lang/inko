@@ -81,6 +81,15 @@ impl DateTime {
         }
     }
 
+    /// Parses a String into a DateTime using a specific format.
+    pub fn parse(string: &str, format: &str) -> Result<DateTime, String> {
+        time::strptime(string, format)
+            .map(|tm| DateTime { time: tm })
+            .map_err(|err| {
+                format!("The string {:?} could not be parsed using format {:?}: {:}", string, format, err)
+            })
+    }
+
     /// Returns the second of the minute from 0 to 60.
     pub fn second(&self) -> i64 {
         self.time.tm_sec as i64
@@ -168,5 +177,12 @@ impl DateTime {
             11 => Some(self.seconds_since_epoch()),
             _ => None,
         }
+    }
+
+    /// Formats the DateTime as a String using the given format.
+    pub fn format(&self, format: &String) -> Result<String, String> {
+        time::strftime(format, &self.time).map_err(|err| {
+            format!("The time format {:?} is invalid: {}", format, err)
+        })
     }
 }

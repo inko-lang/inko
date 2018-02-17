@@ -1,5 +1,6 @@
 #! Types and methods for dealing with time.
 import std::conversion::(ToFloat, ToInteger)
+import std::error::StandardError
 import std::operators::(Add, Subtract)
 import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual)
 import std::time::raw::*
@@ -9,6 +10,9 @@ let NANOSEC_TO_SEC = 1_000_000_000.0
 
 ## The number to divide a value in milliseconds by to convert it to seconds.
 let MILLISEC_TO_SEC = 1000.0
+
+## Error thrown when a `String` could not be parsed into a `Time`.
+let ParseError = StandardError
 
 ## A span of time measured in seconds.
 ##
@@ -282,6 +286,48 @@ object Time {
     new(_INKOC.time_system(True))
   }
 
+  ## Parses a `String` into a `Time` object.
+  ##
+  ## This method will parse the `input` argument into a `Time` object using the
+  ## format defined in the `format` argument.
+  ##
+  ## The `format` argument is always required. This removes the need for this
+  ## method having to guess what the format is, which it may not always be able
+  ## to determine correctly.
+  ##
+  ## # Errors
+  ##
+  ## This method will throw if the input `String` does not match the given
+  ## pattern.
+  ##
+  ## # Examples
+  ##
+  ## Parsing a `String`:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     try! Time.parse('2018-02-17', '%Y-%m-%d')
+  ##
+  ## Parsing an invalid input `String`:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let time = try {
+  ##       Time.parse('2018', '%Y-%m-%d')
+  ##     } else (error) {
+  ##       Time.parse('2018', '%Y')
+  ##     }
+  ##
+  ##     time.year  # => 2018
+  ##     time.month # => 1
+  def parse(input: String, format: String) !! ParseError -> Self {
+    try {
+      new(_INKOC.time_parse(input, format))
+    } else (error) {
+      throw ParseError.new(error as String)
+    }
+  }
+
   ## Returns a new `Time` from a Unix timestamp using the local timezone.
   def from_timestamp(time: ToFloat) -> Self {
     new(_INKOC.time_from_seconds(time.to_float, False))
@@ -364,6 +410,27 @@ object Time {
   ## Converts the `Time` to another `Time` that uses UTC as the timezone.
   def to_utc -> Self {
     Time.from_utc_timestamp(to_float)
+  }
+
+  ## Converts the `Time` to a `String` in the given format.
+  ##
+  ## The format `String` uses the same syntax as the
+  ## [`strftime()`](http://man7.org/linux/man-pages/man3/strftime.3.html)
+  ## function from the C standard library.
+  ##
+  ## # Panics
+  ##
+  ## This method will panic if the format `String` is invalid.
+  ##
+  ## # Examples
+  ##
+  ## Formatting a `Time`:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     Time.now.format('%Y-%m-%d') # => '2018-02-17'
+  def format(pattern: String) -> String {
+    _INKOC.time_format(self, pattern)
   }
 }
 

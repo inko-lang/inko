@@ -132,6 +132,8 @@ module Inkoc
         DirectoryCreate
         DirectoryRemove
         DirectoryList
+        TimeFormat
+        TimeParse
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
