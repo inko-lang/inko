@@ -3,7 +3,7 @@
 module Inkoc
   module Inspect
     def inspect
-      names = instance_variables - [:@location]
+      names = instance_variables - %i[@location @type]
       pairs = []
 
       names.each do |name|
