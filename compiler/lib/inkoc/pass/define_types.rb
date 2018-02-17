@@ -900,7 +900,7 @@ module Inkoc
       end
 
       def on_raw_platform(*)
-        typedb.string_type
+        typedb.integer_type
       end
 
       def on_return(node, scope)

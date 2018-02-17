@@ -2842,23 +2842,25 @@ impl Machine {
                     self.terminate();
                     return Ok(());
                 }
-                // Stores the name of the current platform as a string into the
-                // given register.
+                // Returns the type of the platform as an integer.
                 //
                 // This instruction requires one argument: a register to store
-                // the resulting platform name in.
+                // the resulting platform ID in.
                 InstructionType::Platform => {
                     let register = instruction.arg(0);
 
                     let platform = if cfg!(windows) {
-                        self.state.intern(&"windows".to_string())
+                        0
                     } else if cfg!(unix) {
-                        self.state.intern(&"unix".to_string())
+                        1
                     } else {
-                        self.state.intern(&"other".to_string())
+                        2
                     };
 
-                    context.set_register(register, platform);
+                    context.set_register(
+                        register,
+                        ObjectPointer::integer(platform),
+                    );
                 }
                 // Copies a file from one location to another.
                 //

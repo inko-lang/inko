@@ -1,12 +1,11 @@
 #! Module for retrieving operating system related information.
 
+## The known OS platforms.
+let PLATFORMS = ['windows', 'unix', 'other']
+
 ## Returns a `String` describing the current platform.
 ##
-## Possible values are:
-##
-## * unix
-## * windows
-## * other
+## The possible values are defined in the `PLATFORMS` constant.
 ##
 ## # Examples
 ##
@@ -16,7 +15,7 @@
 ##
 ##     os.platform # => 'unix'
 def platform -> String {
-  _INKOC.platform
+  PLATFORMS[_INKOC.platform]
 }
 
 ## The newline separator to use on the current platform.
