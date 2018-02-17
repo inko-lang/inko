@@ -34,30 +34,30 @@ fn seconds_to_timespec(secs: f64) -> Option<Timespec> {
 }
 
 impl DateTime {
+    pub fn new(tm: Tm) -> Self {
+        DateTime { time: tm }
+    }
+
     /// Returns the current system time.
     pub fn now() -> Self {
-        DateTime { time: time::now() }
+        DateTime::new(time::now())
     }
 
     /// Returns the current time in UTC.
     pub fn now_utc() -> Self {
-        DateTime {
-            time: time::now_utc(),
-        }
+        DateTime::new(time::now_utc())
     }
 
     /// Returns a `DateTime` starting at the given number of seconds since the
     /// Unix epoch, using the local timezone.
     pub fn from_seconds(secs: f64) -> Option<Self> {
-        seconds_to_timespec(secs).map(|ts| DateTime { time: time::at(ts) })
+        seconds_to_timespec(secs).map(|ts| DateTime::new(time::at(ts)))
     }
 
     /// Returns a `DateTime` starting at the given number of seconds since the
     /// Unix epoch, using UTC as the timezone.
     pub fn from_seconds_utc(secs: f64) -> Option<Self> {
-        seconds_to_timespec(secs).map(|ts| DateTime {
-            time: time::at_utc(ts),
-        })
+        seconds_to_timespec(secs).map(|ts| DateTime::new(time::at_utc(ts)))
     }
 
     /// Creates a `DateTime` from a `SystemTime` object.
@@ -76,15 +76,13 @@ impl DateTime {
             }
         };
 
-        DateTime {
-            time: time::at(Timespec::new(sec, nsec)),
-        }
+        DateTime::new(time::at(Timespec::new(sec, nsec)))
     }
 
     /// Parses a String into a DateTime using a specific format.
     pub fn parse(string: &str, format: &str) -> Result<DateTime, String> {
         time::strptime(string, format)
-            .map(|tm| DateTime { time: tm })
+            .map(|tm| DateTime::new(tm))
             .map_err(|err| {
                 format!("The string {:?} could not be parsed using format {:?}: {:}", string, format, err)
             })
