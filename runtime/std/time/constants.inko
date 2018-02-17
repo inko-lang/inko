@@ -1,0 +1,20 @@
+#! Internal constants for the "std::time" module.
+
+let SEC = 0
+let SUB_SEC = 1
+let MINUTE = 2
+let HOUR = 3
+let DAY = 4
+let MONTH = 5
+let YEAR = 6
+let DAY_OF_WEEK = 7
+let DAY_OF_YEAR = 8
+let DST = 9
+let UTC_OFFSET = 10
+let SEC_SINCE_EPOCH = 11
+
+## The number to divide a value in nanoseconds by to convert it to seconds.
+let NANOSEC_TO_SEC = 1_000_000_000.0
+
+## The number to divide a value in milliseconds by to convert it to seconds.
+let MILLISEC_TO_SEC = 1000.0

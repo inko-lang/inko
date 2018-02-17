@@ -3,13 +3,7 @@ import std::conversion::(ToFloat, ToInteger)
 import std::error::StandardError
 import std::operators::(Add, Subtract)
 import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual)
-import std::time::raw::*
-
-## The number to divide a value in nanoseconds by to convert it to seconds.
-let NANOSEC_TO_SEC = 1_000_000_000.0
-
-## The number to divide a value in milliseconds by to convert it to seconds.
-let MILLISEC_TO_SEC = 1000.0
+import std::time::constants::*
 
 ## Error thrown when a `String` could not be parsed into a `Time`.
 let ParseError = StandardError
