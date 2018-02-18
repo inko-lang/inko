@@ -129,7 +129,7 @@ macro_rules! integer_overflow_op {
         $context: expr,
         $proto: expr,
         $instruction: expr,
-        $op: tt,
+        $op: ident,
         $overflow: ident
     ) => ({
         let register = $instruction.arg(0);
@@ -150,7 +150,7 @@ macro_rules! integer_overflow_op {
                 // If the operation overflowed we need to retry it but using
                 // big integers.
                 let result =
-                    to_expr!(Integer::from(rec) $op Integer::from(arg));
+                    to_expr!(Integer::from(rec).$op(Integer::from(arg)));
 
                 $process.allocate(object_value::bigint(result), $proto)
             } else if ObjectPointer::integer_too_large(result) {
@@ -168,9 +168,9 @@ macro_rules! integer_overflow_op {
             let arg = arg_ptr.integer_value()?;
 
             let bigint = if arg_ptr.is_in_i32_range() {
-                to_expr!(rec $op arg as i32)
+                to_expr!(rec.$op(arg as i32))
             } else {
-                to_expr!(rec $op Integer::from(arg))
+                to_expr!(rec.$op(Integer::from(arg)))
             };
 
             $process.allocate(object_value::bigint(bigint), $proto)
@@ -179,7 +179,7 @@ macro_rules! integer_overflow_op {
 
             let rec = Integer::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
-            let bigint = to_expr!(rec $op arg);
+            let bigint = to_expr!(rec.$op(arg));
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
@@ -187,7 +187,7 @@ macro_rules! integer_overflow_op {
 
             let rec = rec_ptr.bigint_value()?;
             let arg = arg_ptr.bigint_value()?;
-            let bigint = to_expr!(rec.clone() $op arg);
+            let bigint = to_expr!(rec.clone().$op(arg));
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else {

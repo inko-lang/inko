@@ -44,6 +44,7 @@ pub mod immix;
 pub mod mailbox;
 pub mod module;
 pub mod module_registry;
+pub mod modulo;
 pub mod object;
 pub mod object_pointer;
 pub mod object_value;

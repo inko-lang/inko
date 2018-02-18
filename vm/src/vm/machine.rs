@@ -4,6 +4,7 @@ use rug::Integer;
 use std::fs;
 use std::i32;
 use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::ops::{Add, Div, Mul, Sub};
 use std::thread;
 
 use binding::Binding;
@@ -16,6 +17,7 @@ use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
 use integer_operations;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
+use modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
 use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
@@ -655,7 +657,7 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        +,
+                        add,
                         overflowing_add
                     );
                 }
@@ -672,7 +674,7 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        /,
+                        div,
                         overflowing_div
                     );
                 }
@@ -689,7 +691,7 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        *,
+                        mul,
                         overflowing_mul
                     );
                 }
@@ -706,7 +708,7 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        -,
+                        sub,
                         overflowing_sub
                     );
                 }
@@ -723,8 +725,8 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        %,
-                        overflowing_rem
+                        modulo,
+                        overflowing_modulo
                     );
                 }
                 // Converts an integer to a float
