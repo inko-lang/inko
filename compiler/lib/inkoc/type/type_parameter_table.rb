@@ -77,7 +77,7 @@ module Inkoc
       end
 
       def partially_initialized?
-        @instances.length < @parameters.length
+        @instances.count { |_, i| !i.type_parameter? } < @parameters.length
       end
 
       def define(name, required_traits = [])
