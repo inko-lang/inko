@@ -42,6 +42,10 @@ module Inkoc
       error("Cannot reassign immutable local variable #{name}", location)
     end
 
+    def reassign_immutable_attribute_error(name, location)
+      error("Cannot reassign immutable attribute #{name}", location)
+    end
+
     def reassign_undefined_local_error(name, location)
       error("Cannot reassign undefined local variable #{name}", location)
     end

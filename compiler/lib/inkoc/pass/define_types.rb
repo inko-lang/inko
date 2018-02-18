@@ -1240,7 +1240,8 @@ module Inkoc
         var = node.variable
 
         if scope.method? && scope.block_type.name == Config::INIT_MESSAGE
-          scope.self_type.define_attribute(node.variable.name, value_type)
+          scope.self_type
+            .define_attribute(node.variable.name, value_type, node.mutable?)
         else
           diagnostics.define_instance_attribute_error(var.name, var.location)
         end

@@ -16,6 +16,10 @@ module Inkoc
 
       alias implemented_traits required_traits
 
+      def attributes
+        SymbolTable.new
+      end
+
       def new_instance(*)
         self
       end
