@@ -1,4 +1,4 @@
-//! Trait for performing modulo operations.
+//! Modulo operations for numeric types.
 //!
 //! The Modulo trait can be used for getting the modulo (instead of remainder)
 //! of a number.

@@ -4,7 +4,7 @@ use rug::Integer;
 use std::fs;
 use std::i32;
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Mul, Sub};
 use std::thread;
 
 use binding::Binding;
@@ -17,7 +17,8 @@ use gc::request::Request as GcRequest;
 use immix::copy_object::CopyObject;
 use integer_operations;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
-use modulo::{Modulo, OverflowingModulo};
+use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
+use numeric::modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
 use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
@@ -674,8 +675,8 @@ impl Machine {
                         context,
                         self.state.integer_prototype,
                         instruction,
-                        div,
-                        overflowing_div
+                        floored_division,
+                        overflowing_floored_division
                     );
                 }
                 // Multiplies an integer
