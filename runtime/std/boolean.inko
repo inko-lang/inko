@@ -9,6 +9,27 @@ import std::conditional::Conditional
 import std::conversion::ToString
 import std::operators::(And, Or)
 
+impl Boolean {
+  ## Always returns `self`.
+  def not -> Boolean {
+    self
+  }
+}
+
+impl True {
+  ## Always returns `False`.
+  def not -> Boolean {
+    False
+  }
+}
+
+impl False {
+  ## Always returns `True`.
+  def not -> Boolean {
+    True
+  }
+}
+
 impl Conditional for Boolean {
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
