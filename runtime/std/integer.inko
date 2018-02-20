@@ -1,6 +1,7 @@
 #! The integer type.
 
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::numeric::Numeric
 import std::operators::*
 
 impl ToInteger for Integer {
@@ -108,5 +109,35 @@ impl ShiftLeft for Integer {
 impl ShiftRight for Integer {
   def >>(other: Self) -> Self {
     _INKOC.integer_shift_right(self, other)
+  }
+}
+
+impl Numeric for Integer {
+  def negative? -> Boolean {
+    self < 0
+  }
+
+  def positive? -> Boolean {
+    self > 0
+  }
+
+  def zero? -> Boolean {
+    self == 0
+  }
+
+  def absolute -> Self {
+    negative?.if true: {
+      self - (self * 2)
+    }, false: {
+      self
+    }
+  }
+
+  def opposite -> Self {
+    positive?.if true: {
+      0 - self
+    }, false: {
+      self - (self * 2)
+    }
   }
 }

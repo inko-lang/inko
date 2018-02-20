@@ -3,6 +3,7 @@
 #! Floats are implemented as IEEE 754 floats.
 
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::numeric::Numeric
 import std::operators::*
 
 impl Add!(Self) for Float {
@@ -62,6 +63,36 @@ impl GreaterOrEqual for Float {
 impl SmallerOrEqual for Float {
   def <=(other: Self) -> Boolean {
     _INKOC.float_smaller_or_equal(self, other)
+  }
+}
+
+impl Numeric for Float {
+  def negative? -> Boolean {
+    self < 0.0
+  }
+
+  def positive? -> Boolean {
+    self > 0.0
+  }
+
+  def zero? -> Boolean {
+    self == 0.0
+  }
+
+  def absolute -> Self {
+    negative?.if true: {
+      self - (self * 2.0)
+    }, false: {
+      self
+    }
+  }
+
+  def opposite -> Self {
+    positive?.if true: {
+      0.0 - self
+    }, false: {
+      self - (self * 2.0)
+    }
   }
 }
 
