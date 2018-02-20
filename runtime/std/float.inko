@@ -200,6 +200,17 @@ impl Float {
   def round -> Float {
     _INKOC.float_round(self)
   }
+
+  ## Returns the fractional part of this float.
+  ##
+  ## # Examples
+  ##
+  ## Returning the fractional:
+  ##
+  ##     3.5.fract => 0.5
+  def fractional -> Float {
+    absolute % 1.0
+  }
 }
 
 impl ToInteger for Float {
