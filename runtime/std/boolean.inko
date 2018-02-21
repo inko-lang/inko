@@ -74,7 +74,7 @@ impl Conditional for False {
 
 impl And for True {
   def &&(other: Conditional) -> Boolean {
-    other.if true: { True }, false: { True }
+    other.if true: { True }, false: { False }
   }
 }
 
