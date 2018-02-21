@@ -127,13 +127,11 @@ module Inkoc
         FileType
         FileTime
         TimeSystem
-        TimeGetValue
-        TimeFromSeconds
+        TimeSystemOffset
+        TimeSystemDst
         DirectoryCreate
         DirectoryRemove
         DirectoryList
-        TimeFormat
-        TimeParse
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

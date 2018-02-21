@@ -11,7 +11,6 @@ use std::mem;
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
-use date_time::DateTime;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
@@ -37,9 +36,6 @@ pub enum ObjectValue {
     /// A heap allocated integer that doesn't fit in a tagged pointer, but is
     /// too small for a BigInt.
     Integer(i64),
-
-    /// A calendar date and time value.
-    DateTime(Box<DateTime>),
 }
 
 impl ObjectValue {
@@ -190,16 +186,6 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_date_time(&self) -> Result<&DateTime, String> {
-        match self {
-            &ObjectValue::DateTime(ref val) => Ok(val),
-            _ => Err(
-                "ObjectValue::as_date_time() called on a non date time object"
-                    .to_string(),
-            ),
-        }
-    }
-
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -261,10 +247,6 @@ pub fn bigint(value: Integer) -> ObjectValue {
 
 pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
-}
-
-pub fn date_time(value: DateTime) -> ObjectValue {
-    ObjectValue::DateTime(Box::new(value))
 }
 
 #[cfg(test)]

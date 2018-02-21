@@ -926,23 +926,15 @@ module Inkoc
       end
 
       def on_raw_time_system(node, body)
-        raw_unary_instruction(:TimeSystem, node, body)
+        raw_nullary_instruction(:TimeSystem, node, body)
       end
 
-      def on_raw_time_get_value(node, body)
-        raw_binary_instruction(:TimeGetValue, node, body)
+      def on_raw_time_system_offset(node, body)
+        raw_nullary_instruction(:TimeSystemOffset, node, body)
       end
 
-      def on_raw_time_from_seconds(node, body)
-        raw_binary_instruction(:TimeFromSeconds, node, body)
-      end
-
-      def on_raw_time_format(node, body)
-        raw_binary_instruction(:TimeFormat, node, body)
-      end
-
-      def on_raw_time_parse(node, body)
-        raw_binary_instruction(:TimeParse, node, body)
+      def on_raw_time_system_dst(node, body)
+        raw_nullary_instruction(:TimeSystemDst, node, body)
       end
 
       def on_raw_string_to_upper(node, body)

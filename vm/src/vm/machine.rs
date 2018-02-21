@@ -2925,8 +2925,7 @@ impl Machine {
                 //
                 // This instruction requires three arguments:
                 //
-                // 1. The register to store the result in as a primitive
-                //    DateTime object.
+                // 1. The register to store the result in as a float.
                 // 2. The register containing the file path of the file.
                 // 3. The register containing an integer indicating what kind of
                 //    timestamp to retrieve.
@@ -2946,8 +2945,8 @@ impl Machine {
                     match filesystem::date_time_for_path(path, kind) {
                         Ok(dt) => {
                             let ptr = process.allocate(
-                                object_value::date_time(dt),
-                                self.state.object_prototype,
+                                object_value::float(dt.timestamp()),
+                                self.state.float_prototype,
                             );
 
                             context.set_register(register, ptr);
@@ -2964,94 +2963,45 @@ impl Machine {
                         }
                     }
                 }
-                // Gets the current system (= local) time.
+                // Gets the current system time.
                 //
-                // This instruction takes two arguments:
-                //
-                // 1. The register to store the primitive DateTime object in.
-                // 2. A register containing a boolean. If set to true the
-                //    primitive DateTime object will use UTC as the time zone,
-                //    otherwise the local time zone is used.
+                // This instruction takes one argument: the register to store
+                // the number of seconds since the Unix epoch in seconds
+                // (including fractional seconds), as a Float.
                 InstructionType::TimeSystem => {
                     let register = instruction.arg(0);
-                    let use_utc = context.get_register(instruction.arg(1));
-
-                    let dt = if is_false!(self, use_utc) {
-                        DateTime::now()
-                    } else {
-                        DateTime::now_utc()
-                    };
-
+                    let timestamp = DateTime::now().timestamp();
                     let pointer = process.allocate(
-                        object_value::date_time(dt),
-                        self.state.object_prototype,
+                        object_value::float(timestamp),
+                        self.state.float_prototype,
                     );
 
                     context.set_register(register, pointer);
                 }
-                // Reads a value from a DateTime object.
+                // Gets the system time's offset to UTC in seconds.
                 //
-                // This instruction takes three arguments:
-                //
-                // 1. The register to store the result in, as an integer or nil
-                //    if no value was found.
-                // 2. The register containing the DateTime object.
-                // 3. The register containing an integer describing which field
-                //    to read.
-                //
-                // This instruction will panic if the given field is invalid.
-                InstructionType::TimeGetValue => {
+                // This instruction takes one argument: the register to store
+                // the offset in as an integer.
+                InstructionType::TimeSystemOffset => {
                     let register = instruction.arg(0);
-                    let obj_ptr = context.get_register(instruction.arg(1));
-                    let field_ptr = context.get_register(instruction.arg(2));
+                    let offset =
+                        ObjectPointer::integer(DateTime::now().utc_offset());
 
-                    let date_time = obj_ptr.date_time_value()?;
-                    let field = field_ptr.integer_value()?;
-
-                    if let Some(pointer) = date_time
-                        .get(field)
-                        .map(|val| self.allocate_integer(process, val))
-                    {
-                        context.set_register(register, pointer);
-                    } else {
-                        return Err(format!("{} is not a valid field", field));
-                    }
+                    context.set_register(register, offset);
                 }
-                // Creates a primitive DateTime object from the given number of
-                // seconds (as a float) since the Unix epoch. The primitive
-                // DateTime uses the local timezone.
+                // Determines if DST is active or not.
                 //
-                // This instruction requires three arguments:
-                //
-                // 1. The register to store the primitive DateTime object in.
-                // 2. The register containing the number of seconds since the
-                //    Unix epoch, in UTC.
-                // 3. A register containing a boolean. If set to true the
-                //    primitive DateTime will use UTC as the timezone, otherwise
-                //    the local timezone is used instead.
-                //
-                // This instruction will panic if the given timestamp is too
-                // great or otherwise unsupported.
-                InstructionType::TimeFromSeconds => {
+                // This instruction requires one argument: the register to store
+                // the result in as a boolean.
+                InstructionType::TimeSystemDst => {
                     let register = instruction.arg(0);
-                    let sec_ptr = context.get_register(instruction.arg(1));
-                    let utc_ptr = context.get_register(instruction.arg(2));
-                    let sec = sec_ptr.float_value()?;
-
-                    let dt_opt = if is_false!(self, utc_ptr) {
-                        DateTime::from_seconds(sec)
+                    let result = if DateTime::now().dst_active() {
+                        self.state.true_object
                     } else {
-                        DateTime::from_seconds_utc(sec)
+                        self.state.false_object
                     };
 
-                    if let Some(dt) = dt_opt {
-                        let pointer = process.allocate(
-                            object_value::date_time(dt),
-                            self.state.object_prototype,
-                        );
-
-                        context.set_register(register, pointer);
-                    }
+                    context.set_register(register, result);
                 }
                 // Creates a new directory.
                 //
@@ -3143,69 +3093,6 @@ impl Machine {
                     ) {
                         Ok(array) => {
                             context.set_register(register, array);
-                        }
-                        Err(error) => {
-                            throw_error_message!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
-                            );
-                        }
-                    }
-                }
-                // Formats a primitive DateTime object as a String.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the result in as a String.
-                // 2. The register containing the primitive DateTime object.
-                // 3. The register containing the format as a String.
-                //
-                // This instruction will panic if the format is invalid.
-                InstructionType::TimeFormat => {
-                    let register = instruction.arg(0);
-                    let time_ptr = context.get_register(instruction.arg(1));
-                    let fmt_ptr = context.get_register(instruction.arg(2));
-                    let time = time_ptr.date_time_value()?;
-                    let fmt = fmt_ptr.string_value()?;
-
-                    let pointer = process.allocate(
-                        object_value::string(time.format(fmt)?),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, pointer);
-                }
-                // Parses a String into a primitive DateTime object.
-                //
-                // This instruction requires 3 arguments:
-                //
-                // 1. The register to store the result in.
-                // 2. The register containing the String to parse.
-                // 3. The register containing the pattern to use for parsing the
-                //    String.
-                //
-                // This instruction will throw if the String could not be
-                // parsed.
-                InstructionType::TimeParse => {
-                    let register = instruction.arg(0);
-                    let str_ptr = context.get_register(instruction.arg(1));
-                    let fmt_ptr = context.get_register(instruction.arg(2));
-
-                    let string = str_ptr.string_value()?;
-                    let format = fmt_ptr.string_value()?;
-
-                    match DateTime::parse(string, format) {
-                        Ok(dt) => {
-                            let pointer = process.allocate(
-                                object_value::date_time(dt),
-                                self.state.object_prototype,
-                            );
-
-                            context.set_register(register, pointer);
                         }
                         Err(error) => {
                             throw_error_message!(
@@ -3463,21 +3350,6 @@ impl Machine {
             } else {
                 process.pop_context();
             }
-        }
-    }
-
-    fn allocate_integer(
-        &self,
-        process: &RcProcess,
-        value: i64,
-    ) -> ObjectPointer {
-        if ObjectPointer::integer_too_large(value) {
-            process.allocate(
-                object_value::integer(value),
-                self.state.integer_prototype,
-            )
-        } else {
-            ObjectPointer::integer(value)
         }
     }
 }

@@ -1,20 +1,55 @@
 #! Internal constants for the "std::time" module.
 
-let SEC = 0
-let SUB_SEC = 1
-let MINUTE = 2
-let HOUR = 3
-let DAY = 4
-let MONTH = 5
-let YEAR = 6
-let DAY_OF_WEEK = 7
-let DAY_OF_YEAR = 8
-let DST = 9
-let UTC_OFFSET = 10
-let SEC_SINCE_EPOCH = 11
-
 ## The number to divide a value in nanoseconds by to convert it to seconds.
 let NANOSEC_TO_SEC = 1_000_000_000.0
 
 ## The number to divide a value in milliseconds by to convert it to seconds.
 let MILLISEC_TO_SEC = 1000.0
+
+## The number of seconds per minute, excluding any leap seconds.
+let SECS_PER_MIN = 60
+
+## The number of seconds per hour, excluding any leap seconds.
+let SECS_PER_HOUR = SECS_PER_MIN * SECS_PER_MIN
+
+## The number of seconds per day, excluding leap seconds.
+let SECS_PER_DAY = SECS_PER_HOUR * 24
+
+let DAYS_PER_WEEK = 7
+
+## The number of days in a regular year.
+let DAYS_PER_NORMAL_YEAR = 365
+
+## The number of days in a 400 year cycle.
+let DAYS_PER_400Y = (DAYS_PER_NORMAL_YEAR * 400) + 97
+
+## The number of days in a 100 year cycle.
+let DAYS_PER_100Y = (DAYS_PER_NORMAL_YEAR * 100) + 24
+
+## The number of days in a four year cycle.
+let DAYS_PER_4Y = (DAYS_PER_NORMAL_YEAR * 4) + 1
+
+let MONTHS_PER_YEAR = 12
+
+## The epoch of our internal calendar, starting at March 1st 2000. The year 2000
+## is a multiple of 400 (the leap year cycle). Using an epoch starting in this
+## year makes our calculations a bit easier.
+let EPOCH = 946_684_800 + (SECS_PER_DAY * (31 + 29))
+
+## The year of our epoch.
+let EPOCH_YEAR = 2000
+
+## The year of the Unix epoch.
+let UNIX_EPOCH_YEAR = 1970
+
+## The number of days in every month of our internal calendar. The first entry
+## is for March.
+let DAYS_IN_MONTH = [31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31, 29]
+
+## The number of days since January 1st in a regular year.
+let DAYS_SINCE_JANUARY_NORMAL =
+  [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
+
+## The number of days since January 1st in a leap year.
+let DAYS_SINCE_JANUARY_LEAP =
+  [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366]

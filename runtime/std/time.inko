@@ -2,11 +2,21 @@
 import std::conversion::(ToFloat, ToInteger)
 import std::error::StandardError
 import std::operators::(Add, Subtract)
-import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual)
+import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual, Equal)
 import std::time::constants::*
 
 ## Error thrown when a `String` could not be parsed into a `Time`.
 let ParseError = StandardError
+
+## Returns the UTC offset of the system's local time.
+def utc_offset -> Integer {
+  _INKOC.time_system_offset
+}
+
+## Returns `True` if Daylight Saving Time is in effect in the system's timezone.
+def dst? -> Boolean {
+  _INKOC.time_system_dst
+}
 
 ## A span of time measured in seconds.
 ##
@@ -245,16 +255,6 @@ object Time {
   ## Returns a new `Time` representing the current time using the local
   ## timezone.
   ##
-  ## The argument is a primitive DateTime object and should not be
-  ## used/specified directly by code outside of the standard library.
-  def new(time = _INKOC.time_system(False)) -> Self {
-    time.prototype = self
-    time as Time
-  }
-
-  ## Returns a new `Time` representing the current time using the local
-  ## timezone.
-  ##
   ## # Examples
   ##
   ## Getting the current time:
@@ -263,7 +263,7 @@ object Time {
   ##
   ##     Time.now
   def now -> Self {
-    new
+    from_timestamp(_INKOC.time_system)
   }
 
   ## Returns a new `Time` representing the current time using UTC as the
@@ -277,7 +277,7 @@ object Time {
   ##
   ##     Time.now_utc
   def now_utc -> Self {
-    new(_INKOC.time_system(True))
+    from_utc_timestamp(_INKOC.time_system)
   }
 
   ## Parses a `String` into a `Time` object.
@@ -315,80 +315,284 @@ object Time {
   ##     time.year  # => 2018
   ##     time.month # => 1
   def parse(input: String, format: String) !! ParseError -> Self {
-    try {
-      new(_INKOC.time_parse(input, format))
-    } else (error) {
-      throw ParseError.new(error as String)
-    }
+    throw ParseError.new('Time.parse is currently disabled')
+    self
   }
 
-  ## Returns a new `Time` from a Unix timestamp using the local timezone.
-  def from_timestamp(time: ToFloat) -> Self {
-    new(_INKOC.time_from_seconds(time.to_float, False))
+  ## Returns a new `Time` from a Unix timestamp.
+  ##
+  ## This method defaults to using the system's local timezone unless an
+  ## explicit offset is given. When specifying a custom offset also make sure to
+  ## explicitly specify if DST is in effect, otherwise this will be based on the
+  ## system's local time.
+  def from_timestamp(
+    time: ToFloat,
+    utc_offset = ThisModule.utc_offset,
+    dst = ThisModule.dst?
+  ) -> Self {
+    # The algorithm below is based on the following code from the musl standard
+    # library: http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c.
+    # Notable changes compared to the original algorithm:
+    #
+    # * Overflow checking has been removed because this is not necessary in
+    #   Inko.
+    # * Checking for negative results produced by the `%` has been removed
+    #   because in Inko this operator is the modulo operator and not the
+    #   remainder operator, thus it won't produce negative values in the code
+    #   below.
+    # * Calculating the day of the week and the year of the day has been removed
+    #   because we don't explicitly store this anywhere.
+    # * Documentation has been added in various places and variables have more
+    #   human friendly names.
+    #
+    # When looking at the code keep in mind that the algorithm uses March 1st,
+    # 2000 UTC as the epoch and _not_ January 1st, 1970 UTC. Using March 1st
+    # simplifies some of the calculations, especially when dealing with leap
+    # years. This epoch is internal and not exposed to the public API.
+    #
+    # Because musl is licensed under the MIT license we include a copy of the
+    # license here:
+    #
+    #     Copyright © 2005-2014 Rich Felker, et al.
+    #
+    #     Permission is hereby granted, free of charge, to any person obtaining
+    #     a copy of this software and associated documentation files (the
+    #     "Software"), to deal in the Software without restriction, including
+    #     without limitation the rights to use, copy, modify, merge, publish,
+    #     distribute, sublicense, and/or sell copies of the Software, and to
+    #     permit persons to whom the Software is furnished to do so, subject to
+    #     the following conditions:
+    #
+    #     The above copyright notice and this permission notice shall be
+    #     included in all copies or substantial portions of the Software.
+    #
+    #     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    #     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    #     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    #     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    #     CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    #     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    #     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+    # Unix timestamps are in UTC. Thus if we want to correctly calculate the
+    # _local_ time we need to add the offset to the timestamp before we
+    # decompose it.
+    let local_time = time.to_float + utc_offset.to_float
+    let local_time_int = local_time.to_integer
+
+    let mut year = 0
+    let mut month = 0
+    let mut day = 0
+    let mut hour = 0
+    let mut minute = 0
+    let mut second = 0
+    let mut sub_second = local_time.fractional
+
+    let secs = local_time_int - EPOCH
+    let days = secs / SECS_PER_DAY
+    let rem_secs = secs % SECS_PER_DAY
+    let quadrennial_century_cycles = days / DAYS_PER_400Y
+    let mut rem_days = days % DAYS_PER_400Y
+    let mut century_cycles = rem_days / DAYS_PER_100Y
+
+    (century_cycles == 4).if_true {
+      century_cycles -= 1
+    }
+
+    rem_days -= century_cycles * DAYS_PER_100Y
+
+    let mut quadrennial_cycles = rem_days / DAYS_PER_4Y
+
+    # 25 cycles == 100 years
+    (quadrennial_cycles == 25).if_true {
+      quadrennial_cycles -= 1
+    }
+
+    rem_days -= quadrennial_cycles * DAYS_PER_4Y
+
+    let mut rem_years = rem_days / DAYS_PER_NORMAL_YEAR
+
+    (rem_years == 4).if_true {
+      rem_years -= 1
+    }
+
+    rem_days -= rem_years * DAYS_PER_NORMAL_YEAR
+
+    # Calculate the number of years since 2000, then convert this to the current
+    # year (e.g. 2018 instead of 18).
+    let years = (rem_years + (4 * quadrennial_cycles))
+      + (100 * century_cycles)
+      + (400 * quadrennial_century_cycles)
+      + EPOCH_YEAR
+
+    let mut months = 0
+
+    { DAYS_IN_MONTH[months] <= rem_days }.while_true {
+      rem_days -= DAYS_IN_MONTH[months]
+      months += 1
+    }
+
+    year = years
+
+    # We add two to adjust for January and February (since our epoch starts in
+    # March).
+    month = months + 2
+
+    (month >= MONTHS_PER_YEAR).if_true {
+      month = month - MONTHS_PER_YEAR
+      year = year + 1
+    }
+
+    # Per ISO 8601 the first month of the year is 1, and so is the first day of
+    # the month.
+    month = month + 1
+    day = rem_days + 1
+
+    hour = rem_secs / SECS_PER_HOUR
+    minute = rem_secs / SECS_PER_MIN % SECS_PER_MIN
+    second = rem_secs % SECS_PER_MIN
+
+    new(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      sub_second: sub_second,
+      utc_offset: utc_offset,
+      dst: dst
+    )
   }
 
   ## Returns a new `Time` from a Unix timestamp using UTC as the timezone.
   def from_utc_timestamp(time: ToFloat) -> Self {
-    new(_INKOC.time_from_seconds(time.to_float, True))
+    from_timestamp(time, utc_offset: 0, dst: False)
+  }
+
+  def init(
+    year: Integer,
+    month: Integer,
+    day: Integer,
+    hour: Integer,
+    minute: Integer,
+    second: Integer,
+    sub_second: Float,
+    utc_offset: Integer,
+    dst: Boolean
+  ) {
+    let @year = year
+    let @month = month
+    let @day = day
+    let @hour = hour
+    let @minute = minute
+    let @second = second
+    let @sub_second = sub_second
+    let @utc_offset = utc_offset
+    let @dst = dst
   }
 
   ## Returns the hour of the day from 0 to 23.
   def hour -> Integer {
-    _INKOC.time_get_value(self, HOUR)
+    @hour
   }
 
   ## Returns the minute of the hour from 0 to 59.
   def minute -> Integer {
-    _INKOC.time_get_value(self, MINUTE)
+    @minute
   }
 
   ## Returns the second of the minute from 0 to 60.
   def second -> Integer {
-    _INKOC.time_get_value(self, SEC)
+    @second
   }
 
   ## Returns the fractional part of the second, in seconds.
   def sub_second -> Float {
-    let nsec = _INKOC.time_get_value(self, SUB_SEC)
-
-    nsec.to_float / NANOSEC_TO_SEC
+    @sub_second
   }
 
   ## Returns the year of the current time.
   def year -> Integer {
-    _INKOC.time_get_value(self, YEAR)
+    @year
   }
 
   ## Returns the month of the year from 1 to 12.
   def month -> Integer {
-    _INKOC.time_get_value(self, MONTH)
+    @month
   }
 
   ## Returns the day of the month from 1 to 31.
   def day -> Integer {
-    _INKOC.time_get_value(self, DAY)
+    @day
   }
 
   ## Returns the day of the week from 1 to 7.
   ##
   ## Per ISO 8601 the first day of the week starts on Monday, not Sunday.
   def day_of_week -> Integer {
-    _INKOC.time_get_value(self, DAY_OF_WEEK)
+    let day_of_week = days_since_unix_epoch % DAYS_PER_WEEK
+
+    day_of_week.zero?.if true: {
+      DAYS_PER_WEEK
+    }, false: {
+      day_of_week + 1
+    }
   }
 
   ## Returns the day of the year from 1 to 366.
   def day_of_year -> Integer {
-    _INKOC.time_get_value(self, DAY_OF_YEAR)
+    let table = leap_year?
+      .if true: {
+        DAYS_SINCE_JANUARY_LEAP
+      }, false: {
+        DAYS_SINCE_JANUARY_NORMAL
+      }
+
+    table[month - 1] + day - 1
+  }
+
+  ## Returns the number of days between `self` and the Unix epoch.
+  ##
+  ## The returned `Integer` is always a positive value.
+  def days_since_unix_epoch -> Integer {
+    let years = (year - UNIX_EPOCH_YEAR).absolute
+
+    let leap_days = (years / 4)
+      - (years / 100)
+      + (years / 400)
+
+    let days = years
+      * DAYS_PER_NORMAL_YEAR
+      + leap_days
+
+    before_unix_epoch?.if true: {
+      days - day_of_year
+    }, false: {
+      days + day_of_year
+    }
+  }
+
+  ## Returns `True` if the year in `self` comes before the Unix epoch.
+  def before_unix_epoch? -> Boolean {
+    year < UNIX_EPOCH_YEAR
+  }
+
+  ## Returns `True` if the current year is a leap year.
+  def leap_year? -> Boolean {
+    let year = @year
+
+    (year % 4).zero? && ( (year % 100).positive? || (year % 400).zero? )
   }
 
   ## Returns `True` if Daylight Saving Time is active.
   def dst? -> Boolean {
-    _INKOC.time_get_value(self, DST) == 1
+    @dst
   }
 
   ## Returns the offset in seconds relative to UTC.
   def utc_offset -> Integer {
-    _INKOC.time_get_value(self, UTC_OFFSET)
+    @utc_offset
   }
 
   ## Returns `True` if UTC is used.
@@ -397,8 +601,19 @@ object Time {
   }
 
   ## Returns the number of seconds since the Unix epoch in UTC.
+  ##
+  ## This value will be negative if `self` is a `Time` before the Unix epoch.
   def seconds_since_epoch -> Integer {
-    _INKOC.time_get_value(self, SEC_SINCE_EPOCH)
+    let day_sec = days_since_unix_epoch * SECS_PER_DAY
+    let time_sec = (hour * SECS_PER_HOUR) + (minute * SECS_PER_MIN) + second
+    let seconds = before_unix_epoch?.if true: {
+      0 - (day_sec - time_sec)
+    }, false: {
+      day_sec + time_sec
+    }
+
+    # Timestamps are always in UTC, not in the local time.
+    seconds - utc_offset
   }
 
   ## Converts the `Time` to another `Time` that uses UTC as the timezone.
@@ -424,7 +639,7 @@ object Time {
   ##
   ##     Time.now.format('%Y-%m-%d') # => '2018-02-17'
   def format(pattern: String) -> String {
-    _INKOC.time_format(self, pattern)
+    'Time.format is currently disabled'
   }
 }
 
@@ -513,7 +728,13 @@ impl Smaller for Time {
   ##
   ##     before < after # => True
   def <(other: Self) -> Boolean {
-    to_float < other.to_float
+    (year < other.year)
+      && (month < other.month)
+      && (day < other.day)
+      && (hour < other.hour)
+      && (minute < other.minute)
+      && (second < other.second)
+      && (sub_second < other.sub_second)
   }
 }
 
@@ -532,7 +753,13 @@ impl SmallerOrEqual for Time {
   ##     before <= after  # => True
   ##     before <= before # => True
   def <=(other: Self) -> Boolean {
-    to_float <= other.to_float
+    (year <= other.year)
+      && (month <= other.month)
+      && (day <= other.day)
+      && (hour <= other.hour)
+      && (minute <= other.minute)
+      && (second <= other.second)
+      && (sub_second <= other.sub_second)
   }
 }
 
@@ -550,7 +777,13 @@ impl Greater for Time {
   ##
   ##     after > before # => True
   def >(other: Self) -> Boolean {
-    to_float > other.to_float
+    (year > other.year)
+      && (month > other.month)
+      && (day > other.day)
+      && (hour > other.hour)
+      && (minute > other.minute)
+      && (second > other.second)
+      && (sub_second > other.sub_second)
   }
 }
 
@@ -569,7 +802,37 @@ impl GreaterOrEqual for Time {
   ##     after >= before # => True
   ##     after >= after  # => True
   def >=(other: Self) -> Boolean {
-    to_float >= other.to_float
+    (year >= other.year)
+      && (month >= other.month)
+      && (day >= other.day)
+      && (hour >= other.hour)
+      && (minute >= other.minute)
+      && (second >= other.second)
+      && (sub_second >= other.sub_second)
+  }
+}
+
+impl Equal for Time {
+  ## Returns `True` if `self` and the given `Time` are equal to each other.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Time` objects:
+  ##
+  ##     import std::time::Time
+  ##
+  ##     let now = Time.now
+  ##
+  ##     now == now # => True
+  def ==(other: Self) -> Boolean {
+    (year == other.year)
+      && (month == other.month)
+      && (day == other.day)
+      && (hour == other.hour)
+      && (minute == other.minute)
+      && (second == other.second)
+      && (sub_second == other.sub_second)
+      && (utc_offset == other.utc_offset)
   }
 }
 

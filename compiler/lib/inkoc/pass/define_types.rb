@@ -703,23 +703,15 @@ module Inkoc
       end
 
       def on_raw_time_system(*)
-        typedb.date_time_type
+        typedb.float_type
       end
 
-      def on_raw_time_get_value(*)
+      def on_raw_time_system_offset(*)
         typedb.integer_type
       end
 
-      def on_raw_time_from_seconds(*)
-        typedb.date_time_type
-      end
-
-      def on_raw_time_format(*)
-        typedb.string_type
-      end
-
-      def on_raw_time_parse(*)
-        typedb.date_time_type
+      def on_raw_time_system_dst(*)
+        typedb.boolean_type
       end
 
       def on_raw_string_to_upper(*)
@@ -868,7 +860,7 @@ module Inkoc
       end
 
       def on_raw_file_time(*)
-        typedb.date_time_type
+        typedb.integer_type
       end
 
       def on_raw_directory_create(*)

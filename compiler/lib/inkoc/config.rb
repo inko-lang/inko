@@ -39,7 +39,6 @@ module Inkoc
     BOOLEAN_CONST = 'Boolean'
     NIL_CONST = 'Nil'
     FILE_CONST = 'File'
-    DATE_TIME_CONST = 'DateTime'
     ARRAY_TYPE_PARAMETER = 'T'
     HASH_MAP_KEY_TYPE_PARAMETER = 'K'
     HASH_MAP_VALUE_TYPE_PARAMETER = 'K'

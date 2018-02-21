@@ -125,13 +125,11 @@ pub enum InstructionType {
     FileType,
     FileTime,
     TimeSystem,
-    TimeGetValue,
-    TimeFromSeconds,
+    TimeSystemOffset,
+    TimeSystemDst,
     DirectoryCreate,
     DirectoryRemove,
     DirectoryList,
-    TimeFormat,
-    TimeParse,
 }
 
 /// Struct for storing information about a single instruction.

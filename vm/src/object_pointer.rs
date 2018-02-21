@@ -8,7 +8,6 @@ use std::u32;
 
 use binding::RcBinding;
 use block::Block;
-use date_time::DateTime;
 use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
@@ -472,7 +471,6 @@ impl ObjectPointer {
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &Integer);
-    def_value_getter!(date_time_value, get, as_date_time, &DateTime);
 }
 
 impl ObjectPointerPointer {

@@ -14,7 +14,6 @@ import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
-import std::time::Time
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
