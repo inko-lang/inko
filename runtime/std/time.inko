@@ -582,7 +582,7 @@ object Time {
   def leap_year? -> Boolean {
     let year = @year
 
-    (year % 4).zero? && ( (year % 100).positive? || (year % 400).zero? )
+    (year % 4).zero?.and { (year % 100).positive?.or { (year % 400).zero? } }
   }
 
   ## Returns `True` if Daylight Saving Time is active.
@@ -729,12 +729,12 @@ impl Smaller for Time {
   ##     before < after # => True
   def <(other: Self) -> Boolean {
     (year < other.year)
-      && (month < other.month)
-      && (day < other.day)
-      && (hour < other.hour)
-      && (minute < other.minute)
-      && (second < other.second)
-      && (sub_second < other.sub_second)
+      .and { month < other.month }
+      .and { day < other.day }
+      .and { hour < other.hour }
+      .and { minute < other.minute }
+      .and { second < other.second }
+      .and { sub_second < other.sub_second }
   }
 }
 
@@ -754,12 +754,12 @@ impl SmallerOrEqual for Time {
   ##     before <= before # => True
   def <=(other: Self) -> Boolean {
     (year <= other.year)
-      && (month <= other.month)
-      && (day <= other.day)
-      && (hour <= other.hour)
-      && (minute <= other.minute)
-      && (second <= other.second)
-      && (sub_second <= other.sub_second)
+      .and { month <= other.month }
+      .and { day <= other.day }
+      .and { hour <= other.hour }
+      .and { minute <= other.minute }
+      .and { second <= other.second }
+      .and { sub_second <= other.sub_second }
   }
 }
 
@@ -778,12 +778,12 @@ impl Greater for Time {
   ##     after > before # => True
   def >(other: Self) -> Boolean {
     (year > other.year)
-      && (month > other.month)
-      && (day > other.day)
-      && (hour > other.hour)
-      && (minute > other.minute)
-      && (second > other.second)
-      && (sub_second > other.sub_second)
+      .and { month > other.month }
+      .and { day > other.day }
+      .and { hour > other.hour }
+      .and { minute > other.minute }
+      .and { second > other.second }
+      .and { sub_second > other.sub_second }
   }
 }
 
@@ -803,12 +803,12 @@ impl GreaterOrEqual for Time {
   ##     after >= after  # => True
   def >=(other: Self) -> Boolean {
     (year >= other.year)
-      && (month >= other.month)
-      && (day >= other.day)
-      && (hour >= other.hour)
-      && (minute >= other.minute)
-      && (second >= other.second)
-      && (sub_second >= other.sub_second)
+      .and { month >= other.month }
+      .and { day >= other.day }
+      .and { hour >= other.hour }
+      .and { minute >= other.minute }
+      .and { second >= other.second }
+      .and { sub_second >= other.sub_second }
   }
 }
 
@@ -826,13 +826,13 @@ impl Equal for Time {
   ##     now == now # => True
   def ==(other: Self) -> Boolean {
     (year == other.year)
-      && (month == other.month)
-      && (day == other.day)
-      && (hour == other.hour)
-      && (minute == other.minute)
-      && (second == other.second)
-      && (sub_second == other.sub_second)
-      && (utc_offset == other.utc_offset)
+      .and { month == other.month }
+      .and { day == other.day }
+      .and { hour == other.hour }
+      .and { minute == other.minute }
+      .and { second == other.second }
+      .and { sub_second == other.sub_second }
+      .and { utc_offset == other.utc_offset }
   }
 }
 

@@ -12,7 +12,6 @@
 
 import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
-import std::operators::(And, Or)
 import std::unknown_message::UnknownMessage
 
 impl ToInteger for Nil {
@@ -63,20 +62,16 @@ impl Conditional for Nil {
   def if!(R)(true: do -> R, false: do -> R) -> ?R {
     false.call
   }
-}
 
-impl And for Nil {
   ## Always returns `False`.
-  def &&(other: Conditional) -> Boolean {
+  def and(other: do -> Boolean) -> Boolean {
     False
   }
-}
 
-impl Or for Nil {
   ## Returns `True` if the given object evaluates to `True`, otherwise returns
   ## `False`.
-  def ||(other: Conditional) -> Boolean {
-    other.if true: { True }, false: { False }
+  def or(other: do -> Boolean) -> Boolean {
+    other.call
   }
 }
 

@@ -11,7 +11,6 @@ pub enum InstructionType {
     GetFloatPrototype,
     GetStringPrototype,
     GetArrayPrototype,
-    GetBooleanPrototype,
     GetBlockPrototype,
     GetTrue,
     GetFalse,

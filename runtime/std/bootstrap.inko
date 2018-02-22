@@ -19,7 +19,6 @@ let mut False = _INKOC.get_false
 let mut Nil = _INKOC.get_nil
 
 let mut Object = _INKOC.get_object_prototype
-let mut Boolean = _INKOC.get_boolean_prototype
 let mut String = _INKOC.get_string_prototype
 let mut Integer = _INKOC.get_integer_prototype
 let mut Float = _INKOC.get_float_prototype
@@ -35,7 +34,6 @@ _INKOC.set_attribute(Integer, '@_object_name', 'Integer')
 _INKOC.set_attribute(Float, '@_object_name', 'Float')
 _INKOC.set_attribute(Array, '@_object_name', 'Array')
 _INKOC.set_attribute(Block, '@_object_name', 'Block')
-_INKOC.set_attribute(Boolean, '@_object_name', 'Boolean')
 
 # Now that our core objects are set up we can start defining more of the
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow
@@ -54,6 +52,10 @@ impl Object {
 
 # Now that the basics are in place we can define Trait the usual way.
 object Trait {}
+
+# The Boolean trait must be defined as early as possible since other types rely
+# on it. We later refine it in std::boolean.
+trait Boolean {}
 
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.

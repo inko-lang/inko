@@ -106,9 +106,6 @@ pub struct State {
     /// The prototype for array objects.
     pub array_prototype: ObjectPointer,
 
-    /// The prototype for booleans.
-    pub boolean_prototype: ObjectPointer,
-
     /// The prototype for Blocks.
     pub block_prototype: ObjectPointer,
 
@@ -137,7 +134,6 @@ impl State {
         let float_proto = perm_alloc.allocate_empty();
         let string_proto = perm_alloc.allocate_empty();
         let array_proto = perm_alloc.allocate_empty();
-        let bool_proto = perm_alloc.allocate_empty();
         let block_proto = perm_alloc.allocate_empty();
 
         let true_obj = perm_alloc.allocate_empty();
@@ -150,12 +146,11 @@ impl State {
             float_proto.set_prototype(object_proto);
             string_proto.set_prototype(object_proto);
             array_proto.set_prototype(object_proto);
-            bool_proto.set_prototype(object_proto);
             block_proto.set_prototype(object_proto);
 
             nil_obj.set_prototype(object_proto);
-            true_obj.set_prototype(bool_proto);
-            false_obj.set_prototype(bool_proto);
+            true_obj.set_prototype(object_proto);
+            false_obj.set_prototype(object_proto);
         }
 
         let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
@@ -184,7 +179,6 @@ impl State {
             float_prototype: float_proto,
             string_prototype: string_proto,
             array_prototype: array_proto,
-            boolean_prototype: bool_proto,
             block_prototype: block_proto,
             true_object: true_obj,
             false_object: false_obj,

@@ -1,5 +1,35 @@
 import std::conditional::Conditional
-import std::operators::(Equal, And, Or)
+import std::operators::(Equal, NotEqual)
+
+impl Conditional for Object {
+  def if_true!(R)(block: do -> R) -> ?R {
+    block.call
+  }
+
+  def if_false!(R)(block: do -> R) -> ?R {
+    Nil
+  }
+
+  def if!(R)(true: do -> R, false: do -> R) -> ?R {
+    true.call
+  }
+
+  def and(other: do -> Boolean) -> Boolean {
+    if true: {
+      other.call
+    }, false: {
+      False
+    }
+  }
+
+  def or(other: do -> Boolean) -> Boolean {
+    if true: {
+      True
+    }, false: {
+      other.call
+    }
+  }
+}
 
 impl Object {
   ## Returns the prototype of the receiving object.
@@ -69,53 +99,6 @@ impl Object {
   def set_attribute!(T)(name: String, value: T) -> T {
     _INKOC.set_attribute(self, name, value)
   }
-
-  ## Implements the given trait for the current object.
-  ##
-  ## Implementing a trait will result in all the trait's methods being copied
-  ## over to the receiving object. Once copied the trait is tracked in an
-  ## internal object so methods such as `Object.kind_of?` can make use of it.
-  ##
-  ## This method is not really meant for general use, instead it's called by the
-  ## compiler whenever implementing a trait using the `impl` keyword.
-  ##
-  ## # Examples
-  ##
-  ## Manually implementing a trait, ignoring any required methods:
-  ##
-  ##     trait MyTrait {
-  ##       def number -> Integer {
-  ##         42
-  ##       }
-  ##     }
-  ##
-  ##     object Person {}
-  ##
-  ##     Person.implement_trait(MyTrait) # => MyTrait
-  ##
-  ##     Person.new.number # => 42
-  def implement_trait(to_impl: Trait) -> Trait {
-    let mut traits = _INKOC.set_attribute_to_object(self, '@_implemented_traits')
-
-    _INKOC.copy_blocks(self, to_impl)
-    _INKOC.set_attribute(traits, to_impl, True)
-
-    to_impl
-  }
-}
-
-impl Conditional for Object {
-  def if_true!(R)(block: do -> R) -> ?R {
-    block.call
-  }
-
-  def if_false!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
-    true.call
-  }
 }
 
 # These methods can't be implemented until `if_true` is in place, thus we must
@@ -169,7 +152,7 @@ impl Object {
 }
 
 impl Equal for Object {
-  ## Returns `True` if the receiving and given objects are exactly identical.
+  ## Returns `True` if `self` and the given object are identical.
   ##
   ## Two objects are considered identical if they reside at the exact same
   ## memory address.
@@ -193,44 +176,21 @@ impl Equal for Object {
   }
 }
 
-impl And for Object {
-  ## Returns `True` if `self` and the given object evaluate to `True`.
+impl NotEqual for Object {
+  ## Returns `True` if `self` and the given object are not identical.
   ##
   ## # Examples
   ##
-  ## Using two objects:
+  ## Comparing two objects that are not identical:
   ##
-  ##     Object.new && Object.new # => True
+  ##     Object.new != Object.new # => True
   ##
-  ## Using and object and `False`:
+  ## Comparing two objects that are identical:
   ##
-  ##     Object.new && False # => False
-  def &&(other: Conditional) -> Boolean {
-    if true: {
-      other.if true: { True }, false: { False }
-    }, false: {
-      False
-    }
-  }
-}
-
-impl Or for Object {
-  ## Returns `True` if `self` or the given object evaluates to `True`.
+  ##     let obj = Object.new
   ##
-  ## # Examples
-  ##
-  ## Using two objects:
-  ##
-  ##     Object.new || Object.new # => True
-  ##
-  ## Using an object and `False`:
-  ##
-  ##     Object.new || False # => True
-  def ||(other: Conditional) -> Boolean {
-    if true: {
-      True
-    }, false: {
-      other.if true: { True }, false: { False }
-    }
+  ##     obj != obj # => False
+  def !=(other: Self) -> Boolean {
+    (self == other).not
   }
 }

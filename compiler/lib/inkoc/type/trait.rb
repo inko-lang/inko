@@ -33,6 +33,11 @@ module Inkoc
         true
       end
 
+      def implements_trait?(trait)
+        required_traits.include?(trait) ||
+          required_traits.any? { |t| t.implements_trait?(trait) }
+      end
+
       def define_required_method(block_type)
         required_methods.define(block_type.name, block_type)
       end
@@ -41,6 +46,7 @@ module Inkoc
         lookup_default_method(name)
           .or_else { required_methods[name] }
           .or_else { lookup_method_from_required_traits(name) }
+          .or_else { prototype.lookup_method(name) }
       end
 
       def lookup_method_from_required_traits(name)
@@ -58,9 +64,16 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        return true if self == other || other.dynamic?
+        other = other.type if other.optional?
 
-        other.is_a?(self.class) &&
+        return true if self == other || other.dynamic?
+        return true if other.trait? && implements_trait?(other)
+
+        compatible_traits?(other)
+      end
+
+      def compatible_traits?(other)
+        other.trait? &&
           required_traits == other.required_traits &&
           required_methods == other.required_methods
       end

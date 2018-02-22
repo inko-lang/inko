@@ -105,10 +105,6 @@ module Inkoc
       error("Cannot reopen #{name} since it's not an object", location)
     end
 
-    def redefine_trait_error(location)
-      error('Traits can not be reopened', location)
-    end
-
     def define_required_method_on_non_trait_error(location)
       error('Required methods can only be defined on traits', location)
     end
@@ -290,6 +286,15 @@ module Inkoc
       error(
         "The type parameter #{name} shadows another type parameter with the " \
           'same name',
+        location
+      )
+    end
+
+    def redefine_trait_error(type, location)
+      tname = type.type_name
+
+      error(
+        "The trait #{tname} can not be redefined because it is not empty",
         location
       )
     end

@@ -92,6 +92,10 @@ module Inkoc
       def guard_unknown_message?(name)
         dynamic? || optional? || lookup_method(name).nil?
       end
+
+      def downcast_to(*)
+        self
+      end
     end
   end
 end

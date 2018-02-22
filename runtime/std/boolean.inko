@@ -1,47 +1,14 @@
-#! The boolean type.
+#! Boolean true and false.
 #!
-#! Unlike other languages booleans are just regular (singleton) objects. There
-#! are three boolean related types: `Boolean`, `True`, and `False`. `Boolean`
-#! acts as the base object for `True` and `False` and mostly exists so code can
-#! use a single type for booleans.
+#! In Inko boolean true is the object `True` and boolean false is the object
+#! `False`. Both are regular objects that implement a common trait: `Boolean`.
 
 import std::conditional::Conditional
 import std::conversion::ToString
-import std::operators::(And, Or)
 
-impl Boolean {
-  ## Always returns `self`.
-  def not -> Boolean {
-    self
-  }
-}
-
-impl True {
-  ## Always returns `False`.
-  def not -> Boolean {
-    False
-  }
-}
-
-impl False {
-  ## Always returns `True`.
-  def not -> Boolean {
-    True
-  }
-}
-
-impl Conditional for Boolean {
-  def if_true!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  def if_false!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
-    Nil
-  }
+trait Boolean: ToString, Conditional {
+  ## Returns the `Boolean` that is the opposite of `self`.
+  def not -> Self
 }
 
 impl Conditional for True {
@@ -55,6 +22,14 @@ impl Conditional for True {
 
   def if!(R)(true: do -> R, false: do -> R) -> ?R {
     true.call
+  }
+
+  def and(other: do -> Boolean) -> Boolean {
+    other.call
+  }
+
+  def or(other: do -> Boolean) -> Boolean {
+    True
   }
 }
 
@@ -70,35 +45,13 @@ impl Conditional for False {
   def if!(R)(true: do -> R, false: do -> R) -> ?R {
     false.call
   }
-}
 
-impl And for True {
-  def &&(other: Conditional) -> Boolean {
-    other.if true: { True }, false: { False }
-  }
-}
-
-impl Or for True {
-  def ||(other: Conditional) -> Boolean {
-    True
-  }
-}
-
-impl And for False {
-  def &&(other: Conditional) -> Boolean {
+  def and(other: do -> Boolean) -> Boolean {
     False
   }
-}
 
-impl Or for False {
-  def ||(other: Conditional) -> Boolean {
-    other.if true: { True }, false: { False }
-  }
-}
-
-impl ToString for Boolean {
-  def to_string -> String {
-    'Boolean'
+  def or(other: do -> Boolean) -> Boolean {
+    other.call
   }
 }
 
@@ -111,5 +64,17 @@ impl ToString for True {
 impl ToString for False {
   def to_string -> String {
     'False'
+  }
+}
+
+impl Boolean for True {
+  def not -> Self {
+    False
+  }
+}
+
+impl Boolean for False {
+  def not -> Self {
+    True
   }
 }

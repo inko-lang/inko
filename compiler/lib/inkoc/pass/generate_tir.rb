@@ -342,7 +342,29 @@ module Inkoc
       end
 
       def on_trait(node, body)
-        define_object(node, body, Config::TRAIT_CONST)
+        if node.redefines
+          redefine_trait(node, body)
+        else
+          define_object(node, body, Config::TRAIT_CONST)
+        end
+      end
+
+      def redefine_trait(node, body)
+        loc = node.location
+        trait = get_global(node.name, body, loc)
+        block = define_block(
+          node.name,
+          node.block_type,
+          [],
+          node.body,
+          node.body.locals,
+          body,
+          loc
+        )
+
+        run_block(block, [trait], [], body, loc)
+
+        trait
       end
 
       def define_object(node, body, proto_name)
@@ -847,10 +869,6 @@ module Inkoc
 
       def on_raw_get_true(node, body)
         get_true(body, node.location)
-      end
-
-      def on_raw_get_boolean_prototype(node, body)
-        raw_nullary_instruction(:GetBooleanPrototype, node, body)
       end
 
       def on_raw_get_false(node, body)

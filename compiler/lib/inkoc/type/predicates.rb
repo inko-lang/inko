@@ -15,6 +15,10 @@ module Inkoc
         false
       end
 
+      def method?
+        false
+      end
+
       def block?
         false
       end
@@ -72,6 +76,10 @@ module Inkoc
       end
 
       def nil_type?
+        false
+      end
+
+      def downcast_to?(*)
         false
       end
     end

@@ -358,9 +358,13 @@ module Inkoc
       # type - The type of the argument that is being validated.
       # rest - If true the argument is supposed to be passed to a rest argument.
       def expected_type_for_argument(context, aname, type, rest = false)
-        context.type_for_argument_or_rest(aname, rest)
+        expected = context.type_for_argument_or_rest(aname, rest)
           .resolve_type(context.receiver)
           .initialize_as(type, context)
+
+        expected.downcast_to(type) if expected.downcast_to?(type)
+
+        expected
       end
 
       def verify_send_argument(argument, expected, location)
@@ -619,10 +623,6 @@ module Inkoc
 
       def on_raw_stdout_write(*)
         typedb.integer_type
-      end
-
-      def on_raw_get_boolean_prototype(*)
-        typedb.boolean_type
       end
 
       def on_raw_get_true(*)
@@ -997,9 +997,33 @@ module Inkoc
       end
 
       def on_trait(node, scope)
-        name = node.name
-        type = Type::Trait.new(name: name, prototype: typedb.trait_type)
+        trait =
+          resolve_module_type(node, scope.self_type, error_for_undefined: false)
 
+        if trait.trait?
+          if trait.empty?
+            redefine_trait(trait, node, scope)
+          else
+            diagnostics.redefine_trait_error(trait, node.location)
+          end
+        else
+          define_new_trait(node, scope)
+        end
+      end
+
+      def redefine_trait(type, node, scope)
+        node.redefines = true
+
+        define_trait(type, node, scope)
+      end
+
+      def define_new_trait(node, scope)
+        type = Type::Trait.new(name: node.name, prototype: typedb.trait_type)
+
+        define_trait(type, node, scope)
+      end
+
+      def define_trait(type, node, scope)
         define_type_parameters(node.type_parameters, type)
 
         node.required_traits.each do |trait|
@@ -1435,8 +1459,13 @@ module Inkoc
         end
       end
 
-      def resolve_module_type(node, self_type)
-        resolve_type(node, self_type, [self_type, @module])
+      def resolve_module_type(node, self_type, error_for_undefined: true)
+        resolve_type(
+          node,
+          self_type,
+          [self_type, @module],
+          error_for_undefined: error_for_undefined
+        )
       end
 
       def resolve_block_type(node, block_type, self_type)
@@ -1452,14 +1481,14 @@ module Inkoc
         type
       end
 
-      def resolve_type(node, self_type, sources)
+      def resolve_type(node, self_type, sources, error_for_undefined: true)
         if (special_type = resolve_special_type(node, self_type, sources))
           return special_type
         end
 
         name = node.name
 
-        if node.receiver
+        if node.constant? && node.receiver
           receiver = resolve_type(node.receiver, self_type, sources)
           sources = [receiver] + sources
         end
@@ -1470,7 +1499,9 @@ module Inkoc
           end
         end
 
-        diagnostics.undefined_constant_error(node.name, node.location)
+        if error_for_undefined
+          diagnostics.undefined_constant_error(node.name, node.location)
+        end
 
         Type::Dynamic.new
       end

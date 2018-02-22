@@ -1,0 +1,37 @@
+#! Methods for `Object` that should be available before defining other types.
+
+impl Object {
+  ## Implements the given trait for the current object.
+  ##
+  ## Implementing a trait will result in all the trait's methods being copied
+  ## over to the receiving object. Once copied the trait is tracked in an
+  ## internal object so methods such as `Object.kind_of?` can make use of it.
+  ##
+  ## This method is not really meant for general use, instead it's called by the
+  ## compiler whenever implementing a trait using the `impl` keyword.
+  ##
+  ## # Examples
+  ##
+  ## Manually implementing a trait, ignoring any required methods:
+  ##
+  ##     trait MyTrait {
+  ##       def number -> Integer {
+  ##         42
+  ##       }
+  ##     }
+  ##
+  ##     object Person {}
+  ##
+  ##     Person.implement_trait(MyTrait) # => MyTrait
+  ##
+  ##     Person.new.number # => 42
+  def implement_trait(to_impl: Trait) -> Trait {
+    let mut traits =
+      _INKOC.set_attribute_to_object(self, '@_implemented_traits')
+
+    _INKOC.copy_blocks(self, to_impl)
+    _INKOC.set_attribute(traits, to_impl, True)
+
+    to_impl
+  }
+}

@@ -53,4 +53,30 @@ trait Conditional {
   ## The return value is whatever the block returned. Both the blocks must
   ## return a value of the same type.
   def if!(R)(true: do -> R, false: do -> R) -> ?R
+
+  ## Returns `True` if `self` and the given object evaluate to `True`.
+  ##
+  ## # Examples
+  ##
+  ## Using two objects:
+  ##
+  ##     Object.new.and { Object.new } # => True
+  ##
+  ## Using and object and `False`:
+  ##
+  ##     Object.new.and { False } # => False
+  def and(other: do -> Boolean) -> Boolean
+
+  ## Returns `True` if `self` or the given object evaluates to `True`.
+  ##
+  ## # Examples
+  ##
+  ## Using two objects:
+  ##
+  ##     Object.new.or { Object.new } # => True
+  ##
+  ## Using an object and `False`:
+  ##
+  ##     Object.new.or { False } # => True
+  def or(other: do -> Boolean) -> Boolean
 }

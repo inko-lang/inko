@@ -13,7 +13,6 @@ module Inkoc
         GetFloatPrototype
         GetStringPrototype
         GetArrayPrototype
-        GetBooleanPrototype
         GetBlockPrototype
         GetTrue
         GetFalse

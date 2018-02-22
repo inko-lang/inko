@@ -7,16 +7,15 @@ module Inkoc
 
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :hash_map_type, :void_type, :boolean_type, :file_type,
+                  :hash_map_type, :void_type, :file_type,
                   :object_type
 
       def initialize
         @object_type = Object.new(name: Config::OBJECT_CONST)
-        @boolean_type = new_object_type(Config::BOOLEAN_CONST)
         @top_level = new_object_type('Inko')
 
-        @true_type = Type::Boolean.new(prototype: boolean_type)
-        @false_type = Type::Boolean.new(prototype: boolean_type)
+        @true_type = Type::Boolean.new(name: Config::TRUE_CONST)
+        @false_type = Type::Boolean.new(name: Config::FALSE_CONST)
         @nil_type = Nil.new(prototype: object_type)
 
         @block_type = new_object_type(Config::BLOCK_CONST)
@@ -33,6 +32,10 @@ module Inkoc
 
       def trait_type
         @trait_type ||= top_level.type_of_attribute(Config::TRAIT_CONST)
+      end
+
+      def boolean_type
+        @boolean_type ||= top_level.type_of_attribute(Config::BOOLEAN_CONST)
       end
 
       def initialize_array_type

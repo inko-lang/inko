@@ -141,6 +141,22 @@ module Inkoc
         valid
       end
 
+      def downcast_to?(other)
+        # Example: `x.if true: { 10 }, false: { 10 as ToInteger }
+        #
+        # In this case we want to treat our block (the one passed to `true`) as
+        # returning a `ToInteger` instead of a `Integer`.
+        other.block? && !other.type_compatible?(self) && type_compatible?(other)
+      end
+
+      def downcast_to(other)
+        # We only want to overwrite our return type if the other block returns a
+        # trait that is compatible (as determined in `downcast_to?`) with our
+        # return value.
+        self.returns = other.returns if other.returns.trait?
+        self
+      end
+
       def closure?
         @block_type == :closure
       end

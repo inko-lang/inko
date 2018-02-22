@@ -10,7 +10,7 @@ module Inkoc
       attr_reader :name, :type_parameters, :body, :location,
                   :required_traits
 
-      attr_accessor :block_type
+      attr_accessor :block_type, :redefines
 
       # name - The name of the trait.
       # targs - The type arguments of the trait.
@@ -25,6 +25,7 @@ module Inkoc
         @body = body
         @location = location
         @block_type = nil
+        @redefines = false
       end
 
       def visitor_method

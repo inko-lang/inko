@@ -1,7 +1,5 @@
 #! Traits for the various binary operators.
 
-import std::conditional::Conditional
-
 ## The binary `+` operator.
 trait Add!(T) {
   ## Adds the given object to `self`, producing a new instance of the same type
@@ -54,6 +52,12 @@ trait Equal {
   def ==(other: Self) -> Boolean
 }
 
+## The binary `!=` operator.
+trait NotEqual {
+  ## Returns `True` if `self` and the given object are not equal to each other.
+  def !=(other: Self) -> Boolean
+}
+
 ## The binary `>=` operator.
 trait GreaterOrEqual {
   ## Returns `True` if `self` is greater than or equal to the given object.
@@ -96,16 +100,4 @@ trait ShiftRight {
   ## Returns the result of a bitwise shift to the right with `self` and the
   ## given object.
   def >>(other: Self) -> Self
-}
-
-## The binary `&&` (boolean AND) operator.
-trait And {
-  ## Returns `True` if `self` and the given object both evaluate to `True`.
-  def &&(other: Conditional) -> Boolean
-}
-
-## The binary `||` (boolean OR) operator.
-trait Or {
-  ## Returns `True` if `self` or the given object evaluates to `True`.
-  def ||(other: Conditional) -> Boolean
 }
