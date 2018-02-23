@@ -1,5 +1,5 @@
 import std::conditional::Conditional
-import std::operators::(Equal, NotEqual)
+import std::operators::Equal
 
 impl Conditional for Object {
   def if_true!(R)(block: do -> R) -> ?R {
@@ -173,24 +173,5 @@ impl Equal for Object {
   ##     obj1 == obj2 # => False
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
-  }
-}
-
-impl NotEqual for Object {
-  ## Returns `True` if `self` and the given object are not identical.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two objects that are not identical:
-  ##
-  ##     Object.new != Object.new # => True
-  ##
-  ## Comparing two objects that are identical:
-  ##
-  ##     let obj = Object.new
-  ##
-  ##     obj != obj # => False
-  def !=(other: Self) -> Boolean {
-    (self == other).not
   }
 }

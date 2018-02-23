@@ -50,12 +50,23 @@ trait Greater {
 trait Equal {
   ## Returns `True` if `self` and the given object are equal to each other.
   def ==(other: Self) -> Boolean
-}
 
-## The binary `!=` operator.
-trait NotEqual {
-  ## Returns `True` if `self` and the given object are not equal to each other.
-  def !=(other: Self) -> Boolean
+  ## Returns `True` if `self` and the given object are not identical.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two objects that are not identical:
+  ##
+  ##     Object.new != Object.new # => True
+  ##
+  ## Comparing two objects that are identical:
+  ##
+  ##     let obj = Object.new
+  ##
+  ##     obj != obj # => False
+  def !=(other: Self) -> Boolean {
+    (self == other).not
+  }
 }
 
 ## The binary `>=` operator.
