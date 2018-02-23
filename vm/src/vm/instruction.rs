@@ -129,6 +129,7 @@ pub enum InstructionType {
     DirectoryCreate,
     DirectoryRemove,
     DirectoryList,
+    StringConcat,
 }
 
 /// Struct for storing information about a single instruction.

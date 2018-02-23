@@ -5,7 +5,7 @@
 
 import std::conversion::ToString
 import std::length::Length
-import std::operators::Equal
+import std::operators::(Equal, Add)
 
 ## Creates a `String` from the given `Array` of bytes.
 ##
@@ -124,5 +124,18 @@ impl Equal for String {
   ##     'foo' == 'bar' # => False
   def ==(other: Self) -> Boolean {
     _INKOC.string_equals(self, other)
+  }
+}
+
+impl Add!(String) for String {
+  ## Concatenates `self` and the given `String`, returning a new `String`.
+  ##
+  ## # Examples
+  ##
+  ## Concatenating two `String` objects:
+  ##
+  ##     'hello ' + 'world' # => 'hello world'
+  def +(other: String) -> Self {
+    _INKOC.string_concat(self, other)
   }
 }

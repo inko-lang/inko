@@ -3100,6 +3100,27 @@ impl Machine {
                         }
                     }
                 }
+                // Concatenates two strings together, producing a new one.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the first string.
+                // 3. The register containing the second string.
+                InstructionType::StringConcat => {
+                    let register = instruction.arg(0);
+                    let left = context.get_register(instruction.arg(1));
+                    let right = context.get_register(instruction.arg(2));
+                    let result =
+                        left.string_value()?.clone() + right.string_value()?;
+
+                    let pointer = process.allocate(
+                        object_value::string(result),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, pointer);
+                }
             };
         }
 

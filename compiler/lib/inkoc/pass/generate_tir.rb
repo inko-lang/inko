@@ -983,6 +983,10 @@ module Inkoc
         raw_unary_instruction(:StringFromBytes, node, body)
       end
 
+      def on_raw_string_concat(node, body)
+        raw_binary_instruction(:StringConcat, node, body)
+      end
+
       def on_raw_stdin_read(node, body)
         raw_nullary_instruction(:StdinRead, node, body)
       end
