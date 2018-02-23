@@ -44,8 +44,7 @@ impl Write for ThisModule {
   ##     stderr.print('hello') # => Nil
   def print(data: ?ToString = Nil) -> Nil {
     process.await {
-      write(data)
-      write(NEWLINE)
+      write(data.to_string + NEWLINE)
     }
 
     Nil
