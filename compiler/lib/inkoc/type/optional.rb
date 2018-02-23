@@ -14,6 +14,7 @@ module Inkoc
       def_delegator :type, :block?
       def_delegator :type, :regular_object?
       def_delegator :type, :trait?
+      def_delegator :type, :lookup_method
 
       attr_reader :type
 
