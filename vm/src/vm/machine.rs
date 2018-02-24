@@ -3171,8 +3171,14 @@ impl Machine {
 
                     let result = hasher_ptr.hasher_value_mut()?.finish();
 
-                    let pointer =
-                        self.allocate_unsigned_integer(process, result);
+                    let pointer = if ObjectPointer::integer_too_large(result) {
+                        process.allocate(
+                            object_value::integer(result),
+                            self.state.integer_prototype,
+                        )
+                    } else {
+                        ObjectPointer::integer(result)
+                    };
 
                     context.set_register(register, pointer);
                 }
@@ -3420,28 +3426,6 @@ impl Machine {
             } else {
                 process.pop_context();
             }
-        }
-    }
-
-    fn allocate_unsigned_integer(
-        &self,
-        process: &RcProcess,
-        value: u64,
-    ) -> ObjectPointer {
-        if ObjectPointer::unsigned_integer_too_large(value) {
-            if ObjectPointer::unsigned_integer_as_big_integer(value) {
-                process.allocate(
-                    object_value::bigint(Integer::from(value)),
-                    self.state.integer_prototype,
-                )
-            } else {
-                process.allocate(
-                    object_value::integer(value as i64),
-                    self.state.integer_prototype,
-                )
-            }
-        } else {
-            ObjectPointer::integer(value as i64)
         }
     }
 }
