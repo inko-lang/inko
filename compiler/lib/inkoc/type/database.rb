@@ -8,7 +8,7 @@ module Inkoc
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
                   :hash_map_type, :void_type, :file_type,
-                  :object_type
+                  :object_type, :hasher_type
 
       def initialize
         @object_type = Object.new(name: Config::OBJECT_CONST)
@@ -23,6 +23,7 @@ module Inkoc
         @float_type = new_object_type(Config::FLOAT_CONST, singleton: true)
         @string_type = new_object_type(Config::STRING_CONST, singleton: true)
         @file_type = new_object_type(Config::FILE_CONST)
+        @hasher_type = new_object_type(Config::HASHER_CONST)
         @array_type = initialize_array_type
         @hash_map_type = initialize_hash_map_type
 

@@ -40,6 +40,7 @@ pub mod execution_context;
 pub mod filesystem;
 pub mod gc;
 pub mod global_scope;
+pub mod hasher;
 pub mod integer_operations;
 pub mod immix;
 pub mod mailbox;

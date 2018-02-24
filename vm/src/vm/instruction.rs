@@ -130,6 +130,9 @@ pub enum InstructionType {
     DirectoryRemove,
     DirectoryList,
     StringConcat,
+    HasherNew,
+    HasherWrite,
+    HasherFinish,
 }
 
 /// Struct for storing information about a single instruction.

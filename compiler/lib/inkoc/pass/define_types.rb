@@ -899,6 +899,18 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_hasher_new(*)
+        typedb.hasher_type
+      end
+
+      def on_raw_hasher_write(*)
+        typedb.nil_type
+      end
+
+      def on_raw_hasher_finish(*)
+        typedb.integer_type
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

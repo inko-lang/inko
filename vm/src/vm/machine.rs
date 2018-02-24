@@ -14,6 +14,7 @@ use date_time::DateTime;
 use execution_context::ExecutionContext;
 use filesystem;
 use gc::request::Request as GcRequest;
+use hasher::Hasher;
 use immix::copy_object::CopyObject;
 use integer_operations;
 use module_registry::{ModuleRegistry, RcModuleRegistry};
@@ -3121,6 +3122,60 @@ impl Machine {
 
                     context.set_register(register, pointer);
                 }
+                // Creates a new hasher.
+                //
+                // This instruction requires only one argument: the register to
+                // store the object in.
+                InstructionType::HasherNew => {
+                    let register = instruction.arg(0);
+                    let pointer = process.allocate(
+                        object_value::hasher(Hasher::new()),
+                        self.state.object_prototype,
+                    );
+
+                    context.set_register(register, pointer);
+                }
+                // Hashes an integer.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the result in, this is always `nil`.
+                // 2. The register containing the hasher to use.
+                // 3. The register containing the integer to hash.
+                //
+                // This instruction does not support hashing big integers.
+                InstructionType::HasherWrite => {
+                    let register = instruction.arg(0);
+                    let mut hasher_ptr =
+                        context.get_register(instruction.arg(1));
+
+                    let value_ptr = context.get_register(instruction.arg(2));
+
+                    hasher_ptr
+                        .hasher_value_mut()?
+                        .write(value_ptr.integer_value()?);
+
+                    context.set_register(register, self.state.nil_object);
+                }
+                // Returns the hash for the values written to a hasher.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in as an integer.
+                // 2. The register containing the hasher to fetch the result
+                //    from.
+                InstructionType::HasherFinish => {
+                    let register = instruction.arg(0);
+                    let mut hasher_ptr =
+                        context.get_register(instruction.arg(1));
+
+                    let result = hasher_ptr.hasher_value_mut()?.finish();
+
+                    let pointer =
+                        self.allocate_unsigned_integer(process, result);
+
+                    context.set_register(register, pointer);
+                }
             };
         }
 
@@ -3365,6 +3420,28 @@ impl Machine {
             } else {
                 process.pop_context();
             }
+        }
+    }
+
+    fn allocate_unsigned_integer(
+        &self,
+        process: &RcProcess,
+        value: u64,
+    ) -> ObjectPointer {
+        if ObjectPointer::unsigned_integer_too_large(value) {
+            if ObjectPointer::unsigned_integer_as_big_integer(value) {
+                process.allocate(
+                    object_value::bigint(Integer::from(value)),
+                    self.state.integer_prototype,
+                )
+            } else {
+                process.allocate(
+                    object_value::integer(value as i64),
+                    self.state.integer_prototype,
+                )
+            }
+        } else {
+            ObjectPointer::integer(value as i64)
         }
     }
 }

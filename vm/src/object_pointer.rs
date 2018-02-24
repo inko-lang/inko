@@ -1,6 +1,6 @@
 use rug::Integer;
 use std::fs;
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash, Hasher as HasherTrait};
 use std::i32;
 use std::i64;
 use std::mem::transmute;
@@ -8,6 +8,7 @@ use std::u32;
 
 use binding::RcBinding;
 use block::Block;
+use hasher::Hasher;
 use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
@@ -111,6 +112,18 @@ impl ObjectPointer {
                 INTEGER_BIT,
             ),
         }
+    }
+
+    /// Returns `true` if the given unsigned integer is too large for a tagged
+    /// pointer.
+    pub fn unsigned_integer_too_large(value: u64) -> bool {
+        value > MAX_INTEGER as u64
+    }
+
+    /// Returns `true` if the given unsigned integer should be allocated as a
+    /// big integer.
+    pub fn unsigned_integer_as_big_integer(value: u64) -> bool {
+        value > i64::MAX as u64
     }
 
     /// Returns `true` if the given value is too large for a tagged pointer.
@@ -471,6 +484,7 @@ impl ObjectPointer {
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &Integer);
+    def_value_getter!(hasher_value_mut, get_mut, as_hasher_mut, &mut Hasher);
 }
 
 impl ObjectPointerPointer {
@@ -500,7 +514,7 @@ impl PartialEq for ObjectPointer {
 impl Eq for ObjectPointer {}
 
 impl Hash for ObjectPointer {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H: HasherTrait>(&self, state: &mut H) {
         self.raw.hash(state);
     }
 }

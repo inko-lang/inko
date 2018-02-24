@@ -11,6 +11,7 @@ use std::mem;
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
+use hasher::Hasher;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
@@ -36,6 +37,9 @@ pub enum ObjectValue {
     /// A heap allocated integer that doesn't fit in a tagged pointer, but is
     /// too small for a BigInt.
     Integer(i64),
+
+    /// A heap allocator hasher used for hashing objects.
+    Hasher(Box<Hasher>),
 }
 
 impl ObjectValue {
@@ -186,6 +190,14 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_hasher_mut(&mut self) -> Result<&mut Hasher, String> {
+        match self {
+            &mut ObjectValue::Hasher(ref mut val) => Ok(val),
+            _ => Err("ObjectValue::as_hasher_mut() called on a non hasher"
+                .to_string()),
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -247,6 +259,10 @@ pub fn bigint(value: Integer) -> ObjectValue {
 
 pub fn integer(value: i64) -> ObjectValue {
     ObjectValue::Integer(value)
+}
+
+pub fn hasher(value: Hasher) -> ObjectValue {
+    ObjectValue::Hasher(Box::new(value))
 }
 
 #[cfg(test)]

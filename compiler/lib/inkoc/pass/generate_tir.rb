@@ -1139,6 +1139,18 @@ module Inkoc
         raw_nullary_instruction(:Platform, node, body)
       end
 
+      def on_raw_hasher_new(node, body)
+        raw_nullary_instruction(:HasherNew, node, body)
+      end
+
+      def on_raw_hasher_write(node, body)
+        raw_binary_instruction(:HasherWrite, node, body)
+      end
+
+      def on_raw_hasher_finish(node, body)
+        raw_unary_instruction(:HasherFinish, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
