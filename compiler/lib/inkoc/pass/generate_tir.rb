@@ -939,6 +939,14 @@ module Inkoc
         raw_binary_instruction(:ArrayRemove, node, body)
       end
 
+      def on_raw_array_capacity(node, body)
+        raw_unary_instruction(:ArrayCapacity, node, body)
+      end
+
+      def on_raw_array_reserve(node, body)
+        raw_binary_instruction(:ArrayReserve, node, body)
+      end
+
       def on_raw_time_monotonic(node, body)
         raw_nullary_instruction(:TimeMonotonic, node, body)
       end

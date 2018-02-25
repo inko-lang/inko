@@ -698,6 +698,14 @@ module Inkoc
         optional_array_element_value(array)
       end
 
+      def on_raw_array_capacity(*)
+        typedb.integer_type
+      end
+
+      def on_raw_array_reserve(*)
+        typedb.integer_type
+      end
+
       def on_raw_time_monotonic(*)
         typedb.float_type
       end
