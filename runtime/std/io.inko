@@ -65,4 +65,4 @@ trait Seek {
 }
 
 ## Trait for performing both read and write operations on an object.
-trait ReadWrite: Read, Write {}
+trait ReadWrite: Read + Write {}

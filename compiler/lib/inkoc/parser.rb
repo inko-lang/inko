@@ -1018,7 +1018,7 @@ module Inkoc
       while @lexer.next_type_is?(:constant)
         required << constant(advance!)
 
-        advance! if @lexer.next_type_is?(:comma)
+        advance! if @lexer.next_type_is?(:add)
       end
 
       required
