@@ -5,6 +5,7 @@ module Inkoc
     class TypeParameter
       include Inspect
       include Predicates
+      include ObjectOperations
       include TypeCompatibility
 
       attr_reader :name, :required_traits
