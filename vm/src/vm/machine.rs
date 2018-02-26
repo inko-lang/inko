@@ -3182,54 +3182,6 @@ impl Machine {
 
                     context.set_register(register, pointer);
                 }
-
-                // Reserves space for at least the given amount of values.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the new capacity in.
-                // 2. The register containing the array to grow.
-                // 3. The register containing the number of values to reserve
-                //    space for.
-                InstructionType::ArrayReserve => {
-                    let register = instruction.arg(0);
-                    let mut array_ptr =
-                        context.get_register(instruction.arg(1));
-                    let capa_ptr = context.get_register(instruction.arg(2));
-
-                    let mut array = array_ptr.array_value_mut()?;
-                    let capa = capa_ptr.integer_value()?;
-
-                    if capa < 0 {
-                        return Err(format!(
-                            "{} is not a valic array capacity",
-                            capa
-                        ));
-                    }
-
-                    array.reserve(capa as usize);
-
-                    let new_capa = self.allocate_unsigned_integer(
-                        process,
-                        array.capacity(),
-                    );
-
-                    context.set_register(register, new_capa);
-                }
-                // Returns the capacity of an Array.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the capacity in.
-                // 2. The register containing the array.
-                InstructionType::ArrayCapacity => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let capa = array_ptr.array_value()?.capacity();
-                    let pointer = self.allocate_unsigned_integer(process, capa);
-
-                    context.set_register(register, pointer);
-                }
             };
         }
 
@@ -3474,31 +3426,6 @@ impl Machine {
             } else {
                 process.pop_context();
             }
-        }
-    }
-
-    fn allocate_unsigned_integer(
-        &self,
-        process: &RcProcess,
-        value: usize,
-    ) -> ObjectPointer {
-        // This is safe because on 32 bits we never throw away information.
-        let as_u64 = value as u64;
-
-        if ObjectPointer::unsigned_integer_as_big_integer(as_u64) {
-            process.allocate(
-                object_value::bigint(Integer::from(as_u64)),
-                self.state.integer_prototype,
-            )
-        } else if ObjectPointer::unsigned_integer_too_large(as_u64) {
-            // The value is too large for a tagged integer but can still fit in
-            // a heap allocated i64.
-            process.allocate(
-                object_value::integer(as_u64 as i64),
-                self.state.integer_prototype,
-            )
-        } else {
-            ObjectPointer::integer(as_u64 as i64)
         }
     }
 }

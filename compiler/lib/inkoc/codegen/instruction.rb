@@ -135,8 +135,6 @@ module Inkoc
         HasherNew
         HasherWrite
         HasherFinish
-        ArrayReserve
-        ArrayCapacity
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

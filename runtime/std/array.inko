@@ -126,34 +126,6 @@ impl Array!(T) {
   def remove_at(index: Integer) -> ?T {
     _INKOC.array_remove(self, index)
   }
-
-  ## Returns the amount of values that can be stored in `self` before it has to
-  ## be resized.
-  ##
-  ## # Examples
-  ##
-  ## Getting the capacity of an empty `Array`:
-  ##
-  ##     [].capacity # => 0
-  ##
-  ## Getting the capacity of an `Array` with one value:
-  ##
-  ##     [10, 20].capacity # => 2
-  def capacity -> Integer {
-    _INKOC.array_capacity(self)
-  }
-
-  ## Reserves space for at least `amount` values.
-  ##
-  ## The returned value is the new capacity of `self`.
-  ##
-  ## # Panics
-  ##
-  ## This method will panic if `amount` is below `0` or greater than the word
-  ## size of the underlying platform.
-  def reserve(amount: Integer) -> Integer {
-    _INKOC.array_reserve(self, amount)
-  }
 }
 
 impl Length for Array!(T) {
