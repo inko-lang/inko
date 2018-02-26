@@ -1245,8 +1245,9 @@ module Inkoc
         callback = node.variable.define_variable_visitor_method
         vtype = define_type(node.value, scope)
 
-        if node.value_type
-          exp_type = resolve_module_type(node.value_type, scope.self_type)
+        if (def_type = node.value_type)
+          exp_type =
+            resolve_block_type(def_type, scope.block_type, scope.self_type)
 
           # If an explicit type is given and the inferred type is compatible we
           # want to use the _explicit type_ as _the_ type, instead of the

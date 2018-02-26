@@ -43,7 +43,8 @@ module Inkoc
           # type, so in this case we also need to compare with the prototype of
           # the object we're comparing with.
           if other.generic_type?
-            prototype == other || prototype == other.prototype
+            prototype == other || prototype == other.prototype ||
+              prototype&.type_compatible?(other)
           else
             prototype == other
           end

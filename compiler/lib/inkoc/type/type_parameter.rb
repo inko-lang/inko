@@ -76,7 +76,9 @@ module Inkoc
 
       def strict_type_compatible?(other)
         if other.type_parameter?
-          required_traits == other.required_traits
+          other.required_traits.all? { |t| required_traits.include?(t) }
+        elsif other.trait?
+          required_traits.include?(other)
         else
           other.implements_all_traits?(required_traits)
         end
