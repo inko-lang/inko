@@ -29,6 +29,13 @@ impl Hasher {
         // bigint. To work around that we subtract the difference between the
         // maximum u64 and i64 values, ensuring our final hash value fits in a
         // i64.
-        (self.hasher.finish() - U64_I64_DIFF) as i64
+        let hash = (self.hasher.finish() - U64_I64_DIFF) as i64;
+
+        // Rust's DefaultHasher does not reset its internal state upon calling
+        // "finish", which can be very confusing. To work around this we swap
+        // the hasher with a new one.
+        self.hasher = DefaultHasher::new();
+
+        hash
     }
 }
