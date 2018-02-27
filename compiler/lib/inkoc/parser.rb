@@ -844,7 +844,7 @@ module Inkoc
       args = []
 
       while @lexer.peek.valid_but_not?(:paren_close)
-        args << type_name(advance_and_expect!(:constant))
+        args << type(advance!)
 
         break if comma_or_break_on(:paren_close)
       end

@@ -1463,7 +1463,11 @@ module Inkoc
       end
 
       def wrap_optional_type(node, type)
-        node.optional? ? Type::Optional.new(type) : type
+        if node.optional? && !type.optional?
+          Type::Optional.new(type)
+        else
+          type
+        end
       end
 
       def define_type_parameters(arguments, type)
@@ -1500,7 +1504,7 @@ module Inkoc
 
       def resolve_type(node, self_type, sources, error_for_undefined: true)
         if (special_type = resolve_special_type(node, self_type, sources))
-          return special_type
+          return wrap_optional_type(node, special_type)
         end
 
         name = node.name
@@ -1512,7 +1516,7 @@ module Inkoc
 
         sources.find do |source|
           if (type = source.lookup_type(name))
-            return type
+            return wrap_optional_type(node, type)
           end
         end
 

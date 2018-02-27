@@ -3,6 +3,10 @@
 module Inkoc
   module AST
     module Predicates
+      def optional?
+        false
+      end
+
       def identifier?
         false
       end
