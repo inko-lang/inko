@@ -67,7 +67,7 @@ module Inkoc
       rtype = rtype.resolve_type(receiver, type_parameters)
 
       if rtype.initialize_generic_type?
-        rtype.new_instance(type_parameters)
+        rtype.new_shallow_instance(type_parameters)
       else
         rtype
       end

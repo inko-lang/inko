@@ -1236,7 +1236,7 @@ module Inkoc
 
         params = type_parameter_instances_for(node.cast_to, scope.self_type)
         rtype = resolve_module_type(node.cast_to, scope.self_type)
-          .new_instance(params)
+          .new_shallow_instance(params)
 
         wrap_optional_type(node.cast_to, rtype)
       end
@@ -1496,7 +1496,7 @@ module Inkoc
           params =
             type_parameter_instances_for_block(node, block_type, self_type)
 
-          type = type.new_instance(params)
+          type = type.new_shallow_instance(params)
         end
 
         type

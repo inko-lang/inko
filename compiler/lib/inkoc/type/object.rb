@@ -15,13 +15,14 @@ module Inkoc
       def initialize(
         name: Config::OBJECT_CONST,
         prototype: nil,
+        attributes: SymbolTable.new,
         implemented_traits: Set.new,
         type_parameters: TypeParameterTable.new,
         singleton: false
       )
         @name = name
         @prototype = prototype
-        @attributes = SymbolTable.new
+        @attributes = attributes
         @implemented_traits = implemented_traits
         @type_parameters = type_parameters
         @singleton = singleton
@@ -37,6 +38,21 @@ module Inkoc
           name: name,
           prototype: self,
           implemented_traits: implemented_traits.dup,
+          type_parameters: new_params
+        )
+      end
+
+      def new_shallow_instance(params = type_parameters)
+        return self if singleton
+
+        new_params = TypeParameterTable.new(type_parameters)
+        new_params.initialize_in_order(params)
+
+        self.class.new(
+          name: name,
+          prototype: prototype,
+          implemented_traits: implemented_traits,
+          attributes: attributes,
           type_parameters: new_params
         )
       end
@@ -67,6 +83,14 @@ module Inkoc
 
       def lookup_method(name, *)
         super.or_else { lookup_method_from_traits(name) }
+      end
+
+      def ==(other)
+        other.is_a?(self.class) &&
+          name == other.name &&
+          prototype == other.prototype &&
+          attributes == other.attributes &&
+          implemented_traits == other.implemented_traits
       end
     end
   end

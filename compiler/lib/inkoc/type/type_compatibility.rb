@@ -42,12 +42,7 @@ module Inkoc
           # Generic types that are initialized set their prototype to the base
           # type, so in this case we also need to compare with the prototype of
           # the object we're comparing with.
-          if other.generic_type?
-            prototype == other || prototype == other.prototype ||
-              prototype&.type_compatible?(other)
-          else
-            prototype == other
-          end
+          prototype_chain_compatible?(other)
         else
           basic_compat
         end
@@ -57,6 +52,18 @@ module Inkoc
         return false if other.dynamic?
 
         type_compatible?(other)
+      end
+
+      def prototype_chain_compatible?(other)
+        source = prototype
+
+        while source
+          return true if source.type_compatible?(other)
+
+          source = source.prototype
+        end
+
+        false
       end
     end
   end

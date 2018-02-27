@@ -57,7 +57,7 @@ module Inkoc
       end
 
       def new_array_of_type(type)
-        array = array_type.new_instance
+        array = array_type.new_shallow_instance
         array.initialize_type_parameter(Config::ARRAY_TYPE_PARAMETER, type)
 
         array
