@@ -1235,25 +1235,24 @@ impl Machine {
                 // 3. The register of the string to compare with.
                 InstructionType::StringEquals => {
                     let register = instruction.arg(0);
-                    let receiver_ptr = context.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(1));
                     let arg_ptr = context.get_register(instruction.arg(2));
 
-                    let boolean =
-                        if receiver_ptr.get().value.is_interned_string() {
-                            if receiver_ptr == arg_ptr {
-                                self.state.true_object
-                            } else {
-                                self.state.false_object
-                            }
+                    let boolean = if rec_ptr.is_interned_string()
+                        && arg_ptr.is_interned_string()
+                    {
+                        if rec_ptr == arg_ptr {
+                            self.state.true_object
                         } else {
-                            if receiver_ptr.string_value()?
-                                == arg_ptr.string_value()?
-                            {
-                                self.state.true_object
-                            } else {
-                                self.state.false_object
-                            }
-                        };
+                            self.state.false_object
+                        }
+                    } else {
+                        if rec_ptr.string_value()? == arg_ptr.string_value()? {
+                            self.state.true_object
+                        } else {
+                            self.state.false_object
+                        }
+                    };
 
                     context.set_register(register, boolean);
                 }
