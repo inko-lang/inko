@@ -59,7 +59,7 @@ impl Conditional for Nil {
   }
 
   ## Always calls the block provided in the `false` argument.
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
+  def if!(R)(true: do -> R, false: do -> R) -> R {
     false.call
   }
 

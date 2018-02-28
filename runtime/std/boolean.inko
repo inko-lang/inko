@@ -20,7 +20,7 @@ impl Conditional for True {
     Nil
   }
 
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
+  def if!(R)(true: do -> R, false: do -> R) -> R {
     true.call
   }
 
@@ -42,7 +42,7 @@ impl Conditional for False {
     block.call
   }
 
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
+  def if!(R)(true: do -> R, false: do -> R) -> R {
     false.call
   }
 

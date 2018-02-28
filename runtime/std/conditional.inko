@@ -24,7 +24,7 @@
 ##         block.call
 ##       }
 ##
-##       def if!(R)(true: do -> R, false: do -> R) -> ?R {
+##       def if!(R)(true: do -> R, false: do -> R) -> R {
 ##         false.call
 ##       }
 ##     }
@@ -52,7 +52,7 @@ trait Conditional {
   ##
   ## The return value is whatever the block returned. Both the blocks must
   ## return a value of the same type.
-  def if!(R)(true: do -> R, false: do -> R) -> ?R
+  def if!(R)(true: do -> R, false: do -> R) -> R
 
   ## Returns `True` if `self` and the given object evaluate to `True`.
   ##

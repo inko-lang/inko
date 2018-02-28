@@ -10,7 +10,7 @@ impl Conditional for Object {
     Nil
   }
 
-  def if!(R)(true: do -> R, false: do -> R) -> ?R {
+  def if!(R)(true: do -> R, false: do -> R) -> R {
     true.call
   }
 
