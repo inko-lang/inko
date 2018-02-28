@@ -314,10 +314,10 @@ module Inkoc
           resolved = type_params.instance_for(type.name) || type
 
           if type.optional? && !resolved.optional?
-            resolved = Type::Optional.new(resolved)
+            Type::Optional.new(resolved)
+          else
+            resolved
           end
-
-          resolved
         else
           type
         end

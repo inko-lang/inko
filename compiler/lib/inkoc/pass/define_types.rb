@@ -797,10 +797,8 @@ module Inkoc
         end
       end
 
-      def on_raw_get_prototype(node, _)
-        proto = node.arguments.fetch(0).type.prototype || typedb.nil_type
-
-        Type::Optional.new(proto)
+      def on_raw_get_prototype(*)
+        Type::Dynamic.new
       end
 
       def on_raw_get_attribute_names(*)
@@ -958,7 +956,7 @@ module Inkoc
 
         rtype = try_type.if_physical_or_else { else_type }
 
-        if else_type.nil_type?
+        if !rtype.nil_type? && else_type.nil_type?
           Type::Optional.new(rtype)
         else
           rtype

@@ -27,11 +27,11 @@ module Inkoc
       end
 
       def resolve_type(*args)
-        self.class.new(type.resolve_type(*args))
+        wrap_optional(type.resolve_type(*args))
       end
 
       def initialize_as(*args)
-        self.class.new(type.initialize_as(*args))
+        wrap_optional(type.initialize_as(*args))
       end
 
       def type_name
@@ -46,6 +46,22 @@ module Inkoc
 
       def respond_to_missing?(name, include_private = false)
         type.respond_to?(name, include_private)
+      end
+
+      def type_compatible?(other)
+        if other.optional? || other.dynamic?
+          super
+        else
+          false
+        end
+      end
+
+      def wrap_optional(type)
+        if type.optional?
+          type
+        else
+          self.class.new(type)
+        end
       end
     end
   end
