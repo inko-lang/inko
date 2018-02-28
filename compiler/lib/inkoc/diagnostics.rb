@@ -298,5 +298,11 @@ module Inkoc
         location
       )
     end
+
+    def dereference_error(type, location)
+      tname = type.type_name
+
+      error("The type #{tname} is not an optional type", location)
+    end
   end
 end

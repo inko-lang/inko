@@ -73,6 +73,10 @@ module Inkoc
       def on_type_cast(node)
         process_node(node.expression)
       end
+
+      def on_dereference(node)
+        process_node(node.expression)
+      end
     end
   end
 end

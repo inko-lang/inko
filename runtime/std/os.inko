@@ -15,7 +15,7 @@ let PLATFORMS = ['windows', 'unix', 'other']
 ##
 ##     os.platform # => 'unix'
 def platform -> String {
-  PLATFORMS[_INKOC.platform]
+  *PLATFORMS[_INKOC.platform]
 }
 
 ## The newline separator to use on the current platform.

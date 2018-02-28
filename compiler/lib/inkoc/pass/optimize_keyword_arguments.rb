@@ -90,6 +90,10 @@ module Inkoc
           node
         end
       end
+
+      def on_dereference(node)
+        process_node(node.expression)
+      end
     end
   end
 end

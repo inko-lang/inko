@@ -1331,6 +1331,17 @@ module Inkoc
         diagnostics.type_error(existing_type, value_type, node.value.location)
       end
 
+      def on_dereference(node, scope)
+        type = define_type(node.expression, scope)
+
+        if type.optional?
+          type.type
+        else
+          diagnostics.dereference_error(type, node.location)
+          type
+        end
+      end
+
       def block_signature(node, type, scope, constraints: false)
         define_type_parameters(node.type_parameters, type)
         define_arguments(node.arguments, type, scope, constraints: constraints)

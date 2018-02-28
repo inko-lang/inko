@@ -275,15 +275,23 @@ module Inkoc
     end
 
     def binary_send(start)
-      node = send_chain(start)
+      node = dereference(start)
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = send_chain(@lexer.advance)
+        rhs = dereference(@lexer.advance)
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
       end
 
       node
+    end
+
+    def dereference(start)
+      if start.type == :mul
+        AST::Dereference.new(send_chain(advance!), start.location)
+      else
+        send_chain(start)
+      end
     end
 
     # Parses an expression such as `[X]` or `[X] = Y`.

@@ -1203,6 +1203,10 @@ module Inkoc
         ret_reg
       end
 
+      def on_dereference(node, body)
+        process_node(node.expression, body)
+      end
+
       def register_for_else_block(node, body, catch_reg)
         block_reg = define_block_for_else(node, body)
         self_reg = get_self(body, node.else_body.location)

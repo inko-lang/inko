@@ -131,6 +131,10 @@ module Inkoc
         process_node(node.expression, block_type)
       end
 
+      def on_dereference(node, block_type)
+        process_node(node.expression, block_type)
+      end
+
       def error_for_missing_throw_in_block(node, block_type)
         process_nodes(node.arguments, block_type)
         process_node(node.body, block_type)
