@@ -51,7 +51,7 @@ module Inkoc
     end
 
     def initialize_type_parameter(name, type)
-      if receiver.lookup_type_parameter(name)
+      if !receiver.type_parameter? && receiver.lookup_type_parameter(name)
         receiver.initialize_type_parameter(name, type)
       end
 
