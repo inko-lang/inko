@@ -33,7 +33,7 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        other.void? || other.dynamic?
+        other.void? || other.dynamic? || other.type_parameter?
       end
       alias strict_type_compatible? type_compatible?
 
