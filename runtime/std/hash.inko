@@ -1,0 +1,28 @@
+#! Types and methods for hashing data.
+
+import std::operators::Equal
+
+## Trait for hashing integers.
+##
+## A `Hasher` is a streaming hasher: instead of feeding it a single value and
+## receiving a hash right away you write individual values to the `Hasher`. Once
+## you're done you send the `finish` message to the `Hasher` to obtain the final
+## hashed value. This approach makes it easier to hash multiple values together
+## such as the bytes in a `String`.
+trait Hasher {
+  ## Writes the given `Integer` into this hasher.
+  def write(value: Integer)
+
+  ## Returns the hash for the values written so far.
+  ##
+  ## Once a hash has been produced this method will reset the internal state of
+  ## this `Hasher`, removing the need for allocating a new `Hasher` every time
+  ## you want to hash an object.
+  def finish -> Integer
+}
+
+## A value that can be hashed.
+trait Hash: Equal {
+  ## Writes the hash for `self` into the given `Hasher`.
+  def hash(hasher: Hasher)
+}

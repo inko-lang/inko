@@ -1,0 +1,420 @@
+#! A hash map using linear probing and Robin Hood bucket stealing.
+
+import std::hash::(Hash, Hasher)
+import std::index::(Index, SetIndex)
+import std::length::Length
+import std::operators::Equal
+
+# The load factor of a Table before it should be resized.
+let LOAD_FACTOR = 0.75
+
+## The default `Hasher` for a `HashMap`.
+##
+## Different instances of a `DefaultHasher` may produce different hash values
+## for the same object. The internal hashing algorithm may also change, and so
+## the exact hash values should not be relied upon.
+##
+## Internally this hasher uses the hashing instructions provided by IVM, which
+## currently uses SipHash 1-3.
+object DefaultHasher {
+  def new -> Self {
+    let hasher = _INKOC.hasher_new
+
+    hasher.prototype = self
+    hasher as DefaultHasher
+  }
+}
+
+impl Hasher for DefaultHasher {
+  def write(value: Integer) {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def finish -> Integer {
+    _INKOC.hasher_finish(self)
+  }
+}
+
+## A single key-value pair
+object Node!(K: Hash + Equal, V) {
+  def init(key: K, value: V, hash: Integer) {
+    ## The key that was hashed.
+    let @key = key
+
+    ## The value of our key.
+    let @value = value
+
+    ## The hash value of our key.
+    let @hash = hash
+
+    ## The distance of this node relative to its desired index.
+    let mut @distance = 0
+  }
+
+  def distance -> Integer {
+    @distance
+  }
+
+  def prepare_for_rehash -> Integer {
+    @distance = -1
+  }
+
+  def reset_distance -> Integer {
+    @distance = 0
+  }
+
+  def increase_distance -> Integer {
+    @distance += 1
+  }
+
+  def key -> K {
+    @key
+  }
+
+  def value -> V {
+    @value
+  }
+
+  def hash -> Integer {
+    @hash
+  }
+}
+
+## A raw HashMap-like structure that can be used for building high level data
+## structures such as HashMap itself.
+##
+## A Table uses linear probing for finding values and Robin Hood hashing.
+## Removals are performed using backwards shift deletion.
+##
+## For more information on these algorithms you can refer to the following
+## resources:
+##
+## * http://codecapsule.com/2013/11/11/robin-hood-hashing/
+## * http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/
+## * https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/
+object Table!(K: Hash + Equal, V) {
+  def init(hasher: Hasher = DefaultHasher.new) {
+    ## The Hasher to use for hashing keys.
+    let mut @hasher = hasher
+
+    ## The buckets to store nodes in. Each bucket can only contain a single
+    ## node.
+    let mut @buckets: Array!(?Node!(K, V)) = []
+
+    ## The number of key-value pairs stored in this table.
+    let mut @length = 0
+
+    ## The number of values that can be stored before resizing.
+    let mut @capacity = 1
+
+    ## The number of values to store before a resize is necessary.
+    ## We store this value explicitly so we don't have to allocate floats every
+    ## time we want to check if we need to resize.
+    let mut @resize_threshold = 0
+  }
+
+  ## Returns the number of key-value pairs stored in this table.
+  def length -> Integer {
+    @length
+  }
+
+  ## Resizes and rehashes the table.
+  def resize {
+    @capacity = @capacity * 2
+    @resize_threshold = (LOAD_FACTOR * @capacity.to_float).to_integer
+
+    # We immediately resize the Array (by padding it wil Nil values) so we don't
+    # need to do this when inserting new elements.
+    @buckets[@capacity - 1] = Nil
+
+    rehash
+  }
+
+  ## Rehashes the table.
+  ##
+  ## Rehashing is done in two separate steps:
+  ##
+  ## 1. We set the distances of all nodes to -1.
+  ## 2. We relocate all nodes with a distance of -1.
+  ##
+  ## This approach removes the need for allocating a new `Array` to copy all the
+  ## nodes to, at the cost of requiring slightly more CPU time.
+  def rehash {
+    let mut prepare_index = 0
+    let mut rehash_index = 0
+
+    { prepare_index < @buckets.length }.while_true {
+      @buckets[prepare_index].prepare_for_rehash
+      prepare_index += 1
+    }
+
+    { rehash_index < @buckets.length }.while_true {
+      let node = @buckets[rehash_index]
+
+      node.distance.negative?.if_true {
+        @buckets[rehash_index] = Nil
+        node.reset_distance
+        insert_node(node: *node, increment_length: False)
+      }
+
+      rehash_index += 1
+    }
+  }
+
+  ## Returns `True` if this table should be resized.
+  def resize? -> Boolean {
+    @length >= @resize_threshold
+  }
+
+  ## Returns the hash for the given key.
+  def hash_key(key: K) -> Integer {
+    key.hash(@hasher)
+
+    @hasher.finish
+  }
+
+  ## Returns the desired bucket index for the given hash.
+  def desired_bucket(hash: Integer) -> Integer {
+    hash % @capacity
+  }
+
+  ## Inserts a new node into the table.
+  ##
+  ## If the `increment_length` argument is set to `True` we'll also increment
+  ## the length of the table should the node be a newly inserted node.
+  def insert_node(mut node: Node!(K, V), increment_length = True) {
+    let mut index = desired_bucket(node.hash)
+
+    {
+      let existing = @buckets[index]
+
+      existing.if true: {
+        (existing.key == node.key).if_true {
+          @buckets[index] = node
+          return
+        }
+
+        # Per Robin Hood hashing we swap the to-insert and existing nodes if the
+        # existing node is closer to its desired bucket.
+        (existing.distance < node.distance).if_true {
+          @buckets[index] = node
+          node = *existing
+        }
+      }, false: {
+        increment_length.if_true {
+          @length += 1
+        }
+
+        @buckets[index] = node
+        return
+      }
+
+      index = desired_bucket(index + 1)
+      node.increase_distance
+    }.loop
+  }
+
+  ## Returns the index of the bucket the key resides in.
+  def bucket_index(key: K) -> ?Integer {
+    let mut index = desired_bucket(hash_key(key))
+    let desired = index
+    let mut node = @buckets[index]
+
+    { node.key != key }.while_true {
+      index = desired_bucket(index + 1)
+
+      (index == desired).if_true {
+        # We cycled through all buckets but didn't find a matching node.
+        return
+      }
+
+      node = @buckets[index]
+    }
+
+    index
+  }
+
+  ## Removes the key from this table, returning its value (if any).
+  def remove(key: K) -> ?V {
+    let index = bucket_index(key)
+
+    index.if true: {
+      let node = @buckets[*index]
+
+      @buckets[*index] = Nil
+      @length -= 1
+
+      backwards_shift(*index + 1)
+
+      node.value
+    }, false: {
+      Nil
+    }
+  }
+
+  ## Shifts all nodes to the left starting at the given bucket index.
+  def backwards_shift(mut index: Integer) {
+    let mut node = @buckets[index]
+
+    { node.and { node.distance.positive? } }.while_true {
+      @buckets[index - 1] = node
+      @buckets[index] = Nil
+
+      index += 1
+      node = @buckets[index]
+    }
+  }
+}
+
+impl Index!(K, V) for Table!(K, V) {
+  def [](key: K) -> ?V {
+    let index = bucket_index(key)
+
+    index.if true: {
+      @buckets[*index].value
+    }, false: {
+      Nil
+    }
+  }
+}
+
+impl SetIndex!(K, V) for Table!(K, V) {
+  def []=(key: K, value: V) -> V {
+    resize?.if_true {
+      resize
+    }
+
+    insert_node(Node.new(key: key, value: value, hash: hash_key(key)))
+
+    value
+  }
+}
+
+## An unordered hash map using linear probing and Robin Hood bucket stealing.
+##
+## The keys in a `HashMap` can be any object that implements the `Hash` and
+## `Equal` traits. The values can be of any type. It's possible to store keys
+## (or values) of different types but this will require the use of `Dynamic`.
+##
+## A `HashMap` is unordered, meaning that keys can be returned in a (seemingly)
+## random order.
+##
+## # Custom Hashers
+##
+## By default a `HashMap` uses `DefaultHasher` for hashing objects. You can
+## provide a custom hasher using `HashMap.new(hasher: YourCustomerHasher.new)`,
+## as long as the custom hasher implements the `Hasher` trait.
+object HashMap!(K: Hash + Equal, V) {
+  ## Creates a new, empty `HashMap`.
+  ##
+  ## The `hasher` argument can be used to provide an alternative `Hasher` to use
+  ## for this `HashMap`.
+  def init(hasher: Hasher = DefaultHasher.new) {
+    let mut @table = Table.new(hasher)
+  }
+
+  ## Removes the given key, returning its value if the key was present in the
+  ## map.
+  ##
+  ## # Examples
+  ##
+  ## Removing a non-existing key:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map.remove('name') # => Nil
+  ##
+  ## Removing an existing key:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.remove('name') # => 'Alice'
+  def remove(key: K) -> ?V {
+    @table.remove(key)
+  }
+
+  ## Returns `True` if the map is empty.
+  ##
+  ## # Examples
+  ##
+  ## Using a map that is empty:
+  ##
+  ##     let map = HashMap.new
+  ##
+  ##     map.empty? # => True
+  ##
+  ## Using a map that is not empty:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.empty? # => False
+  def empty? -> Boolean {
+    length.zero?
+  }
+}
+
+impl Index!(K, V) for HashMap!(K, V) {
+  ## Returns the value for the given key, if any.
+  ##
+  ## # Examples
+  ##
+  ## Getting the value of a non-existing key:
+  ##
+  ##     let map = HashMap.new
+  ##
+  ##     map['name'] # => Nil
+  ##
+  ## Getting the value of an existing key:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map['name'] # => 'Alice'
+  def [](key: K) -> ?V {
+    @table[key]
+  }
+}
+
+impl SetIndex!(K, V) for HashMap!(K, V) {
+  ## Inserts the given key and value into this map, returning the inserted
+  ## value.
+  ##
+  ## # Examples
+  ##
+  ## Inserting a new key-value pair:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice' # => 'Alice'
+  def []=(key: K, value: V) -> V {
+    @table[key] = value
+  }
+}
+
+impl Length for HashMap!(K, V) {
+  ## Returns the number of key-value pairs in this map.
+  ##
+  ## # Examples
+  ##
+  ## Using an empty map:
+  ##
+  ##     let map = HashMap.new
+  ##
+  ##     map.length # => 0
+  ##
+  ## Using a map with one key-value pair:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.length # => 1
+  def length -> Integer {
+    @table.length
+  }
+}
