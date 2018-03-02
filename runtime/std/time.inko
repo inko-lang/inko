@@ -428,7 +428,7 @@ object Time {
     let mut months = 0
 
     { DAYS_IN_MONTH[months] <= rem_days }.while_true {
-      rem_days -= DAYS_IN_MONTH[months]
+      rem_days -= *DAYS_IN_MONTH[months]
       months += 1
     }
 
@@ -549,7 +549,7 @@ object Time {
         DAYS_SINCE_JANUARY_NORMAL
       }
 
-    table[month - 1] + day - 1
+    (*table[month - 1]) + day - 1
   }
 
   ## Returns the number of days between `self` and the Unix epoch.
