@@ -6,6 +6,9 @@ let NANOSEC_TO_SEC = 1_000_000_000.0
 ## The number to divide a value in milliseconds by to convert it to seconds.
 let MILLISEC_TO_SEC = 1000.0
 
+## The number to divide a value in microseconds by to convert it to seconds.
+let MICROSEC_TO_SEC = 1_000_000.0
+
 ## The number of seconds per minute, excluding any leap seconds.
 let SECS_PER_MIN = 60
 

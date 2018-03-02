@@ -115,6 +115,21 @@ object Duration {
     @seconds * MILLISEC_TO_SEC
   }
 
+  ## Returns the duration in microseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the microseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let duration = Duration.from_seconds(5)
+  ##
+  ##     duration.as_microseconds # => 5000000.0
+  def as_microseconds -> Float {
+    @seconds * MICROSEC_TO_SEC
+  }
+
   ## Returns the duration in nanoseconds.
   ##
   ## # Examples
