@@ -353,8 +353,13 @@ module Inkoc
       token.value.gsub!(escaped, quote) if has_escape
 
       if has_special && unescape_special
-        token.value
-          .gsub!(/\\t|\\r|\\n/, '\t' => "\t", '\n' => "\n", '\r' => "\r")
+        token.value.gsub!(
+          /\\t|\\r|\\n|\\e/,
+          '\t' => "\t",
+          '\n' => "\n",
+          '\r' => "\r",
+          '\e' => "\e"
+        )
       end
 
       @column += 2
