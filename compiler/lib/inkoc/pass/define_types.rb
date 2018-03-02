@@ -265,11 +265,9 @@ module Inkoc
           return rtype
         end
 
-        symbol = receiver.lookup_method(name)
-        method_type = symbol.type
-
+        method_type = receiver.lookup_method(name).type
         context = MessageContext
-          .new(receiver, method_type, args, scope, location)
+          .new(receiver, method_type, args, scope, typedb, location)
 
         verify_send_arguments(context)
 

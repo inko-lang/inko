@@ -18,6 +18,14 @@ module Inkoc
 
       attr_reader :type
 
+      def self.wrap(type)
+        if type.optional?
+          type
+        else
+          new(type)
+        end
+      end
+
       def initialize(type)
         @type = type
       end
@@ -27,11 +35,11 @@ module Inkoc
       end
 
       def resolve_type(*args)
-        wrap_optional(type.resolve_type(*args))
+        self.class.wrap(type.resolve_type(*args))
       end
 
       def initialize_as(*args)
-        wrap_optional(type.initialize_as(*args))
+        self.class.wrap(type.initialize_as(*args))
       end
 
       def type_name
@@ -53,14 +61,6 @@ module Inkoc
           super
         else
           false
-        end
-      end
-
-      def wrap_optional(type)
-        if type.optional?
-          type
-        else
-          self.class.new(type)
         end
       end
     end

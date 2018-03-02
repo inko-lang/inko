@@ -3,13 +3,14 @@
 module Inkoc
   class MessageContext
     attr_reader :receiver, :block, :arguments, :type_parameters, :location,
-                :type_scope
+                :type_scope, :typedb
 
-    def initialize(receiver, block, arguments, type_scope, location)
+    def initialize(receiver, block, arguments, type_scope, typedb, location)
       @receiver = receiver
       @block = block
       @arguments = arguments
       @type_scope = type_scope
+      @typedb = typedb
       @location = location
 
       @type_parameters =
@@ -66,10 +67,25 @@ module Inkoc
       rtype = block.return_type
       rtype = rtype.resolve_type(receiver, type_parameters)
 
-      if rtype.initialize_generic_type?
-        rtype.new_shallow_instance(type_parameters)
+      rtype =
+        if rtype.initialize_generic_type?
+          rtype.new_shallow_instance(type_parameters)
+        else
+          rtype
+        end
+
+      wrap_optional_return_type(rtype)
+    end
+
+    def wrap_optional_return_type(type)
+      return type unless receiver.optional?
+
+      # If Nil doesn't define the method we need to wrap the return type in an
+      # optional type.
+      if typedb.nil_type.lookup_method(block.name).any?
+        type
       else
-        rtype
+        Type::Optional.wrap(type)
       end
     end
   end
