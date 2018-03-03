@@ -213,6 +213,7 @@ impl ObjectValue {
     pub fn is_immutable(&self) -> bool {
         match self {
             &ObjectValue::Float(_)
+            | &ObjectValue::Integer(_)
             | &ObjectValue::String(_)
             | &ObjectValue::BigInt(_)
             | &ObjectValue::InternedString(_) => true,
