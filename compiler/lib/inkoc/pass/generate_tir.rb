@@ -196,13 +196,15 @@ module Inkoc
         if node.symbol && node.depth
           get_local_symbol(node.depth, node.symbol, body, loc)
         elsif body.self_type.responds_to_message?(name)
-          send_to_self(name, body, loc)
+          send_to_self(name, node.block_type, node.type, body, loc)
         elsif @module.responds_to_message?(name)
           send_object_message(
             get_global(Config::MODULE_GLOBAL, body, loc),
             name,
             [],
             [],
+            node.block_type,
+            node.type,
             body,
             loc
           )
@@ -362,7 +364,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [trait], [], body, loc)
+        run_block(block, [trait], [], node.type, body, loc)
 
         trait
       end
@@ -397,7 +399,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [object], [], body, loc)
+        run_block(block, [object], [], node.type, body, loc)
 
         object
       end
@@ -414,6 +416,8 @@ module Inkoc
             Config::IMPLEMENT_TRAIT_MESSAGE,
             [trait],
             [],
+            node.block_type,
+            node.type,
             body,
             loc
           )
@@ -428,7 +432,7 @@ module Inkoc
             loc
           )
 
-          run_block(block, [object], [], body, loc)
+          run_block(block, [object], [], node.type, body, loc)
         end
 
         trait
@@ -448,7 +452,7 @@ module Inkoc
           loc
         )
 
-        run_block(block, [object], [], body, loc)
+        run_block(block, [object], [], node.type, body, loc)
 
         object
       end
@@ -476,11 +480,19 @@ module Inkoc
       end
 
       def on_send(node, body)
-        location = node.location
         receiver = receiver_for_send(node, body)
         args, kwargs = split_send_arguments(node.arguments, body)
 
-        send_object_message(receiver, node.name, args, kwargs, body, location)
+        send_object_message(
+          receiver,
+          node.name,
+          args,
+          kwargs,
+          node.block_type,
+          node.type,
+          body,
+          node.location
+        )
       end
 
       def split_send_arguments(arguments, body)
@@ -884,7 +896,14 @@ module Inkoc
         self_reg = get_self(body, node.location)
         args, kwargs = split_send_arguments(node.arguments[1..-1], body)
 
-        run_block(block, [self_reg, *args], kwargs, body, node.location)
+        run_block(
+          block,
+          [self_reg, *args],
+          kwargs,
+          block.type.return_type,
+          body,
+          node.location
+        )
       end
 
       def on_raw_get_string_prototype(node, body)
@@ -1219,7 +1238,9 @@ module Inkoc
             [self_reg]
           end
 
-        run_block(block_reg, arguments, [], body, else_loc)
+        return_type = block_reg.type.return_type
+
+        run_block(block_reg, arguments, [], return_type, body, else_loc)
       end
 
       def define_block_for_else(node, body)
@@ -1238,9 +1259,9 @@ module Inkoc
         body.instruct(:SetBlock, body.register(block_type), else_code, location)
       end
 
-      def run_block(block, args, kwargs, body, location)
+      def run_block(block, args, kwargs, return_type, body, location)
         type = block.type
-        register = body.register(type.return_type)
+        register = body.register(return_type)
 
         body.instruct(:RunBlock, register, block, args, kwargs, type, location)
       end
@@ -1248,50 +1269,54 @@ module Inkoc
       # Gets and executes a block, without using a fallback.
       #
       # rec - The register containing the receiver a message is sent to.
-      # rec_type - The type of the receiver.
       # name - The name of the message being sent.
       # args - The arguments passed to the block.
       # kwargs - The keyword arguments passed to the block.
+      # block_type - The type of the block being executed.
+      # return_type - The type being returned.
       # body - The CompiledCode object to generate the instructions in.
       # loc - The SourceLocation of the operation.
       def run_block_without_unknown_message(
         rec,
-        rec_type,
         name,
         args,
         kwargs,
+        block_type,
+        return_type,
         body,
         loc
       )
-        block = body.register(rec_type.lookup_method(name).type)
+        block = body.register(block_type)
         name_reg = set_string(name, body, loc)
 
         body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
 
-        run_block(block, args, kwargs, body, loc)
+        run_block(block, args, kwargs, return_type, body, loc)
       end
 
       # Gets and executes a block, using a fallback if the block could not be
       # found.
       #
       # rec - The register containing the receiver a message is sent to.
-      # rec_type - The type of the receiver.
       # name - The name of the message being sent.
       # args - The arguments passed to the block.
       # kwargs - The keyword arguments passed to the block.
+      # block_type - The type of the block being executed.
+      # return_type - The type being returned.
       # body - The CompiledCode object to generate the instructions in.
       # loc - The SourceLocation of the operation.
       def run_block_with_unknown_message(
         rec,
-        rec_type,
         name,
         args,
         kwargs,
+        block_type,
+        return_type,
         body,
         loc
       )
-        block_reg = body.register(rec_type.lookup_method(name).type)
-        ret_reg = body.register(block_reg.type.return_type)
+        block_reg = body.register(block_type)
+        ret_reg = body.register(return_type)
         args_reg = body.register(typedb.new_array_of_type(Type::Dynamic.new))
 
         name_reg = set_string(name, body, loc)
@@ -1339,8 +1364,19 @@ module Inkoc
         ret_reg
       end
 
-      def send_to_self(name, body, loc)
-        send_object_message(get_self(body, loc), name, [], [], body, loc)
+      def send_to_self(name, block_type, return_type, body, location)
+        receiver = get_self(body, location)
+
+        send_object_message(
+          receiver,
+          name,
+          [],
+          [],
+          block_type,
+          return_type,
+          body,
+          location
+        )
       end
 
       def get_toplevel(body, location)
@@ -1383,28 +1419,57 @@ module Inkoc
         body.instruct(:SetLiteral, register, value, location)
       end
 
-      def send_object_message(rec, name, arguments, kwargs, body, loc)
+      def send_object_message(
+        rec,
+        name,
+        arguments,
+        kwargs,
+        block_type,
+        return_type,
+        body,
+        loc
+      )
         rec_type = rec.type.resolve_type(body.self_type)
         sargs = [rec, *arguments]
 
         if send_initializes_array?(rec_type, name)
-          send_sets_array(rec_type, name, arguments, body, loc)
+          send_sets_array(arguments, return_type, body, loc)
         elsif send_runs_block?(rec_type, name)
-          run_block(rec, sargs, kwargs, body, loc)
+          run_block(rec, sargs, kwargs, return_type, body, loc)
         else
-          lookup_and_run_block(rec, rec_type, name, sargs, kwargs, body, loc)
+          lookup_and_run_block(
+            rec,
+            rec_type,
+            name,
+            sargs,
+            kwargs,
+            block_type,
+            return_type,
+            body,
+            loc
+          )
         end
       end
 
-      def send_sets_array(receiver, name, arguments, body, location)
-        register = body.register(receiver.message_return_type(name))
+      def send_sets_array(arguments, return_type, body, location)
+        register = body.register(return_type)
 
         body.instruct(:SetArray, register, arguments, location)
       end
 
-      def lookup_and_run_block(rec, rec_type, name, args, kwargs, body, loc)
+      def lookup_and_run_block(
+        receiver,
+        receiver_type,
+        name,
+        args,
+        kwargs,
+        block_type,
+        return_type,
+        body,
+        loc
+      )
         message =
-          if rec_type.guard_unknown_message?(name)
+          if receiver_type.guard_unknown_message?(name)
             :run_block_with_unknown_message
           else
             :run_block_without_unknown_message
@@ -1412,11 +1477,12 @@ module Inkoc
 
         public_send(
           message,
-          rec,
-          rec_type,
+          receiver,
           name,
           args,
           kwargs,
+          block_type,
+          return_type,
           body,
           loc
         )
