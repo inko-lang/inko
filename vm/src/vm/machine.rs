@@ -602,9 +602,9 @@ impl Machine {
                         break 'exec_loop;
                     }
 
-                    safepoint_and_reduce!(self, process, reductions);
-
                     reset_context!(process, context, code, index);
+
+                    safepoint_and_reduce!(self, process, reductions);
                 }
                 // Jumps to an instruction if a register is not set or set
                 // to false.
@@ -2577,7 +2577,9 @@ impl Machine {
 
                     context.register.values.reset();
 
-                    index = 0;
+                    context.instruction_index = 0;
+
+                    reset_context!(process, context, code, index);
 
                     safepoint_and_reduce!(self, process, reductions);
                 }
