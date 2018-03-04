@@ -5,7 +5,6 @@ use rayon::prelude::*;
 use gc::collector;
 use gc::profile::Profile;
 use gc::trace_result::TraceResult;
-use gc::work_list::WorkList;
 use process::RcProcess;
 use vm::state::RcState;
 
@@ -71,11 +70,7 @@ pub fn trace_remembered_set(
     process: &RcProcess,
     move_objects: bool,
 ) -> TraceResult {
-    let mut pointers = WorkList::new();
-
-    for pointer in process.local_data_mut().remembered_set.iter() {
-        pointers.push(pointer.pointer());
-    }
+    let pointers = process.local_data().allocator.remembered_pointers();
 
     if move_objects {
         collector::trace_pointers_with_moving(process, pointers, true)
@@ -90,15 +85,10 @@ pub fn trace_remembered_set(
 /// already traverse all mature objects. This allows us to remove any
 /// unmarked mature objects from the remembered set.
 pub fn prune_remembered_set(process: &RcProcess) {
-    let local_data = process.local_data_mut();
-
-    let keep = local_data
-        .remembered_set
-        .drain()
-        .filter(|p| p.is_marked())
-        .collect();
-
-    local_data.remembered_set = keep;
+    process
+        .local_data_mut()
+        .allocator
+        .prune_remembered_objects();
 }
 
 /// Traces through all local pointers in a mailbox, without moving objects.
@@ -280,7 +270,7 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
-        local_data.remembered_set.insert(pointer1);
+        local_data.allocator.remember_object(pointer1);
 
         process.prepare_for_collection(false);
 
@@ -303,7 +293,7 @@ mod tests {
 
         pointer1.block_mut().set_fragmented();
 
-        local_data.remembered_set.insert(pointer1);
+        local_data.allocator.remember_object(pointer1);
 
         process.prepare_for_collection(false);
 
@@ -330,13 +320,17 @@ mod tests {
 
         pointer2.mark();
 
-        local_data.remembered_set.insert(pointer1);
-        local_data.remembered_set.insert(pointer2);
+        local_data.allocator.remember_object(pointer1);
+        local_data.allocator.remember_object(pointer2);
 
         prune_remembered_set(&process);
 
-        assert_eq!(local_data.remembered_set.contains(&pointer1), false);
-        assert!(local_data.remembered_set.contains(&pointer2));
+        assert_eq!(
+            local_data.allocator.remembered_set.contains(&pointer1),
+            false
+        );
+
+        assert!(local_data.allocator.remembered_set.contains(&pointer2));
     }
 
     #[test]

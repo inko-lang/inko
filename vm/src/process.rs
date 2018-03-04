@@ -1,5 +1,4 @@
 use std::cell::UnsafeCell;
-use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::{Arc, Mutex};
@@ -59,11 +58,6 @@ pub struct LocalData {
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
 
-    /// The remembered set of this process. This set is not synchronized via a
-    /// lock of sorts. As such the collector must ensure this process is
-    /// suspended upon examining the remembered set.
-    pub remembered_set: HashSet<ObjectPointer>,
-
     /// The mailbox for sending/receiving messages.
     ///
     /// The Mailbox is stored in LocalData as a Mailbox uses internal locking
@@ -112,7 +106,6 @@ impl Process {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone(), config),
             context: Box::new(context),
-            remembered_set: HashSet::new(),
             mailbox: Mailbox::new(global_allocator, config),
             young_collections: 0,
             mature_collections: 0,
@@ -359,7 +352,7 @@ impl Process {
     }
 
     pub fn has_remembered_objects(&self) -> bool {
-        self.local_data().remembered_set.len() > 0
+        self.local_data().allocator.has_remembered_objects()
     }
 
     /// Write barrier for tracking cross generation writes.
@@ -372,7 +365,7 @@ impl Process {
         written: ObjectPointer,
     ) {
         if written_to.is_mature() && written.is_young() {
-            self.local_data_mut().remembered_set.insert(written_to);
+            self.local_data_mut().allocator.remember_object(written_to);
         }
     }
 

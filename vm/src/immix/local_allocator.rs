@@ -2,8 +2,10 @@
 //!
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
+use std::collections::HashSet;
 
 use config::Config;
+use gc::work_list::WorkList;
 use immix::bucket::{Bucket, MATURE};
 use immix::copy_object::CopyObject;
 use immix::generation_config::GenerationConfig;
@@ -28,6 +30,11 @@ pub struct LocalAllocator {
 
     /// The position of the eden bucket in the young generation.
     pub eden_index: usize,
+
+    /// The remembered set of this process. This set is not synchronized via a
+    /// lock of sorts. As such the collector must ensure this process is
+    /// suspended upon examining the remembered set.
+    pub remembered_set: HashSet<ObjectPointer>,
 
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
@@ -68,6 +75,7 @@ impl LocalAllocator {
             mature_generation: Bucket::with_age(MATURE),
             young_config: young_config,
             mature_config: mature_config,
+            remembered_set: HashSet::new(),
         }
     }
 
@@ -111,13 +119,8 @@ impl LocalAllocator {
             if self.mature_generation.prepare_for_collection() {
                 move_objects = true;
             }
-        } else {
-            // Since the write barrier may track mature objects we need to
-            // always reset mature bitmaps. This ensures we can scan said mature
-            // objects for child pointers
-            for block in self.mature_generation.blocks.iter_mut() {
-                block.update_line_map();
-            }
+        } else if self.has_remembered_objects() {
+            self.prepare_remembered_objects_for_collection();
         }
 
         move_objects
@@ -224,6 +227,37 @@ impl LocalAllocator {
         } else if self.young_config.should_increment() {
             self.young_config.increment_threshold();
         }
+    }
+
+    pub fn has_remembered_objects(&self) -> bool {
+        self.remembered_set.len() > 0
+    }
+
+    pub fn remember_object(&mut self, pointer: ObjectPointer) {
+        self.remembered_set.insert(pointer);
+    }
+
+    pub fn prune_remembered_objects(&mut self) {
+        self.remembered_set.retain(|p| p.is_marked());
+    }
+
+    pub fn prepare_remembered_objects_for_collection(&mut self) {
+        for pointer in self.remembered_set.iter() {
+            // We prepare the entire block because this is simpler than having
+            // to figure out if we can unmark a line or not (since a line may
+            // contain multiple objects).
+            pointer.block_mut().prepare_for_collection();
+        }
+    }
+
+    pub fn remembered_pointers(&self) -> WorkList {
+        let mut pointers = WorkList::new();
+
+        for pointer in self.remembered_set.iter() {
+            pointers.push(pointer.pointer());
+        }
+
+        pointers
     }
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
@@ -440,5 +474,44 @@ mod tests {
 
         assert!(copy.is_young());
         assert!(copy.get().value.is_float());
+    }
+
+    #[test]
+    fn test_remember_object() {
+        let (_, mut alloc) = local_allocator();
+        let pointer = alloc.allocate_empty();
+
+        alloc.remember_object(pointer);
+
+        assert!(alloc.has_remembered_objects());
+    }
+
+    #[test]
+    fn test_prune_remembered_objects() {
+        let (_, mut alloc) = local_allocator();
+        let ptr1 = alloc.allocate_empty();
+        let ptr2 = alloc.allocate_empty();
+
+        ptr1.mark();
+
+        alloc.remember_object(ptr1);
+        alloc.remember_object(ptr2);
+        alloc.prune_remembered_objects();
+
+        assert_eq!(alloc.remembered_set.contains(&ptr1), true);
+        assert_eq!(alloc.remembered_set.contains(&ptr2), false);
+    }
+
+    #[test]
+    fn test_prepare_remembered_objects_for_collection() {
+        let (_, mut alloc) = local_allocator();
+        let ptr1 = alloc.allocate_empty();
+
+        ptr1.mark();
+
+        alloc.remember_object(ptr1);
+        alloc.prepare_remembered_objects_for_collection();
+
+        assert_eq!(ptr1.is_marked(), false);
     }
 }
