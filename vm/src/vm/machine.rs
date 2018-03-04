@@ -1103,6 +1103,8 @@ impl Machine {
 
                     vector[index] = value;
 
+                    process.write_barrier(array_ptr, value);
+
                     context.set_register(register, value);
                 }
                 // Gets the value of an array index.
