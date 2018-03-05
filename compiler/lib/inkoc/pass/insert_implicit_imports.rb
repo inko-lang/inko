@@ -33,16 +33,16 @@ module Inkoc
       #
       #     import std::globals::*
       def import_globals(location)
-        std = identifier_for(Config::STD_MODULE, location)
-        prelude = identifier_for(Config::GLOBALS_MODULE, location)
-        symbol = AST::GlobImport.new(location)
-
-        AST::Import.new([std, prelude], [symbol], location)
+        import_everything_from(Config::GLOBALS_MODULE, location)
       end
 
       # Generates the import statement for the prelude module.
+      #
+      # Equivalent:
+      #
+      #     import std::prelude::*
       def import_prelude(location)
-        import_and_ignore(Config::PRELUDE_MODULE, location)
+        import_everything_from(Config::PRELUDE_MODULE, location)
       end
 
       def identifier_for(name, location)
@@ -63,6 +63,14 @@ module Inkoc
           .new(AST::Self.new(location), underscore, location)
 
         AST::Import.new([std, bootstrap], [symbol], location)
+      end
+
+      def import_everything_from(module_name, location)
+        std = identifier_for(Config::STD_MODULE, location)
+        prelude = identifier_for(module_name, location)
+        symbol = AST::GlobImport.new(location)
+
+        AST::Import.new([std, prelude], [symbol], location)
       end
     end
   end
