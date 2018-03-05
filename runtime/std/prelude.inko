@@ -31,3 +31,8 @@ import std::nil
 import std::array
 import std::block
 import std::string
+import std::hash_map::(HashMap as _HashMap)
+
+# These constants are re-exported so they're available to all modules by
+# default. Core types such as String should be exposed in std::globals instead.
+let HashMap = _HashMap
