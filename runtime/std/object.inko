@@ -174,4 +174,8 @@ impl Equal for Object {
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
+
+  def !=(other: Self) -> Boolean {
+    (self == other).not
+  }
 }

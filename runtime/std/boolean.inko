@@ -5,8 +5,10 @@
 
 import std::conditional::Conditional
 import std::conversion::ToString
+import std::hash::(Hasher, Hash)
+import std::operators::Equal
 
-trait Boolean: ToString + Conditional {
+trait Boolean: ToString + Conditional + Hash + Equal {
   ## Returns the `Boolean` that is the opposite of `self`.
   def not -> Self
 }
@@ -64,6 +66,22 @@ impl ToString for True {
 impl ToString for False {
   def to_string -> String {
     'False'
+  }
+}
+
+impl Equal for True, False {
+  def ==(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+
+  def !=(other: Self) -> Boolean {
+    (self == other).not
+  }
+}
+
+impl Hash for True, False {
+  def hash(hasher: Hasher) {
+    _INKOC.hasher_write(hasher, self)
   }
 }
 

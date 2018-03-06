@@ -12,6 +12,7 @@
 
 import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
+import std::hash::(Hasher, Hash)
 import std::unknown_message::UnknownMessage
 
 impl ToInteger for Nil {
@@ -89,5 +90,11 @@ impl UnknownMessage for Nil {
   ##     Nil.hello # => Nil
   def unknown_message(name: String, *arguments) -> Nil {
     Nil
+  }
+}
+
+impl Hash for Nil {
+  def hash(hasher: Hasher) {
+    _INKOC.hasher_write(hasher, self)
   }
 }

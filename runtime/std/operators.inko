@@ -64,9 +64,7 @@ trait Equal {
   ##     let obj = Object.new
   ##
   ##     obj != obj # => False
-  def !=(other: Self) -> Boolean {
-    (self == other).not
-  }
+  def !=(other: Self) -> Boolean
 }
 
 ## The binary `>=` operator.
