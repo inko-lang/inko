@@ -11,7 +11,10 @@ import std::operators::Equal
 ## such as the bytes in a `String`.
 trait Hasher {
   ## Writes the given `Integer` into this hasher.
-  def write(value: Integer)
+  def write_integer(value: Integer)
+
+  ## Writes the given `Float` into this hasher.
+  def write_float(value: Float)
 
   ## Returns the hash for the values written so far.
   ##

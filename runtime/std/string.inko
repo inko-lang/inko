@@ -4,6 +4,7 @@
 #! UTF-8.
 
 import std::conversion::ToString
+import std::hash::(Hasher, Hash)
 import std::length::Length
 import std::operators::(Equal, Add)
 
@@ -135,5 +136,17 @@ impl Add!(String) for String {
   ##     'hello ' + 'world' # => 'hello world'
   def +(other: String) -> Self {
     _INKOC.string_concat(self, other)
+  }
+}
+
+impl Hash for String {
+  def hash(hasher: Hasher) {
+    let bytes = to_bytes
+    let mut index = 0
+
+    { index < bytes.length }.while_true {
+      hasher.write_integer(*bytes[index])
+      index += 1
+    }
   }
 }

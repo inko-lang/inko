@@ -1,6 +1,7 @@
 #! The integer type.
 
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
 
@@ -139,5 +140,11 @@ impl Numeric for Integer {
     }, false: {
       self - (self * 2)
     }
+  }
+}
+
+impl Hash for Integer {
+  def hash(hasher: Hasher) {
+    hasher.write_integer(self)
   }
 }

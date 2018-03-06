@@ -3,6 +3,7 @@
 #! Floats are implemented as IEEE 754 floats.
 
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
 
@@ -254,6 +255,12 @@ impl ToString for Float {
     not_a_number?.if_true { return 'NaN' }
 
     _INKOC.float_to_string(self)
+  }
+}
+
+impl Hash for Float {
+  def hash(hasher: Hasher) {
+    hasher.write_float(self)
   }
 }
 

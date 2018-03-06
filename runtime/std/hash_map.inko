@@ -26,7 +26,11 @@ object DefaultHasher {
 }
 
 impl Hasher for DefaultHasher {
-  def write(value: Integer) {
+  def write_integer(value: Integer) {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def write_float(value: Float) {
     _INKOC.hasher_write(self, value)
   }
 
