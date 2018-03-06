@@ -141,12 +141,10 @@ impl Add!(String) for String {
 
 impl Hash for String {
   def hash(hasher: Hasher) {
-    let bytes = to_bytes
-    let mut index = 0
-
-    { index < bytes.length }.while_true {
-      hasher.write_integer(*bytes[index])
-      index += 1
-    }
+    # Because hashing Strings is a very common operation we use a dedicated VM
+    # instruction to write our String to the Hasher. This removes the need for
+    # heap allocating any objects and reduces the time spent hashing as much as
+    # possible.
+    _INKOC.hasher_write(hasher, self)
   }
 }

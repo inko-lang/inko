@@ -3138,13 +3138,13 @@ impl Machine {
 
                     context.set_register(register, pointer);
                 }
-                // Hashes a number.
+                // Hashes a number or a string.
                 //
                 // This instruction requires three arguments:
                 //
                 // 1. The register to store the result in, this is always `nil`.
                 // 2. The register containing the hasher to use.
-                // 3. The register containing the number to hash.
+                // 3. The register containing the value to hash.
                 InstructionType::HasherWrite => {
                     let register = instruction.arg(0);
                     let mut hasher_ptr =
@@ -3153,7 +3153,11 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(2));
                     let mut hasher = hasher_ptr.hasher_value_mut()?;
 
-                    value_ptr.hash_numerical_value(&mut hasher)?;
+                    if let Ok(string) = value_ptr.string_value() {
+                        hasher.write_string(string);
+                    } else {
+                        value_ptr.hash_numerical_value(&mut hasher)?;
+                    }
 
                     context.set_register(register, self.state.nil_object);
                 }

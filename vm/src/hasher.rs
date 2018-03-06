@@ -35,6 +35,10 @@ impl Hasher {
         value.hash(&mut self.hasher);
     }
 
+    pub fn write_string(&mut self, value: &String) {
+        value.hash(&mut self.hasher);
+    }
+
     pub fn finish(&mut self) -> i64 {
         let hash = self.hasher.finish();
 
@@ -75,6 +79,22 @@ mod tests {
         let hash1 = hasher.finish();
 
         hasher.write_float(10.5);
+
+        let hash2 = hasher.finish();
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_write_string() {
+        let mut hasher = Hasher::new();
+        let string = "hello".to_string();
+
+        hasher.write_string(&string);
+
+        let hash1 = hasher.finish();
+
+        hasher.write_string(&string);
 
         let hash2 = hasher.finish();
 
