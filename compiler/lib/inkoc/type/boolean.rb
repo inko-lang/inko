@@ -19,7 +19,7 @@ module Inkoc
         @implemented_traits = Set.new
       end
 
-      def new_instance(*)
+      def new_shallow_instance(*)
         self
       end
 

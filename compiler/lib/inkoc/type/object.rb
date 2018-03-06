@@ -28,20 +28,6 @@ module Inkoc
         @singleton = singleton
       end
 
-      def new_instance(params = type_parameters)
-        return self if singleton
-
-        new_params = TypeParameterTable.new(type_parameters)
-        new_params.initialize_in_order(params)
-
-        self.class.new(
-          name: name,
-          prototype: self,
-          implemented_traits: implemented_traits.dup,
-          type_parameters: new_params
-        )
-      end
-
       def new_shallow_instance(params = type_parameters)
         return self if singleton
 

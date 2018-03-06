@@ -40,9 +40,9 @@ describe Inkoc::Type::Dynamic do
     end
   end
 
-  describe '#new_instance' do
+  describe '#new_shallow_instance' do
     it 'returns the instance itself' do
-      expect(type.new_instance).to be(type)
+      expect(type.new_shallow_instance).to be(type)
     end
   end
 

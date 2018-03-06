@@ -21,7 +21,7 @@ module Inkoc
         SymbolTable.new
       end
 
-      def new_instance(*)
+      def new_shallow_instance(*)
         self
       end
 
