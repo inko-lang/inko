@@ -1,7 +1,8 @@
 //! Types and methods for hashing objects.
 
+use rug::Integer;
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher as HasherTrait;
+use std::hash::{Hash, Hasher as HasherTrait};
 use std::i64;
 use std::u64;
 
@@ -20,8 +21,18 @@ impl Hasher {
         }
     }
 
-    pub fn write(&mut self, value: i64) {
-        self.hasher.write_i64(value);
+    pub fn write_integer(&mut self, value: i64) {
+        value.hash(&mut self.hasher);
+    }
+
+    pub fn write_float(&mut self, value: f64) {
+        let bits = self.convert_hash(value.to_bits());
+
+        self.write_integer(bits);
+    }
+
+    pub fn write_bigint(&mut self, value: &Integer) {
+        value.hash(&mut self.hasher);
     }
 
     pub fn finish(&mut self) -> i64 {
@@ -56,12 +67,27 @@ mod tests {
     use std::u64;
 
     #[test]
+    fn test_write_float() {
+        let mut hasher = Hasher::new();
+
+        hasher.write_float(10.5);
+
+        let hash1 = hasher.finish();
+
+        hasher.write_float(10.5);
+
+        let hash2 = hasher.finish();
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
     fn test_finish() {
         let mut hasher = Hasher::new();
         let mut hashes = Vec::new();
 
         for _ in 0..2 {
-            hasher.write(10_i64);
+            hasher.write_integer(10_i64);
             hashes.push(hasher.finish());
         }
 

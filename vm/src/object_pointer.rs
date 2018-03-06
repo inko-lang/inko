@@ -14,6 +14,7 @@ use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
 use object::{Object, ObjectStatus};
+use object_value::ObjectValue;
 use process::RcProcess;
 use tagged_pointer::TaggedPointer;
 use vm::state::RcState;
@@ -465,6 +466,26 @@ impl ObjectPointer {
                     .to_string(),
             )
         }
+    }
+
+    pub fn hash_numerical_value(
+        &self,
+        hasher: &mut Hasher,
+    ) -> Result<(), String> {
+        if self.is_tagged_integer() {
+            hasher.write_integer(self.integer_value()?);
+        } else {
+            let value_ref = self.get();
+
+            match &value_ref.value {
+                &ObjectValue::Float(val) => hasher.write_float(val),
+                &ObjectValue::Integer(val) => hasher.write_integer(val),
+                &ObjectValue::BigInt(ref val) => hasher.write_bigint(val),
+                _ => return Err("only numbers can be hashed".to_string()),
+            };
+        }
+
+        Ok(())
     }
 
     def_value_getter!(float_value, get, as_float, f64);
