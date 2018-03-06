@@ -468,10 +468,7 @@ impl ObjectPointer {
         }
     }
 
-    pub fn hash_numerical_value(
-        &self,
-        hasher: &mut Hasher,
-    ) -> Result<(), String> {
+    pub fn hash_object(&self, hasher: &mut Hasher) -> Result<(), String> {
         if self.is_tagged_integer() {
             hasher.write_integer(self.integer_value()?);
         } else {
@@ -481,7 +478,17 @@ impl ObjectPointer {
                 &ObjectValue::Float(val) => hasher.write_float(val),
                 &ObjectValue::Integer(val) => hasher.write_integer(val),
                 &ObjectValue::BigInt(ref val) => hasher.write_bigint(val),
-                _ => return Err("only numbers can be hashed".to_string()),
+                &ObjectValue::String(ref val) => hasher.write_string(val),
+                &ObjectValue::InternedString(ref val) => {
+                    hasher.write_string(val)
+                }
+                _ => {
+                    if !self.is_permanent() {
+                        return Err("the provided object can not be hashed".to_string());
+                    }
+
+                    hasher.write_unsigned_integer(self.raw.untagged() as usize);
+                }
             };
         }
 

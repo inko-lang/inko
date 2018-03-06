@@ -25,6 +25,10 @@ impl Hasher {
         value.hash(&mut self.hasher);
     }
 
+    pub fn write_unsigned_integer(&mut self, value: usize) {
+        value.hash(&mut self.hasher);
+    }
+
     pub fn write_float(&mut self, value: f64) {
         let bits = self.convert_hash(value.to_bits());
 
