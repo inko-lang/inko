@@ -1,0 +1,24 @@
+---
+
+inkoc:
+  image: ruby:2.4-alpine
+  before_script:
+    - apk add --update build-base
+    - gem install bundler --no-ri --no-rdoc
+    - ruby --version
+    - gem --version
+    - bundle --version
+    - bundle install --path vendor --retry=3
+  script:
+    - bundle exec rake
+  cache:
+    paths:
+      - vendor/ruby
+
+ivm:
+  image: rustlang/rust:nightly
+  before_script:
+    - rustc --version
+    - cargo --version
+  script:
+    - cargo test --all --verbose
