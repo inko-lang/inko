@@ -11,7 +11,7 @@ inkoc:
     - bundle --version
     - bundle install --path vendor --retry=3
   script:
-    - bundle exec rake
+    - bundle exec rake test
   cache:
     paths:
       - vendor/ruby
