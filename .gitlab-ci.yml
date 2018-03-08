@@ -3,6 +3,7 @@
 inkoc:
   image: ruby:2.4-alpine
   before_script:
+    - cd compiler
     - apk add --update build-base
     - gem install bundler --no-ri --no-rdoc
     - ruby --version
@@ -18,6 +19,7 @@ inkoc:
 ivm:
   image: rustlang/rust:nightly
   before_script:
+    - cd vm
     - rustc --version
     - cargo --version
   script:
