@@ -2,6 +2,37 @@
 
 import std::conversion::ToString
 
+## Details of a single call frame in a call stack.
+object CallFrame {
+  def init(file: String, name: String, line: Integer) {
+    let @file = file
+    let @name = name
+    let @line = line
+  }
+
+  ## Returns the path of the file the frame belongs to.
+  def file -> String {
+    @file
+  }
+
+  ## Returns the name of the block of code the frame belongs to.
+  def name -> String {
+    @name
+  }
+
+  ## Returns the line number of the frame.
+  def line -> Integer {
+    @line
+  }
+}
+
+impl ToString for CallFrame {
+  ## Formats the CallFrame as a String
+  def to_string -> String {
+    @file + ', line ' + @line.to_string + ', in "' + @name + '"'
+  }
+}
+
 ## Triggers a panic, terminating the VM.
 ##
 ## A panic will result in a stack trace being displayed followed by a custom
@@ -41,4 +72,56 @@ def panic(message: ToString) -> Void {
 ##     vm.exit(1)
 def exit(status: Integer) -> Void {
   _INKOC.exit(status)
+}
+
+## Returns a stack trace leading up to the line that called this method.
+##
+## The stack trace is returned in reverse order. This means that the most recent
+## call frame is the last value in the returned `Array`.
+##
+## The returned stack trace does not include the frame for this method itself.
+##
+## # Limit
+##
+## An optional limit can be specified to limit the number of call frames to the
+## given number, starting with the most recent call frame.
+##
+## # Example
+##
+## Returning the trace of a method call:
+##
+##     import std::vm::(self, CallFrame)
+##
+##     def first -> CallFrame {
+##       second
+##     }
+##
+##     def second -> CallFrame {
+##       vm.stacktrace[-1]
+##     }
+##
+##     first.name # => 'second'
+##     first.line # => 8
+def stacktrace(limit: ?Integer = Nil) -> Array!(CallFrame) {
+  let mut raw_frames = _INKOC.stacktrace(limit, 1)
+  let mut frames = []
+  let mut index = 0
+
+  { index < raw_frames.length }.while_true {
+    let raw_frame = raw_frames[index]
+
+    frames[index] = CallFrame.new(
+      file: raw_frame[0] as String,
+      name: raw_frame[1] as String,
+      line: raw_frame[2] as Integer
+    )
+
+    index += 1
+  }
+
+  # We no longer need the raw list of frames and keeping the memory around is a
+  # waste, hence we drop it immediately.
+  _INKOC.drop(raw_frames)
+
+  frames
 }

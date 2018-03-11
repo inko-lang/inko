@@ -907,6 +907,12 @@ module Inkoc
         typedb.integer_type
       end
 
+      def on_raw_stacktrace(*)
+        tuple = typedb.new_array_of_type(Type::Dynamic.new)
+
+        typedb.new_array_of_type(tuple)
+      end
+
       def on_return(node, scope)
         if node.value
           define_type(node.value, scope)

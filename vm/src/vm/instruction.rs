@@ -133,6 +133,7 @@ pub enum InstructionType {
     HasherNew,
     HasherWrite,
     HasherFinish,
+    Stacktrace,
 }
 
 /// Struct for storing information about a single instruction.

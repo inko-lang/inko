@@ -1170,6 +1170,10 @@ module Inkoc
         raw_unary_instruction(:HasherFinish, node, body)
       end
 
+      def on_raw_stacktrace(node, body)
+        raw_binary_instruction(:Stacktrace, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

@@ -26,6 +26,7 @@ use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
+use stacktrace;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
@@ -3188,6 +3189,47 @@ impl Machine {
                     };
 
                     context.set_register(register, pointer);
+                }
+                // Produces a stack trace.
+                //
+                // This instruction requires the three arguments:
+                //
+                // 1. The register to store the trace in.
+                // 2. A register containing the maximum number of frames to
+                //    include. If set to nil all frames will be included.
+                // 3. A register containing the number of call frames to skip
+                //    (from the start of the stack).
+                //
+                // The trace is stored as an array of arrays. Each sub array
+                // contains:
+                //
+                // 1. The path of the file being executed.
+                // 2. The name of the ExecutionContext.
+                // 3. The line of the ExecutionContext.
+                //
+                // The frames are returned in reverse order. This means that the
+                // most recent call frame is the last value in the array.
+                InstructionType::Stacktrace => {
+                    let register = instruction.arg(0);
+                    let limit_ptr = context.get_register(instruction.arg(1));
+                    let skip_ptr = context.get_register(instruction.arg(2));
+
+                    let limit = if limit_ptr == self.state.nil_object {
+                        None
+                    } else {
+                        Some(limit_ptr.integer_value()? as usize)
+                    };
+
+                    let skip = skip_ptr.integer_value()? as usize;
+
+                    let array = stacktrace::allocate_stacktrace(
+                        process,
+                        &self.state,
+                        limit,
+                        skip,
+                    );
+
+                    context.set_register(register, array);
                 }
             };
         }
