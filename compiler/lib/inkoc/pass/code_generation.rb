@@ -297,6 +297,10 @@ module Inkoc
 
         compiled_code.instruct(:Exit, [status], tir_ins.location)
       end
+
+      def on_process_terminate_current(tir_ins, compiled_code, *)
+        compiled_code.instruct(:ProcessTerminateCurrent, [], tir_ins.location)
+      end
     end
   end
 end

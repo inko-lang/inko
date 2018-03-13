@@ -1048,6 +1048,10 @@ module Inkoc
         body.instruct(:ProcessSuspendCurrent, timeout, node.location)
       end
 
+      def on_raw_process_terminate_current(node, body)
+        body.instruct(:ProcessTerminateCurrent, node.location)
+      end
+
       def on_raw_remove_attribute(node, body)
         raw_binary_instruction(:RemoveAttribute, node, body)
       end

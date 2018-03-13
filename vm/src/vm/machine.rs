@@ -3231,6 +3231,12 @@ impl Machine {
 
                     context.set_register(register, array);
                 }
+                // Terminates the current process.
+                //
+                // This instruction does not take any arguments.
+                InstructionType::ProcessTerminateCurrent => {
+                    break 'exec_loop;
+                }
             };
         }
 

@@ -784,6 +784,10 @@ module Inkoc
         Type::Void.new
       end
 
+      def on_raw_process_terminate_current(*)
+        Type::Void.new
+      end
+
       def on_raw_remove_attribute(node, _)
         object = node.arguments.fetch(0).type
         name = node.arguments.fetch(1)
