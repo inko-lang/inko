@@ -81,6 +81,12 @@ def exit(status: Integer) -> Void {
 ##
 ## The returned stack trace does not include the frame for this method itself.
 ##
+## # Skipping
+##
+## The `skip` argument can be set to an integer to skip a number of call frames.
+## By default this is set to skip the first frame, ensuring that this method
+## itself does not appear in the returned stack.
+##
 ## # Limit
 ##
 ## An optional limit can be specified to limit the number of call frames to the
@@ -102,8 +108,8 @@ def exit(status: Integer) -> Void {
 ##
 ##     first.name # => 'second'
 ##     first.line # => 8
-def stacktrace(limit: ?Integer = Nil) -> Array!(CallFrame) {
-  let mut raw_frames = _INKOC.stacktrace(limit, 1)
+def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
+  let mut raw_frames = _INKOC.stacktrace(limit, skip)
   let mut frames = []
   let mut index = 0
 
