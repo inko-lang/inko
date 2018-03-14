@@ -19,8 +19,9 @@ def platform -> String {
 }
 
 ## The newline separator to use on the current platform.
-let NEWLINE = (platform == 'windows').if true: {
-  "\r\n"
-}, false: {
-  "\n"
-}
+let NEWLINE = platform == 'windows'
+  .if true: {
+    "\r\n"
+  }, false: {
+    "\n"
+  }

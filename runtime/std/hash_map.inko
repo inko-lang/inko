@@ -193,17 +193,19 @@ object Table!(K: Hash + Equal, V) {
       let existing = @buckets[index]
 
       existing.if true: {
-        (existing.key == node.key).if_true {
-          @buckets[index] = node
-          return
-        }
+        existing.key == node.key
+          .if_true {
+            @buckets[index] = node
+            return
+          }
 
         # Per Robin Hood hashing we swap the to-insert and existing nodes if the
         # existing node is closer to its desired bucket.
-        (existing.distance < node.distance).if_true {
-          @buckets[index] = node
-          node = *existing
-        }
+        existing.distance < node.distance
+          .if_true {
+            @buckets[index] = node
+            node = *existing
+          }
       }, false: {
         increment_length.if_true {
           @length += 1
@@ -227,10 +229,11 @@ object Table!(K: Hash + Equal, V) {
     { node.key != key }.while_true {
       index = desired_bucket(index + 1)
 
-      (index == desired).if_true {
-        # We cycled through all buckets but didn't find a matching node.
-        return
-      }
+      index == desired
+        .if_true {
+          # We cycled through all buckets but didn't find a matching node.
+          return
+        }
 
       node = @buckets[index]
     }

@@ -410,26 +410,29 @@ object Time {
     let mut rem_days = days % DAYS_PER_400Y
     let mut century_cycles = rem_days / DAYS_PER_100Y
 
-    (century_cycles == 4).if_true {
-      century_cycles -= 1
-    }
+    century_cycles == 4
+      .if_true {
+        century_cycles -= 1
+      }
 
     rem_days -= century_cycles * DAYS_PER_100Y
 
     let mut quadrennial_cycles = rem_days / DAYS_PER_4Y
 
     # 25 cycles == 100 years
-    (quadrennial_cycles == 25).if_true {
-      quadrennial_cycles -= 1
-    }
+    quadrennial_cycles == 25
+      .if_true {
+        quadrennial_cycles -= 1
+      }
 
     rem_days -= quadrennial_cycles * DAYS_PER_4Y
 
     let mut rem_years = rem_days / DAYS_PER_NORMAL_YEAR
 
-    (rem_years == 4).if_true {
-      rem_years -= 1
-    }
+    rem_years == 4
+      .if_true {
+        rem_years -= 1
+      }
 
     rem_days -= rem_years * DAYS_PER_NORMAL_YEAR
 
@@ -571,7 +574,8 @@ object Time {
   ##
   ## The returned `Integer` is always a positive value.
   def days_since_unix_epoch -> Integer {
-    let years = (year - UNIX_EPOCH_YEAR).absolute
+    let years = year - UNIX_EPOCH_YEAR
+      .absolute
 
     let leap_days = (years / 4)
       - (years / 100)
@@ -840,7 +844,7 @@ impl Equal for Time {
   ##
   ##     now == now # => True
   def ==(other: Self) -> Boolean {
-    (year == other.year)
+    year == other.year
       .and { month == other.month }
       .and { day == other.day }
       .and { hour == other.hour }

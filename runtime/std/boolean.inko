@@ -75,7 +75,8 @@ impl Equal for True, False {
   }
 
   def !=(other: Self) -> Boolean {
-    (self == other).not
+    self == other
+      .not
   }
 }
 

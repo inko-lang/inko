@@ -108,7 +108,8 @@ impl Float {
   ##
   ## Using a NaN value:
   ##
-  ##     (0.0 / 0.0).not_a_number? # => True
+  ##     0.0 / 0.0
+  ##       .not_a_number? # => True
   def not_a_number? -> Boolean {
     _INKOC.float_is_nan(self)
   }
@@ -123,7 +124,8 @@ impl Float {
   ##
   ## Using an infinite number:
   ##
-  ##     (10.0 / 0.0).infinite? # => True
+  ##     10.0 / 0.0
+  ##       .infinite? # => True
   def infinite? -> Boolean {
     _INKOC.float_is_infinite(self)
   }
@@ -138,11 +140,13 @@ impl Float {
   ##
   ## Using a NaN value:
   ##
-  ##     (0.0 / 0.0).finite? # => False
+  ##     0.0 / 0.0
+  ##       .finite? # => False
   ##
   ## Using an infinite value:
   ##
-  ##     (10.0 / 0.0).finite? # => False
+  ##     10.0 / 0.0
+  ##       .finite? # => False
   def finite? -> Boolean {
     not_a_number?.or { infinite? }.if true: {
       False

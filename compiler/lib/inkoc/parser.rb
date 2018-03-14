@@ -283,6 +283,23 @@ module Inkoc
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
       end
 
+      # This allows us to parse code such as this:
+      #
+      #     x == y
+      #       .if_true {
+      #
+      #       }
+      #
+      # Into this:
+      #
+      #     (x == y).if_true {
+      #
+      #     }
+      if @lexer.next_type_is?(:dot)
+        skip_one
+        node = send_chain_with_receiver(node)
+      end
+
       node
     end
 
@@ -400,6 +417,8 @@ module Inkoc
       loop do
         case @lexer.peek.type
         when :dot
+          break unless @lexer.peek.line == start.line
+
           skip_one
           node = send_chain_with_receiver(node)
         when :bracket_open
