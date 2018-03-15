@@ -4,6 +4,7 @@ import std::conversion::(ToInteger, ToString, ToFloat)
 import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
+import std::successor::Successor
 
 impl ToInteger for Integer {
   def to_integer -> Integer {
@@ -146,5 +147,23 @@ impl Numeric for Integer {
 impl Hash for Integer {
   def hash(hasher: Hasher) {
     hasher.write_integer(self)
+  }
+}
+
+impl Successor for Integer {
+  ## Returns the successor of `self`.
+  ##
+  ## # Examples
+  ##
+  ## Getting the successor of a positive integer:
+  ##
+  ##     1.successor  # => 2
+  ##     2.successor  # => 3
+  ##
+  ## Getting the successor of a negative integer:
+  ##
+  ##     -5.successor # => -4
+  def successor -> Self {
+    self + 1
   }
 }
