@@ -48,6 +48,14 @@ module Inkoc
         end
       end
 
+      def initialize_self_types(self_type)
+        each do |param|
+          instance = instance_for(param.name)
+
+          initialize_parameter(param.name, self_type) if instance&.self_type?
+        end
+      end
+
       def names
         @parameters.map(&:name)
       end

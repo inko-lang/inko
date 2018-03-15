@@ -1550,7 +1550,7 @@ module Inkoc
 
       def resolve_special_type(node, self_type, sources)
         if node.self_type?
-          self_type
+          Type::SelfType.new
         elsif node.dynamic_type?
           Type::Dynamic.new
         elsif node.void_type?
