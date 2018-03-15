@@ -1,16 +1,21 @@
-#! Traits for converting types during runtime.
+#! Traits for runtime type conversion.
 
 trait ToFloat {
-  ## Converts the receiving object to a Float.
+  ## Converts `self` to a `Float`.
   def to_float -> Float
 }
 
 trait ToString {
-  ## Converts the receiving object to a String.
+  ## Converts `self` to a `String`.
   def to_string -> String
 }
 
 trait ToInteger {
-  ## Converts the receiving object to an Integer.
+  ## Converts `self` to an `Integer`.
   def to_integer -> Integer
+}
+
+trait ToArray!(T) {
+  ## Converts `self` to an `Array`
+  def to_array -> Array!(T)
 }
