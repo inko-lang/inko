@@ -3237,6 +3237,47 @@ impl Machine {
                 InstructionType::ProcessTerminateCurrent => {
                     break 'exec_loop;
                 }
+                // Slices a string into a new string.
+                //
+                // Slicing operates on the _characters_ of a string, not the
+                // bytes.
+                //
+                // This instruction requires four arguments:
+                //
+                // 1. The register to store the new string in.
+                // 2. The register containing the string to slice.
+                // 3. The register containing the start position.
+                // 4. The register containing the stop position.
+                InstructionType::StringSlice => {
+                    let register = instruction.arg(0);
+                    let str_ptr = context.get_register(instruction.arg(1));
+                    let start_ptr = context.get_register(instruction.arg(2));
+                    let stop_ptr = context.get_register(instruction.arg(3));
+
+                    let string = str_ptr.string_value()?;
+                    let start = start_ptr.integer_value()? as usize;
+                    let stop = stop_ptr.integer_value()? as usize;
+
+                    if stop < start {
+                        return Err(format!(
+                            "invalid string slice range: {}..{}",
+                            start, stop
+                        ));
+                    }
+
+                    let new_string = string
+                        .chars()
+                        .skip(start)
+                        .take(stop - start)
+                        .collect::<String>();
+
+                    let new_string_ptr = process.allocate(
+                        object_value::string(new_string),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, new_string_ptr);
+                }
             };
         }
 

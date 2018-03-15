@@ -137,6 +137,7 @@ module Inkoc
         HasherFinish
         Stacktrace
         ProcessTerminateCurrent
+        StringSlice
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

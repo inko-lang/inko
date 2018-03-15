@@ -1006,6 +1006,10 @@ module Inkoc
         raw_binary_instruction(:StringConcat, node, body)
       end
 
+      def on_raw_string_slice(node, body)
+        raw_ternary_instruction(:StringSlice, node, body)
+      end
+
       def on_raw_stdin_read(node, body)
         raw_nullary_instruction(:StdinRead, node, body)
       end

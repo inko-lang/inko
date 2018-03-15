@@ -744,6 +744,10 @@ module Inkoc
         typedb.string_type
       end
 
+      def on_raw_string_slice(*)
+        typedb.string_type
+      end
+
       def on_raw_stdin_read_line(*)
         typedb.string_type
       end

@@ -135,6 +135,7 @@ pub enum InstructionType {
     HasherFinish,
     Stacktrace,
     ProcessTerminateCurrent,
+    StringSlice,
 }
 
 /// Struct for storing information about a single instruction.
