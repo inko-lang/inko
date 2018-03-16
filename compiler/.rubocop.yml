@@ -32,3 +32,6 @@ RSpec/ExampleLength:
 
 Layout/MultilineMethodCallIndentation:
   EnforcedStyle: indented
+
+Naming/UncommunicativeMethodParamName:
+  Enabled: false
