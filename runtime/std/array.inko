@@ -22,8 +22,10 @@
 #! Array. This means that -1 will access the last value, -2 the value before
 #! that, etc.
 
+import std::conversion::(ToArray, ToString)
 import std::index::(Index, SetIndex)
 import std::length::Length
+import std::operators::Equal
 
 impl Array!(T) {
   ## Returns a new Array containing the given values.
@@ -205,5 +207,92 @@ impl SetIndex!(Integer, T) for Array!(T) {
   ##     array          # => [10, 20]
   def []=(index: Integer, value: T) -> T {
     _INKOC.array_set(self, index, value)
+  }
+}
+
+impl ToArray for Array!(T) {
+  ## Always returns `self`.
+  ##
+  ## # Examples
+  ##
+  ## "Converting" an array to an array:
+  ##
+  ##     [10].to_array # => [10]
+  def to_array -> Array!(T) {
+    self
+  }
+}
+
+impl Equal for Array!(T) {
+  ## Returns `True` if `self` and the given `Array` are identical.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two identical arrays:
+  ##
+  ##     [10, 20, 30] == [10, 20, 30] # => True
+  ##
+  ## Comparing two arrays with a different length:
+  ##
+  ##     [10] == [10, 20] # => False
+  ##
+  ## Comparing two arrays with the same length but with different values:
+  ##
+  ##     [10, 20] == [20, 10] # => False
+  def ==(other: Self) -> Boolean where T: Equal {
+    length == other.length
+      .if_false { return False }
+
+    let mut index = 0
+    let max = length
+
+    { index < max }.while_true {
+      let ours = self[index]
+      let theirs = other[index]
+
+      ours == theirs
+        .if_false { return False }
+
+      index += 1
+    }
+
+    True
+  }
+}
+
+impl ToString for Array!(T) {
+  ## Converts `self` to a `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting an empty `Array`:
+  ##
+  ##     [].to_string # => '[]'
+  ##
+  ## Converting an `Array` with one value:
+  ##
+  ##     [10].to_string # => '[10]'
+  ##
+  ## Converting an `Array` containing multiple values:
+  ##
+  ##     [10, 20, 30].to_string # => '[10, 20, 30]'
+  def to_string -> String where T: ToString {
+    let mut output = '['
+    let mut index = 0
+    let max = length
+    let last = max - 1
+
+    { index < max }.while_true {
+      output += self[index].to_string
+
+      index < last
+        .if_true {
+          output += ', '
+        }
+
+      index += 1
+    }
+
+    output + ']'
   }
 }

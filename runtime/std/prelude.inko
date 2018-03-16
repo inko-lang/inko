@@ -28,9 +28,9 @@ import std::object
 import std::integer
 import std::float
 import std::nil
-import std::array
 import std::block
 import std::string
+import std::array
 import std::hash_map::(HashMap as _HashMap)
 
 # These constants are re-exported so they're available to all modules by
