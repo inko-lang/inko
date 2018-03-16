@@ -7,7 +7,8 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :required_traits, :location
+      attr_reader :name, :location
+      attr_accessor :required_traits
 
       def initialize(name, location)
         @name = name

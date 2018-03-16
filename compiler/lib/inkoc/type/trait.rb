@@ -9,8 +9,8 @@ module Inkoc
       include ObjectOperations
       include GenericTypeOperations
 
-      attr_reader :name, :attributes, :required_methods, :required_traits
-      attr_accessor :prototype, :type_parameters
+      attr_reader :name, :attributes, :required_methods
+      attr_accessor :prototype, :type_parameters, :required_traits
 
       def initialize(
         name: Config::TRAIT_CONST,

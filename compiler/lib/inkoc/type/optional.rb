@@ -46,6 +46,10 @@ module Inkoc
         "?#{type.type_name}"
       end
 
+      def with_method_requirements(requirements)
+        self.class.wrap(type.with_method_requirements(requirements))
+      end
+
       # rubocop: disable Style/MethodMissing
       def method_missing(name, *args, &block)
         type.public_send(name, *args, &block)

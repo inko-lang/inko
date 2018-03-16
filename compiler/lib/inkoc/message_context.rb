@@ -51,6 +51,12 @@ module Inkoc
       type_parameters.instance_for(name)
     end
 
+    def resolved_instance_for_type_parameter(name)
+      instance = type_parameter_instance(name)
+
+      fully_resolve_type(instance) if instance
+    end
+
     def initialize_type_parameter(name, type)
       if !receiver.type_parameter? && receiver.lookup_type_parameter(name)
         receiver.initialize_type_parameter(name, type)
@@ -63,18 +69,29 @@ module Inkoc
       block.valid_number_of_arguments?(amount)
     end
 
-    def initialized_return_type
-      rtype = block.return_type
-      rtype = rtype.resolve_type(receiver, type_parameters)
+    def fully_resolve_type(type)
+      resolved = with_method_requirements(type)
+        .resolve_type(receiver, type_parameters)
 
-      rtype =
-        if rtype.initialize_generic_type?
-          rtype.new_shallow_instance(type_parameters)
-        else
-          rtype
-        end
+      if resolved.initialize_generic_type?
+        resolved = resolved.new_shallow_instance(type_parameters)
+      end
+
+      resolved
+    end
+
+    def initialized_return_type
+      rtype = fully_resolve_type(block.return_type)
 
       wrap_optional_return_type(rtype)
+    end
+
+    def with_method_requirements(type)
+      if type.type_parameter? && (method_type = type_scope.method_block_type)
+        type.with_method_requirements(method_type)
+      else
+        type
+      end
     end
 
     def wrap_optional_return_type(type)

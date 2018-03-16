@@ -83,6 +83,15 @@ module Inkoc
           other.implements_all_traits?(required_traits)
         end
       end
+
+      def with_method_requirements(block_type)
+        if (requirements = block_type.type_requirements_for(self))
+          self.class
+            .new(name: name, required_traits: required_traits + requirements)
+        else
+          self
+        end
+      end
     end
   end
 end

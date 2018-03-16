@@ -203,7 +203,11 @@ module Inkoc
 
         node.block_type = block_type if block_type
 
-        rtype.resolve_type(self_type)
+        if rtype.regular_object?
+          rtype
+        else
+          rtype.resolve_type(self_type)
+        end
       end
 
       def on_global(node, *)
@@ -269,6 +273,7 @@ module Inkoc
         context = MessageContext
           .new(receiver, method_type, args, scope, typedb, location)
 
+        verify_method_requirements(context)
         verify_send_arguments(context)
 
         [context.initialized_return_type, method_type]
@@ -285,6 +290,21 @@ module Inkoc
         arg_types.length == 2 &&
           arg_types[0].type_compatible?(typedb.string_type) &&
           arg_types[1].type_compatible?(rest_type)
+      end
+
+      def verify_method_requirements(context)
+        block = context.block
+        loc = context.location
+
+        block.type_requirements.each do |name, required|
+          instance = context.resolved_instance_for_type_parameter(name)
+
+          next unless instance
+
+          unless required.all? { |t| instance.type_compatible?(t) }
+            diagnostics.method_requirement_error(block, instance, required, loc)
+          end
+        end
       end
 
       def verify_send_arguments(context)
@@ -402,7 +422,7 @@ module Inkoc
 
         node.receiver_type =
           if node.receiver
-            define_type(node.receiver, scope)
+            receiver_type_for_message(node, scope)
           elsif scope.self_type.lookup_method(name).any?
             scope.self_type
           elsif @module.globals[name].any?
@@ -410,6 +430,20 @@ module Inkoc
           else
             scope.self_type
           end
+      end
+
+      def receiver_type_for_message(node, scope)
+        type = define_type(node.receiver, scope)
+
+        # When sending a message to a constant we need to make sure we return a
+        # new instance, otherwise we may initialize type parameters in the
+        # original constant. The code below is a bit of a hack to achieve this,
+        # but then again the entire compiler is a hack.
+        if node.receiver.constant?
+          type.resolve_type(scope.self_type)
+        else
+          type
+        end
       end
 
       def on_raw_instruction(node, scope)
@@ -946,8 +980,8 @@ module Inkoc
         node.else_block_type =
           block_type_with_self(Config::ELSE_BLOCK_NAME, scope.self_type)
 
-        try_scope =
-          TypeScope.new(scope.self_type, node.try_block_type, scope.locals)
+        try_scope = TypeScope
+          .new(scope.self_type, node.try_block_type, scope.locals, scope)
 
         try_type =
           node.try_block_type.return_type_for_block_and_call =
@@ -1052,11 +1086,7 @@ module Inkoc
       def define_trait(type, node, scope)
         define_type_parameters(node.type_parameters, type)
 
-        node.required_traits.each do |trait|
-          trait_type = resolve_module_type(trait, scope.self_type)
-          type.required_traits << trait_type if trait_type.trait?
-        end
-
+        type.required_traits = required_traits_for(node, scope.self_type)
         block_type = define_block_type_for_object(node, type)
         new_scope = TypeScope.new(type, block_type, node.body.locals)
 
@@ -1064,6 +1094,18 @@ module Inkoc
         define_type(node.body, new_scope)
 
         type
+      end
+
+      def required_traits_for(node, self_type)
+        required = Set.new
+
+        node.required_traits.each do |trait|
+          trait_type = resolve_module_type(trait, self_type)
+
+          required << trait_type if trait_type.trait?
+        end
+
+        required
       end
 
       def on_trait_implementation(node, scope)
@@ -1223,7 +1265,7 @@ module Inkoc
           block_type: block_type
         )
 
-        new_scope = TypeScope.new(self_type, type, node.body.locals)
+        new_scope = TypeScope.new(self_type, type, node.body.locals, scope)
 
         block_signature(node, type, new_scope, constraints: true)
         define_type(node.body, new_scope)
@@ -1356,6 +1398,7 @@ module Inkoc
 
       def block_signature(node, type, scope, constraints: false)
         define_type_parameters(node.type_parameters, type)
+        define_type_requirements(node, type, scope.self_type)
         define_arguments(node.arguments, type, scope, constraints: constraints)
         define_return_type(node, type, scope.self_type)
         define_throw_type(node, type, scope.self_type)
@@ -1450,6 +1493,16 @@ module Inkoc
         block_type.throws = wrap_optional_type(node.throws, ttype)
       end
 
+      def define_type_requirements(node, block_type, self_type)
+        return unless node.method?
+
+        node.type_requirements.each do |requirement|
+          required = required_traits_for(requirement, self_type)
+
+          block_type.define_type_requirement(requirement.name, required)
+        end
+      end
+
       def type_for_argument_value(arg, scope)
         define_type(arg.default, scope) if arg.default
       end
@@ -1459,9 +1512,12 @@ module Inkoc
           return
         end
 
+        resolved = resolve_block_type(vtype, block_type, self_type)
+          .with_method_requirements(block_type)
+
         wrap_optional_type(
           vtype,
-          resolve_block_type(vtype, block_type, self_type)
+          resolved
         )
       end
 

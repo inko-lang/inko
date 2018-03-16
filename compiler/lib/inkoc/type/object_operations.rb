@@ -53,6 +53,10 @@ module Inkoc
         self
       end
 
+      def with_method_requirements(*)
+        self
+      end
+
       def message_return_type(name)
         lookup_method(name).type.return_type.resolve_type(self)
       end

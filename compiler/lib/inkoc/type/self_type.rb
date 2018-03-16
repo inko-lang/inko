@@ -18,6 +18,10 @@ module Inkoc
         self_type
       end
 
+      def with_method_requirements(*)
+        self
+      end
+
       def type_compatible?(other)
         other.dynamic? || other.self_type?
       end

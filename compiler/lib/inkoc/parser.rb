@@ -398,13 +398,7 @@ module Inkoc
       if @lexer.next_type_is?(:colon)
         skip_one
 
-        loop do
-          node.required_traits << type_name(advance_and_expect!(:constant))
-
-          break unless @lexer.next_type_is?(:add)
-
-          skip_one
-        end
+        node.required_traits = required_traits
       end
 
       node
@@ -767,6 +761,7 @@ module Inkoc
     #     def foo -> A { ... }
     #     def foo!(T)(arg: T) -> T { ... }
     #     def foo !! B -> A { ... }
+    #     def foo !! B -> A where A: B { ... }
     def def_method(start)
       name_token = advance!
       name = message_name_for_token(name_token)
@@ -775,6 +770,7 @@ module Inkoc
       throw_type = optional_throw_type
       ret_type = optional_return_type
       required = false
+      requirements = optional_method_requirements
 
       body =
         if @lexer.next_type_is?(:curly_open)
@@ -791,6 +787,7 @@ module Inkoc
         ret_type,
         throw_type,
         required,
+        requirements,
         body,
         start.location
       )
@@ -920,6 +917,47 @@ module Inkoc
       skip_one
 
       type(advance!)
+    end
+
+    def optional_method_requirements
+      return [] unless @lexer.next_type_is?(:where)
+
+      skip_one
+
+      method_requirements
+    end
+
+    def method_requirements
+      requirements = []
+
+      while @lexer.next_type_is?(:constant)
+        param = advance_and_expect!(:constant)
+
+        advance_and_expect!(:colon)
+
+        requirements << AST::MethodRequirement
+          .new(param.value, required_traits, param.location)
+
+        break unless @lexer.next_type_is?(:comma)
+
+        skip_one
+      end
+
+      requirements
+    end
+
+    def required_traits
+      required = []
+
+      loop do
+        required << type_name(advance_and_expect!(:constant))
+
+        break unless @lexer.next_type_is?(:add)
+
+        skip_one
+      end
+
+      required
     end
 
     # Parses a definition of a variable.

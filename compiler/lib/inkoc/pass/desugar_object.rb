@@ -104,6 +104,7 @@ module Inkoc
           AST::Constant.new(Config::SELF_TYPE, nil, loc),
           init.throws,
           false,
+          init.type_requirements,
           body,
           loc
         )

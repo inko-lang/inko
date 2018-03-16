@@ -21,7 +21,8 @@ module Inkoc
       'as' => :as,
       'impl' => :impl,
       'for' => :for,
-      'lambda' => :lambda
+      'lambda' => :lambda,
+      'where' => :where
     }.freeze
 
     SPECIALS = Set.new(
@@ -132,6 +133,10 @@ module Inkoc
         end
       end
     end
+    # rubocop: enable Metrics/AbcSize
+    # rubocop: enable Metrics/CyclomaticComplexity
+    # rubocop: enable Metrics/BlockLength
+    # rubocop: enable Metrics/PerceivedComplexity
 
     def carriage_return
       advance_line
@@ -266,6 +271,7 @@ module Inkoc
       end
     end
 
+    # rubocop: disable Metrics/CyclomaticComplexity
     def number(skip_first: false)
       start = @position
       type = :integer
@@ -299,6 +305,7 @@ module Inkoc
 
       token
     end
+    # rubocop: enable Metrics/CyclomaticComplexity
 
     def curly_open
       new_token(:curly_open, @position, @position += 1)
@@ -324,6 +331,8 @@ module Inkoc
       string_with_quote('"', '\\"', true)
     end
 
+    # rubocop: disable Metrics/CyclomaticComplexity
+    # rubocop: disable Metrics/PerceivedComplexity
     def string_with_quote(quote, escaped, unescape_special = false)
       # Skip the opening quote
       @position += 1
@@ -366,6 +375,8 @@ module Inkoc
 
       token
     end
+    # rubocop: enable Metrics/PerceivedComplexity
+    # rubocop: enable Metrics/CyclomaticComplexity
 
     def colons
       start = @position

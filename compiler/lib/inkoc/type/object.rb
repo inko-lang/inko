@@ -28,8 +28,8 @@ module Inkoc
         @singleton = singleton
       end
 
-      def resolve_type(self_type, type_params = type_parameters)
-        return self if type_params.empty?
+      def resolve_type(self_type, *)
+        return self if type_parameters.empty?
 
         new_shallow_instance.tap do |object|
           object.type_parameters.initialize_self_types(self_type)
