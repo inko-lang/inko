@@ -5,6 +5,7 @@ module Inkoc
     class Constraint
       include Inspect
       include Predicates
+      include TypeCompatibility
 
       attr_reader :required_methods, :inferred_type, :resolved
 
@@ -75,8 +76,15 @@ module Inkoc
           self == other || other.dynamic?
         end
       end
-
       alias strict_type_compatible? type_compatible?
+
+      def implements_trait?(trait)
+        if inferred_type
+          inferred_type.implements_trait?(trait)
+        else
+          false
+        end
+      end
 
       def responds_to_message?(name)
         if inferred_type
