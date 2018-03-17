@@ -73,7 +73,7 @@ module Inkoc
         if inferred_type
           inferred_type.type_compatible?(other)
         else
-          self == other || other.dynamic?
+          self == other || other.dynamic? || other.type_parameter?
         end
       end
       alias strict_type_compatible? type_compatible?
@@ -82,7 +82,10 @@ module Inkoc
         if inferred_type
           inferred_type.implements_trait?(trait)
         else
-          false
+          # This may seem odd (and probably would if it were not for the hacky
+          # type system) but this allows us to infer a constraint to a type
+          # parameter or trait.
+          true
         end
       end
 
