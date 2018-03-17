@@ -1,0 +1,5 @@
+#! Functionality for comparing objects.
+import std::operators::(Equal, Smaller, SmallerOrEqual, Greater, GreaterOrEqual)
+
+## Trait for more easily requiring all comparison operators to be implemented.
+trait Compare: Equal + Smaller + SmallerOrEqual + Greater + GreaterOrEqual {}
