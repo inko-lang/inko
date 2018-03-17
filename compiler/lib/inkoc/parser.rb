@@ -279,7 +279,7 @@ module Inkoc
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = dereference(@lexer.advance)
+        rhs = dereference(@lexer.advance, require_same_line: true)
         node = AST::Send.new(operator.value, node, [rhs], operator.location)
       end
 
@@ -303,11 +303,11 @@ module Inkoc
       node
     end
 
-    def dereference(start)
+    def dereference(start, require_same_line: false)
       if start.type == :mul
         AST::Dereference.new(send_chain(advance!), start.location)
       else
-        send_chain(start)
+        send_chain(start, require_same_line: require_same_line)
       end
     end
 
@@ -405,13 +405,13 @@ module Inkoc
     end
 
     # Parses a chain of messages being sent to a receiver.
-    def send_chain(start)
+    def send_chain(start, require_same_line: false)
       node = value(start)
 
       loop do
         case @lexer.peek.type
         when :dot
-          break unless @lexer.peek.line == start.line
+          break if require_same_line && @lexer.peek.line != start.line
 
           skip_one
           node = send_chain_with_receiver(node)
