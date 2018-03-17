@@ -1,0 +1,104 @@
+#! Range data types and methods.
+import std::operators::(Equal, SmallerOrEqual)
+import std::compare::Compare
+import std::conversion::ToArray
+import std::successor::Successor
+
+## An inclusive range of values of a fixed type.
+##
+## A `Range` is typically created by sending the `..` (provided by the `ToRange`
+## trait) message to the receiver.  For example, using this method one can
+## create a `Range` of integers like so:
+##
+##     1..10
+##
+## A `Range` supports a start and end value of any type as long as:
+##
+## 1. They are both of the same type.
+## 2. Both implement the `Successor` and `Compare` traits.
+object Range!(T: Successor + Compare) {
+  ## Returns a new `Range` starting at `start` up to (and including) `end`.
+  def new(start: T, end: T) -> Self {
+    # A range is internally represented as just an Array. This removes the need
+    # for allocating space for attributes just to store the start and end values
+    # of the range.
+    let mut range = [start, end]
+
+    range.prototype = self
+
+    range as Range!(T)
+  }
+
+  ## Returns the start value of the range.
+  def start -> T {
+    *_INKOC.array_at(self, 0)
+  }
+
+  ## Returns the end value of the range.
+  def end -> T {
+    *_INKOC.array_at(self, 1)
+  }
+}
+
+trait ToRange {
+  ## Returns a `Range` starting at `self` up to (and including) `other`.
+  def ..(other: Self) -> Range!(Self)
+}
+
+impl Equal for Range!(T) {
+  ## Returns `True` if `self` and `other` are identical.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two identical ranges:
+  ##
+  ##     1..10 == 1..10 # => True
+  ##
+  ## Comparing two different ranges:
+  ##
+  ##     1..10 == 1..5 # => False
+  def ==(other: Self) -> Boolean {
+    start == other.start
+      .and { end == other.end }
+  }
+}
+
+impl ToArray!(T) for Range!(T) {
+  ## Converts `self` to an `Array`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Range` to an `Array`:
+  ##
+  ##     (1..10).to_array # => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  def to_array -> Array!(T) {
+    # The compiler is currently not smart enough to properly infer `[]` as
+    # `Array!(T)` so we need to manually cast it to this type.
+    let mut values = [] as Array!(T)
+    let mut current = start
+    let max = end
+
+    { current <= max }.while_true {
+      values.push(current)
+      current = current.successor
+    }
+
+    values
+  }
+}
+
+impl ToRange for Integer {
+  ## Returns a `Range` starting at `self` up to (and including) `other`.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Range`:
+  ##
+  ##     let range = 1..10
+  ##
+  ##     range.start # => 1
+  ##     range.end   # => 10
+  def ..(other: Self) -> Range!(Self) {
+    Range.new(start: self, end: other)
+  }
+}
