@@ -50,6 +50,10 @@ module Inkoc
         self.class.wrap(type.with_method_requirements(requirements))
       end
 
+      def new_shallow_instance(*args)
+        self.class.wrap(type.new_shallow_instance(*args))
+      end
+
       # rubocop: disable Style/MethodMissing
       def method_missing(name, *args, &block)
         type.public_send(name, *args, &block)
