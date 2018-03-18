@@ -29,6 +29,10 @@ module Inkoc
         true
       end
 
+      def resolve_type?
+        true
+      end
+
       def initialize_as(type, context)
         if (instance = context.type_parameter_instance(name))
           instance

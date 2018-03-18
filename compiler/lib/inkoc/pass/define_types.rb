@@ -356,7 +356,7 @@ module Inkoc
           if rest
             verify_rest_argument(context, arg, expected, arg.location)
           else
-            verify_send_argument(arg, expected, arg.location)
+            verify_send_argument(context, arg, expected, arg.location)
           end
         end
       end
@@ -385,7 +385,7 @@ module Inkoc
         expected
       end
 
-      def verify_send_argument(argument, expected, location)
+      def verify_send_argument(context, argument, expected, location)
         given = argument.type
 
         if expected.type_parameter? && !given.implements_trait?(expected)
@@ -395,7 +395,9 @@ module Inkoc
           return
         end
 
-        given.infer_to(expected) if infer_block?(given, expected)
+        if infer_block?(given, expected)
+          given.infer_to(context.receiver, expected)
+        end
 
         return if given.type_compatible?(expected)
 

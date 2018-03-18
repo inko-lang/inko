@@ -124,13 +124,15 @@ module Inkoc
       #
       # If the block could be inferred this method returns true, otherwise false
       # is returned.
-      def infer_to(block)
+      def infer_to(self_type, block)
         args = argument_types_without_self
         other_args = block.argument_types_without_self
 
         args_inferred = args.zip(other_args).all? do |ours, theirs|
           if ours.unresolved_constraint?
-            ours.infer_to(theirs)
+            theirs = resolve_for_inference(self_type, theirs)
+
+            ours.infer_to(self_type, theirs)
           else
             true
           end
@@ -138,16 +140,32 @@ module Inkoc
 
         return false unless args_inferred
 
-        valid =
-          if returns.unresolved_constraint?
-            returns.infer_to(block.returns)
-          else
-            true
-          end
+        valid = infer_return_type(self_type, block)
 
         @inferred = true if valid
 
         valid
+      end
+
+      def infer_return_type(self_type, block)
+        if returns.unresolved_constraint?
+          their_self = block.self_argument.type
+          their_ret = resolve_for_inference(their_self, block.returns)
+
+          returns.infer_to(self_type, their_ret)
+        else
+          true
+        end
+      end
+
+      def resolve_for_inference(self_type, type)
+        if type.resolve_type?
+          resolved = type.resolve_type(self_type)
+
+          resolved.constraint? ? type : resolved
+        else
+          type
+        end
       end
 
       def downcast_to?(other)

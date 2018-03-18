@@ -82,6 +82,10 @@ module Inkoc
       def downcast_to?(*)
         false
       end
+
+      def resolve_type?
+        false
+      end
     end
   end
 end
