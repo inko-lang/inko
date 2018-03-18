@@ -23,6 +23,7 @@ module Inkoc
       # It's possible for a type to be partially resolved, though in this case
       # false will be returned.
       def infer_to(self_type, type)
+        return false if self == type
         return resolved if inferred_type
 
         @inferred_type = type
@@ -70,12 +71,18 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        if inferred_type
+        other = other.type if other.optional?
+
+        if self == other
+          true
+        elsif other.dynamic?
+          true
+        elsif inferred_type
           other = type_for_type_compatibility(other)
 
           inferred_type.type_compatible?(other)
         else
-          self == other || other.dynamic? || other.type_parameter?
+          other.type_parameter?
         end
       end
       alias strict_type_compatible? type_compatible?
@@ -111,12 +118,20 @@ module Inkoc
         true
       end
 
+      def initialize_as(*)
+        self
+      end
+
       def type_name
         if inferred_type
           inferred_type.type_name
         else
           '?'
         end
+      end
+
+      def with_method_requirements(*)
+        self
       end
     end
   end
