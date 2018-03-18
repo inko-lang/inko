@@ -10,8 +10,9 @@ describe Inkoc::Type::Constraint do
     describe 'using a constraint without any required methods' do
       it 'resolves the constraint to the given type' do
         type = Inkoc::Type::Object.new
+        self_type = Inkoc::Type::Object.new(name: 'A')
 
-        expect(constraint.infer_to(type)).to eq(true)
+        expect(constraint.infer_to(self_type, type)).to eq(true)
         expect(constraint.inferred_type).to eq(type)
       end
     end
@@ -23,7 +24,7 @@ describe Inkoc::Type::Constraint do
 
         constraint.define_required_method(self_type, 'to_string', [], typedb)
 
-        expect(constraint.infer_to(type)).to eq(false)
+        expect(constraint.infer_to(self_type, type)).to eq(false)
       end
     end
 
@@ -47,12 +48,12 @@ describe Inkoc::Type::Constraint do
       end
 
       it 'resolves the constraint to the given type' do
-        expect(constraint.infer_to(type)).to eq(true)
+        expect(constraint.infer_to(self_type, type)).to eq(true)
         expect(constraint.inferred_type).to eq(type)
       end
 
       it "resolves the required method's return type" do
-        constraint.infer_to(type)
+        constraint.infer_to(self_type, type)
 
         method = constraint.required_methods['to_string']
 
