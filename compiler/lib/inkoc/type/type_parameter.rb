@@ -29,6 +29,10 @@ module Inkoc
         true
       end
 
+      def trait?
+        true
+      end
+
       def resolve_type?
         true
       end
