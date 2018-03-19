@@ -31,6 +31,7 @@ import std::nil
 import std::block
 import std::string
 import std::array
+import std::array_iter
 import std::hash_map::(HashMap as _HashMap)
 
 # These constants are re-exported so they're available to all modules by

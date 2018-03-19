@@ -128,6 +128,55 @@ impl Array!(T) {
   def remove_at(index: Integer) -> ?T {
     _INKOC.array_remove(self, index)
   }
+
+  ## Yields all the values in this `Array` to the supplied `Block`.
+  ##
+  ## While `std::iterator::Iterator` provides an `each` method using this would
+  ## require the allocation of an `Iterator`. Since iterating over an `Array` is
+  ## so common we provide a specialised implementation for those cases.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over all the values in an `Array`:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     [10, 20, 30].each do (number) {
+  ##       stdout.print(number)
+  ##     }
+  def each(block: do (T)) {
+    let mut index = 0
+    let max = length
+
+    { index < max }.while_true {
+      let value = self[index]
+
+      block.call(*value)
+
+      index += 1
+    }
+  }
+
+  ## Yields all the values and their indexes in this `Array` to the supplied
+  ## `Block`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over the values of an `Array` and their indexes:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     [10, 20, 30].each_with_index do (number, index) {
+  ##       stdout.print(index) # => 0, 1, 2
+  ##     }
+  def each_with_index(block: do (T, Integer)) {
+    let mut index = 0
+
+    each do (value: T) {
+      block.call(value, index)
+      index += 1
+    }
+  }
 }
 
 impl Length for Array!(T) {
@@ -243,17 +292,11 @@ impl Equal for Array!(T) {
     length == other.length
       .if_false { return False }
 
-    let mut index = 0
-    let max = length
-
-    { index < max }.while_true {
-      let ours = self[index]
+    each_with_index do (ours: T, index: Integer) {
       let theirs = other[index]
 
       ours == theirs
         .if_false { return False }
-
-      index += 1
     }
 
     True
@@ -278,19 +321,15 @@ impl ToString for Array!(T) {
   ##     [10, 20, 30].to_string # => '[10, 20, 30]'
   def to_string -> String where T: ToString {
     let mut output = '['
-    let mut index = 0
-    let max = length
-    let last = max - 1
+    let last = length - 1
 
-    { index < max }.while_true {
-      output += self[index].to_string
+    each_with_index do (value: T, index: Integer) {
+      output += value.to_string
 
       index < last
         .if_true {
           output += ', '
         }
-
-      index += 1
     }
 
     output + ']'

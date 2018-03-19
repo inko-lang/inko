@@ -1,0 +1,250 @@
+#! Types for composing external iterators.
+#!
+#! Iterators are objects that can be used to traverse collections such as an
+#! `Array` or a `HashMap`. Typically iterators are implemented in one of two
+#! ways:
+#!
+#! 1. Internal iterators: these kind of iterators take care of the iteration
+#!    process and usually operate using some kind of closure.
+#! 2. External iterators: these iterators use some kind of cursor stored
+#!    somewhere and require you to manually advance the iterator.
+#!
+#! Both have their benefits and drawbacks. Internal iterators are easy to
+#! implement and typically faster as they don't require the allocation of
+#! additional data structures. External iterators on the other hand can be
+#! composed together, suspended (and later resumed), and they separate the logic
+#! necessary for iteration from the collection. External iterators can also be
+#! easily turned into internal iterators, while the inverse is not possible
+#! unless a language supports some form of coroutines or generators.
+#!
+#! Inko uses external iterators for the following reasons:
+#!
+#! 1. They can be easily adapted for lazy iterators.
+#! 2. Composing different iterators together is possible, without immediately
+#!    processing the entire input collection.
+#! 3. We can separate the logic of iteration from the collections.
+#! 4. External iterators can be processed in parallel, while doing so with
+#!    internal iterators is much harder.
+#!
+#! Certain types such as `Array` may provide iterator-like methods (e.g.
+#! `Array.each`) to optimise common use cases. This provides a nice balance
+#! between the flexibility and power of external iterators with the performance
+#! of internal iterators.
+#!
+#! # Creating iterators
+#!
+#! Creating your own iterator is fairly straightforward and requires the
+#! two building blocks:
+#!
+#! 1. A object that tracks the state of the iteration process.
+#! 2. An implementation of the `Iterator` trait for this object.
+#!
+#! The `Iterator` trait requires that you implement two methods: `next?` and
+#! `next`. The method `next?` is used to determine if there is a value available
+#! for iteration while `next` returns this value (or `Nil` if no value is
+#! present).
+#!
+#! Let's say we want to create an iterator that yields the first 5 values in an
+#! `Array`, then terminates. We can do so as follows:
+#!
+#!     import std::iterator::Iterator
+#!
+#!     # This is our iterator. Most iterators typically store at least two
+#!     # values: the collection or iterator that we are iterating over, and some
+#!     # kind of cursor that we can use to determine where we are in this
+#!     # process.
+#!     object LimitedIterator!(T) {
+#!       def init(array: Array!(T)) {
+#!         let @array = array
+#!         let mut @index = 0
+#!       }
+#!     }
+#!
+#!     # Next up we need to implement the Iterator trait.
+#!     impl Iterator!(T) for LimitedIterator!(T) {
+#!       def next? -> Boolean {
+#!         @index < 5
+#!       }
+#!
+#!       def next -> ?T {
+#!         let value = @array[@index]
+#!
+#!         @index += 1
+#!
+#!         value
+#!       }
+#!     }
+#!
+#!     # With the iterator in place we can use it as follows:
+#!     let mut iterator = LimitedIterator.new([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+#!
+#!     iterator.next? # => True
+#!     iterator.next  # => 1
+#!
+#!     iterator.next? # => True
+#!     iterator.next  # => 2
+#!
+#!     iterator.next? # => True
+#!     iterator.next  # => 3
+#!
+#!     iterator.next? # => True
+#!     iterator.next  # => 4
+#!
+#!     iterator.next? # => True
+#!     iterator.next  # => 5
+#!
+#!     iterator.next? # => False
+#!     iterator.next  # => Nil
+#!
+#! # Exposing Iterators
+#!
+#! The usual way of exposing an `Iterator` is by defining an `iter` method on a
+#! collection. If your collection can return different kinds of iterators you
+#! should use more descriptive method names such as `lines` for an `Iterator`
+#! that yields the lines in a file, or `characters` for an `Iterator` that
+#! returns the characters in a `String`.
+
+# First we need to forward declare Iterator since Map depends on it while
+# Iterator depends on Map.
+
+## A generic iterator over a sequence of values of type `T`.
+trait Iterator!(T) {}
+
+## An iterator that maps values of type `In` to type `Out`.
+##
+## A `Map` iterator takes two input variables: an `Iterator` that produces
+## values we want to map, and a `Block` that takes these values and maps them to
+## something else.
+object Map!(In, Out) {
+  def init(iterator: Iterator!(In), block: do (In) -> Out) {
+    let mut @iterator = iterator
+    let @block = block
+  }
+}
+
+trait Iterator!(T) {
+  ## Advances the iterator and returns the next value.
+  ##
+  ## If no values are available this method must return `Nil`. Since `Nil`
+  ## itself is a valid value to be returned you should not check for `Nil` to
+  ## determine if the iterator has reached the end; instead you should check the
+  ## result of `next?`.
+  ##
+  ## # Examples
+  ##
+  ## Returning the next value in an `Iterator`:
+  ##
+  ##     let numbers = [10, 20, 30]
+  ##     let mut iter = numbers.iter
+  ##
+  ##     iter.next # => 10
+  ##     iter.next # => 20
+  ##     iter.next # => 30
+  def next -> ?T
+
+  ## Returns `True` if there are values available, `False` otherwise.
+  ##
+  ## This method _must not_ advance the iterator.
+  ##
+  ## # Examples
+  ##
+  ## Checking if there are any remaining values in an iterator:
+  ##
+  ##     let numbers = [10]
+  ##     let mut iter = numbers.iter
+  ##
+  ##     iter.next? # => True
+  ##     iter.next  # => 10
+  ##     iter.next? # => False
+  def next? -> Boolean
+
+  ## Yields all the values in this iterator to the supplied `Block`.
+  ##
+  ## This method will advance the `Iterator` to the end.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over all the values in an `Array`:
+  ##
+  ##     import std::stdio::stdout
+  ##
+  ##     [10, 20, 30].iter.each do (number) {
+  ##       stdout.print(number)
+  ##     }
+  def each(block: do (T)) {
+    { next? }.while_true {
+      block.call(*next)
+    }
+  }
+
+  ## Returns the first value for which the supplied `Block` returns `True`.
+  ##
+  ## This method will advance the `Iterator` until either a value is found or we
+  ## run out of values.
+  ##
+  ## # Examples
+  ##
+  ## Finding the first number greated than 50 in an `Array`:
+  ##
+  ##     let numbers = [10, 20, 50, 80]
+  ##
+  ##     numbers.iter.find do (number) { number > 50 } # => 80
+  def find(block: do (T) -> Boolean) -> ?T {
+    each do (value) {
+      block.call(value).if_true {
+        return value
+      }
+    }
+
+    Nil
+  }
+
+  ## Returns an `Iterator` that transforms values of type `T` to values of type
+  ## `R`.
+  ##
+  ## # Examples
+  ##
+  ## Multiplying the numbers in an `Array`:
+  ##
+  ##     let mut iter = [1, 2, 3]
+  ##       .iter
+  ##       .map do (number) { number * 2 }
+  ##
+  ##     iter.to_array # => [2, 4, 6]
+  def map!(R)(block: do (T) -> R) -> Map!(T, R) {
+    Map.new(iterator: self, block: block)
+  }
+
+  ## Transforms the `Iterator` into an `Array`.
+  ##
+  ## This method will advance the iterator to the end.
+  ##
+  ## # Examples
+  ##
+  ## Transforming an `Iterator` back into an `Array`:
+  ##
+  ##     [1, 2, 3].iter.to_array # => [1, 2, 3]
+  def to_array -> Array!(T) {
+    let mut values = [] as Array!(T)
+
+    each do (value: T) {
+      values.push(value)
+    }
+
+    values
+  }
+}
+
+impl Iterator!(In) for Map!(In, Out) {
+  def next? -> Boolean {
+    @iterator.next?
+  }
+
+  def next -> ?Out {
+    next?.if true: {
+      @block.call(@iterator.next)
+    }, false: {
+      Nil
+    }
+  }
+}
