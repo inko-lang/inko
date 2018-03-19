@@ -99,11 +99,7 @@ impl Object {
   def set_attribute!(T)(name: String, value: T) -> T {
     _INKOC.set_attribute(self, name, value)
   }
-}
 
-# These methods can't be implemented until `if_true` is in place, thus we must
-# implement them after implementing `Conditional`.
-impl Object {
   ## Returns `True` if the receiving object is an instance of the given object.
   ##
   ## Instance checking is performing by walking the prototype chain of the
