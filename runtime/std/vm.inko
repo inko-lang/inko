@@ -111,18 +111,15 @@ def exit(status: Integer) -> Void {
 def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   let mut raw_frames = _INKOC.stacktrace(limit, skip)
   let mut frames = []
-  let mut index = 0
 
-  { index < raw_frames.length }.while_true {
-    let raw_frame = raw_frames[index]
-
-    frames[index] = CallFrame.new(
-      file: raw_frame[0] as String,
-      name: raw_frame[1] as String,
-      line: raw_frame[2] as Integer
+  raw_frames.each do (raw_frame) {
+    frames.push(
+      CallFrame.new(
+        file: raw_frame[0] as String,
+        name: raw_frame[1] as String,
+        line: raw_frame[2] as Integer
+      )
     )
-
-    index += 1
   }
 
   # We no longer need the raw list of frames and keeping the memory around is a

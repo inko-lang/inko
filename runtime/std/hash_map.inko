@@ -144,24 +144,18 @@ object Table!(K: Hash + Equal, V) {
   ## This approach removes the need for allocating a new `Array` to copy all the
   ## nodes to, at the cost of requiring slightly more CPU time.
   def rehash {
-    let mut prepare_index = 0
     let mut rehash_index = 0
 
-    { prepare_index < @buckets.length }.while_true {
-      @buckets[prepare_index].prepare_for_rehash
-      prepare_index += 1
+    @buckets.each do (node) {
+      node.prepare_for_rehash
     }
 
-    { rehash_index < @buckets.length }.while_true {
-      let node = @buckets[rehash_index]
-
+    @buckets.each_with_index do (node: ?Node!(K, V), index: Integer) {
       node.distance.negative?.if_true {
-        @buckets[rehash_index] = Nil
+        @buckets[index] = Nil
         node.reset_distance
         insert_node(node: *node, increment_length: False)
       }
-
-      rehash_index += 1
     }
   }
 
