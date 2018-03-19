@@ -150,7 +150,9 @@ module Inkoc
       def infer_return_type(self_type, block)
         if returns.unresolved_constraint?
           their_self = block.self_argument.type
+          our_self = self_argument.type
           their_ret = resolve_for_inference(their_self, block.returns)
+          their_ret = Optional.wrap(their_ret) if our_self.infer_as_optional?
 
           returns.infer_to(self_type, their_ret)
         else

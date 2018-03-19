@@ -65,11 +65,27 @@ module Inkoc
 
       def type_compatible?(other)
         other = other.type if other.optional?
+        valid = basic_type_compatibility?(other)
 
+        if valid
+          true
+        else
+          compatible_traits?(other)
+        end
+      end
+
+      def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return true if other.trait? && implements_trait?(other)
+        return true if compatible_with_constraint?(other)
+      end
 
-        compatible_traits?(other)
+      def compatible_with_constraint?(other)
+        if other.constraint?
+          super
+        else
+          false
+        end
       end
 
       def compatible_traits?(other)

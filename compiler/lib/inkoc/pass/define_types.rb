@@ -1390,8 +1390,8 @@ module Inkoc
       def on_dereference(node, scope)
         type = define_type(node.expression, scope)
 
-        if type.optional?
-          type.type
+        if type.dereference?
+          type.dereferenced_type
         else
           diagnostics.dereference_error(type, node.location)
           type

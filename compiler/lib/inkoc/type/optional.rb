@@ -34,6 +34,18 @@ module Inkoc
         true
       end
 
+      def dereference?
+        true
+      end
+
+      def infer_as_optional?
+        true
+      end
+
+      def dereferenced_type
+        type
+      end
+
       def resolve_type(*args)
         self.class.wrap(type.resolve_type(*args))
       end

@@ -25,13 +25,24 @@ module Inkoc
         traits.all? { |trait| implements_trait?(trait) }
       end
 
+      def compatible_with_constraint?(other)
+        other.required_methods.all? do |_, required|
+          implements_method?(required)
+        end
+      end
+
       def basic_type_compatibility?(other)
-        return true if self == other || other.dynamic?
+        return true if identical_or_dynamic?(other)
         return false if other.void?
         return implements_trait?(other) if check_trait_implementation?(other)
         return type_compatible?(other.type) if other.optional?
+        return compatible_with_constraint?(other) if other.constraint?
 
         nil
+      end
+
+      def identical_or_dynamic?(other)
+        self == other || other.dynamic?
       end
 
       def check_trait_implementation?(other)

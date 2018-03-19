@@ -7,11 +7,19 @@ module Inkoc
         false
       end
 
+      def dereference?
+        false
+      end
+
       def initialize_generic_type?
         false
       end
 
       def optional?
+        false
+      end
+
+      def infer_as_optional?
         false
       end
 

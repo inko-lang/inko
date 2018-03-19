@@ -33,6 +33,12 @@ module Inkoc
         end
       end
 
+      def required_methods_implemented?(type)
+        required_methods.all? do |_, required|
+          type.implements_method?(required)
+        end
+      end
+
       def define_required_method(receiver, name, arguments, typedb)
         block = Type::Block.new(
           name: name,
@@ -71,26 +77,33 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        real_type =
-          if other.optional?
-            other.type
-          else
-            other
-          end
+        real_type = real_type_for_type_compatibility(other)
 
         if self == real_type
           true
         elsif real_type.dynamic?
           true
         elsif inferred_type
-          other = type_for_type_compatibility(other)
-
-          inferred_type.type_compatible?(other)
+          inferred_type_compatibility?(other)
         else
-          real_type.type_parameter?
+          required_methods_implemented?(other)
         end
       end
       alias strict_type_compatible? type_compatible?
+
+      def real_type_for_type_compatibility(other)
+        if other.optional?
+          other.type
+        else
+          other
+        end
+      end
+
+      def inferred_type_compatibility?(other)
+        other = type_for_type_compatibility(other)
+
+        inferred_type.type_compatible?(other)
+      end
 
       def type_for_type_compatibility(other)
         if other.constraint? && other.resolved
@@ -121,6 +134,22 @@ module Inkoc
 
       def constraint?
         true
+      end
+
+      def dereference?
+        if inferred_type
+          inferred_type.dereference?
+        else
+          true
+        end
+      end
+
+      def infer_as_optional?
+        inferred_type&.optional?
+      end
+
+      def dereferenced_type
+        inferred_type&.dereferenced_type || self
       end
 
       def initialize_as(*)
