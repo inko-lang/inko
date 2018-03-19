@@ -4,6 +4,7 @@ import std::hash::(Hash, Hasher)
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
+import std::iterator::(Iterator as IteratorTrait)
 
 # The load factor of a Table before it should be resized.
 let LOAD_FACTOR = 0.75
@@ -115,6 +116,11 @@ object Table!(K: Hash + Equal, V) {
     ## We store this value explicitly so we don't have to allocate floats every
     ## time we want to check if we need to resize.
     let mut @resize_threshold = 0
+  }
+
+  ## Returns the buckets in this table.
+  def buckets -> Array!(?Pair!(K, V)) {
+    @buckets
   }
 
   ## Returns the number of key-value pairs stored in this table.
@@ -291,6 +297,71 @@ impl SetIndex!(K, V) for Table!(K, V) {
   }
 }
 
+## An `Iterator` visiting all key-value pairs in a `HashMap`.
+object Iterator!(K: Hash + Equal, V) {
+  def init(table: Table!(K, V)) {
+    let @table = table
+    let mut @index = 0
+  }
+}
+
+impl IteratorTrait!(Pair!(K, V)) for Iterator!(K, V) {
+  def next? -> Boolean {
+    @index < @table.buckets.length
+  }
+
+  ## Returns the next `Pair` in a `HashMap`.
+  def next -> ?Pair!(K, V) {
+    { next? }.while_true {
+      let pair = @table.buckets[@index]
+
+      @index += 1
+
+      pair.if_true {
+        return pair
+      }
+    }
+
+    Nil
+  }
+}
+
+## An `Iterator` visiting all the keys in a `HashMap`.
+object Keys!(K: Hash + Equal, V) {
+  def init(iterator: Iterator!(K, V)) {
+    let mut @iterator = iterator
+  }
+}
+
+impl IteratorTrait!(K) for Keys!(K, V) {
+  def next? -> Boolean {
+    @iterator.next?
+  }
+
+  ## Returns the next key in a `HashMap`.
+  def next -> ?K {
+    @iterator.next.key
+  }
+}
+
+## An `Iterator` visiting all the values in a `HashMap`.
+object Values!(K: Hash + Equal, V) {
+  def init(iterator: Iterator!(K, V)) {
+    let mut @iterator = iterator
+  }
+}
+
+impl IteratorTrait!(V) for Values!(K, V) {
+  def next? -> Boolean {
+    @iterator.next?
+  }
+
+  ## Returns the next value in a `HashMap`.
+  def next -> ?V {
+    @iterator.next.value
+  }
+}
+
 ## An unordered hash map using linear probing and Robin Hood bucket stealing.
 ##
 ## The keys in a `HashMap` can be any object that implements the `Hash` and
@@ -355,6 +426,84 @@ object HashMap!(K: Hash + Equal, V) {
   ##     map.empty? # => False
   def empty? -> Boolean {
     length.zero?
+  }
+
+  ## Calls the supplied `Block` for every key value pair in this map.
+  ##
+  ## This method differs from `Iterator.each` in that it yields the key and
+  ## value as separate arguments instead of yielding a `Pair` object.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over the keys and values of a `HashMap`:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.each do (key, value) {
+  ##       key   # => 'name'
+  ##       value # => 'Alice'
+  ##     }
+  def each(block: do (K, V)) {
+    @table.buckets.each do (pair) {
+      pair.if_true {
+        block.call(*pair.key, *pair.value)
+      }
+    }
+  }
+
+  ## Returns an `Iterator` that iterates over all key-value pairs in this
+  ## `HashMap`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over all the key-value pairs:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.iter.each do (pair) {
+  ##       pair.key   # => 'name'
+  ##       pair.value # => 'Alice'
+  ##     }
+  def iter -> Iterator!(K, V) {
+    Iterator.new(@table)
+  }
+
+  ## Returns an `Iterator` visiting all the keys in this `HashMap`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over the keys in a `HashMap`:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.keys.each do (key) {
+  ##       key # => 'name'
+  ##     }
+  def keys -> Keys!(K, V) {
+    Keys.new(iter)
+  }
+
+  ## Returns an `Iterator` visiting all the values in this `HashMap`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over the values in a `HashMap`:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ##     map.values.each do (value) {
+  ##       value # => 'Alice'
+  ##     }
+  def values -> Values!(K, V) {
+    Values.new(iter)
   }
 }
 
