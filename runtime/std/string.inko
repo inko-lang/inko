@@ -77,6 +77,68 @@ impl String {
   def bytesize -> Integer {
     _INKOC.string_size(self)
   }
+
+  ## Slices `self` into a substring.
+  ##
+  ## Slicing a string allows one to extract a substring by providing a start
+  ## position and the number of _characters_ to include starting at the start
+  ## position.
+  ##
+  ## # Examples
+  ##
+  ## Slicing a `String`:
+  ##
+  ##     'hello_world'.slice(0, 5) # => 'hello'
+  ##
+  ## If the `length` argument is greater than the available amount of characters
+  ## we only include the characters until the end of the `String`:
+  ##
+  ##     'hello_world'.slice(0, 100) # => 'hello_world'
+  ##
+  ## Similar to indexing an `Array` you can use a negative `start` position:
+  ##
+  ##     'hello_world'.slice(-1, 5) # => 'world'
+  def slice(start: Integer, length: Integer) -> String {
+    _INKOC.string_slice(self, start, length)
+  }
+
+  ## Returns `True` if `self` starts with the given `String`.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a `String` starts with another `String`:
+  ##
+  ##     'test_starts_with'.starts_with?('test_') # => True
+  ##     'hello'.starts_with?('test_')            # => False
+  def starts_with?(prefix: String) -> Boolean {
+    prefix.length > length
+      .if_true {
+        return False
+      }
+
+    slice(0, prefix.length) == prefix
+  }
+
+  ## Returns `True` if `self` ends with the given `String`.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a `String` ends with another `String`:
+  ##
+  ##     'hello_world'.ends_with?('world') # => True
+  ##     'hello'.ends_with?('world')       # => False
+  def ends_with?(suffix: String) -> Boolean {
+    let suffix_len = suffix.length
+    let start = length - suffix_len
+
+    # if "suffix" is longer than "self" we produce a negative index. In this
+    # case "self" will never start with "suffix".
+    start.negative?.if_true {
+      return False
+    }
+
+    slice(start, suffix_len) == suffix
+  }
 }
 
 impl ToString for String {

@@ -101,8 +101,8 @@ macro_rules! enter_context {
     })
 }
 
-/// Returns a vector index for an i64
-macro_rules! int_to_vector_index {
+/// Returns a slice index for an i64
+macro_rules! int_to_slice_index {
     ($vec: expr, $index: expr) => ({
         if $index >= 0 as i64 {
             $index as usize
@@ -1087,10 +1087,8 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(3));
 
                     let vector = array_ptr.array_value_mut()?;
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value()?
-                    );
+                    let index =
+                        int_to_slice_index!(vector, index_ptr.integer_value()?);
 
                     let value = copy_if_permanent!(
                         self.state.permanent_allocator,
@@ -1125,10 +1123,8 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let vector = array_ptr.array_value()?;
 
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value()?
-                    );
+                    let index =
+                        int_to_slice_index!(vector, index_ptr.integer_value()?);
 
                     let value = vector
                         .get(index)
@@ -1155,10 +1151,8 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
 
                     let vector = array_ptr.array_value_mut()?;
-                    let index = int_to_vector_index!(
-                        vector,
-                        index_ptr.integer_value()?
-                    );
+                    let index =
+                        int_to_slice_index!(vector, index_ptr.integer_value()?);
 
                     let value = if index > vector.len() {
                         self.state.nil_object
@@ -3247,28 +3241,31 @@ impl Machine {
                 // 1. The register to store the new string in.
                 // 2. The register containing the string to slice.
                 // 3. The register containing the start position.
-                // 4. The register containing the stop position.
+                // 4. The register containing the number of values to include.
                 InstructionType::StringSlice => {
                     let register = instruction.arg(0);
                     let str_ptr = context.get_register(instruction.arg(1));
                     let start_ptr = context.get_register(instruction.arg(2));
-                    let stop_ptr = context.get_register(instruction.arg(3));
+                    let amount_ptr = context.get_register(instruction.arg(3));
 
                     let string = str_ptr.string_value()?;
-                    let start = start_ptr.integer_value()? as usize;
-                    let stop = stop_ptr.integer_value()? as usize;
 
-                    if stop < start {
+                    let start =
+                        int_to_slice_index!(string, start_ptr.integer_value()?);
+
+                    let amount = amount_ptr.integer_value()?;
+
+                    if amount < 0 {
                         return Err(format!(
-                            "invalid string slice range: {}..{}",
-                            start, stop
+                            "{} is not a valid amount of characters to include",
+                            amount
                         ));
                     }
 
                     let new_string = string
                         .chars()
                         .skip(start)
-                        .take(stop - start)
+                        .take(amount as usize)
                         .collect::<String>();
 
                     let new_string_ptr = process.allocate(
