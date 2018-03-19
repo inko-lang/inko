@@ -40,7 +40,7 @@ impl Hasher for DefaultHasher {
 }
 
 ## A single key-value pair
-object Node!(K: Hash + Equal, V) {
+object Pair!(K: Hash + Equal, V) {
   def init(key: K, value: V, hash: Integer) {
     ## The key that was hashed.
     let @key = key
@@ -51,7 +51,7 @@ object Node!(K: Hash + Equal, V) {
     ## The hash value of our key.
     let @hash = hash
 
-    ## The distance of this node relative to its desired index.
+    ## The distance of this pair relative to its desired index.
     let mut @distance = 0
   }
 
@@ -101,9 +101,9 @@ object Table!(K: Hash + Equal, V) {
     ## The Hasher to use for hashing keys.
     let mut @hasher = hasher
 
-    ## The buckets to store nodes in. Each bucket can only contain a single
-    ## node.
-    let mut @buckets: Array!(?Node!(K, V)) = []
+    ## The buckets to store pairs in. Each bucket can only contain a single
+    ## pair.
+    let mut @buckets: Array!(?Pair!(K, V)) = []
 
     ## The number of key-value pairs stored in this table.
     let mut @length = 0
@@ -138,23 +138,23 @@ object Table!(K: Hash + Equal, V) {
   ##
   ## Rehashing is done in two separate steps:
   ##
-  ## 1. We set the distances of all nodes to -1.
-  ## 2. We relocate all nodes with a distance of -1.
+  ## 1. We set the distances of all pairs to -1.
+  ## 2. We relocate all pairs with a distance of -1.
   ##
   ## This approach removes the need for allocating a new `Array` to copy all the
-  ## nodes to, at the cost of requiring slightly more CPU time.
+  ## pairs to, at the cost of requiring slightly more CPU time.
   def rehash {
     let mut rehash_index = 0
 
-    @buckets.each do (node) {
-      node.prepare_for_rehash
+    @buckets.each do (pair) {
+      pair.prepare_for_rehash
     }
 
-    @buckets.each_with_index do (node, index) {
-      node.distance.negative?.if_true {
+    @buckets.each_with_index do (pair, index) {
+      pair.distance.negative?.if_true {
         @buckets[index] = Nil
-        node.reset_distance
-        insert_node(node: *node, increment_length: False)
+        pair.reset_distance
+        insert_pair(pair: *pair, increment_length: False)
       }
     }
   }
@@ -176,41 +176,41 @@ object Table!(K: Hash + Equal, V) {
     hash % @capacity
   }
 
-  ## Inserts a new node into the table.
+  ## Inserts a new pair into the table.
   ##
   ## If the `increment_length` argument is set to `True` we'll also increment
-  ## the length of the table should the node be a newly inserted node.
-  def insert_node(mut node: Node!(K, V), increment_length = True) {
-    let mut index = desired_bucket(node.hash)
+  ## the length of the table should the pair be a newly inserted pair.
+  def insert_pair(mut pair: Pair!(K, V), increment_length = True) {
+    let mut index = desired_bucket(pair.hash)
 
     {
       let existing = @buckets[index]
 
       existing.if true: {
-        existing.key == node.key
+        existing.key == pair.key
           .if_true {
-            @buckets[index] = node
+            @buckets[index] = pair
             return
           }
 
-        # Per Robin Hood hashing we swap the to-insert and existing nodes if the
-        # existing node is closer to its desired bucket.
-        existing.distance < node.distance
+        # Per Robin Hood hashing we swap the to-insert and existing pairs if the
+        # existing pair is closer to its desired bucket.
+        existing.distance < pair.distance
           .if_true {
-            @buckets[index] = node
-            node = *existing
+            @buckets[index] = pair
+            pair = *existing
           }
       }, false: {
         increment_length.if_true {
           @length += 1
         }
 
-        @buckets[index] = node
+        @buckets[index] = pair
         return
       }
 
       index = desired_bucket(index + 1)
-      node.increase_distance
+      pair.increase_distance
     }.loop
   }
 
@@ -218,18 +218,18 @@ object Table!(K: Hash + Equal, V) {
   def bucket_index(key: K) -> ?Integer {
     let mut index = desired_bucket(hash_key(key))
     let desired = index
-    let mut node = @buckets[index]
+    let mut pair = @buckets[index]
 
-    { node.key != key }.while_true {
+    { pair.key != key }.while_true {
       index = desired_bucket(index + 1)
 
       index == desired
         .if_true {
-          # We cycled through all buckets but didn't find a matching node.
+          # We cycled through all buckets but didn't find a matching pair.
           return
         }
 
-      node = @buckets[index]
+      pair = @buckets[index]
     }
 
     index
@@ -240,29 +240,29 @@ object Table!(K: Hash + Equal, V) {
     let index = bucket_index(key)
 
     index.if true: {
-      let node = @buckets[*index]
+      let pair = @buckets[*index]
 
       @buckets[*index] = Nil
       @length -= 1
 
       backwards_shift(*index + 1)
 
-      node.value
+      pair.value
     }, false: {
       Nil
     }
   }
 
-  ## Shifts all nodes to the left starting at the given bucket index.
+  ## Shifts all pairs to the left starting at the given bucket index.
   def backwards_shift(mut index: Integer) {
-    let mut node = @buckets[index]
+    let mut pair = @buckets[index]
 
-    { node.and { node.distance.positive? } }.while_true {
-      @buckets[index - 1] = node
+    { pair.and { pair.distance.positive? } }.while_true {
+      @buckets[index - 1] = pair
       @buckets[index] = Nil
 
       index += 1
-      node = @buckets[index]
+      pair = @buckets[index]
     }
   }
 }
@@ -285,7 +285,7 @@ impl SetIndex!(K, V) for Table!(K, V) {
       resize
     }
 
-    insert_node(Node.new(key: key, value: value, hash: hash_key(key)))
+    insert_pair(Pair.new(key: key, value: value, hash: hash_key(key)))
 
     value
   }
