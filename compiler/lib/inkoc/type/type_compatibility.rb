@@ -28,10 +28,14 @@ module Inkoc
       def basic_type_compatibility?(other)
         return true if self == other || other.dynamic?
         return false if other.void?
-        return implements_trait?(other) if other.trait?
+        return implements_trait?(other) if check_trait_implementation?(other)
         return type_compatible?(other.type) if other.optional?
 
         nil
+      end
+
+      def check_trait_implementation?(other)
+        other.trait? || other.type_parameter?
       end
 
       # Returns true if the current and the given type are compatible.

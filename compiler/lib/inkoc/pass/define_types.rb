@@ -1426,7 +1426,7 @@ module Inkoc
 
         arguments.each do |arg|
           val_type = type_for_argument_value(arg, scope)
-          def_type = defined_type_for_argument(arg, block_type, scope.self_type)
+          def_type = defined_type_for_argument(arg, block_type, scope)
 
           # If both an explicit type and default value are given we need to make
           # sure the two are compatible.
@@ -1509,13 +1509,15 @@ module Inkoc
         define_type(arg.default, scope) if arg.default
       end
 
-      def defined_type_for_argument(arg, block_type, self_type)
+      def defined_type_for_argument(arg, block_type, scope)
         unless (vtype = arg.value_type)
           return
         end
 
-        resolved = resolve_block_type(vtype, block_type, self_type)
-          .with_method_requirements(block_type)
+        requirements_scope = scope.method_block_type || block_type
+
+        resolved = resolve_block_type(vtype, block_type, scope.self_type)
+          .with_method_requirements(requirements_scope)
 
         wrap_optional_type(
           vtype,
