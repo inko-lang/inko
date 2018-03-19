@@ -71,18 +71,23 @@ module Inkoc
       end
 
       def type_compatible?(other)
-        other = other.type if other.optional?
+        real_type =
+          if other.optional?
+            other.type
+          else
+            other
+          end
 
-        if self == other
+        if self == real_type
           true
-        elsif other.dynamic?
+        elsif real_type.dynamic?
           true
         elsif inferred_type
           other = type_for_type_compatibility(other)
 
           inferred_type.type_compatible?(other)
         else
-          other.type_parameter?
+          real_type.type_parameter?
         end
       end
       alias strict_type_compatible? type_compatible?
