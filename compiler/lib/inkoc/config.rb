@@ -67,7 +67,7 @@ module Inkoc
     TRY_BLOCK_NAME = '<try>'
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
-    IMPLEMENT_TRAIT_MESSAGE = 'implement_trait'
+    IMPLEMENT_TRAIT_MESSAGE = 'implement_for'
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_object_name'
     INIT_MESSAGE = 'init'
 

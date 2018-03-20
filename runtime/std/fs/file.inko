@@ -14,6 +14,7 @@ import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
+import std::reflection
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
@@ -40,7 +41,8 @@ object ReadOnlyFile {
       raw.open(path: conv_path.to_string, mode: READ_ONLY)
     } as ReadOnlyFile
 
-    file.prototype = self
+    reflection.set_prototype(file, self)
+
     file.init(conv_path)
     file
   }
@@ -68,7 +70,8 @@ object WriteOnlyFile {
       raw.open(path: conv_path.to_string, mode: mode)
     } as WriteOnlyFile
 
-    file.prototype = self
+    reflection.set_prototype(file, self)
+
     file.init(conv_path)
     file
   }
@@ -96,7 +99,8 @@ object ReadWriteFile {
       raw.open(path: conv_path.to_string, mode: mode)
     } as ReadWriteFile
 
-    file.prototype = self
+    reflection.set_prototype(file, self)
+
     file.init(conv_path)
     file
   }

@@ -412,9 +412,9 @@ module Inkoc
           object = get_global(object_name.name, body, loc)
 
           send_object_message(
-            object,
+            trait,
             Config::IMPLEMENT_TRAIT_MESSAGE,
-            [trait],
+            [object],
             [],
             node.block_type,
             node.type,

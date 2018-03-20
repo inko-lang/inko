@@ -177,6 +177,25 @@ impl Array!(T) {
       index += 1
     }
   }
+
+  ## Appends the values of the given `Array` to `self`.
+  ##
+  ## # Examples
+  ##
+  ## Appending one `Array` to another:
+  ##
+  ##     let mut numbers = [10, 20, 30]
+  ##
+  ##     numbers.append([40, 50])
+  ##
+  ##     numbers # => [10, 20, 30, 40, 50]
+  def append(other: Self) -> Self {
+    other.each do (value: T) {
+      push(value)
+    }
+
+    self
+  }
 }
 
 impl Length for Array!(T) {

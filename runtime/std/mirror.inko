@@ -1,0 +1,199 @@
+#! Mirror based reflection for objects
+#!
+#! This module provides a reflection API based on the concept of
+#! [Mirrors](https://en.wikipedia.org/wiki/Mirror_(programming)). A "Mirror" is
+#! an object that provides a reflection API operating on another object. The use
+#! of mirrors for reflection provides several benefits:
+#!
+#! 1. Reflection is decoupled from the objects reflected upon.
+#! 2. Objects won't be polluted with reflection specific attributes.
+#! 3. It's possible to reflect on remote objects (e.g. an object in another
+#!    process or on another computer).
+#! 4. One can remove the mirror system entirely if desired, whereas removing
+#!    random methods defined on `Object` is much harder.
+#!
+#! Let's illustrate the differences between a mirror based API and the usual
+#! reflection APIs found in most languages. Say we have a class based language
+#! and we want to obtain the class of an object. In most languages we would
+#! achieve this by writing code along the lines of the following:
+#!
+#!     some_object.class
+#!
+#! Here the "class" message would return whatever the class is of the receiving
+#! object. Another example would be dynamically retrieving an attribute by its
+#! name. Typically this is done as follows:
+#!
+#!     some_object.get_attribute('my_attribute')
+#!
+#! In both cases the methods are exposed directly to the object.
+#!
+#! When using mirrors there are two steps required to perform reflection:
+#!
+#! 1. Create a mirror for a certain object.
+#! 2. Use the mirror's API to perform reflection.
+#!
+#! For our first example this means we'd end up with code along the lines of the
+#! following:
+#!
+#!     reflect(some_object).class
+#!
+#! Here the `reflect` method would return some kind of mirror and the `class`
+#! message would return the class of the object reflected upon. Translating the
+#! second example to a mirror based approach results in similar code:
+#!
+#!     reflect(some_object).get_attribute('my_attribute')
+#!
+#! # Using Mirrors
+#!
+#! Using mirrors in Inko is very straightforward. To do so you need to take two
+#! steps:
+#!
+#! 1. Import the `std::mirror` module into your module(s).
+#! 2. Use `std::mirror.reflect` to obtain a mirror for an object.
+#!
+#! Let's say we want to obtain the value of an attribute using the mirror API.
+#! We can do so as follows:
+#!
+#!     import std::mirror
+#!
+#!     object Person {
+#!       def init(name: String) {
+#!         let @name = name
+#!       }
+#!     }
+#!
+#!     let person = Person.new('alice')
+#!     let mirror = ::mirror.reflect(person)
+#!
+#!     mirror.get_attribute('@name') # => 'Alice'
+#!
+#! # Overhead
+#!
+#! Like most reflection systems mirrors do come with some overhead. In
+#! particular a mirror has to be allocated every time you need one. As such we
+#! recommend against using reflection in performance critical code.
+import std::reflection
+
+## A generic mirror for a regular object.
+object Mirror!(T) {
+  def init(subject: T) {
+    let @subject = subject
+  }
+
+  ## Returns the object reflected upon.
+  def subject -> T {
+    @subject
+  }
+
+  ## Returns the prototype of the given object.
+  def prototype {
+    reflection.prototype(@subject)
+  }
+
+  ## Sets the prototype of an object.
+  def prototype=!(P)(prototype: P) -> P {
+    reflection.set_prototype(@subject, prototype)
+  }
+
+  ## Returns the value of an attribute.
+  ##
+  ## Since attributes may not be set this method can return a value of any type.
+  ##
+  ## # Examples
+  ##
+  ## Getting the value of an undefined attribute:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let obj = Object.new
+  ##     let mirror = ::mirror.reflect(obj)
+  ##
+  ##     mirror.get_attribute(obj, 'name') # => Nil
+  ##
+  ## Getting the value of an existing attribute:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let mut obj = Object.new
+  ##     let mirror = ::mirror.reflect(obj)
+  ##
+  ##     mirror.set_attribute('name', 'Alice')
+  ##     mirror.get_attribute('name') # => 'Alice'
+  def get_attribute(name: String) {
+    _INKOC.get_attribute(@subject, name)
+  }
+
+  ## Sets the attribute of an object to the given value, returning the stored
+  ## value.
+  ##
+  ## # Examples
+  ##
+  ## Setting an attribute:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let mut obj = Object.new
+  ##
+  ##     mirror.reflect(obj).set_attribute('name', 'Alice') # => 'Alice'
+  def set_attribute!(V)(name: String, value: V) -> V {
+    _INKOC.set_attribute(@subject, name, value)
+  }
+
+  ## Returns the names of all the attributes defined directly on the subject.
+  ##
+  ## # Examples
+  ##
+  ## Getting the attributes of an object:
+  ##
+  ##     import std::mirror
+  ##
+  ##     object Person {
+  ##       def init(name: String) {
+  ##         let @name = name
+  ##       }
+  ##     }
+  ##
+  ##     let person = Person.new('Alice')
+  ##     let mirror = ::mirror.reflect(person)
+  ##
+  ##     mirror.attributes # => ['@name']
+  def attributes -> Array!(String) {
+    _INKOC.get_attribute_names(@subject)
+  }
+
+  ## Returns `True` if one object is an instance of another object.
+  ##
+  ## See `std::reflection.instance_of?` for more information.
+  def instance_of?(other) -> Boolean {
+    reflection.instance_of?(@subject, other)
+  }
+
+  ## Returns `True` if one object is a kind of the other object.
+  ##
+  ## See `std::reflection.kind_of?` for more information.
+  def kind_of?(other) -> Boolean {
+    reflection.kind_of?(@subject, other)
+  }
+
+  ## Returns the name of an object, if any.
+  ##
+  ## # Examples
+  ##
+  ## Returning the name of an object:
+  ##
+  ##     import std::mirror
+  ##
+  ##     object Person {}
+  ##
+  ##     let mirror = ::mirror.reflect(Person)
+  ##
+  ##     mirror.name # => 'Person'
+  def name -> ?String {
+    get_attribute('@_object_name') as ?String
+  }
+}
+
+## Returns a regular mirror for the given object.
+def reflect!(T)(subject: T) -> Mirror!(T) {
+  Mirror.new(subject)
+}

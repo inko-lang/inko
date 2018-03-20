@@ -7,10 +7,9 @@
 # The order in which modules are imported is important as some modules may
 # depend on types / methods defined in other modules.
 
-# The very first module we have to import is std::basic_object. This module
-# defines a few methods that _must_ exist before we can import any other
-# methods.
-import std::basic_object
+# The very first module we have to import is std::trait. This module defines a
+# few methods that _must_ exist before we can import any other methods.
+import std::trait
 
 # The std::boolean module must be imported next since many other modules depend
 # on the methods it defines. This module also refines the "Boolean" trait

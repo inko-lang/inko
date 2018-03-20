@@ -1,0 +1,106 @@
+#! Low-level reflection API for objects.
+#!
+#! This module provides various low-level reflection methods that can be used
+#! for regular objects. For a more high-level API you should look at the
+#! `std::mirror` module.
+#!
+#! # When to use std::reflection versus std::mirror
+#!
+#! `std::reflection` only provides a few methods used for very common reflection
+#! operations such as checking if one object is an instance of another. Using
+#! mirrors for such operations would result in unnecessary object allocations.
+#!
+#! If you intend to perform multiple reflection operations (or more complex ones
+#! than supported by this module) you should use `std::mirror` instead.
+#!
+#! # Dependencies
+#!
+#! This module is imported in a variety of standard library modules. To prevent
+#! any recursive dependencies from occurring this module _should not_ import any
+#! other modules.
+
+## Returns the prototype of the given object.
+##
+## # Examples
+##
+## Retrieving the prototype of a `String`:
+##
+##     import std::reflection
+##
+##     reflection.prototype('hello') # => String
+def prototype(subject) {
+  _INKOC.get_prototype(subject)
+}
+
+## Sets the prototype of an object.
+##
+## # Examples
+##
+## This will set the prototype of `obj1` to `obj2`:
+##
+##     import std::reflection
+##
+##     let mut obj1 = Object.new
+##     let mut obj2 = Object.new
+##
+##     reflection.set_prototype(obj1, obj2)
+def set_prototype!(T)(subject, prototype: T) -> T {
+  _INKOC.set_prototype(subject, prototype)
+}
+
+## Returns `True` if one object is an instance of another object.
+##
+## Instance checking is performing by walking the prototype chain of the first
+## object and checking if any of the members are identical to the second object.
+##
+## # Examples
+##
+## Checking if a string is an instance of `String`:
+##
+##     import std::reflection
+##
+##     reflection.instance_of?('hello', String) # => True
+##
+## Checking if an integer is an instance of `Integer`:
+##
+##     import std::reflection
+##
+##     reflection.instance_of?(10, Integer) # => True
+##
+## Checking if an integer is an instance of the same integer:
+##
+##     import std::reflection
+##
+##     reflection.instance_of?(10, 10) # => False
+def instance_of?(compare, compare_with) -> Boolean {
+  _INKOC.object_is_kind_of(compare, compare_with)
+}
+
+## Returns `True` if one object is a kind of the other object.
+##
+## This method combines `std::reflection.instance_of?` with checking if `other`
+## is a `Trait` implemented by the first object.
+##
+## # Examples
+##
+## Using two regular objects:
+##
+##     import std::reflection
+##
+##     reflection.kind_of?('hello', String) # => True
+##
+## Comparing an object with a trait:
+##
+##     import std::reflection
+##     import std::conversion::ToString
+##
+##     reflection.kind_of?('hello', ToString) # => True
+def kind_of?(compare, compare_with) -> Boolean {
+  instance_of?(compare, compare_with).if_true { return True }
+
+  _INKOC.prototype_chain_attribute_contains(
+    compare,
+    '@_implemented_traits',
+    compare_with
+  )
+}
