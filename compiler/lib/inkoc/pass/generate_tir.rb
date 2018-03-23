@@ -4,7 +4,6 @@ module Inkoc
   module Pass
     # rubocop: disable Metrics/ClassLength
     class GenerateTir
-      include TypeVerification
       include VisitorMethods
 
       def initialize(mod, state)
