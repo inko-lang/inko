@@ -41,8 +41,6 @@ module Inkoc
     FILE_CONST = '<primitive File>'
     HASHER_CONST = '<primitive Hasher>'
     ARRAY_TYPE_PARAMETER = 'T'
-    HASH_MAP_KEY_TYPE_PARAMETER = 'K'
-    HASH_MAP_VALUE_TYPE_PARAMETER = 'K'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'

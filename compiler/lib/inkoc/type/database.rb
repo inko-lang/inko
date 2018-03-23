@@ -7,8 +7,7 @@ module Inkoc
 
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :hash_map_type, :void_type, :file_type,
-                  :object_type, :hasher_type
+                  :void_type, :file_type, :object_type, :hasher_type
 
       def initialize
         @object_type = Object.new(name: Config::OBJECT_CONST)
@@ -25,7 +24,6 @@ module Inkoc
         @file_type = new_object_type(Config::FILE_CONST)
         @hasher_type = new_object_type(Config::HASHER_CONST)
         @array_type = initialize_array_type
-        @hash_map_type = initialize_hash_map_type
 
         @void_type = Void.new
         @trait_type = nil
@@ -43,15 +41,6 @@ module Inkoc
         type = new_object_type(Config::ARRAY_CONST)
 
         type.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
-
-        type
-      end
-
-      def initialize_hash_map_type
-        type = new_object_type(Config::HASH_MAP_CONST)
-
-        type.define_type_parameter(Config::HASH_MAP_KEY_TYPE_PARAMETER)
-        type.define_type_parameter(Config::HASH_MAP_VALUE_TYPE_PARAMETER)
 
         type
       end

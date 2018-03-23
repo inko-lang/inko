@@ -172,10 +172,6 @@ module Inkoc
           .instruct(:SetBlock, [register, code_index], tir_ins.location)
       end
 
-      def on_set_hash_map(*)
-        raise NotImplementedError, '#on_set_hash_map is not yet implemented'
-      end
-
       def on_set_literal(tir_ins, compiled_code, *)
         lit = compiled_code.literals.get_or_set(tir_ins.value)
         reg = tir_ins.register.id
