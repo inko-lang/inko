@@ -13,6 +13,7 @@
 import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::hash::(Hasher, Hash)
+import std::marker::Optional
 import std::unknown_message::UnknownMessage
 
 impl ToInteger for Nil {
@@ -92,6 +93,8 @@ impl UnknownMessage for Nil {
     Nil
   }
 }
+
+impl Optional for Nil {}
 
 impl Hash for Nil {
   def hash(hasher: Hasher) {
