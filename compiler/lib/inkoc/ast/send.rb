@@ -24,6 +24,10 @@ module Inkoc
         @method_type = nil
       end
 
+      def send?
+        true
+      end
+
       def visitor_method
         if raw_instruction?
           :on_raw_instruction

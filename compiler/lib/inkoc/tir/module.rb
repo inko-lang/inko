@@ -14,7 +14,12 @@ module Inkoc
         @name = name
         @type = nil
         @location = location
-        @body = CodeObject.new(name, Type::Block.new(name: name.to_s), location)
+        @body = CodeObject.new(
+          name,
+          TypeSystem::Block.new(name: name.to_s, infer_throw_type: false),
+          location
+        )
+
         @globals = SymbolTable.new
         @config = ModuleConfig.new
 
@@ -30,25 +35,21 @@ module Inkoc
       end
 
       def lookup_type(name)
-        type.lookup_type(name) || type_of_global(name)
+        type.lookup_type(name) || lookup_global(name)
       end
 
       def lookup_attribute(name)
         type.lookup_attribute(name)
       end
 
-      def type_of_attribute(name)
-        type.type_of_attribute(name)
+      def lookup_global(name)
+        symbol = globals[name]
+
+        symbol.type if symbol.any?
       end
 
       def responds_to_message?(name)
         lookup_attribute(name).any?
-      end
-
-      def type_of_global(name)
-        return unless (global = globals[name]) && global.any?
-
-        global.type
       end
 
       def global_defined?(name)

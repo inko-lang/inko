@@ -2,18 +2,24 @@
 
 module Inkoc
   class TypeScope
-    attr_reader :self_type, :block_type, :locals, :parent
+    attr_reader :self_type, :block_type, :module, :locals, :parent
 
-    # self_type - The type of "self".
-    # block_type - The type of the block that is being executed.
-    # locals - A SymbolTable containing the local variables of the
-    #          current scope.
-    # parent - The parent scope, if any.
-    def initialize(self_type, block_type, locals, parent = nil)
+    def initialize(self_type, block_type, mod, locals = nil, parent = nil)
       @self_type = self_type
       @block_type = block_type
+      @module = mod
       @locals = locals
       @parent = parent
+    end
+
+    def module_type
+      @module.type
+    end
+
+    def define_self_argument
+      symbol = block_type.define_self_argument(self_type)
+
+      locals&.add_symbol(symbol)
     end
 
     def define_self_local
@@ -38,11 +44,35 @@ module Inkoc
       block_type.method?
     end
 
+    def module_scope?
+      self_type == module_type
+    end
+
+    def constructor?
+      if (method = method_block_type)
+        self_type.object? && method.name == Inkoc::Config::INIT_MESSAGE
+      else
+        false
+      end
+    end
+
     def method_block_type
       current = self
       current = current.parent while current && !current.method?
 
       current&.block_type
+    end
+
+    def lookup_constant(name)
+      block_type.lookup_type(name) ||
+        self_type.lookup_type(name) ||
+        @module.lookup_type(name)
+    end
+    alias lookup_type lookup_constant
+
+    def lookup_method(name)
+      self_type.lookup_method(name)
+        .or_else { module_type.lookup_method(name) }
     end
   end
 end

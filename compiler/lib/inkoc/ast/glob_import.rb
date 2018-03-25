@@ -20,6 +20,10 @@ module Inkoc
       def visitor_method
         :on_import_glob
       end
+
+      def expose?
+        true
+      end
     end
   end
 end

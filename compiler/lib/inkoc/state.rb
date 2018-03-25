@@ -21,7 +21,7 @@ module Inkoc
       @config = config
       @diagnostics = Diagnostics.new
       @modules = {}
-      @typedb = Type::Database.new
+      @typedb = TypeSystem::Database.new
       @module_paths_cache = ModulePathsCache.new(config)
     end
 
@@ -35,6 +35,10 @@ module Inkoc
 
     def store_module(mod)
       @modules[mod.name.to_s] = mod
+    end
+
+    def type_of_module_global(mod_name, global_name)
+      self.module(mod_name)&.lookup_global(global_name)
     end
 
     def diagnostics?

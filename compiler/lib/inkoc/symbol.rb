@@ -26,6 +26,10 @@ module Inkoc
       self
     end
 
+    def type_or_else
+      type
+    end
+
     def ==(other)
       other.is_a?(Symbol) &&
         name == other.name &&
@@ -42,7 +46,7 @@ module Inkoc
 
     def initialize(name)
       @name = name
-      @type = Type::Dynamic.new
+      @type = TypeSystem::Dynamic.new
       @index = -1
     end
 
@@ -59,6 +63,10 @@ module Inkoc
     end
 
     def or_else
+      yield
+    end
+
+    def type_or_else
       yield
     end
   end

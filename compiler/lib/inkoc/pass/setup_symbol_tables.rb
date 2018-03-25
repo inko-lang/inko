@@ -34,7 +34,7 @@ module Inkoc
         process_nodes(node.body.expressions, node.body)
       end
 
-      def on_lambda(node, outer)
+      def on_lambda(node, _)
         node.body.locals = SymbolTable.new
 
         process_nodes(node.body.expressions, node.body)
@@ -58,6 +58,7 @@ module Inkoc
       alias on_trait_implementation on_node_with_body
       alias on_reopen_object on_node_with_body
       alias on_method on_node_with_body
+      alias on_required_method on_node_with_body
 
       def on_try(node, outer)
         process_node(node.expression, outer)
@@ -71,6 +72,7 @@ module Inkoc
       alias on_throw on_node_with_value
       alias on_return on_node_with_value
       alias on_define_variable on_node_with_value
+      alias on_define_variable_with_explicit_type on_node_with_value
       alias on_reassign_variable on_node_with_value
       alias on_keyword_argument on_node_with_value
 

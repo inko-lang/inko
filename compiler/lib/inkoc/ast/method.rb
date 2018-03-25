@@ -8,14 +8,14 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :arguments, :type_parameters, :returns, :throws,
-                  :type_requirements, :body, :location
+                  :method_bounds, :body, :location
 
       # name - The name of the method.
       # args - The arguments of the method.
       # returns - The return type of the method.
       # throws - The type being thrown by this method.
       # required - If the method is a required method in a trait.
-      # type_requirements - Any method type requirements that are defined.
+      # method_bounds - Additional type requirements for this method.
       # body - The body of the method.
       # loc - The SourceLocation of this method.
       def initialize(
@@ -25,7 +25,7 @@ module Inkoc
         returns,
         throws,
         required,
-        type_requirements,
+        method_bounds,
         body,
         loc
       )
@@ -34,7 +34,7 @@ module Inkoc
         @type_parameters = targs
         @returns = returns
         @throws = throws
-        @type_requirements = type_requirements
+        @method_bounds = method_bounds
         @body = body
         @location = loc
         @required = required
@@ -46,7 +46,7 @@ module Inkoc
       end
 
       def visitor_method
-        :on_method
+        required? ? :on_required_method : :on_method
       end
 
       def method?

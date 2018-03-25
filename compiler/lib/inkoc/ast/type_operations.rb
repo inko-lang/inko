@@ -6,7 +6,7 @@ module Inkoc
       attr_accessor :type
 
       def block_type
-        Type::Void.new
+        TypeSystem::Void.new
       end
     end
   end

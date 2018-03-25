@@ -97,14 +97,17 @@ module Inkoc
 
         body = AST::Body.new(exprs, loc)
 
+        new_return_type = AST::TypeName
+          .new(AST::Constant.new(Config::SELF_TYPE, nil, loc), [], loc)
+
         AST::Method.new(
           Config::NEW_MESSAGE,
           init.arguments,
           init.type_parameters,
-          AST::Constant.new(Config::SELF_TYPE, nil, loc),
+          new_return_type,
           init.throws,
           false,
-          init.type_requirements,
+          init.method_bounds,
           body,
           loc
         )

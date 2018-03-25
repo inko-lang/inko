@@ -24,7 +24,10 @@ object DefaultHasher {
 
     reflection.set_prototype(hasher, self)
 
-    hasher as DefaultHasher
+    # The compiler is not aware that at this point "hasher" is compatible with
+    # DefaultHasher, so a regular cast will not work. We can work around this by
+    # first cashing the hasher to Dynamic, then cast it to our desired type.
+    hasher as Dynamic as DefaultHasher
   }
 }
 

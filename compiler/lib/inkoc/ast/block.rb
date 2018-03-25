@@ -33,11 +33,15 @@ module Inkoc
       end
 
       def visitor_method
-        :on_block
+        lambda? ? :on_lambda : :on_block
       end
 
       def block_type
         type
+      end
+
+      def closure?
+        true
       end
 
       def block?

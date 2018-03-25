@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 describe Inkoc::SourceFile do
-  let(:directory) { Inkoc::Tests::FIXTURE_PATH }
+  let(:directory) { Support::FIXTURE_PATH }
 
   describe '#lines' do
     describe 'when the file exists' do

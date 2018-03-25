@@ -67,6 +67,7 @@ module Inkoc
       alias on_throw on_node_with_value
       alias on_return on_node_with_value
       alias on_define_variable on_node_with_value
+      alias on_define_variable_with_explicit_type on_node_with_value
       alias on_reassign_variable on_node_with_value
       alias on_keyword_argument on_node_with_value
 

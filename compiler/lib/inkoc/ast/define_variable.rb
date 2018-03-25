@@ -27,7 +27,11 @@ module Inkoc
       end
 
       def visitor_method
-        :on_define_variable
+        if value_type
+          :on_define_variable_with_explicit_type
+        else
+          :on_define_variable
+        end
       end
 
       def variable_definition?

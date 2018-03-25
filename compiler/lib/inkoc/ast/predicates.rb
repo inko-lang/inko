@@ -75,6 +75,10 @@ module Inkoc
         false
       end
 
+      def closure?
+        false
+      end
+
       def self_type?
         false
       end
@@ -84,6 +88,10 @@ module Inkoc
       end
 
       def void_type?
+        false
+      end
+
+      def send?
         false
       end
     end

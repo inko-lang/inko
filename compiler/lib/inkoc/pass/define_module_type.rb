@@ -27,7 +27,8 @@ module Inkoc
         top = typedb.top_level
         modules = top.lookup_attribute(Config::MODULES_ATTRIBUTE).type
         proto = top.lookup_attribute(Config::MODULE_TYPE).type
-        type = Type::Object.new(name: @module.name.to_s, prototype: proto)
+        type = Inkoc::TypeSystem::Object
+          .new(name: @module.name.to_s, prototype: proto)
 
         modules.define_attribute(type.name, type)
 

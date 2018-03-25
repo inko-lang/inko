@@ -10,10 +10,10 @@ import std::operators::Equal
 
 trait Boolean: ToString + Conditional + Hash + Equal {
   ## Returns the `Boolean` that is the opposite of `self`.
-  def not -> Self
+  def not -> Boolean
 }
 
-impl Conditional for True {
+impl Conditional for Inko::TrueObject {
   def if_true!(R)(block: do -> R) -> ?R {
     block.call
   }
@@ -35,7 +35,7 @@ impl Conditional for True {
   }
 }
 
-impl Conditional for False {
+impl Conditional for Inko::FalseObject {
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
   }
@@ -57,19 +57,19 @@ impl Conditional for False {
   }
 }
 
-impl ToString for True {
+impl ToString for Inko::TrueObject {
   def to_string -> String {
     'True'
   }
 }
 
-impl ToString for False {
+impl ToString for Inko::FalseObject {
   def to_string -> String {
     'False'
   }
 }
 
-impl Equal for True {
+impl Equal for Inko::TrueObject {
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
@@ -80,7 +80,7 @@ impl Equal for True {
   }
 }
 
-impl Equal for False {
+impl Equal for Inko::FalseObject {
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
@@ -91,26 +91,26 @@ impl Equal for False {
   }
 }
 
-impl Hash for True {
+impl Hash for Inko::TrueObject {
   def hash(hasher: Hasher) {
     _INKOC.hasher_write(hasher, self)
   }
 }
 
-impl Hash for False {
+impl Hash for Inko::FalseObject {
   def hash(hasher: Hasher) {
     _INKOC.hasher_write(hasher, self)
   }
 }
 
-impl Boolean for True {
-  def not -> Self {
+impl Boolean for Inko::TrueObject {
+  def not -> Boolean {
     False
   }
 }
 
-impl Boolean for False {
-  def not -> Self {
+impl Boolean for Inko::FalseObject {
+  def not -> Boolean {
     True
   }
 }

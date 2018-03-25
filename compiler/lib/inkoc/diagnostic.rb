@@ -22,6 +22,10 @@ module Inkoc
       @level == :error
     end
 
+    def warning?
+      @level == :warning
+    end
+
     def line
       location.line
     end

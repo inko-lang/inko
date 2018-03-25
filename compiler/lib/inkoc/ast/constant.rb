@@ -8,7 +8,6 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :receiver
-      attr_accessor :type_parameters, :optional
 
       # name - The name of the constant as a String.
       # location - The SourceLocation of the constant.
@@ -17,16 +16,24 @@ module Inkoc
         @name = name
         @receiver = receiver
         @location = location
-        @type_parameters = []
-        @optional = false
       end
 
       def constant?
         true
       end
 
-      def optional?
-        @optional
+      def qualified_name
+        segments = []
+        source = self
+
+        while source
+          segments << source.name
+          source = source.receiver
+        end
+
+        segments
+          .reverse
+          .join(Config::MODULE_SEPARATOR)
       end
 
       def self_type?

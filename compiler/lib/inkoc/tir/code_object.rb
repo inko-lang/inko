@@ -32,11 +32,11 @@ module Inkoc
       end
 
       def required_arguments_count
-        @type.required_arguments_count
+        @type.required_arguments
       end
 
       def rest_argument?
-        @type.rest_argument
+        @type.last_argument_is_rest
       end
 
       def local_variables_count
@@ -95,7 +95,7 @@ module Inkoc
       end
 
       def register_dynamic
-        register(Type::Dynamic.new)
+        register(TypeSystem::Dynamic.new)
       end
 
       def instruct(*args)

@@ -39,36 +39,15 @@ module Inkoc
         else_argument&.name
       end
 
-      def type_scope_for_else(self_type)
-        scope = TypeScope.new(self_type, else_block_type, else_body.locals)
-
-        scope.define_self_local
-        scope
-      end
-
-      def define_else_argument_type
-        return unless (arg_name = else_argument_name)
-
-        type = throw_type || Type::Dynamic.new
-
-        else_block_type.define_required_argument(arg_name, type)
-        else_body.locals.define(arg_name, type)
-      end
-
       def throw_type
-        btype =
-          if expression.throw?
-            try_block_type
-          else
-            expression.block_type
-          end
-
-        if btype&.physical_type?
-          # For method calls (e.g. "try foo") we want the thrown type to resolve
-          # to the type thrown my the "fo" method.
-          btype.throws
-        else
-          btype
+        if expression.throw?
+          expression.type
+        elsif expression.send?
+          expression.block_type&.throw_type
+        elsif expression.identifier?
+          # The identifier might be a local variable, in which case "block_type"
+          # is not set.
+          expression.block_type&.throw_type
         end
       end
     end

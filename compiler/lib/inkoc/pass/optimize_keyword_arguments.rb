@@ -61,6 +61,7 @@ module Inkoc
       alias on_throw on_node_with_value
       alias on_return on_node_with_value
       alias on_define_variable on_node_with_value
+      alias on_define_variable_with_explicit_type on_node_with_value
       alias on_reassign_variable on_node_with_value
 
       def on_type_cast(node)
@@ -74,17 +75,19 @@ module Inkoc
           if arg.keyword_argument? && node.block_type
             on_keyword_argument(arg, index, node.block_type)
           else
+            process_node(arg)
             arg
           end
         end
       end
 
       def on_keyword_argument(node, position, block_type)
-        symbol = block_type.lookup_argument(node.name)
+        symbol = block_type.arguments[node.name]
 
         # We add +1 to the position since "self" is the first argument but isn't
         # included explicitly in the argument list.
         if symbol.index == position + 1
+          process_node(node.value)
           node.value
         else
           node

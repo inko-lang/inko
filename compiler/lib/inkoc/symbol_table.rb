@@ -27,6 +27,10 @@ module Inkoc
       symbol
     end
 
+    def reassign(name, type)
+      self[name].type = type
+    end
+
     def names
       @mapping.keys
     end
@@ -43,6 +47,10 @@ module Inkoc
       source = name_or_index.is_a?(Integer) ? @symbols : @mapping
 
       source[name_or_index] || NullSymbol.new(name_or_index)
+    end
+
+    def slice(range)
+      @symbols[range] || []
     end
 
     def lookup_with_parent(name_or_index)
@@ -81,8 +89,8 @@ module Inkoc
       @symbols.last
     end
 
-    def any?
-      @symbols.any?
+    def any?(&block)
+      @symbols.any?(&block)
     end
 
     def empty?

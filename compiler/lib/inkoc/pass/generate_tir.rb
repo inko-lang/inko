@@ -245,8 +245,6 @@ module Inkoc
       end
 
       def on_method(node, body)
-        return if node.required?
-
         receiver = get_self(body, node.location)
 
         define_method(node, receiver, body)
@@ -304,7 +302,7 @@ module Inkoc
 
       def define_block_arguments(code_object, arguments)
         arguments.each do |arg|
-          symbol = code_object.type.lookup_argument(arg.name)
+          symbol = code_object.type.arguments[arg.name]
 
           if arg.default
             define_argument_default(code_object, symbol, arg)
@@ -405,41 +403,38 @@ module Inkoc
 
       def on_trait_implementation(node, body)
         loc = node.location
-        trait = get_global(node.trait_name.name, body, loc)
+        trait = get_global(node.trait_name.type_name, body, loc)
+        object = get_global(node.object_name.type_name, body, loc)
 
-        node.object_names.each do |object_name|
-          object = get_global(object_name.name, body, loc)
+        send_object_message(
+          trait,
+          Config::IMPLEMENT_TRAIT_MESSAGE,
+          [object],
+          [],
+          node.block_type,
+          node.type,
+          body,
+          loc
+        )
 
-          send_object_message(
-            trait,
-            Config::IMPLEMENT_TRAIT_MESSAGE,
-            [object],
-            [],
-            node.block_type,
-            node.type,
-            body,
-            loc
-          )
+        block = define_block(
+          Config::IMPL_NAME,
+          node.block_type,
+          [],
+          node.body,
+          node.body.locals,
+          body,
+          loc
+        )
 
-          block = define_block(
-            Config::IMPL_NAME,
-            node.block_type,
-            [],
-            node.body,
-            node.body.locals,
-            body,
-            loc
-          )
-
-          run_block(block, [object], [], node.type, body, loc)
-        end
+        run_block(block, [object], [], node.type, body, loc)
 
         trait
       end
 
       def on_reopen_object(node, body)
         loc = node.location
-        object = get_global(node.name.name, body, loc)
+        object = get_global(node.name.type_name, body, loc)
 
         block = define_block(
           Config::IMPL_NAME,
@@ -530,6 +525,7 @@ module Inkoc
 
         public_send(callback, node.variable, value, body)
       end
+      alias on_define_variable_with_explicit_type on_define_variable
 
       def on_define_local(variable, value, body)
         name = variable.name
@@ -582,11 +578,18 @@ module Inkoc
         symbol = @module.globals[name]
         register = body.register(symbol.type)
 
+        if symbol.index.negative?
+          raise(
+            ArgumentError,
+            "Global #{name.inspect} does not exist in module #{@module.name}"
+          )
+        end
+
         body.instruct(:GetGlobal, register, symbol, location)
       end
 
       def local_exists(symbol, body, location)
-        register = body.register(Type::Dynamic.new)
+        register = body.register(TypeSystem::Dynamic.new)
 
         body.instruct(:LocalExists, register, symbol, location)
       end
@@ -894,12 +897,13 @@ module Inkoc
         block = process_node(node.arguments.fetch(0), body)
         self_reg = get_self(body, node.location)
         args, kwargs = split_send_arguments(node.arguments[1..-1], body)
+        return_type = block.type.block?  ? block.type.return_type : block.type
 
         run_block(
           block,
           [self_reg, *args],
           kwargs,
-          block.type.return_type,
+          return_type,
           body,
           node.location
         )
@@ -1210,7 +1214,7 @@ module Inkoc
           return process_node(node.expression, body)
         end
 
-        catch_reg = body.register(body.type.throws)
+        catch_reg = body.register(body.type.throw_type)
         ret_reg = body.register(node.expression.type)
 
         # Block for running the to-try expression
@@ -1328,7 +1332,8 @@ module Inkoc
       )
         block_reg = body.register(block_type)
         ret_reg = body.register(return_type)
-        args_reg = body.register(typedb.new_array_of_type(Type::Dynamic.new))
+        args_reg = body
+          .register(typedb.new_array_of_type(TypeSystem::Dynamic.new))
 
         name_reg = set_string(name, body, loc)
         alt_name_reg = set_string(Config::UNKNOWN_MESSAGE_MESSAGE, body, loc)
@@ -1440,7 +1445,7 @@ module Inkoc
         body,
         loc
       )
-        rec_type = rec.type.resolve_type(body.self_type)
+        rec_type = rec.type
         sargs = [rec, *arguments]
 
         if send_initializes_array?(rec_type, name)
@@ -1500,11 +1505,8 @@ module Inkoc
       end
 
       def send_initializes_array?(receiver, name)
-        receiver_is_array =
-          receiver == typedb.array_type ||
-          receiver.prototype == typedb.array_type
-
-        receiver_is_array && name == Config::NEW_MESSAGE
+        receiver.type_instance_of?(typedb.array_type) &&
+          name == Config::NEW_MESSAGE
       end
 
       def send_runs_block?(receiver, name)

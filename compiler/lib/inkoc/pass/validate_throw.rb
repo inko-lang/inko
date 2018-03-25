@@ -34,6 +34,7 @@ module Inkoc
       def on_define_variable(node, block_type)
         process_node(node.value, block_type)
       end
+      alias on_define_variable_with_explicit_type on_define_variable
 
       def on_define_argument(node, block_type)
         process_node(node.default, block_type) if node.default
@@ -44,8 +45,6 @@ module Inkoc
       end
 
       def on_method(node, *)
-        return if node.required?
-
         error_for_missing_throw_in_block(node, node.block_type)
       end
 
@@ -85,10 +84,10 @@ module Inkoc
         process_node(node.value, block_type)
 
         location = node.location
-        exp_throw = block_type.throws
+        exp_throw = block_type.throw_type
         thrown = node.value.type
 
-        if exp_throw && !thrown.type_compatible?(exp_throw)
+        if exp_throw && !thrown.type_compatible?(exp_throw, @state)
           diagnostics.type_error(exp_throw, thrown, location)
         end
 
@@ -115,9 +114,9 @@ module Inkoc
           end
 
           thrown = node.throw_type
-          expected = block_type.throws
+          expected = block_type.throw_type
 
-          if thrown && expected && !thrown.type_compatible?(expected)
+          if thrown && expected && !thrown.type_compatible?(expected, @state)
             diagnostics.type_error(expected, thrown, loc)
           end
 
@@ -139,7 +138,7 @@ module Inkoc
         process_nodes(node.arguments, block_type)
         process_node(node.body, block_type)
 
-        expected = block_type.throws
+        expected = block_type.throw_type
 
         return if block_type.thrown_types.any? || !expected
 
@@ -147,14 +146,14 @@ module Inkoc
       end
 
       def error_for_missing_try(node)
-        return unless (throw_type = node.block_type&.throws)
+        return unless (throw_type = node.block_type&.throw_type)
         return if throw_type.optional?
 
         diagnostics.missing_try_error(throw_type, node.location) unless in_try?
       end
 
       def error_for_undefined_throw(throw_type, block_type, location)
-        return if block_type.throws
+        return if block_type.throw_type
 
         diagnostics.throw_without_throw_defined_error(throw_type, location)
       end

@@ -23,6 +23,10 @@ module Inkoc
       def return?
         true
       end
+
+      def value_location
+        value ? value.location : location
+      end
     end
   end
 end

@@ -14,8 +14,8 @@
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this
 # point.
-let mut True = _INKOC.get_true
-let mut False = _INKOC.get_false
+let mut TrueObject = _INKOC.get_true
+let mut FalseObject = _INKOC.get_false
 let mut Nil = _INKOC.get_nil
 
 let mut Object = _INKOC.get_object_prototype
@@ -25,8 +25,8 @@ let mut Float = _INKOC.get_float_prototype
 let mut Block = _INKOC.get_block_prototype
 let mut Array = _INKOC.get_array_prototype
 
-_INKOC.set_attribute(True, '@_object_name', 'True')
-_INKOC.set_attribute(False, '@_object_name', 'False')
+_INKOC.set_attribute(TrueObject, '@_object_name', 'True')
+_INKOC.set_attribute(FalseObject, '@_object_name', 'False')
 _INKOC.set_attribute(Nil, '@_object_name', 'Nil')
 _INKOC.set_attribute(Object, '@_object_name', 'Object')
 _INKOC.set_attribute(String, '@_object_name', 'String')
@@ -40,7 +40,7 @@ _INKOC.set_attribute(Block, '@_object_name', 'Block')
 # creating of modules.
 impl Object {
   def new -> Self {
-    let obj = _INKOC.set_object(False, self)
+    let obj = _INKOC.set_object(FalseObject, self)
 
     obj.init
 

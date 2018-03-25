@@ -264,7 +264,7 @@ module Inkoc
     def type_cast(start)
       node = binary_send(start)
 
-      if @lexer.next_type_is?(:as)
+      while @lexer.next_type_is?(:as)
         advance!
 
         type = type(advance!)
@@ -350,11 +350,8 @@ module Inkoc
     #     Foo!(Bar)
     #     Foo::Bar!(Baz)
     def type_name(token)
-      node = constant(token)
-
-      node.type_parameters = optional_type_parameters
-
-      node
+      AST::TypeName
+        .new(constant(token), optional_type_parameters, token.location)
     end
 
     # Parses a block type.
@@ -1096,39 +1093,27 @@ module Inkoc
     #     impl ToString for Object {
     #       ...
     #     }
-    #
-    #     impl ToString for Foo, Bar {
-    #       ...
-    #     }
     def implement_trait(start)
       trait_or_object_name = type_name(advance_and_expect!(:constant))
 
       if @lexer.next_type_is?(:for)
         advance_and_expect!(:for)
 
-        object_names = trait_object_names
+        object_name = type_name(advance_and_expect!(:constant))
         body = block_body(advance_and_expect!(:curly_open))
 
-        AST::TraitImplementation
-          .new(trait_or_object_name, object_names, body, start.location)
+        AST::TraitImplementation.new(
+          trait_or_object_name,
+          object_name,
+          body,
+          start.location
+        )
       else
         body = block_body(advance_and_expect!(:curly_open))
 
         AST::ReopenObject
           .new(trait_or_object_name, body, start.location)
       end
-    end
-
-    def trait_object_names
-      names = []
-
-      while @lexer.next_type_is?(:constant)
-        names << type_name(advance_and_expect!(:constant))
-
-        advance! if @lexer.next_type_is?(:comma)
-      end
-
-      names
     end
 
     # Parses a return statement.

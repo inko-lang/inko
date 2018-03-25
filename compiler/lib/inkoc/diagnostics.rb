@@ -26,6 +26,10 @@ module Inkoc
       @entries.any?(&:error?)
     end
 
+    def warnings?
+      @entries.any?(&:warning?)
+    end
+
     def each(&block)
       @entries.each(&block)
     end
@@ -39,23 +43,35 @@ module Inkoc
     end
 
     def reassign_immutable_local_error(name, location)
-      error("Cannot reassign immutable local variable #{name}", location)
+      error(
+        "Cannot reassign immutable local variable #{name.inspect}",
+        location
+      )
     end
 
     def reassign_immutable_attribute_error(name, location)
-      error("Cannot reassign immutable attribute #{name}", location)
+      error("Cannot reassign immutable attribute #{name.inspect}", location)
     end
 
     def reassign_undefined_local_error(name, location)
-      error("Cannot reassign undefined local variable #{name}", location)
+      error(
+        "Cannot reassign undefined local variable #{name.inspect}",
+        location
+      )
+
+      TypeSystem::Error.new
     end
 
     def reassign_undefined_attribute_error(name, location)
       error("Cannot reassign undefined attribute #{name}", location)
+
+      TypeSystem::Error.new
     end
 
     def redefine_existing_local_error(name, location)
       error("The local variable #{name} has already been defined", location)
+
+      TypeSystem::Error.new
     end
 
     def undefined_local_error(name, location)
@@ -64,10 +80,14 @@ module Inkoc
 
     def redefine_existing_attribute_error(name, location)
       error("The attribute #{name} has already been defined", location)
+
+      TypeSystem::Error.new
     end
 
     def redefine_existing_constant_error(name, location)
       error("The constant #{name} has already been defined", location)
+
+      TypeSystem::Error.new
     end
 
     def undefined_attribute_error(receiver, name, location)
@@ -87,22 +107,24 @@ module Inkoc
         "The type #{tname} does not respond to the message #{msg}",
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def undefined_constant_error(name, location)
       error("The constant #{name} is undefined", location)
+
+      TypeSystem::Error.new
     end
 
     def unknown_raw_instruction_error(name, location)
       error("The raw instruction #{name} does not exist", location)
     end
 
-    def unreachable_code_warning(location)
-      warn('This and any following expressions are unreachable', location)
-    end
-
     def reopen_invalid_object_error(name, location)
       error("Cannot reopen #{name} since it's not an object", location)
+
+      TypeSystem::Error.new
     end
 
     def define_required_method_on_non_trait_error(location)
@@ -117,6 +139,8 @@ module Inkoc
         "Expected a value of type #{exp_name} instead of #{found_name}",
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def return_type_error(expected, found, location)
@@ -165,22 +189,6 @@ module Inkoc
       )
     end
 
-    def type_parameter_not_implemented_error(param, type, location)
-      missing = []
-      name = type.type_name.inspect
-
-      param.required_traits.each do |t|
-        missing << t.type_name unless type.implements_trait?(t)
-      end
-
-      traits = missing.join(', ')
-
-      error(
-        "The type #{name} does not implement the following trait(s): #{traits}",
-        location
-      )
-    end
-
     def argument_count_error(given, range, location)
       given_word = given == 1 ? 'was' : 'were'
 
@@ -198,6 +206,17 @@ module Inkoc
           "but #{given} #{given_word} given",
         location
       )
+
+      TypeSystem::Error.new
+    end
+
+    def type_parameter_count_error(given, exp, location)
+      error(
+        "This type requires #{exp} type parameters, but #{given} were given",
+        location
+      )
+
+      TypeSystem::Error.new
     end
 
     def undefined_keyword_argument_error(name, type, location)
@@ -207,6 +226,8 @@ module Inkoc
         "The type #{tname} does not define the argument #{name.inspect}",
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def redefine_reserved_constant_error(name, location)
@@ -221,7 +242,7 @@ module Inkoc
 
       error(
         "cannot throw a value of type #{tname} because the enclosing " \
-          'block does not define a type to throw',
+          'method does not define a type to throw',
         location
       )
     end
@@ -252,12 +273,18 @@ module Inkoc
       )
     end
 
+    def redundant_try_warning(location)
+      warn('This expression will never throw a value', location)
+    end
+
     def define_instance_attribute_error(name, location)
       error(
         "Instance attributes such as #{name.inspect} can only be " \
           'defined in a constructor method',
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def import_undefined_symbol_error(mname, sname, location)
@@ -273,7 +300,7 @@ module Inkoc
 
     def invalid_type_parameters(type, given, location)
       name = type.name.inspect
-      ex = type.type_parameter_names.join(', ')
+      ex = type.type_parameters.map(&:name).join(', ')
       got = given.join(', ')
 
       error(
@@ -290,13 +317,15 @@ module Inkoc
       )
     end
 
-    def redefine_trait_error(type, location)
+    def extend_trait_error(type, location)
       tname = type.type_name
 
       error(
-        "The trait #{tname} can not be redefined because it is not empty",
+        "The trait #{tname} can not be extended because it is not empty",
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def dereference_error(type, location)
@@ -315,6 +344,54 @@ module Inkoc
           "the following trait(s): #{req}",
         location
       )
+    end
+
+    def invalid_type_parameter_requirement(type, location)
+      error(
+        "The type #{type.type_name.inspect} can not be used as a " \
+          'type parameter requirement because it is not a trait',
+        location
+      )
+    end
+
+    def undefined_type_parameter_error(type, name, location)
+      tname = type.type_name.inspect
+
+      error(
+        "The type #{tname} does not define the type parameter #{name.inspect}",
+        location
+      )
+
+      TypeSystem::Error.new
+    end
+
+    def return_outside_of_method_error(location)
+      error('The "return" keyword can only be used inside a method', location)
+    end
+
+    def invalid_cast_error(from, to, location)
+      fname = from.type_name.inspect
+      tname = to.type_name.inspect
+
+      error("The type #{fname} can not be casted to #{tname}", location)
+
+      TypeSystem::Error.new
+    end
+
+    def incompatible_optional_method(rec_type, nil_type, name, location)
+      rec_impl = rec_type.lookup_method(name).type.type_name.inspect
+      nil_impl = nil_type.lookup_method(name).type.type_name.inspect
+      nname = nil_type.type_name.inspect
+      rname = rec_type.type_name.inspect
+
+      error(
+        "The message #{name.inspect} can not be sent to an optional #{rname}" \
+          "because its implementation (#{rec_impl}) is not compatible with " \
+          "the implementation of #{nname} (#{nil_impl})",
+        location
+      )
+
+      TypeSystem::Error.new
     end
   end
 end

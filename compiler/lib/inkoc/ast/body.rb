@@ -39,6 +39,10 @@ module Inkoc
       def empty?
         @expressions.empty?
       end
+
+      def location_of_last_expression
+        last_expression&.location || location
+      end
     end
   end
 end

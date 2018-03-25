@@ -33,6 +33,10 @@ module Inkoc
         type
       end
 
+      def closure?
+        true
+      end
+
       def lambda?
         true
       end

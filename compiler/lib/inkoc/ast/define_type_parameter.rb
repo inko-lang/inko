@@ -15,6 +15,14 @@ module Inkoc
         @location = location
         @required_traits = []
       end
+
+      def type_name
+        name
+      end
+
+      def visitor_method
+        :on_define_type_parameter
+      end
     end
   end
 end

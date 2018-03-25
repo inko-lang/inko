@@ -278,7 +278,7 @@ impl SetIndex!(Integer, T) for Array!(T) {
   }
 }
 
-impl ToArray for Array!(T) {
+impl ToArray!(T) for Array!(T) {
   ## Always returns `self`.
   ##
   ## # Examples
@@ -312,7 +312,7 @@ impl Equal for Array!(T) {
       .if_false { return False }
 
     each_with_index do (ours: T, index: Integer) {
-      let theirs = other[index]
+      let theirs = *other[index]
 
       ours == theirs
         .if_false { return False }

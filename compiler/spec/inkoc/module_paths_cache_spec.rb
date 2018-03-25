@@ -5,7 +5,7 @@ require 'spec_helper'
 describe Inkoc::ModulePathsCache do
   let(:config) { Inkoc::Config.new }
   let(:cache) { described_class.new(config) }
-  let(:directory) { Inkoc::Tests::FIXTURE_PATH }
+  let(:directory) { Support::FIXTURE_PATH }
 
   before do
     config.add_source_directories([directory])

@@ -26,6 +26,9 @@ module Inkoc
     # module.
     GLOBALS_MODULE = 'globals'
 
+    MARKER_MODULE = 'std::marker'
+
+    INKO_CONST = 'Inko'
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
@@ -41,6 +44,8 @@ module Inkoc
     FILE_CONST = '<primitive File>'
     HASHER_CONST = '<primitive Hasher>'
     ARRAY_TYPE_PARAMETER = 'T'
+    OPTIONAL_CONST = 'Optional'
+    COMPATIBLE_CONST = 'Compatible'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
@@ -70,7 +75,13 @@ module Inkoc
     INIT_MESSAGE = 'init'
 
     RESERVED_CONSTANTS = Set.new(
-      [MODULE_GLOBAL, RAW_INSTRUCTION_RECEIVER, SELF_TYPE]
+      [
+        MODULE_GLOBAL,
+        RAW_INSTRUCTION_RECEIVER,
+        SELF_TYPE,
+        VOID_TYPE,
+        DYNAMIC_TYPE
+      ]
     ).freeze
 
     attr_reader :source_directories, :mode, :target
