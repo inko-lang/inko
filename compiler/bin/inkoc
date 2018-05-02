@@ -52,10 +52,11 @@ config.create_directories
 
 state = Inkoc::State.new(config)
 compiler = Inkoc::Compiler.new(state)
-
-compiler.compile_main(Pathname.new(ARGV[0]))
+mod = compiler.compile_main(Pathname.new(ARGV[0]))
 
 if state.diagnostics?
   state.display_diagnostics
   exit(1)
+else
+  puts File.join(config.target, mod.bytecode_import_path)
 end
