@@ -98,3 +98,50 @@ def file_time(path: String, kind: Integer) !! IOError -> Time {
     Time.from_timestamp(timestamp)
   }
 }
+
+## Reads all data from a raw file.
+def read(file) !! IOError -> String {
+  process.await {
+    try _INKOC.file_read(file) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Reads a fixed number of bytes from a raw file.
+def read_exact(file, amount: Integer) !! IOError -> String {
+  process.await {
+    try {
+      _INKOC.file_read_exact(file, amount)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}
+
+## Writes a String to a raw file.
+def write(file, data: String) !! IOError -> Integer {
+  process.await {
+    try {
+      _INKOC.file_write(file, data)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}
+
+## Flushes the contents of a file to disk.
+def flush(file) !! IOError -> Nil {
+  process.await {
+    try _INKOC.file_flush(file) else (err) throw IOError.new(err as String)
+  }
+}
+
+## Seeks to a given position.
+def seek(file, position: Integer) !! IOError -> Integer {
+  process.await {
+    try {
+      _INKOC.file_seek(file, position)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}

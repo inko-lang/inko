@@ -110,73 +110,126 @@ object ReadWriteFile {
   }
 }
 
-impl Read for ReadOnlyFile, ReadWriteFile {
+impl Read for ReadOnlyFile {
   def read !! IOError -> String {
-    process.await {
-      try _INKOC.file_read(self) else (err) throw IOError.new(err as String)
-    }
+    try raw.read(self)
   }
 
   def read_exact(amount: Integer) !! IOError -> String {
-    process.await {
-      try {
-        _INKOC.file_read_exact(self, amount)
-      } else (err) {
-        throw IOError.new(err as String)
-      }
-    }
+    try raw.read_exact(self, amount)
   }
 }
 
-impl Write for WriteOnlyFile, ReadWriteFile {
+impl Read for ReadWriteFile {
+  def read !! IOError -> String {
+    try raw.read(self)
+  }
+
+  def read_exact(amount: Integer) !! IOError -> String {
+    try raw.read_exact(self, amount)
+  }
+}
+
+impl Write for WriteOnlyFile {
   def write(data: ToString) !! IOError -> Integer {
-    process.await {
-      try {
-        _INKOC.file_write(self, data.to_string)
-      } else (err) {
-        throw IOError.new(err as String)
-      }
-    }
+    try raw.write(self, data.to_string)
   }
 
   def flush !! IOError -> Nil {
-    process.await {
-      try _INKOC.file_flush(self) else (err) throw IOError.new(err as String)
-    }
+    try raw.flush(self)
   }
 }
 
-impl Seek for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+impl Write for ReadWriteFile {
+  def write(data: ToString) !! IOError -> Integer {
+    try raw.write(self, data.to_string)
+  }
+
+  def flush !! IOError -> Nil {
+    try raw.flush(self)
+  }
+}
+
+impl Seek for ReadOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
-    process.await {
-      try {
-        _INKOC.file_seek(self, position)
-      } else (err) {
-        throw IOError.new(err as String)
-      }
-    }
+    try raw.seek(self, position)
   }
 }
 
-impl Size for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+impl Seek for WriteOnlyFile {
+  def seek(position: Integer) !! IOError -> Integer {
+    try raw.seek(self, position)
+  }
+}
+
+impl Seek for ReadWriteFile {
+  def seek(position: Integer) !! IOError -> Integer {
+    try raw.seek(self, position)
+  }
+}
+
+impl Size for ReadOnlyFile {
   def size !! IOError -> Integer {
     try raw.size(@path.to_string)
   }
 }
 
-impl FilePath for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+impl Size for WriteOnlyFile {
+  def size !! IOError -> Integer {
+    try raw.size(@path.to_string)
+  }
+}
+
+impl Size for ReadWriteFile {
+  def size !! IOError -> Integer {
+    try raw.size(@path.to_string)
+  }
+}
+
+impl FilePath for ReadOnlyFile {
   def path -> Path {
     @path
   }
 }
 
-impl Close for ReadOnlyFile, WriteOnlyFile, ReadWriteFile {
+impl FilePath for WriteOnlyFile {
+  def path -> Path {
+    @path
+  }
+}
+
+impl FilePath for ReadWriteFile {
+  def path -> Path {
+    @path
+  }
+}
+
+impl Close for ReadOnlyFile {
   def close -> Nil {
     _INKOC.drop(self)
   }
 }
 
-impl Remove for WriteOnlyFile, ReadWriteFile {
+impl Close for WriteOnlyFile {
+  def close -> Nil {
+    _INKOC.drop(self)
+  }
+}
+
+impl Close for ReadWriteFile {
+  def close -> Nil {
+    _INKOC.drop(self)
+  }
+}
+
+impl Remove for WriteOnlyFile {
+  ## Removes the file.
+  def remove !! IOError -> Nil {
+    try ThisModule.remove(@path)
+  }
+}
+
+impl Remove for ReadWriteFile {
   ## Removes the file.
   def remove !! IOError -> Nil {
     try ThisModule.remove(@path)

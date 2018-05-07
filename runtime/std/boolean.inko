@@ -69,7 +69,7 @@ impl ToString for False {
   }
 }
 
-impl Equal for True, False {
+impl Equal for True {
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
@@ -80,7 +80,24 @@ impl Equal for True, False {
   }
 }
 
-impl Hash for True, False {
+impl Equal for False {
+  def ==(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+
+  def !=(other: Self) -> Boolean {
+    self == other
+      .not
+  }
+}
+
+impl Hash for True {
+  def hash(hasher: Hasher) {
+    _INKOC.hasher_write(hasher, self)
+  }
+}
+
+impl Hash for False {
   def hash(hasher: Hasher) {
     _INKOC.hasher_write(hasher, self)
   }
