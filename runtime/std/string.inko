@@ -8,18 +8,20 @@ import std::hash::(Hasher, Hash)
 import std::length::Length
 import std::operators::(Equal, Add)
 
-impl String {
-  ## Creates a `String` from the given `Array` of bytes.
-  ##
-  ## ## Examples
-  ##
-  ## Creating a `String` from a byte `Array`:
-  ##
-  ##     String.from_bytes([102, 111, 111]) # => 'foo'
-  def from_bytes(bytes: Array!(Integer)) -> String {
-    _INKOC.string_from_bytes(bytes)
-  }
+## Creates a `String` from the given `Array` of bytes.
+##
+## ## Examples
+##
+## Creating a `String` from a byte `Array`:
+##
+##     import std::string
+##
+##     string.from_bytes([102, 111, 111]) # => 'foo'
+def from_bytes(bytes: Array!(Integer)) -> String {
+  _INKOC.string_from_bytes(bytes)
+}
 
+impl String {
   ## Returns the uppercase equivalent of the current `String`.
   ##
   ## # Examples
