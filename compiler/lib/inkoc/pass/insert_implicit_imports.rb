@@ -31,7 +31,7 @@ module Inkoc
       #
       # Equivalent:
       #
-      #     import std::globals::*
+      #     import core::globals::*
       def import_globals(location)
         import_everything_from(Config::GLOBALS_MODULE, location)
       end
@@ -40,7 +40,7 @@ module Inkoc
       #
       # Equivalent:
       #
-      #     import std::prelude::*
+      #     import core::prelude::*
       def import_prelude(location)
         import_everything_from(Config::PRELUDE_MODULE, location)
       end
@@ -53,9 +53,9 @@ module Inkoc
       #
       # Equivalent:
       #
-      #     import std::bootstrap::(self as _)
+      #     import core::bootstrap::(self as _)
       def import_and_ignore(name, location)
-        std = identifier_for(Config::STD_MODULE, location)
+        std = identifier_for(Config::CORE_MODULE, location)
         bootstrap = identifier_for(name, location)
         underscore = identifier_for('_', location)
 
@@ -66,7 +66,7 @@ module Inkoc
       end
 
       def import_everything_from(module_name, location)
-        std = identifier_for(Config::STD_MODULE, location)
+        std = identifier_for(Config::CORE_MODULE, location)
         prelude = identifier_for(module_name, location)
         symbol = AST::GlobImport.new(location)
 

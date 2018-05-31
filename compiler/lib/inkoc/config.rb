@@ -13,8 +13,8 @@ module Inkoc
     # The file extension of source files.
     SOURCE_EXT = '.inko'
 
-    # The name of the root module for the standard library.
-    STD_MODULE = 'std'
+    # The name of the root module for the core library.
+    CORE_MODULE = 'core'
 
     # The path to the bootstrap module.
     BOOTSTRAP_MODULE = 'bootstrap'
