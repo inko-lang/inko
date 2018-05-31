@@ -486,8 +486,9 @@ module Inkoc
 
         else_scope.define_self_argument
 
-        if node.else_argument
-          else_scope.locals.define(node.else_argument_name, throw_type)
+        if (else_arg_name = node.else_argument_name)
+          node.else_block_type.arguments.define(else_arg_name, throw_type)
+          else_scope.locals.define(else_arg_name, throw_type)
         end
 
         else_type = define_type(node.else_body, else_scope)

@@ -1378,9 +1378,13 @@ describe Inkoc::Pass::DefineType do
 
         try_node = body.expressions[0].body.expressions[0]
         error_local = try_node.else_body.locals['error']
+        error_arg = try_node.else_block_type.arguments['error']
         self_local = try_node.else_body.locals['self']
 
         expect(error_local.type)
+          .to be_type_instance_of(state.typedb.integer_type)
+
+        expect(error_arg.type)
           .to be_type_instance_of(state.typedb.integer_type)
 
         expect(self_local.type)
