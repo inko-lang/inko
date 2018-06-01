@@ -72,8 +72,13 @@ module Inkoc
         process_node(node.receiver) if node.receiver
 
         node.arguments.map!.with_index do |arg, index|
-          if arg.keyword_argument? && node.block_type
-            on_keyword_argument(arg, index, node.block_type)
+          if arg.keyword_argument?
+            if node.block_type
+              on_keyword_argument(arg, index, node.block_type)
+            else
+              process_node(arg.value)
+              arg
+            end
           else
             process_node(arg)
             arg
