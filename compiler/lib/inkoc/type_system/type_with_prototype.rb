@@ -13,6 +13,7 @@ module Inkoc
       # state - An instance of `Inkoc::State`.
       def prototype_chain_compatible?(other)
         current = prototype
+        other = other.base_type
 
         while current
           return true if current == other

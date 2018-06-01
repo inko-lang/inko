@@ -99,6 +99,15 @@ describe Inkoc::TypeSystem::Object do
       end
     end
 
+    context 'when comparing with a type instance of a compatible object' do
+      it 'returns true' do
+        theirs = described_class.new
+        ours = described_class.new(prototype: theirs)
+
+        expect(ours.type_compatible?(theirs.new_instance, state)).to eq(true)
+      end
+    end
+
     context 'when comparing with a generic object' do
       it 'returns true when two objects are compatible' do
         int_type = state.typedb.integer_type

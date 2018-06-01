@@ -58,10 +58,10 @@ module Inkoc
         end
 
         if other.generic_object?
-          return true if compatible_with_generic_type?(other, state)
+          compatible_with_generic_type?(other, state)
+        else
+          prototype_chain_compatible?(other)
         end
-
-        prototype_chain_compatible?(other)
       end
       # rubocop: enable Metrics/CyclomaticComplexity
       # rubocop: enable Metrics/PerceivedComplexity
