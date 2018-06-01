@@ -94,6 +94,18 @@ module Inkoc
       def send?
         false
       end
+
+      def array_literal?
+        false
+      end
+
+      def hash_map_literal?
+        false
+      end
+
+      def global?
+        false
+      end
     end
   end
 end

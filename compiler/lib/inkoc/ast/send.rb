@@ -41,6 +41,20 @@ module Inkoc
           receiver&.name == Config::RAW_INSTRUCTION_RECEIVER
       end
 
+      def array_literal?
+        receiver&.global? &&
+          receiver&.name == Config::ARRAY_CONST &&
+          name == Config::NEW_MESSAGE
+      end
+
+      def hash_map_literal?
+        receiver&.global? &&
+          receiver&.name == Config::HASH_MAP_CONST &&
+          name == Config::FROM_ARRAY_MESSAGE &&
+          arguments[0]&.array_literal? &&
+          arguments[1]&.array_literal?
+      end
+
       def raw_instruction_visitor_method
         :"on_raw_#{name}"
       end

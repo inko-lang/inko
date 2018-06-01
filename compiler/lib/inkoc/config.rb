@@ -27,6 +27,7 @@ module Inkoc
     GLOBALS_MODULE = 'globals'
 
     MARKER_MODULE = 'std::marker'
+    HASH_MAP_MODULE = 'std::hash_map'
 
     INKO_CONST = 'Inko'
     OBJECT_CONST = 'Object'
@@ -57,6 +58,8 @@ module Inkoc
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
     NEW_MESSAGE = 'new'
     UNKNOWN_MESSAGE_MESSAGE = 'unknown_message'
+    FROM_ARRAY_MESSAGE = 'from_array'
+    SET_INDEX_MESSAGE = '[]='
     MODULE_GLOBAL = 'ThisModule'
     SELF_LOCAL = 'self'
     CALL_MESSAGE = 'call'

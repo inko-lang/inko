@@ -19,6 +19,10 @@ module Inkoc
       def visitor_method
         :on_global
       end
+
+      def global?
+        true
+      end
     end
   end
 end

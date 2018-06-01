@@ -723,7 +723,7 @@ module Inkoc
     #
     # Example:
     #
-    #     %{ 'key': 'value' }
+    #     %['key': 'value']
     def hash(start)
       keys = []
       vals = []
@@ -746,7 +746,12 @@ module Inkoc
       keys_array = new_array(keys, start)
       vals_array = new_array(vals, start)
 
-      AST::Send.new('from_array', receiver, [keys_array, vals_array], location)
+      AST::Send.new(
+        Config::FROM_ARRAY_MESSAGE,
+        receiver,
+        [keys_array, vals_array],
+        location
+      )
     end
 
     # Parses a method definition.
