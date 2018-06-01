@@ -385,7 +385,7 @@ module Inkoc
       rname = rec_type.type_name.inspect
 
       error(
-        "The message #{name.inspect} can not be sent to an optional #{rname} " \
+        "The message #{name.inspect} can not be sent to a #{rname} " \
           "because its implementation (#{rec_impl}) is not compatible with " \
           "the implementation of #{nname} (#{nil_impl})",
         location
