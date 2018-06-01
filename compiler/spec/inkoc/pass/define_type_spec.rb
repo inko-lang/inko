@@ -1129,6 +1129,48 @@ describe Inkoc::Pass::DefineType do
       end
     end
 
+    context 'when using a method with method bounds' do
+      it 'does not error if the method bounds are met' do
+        param = type_scope.self_type.define_type_parameter('T')
+        method = Inkoc::TypeSystem::Block.new(name: 'to_string')
+        trait = state.typedb.new_trait_type('ToString')
+        int_type = state.typedb.integer_type
+
+        int_type.implement_trait(trait)
+
+        method.method_bounds.define(param.name, [trait])
+        method.return_type = int_type.new_instance
+        method.define_self_argument(type_scope.self_type)
+
+        type_scope.self_type.initialize_type_parameter(param, int_type)
+        type_scope.self_type.define_attribute(method.name, method)
+
+        type = expression_type('to_string()')
+
+        expect(type).to be_type_instance_of(int_type)
+        expect(state.diagnostics.errors?).to eq(false)
+      end
+
+      it 'errors if the method bounds are not met' do
+        param = type_scope.self_type.define_type_parameter('T')
+        method = Inkoc::TypeSystem::Block.new(name: 'to_string')
+        trait = state.typedb.new_trait_type('ToString')
+        int_type = state.typedb.integer_type
+
+        method.method_bounds.define(param.name, [trait])
+        method.return_type = int_type.new_instance
+        method.define_self_argument(type_scope.self_type)
+
+        type_scope.self_type.initialize_type_parameter(param, int_type)
+        type_scope.self_type.define_attribute(method.name, method)
+
+        type = expression_type('to_string()')
+
+        expect(type).to be_error
+        expect(state.diagnostics.errors?).to eq(true)
+      end
+    end
+
     it 'stores the method type in the AST node' do
       method = Inkoc::TypeSystem::Block.new(name: 'foo')
 

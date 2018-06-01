@@ -334,15 +334,16 @@ module Inkoc
       error("The type #{tname} is not an optional type", location)
     end
 
-    def method_requirement_error(block_type, value_type, required, location)
+    def method_requirement_error(receiver, block_type, value_type, bound, loc)
+      rname = receiver.type_name.inspect
       bname = block_type.type_name.inspect
       vname = value_type.type_name.inspect
-      req = required.map(&:type_name).join(', ')
+      req = bound.required_traits.map(&:type_name).join(', ')
 
       error(
-        "The method #{bname} is only available when #{vname} implements " \
-          "the following trait(s): #{req}",
-        location
+        "The method #{bname} for #{rname} is only available when #{vname} " \
+          "implements the following trait(s): #{req}",
+        loc
       )
     end
 

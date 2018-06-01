@@ -269,6 +269,10 @@ module Inkoc
           return diagnostics.undefined_method_error(source, name, node.location)
         end
 
+        unless verify_method_bounds(source, method, node.location)
+          return TypeSystem::Error.new
+        end
+
         exp_args = method.argument_count_range
 
         unless exp_args.cover?(node.arguments.length)
@@ -282,6 +286,22 @@ module Inkoc
         method = method.new_instance_for_send
 
         verify_argument_types_and_initialize(node, source, method, scope)
+      end
+
+      def verify_method_bounds(receiver, method, loc)
+        method.method_bounds.all? do |bound|
+          param = receiver.lookup_type_parameter(bound.name)
+          instance = receiver.lookup_type_parameter_instance(param)
+
+          if !instance || instance.type_compatible?(bound, @state)
+            true
+          else
+            diagnostics
+              .method_requirement_error(receiver, method, instance, bound, loc)
+
+            false
+          end
+        end
       end
 
       # rubocop: disable Metrics/CyclomaticComplexity
