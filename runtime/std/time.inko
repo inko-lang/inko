@@ -867,19 +867,6 @@ def from_utc_timestamp(time: ToFloat) -> SystemTime {
 ## making it useful for tasks such as measuring the execution time of a block of
 ## code.
 object MonotonicTime {
-  ## Returns a `MonotonicTime` representing the current time.
-  ##
-  ## # Examples
-  ##
-  ## Getting the current time:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     MonotonicTime.now
-  def now -> Self {
-    new
-  }
-
   def init(time = _INKOC.time_monotonic) {
     let @time = time
   }
@@ -1015,4 +1002,17 @@ impl GreaterOrEqual for MonotonicTime {
   def >=(other: Self) -> Boolean {
     to_float >= other.to_float
   }
+}
+
+## Returns a new `MonotonicTime`.
+##
+## # Examples
+##
+## Creating a new `MonotonicTime`:
+##
+##     import std::time
+##
+##     time.monotonic
+def monotonic -> MonotonicTime {
+  MonotonicTime.new
 }
