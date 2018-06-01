@@ -21,8 +21,6 @@ module Inkoc
       end
 
       def on_object(node)
-        method = nil
-
         defines_new = node.body.expressions.any? do |expr|
           expr.method? && expr.name == Config::NEW_MESSAGE
         end
@@ -31,15 +29,18 @@ module Inkoc
         # it.
         return if defines_new
 
-        node.body.expressions.each do |expr|
-          next unless expr.method?
-          next unless expr.name == Config::INIT_MESSAGE
-
-          method = create_new_from_init(expr)
+        init = node.body.expressions.find do |expr|
+          expr.method? && expr.name == Config::INIT_MESSAGE
         end
 
-        node.body.expressions.push(method) if method
+        method =
+          if init
+            create_new_from_init(init, init.location)
+          else
+            default_new(node.location)
+          end
 
+        node.body.expressions.push(method)
         process_node(node.body)
       end
 
@@ -47,15 +48,39 @@ module Inkoc
         process_node(node.body)
       end
 
+      # Generates a default "new" method.
+      def default_new(loc)
+        exprs = [
+          allocate_and_assign_object(loc),
+          return_object(loc)
+        ]
+
+        body = AST::Body.new(exprs, loc)
+
+        new_return_type = AST::TypeName
+          .new(AST::Constant.new(Config::SELF_TYPE, nil, loc), [], loc)
+
+        AST::Method.new(
+          Config::NEW_MESSAGE,
+          [],
+          [],
+          new_return_type,
+          nil,
+          false,
+          [],
+          body,
+          loc
+        )
+      end
+
       # Generates a "new" method based on the signature of a corresponding
       # "init" method.
-      def create_new_from_init(init)
-        loc = init.location
-
+      def create_new_from_init(init, loc)
         arg_names = init.arguments.map do |arg|
           AST::Identifier.new(arg.name, loc)
         end
 
+        # obj.init(...)
         send_init = AST::Send.new(
           Config::INIT_MESSAGE,
           AST::Identifier.new('obj', loc),
@@ -68,31 +93,9 @@ module Inkoc
         end
 
         exprs = [
-          # var obj = _INKOC.set_object(False, self)
-          AST::DefineVariable.new(
-            AST::Identifier.new('obj', loc),
-            AST::Send.new(
-              'set_object',
-              AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
-              [
-                AST::Constant.new(Config::FALSE_CONST, nil, loc),
-                AST::Self.new(loc)
-              ],
-              loc
-            ),
-            nil,
-            true,
-            loc
-          ),
-
-          # obj.init(...)
+          allocate_and_assign_object(loc),
           send_init,
-
-          # return obj
-          AST::Return.new(
-            AST::Identifier.new('obj', loc),
-            loc
-          )
+          return_object(loc)
         ]
 
         body = AST::Body.new(exprs, loc)
@@ -111,6 +114,30 @@ module Inkoc
           body,
           loc
         )
+      end
+
+      def allocate_and_assign_object(loc)
+        # var obj = _INKOC.set_object(FalseObject, self)
+        AST::DefineVariable.new(
+          AST::Identifier.new('obj', loc),
+          AST::Send.new(
+            'set_object',
+            AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
+            [
+              AST::Constant.new(Config::FALSE_CONST, nil, loc),
+              AST::Self.new(loc)
+            ],
+            loc
+          ),
+          nil,
+          true,
+          loc
+        )
+      end
+
+      def return_object(loc)
+        # return obj
+        AST::Return.new(AST::Identifier.new('obj', loc), loc)
       end
     end
   end
