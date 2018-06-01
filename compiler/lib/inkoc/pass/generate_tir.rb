@@ -895,13 +895,12 @@ module Inkoc
 
       def on_raw_run_block(node, body)
         block = process_node(node.arguments.fetch(0), body)
-        self_reg = get_self(body, node.location)
         args, kwargs = split_send_arguments(node.arguments[1..-1], body)
-        return_type = block.type.block?  ? block.type.return_type : block.type
+        return_type = block.type.block? ? block.type.return_type : block.type
 
         run_block(
           block,
-          [self_reg, *args],
+          args,
           kwargs,
           return_type,
           body,
