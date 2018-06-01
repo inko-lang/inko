@@ -32,6 +32,10 @@ module Inkoc
       def new_instance(*)
         self
       end
+
+      def base_type
+        self
+      end
     end
   end
 end
