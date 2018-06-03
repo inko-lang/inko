@@ -107,6 +107,10 @@ module Inkoc
       def without_empty_type_parameters
         self
       end
+
+      def initialize_type_parameter?(_param)
+        false
+      end
     end
   end
 end

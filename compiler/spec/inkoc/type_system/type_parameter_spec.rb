@@ -87,6 +87,7 @@ describe Inkoc::TypeSystem::TypeParameter do
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end
 
+    # rubocop: disable Metrics/LineLength
     it 'returns true when using an object that is in the prototype chain of all traits' do
       object = Inkoc::TypeSystem::Object.new(name: 'Root')
       trait = Inkoc::TypeSystem::Trait.new(name: 'Inspect', prototype: object)
@@ -94,6 +95,7 @@ describe Inkoc::TypeSystem::TypeParameter do
 
       expect(ours.type_compatible?(object, state)).to eq(true)
     end
+    # rubocop: enable Metrics/LineLength
   end
 
   describe '#initialize_as' do
@@ -184,6 +186,14 @@ describe Inkoc::TypeSystem::TypeParameter do
       param = described_class.new(name: 'T', required_traits: [trait])
 
       expect(param).not_to be_empty
+    end
+  end
+
+  describe '#lookup_type_parameter_instance' do
+    it 'returns nil' do
+      param = described_class.new(name: 'T')
+
+      expect(param.lookup_type_parameter_instance(param)).to be_nil
     end
   end
 end

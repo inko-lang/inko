@@ -405,11 +405,19 @@ module Inkoc
 
       def type_of_receiver(node, scope)
         if node.receiver
-          define_type(node.receiver, scope)
+          receiver_type_for_send_with_receiver(node, scope)
         elsif scope.self_type.responds_to_message?(node.name)
           scope.self_type
         else
           scope.module_type
+        end
+      end
+
+      def receiver_type_for_send_with_receiver(node, scope)
+        if node.name == Config::NEW_MESSAGE
+          define_type_instance(node.receiver, scope)
+        else
+          define_type(node.receiver, scope)
         end
       end
 

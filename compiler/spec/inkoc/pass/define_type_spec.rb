@@ -1095,6 +1095,29 @@ describe Inkoc::Pass::DefineType do
       end
     end
 
+    context 'when sending "new" to a constant' do
+      it 'does not initialize parameters in the original object' do
+        a_type = Inkoc::TypeSystem::Object.new(name: 'A')
+        method = Inkoc::TypeSystem::Block.new(name: 'A')
+        param = a_type.define_type_parameter('T')
+
+        method.define_self_argument(a_type.new_instance)
+        method.define_required_argument('foo', param)
+        method.return_type = a_type.new_instance([param])
+
+        a_type.define_attribute('new', method)
+        type_scope.self_type.define_attribute('A', a_type)
+
+        type = expression_type('A.new(10)')
+
+        expect(a_type.type_parameter_instances).to be_empty
+        expect(type).to be_type_instance_of(a_type)
+
+        expect(type.lookup_type_parameter_instance(param))
+          .to be_type_instance_of(state.typedb.integer_type)
+      end
+    end
+
     context 'when sending a message to a Dynamic type' do
       before do
         type_scope.locals.define('foo', Inkoc::TypeSystem::Dynamic.new)
@@ -2072,6 +2095,28 @@ describe Inkoc::Pass::DefineType do
 
         expect(type).to be_error
         expect(type_scope.locals['x'].type).to be_error
+      end
+
+      it 'supports the use of a generic type' do
+        type_scope.self_type.define_attribute('Array', state.typedb.array_type)
+
+        type_scope
+          .self_type
+          .define_attribute('Integer', state.typedb.integer_type)
+
+        type = expression_type('let x: Array!(Integer) = [10]')
+
+        param = state
+          .typedb
+          .array_type
+          .lookup_type_parameter(Inkoc::Config::ARRAY_TYPE_PARAMETER)
+
+        expect(type).to be_type_instance_of(state.typedb.array_type)
+
+        expect(type.lookup_type_parameter_instance(param))
+          .to be_type_instance_of(state.typedb.integer_type)
+
+        expect(state.typedb.array_type.type_parameter_instances).to be_empty
       end
     end
 

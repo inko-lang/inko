@@ -25,6 +25,9 @@ module Inkoc
       def_delegator :type, :lookup_method
       def_delegator :type, :lookup_attribute
       def_delegator :type, :resolved_return_type
+      def_delegator :type, :initialize_type_parameter?
+      def_delegator :type, :lookup_type_parameter_instance
+      def_delegator :type, :dynamic?
 
       # Wraps a type in an Optional if necessary.
       def self.wrap(type)

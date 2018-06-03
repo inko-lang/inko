@@ -17,6 +17,10 @@ module Inkoc
         @required_traits = required_traits.to_set
       end
 
+      def lookup_type_parameter_instance(_)
+        nil
+      end
+
       def attributes
         SymbolTable.new
       end
