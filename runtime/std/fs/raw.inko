@@ -5,7 +5,7 @@
 
 import std::io::(Error as IOError)
 import std::process
-import std::time::Time
+import std::time::(self, SystemTime)
 
 let MISSING_TYPE = 0
 let FILE_TYPE = 1
@@ -87,7 +87,7 @@ def exists?(path: String) -> Boolean {
 }
 
 ## Returns the creation, modification or access time of a file path.
-def file_time(path: String, kind: Integer) !! IOError -> Time {
+def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   process.await {
     let timestamp = try {
       _INKOC.file_time(path, kind)
@@ -95,7 +95,7 @@ def file_time(path: String, kind: Integer) !! IOError -> Time {
       throw IOError.new(error as String)
     }
 
-    Time.from_timestamp(timestamp)
+    time.from_timestamp(timestamp)
   }
 }
 
