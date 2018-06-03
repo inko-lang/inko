@@ -407,7 +407,7 @@ describe Inkoc::Pass::DefineType do
     end
   end
 
-  describe '#on_type' do
+  describe '#on_type_name' do
     def constant_type(type)
       node = parse_expression("let x: #{type} = 10").value_type
 
@@ -476,6 +476,16 @@ describe Inkoc::Pass::DefineType do
         param = type.lookup_type_parameter('T')
 
         expect(type.lookup_type_parameter_instance(param)).to eq(integer_type)
+      end
+
+      it 'initialises the type parameters when using a Self type' do
+        param = type_scope.self_type.define_type_parameter('T')
+        type = constant_type('Self')
+
+        expect(type).to be_type_instance_of(type_scope.self_type)
+
+        expect(type.lookup_type_parameter_instance(param))
+          .to be_type_instance_of(param)
       end
 
       it 'does not initialise the global type' do

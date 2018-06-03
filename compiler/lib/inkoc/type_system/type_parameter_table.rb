@@ -56,6 +56,10 @@ module Inkoc
       def length
         @parameters.length
       end
+
+      def to_a
+        @parameters
+      end
     end
   end
 end

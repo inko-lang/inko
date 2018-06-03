@@ -111,4 +111,12 @@ describe Inkoc::TypeSystem::TypeParameterTable do
       expect(other_table.defines?(param)).to eq(false)
     end
   end
+
+  describe '#to_a' do
+    it 'returns an array of type parameters' do
+      param = table.define('T')
+
+      expect(table.to_a).to eq([param])
+    end
+  end
 end

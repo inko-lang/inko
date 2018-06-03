@@ -112,7 +112,16 @@ module Inkoc
       alias on_lambda_type on_block_type
 
       def on_self_type(node, scope)
-        wrap_optional_type(node, scope.self_type.new_instance)
+        self_type = scope.self_type
+
+        # When "Self" translates to a generic type, e.g. Array!(T), we want to
+        # return a type in the form of `Array!(T -> T)`, and not just `Array`.
+        # This ensures that any arguments passed to a method returning "Self"
+        # can properly initialise the type.
+        type_arguments =
+          self_type.generic_type? ? self_type.type_parameters.to_a : []
+
+        wrap_optional_type(node, self_type.new_instance(type_arguments))
       end
 
       def on_dynamic_type(node, _)
