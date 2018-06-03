@@ -677,4 +677,39 @@ describe Inkoc::TypeSystem::Object do
       expect(object.guard_unknown_message?('foo')).to eq(false)
     end
   end
+
+  describe '#initialize_type_parameter?' do
+    let(:object) { described_class.new }
+
+    it 'returns false for a type parameter not owned by the object' do
+      param = Inkoc::TypeSystem::TypeParameter.new(name: 'A')
+
+      expect(object.initialize_type_parameter?(param)).to eq(false)
+    end
+
+    it 'returns false for a type parameter that is already initialised' do
+      param = object.define_type_parameter('A')
+
+      object.initialize_type_parameter(param, state.typedb.integer_type)
+
+      expect(object.initialize_type_parameter?(param)).to eq(false)
+    end
+
+    it 'returns false for a parameter that is initialised with a parameter' do
+      param1 = object.define_type_parameter('A')
+      param2 = object.define_type_parameter('B')
+
+      object.initialize_type_parameter(param1, param2)
+
+      expect(object.initialize_type_parameter?(param1)).to eq(false)
+    end
+
+    it 'returns true when a parameter is initialised to itself' do
+      param = object.define_type_parameter('A')
+
+      object.initialize_type_parameter(param, param)
+
+      expect(object.initialize_type_parameter?(param)).to eq(true)
+    end
+  end
 end

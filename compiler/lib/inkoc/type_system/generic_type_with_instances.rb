@@ -22,7 +22,13 @@ module Inkoc
       end
 
       def initialize_type_parameter?(param)
-        defines_type_parameter?(param) && !type_parameter_instances[param]
+        if defines_type_parameter?(param)
+          instance = type_parameter_instances[param]
+
+          instance.nil? || instance == param
+        else
+          false
+        end
       end
 
       # Returns true if our type is compatible with the given generic type.
