@@ -1001,6 +1001,26 @@ describe Inkoc::Pass::DefineType do
         type_scope.self_type.define_attribute('foo', method)
       end
 
+      it 'resolves type parameters in the expected closure' do
+        param = type_scope.self_type.define_type_parameter('T')
+        int_type = state.typedb.integer_type
+
+        expected_block.return_type = param
+
+        type_scope
+          .self_type
+          .initialize_type_parameter(param, int_type.new_instance)
+
+        parse_closure_argument('foo do () { 10.5 }')
+
+        # This should produce an error diagnostic because:
+        #
+        # 1. The return type of our given closure is a Float.
+        # 2. The expected block's return type is T, which is initialised as
+        #    Integer.
+        expect(state.diagnostics.errors?).to eq(true)
+      end
+
       it 'infers the arguments of the closure' do
         expected_block.define_required_argument('foo', integer_type)
 

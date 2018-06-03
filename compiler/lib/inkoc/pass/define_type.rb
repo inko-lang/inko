@@ -358,7 +358,7 @@ module Inkoc
               #
               # Then "thing" will be whatever instance is bound to type
               # parameter "T", or "T" itself is no instance was bound.
-              exp_block = exp_arg.with_type_parameter_instances_from(source)
+              exp_arg = exp_arg.with_type_parameter_instances_from(source)
 
               # When passing a block without a signature (e.g. `foo { 10 }`) we
               # want to infer this as a lambda, if the expected block is also a
@@ -373,11 +373,11 @@ module Inkoc
               #     process.spawn lambda {
               #       ...
               #     }
-              if arg_node.block_without_signature? && exp_block.lambda?
+              if arg_node.block_without_signature? && exp_arg.lambda?
                 arg_node.infer_as_lambda
               end
 
-              define_type(arg_node, scope, exp_block)
+              define_type(arg_node, scope, exp_arg)
             else
               define_type(arg_node, scope)
             end
