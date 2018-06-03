@@ -25,7 +25,7 @@ module Inkoc
         if defines_type_parameter?(param)
           instance = type_parameter_instances[param]
 
-          instance.nil? || instance == param
+          instance.nil? || instance.type_parameter?
         else
           false
         end
