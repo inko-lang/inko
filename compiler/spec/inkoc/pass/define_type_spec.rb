@@ -1634,6 +1634,45 @@ describe Inkoc::Pass::DefineType do
       expect(method.type).to be_method
       expect(method.type.name).to eq('foo')
     end
+
+    it 'supports implementing traits when defining the object' do
+      to_string = state.typedb.new_trait_type('ToString')
+      to_integer = state.typedb.new_trait_type('ToInteger')
+
+      type_scope.module_type.define_attribute(to_string.name, to_string)
+      type_scope.module_type.define_attribute(to_integer.name, to_integer)
+
+      type = expression_type('object Person impl ToString, ToInteger {}')
+
+      expect(type).to be_object
+      expect(type.implements_trait?(to_string)).to eq(true)
+      expect(type.implements_trait?(to_integer)).to eq(true)
+    end
+
+    it 'errors when implementing a trait without meeting its requirements' do
+      to_string = state.typedb.new_trait_type('ToString')
+      to_string_method = Inkoc::TypeSystem::Block
+        .named_method('to_string', state.typedb.block_type)
+
+      to_string_method.return_type = state.typedb.string_type.new_instance
+
+      to_string.define_required_method(to_string_method)
+
+      type_scope.module_type.define_attribute(to_string.name, to_string)
+
+      type = expression_type('object Person impl ToString, ToInteger {}')
+
+      expect(type).to be_object
+      expect(type.implements_trait?(to_string)).to eq(false)
+      expect(state.diagnostics.errors?).to eq(true)
+    end
+
+    it 'errors when implementing an undefined trait' do
+      type = expression_type('object Person impl ToString {}')
+
+      expect(type).to be_object
+      expect(type.implemented_traits).to be_empty
+    end
   end
 
   describe '#on_trait' do

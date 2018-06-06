@@ -106,6 +106,10 @@ module Inkoc
       def global?
         false
       end
+
+      def object?
+        false
+      end
     end
   end
 end
