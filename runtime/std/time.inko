@@ -13,7 +13,16 @@ let ParseError = StandardError
 ## A `Duration` can be used to measure the span of time without having to worry
 ## about casting the time to different scales yourself. A `Duration` can be
 ## created using various scales such as seconds and milliseconds.
-object Duration {
+object Duration impl
+  ToInteger,
+  ToFloat,
+  Add!(Self),
+  Subtract!(Self),
+  Smaller,
+  Greater,
+  SmallerOrEqual,
+  GreaterOrEqual {
+
   ## Creates a new `Duration` from the given number of seconds.
   ##
   ## # Examples
@@ -134,23 +143,17 @@ object Duration {
   def as_nanoseconds -> Float {
     @seconds * NANOSEC_TO_SEC
   }
-}
 
-impl ToInteger for Duration {
   ## Returns the number of seconds in the `Duration`.
   def to_integer -> Integer {
     @seconds.to_integer
   }
-}
 
-impl ToFloat for Duration {
   ## Returns the number of seconds in the `Duration`.
   def to_float -> Float {
     @seconds
   }
-}
 
-impl Add!(Self) for Duration {
   ## Adds two `Duration` objects together.
   ##
   ## # Examples
@@ -167,9 +170,7 @@ impl Add!(Self) for Duration {
   def +(other: Self) -> Self {
     Duration.new(@seconds + other.as_seconds)
   }
-}
 
-impl Subtract!(Self) for Duration {
   ## Subtracts the given `Duration` from `self`.
   ##
   ## # Examples
@@ -186,9 +187,7 @@ impl Subtract!(Self) for Duration {
   def -(other: Self) -> Self {
     Duration.new(@seconds - other.as_seconds)
   }
-}
 
-impl Smaller for Duration {
   ## Returns `True` if `self` is smaller than the given `Duration`.
   ##
   ## # Examples
@@ -201,9 +200,7 @@ impl Smaller for Duration {
   def <(other: Self) -> Boolean {
     @seconds < other.as_seconds
   }
-}
 
-impl Greater for Duration {
   ## Returns `True` if `self` is greater than the given `Duration`.
   ##
   ## # Examples
@@ -216,9 +213,7 @@ impl Greater for Duration {
   def >(other: Self) -> Boolean {
     @seconds > other.as_seconds
   }
-}
 
-impl SmallerOrEqual for Duration {
   ## Returns `True` if `self` is smaller than or equal to the given `Duration`.
   ##
   ## # Examples
@@ -232,9 +227,7 @@ impl SmallerOrEqual for Duration {
   def <=(other: Self) -> Boolean {
     @seconds <= other.as_seconds
   }
-}
 
-impl GreaterOrEqual for Duration {
   ## Returns `True` if `self` is greater than or equal to the given `Duration`.
   ##
   ## # Examples
@@ -257,7 +250,17 @@ impl GreaterOrEqual for Duration {
 ## `SystemTime` can be influenced by time zone changes, clock adjustments, or
 ## leap seconds. If you need a monotonically increasing clock you should use
 ## `MonotonicTime` instead.
-object SystemTime {
+object SystemTime impl
+  ToInteger,
+  ToFloat,
+  Add!(ToFloat),
+  Subtract!(ToFloat),
+  Smaller,
+  SmallerOrEqual,
+  Greater,
+  GreaterOrEqual,
+  Equal {
+
   def init(
     year: Integer,
     month: Integer,
@@ -432,24 +435,18 @@ object SystemTime {
   def format(pattern: String) -> String {
     'SystemTime.format is currently disabled'
   }
-}
 
-impl ToInteger for SystemTime {
   ## Returns the timestamp since the Unix epoch.
   def to_integer -> Integer {
     seconds_since_epoch
   }
-}
 
-impl ToFloat for SystemTime {
   ## Returns the timestamp since the Unix epoch, the including fractional
   ## seconds.
   def to_float -> Float {
     seconds_since_epoch.to_float + sub_second
   }
-}
 
-impl Add!(ToFloat) for SystemTime {
   ## Adds the given number of seconds to `self`, returning the result as a new
   ## `SystemTime`.
   ##
@@ -475,9 +472,7 @@ impl Add!(ToFloat) for SystemTime {
       ThisModule.from_timestamp(timestamp)
     }
   }
-}
 
-impl Subtract!(ToFloat) for SystemTime {
   ## Subtracts the given number of seconds from `self`, returning the result as
   ## a new `SystemTime`.
   ##
@@ -503,9 +498,7 @@ impl Subtract!(ToFloat) for SystemTime {
       ThisModule.from_timestamp(timestamp)
     }
   }
-}
 
-impl Smaller for SystemTime {
   ## Returns `True` if `self` is smaller than the given `SystemTime`.
   ##
   ## # Examples
@@ -527,9 +520,7 @@ impl Smaller for SystemTime {
       .and { second < other.second }
       .and { sub_second < other.sub_second }
   }
-}
 
-impl SmallerOrEqual for SystemTime {
   ## Returns `True` if `self` is smaller than or equal to the given
   ## `SystemTime`.
   ##
@@ -553,9 +544,7 @@ impl SmallerOrEqual for SystemTime {
       .and { second <= other.second }
       .and { sub_second <= other.sub_second }
   }
-}
 
-impl Greater for SystemTime {
   ## Returns `True` if `self` is greater than the given `SystemTime`.
   ##
   ## # Examples
@@ -577,9 +566,7 @@ impl Greater for SystemTime {
       .and { second > other.second }
       .and { sub_second > other.sub_second }
   }
-}
 
-impl GreaterOrEqual for SystemTime {
   ## Returns `True` if `self` is greater than or equal to the given
   ## `SystemTime`.
   ##
@@ -603,9 +590,7 @@ impl GreaterOrEqual for SystemTime {
       .and { second >= other.second }
       .and { sub_second >= other.sub_second }
   }
-}
 
-impl Equal for SystemTime {
   ## Returns `True` if `self` and the given `SystemTime` are equal to each
   ## other.
   ##
@@ -627,6 +612,143 @@ impl Equal for SystemTime {
       .and { second == other.second }
       .and { sub_second == other.sub_second }
       .and { utc_offset == other.utc_offset }
+  }
+}
+
+## A monotonically increasing clock.
+##
+## `MonotonicTime` objects represent the number of seconds relative to an
+## unspecified epoch. Unlike a system clock a monotonic clock never decreases,
+## making it useful for tasks such as measuring the execution time of a block of
+## code.
+object MonotonicTime impl
+  ToInteger,
+  ToFloat,
+  Add!(ToFloat),
+  Subtract!(ToFloat),
+  Smaller,
+  SmallerOrEqual,
+  Greater,
+  GreaterOrEqual {
+
+  def init(time = _INKOC.time_monotonic) {
+    let @time = time
+  }
+
+  ## Returns the number of seconds since the epoch.
+  def to_integer -> Integer {
+    @time.to_integer
+  }
+
+  ## Returns the number of seconds since the epoch.
+  def to_float -> Float {
+    @time
+  }
+
+  ## Adds the given number of seconds to `self`, returning the result as a new
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Adding a `Duration` to a `MonotonicTime`:
+  ##
+  ##     import std::time::(Duration, MonotonicTime)
+  ##
+  ##     MonotonicTime.new + Duration.from_seconds(5)
+  ##
+  ## Adding an `Integer` to a `MonotonicTime`:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now + 5
+  def +(other: ToFloat) -> Self {
+    MonotonicTime.new(@time + other.to_float)
+  }
+
+  ## Subtracts the given number of seconds from `self`, returning the result as
+  ## a new `MonotonicTime`.
+  ##
+  ## Subtracting a `Duration` from a `MonotonicTime`:
+  ##
+  ##     import std::time::(Duration, MonotonicTime)
+  ##
+  ##     MonotonicTime.new - Duration.from_seconds(5)
+  ##
+  ## Subtracting an `Integer` from a `MonotonicTime`:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     MonotonicTime.now - 5
+  def -(other: ToFloat) -> Self {
+    MonotonicTime.new(@time - other.to_float)
+  }
+
+  ## Returns `True` if `self` is smaller than the given `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     before < after # => True
+  def <(other: Self) -> Boolean {
+    to_float < other.to_float
+  }
+
+  ## Returns `True` if `self` is smaller than or equal to the given
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     before <= after  # => True
+  ##     before <= before # => True
+  def <=(other: Self) -> Boolean {
+    to_float <= other.to_float
+  }
+
+  ## Returns `True` if `self` is greater than the given `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     after > before # => True
+  def >(other: Self) -> Boolean {
+    to_float > other.to_float
+  }
+
+  ## Returns `True` if `self` is greater than or equal to the given
+  ## `MonotonicTime`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `MonotonicTime` objects:
+  ##
+  ##     import std::time::MonotonicTime
+  ##
+  ##     let before = MonotonicTime.now
+  ##     let after = before + 5
+  ##
+  ##     after >= before # => True
+  ##     after >= after  # => True
+  def >=(other: Self) -> Boolean {
+    to_float >= other.to_float
   }
 }
 
@@ -667,6 +789,19 @@ def now -> SystemTime {
 ##     time.utc
 def utc -> SystemTime {
   from_utc_timestamp(_INKOC.time_system)
+}
+
+## Returns a new `MonotonicTime`.
+##
+## # Examples
+##
+## Creating a new `MonotonicTime`:
+##
+##     import std::time
+##
+##     time.monotonic
+def monotonic -> MonotonicTime {
+  MonotonicTime.new
 }
 
 ## Parses a `String` into a `SystemTime` object.
@@ -828,10 +963,11 @@ def from_timestamp(
   # March).
   month = months + 2
 
-  (month >= MONTHS_PER_YEAR).if_true {
-    month = month - MONTHS_PER_YEAR
-    year = year + 1
-  }
+  month >= MONTHS_PER_YEAR
+    .if_true {
+      month = month - MONTHS_PER_YEAR
+      year = year + 1
+    }
 
   # Per ISO 8601 the first month of the year is 1, and so is the first day of
   # the month.
@@ -858,161 +994,4 @@ def from_timestamp(
 ## Returns a new `SystemTime` from a Unix timestamp using UTC as the timezone.
 def from_utc_timestamp(time: ToFloat) -> SystemTime {
   from_timestamp(time, utc_offset: 0, dst: False)
-}
-
-## A monotonically increasing clock.
-##
-## `MonotonicTime` objects represent the number of seconds relative to an
-## unspecified epoch. Unlike a system clock a monotonic clock never decreases,
-## making it useful for tasks such as measuring the execution time of a block of
-## code.
-object MonotonicTime {
-  def init(time = _INKOC.time_monotonic) {
-    let @time = time
-  }
-}
-
-impl ToInteger for MonotonicTime {
-  ## Returns the number of seconds since the epoch.
-  def to_integer -> Integer {
-    @time.to_integer
-  }
-}
-
-impl ToFloat for MonotonicTime {
-  ## Returns the number of seconds since the epoch.
-  def to_float -> Float {
-    @time
-  }
-}
-
-impl Add!(ToFloat) for MonotonicTime {
-  ## Adds the given number of seconds to `self`, returning the result as a new
-  ## `MonotonicTime`.
-  ##
-  ## # Examples
-  ##
-  ## Adding a `Duration` to a `MonotonicTime`:
-  ##
-  ##     import std::time::(Duration, MonotonicTime)
-  ##
-  ##     MonotonicTime.new + Duration.from_seconds(5)
-  ##
-  ## Adding an `Integer` to a `MonotonicTime`:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     MonotonicTime.now + 5
-  def +(other: ToFloat) -> Self {
-    MonotonicTime.new(@time + other.to_float)
-  }
-}
-
-impl Subtract!(ToFloat) for MonotonicTime {
-  ## Subtracts the given number of seconds from `self`, returning the result as
-  ## a new `MonotonicTime`.
-  ##
-  ## Subtracting a `Duration` from a `MonotonicTime`:
-  ##
-  ##     import std::time::(Duration, MonotonicTime)
-  ##
-  ##     MonotonicTime.new - Duration.from_seconds(5)
-  ##
-  ## Subtracting an `Integer` from a `MonotonicTime`:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     MonotonicTime.now - 5
-  def -(other: ToFloat) -> Self {
-    MonotonicTime.new(@time - other.to_float)
-  }
-}
-
-impl Smaller for MonotonicTime {
-  ## Returns `True` if `self` is smaller than the given `MonotonicTime`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `MonotonicTime` objects:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     let before = MonotonicTime.now
-  ##     let after = before + 5
-  ##
-  ##     before < after # => True
-  def <(other: Self) -> Boolean {
-    to_float < other.to_float
-  }
-}
-
-impl SmallerOrEqual for MonotonicTime {
-  ## Returns `True` if `self` is smaller than or equal to the given
-  ## `MonotonicTime`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `MonotonicTime` objects:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     let before = MonotonicTime.now
-  ##     let after = before + 5
-  ##
-  ##     before <= after  # => True
-  ##     before <= before # => True
-  def <=(other: Self) -> Boolean {
-    to_float <= other.to_float
-  }
-}
-
-impl Greater for MonotonicTime {
-  ## Returns `True` if `self` is greater than the given `MonotonicTime`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `MonotonicTime` objects:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     let before = MonotonicTime.now
-  ##     let after = before + 5
-  ##
-  ##     after > before # => True
-  def >(other: Self) -> Boolean {
-    to_float > other.to_float
-  }
-}
-
-impl GreaterOrEqual for MonotonicTime {
-  ## Returns `True` if `self` is greater than or equal to the given
-  ## `MonotonicTime`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `MonotonicTime` objects:
-  ##
-  ##     import std::time::MonotonicTime
-  ##
-  ##     let before = MonotonicTime.now
-  ##     let after = before + 5
-  ##
-  ##     after >= before # => True
-  ##     after >= after  # => True
-  def >=(other: Self) -> Boolean {
-    to_float >= other.to_float
-  }
-}
-
-## Returns a new `MonotonicTime`.
-##
-## # Examples
-##
-## Creating a new `MonotonicTime`:
-##
-##     import std::time
-##
-##     time.monotonic
-def monotonic -> MonotonicTime {
-  MonotonicTime.new
 }
