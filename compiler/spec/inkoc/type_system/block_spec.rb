@@ -240,7 +240,7 @@ describe Inkoc::TypeSystem::Block do
         expect(ours.compatible_block_type?(theirs)).to eq(false)
       end
 
-      it 'returns false when compared with a method' do
+      it 'returns true when compared with a method' do
         theirs = described_class.new(block_type: :method)
 
         expect(ours.compatible_block_type?(theirs)).to eq(true)
