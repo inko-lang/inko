@@ -1080,6 +1080,18 @@ describe Inkoc::Pass::DefineType do
         expect(type).to be_dynamic
         expect(closure).to be_lambda
       end
+
+      it 'does not error when an inferred lambda shadows a local variable' do
+        expected_block.block_type = Inkoc::TypeSystem::Block::LAMBDA
+
+        type_scope.locals.define('a', state.typedb.integer_type)
+
+        type, closure = parse_closure_argument('foo { let a = 10 }')
+
+        expect(type).to be_dynamic
+        expect(closure).to be_lambda
+        expect(state.diagnostics.errors?).to eq(false)
+      end
     end
 
     it 'supports the use of keyword arguments' do

@@ -5,7 +5,8 @@ module Inkoc
     include Inspect
     include Enumerable
 
-    attr_reader :symbols, :mapping, :parent
+    attr_reader :symbols, :mapping
+    attr_accessor :parent
 
     def initialize(parent = nil)
       @symbols = []

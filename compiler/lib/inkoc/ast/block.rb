@@ -30,6 +30,8 @@ module Inkoc
 
       def infer_as_lambda
         @lambda = true
+
+        body.locals.parent = nil
       end
 
       def visitor_method
