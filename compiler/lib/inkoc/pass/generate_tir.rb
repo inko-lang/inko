@@ -386,6 +386,10 @@ module Inkoc
 
         set_object_literal_name(object, name, body, loc)
 
+        if node.object?
+          implement_traits(object, node.trait_implementations, body)
+        end
+
         block = define_block(
           name,
           node.block_type,
@@ -406,16 +410,7 @@ module Inkoc
         trait = get_global(node.trait_name.type_name, body, loc)
         object = get_global(node.object_name.type_name, body, loc)
 
-        send_object_message(
-          trait,
-          Config::IMPLEMENT_TRAIT_MESSAGE,
-          [object],
-          [],
-          node.block_type,
-          node.type,
-          body,
-          loc
-        )
+        implement_trait(object, trait, body, loc)
 
         block = define_block(
           Config::IMPL_NAME,
@@ -430,6 +425,30 @@ module Inkoc
         run_block(block, [object], [], node.type, body, loc)
 
         trait
+      end
+
+      def implement_traits(object, trait_name_nodes, body)
+        trait_name_nodes.each do |trait_name|
+          trait = get_global(trait_name.type_name, body, trait_name.location)
+
+          implement_trait(object, trait, body, trait_name.location)
+        end
+      end
+
+      def implement_trait(object, trait, body, location)
+        message = Config::IMPLEMENT_TRAIT_MESSAGE
+        method = trait.type.lookup_method(message).type
+
+        send_object_message(
+          trait,
+          message,
+          [object],
+          [],
+          method,
+          method.return_type,
+          body,
+          location
+        )
       end
 
       def on_reopen_object(node, body)
