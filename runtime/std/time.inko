@@ -262,15 +262,15 @@ object SystemTime impl
   Equal {
 
   def init(
-    year: Integer,
-    month: Integer,
-    day: Integer,
-    hour: Integer,
-    minute: Integer,
-    second: Integer,
-    sub_second: Float,
-    utc_offset: Integer,
-    dst: Boolean
+    year = 0,
+    month = 1 ,
+    day = 1,
+    hour = 0,
+    minute = 0,
+    second = 0,
+    sub_second = 0.0,
+    utc_offset = 0,
+    dst = False
   ) {
     let @year = year
     let @month = month
