@@ -219,11 +219,14 @@ module Inkoc
       TypeSystem::Error.new
     end
 
-    def undefined_keyword_argument_error(name, type, location)
-      tname = type.type_name.inspect
+    def undefined_keyword_argument_error(name, receiver, method, location)
+      mname = method.name.inspect
+      tname = receiver.type_name.inspect
+      aname = name.inspect
 
       error(
-        "The type #{tname} does not define the argument #{name.inspect}",
+        "The message #{mname} for type #{tname} does not support " \
+          "an argument with the name #{aname}",
         location
       )
 

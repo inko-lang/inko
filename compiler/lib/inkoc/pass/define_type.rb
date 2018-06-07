@@ -326,6 +326,7 @@ module Inkoc
             unless keyword_type
               return diagnostics.undefined_keyword_argument_error(
                 arg_node.name,
+                source,
                 method,
                 arg_node.location
               )
