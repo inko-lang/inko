@@ -98,7 +98,7 @@ impl Config {
             mature_threshold: 16 * 1024 * 1024,
             heap_growth_factor: 1.5,
             heap_growth_threshold: 0.9,
-            mailbox_threshold: 1024 * 1024,
+            mailbox_threshold: 32 * 1024,
             mailbox_growth_factor: 1.5,
             mailbox_growth_threshold: 0.9,
         }

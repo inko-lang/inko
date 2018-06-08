@@ -11,6 +11,7 @@ use deref_pointer::DerefPointer;
 use execution_context::ExecutionContext;
 use global_scope::GlobalScopePointer;
 use immix::block_list::BlockList;
+use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
@@ -251,7 +252,27 @@ impl Process {
 
     /// Returns a message from the mailbox.
     pub fn receive_message(&self) -> Option<ObjectPointer> {
-        self.local_data_mut().mailbox.receive()
+        let local_data = self.local_data_mut();
+        let (should_copy, pointer_opt) = local_data.mailbox.receive();
+
+        if let Some(mailbox_pointer) = pointer_opt {
+            let pointer = if should_copy {
+                // When another process sends us a message, the message will be
+                // copied onto the mailbox heap. We can't directly use such a
+                // pointer, as it might be garbage collected when it no longer
+                // resides in the mailbox (e.g. after a receive).
+                //
+                // To work around this, we move the data from the mailbox heap
+                // into the process' local heap.
+                local_data.allocator.move_object(mailbox_pointer)
+            } else {
+                mailbox_pointer
+            };
+
+            Some(pointer)
+        } else {
+            None
+        }
     }
 
     pub fn advance_instruction_index(&self) {
@@ -449,6 +470,7 @@ impl Hash for Process {
 
 #[cfg(test)]
 mod tests {
+    use object_value;
     use vm::test::setup;
 
     #[test]
@@ -490,5 +512,31 @@ mod tests {
         let local_data = process.local_data();
 
         assert_eq!(local_data.mailbox_collections, 1);
+    }
+
+    #[test]
+    fn test_receive_message() {
+        let (machine, _block, process) = setup();
+
+        // Simulate sending a message from an external process.
+        let input_message = process
+            .allocate(object_value::integer(14), process.allocate_empty());
+
+        let attr = machine.state.intern(&"hello".to_string());
+
+        input_message.add_attribute(&process, attr, attr);
+
+        process
+            .local_data_mut()
+            .mailbox
+            .send_from_external(input_message);
+
+        let received = process.receive_message().unwrap();
+
+        assert!(received.is_young());
+        assert!(received.get().value.is_integer());
+        assert!(received.get().prototype().is_some());
+        assert!(received.get().attributes_map().is_some());
+        assert!(received.is_finalizable());
     }
 }

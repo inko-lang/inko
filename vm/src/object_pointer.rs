@@ -319,7 +319,7 @@ impl ObjectPointer {
 
     /// Returns true if the object should be finalized.
     pub fn is_finalizable(&self) -> bool {
-        self.get().is_finalizable()
+        !self.is_tagged_integer() && self.get().is_finalizable()
     }
 
     /// Adds an attribute to the object this pointer points to.
@@ -1038,5 +1038,15 @@ mod tests {
 
         assert!(name.is_immutable());
         assert!(ObjectPointer::integer(5).is_immutable());
+    }
+
+    #[test]
+    fn test_is_finalizable() {
+        let mut allocator = local_allocator();
+        let ptr =
+            allocator.allocate_without_prototype(ObjectValue::Integer(10));
+
+        assert!(ptr.is_finalizable());
+        assert_eq!(ObjectPointer::integer(5).is_finalizable(), false);
     }
 }

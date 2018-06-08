@@ -38,9 +38,9 @@ impl Mailbox {
         self.locals.push_back(pointer);
     }
 
-    pub fn receive(&mut self) -> Option<ObjectPointer> {
+    pub fn receive(&mut self) -> (bool, Option<ObjectPointer>) {
         if let Some(pointer) = self.locals.pop_front() {
-            return Some(pointer);
+            return (false, Some(pointer));
         }
 
         if self.internal.len() == 0 {
@@ -50,7 +50,7 @@ impl Mailbox {
                 .append(&mut self.external.drain(0..).collect());
         }
 
-        self.internal.pop_front()
+        (true, self.internal.pop_front())
     }
 
     pub fn has_local_pointers(&self) -> bool {

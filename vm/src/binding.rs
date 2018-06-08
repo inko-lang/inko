@@ -145,6 +145,23 @@ impl Binding {
             parent: parent,
         })
     }
+
+    // Moves all pointers in this binding to the given heap.
+    pub fn move_pointers_to<H: CopyObject>(&self, heap: &mut H) {
+        if let Some(ref bind) = self.parent {
+            bind.move_pointers_to(heap);
+        }
+
+        let locals = self.locals_mut();
+
+        for index in 0..locals.len() {
+            let pointer = locals[index];
+
+            if !pointer.is_null() {
+                locals[index] = heap.move_object(pointer);
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for PointerIterator<'a> {
@@ -379,5 +396,29 @@ mod tests {
         assert!(bind_copy_parent.parent.is_none());
 
         assert_eq!(bind_copy_parent.get_local(0).float_value().unwrap(), 5.0);
+    }
+
+    #[test]
+    fn test_move_pointers_to() {
+        let galloc = GlobalAllocator::new();
+        let mut alloc1 = LocalAllocator::new(galloc.clone(), &Config::new());
+        let mut alloc2 = LocalAllocator::new(galloc, &Config::new());
+
+        let ptr1 = alloc1.allocate_without_prototype(object_value::float(5.0));
+        let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
+
+        let src_bind1 = Binding::new(1);
+        let src_bind2 = Binding::with_parent(src_bind1.clone(), 1);
+
+        src_bind1.set_local(0, ptr1);
+        src_bind2.set_local(0, ptr2);
+        src_bind2.move_pointers_to(&mut alloc2);
+
+        // The original pointers now point to empty objects.
+        assert!(ptr1.get().value.is_none());
+        assert!(ptr2.get().value.is_none());
+
+        assert_eq!(src_bind2.get_local(0).float_value().unwrap(), 2.0);
+        assert_eq!(src_bind1.get_local(0).float_value().unwrap(), 5.0);
     }
 }

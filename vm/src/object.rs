@@ -95,6 +95,19 @@ impl Object {
         }
     }
 
+    /// Returns and removes the prototype of this object.
+    pub fn take_prototype(&mut self) -> Option<ObjectPointer> {
+        if self.prototype.is_null() {
+            None
+        } else {
+            let proto = self.prototype;
+
+            self.prototype = ObjectPointer::null();
+
+            Some(proto)
+        }
+    }
+
     /// Removes an attribute and returns it.
     pub fn remove_attribute(
         &mut self,
@@ -270,6 +283,12 @@ impl Object {
         !self.attributes.is_null()
     }
 
+    pub fn drop_attributes(&mut self) {
+        if let Some(attributes) = self.take_attributes() {
+            drop(unsafe { Box::from_raw(attributes as *mut AttributesMap) });
+        }
+    }
+
     /// Allocates an attribute map if needed.
     fn allocate_attributes_map(&mut self) {
         if !self.has_attributes() {
@@ -280,11 +299,7 @@ impl Object {
 
 impl Drop for Object {
     fn drop(&mut self) {
-        if self.has_attributes() {
-            drop(unsafe {
-                Box::from_raw(self.attributes as *mut AttributesMap)
-            });
-        }
+        self.drop_attributes();
     }
 }
 
@@ -344,6 +359,20 @@ mod tests {
         obj.set_prototype(fake_pointer());
 
         assert!(obj.prototype().is_some());
+    }
+
+    #[test]
+    fn test_object_take_prototype() {
+        let mut obj = new_object();
+
+        obj.set_prototype(fake_pointer());
+
+        assert!(obj.prototype().is_some());
+
+        let proto = obj.take_prototype();
+
+        assert!(proto.is_some());
+        assert!(obj.prototype().is_none());
     }
 
     #[test]
@@ -518,5 +547,15 @@ mod tests {
     #[test]
     fn test_object_size_of() {
         assert_eq!(mem::size_of::<Object>(), 32);
+    }
+
+    #[test]
+    fn test_drop_attributes() {
+        let mut obj = new_object();
+
+        obj.add_attribute(fake_pointer(), fake_pointer());
+        obj.drop_attributes();
+
+        assert!(obj.attributes_map().is_none());
     }
 }
