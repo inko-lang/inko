@@ -132,7 +132,7 @@ module Inkoc
         elsif other.block?
           compatible_with_block?(other, state)
         else
-          false
+          prototype_chain_compatible?(other)
         end
       end
 

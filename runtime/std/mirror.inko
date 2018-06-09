@@ -1,7 +1,7 @@
-#! Mirror based reflection for objects
+#! ObjectMirror based reflection for objects
 #!
 #! This module provides a reflection API based on the concept of
-#! [Mirrors](https://en.wikipedia.org/wiki/Mirror_(programming)). A "Mirror" is
+#! [Mirrors](https://en.wikipedia.org/wiki/Mirror_(programming)). A "ObjectMirror" is
 #! an object that provides a reflection API operating on another object. The use
 #! of mirrors for reflection provides several benefits:
 #!
@@ -35,13 +35,13 @@
 #! For our first example this means we'd end up with code along the lines of the
 #! following:
 #!
-#!     reflect(some_object).class
+#!     reflect_object(some_object).class
 #!
 #! Here the `reflect` method would return some kind of mirror and the `class`
 #! message would return the class of the object reflected upon. Translating the
 #! second example to a mirror based approach results in similar code:
 #!
-#!     reflect(some_object).get_attribute('my_attribute')
+#!     reflect_object(some_object).get_attribute('my_attribute')
 #!
 #! # Using Mirrors
 #!
@@ -49,7 +49,7 @@
 #! steps:
 #!
 #! 1. Import the `std::mirror` module into your module(s).
-#! 2. Use `std::mirror.reflect` to obtain a mirror for an object.
+#! 2. Use `std::mirror.reflect_object` to obtain a mirror for an object.
 #!
 #! Let's say we want to obtain the value of an attribute using the mirror API.
 #! We can do so as follows:
@@ -63,7 +63,7 @@
 #!     }
 #!
 #!     let person = Person.new('alice')
-#!     let mirror = ::mirror.reflect(person)
+#!     let mirror = ::mirror.reflect_object(person)
 #!
 #!     mirror.get_attribute('@name') # => 'Alice'
 #!
@@ -73,9 +73,10 @@
 #! particular a mirror has to be allocated every time you need one. As such we
 #! recommend against using reflection in performance critical code.
 import std::reflection
+import std::fs::path::Path
 
 ## A generic mirror for a regular object.
-object Mirror!(T) {
+object ObjectMirror!(T) {
   def init(subject: T) {
     let @subject = subject
   }
@@ -106,7 +107,7 @@ object Mirror!(T) {
   ##     import std::mirror
   ##
   ##     let obj = Object.new
-  ##     let mirror = ::mirror.reflect(obj)
+  ##     let mirror = ::mirror.reflect_object(obj)
   ##
   ##     mirror.get_attribute(obj, 'name') # => Nil
   ##
@@ -115,7 +116,7 @@ object Mirror!(T) {
   ##     import std::mirror
   ##
   ##     let mut obj = Object.new
-  ##     let mirror = ::mirror.reflect(obj)
+  ##     let mirror = ::mirror.reflect_object(obj)
   ##
   ##     mirror.set_attribute('name', 'Alice')
   ##     mirror.get_attribute('name') # => 'Alice'
@@ -134,7 +135,7 @@ object Mirror!(T) {
   ##
   ##     let mut obj = Object.new
   ##
-  ##     mirror.reflect(obj).set_attribute('name', 'Alice') # => 'Alice'
+  ##     mirror.reflect_object(obj).set_attribute('name', 'Alice') # => 'Alice'
   def set_attribute!(V)(name: String, value: V) -> V {
     _INKOC.set_attribute(@subject, name, value)
   }
@@ -154,7 +155,7 @@ object Mirror!(T) {
   ##     }
   ##
   ##     let person = Person.new('Alice')
-  ##     let mirror = ::mirror.reflect(person)
+  ##     let mirror = ::mirror.reflect_object(person)
   ##
   ##     mirror.attributes # => ['@name']
   def attributes -> Array!(String) {
@@ -185,7 +186,7 @@ object Mirror!(T) {
   ##
   ##     object Person {}
   ##
-  ##     let mirror = ::mirror.reflect(Person)
+  ##     let mirror = ::mirror.reflect_object(Person)
   ##
   ##     mirror.name # => 'Person'
   def name -> ?String {
@@ -193,7 +194,117 @@ object Mirror!(T) {
   }
 }
 
+## A mirror for a `Block`.
+object BlockMirror {
+  def init(subject: Block) {
+    let @subject = subject
+  }
+
+  ## Returns the name of the block.
+  ##
+  ## # Examples
+  ##
+  ## Returning the name of a method:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.name # => 'example'
+  def name -> String {
+    _INKOC.block_metadata(@subject, 0) as String
+  }
+
+  ## Returns the file path of the file the block is defined in.
+  ##
+  ## # Examples
+  ##
+  ## Returning the file path of a method:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.path # => Path
+  def path -> Path {
+    let path_str = _INKOC.block_metadata(@subject, 1) as String
+
+    Path.new(path_str)
+  }
+
+  ## Returns the line number the block is defined on.
+  ##
+  ## # Examples
+  ##
+  ## Returning the line number of a method:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.line # => 3
+  def line -> Integer {
+    _INKOC.block_metadata(@subject, 2) as Integer
+  }
+
+  ## Returns the argument names of the block.
+  ##
+  ## # Examples
+  ##
+  ## Returning the argument names of a method:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example(number) {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.argument_names # => ['@subject', 'number']
+  def argument_names -> Array!(String) {
+    _INKOC.block_metadata(@subject, 3) as Array!(String)
+  }
+
+  ## Returns the number of required arguments.
+  ##
+  ## # Examples
+  ##
+  ## Returning the argument names of a method:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example(number) {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.required_arguments # => 2
+  def required_arguments -> Integer {
+    _INKOC.block_metadata(@subject, 4) as Integer
+  }
+
+  ## Returns `True` if this block defines a rest argument.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a block defines a rest argument:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let method = def example(*rest) {}
+  ##     let mirror = ::mirror.reflect_block(method)
+  ##
+  ##     mirror.rest_argument? # => True
+  def rest_argument? -> Boolean {
+    _INKOC.block_metadata(@subject, 5) as Boolean
+  }
+}
+
 ## Returns a regular mirror for the given object.
-def reflect!(T)(subject: T) -> Mirror!(T) {
-  Mirror.new(subject)
+def reflect_object!(T)(subject: T) -> ObjectMirror!(T) {
+  ObjectMirror.new(subject)
+}
+
+## Returns a mirror for the given `Block`.
+def reflect_block(subject: Block) -> BlockMirror {
+  BlockMirror.new(subject)
 }

@@ -32,7 +32,7 @@ use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
 macro_rules! reset_context {
-    ($process: expr, $context: ident, $code: ident, $index: ident) => ({
+    ($process:expr, $context:ident, $code:ident, $index:ident) => {{
         // We're storing a &mut ExecutionContext here instead of using &mut
         // Box<ExecutionContext>. This is because such a reference (as returned
         // by context()/context_mut()) will become invalid once an instruction
@@ -40,90 +40,89 @@ macro_rules! reset_context {
         $context = &mut **$process.context_mut();
         $index = $context.instruction_index;
         $code = $context.code;
-    });
+    }};
 }
 
 macro_rules! throw_value {
     (
-        $machine: expr,
-        $process: expr,
-        $value: expr,
-        $context: ident,
-        $code: ident,
-        $index: ident
-    ) => ({
+        $machine:expr,
+        $process:expr,
+        $value:expr,
+        $context:ident,
+        $code:ident,
+        $index:ident
+    ) => {{
         $context.instruction_index = $index;
 
         $machine.throw($process, $value)?;
 
         reset_context!($process, $context, $code, $index);
-    })
+    }};
 }
 
 macro_rules! throw_error_message {
     (
-        $machine: expr,
-        $process: expr,
-        $message: expr,
-        $context: ident,
-        $code: ident,
-        $index: ident
-    ) => ({
+        $machine:expr,
+        $process:expr,
+        $message:expr,
+        $context:ident,
+        $code:ident,
+        $index:ident
+    ) => {{
         let value = $process.allocate(
             object_value::string($message),
             $machine.state.string_prototype,
         );
 
         throw_value!($machine, $process, value, $context, $code, $index);
-    });
+    }};
 }
 
 macro_rules! throw_io_error {
     (
-        $machine: expr,
-        $process: expr,
-        $error: expr,
-        $context: ident,
-        $code: ident,
-        $index: ident
-    ) => ({
+        $machine:expr,
+        $process:expr,
+        $error:expr,
+        $context:ident,
+        $code:ident,
+        $index:ident
+    ) => {{
         let msg = $crate::error_messages::from_io_error($error);
 
         throw_error_message!($machine, $process, msg, $context, $code, $index);
-    });
+    }};
 }
 
 macro_rules! enter_context {
-    ($process: expr, $context: ident, $code: ident, $index: ident) => ({
+    ($process:expr, $context:ident, $code:ident, $index:ident) => {{
         $context.instruction_index = $index;
 
         reset_context!($process, $context, $code, $index);
-    })
+    }};
 }
 
 /// Returns a slice index for an i64
 macro_rules! int_to_slice_index {
-    ($vec: expr, $index: expr) => ({
+    ($vec:expr, $index:expr) => {{
         if $index >= 0 as i64 {
             $index as usize
-        }
-        else {
+        } else {
             ($vec.len() as i64 + $index) as usize
         }
-    });
+    }};
 }
 
 macro_rules! set_nil_if_immutable {
-    ($vm: expr, $context: expr, $pointer: expr, $register: expr) => ({
+    ($vm:expr, $context:expr, $pointer:expr, $register:expr) => {{
         if $pointer.is_immutable() {
             $context.set_register($register, $vm.state.nil_object);
             continue;
         }
-    });
+    }};
 }
 
 macro_rules! safepoint_and_reduce {
-    ($vm: expr, $process: expr, $reductions: expr) => ({
+    ($vm:expr, $process:expr, $reductions:expr) => {{
         if $vm.gc_safepoint(&$process) {
             return Ok(());
         }
@@ -136,39 +135,42 @@ macro_rules! safepoint_and_reduce {
             $vm.reschedule($process.clone());
             return Ok(());
         }
-    })
+    }};
 }
 
 macro_rules! optional_timeout {
-    ($pointer: expr) => ({
+    ($pointer:expr) => {{
         if let Ok(time) = $pointer.integer_value() {
-            if time > 0 { Some(time as u64) } else { None }
+            if time > 0 {
+                Some(time as u64)
+            } else {
+                None
+            }
         } else {
             None
         }
-    })
+    }};
 }
 
 macro_rules! vec_to_string {
-    ($vec: expr) => ({
+    ($vec:expr) => {{
         match String::from_utf8($vec) {
             Ok(string) => string,
             Err(error) => {
-                String::from_utf8_lossy(&error.into_bytes())
-                    .into_owned()
+                String::from_utf8_lossy(&error.into_bytes()).into_owned()
             }
         }
-    })
+    }};
 }
 
 macro_rules! create_or_remove_path {
     (
-        $vm: expr,
-        $instruction: expr,
-        $context: expr,
-        $op: ident,
-        $recursive_op: ident
-    ) => ({
+        $vm:expr,
+        $instruction:expr,
+        $context:expr,
+        $op:ident,
+        $recursive_op:ident
+    ) => {{
         let path_ptr = $context.get_register($instruction.arg(1));
         let rec_ptr = $context.get_register($instruction.arg(2));
         let path = path_ptr.string_value()?;
@@ -178,7 +180,17 @@ macro_rules! create_or_remove_path {
         } else {
             fs::$recursive_op(path)
         }
-    })
+    }};
+}
+
+macro_rules! boolean_to_pointer {
+    ($vm:expr, $expr:expr) => {
+        if $expr {
+            $vm.state.true_object
+        } else {
+            $vm.state.false_object
+        }
+    };
 }
 
 #[derive(Clone)]
@@ -221,7 +233,8 @@ impl Machine {
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output.
-        if primary_guard.join().is_err() || secondary_guard.join().is_err()
+        if primary_guard.join().is_err()
+            || secondary_guard.join().is_err()
             || gc_pool_guard.join().is_err()
             || finalizer_pool_guard.join().is_err()
             || suspend_guard.join().is_err()
@@ -405,7 +418,8 @@ impl Machine {
                         let mut proto = context.get_register(proto_index);
 
                         if is_permanent && !proto.is_permanent() {
-                            proto = self.state
+                            proto = self
+                                .state
                                 .permanent_allocator
                                 .lock()
                                 .copy_object(proto);
@@ -1362,12 +1376,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
+                                self, process, error, context, code, index
                             );
                         }
                     }
@@ -1385,12 +1394,7 @@ impl Machine {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
                         Err(err) => throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         ),
                     };
                 }
@@ -1421,12 +1425,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
+                                self, process, error, context, code, index
                             );
                         }
                     }
@@ -1444,12 +1443,7 @@ impl Machine {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
                         Err(err) => throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         ),
                     };
                 }
@@ -1465,12 +1459,7 @@ impl Machine {
 
                     if let Err(err) = io::stdin().read_to_string(&mut buffer) {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                         continue;
                     }
@@ -1494,12 +1483,7 @@ impl Machine {
 
                     if let Err(err) = io::stdin().read_line(&mut buffer) {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                         continue;
                     }
@@ -1550,12 +1534,7 @@ impl Machine {
                         }
                         Err(err) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                err,
-                                context,
-                                code,
-                                index
+                                self, process, err, context, code, index
                             );
                         }
                     }
@@ -1585,12 +1564,7 @@ impl Machine {
                         }
                         Err(err) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                err,
-                                context,
-                                code,
-                                index
+                                self, process, err, context, code, index
                             );
                         }
                     }
@@ -1611,12 +1585,7 @@ impl Machine {
 
                     if let Err(err) = file.read_to_end(&mut buffer) {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                         continue;
                     }
@@ -1686,12 +1655,7 @@ impl Machine {
 
                     if let Err(err) = file.flush() {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                     }
                 }
@@ -1716,12 +1680,7 @@ impl Machine {
                         }
                         Err(err) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                err,
-                                context,
-                                code,
-                                index
+                                self, process, err, context, code, index
                             );
                         }
                     }
@@ -1751,12 +1710,7 @@ impl Machine {
                         }
                         Err(err) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                err,
-                                context,
-                                code,
-                                index
+                                self, process, err, context, code, index
                             );
                         }
                     }
@@ -1827,7 +1781,8 @@ impl Machine {
 
                     set_nil_if_immutable!(self, context, target_ptr, register);
 
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| {
                             copy_if_permanent!(
@@ -1863,7 +1818,8 @@ impl Machine {
 
                     set_nil_if_immutable!(self, context, obj_ptr, register);
 
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| {
                             copy_if_permanent!(
@@ -1914,7 +1870,8 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
 
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
@@ -2189,12 +2146,7 @@ impl Machine {
                         file.take(size as u64).read_to_end(&mut buffer)
                     {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                         continue;
                     }
@@ -2229,12 +2181,7 @@ impl Machine {
                         stdin.take(size as u64).read_to_string(&mut buffer)
                     {
                         throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         );
                         continue;
                     }
@@ -2317,7 +2264,8 @@ impl Machine {
                     let mut source = obj_ptr;
                     let mut result = self.state.false_object;
 
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
@@ -2328,7 +2276,8 @@ impl Machine {
                         if let Some(obj) =
                             source.get().lookup_attribute_in_self(&name)
                         {
-                            if obj.lookup_attribute(&self.state, &val_ptr)
+                            if obj
+                                .lookup_attribute(&self.state, &val_ptr)
                                 .is_some()
                             {
                                 result = self.state.true_object;
@@ -2375,7 +2324,8 @@ impl Machine {
                     let source_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
 
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
@@ -2405,7 +2355,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let rec_ptr = context.get_register(instruction.arg(1));
                     let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self.state
+                    let name = self
+                        .state
                         .intern_pointer(&name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
@@ -2794,12 +2745,7 @@ impl Machine {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
                         Err(err) => throw_io_error!(
-                            self,
-                            process,
-                            err,
-                            context,
-                            code,
-                            index
+                            self, process, err, context, code, index
                         ),
                     };
                 }
@@ -2881,12 +2827,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
+                                self, process, error, context, code, index
                             );
                         }
                     };
@@ -2946,12 +2887,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_error_message!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
+                                self, process, error, context, code, index
                             );
                         }
                     }
@@ -3019,12 +2955,7 @@ impl Machine {
 
                     if let Err(error) = result {
                         throw_io_error!(
-                            self,
-                            process,
-                            error,
-                            context,
-                            code,
-                            index
+                            self, process, error, context, code, index
                         );
                     } else {
                         context.set_register(register, self.state.nil_object);
@@ -3054,12 +2985,7 @@ impl Machine {
 
                     if let Err(error) = result {
                         throw_io_error!(
-                            self,
-                            process,
-                            error,
-                            context,
-                            code,
-                            index
+                            self, process, error, context, code, index
                         );
                     } else {
                         context.set_register(register, self.state.nil_object);
@@ -3089,12 +3015,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_error_message!(
-                                self,
-                                process,
-                                error,
-                                context,
-                                code,
-                                index
+                                self, process, error, context, code, index
                             );
                         }
                     }
@@ -3274,6 +3195,55 @@ impl Machine {
                     );
 
                     context.set_register(register, new_string_ptr);
+                }
+                // Obtains metadata from a block.
+                //
+                // This instruction requires 3 arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the block to obtain the data from.
+                // 3. The register containing an integer describing what kind of
+                //    information to obtain.
+                //
+                // The following kinds of metadata are available:
+                //
+                // * 0: The name of the block.
+                // * 1: The file path of the block.
+                // * 2: The line number of the block.
+                // * 3: The argument names of the block.
+                // * 4: The number of required arguments.
+                // * 5: A boolean indicating if the last argument is a rest
+                //      argument.
+                InstructionType::BlockMetadata => {
+                    let register = instruction.arg(0);
+                    let block_ptr = context.get_register(instruction.arg(1));
+                    let field_ptr = context.get_register(instruction.arg(2));
+
+                    let block = block_ptr.block_value()?;
+                    let code = &block.code;
+                    let kind = field_ptr.integer_value()?;
+
+                    let result = match kind {
+                        0 => self.state.intern(&code.name),
+                        1 => self.state.intern(&code.file),
+                        2 => ObjectPointer::integer(code.line as i64),
+                        3 => process.allocate(
+                            object_value::array(code.arguments.clone()),
+                            self.state.array_prototype,
+                        ),
+                        4 => ObjectPointer::integer(
+                            code.required_arguments as i64,
+                        ),
+                        5 => boolean_to_pointer!(self, code.rest_argument),
+                        _ => {
+                            return Err(format!(
+                                "{} is not a valid block metadata type",
+                                kind
+                            ));
+                        }
+                    };
+
+                    context.set_register(register, result);
                 }
             };
         }

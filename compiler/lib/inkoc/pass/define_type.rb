@@ -1516,6 +1516,10 @@ module Inkoc
         typedb.new_array_of_type(tuple)
       end
 
+      def on_raw_block_metadata(*)
+        TypeSystem::Dynamic.new
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)

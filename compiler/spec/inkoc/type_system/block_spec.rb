@@ -130,7 +130,14 @@ describe Inkoc::TypeSystem::Block do
     end
 
     context 'when comparing with any other object' do
-      it 'returns false' do
+      it 'returns true if the object is in the prototype chain' do
+        object = Inkoc::TypeSystem::Object.new
+        block = described_class.new(prototype: object)
+
+        expect(block.type_compatible?(object, state)).to eq(true)
+      end
+
+      it 'returns false if the object is not in the prototype chain' do
         object = Inkoc::TypeSystem::Object.new
         block = described_class.new
 

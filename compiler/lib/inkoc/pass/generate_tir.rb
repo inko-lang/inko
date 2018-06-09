@@ -1265,6 +1265,10 @@ module Inkoc
         raw_binary_instruction(:Stacktrace, node, body)
       end
 
+      def on_raw_block_metadata(node, body)
+        raw_binary_instruction(:BlockMetadata, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
