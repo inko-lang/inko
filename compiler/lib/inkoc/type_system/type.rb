@@ -80,6 +80,13 @@ module Inkoc
         false
       end
 
+      # Returns true if `self` is compatible with the given type parameter.
+      def compatible_with_type_parameter?(param, state)
+        param.required_traits.all? do |trait|
+          type_compatible?(trait, state)
+        end
+      end
+
       def cast_to?(cast_to, state)
         dynamic? || cast_to.dynamic? || cast_to.type_compatible?(self, state)
       end

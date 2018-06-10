@@ -111,13 +111,6 @@ module Inkoc
         implements_trait?(check)
       end
 
-      # Returns true if `self` is compatible with the given type parameter.
-      def compatible_with_type_parameter?(param, state)
-        param.required_traits.all? do |trait|
-          type_compatible?(trait, state)
-        end
-      end
-
       # Initialises any type parameters in self as the given type.
       #
       # This method has the following requirements:

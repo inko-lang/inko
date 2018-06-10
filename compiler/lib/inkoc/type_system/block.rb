@@ -125,12 +125,16 @@ module Inkoc
       # other - The type to compare with.
       # state - An instance of `Inkoc::State`.
       def type_compatible?(other, state)
+        other = other.type if other.optional?
+
         if other.dynamic?
           true
         elsif other.trait?
           implemented_traits.key?(other.unique_id)
         elsif other.block?
           compatible_with_block?(other, state)
+        elsif other.type_parameter?
+          compatible_with_type_parameter?(other, state)
         else
           prototype_chain_compatible?(other)
         end

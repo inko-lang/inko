@@ -144,6 +144,59 @@ describe Inkoc::TypeSystem::Block do
         expect(block.type_compatible?(object, state)).to eq(false)
       end
     end
+
+    context 'when comparing with a type parameter' do
+      it 'returns true when the type parameter is empty' do
+        theirs = Inkoc::TypeSystem::TypeParameter.new(name: 'A')
+        ours = described_class.new(prototype: state.typedb.block_type)
+
+        expect(ours.type_compatible?(theirs, state)).to eq(true)
+      end
+
+      it 'returns true when the block implements all required traits' do
+        trait = state.typedb.new_trait_type('ToString')
+        theirs = Inkoc::TypeSystem::TypeParameter
+          .new(name: 'A', required_traits: [trait])
+
+        ours = described_class.new(prototype: state.typedb.block_type)
+
+        state.typedb.block_type.implement_trait(trait)
+
+        expect(ours.type_compatible?(theirs, state)).to eq(true)
+      end
+
+      it 'returns false when the block does not implement all traits' do
+        trait = state.typedb.new_trait_type('ToString')
+        theirs = Inkoc::TypeSystem::TypeParameter
+          .new(name: 'A', required_traits: [trait])
+
+        ours = described_class.new(prototype: state.typedb.block_type)
+
+        expect(ours.type_compatible?(theirs, state)).to eq(false)
+      end
+    end
+
+    context 'when comparing with an optional' do
+      it 'returns true when the types are compatible' do
+        ours = described_class.new(prototype: state.typedb.block_type)
+        theirs = Inkoc::TypeSystem::Optional
+          .new(described_class.new(prototype: state.typedb.block_type))
+
+        expect(ours.type_compatible?(theirs, state)).to eq(true)
+      end
+
+      it 'returns false when the types are not compatible' do
+        their_block = described_class.new(
+          prototype: state.typedb.block_type,
+          return_type: state.typedb.integer_type.new_instance
+        )
+
+        ours = described_class.new(prototype: state.typedb.block_type)
+        theirs = Inkoc::TypeSystem::Optional.new(their_block)
+
+        expect(ours.type_compatible?(theirs, state)).to eq(false)
+      end
+    end
   end
 
   describe '#compatible_with_block?' do
