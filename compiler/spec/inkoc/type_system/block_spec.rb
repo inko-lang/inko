@@ -796,52 +796,6 @@ describe Inkoc::TypeSystem::Block do
     end
   end
 
-  describe '#resolve_type_parameter_with_self' do
-    let(:self_type) { Inkoc::TypeSystem::Object.new }
-
-    context 'when using a type parameter' do
-      it 'returns the instance of the type parameter if available' do
-        block = described_class.new
-        param = block.define_type_parameter('T')
-        instance = state.typedb.integer_type
-
-        block.initialize_type_parameter(param, instance)
-
-        expect(block.resolve_type_parameter_with_self(param, self_type))
-          .to eq(instance)
-      end
-
-      it 'returns the instance of a type parameter initialised in self' do
-        block = described_class.new
-        param = block.define_type_parameter('T')
-        instance = state.typedb.integer_type
-
-        self_type.initialize_type_parameter(param, instance)
-
-        expect(block.resolve_type_parameter_with_self(param, self_type))
-          .to eq(instance)
-      end
-
-      it 'returns the type parameter if it is not initialised' do
-        block = described_class.new
-        param = block.define_type_parameter('T')
-
-        expect(block.resolve_type_parameter_with_self(param, self_type))
-          .to eq(param)
-      end
-    end
-
-    context 'when using a regular type' do
-      it 'returns the regular type' do
-        block = described_class.new
-        type = state.typedb.integer_type
-
-        expect(block.resolve_type_parameter_with_self(type, self_type))
-          .to eq(type)
-      end
-    end
-  end
-
   describe '#argument_count_without_self' do
     it 'returns the number of arguments excluding self' do
       block = described_class.new(name: 'foo')
@@ -977,7 +931,7 @@ describe Inkoc::TypeSystem::Block do
         block = described_class.new
         object = Inkoc::TypeSystem::Object.new
 
-        expect(block.with_type_parameter_instances_from(object)).to eq(block)
+        expect(block.with_type_parameter_instances_from([object])).to eq(block)
       end
     end
 
@@ -991,7 +945,7 @@ describe Inkoc::TypeSystem::Block do
 
         object.initialize_type_parameter(param, int_type)
 
-        new_block = block.with_type_parameter_instances_from(object)
+        new_block = block.with_type_parameter_instances_from([object])
 
         expect(new_block.lookup_type_parameter_instance(param)).to eq(int_type)
         expect(block.lookup_type_parameter_instance(param)).to be_nil

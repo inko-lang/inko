@@ -113,10 +113,8 @@ module Inkoc
 
       # Initialises any type parameters in self as the given type.
       #
-      # This method has the following requirements:
-      #
-      # 1. All type parameters in both self and the given type are initialised.
-      # 2. Both self and the given type are type compatible.
+      # This method requires that both self and the given type are type
+      # compatible.
       def initialize_as(type, method_type, self_type)
         return unless type.generic_type?
 
@@ -124,7 +122,7 @@ module Inkoc
           to_init = lookup_type_parameter_instance(ours)
           init_as = type.lookup_type_parameter_instance(theirs)
 
-          to_init.initialize_as(init_as, method_type, self_type)
+          to_init.initialize_as(init_as, method_type, self_type) if init_as
         end
       end
 

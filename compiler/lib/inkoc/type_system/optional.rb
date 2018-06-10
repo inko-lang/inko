@@ -67,6 +67,12 @@ module Inkoc
       def dereferenced_type
         type
       end
+
+      def resolve_type_parameter_with_self(self_type, method_type)
+        self.class.wrap(
+          type.resolve_type_parameter_with_self(self_type, method_type)
+        )
+      end
     end
   end
 end

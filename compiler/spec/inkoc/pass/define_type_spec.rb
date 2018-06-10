@@ -992,9 +992,9 @@ describe Inkoc::Pass::DefineType do
         end
       end
 
-      before do
-        method = Inkoc::TypeSystem::Block.new(name: 'foo')
+      let(:method) { Inkoc::TypeSystem::Block.new(name: 'foo') }
 
+      before do
         method.define_self_argument(type_scope.self_type)
         method.define_required_argument('callback', expected_block)
 
@@ -1091,6 +1091,28 @@ describe Inkoc::Pass::DefineType do
         expect(type).to be_dynamic
         expect(closure).to be_lambda
         expect(state.diagnostics.errors?).to eq(false)
+      end
+
+      it 'allows use of passed type arguments in the expected block' do
+        param = method.define_type_parameter('T')
+
+        expected_block.define_required_argument(
+          'foo',
+          state.typedb.new_array_of_type(param)
+        )
+
+        tir_module.globals.define('Integer', state.typedb.integer_type)
+
+        _, closure = parse_closure_argument('foo!(Integer) do (arg) {}')
+
+        arg = closure.arguments['arg'].type
+        array_param = state.typedb.array_type
+          .lookup_type_parameter(Inkoc::Config::ARRAY_TYPE_PARAMETER)
+
+        expect(arg).to be_type_instance_of(state.typedb.array_type)
+
+        expect(arg.lookup_type_parameter_instance(array_param))
+          .to be_type_instance_of(state.typedb.integer_type)
       end
     end
 

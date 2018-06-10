@@ -118,6 +118,14 @@ module Inkoc
       def initialize_type_parameter?(_param)
         false
       end
+
+      def resolve_type_parameters(_self_type, _method_type)
+        self
+      end
+
+      def resolve_type_parameter_with_self(_self_type, _method_type)
+        self
+      end
     end
   end
 end

@@ -318,6 +318,7 @@ module Inkoc
       # rubocop: disable Metrics/CyclomaticComplexity
       # rubocop: disable Metrics/PerceivedComplexity
       # rubocop: disable Metrics/BlockLength
+      # rubocop: disable Metrics/AbcSize
       def verify_argument_types_and_initialize(node, source, method, scope)
         node.arguments.each_with_index do |arg_node, index|
           rest = false
@@ -338,6 +339,8 @@ module Inkoc
           else
             exp_arg, rest = method.argument_type_at(index, source)
           end
+
+          exp_arg = exp_arg.resolve_type_parameters(source, method)
 
           given_arg =
             if arg_node.closure? && exp_arg.block?
@@ -361,7 +364,8 @@ module Inkoc
               #
               # Then "thing" will be whatever instance is bound to type
               # parameter "T", or "T" itself is no instance was bound.
-              exp_arg = exp_arg.with_type_parameter_instances_from(source)
+              exp_arg =
+                exp_arg.with_type_parameter_instances_from([source, method])
 
               # When passing a block without a signature (e.g. `foo { 10 }`) we
               # want to infer this as a lambda, if the expected block is also a
@@ -403,6 +407,7 @@ module Inkoc
 
         remap_send_return_type(return_type, scope)
       end
+      # rubocop: enable Metrics/AbcSize
       # rubocop: enable Metrics/BlockLength
       # rubocop: enable Metrics/PerceivedComplexity
       # rubocop: enable Metrics/CyclomaticComplexity
@@ -757,7 +762,7 @@ module Inkoc
 
       def required_methods_implemented?(object, trait, location)
         trait.required_methods.all? do |required|
-          req_method = required.type.with_type_parameter_instances_from(trait)
+          req_method = required.type.with_type_parameter_instances_from([trait])
 
           if object.implements_method?(req_method, @state)
             true
@@ -1614,7 +1619,9 @@ module Inkoc
         expected_args = expected_block.arguments_without_self
 
         node.arguments.zip(expected_args) do |arg_node, exp_arg|
-          expected_type = expected_block.resolve_type_parameter(exp_arg.type)
+          expected_type = exp_arg
+            .type
+            .resolve_type_parameters(scope.self_type, expected_block)
 
           define_type(arg_node, scope, expected_type)
         end

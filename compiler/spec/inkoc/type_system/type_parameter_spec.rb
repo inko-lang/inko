@@ -3,6 +3,8 @@
 require 'spec_helper'
 
 describe Inkoc::TypeSystem::TypeParameter do
+  let(:state) { Inkoc::State.new(Inkoc::Config.new) }
+
   describe '#type_name' do
     context 'without any required traits' do
       it 'returns the type name' do
@@ -34,8 +36,6 @@ describe Inkoc::TypeSystem::TypeParameter do
   end
 
   describe '#type_compatible?' do
-    let(:state) { Inkoc::State.new(Inkoc::Config.new) }
-
     it 'returns true when comparing with an empty type parameter' do
       ours = described_class.new(name: 'A')
       theirs = described_class.new(name: 'B')
@@ -194,6 +194,40 @@ describe Inkoc::TypeSystem::TypeParameter do
       param = described_class.new(name: 'T')
 
       expect(param.lookup_type_parameter_instance(param)).to be_nil
+    end
+  end
+
+  describe '#resolve_type_parameter_with_self' do
+    let(:self_type) { Inkoc::TypeSystem::Object.new }
+
+    it 'returns the instance of the type parameter if available' do
+      block = Inkoc::TypeSystem::Block.new
+      param = block.define_type_parameter('T')
+      instance = state.typedb.integer_type
+
+      block.initialize_type_parameter(param, instance)
+
+      expect(param.resolve_type_parameter_with_self(self_type, block))
+        .to eq(instance)
+    end
+
+    it 'returns the instance of a type parameter initialised in self' do
+      block = Inkoc::TypeSystem::Block.new
+      param = block.define_type_parameter('T')
+      instance = state.typedb.integer_type
+
+      self_type.initialize_type_parameter(param, instance)
+
+      expect(param.resolve_type_parameter_with_self(self_type, block))
+        .to eq(instance)
+    end
+
+    it 'returns the type parameter if it is not initialised' do
+      block = Inkoc::TypeSystem::Block.new
+      param = block.define_type_parameter('T')
+
+      expect(param.resolve_type_parameter_with_self(self_type, block))
+        .to eq(param)
     end
   end
 end

@@ -102,6 +102,16 @@ module Inkoc
       def remap_using_method_bounds(block_type)
         block_type.method_bounds[name] || self
       end
+
+      def resolve_type_parameter_with_self(self_type, method_type)
+        method_type.lookup_type_parameter_instance(self) ||
+          self_type.lookup_type_parameter_instance(self) ||
+          self
+      end
+
+      def resolve_type_parameters(self_type, method_type)
+        resolve_type_parameter_with_self(self_type, method_type)
+      end
     end
   end
 end

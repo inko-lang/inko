@@ -277,37 +277,7 @@ module Inkoc
 
       # Returns the fully resolved/initialised return type of this block.
       def resolved_return_type(self_type)
-        rtype = return_type.resolve_self_type(self_type)
-
-        if rtype.generic_type?
-          new_instances = rtype.type_parameter_instances.dup
-
-          # Copy over any type parameter instances the new type may use.
-          rtype.type_parameters.each do |param|
-            direct_instance = rtype.lookup_type_parameter_instance(param)
-
-            # If the initialised value is a type parameter we need to look up
-            # its actual instance in either the block or the current type of
-            # "self".
-            instance =
-              if direct_instance&.type_parameter?
-                lookup_type_parameter_instance(direct_instance) ||
-                  self_type.lookup_type_parameter_instance(direct_instance)
-              else
-                direct_instance
-              end
-
-            new_instances.define(param, instance) if instance
-          end
-
-          # We need a copy of the return type so we don't modify it in-place, as
-          # doing so could mess up future use of this method.
-          rtype = rtype.new_instance.tap do |copy|
-            copy.type_parameter_instances = new_instances
-          end
-        end
-
-        resolve_type_parameter_with_self(rtype, self_type)
+        return_type.resolve_type_parameters(self_type, self)
           .without_empty_type_parameters
       end
 
@@ -336,19 +306,6 @@ module Inkoc
         type_parameters.any?
       end
 
-      def resolve_type_parameter_with_self(type, self_type)
-        if type.optional?
-          TypeSystem::Optional
-            .wrap(resolve_type_parameter_with_self(type.type, self_type))
-        elsif type.type_parameter?
-          self_type.lookup_type_parameter_instance(type) ||
-            lookup_type_parameter_instance(type) ||
-            type
-        else
-          type
-        end
-      end
-
       def resolve_type_parameter(type)
         if type.type_parameter?
           lookup_type_parameter_instance(type) || type
@@ -360,19 +317,19 @@ module Inkoc
       def argument_type_at(index, self_type)
         if index >= argument_count_without_rest
           if last_argument_is_rest
-            [
-              resolve_type_parameter_with_self(arguments.last.type, self_type),
-              true
-            ]
+            rest_type = arguments
+              .last
+              .type
+              .resolve_type_parameter_with_self(self_type, self)
+
+            [rest_type, true]
           else
             [TypeSystem::Error.new, false]
           end
         else
           [
-            resolve_type_parameter_with_self(
-              arguments[index + 1].type,
-              self_type
-            ),
+            arguments[index + 1].type
+              .resolve_type_parameter_with_self(self_type, self),
             false
           ]
         end
@@ -383,7 +340,7 @@ module Inkoc
 
         return unless symbol.any?
 
-        resolve_type_parameter_with_self(symbol.type, self_type)
+        symbol.type.resolve_type_parameter_with_self(self_type, self)
       end
 
       def new_instance_for_send(instances = [])
@@ -412,13 +369,20 @@ module Inkoc
 
       # Creates a copy of this method and inherits the type parameter instances
       # from the given type.
-      def with_type_parameter_instances_from(type)
-        if type.type_parameter_instances.empty?
+      def with_type_parameter_instances_from(types)
+        instances = TypeParameterInstances.new
+
+        types.each do |type|
+          next if type.type_parameter_instances.empty?
+
+          instances.merge!(type.type_parameter_instances)
+        end
+
+        if instances.empty?
           self
         else
           dup.tap do |copy|
-            copy.type_parameter_instances = TypeParameterInstances.new
-              .merge!(type.type_parameter_instances)
+            copy.type_parameter_instances = instances
           end
         end
       end
