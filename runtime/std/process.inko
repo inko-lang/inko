@@ -97,12 +97,12 @@ def spawn(block: lambda) -> Integer {
 ##
 ##     import std::process
 ##
-##     let result = process.await {
+##     let result = process.blocking {
 ##       10 + 2
 ##     }
 ##
 ##     result # => 12
-def await!(R)(block: do -> R) -> R {
+def blocking!(R)(block: do -> R) -> R {
   _INKOC.move_to_pool(SECONDARY_POOL)
 
   let result = block.call

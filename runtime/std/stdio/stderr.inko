@@ -28,7 +28,7 @@ impl Write for ThisModule {
   ##
   ##     stderr.write('hello') # => 5
   def write(data: ToString) -> Integer {
-    process.await {
+    process.blocking {
       try _INKOC.stderr_write(data.to_string) else 0
     }
   }
@@ -43,7 +43,7 @@ impl Write for ThisModule {
   ##
   ##     stderr.print('hello') # => Nil
   def print(data: ?ToString = Nil) -> Nil {
-    process.await {
+    process.blocking {
       write(data.to_string + NEWLINE)
     }
 

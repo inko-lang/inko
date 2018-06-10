@@ -8,7 +8,7 @@ import std::process
 impl Read for ThisModule {
   ## Reads all available input from STDIN, returning it as a `String`.
   def read !! IOError -> String {
-    process.await {
+    process.blocking {
       try _INKOC.stdin_read else (error) {
         throw IOError.new(error as String)
       }
@@ -17,7 +17,7 @@ impl Read for ThisModule {
 
   ## Reads the given number of bytes from STDIN, returning them as a `String`.
   def read_exact(amount: Integer) !! IOError -> String {
-    process.await {
+    process.blocking {
       try _INKOC.stdin_read_exact(amount) else (error) {
         throw IOError.new(error as String)
       }
@@ -28,7 +28,7 @@ impl Read for ThisModule {
   ##
   ## The returned `String` includes the newline separator.
   def read_line !! IOError -> String {
-    process.await {
+    process.blocking {
       try _INKOC.stdin_read_line else (error) {
         throw IOError.new(error as String)
       }

@@ -47,7 +47,7 @@ trait Write {
 
   ## Writes the given `String` and a trailing newline to the object.
   def print(data: ?ToString = Nil) !! Error -> Nil {
-    process.await {
+    process.blocking {
       try write(data.to_string + NEWLINE)
     }
 
