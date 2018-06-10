@@ -84,6 +84,7 @@ module Inkoc
         send_init = AST::Send.new(
           Config::INIT_MESSAGE,
           AST::Identifier.new('obj', loc),
+          [],
           arg_names,
           loc
         )
@@ -123,6 +124,7 @@ module Inkoc
           AST::Send.new(
             'set_object',
             AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
+            [],
             [
               AST::Constant.new(Config::FALSE_CONST, nil, loc),
               AST::Self.new(loc)

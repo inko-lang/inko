@@ -7,17 +7,19 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :receiver, :arguments, :location
+      attr_reader :name, :receiver, :arguments, :type_arguments, :location
 
       attr_accessor :receiver_type, :block_type
 
       # name - The name of the message as a String.
       # receiver - The object to send the message to.
+      # type_arguments - The type arguments to pass.
       # arguments - The arguments to pass.
       # location - The SourceLocation of the message send.
-      def initialize(name, receiver, arguments, location)
+      def initialize(name, receiver, type_arguments, arguments, location)
         @name = name
         @receiver = receiver
+        @type_arguments = type_arguments
         @arguments = arguments
         @location = location
         @receiver_type = nil

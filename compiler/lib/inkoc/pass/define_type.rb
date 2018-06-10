@@ -292,7 +292,9 @@ module Inkoc
           )
         end
 
-        method = method.new_instance_for_send
+        method = initialize_method_for_send(node, method, scope)
+
+        return method if method.error?
 
         verify_argument_types_and_initialize(node, source, method, scope)
       end
@@ -404,6 +406,21 @@ module Inkoc
       # rubocop: enable Metrics/BlockLength
       # rubocop: enable Metrics/PerceivedComplexity
       # rubocop: enable Metrics/CyclomaticComplexity
+
+      def initialize_method_for_send(node, method, scope)
+        given = node.type_arguments.length
+        max = method.type_parameters.length
+
+        if given > max
+          return diagnostics.too_many_type_parameters(max, given, node.location)
+        end
+
+        type_args = node.type_arguments.map do |type_arg_node|
+          define_type(type_arg_node, scope)
+        end
+
+        method.new_instance_for_send(type_args)
+      end
 
       def remap_send_return_type(type, scope)
         if (surrounding_method = scope.method_block_type)

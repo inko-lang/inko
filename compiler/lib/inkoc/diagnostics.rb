@@ -153,14 +153,17 @@ module Inkoc
       )
     end
 
-    def type_parameters_error(exp, found, location)
-      params = exp == 1 ? 'parameter' : 'parameters'
-      were = found == 1 ? 'is' : 'are'
+    def too_many_type_parameters(max, given, location)
+      params = max == 1 ? 'parameter' : 'parameters'
+      were = given == 1 ? 'is' : 'are'
 
       error(
-        "This type requires #{exp} type #{params}, but #{found} #{were} given",
+        "This method takes up to #{max} type #{params}, " \
+          "but #{given} #{were} given",
         location
       )
+
+      TypeSystem::Error.new
     end
 
     def invalid_compiler_option(key, location)

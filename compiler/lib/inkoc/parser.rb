@@ -280,7 +280,7 @@ module Inkoc
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
         rhs = dereference(@lexer.advance, require_same_line: true)
-        node = AST::Send.new(operator.value, node, [rhs], operator.location)
+        node = AST::Send.new(operator.value, node, [], [rhs], operator.location)
       end
 
       # This allows us to parse code such as this:
@@ -420,7 +420,7 @@ module Inkoc
           bracket = @lexer.advance
           name, args = bracket_get_or_set
 
-          node = AST::Send.new(name, node, args, bracket.location)
+          node = AST::Send.new(name, node, [], args, bracket.location)
         else
           break
         end
@@ -434,13 +434,22 @@ module Inkoc
       args = []
       peeked = @lexer.peek
 
+      if peeked.type == :type_args_open
+        skip_one
+
+        type_args = type_parameters
+        peeked = @lexer.peek
+      else
+        type_args = []
+      end
+
       if peeked.type == :paren_open && peeked.line == location.line
         args = arguments_with_parenthesis
       elsif next_expression_is_argument?(location.line)
-        return send_without_parenthesis(receiver, name, location)
+        return send_without_parenthesis(receiver, name, type_args, location)
       end
 
-      AST::Send.new(name, receiver, args, location)
+      AST::Send.new(name, receiver, type_args, args, location)
     end
 
     # Returns the name and location to use for sending a message to an object.
@@ -488,8 +497,8 @@ module Inkoc
     #
     # Example:
     #
-    #     10, 'foo', 'bar'
-    def send_without_parenthesis(receiver, name, location)
+    #     foo 10, 'foo', 'bar'
+    def send_without_parenthesis(receiver, name, type_arguments, location)
       args = []
 
       while (token = @lexer.advance) && token.valid?
@@ -499,7 +508,7 @@ module Inkoc
         if is_block && @lexer.next_type_is?(:dot)
           skip_one
 
-          node = AST::Send.new(name, receiver, args, location)
+          node = AST::Send.new(name, receiver, type_arguments, args, location)
 
           return send_chain_with_receiver(node)
         end
@@ -509,7 +518,7 @@ module Inkoc
         skip_one
       end
 
-      AST::Send.new(name, receiver, args, location)
+      AST::Send.new(name, receiver, type_arguments, args, location)
     end
 
     def argument_for_send_without_parenthesis(token)
@@ -595,16 +604,25 @@ module Inkoc
     def identifier(start)
       peeked = @lexer.peek
 
+      if peeked.type == :type_args_open
+        skip_one
+
+        type_args = type_parameters
+        peeked = @lexer.peek
+      else
+        type_args = []
+      end
+
       if peeked.type == :paren_open && peeked.line == start.line
         args = arguments_with_parenthesis
 
-        AST::Send.new(start.value, nil, args, start.location)
+        AST::Send.new(start.value, nil, type_args, args, start.location)
       elsif next_expression_is_argument?(start.line)
         # If an identifier is followed by another expression on the same line
         # we'll treat said expression as the start of an argument list.
-        send_without_parenthesis(nil, start.value, start.location)
+        send_without_parenthesis(nil, start.value, type_args, start.location)
       else
-        identifier_from_token(start)
+        identifier_from_token(start, type_args)
       end
     end
 
@@ -749,6 +767,7 @@ module Inkoc
       AST::Send.new(
         Config::FROM_ARRAY_MESSAGE,
         receiver,
+        [],
         [keys_array, vals_array],
         location
       )
@@ -1217,7 +1236,7 @@ module Inkoc
       location = operator.location
       message = operator.value[0..-2]
       rhs = expression(advance!)
-      value = AST::Send.new(message, variable, [rhs], location)
+      value = AST::Send.new(message, variable, [], [rhs], location)
 
       AST::ReassignVariable.new(variable, value, location)
     end
@@ -1297,7 +1316,8 @@ module Inkoc
         AST::Send.new(
           Config::PANIC_MESSAGE,
           AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
-          [AST::Send.new(Config::TO_STRING_MESSAGE, arg, [], loc)],
+          [],
+          [AST::Send.new(Config::TO_STRING_MESSAGE, arg, [], [], loc)],
           loc
         )
       ]
@@ -1414,8 +1434,12 @@ module Inkoc
       AST::Constant.new(token.value, receiver, token.location)
     end
 
-    def identifier_from_token(token)
-      AST::Identifier.new(token.value, token.location)
+    def identifier_from_token(token, type_arguments = [])
+      if type_arguments.any?
+        AST::Send.new(token.value, nil, type_arguments, [], token.location)
+      else
+        AST::Identifier.new(token.value, token.location)
+      end
     end
 
     def attribute_from_token(token)
@@ -1498,7 +1522,7 @@ module Inkoc
     def new_array(values, start)
       receiver = AST::Global.new(Config::ARRAY_CONST, start.location)
 
-      AST::Send.new('new', receiver, values, start.location)
+      AST::Send.new('new', receiver, [], values, start.location)
     end
   end
 end

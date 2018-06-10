@@ -382,9 +382,9 @@ module Inkoc
         resolve_type_parameter_with_self(symbol.type, self_type)
       end
 
-      def new_instance_for_send
+      def new_instance_for_send(instances = [])
         if uses_type_parameters?
-          new_instance
+          new_instance(instances)
         else
           self
         end

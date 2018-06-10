@@ -1334,6 +1334,44 @@ describe Inkoc::Pass::DefineType do
         expect(state.diagnostics.errors?).to eq(true)
       end
     end
+
+    context 'when passing explicit type arguments' do
+      it 'initialises the type arguments when valid' do
+        method = Inkoc::TypeSystem::Block
+          .named_method('foo', state.typedb.block_type)
+
+        param = method.define_type_parameter('T')
+
+        method.define_self_argument(type_scope.self_type)
+        method.return_type = param
+
+        tir_module.globals.define('Integer', state.typedb.integer_type)
+        type_scope.self_type.define_attribute(method.name, method)
+
+        type = expression_type('foo!(Integer)')
+
+        expect(type).to be_type_instance_of(state.typedb.integer_type)
+      end
+
+      it 'errors when too many type arguments are given' do
+        method = Inkoc::TypeSystem::Block
+          .named_method('foo', state.typedb.block_type)
+
+        param = method.define_type_parameter('T')
+
+        method.define_self_argument(type_scope.self_type)
+        method.return_type = param
+
+        tir_module.globals.define('Integer', state.typedb.integer_type)
+        tir_module.globals.define('Float', state.typedb.float_type)
+
+        type_scope.self_type.define_attribute(method.name, method)
+
+        type = expression_type('foo!(Integer, Float)')
+
+        expect(type).to be_error
+      end
+    end
   end
 
   describe '#on_body' do
