@@ -10,7 +10,7 @@ describe Inkoc::TypeScope do
   describe '#define_self_argument' do
     let(:type_scope) do
       described_class
-        .new(self_type, block_type, module_type, Inkoc::SymbolTable.new)
+        .new(self_type, block_type, module_type, locals: Inkoc::SymbolTable.new)
     end
 
     before do
@@ -29,7 +29,7 @@ describe Inkoc::TypeScope do
   describe '#lookup_type' do
     let(:type_scope) do
       described_class
-        .new(self_type, block_type, module_type, Inkoc::SymbolTable.new)
+        .new(self_type, block_type, module_type, locals: Inkoc::SymbolTable.new)
     end
 
     it 'can look up a type from the block of the scope' do
@@ -64,7 +64,7 @@ describe Inkoc::TypeScope do
   describe '#lookup_constant' do
     let(:type_scope) do
       described_class
-        .new(self_type, block_type, module_type, Inkoc::SymbolTable.new)
+        .new(self_type, block_type, module_type, locals: Inkoc::SymbolTable.new)
     end
 
     it 'can look up a type from the block of the scope' do

@@ -331,7 +331,7 @@ describe Inkoc::Pass::DefineType do
       self_type,
       tir_module.body.type,
       tir_module,
-      Inkoc::SymbolTable.new
+      locals: Inkoc::SymbolTable.new
     )
   end
 
@@ -1654,7 +1654,7 @@ describe Inkoc::Pass::DefineType do
         tir_module.type,
         Inkoc::TypeSystem::Block.new,
         tir_module,
-        Inkoc::SymbolTable.new
+        locals: Inkoc::SymbolTable.new
       )
 
       type = expression_type('object Person {}', scope)
@@ -1792,7 +1792,7 @@ describe Inkoc::Pass::DefineType do
         tir_module.type,
         Inkoc::TypeSystem::Block.new,
         tir_module,
-        Inkoc::SymbolTable.new
+        locals: Inkoc::SymbolTable.new
       )
 
       type = expression_type('trait Person {}', scope)
@@ -2137,7 +2137,7 @@ describe Inkoc::Pass::DefineType do
           self_type,
           block_type,
           tir_module,
-          Inkoc::SymbolTable.new
+          locals: Inkoc::SymbolTable.new
         )
       end
 
@@ -2204,7 +2204,7 @@ describe Inkoc::Pass::DefineType do
           tir_module.type,
           tir_module.body.type,
           tir_module,
-          Inkoc::SymbolTable.new
+          locals: Inkoc::SymbolTable.new
         )
 
         type = expression_type('let X = 10', scope)
@@ -2272,7 +2272,7 @@ describe Inkoc::Pass::DefineType do
           self_type,
           block_type,
           tir_module,
-          Inkoc::SymbolTable.new
+          locals: Inkoc::SymbolTable.new
         )
       end
 
@@ -2948,10 +2948,10 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_block_type' do
-    def constant_type(type)
+    def constant_type(type, scope = type_scope)
       node = parse_expression("let x: #{type} = 10").value_type
 
-      pass.define_type(node, type_scope)
+      pass.define_type(node, scope)
     end
 
     let(:integer) { state.typedb.integer_type }
@@ -2995,10 +2995,39 @@ describe Inkoc::Pass::DefineType do
       expect(type.arguments['self'].type)
         .to be_type_instance_of(type_scope.self_type)
     end
+
+    it 'allows the use of type parameters defined in an enclosing method' do
+      method_type = Inkoc::TypeSystem::Block
+        .named_method('foo', state.typedb.block_type)
+
+      param = method_type.define_type_parameter('Foo')
+      scope = Inkoc::TypeScope.new(
+        self_type,
+        tir_module.body.type,
+        tir_module,
+        locals: Inkoc::SymbolTable.new,
+        enclosing_method: method_type
+      )
+
+      array_type = state.typedb.array_type
+      array_param = array_type
+        .lookup_type_parameter(Inkoc::Config::ARRAY_TYPE_PARAMETER)
+
+      tir_module.globals.define('Array', array_type)
+
+      type = constant_type('lambda (Array!(Foo))', scope)
+      arg_type = type.arguments['0'].type
+
+      expect(state.diagnostics.errors?).to eq(false)
+
+      expect(arg_type).to be_type_instance_of(array_type)
+      expect(arg_type.lookup_type_parameter_instance(array_param))
+        .to be_type_instance_of(param)
+    end
   end
 
   describe 'array literals' do
-    let(:array_type) { state.typedb.array_type}
+    let(:array_type) { state.typedb.array_type }
 
     before do
       tir_module.globals.define(Inkoc::Config::ARRAY_CONST, array_type)

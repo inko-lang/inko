@@ -99,6 +99,11 @@ module Inkoc
 
         type.define_arguments(arg_types)
 
+        # if node.location.file.path.to_s.end_with?('process.inko') &&
+        #    node.location.line == 153
+        #   require 'pry'; binding.pry
+        # end
+
         if node.returns
           type.return_type = define_type_instance(node.returns, scope)
         end
@@ -428,7 +433,7 @@ module Inkoc
       end
 
       def remap_send_return_type(type, scope)
-        if (surrounding_method = scope.method_block_type)
+        if (surrounding_method = scope.enclosing_method)
           type.remap_using_method_bounds(surrounding_method)
         else
           type
@@ -488,7 +493,7 @@ module Inkoc
             typedb.nil_type.new_instance
           end
 
-        if (method = scope.method_block_type)
+        if (method = scope.enclosing_method)
           expected = method.return_type
 
           unless rtype.type_compatible?(expected, @state)
@@ -540,8 +545,8 @@ module Inkoc
           scope.self_type,
           node.else_block_type,
           @module,
-          node.else_body.locals,
-          scope
+          locals: node.else_body.locals,
+          parent: scope
         )
 
         else_scope.define_self_argument
@@ -611,7 +616,8 @@ module Inkoc
         body_type = TypeSystem::Block
           .closure(typedb.block_type, return_type: trait)
 
-        body_scope = TypeScope.new(trait, body_type, @module, node.body.locals)
+        body_scope = TypeScope
+          .new(trait, body_type, @module, locals: node.body.locals)
 
         body_scope.define_self_argument
 
@@ -642,7 +648,7 @@ module Inkoc
           .closure(typedb.block_type, return_type: new_type)
 
         body_scope = TypeScope
-          .new(new_type, body_type, @module, node.body.locals)
+          .new(new_type, body_type, @module, locals: node.body.locals)
 
         body_scope.define_self_argument
 
@@ -697,7 +703,7 @@ module Inkoc
           .closure(typedb.block_type, return_type: type)
 
         new_scope = TypeScope
-          .new(type, block_type, @module, node.body.locals)
+          .new(type, block_type, @module, locals: node.body.locals)
 
         new_scope.define_self_argument
 
@@ -719,7 +725,7 @@ module Inkoc
         # the outer scope.
         impl_block = TypeSystem::Block.closure(typedb.block_type)
         impl_scope = TypeScope
-          .new(object, impl_block, @module, node.body.locals)
+          .new(object, impl_block, @module, locals: node.body.locals)
 
         impl_scope.define_self_argument
 
@@ -779,7 +785,7 @@ module Inkoc
         type = TypeSystem::Block.named_method(node.name, typedb.block_type)
 
         new_scope = TypeScope
-          .new(scope.self_type, type, @module, node.body.locals)
+          .new(scope.self_type, type, @module, locals: node.body.locals)
 
         define_method_bounds(node, new_scope)
         define_block_signature(node, new_scope)
@@ -795,7 +801,7 @@ module Inkoc
         type = TypeSystem::Block.named_method(node.name, typedb.block_type)
 
         new_scope = TypeScope
-          .new(scope.self_type, type, @module, node.body.locals)
+          .new(scope.self_type, type, @module, locals: node.body.locals)
 
         define_block_signature(node, new_scope)
 
@@ -829,8 +835,14 @@ module Inkoc
       def on_block(node, scope, expected_block = nil)
         block_type = TypeSystem::Block.closure(typedb.block_type)
         locals = node.body.locals
-        new_scope = TypeScope
-          .new(scope.self_type, block_type, @module, locals, scope)
+
+        new_scope = TypeScope.new(
+          scope.self_type,
+          block_type,
+          @module,
+          locals: locals,
+          parent: scope
+        )
 
         define_block_signature(node, new_scope, expected_block)
         define_type(node.body, new_scope)
@@ -840,8 +852,13 @@ module Inkoc
 
       def on_lambda(node, scope, expected_block = nil)
         block_type = TypeSystem::Block.lambda(typedb.block_type)
-        new_scope = TypeScope
-          .new(scope.self_type, block_type, @module, node.body.locals)
+        new_scope = TypeScope.new(
+          scope.self_type,
+          block_type,
+          @module,
+          locals: node.body.locals,
+          enclosing_method: scope.enclosing_method
+        )
 
         define_block_signature(node, new_scope, expected_block)
         define_type(node.body, new_scope)

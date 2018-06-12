@@ -4,12 +4,28 @@ module Inkoc
   class TypeScope
     attr_reader :self_type, :block_type, :module, :locals, :parent
 
-    def initialize(self_type, block_type, mod, locals = nil, parent = nil)
+    def initialize(
+      self_type,
+      block_type,
+      mod,
+      locals: nil,
+      parent: nil,
+      enclosing_method: parent&.enclosing_method
+    )
       @self_type = self_type
       @block_type = block_type
       @module = mod
       @locals = locals
       @parent = parent
+      @enclosing_method = enclosing_method
+    end
+
+    def enclosing_method
+      if @enclosing_method
+        @enclosing_method
+      elsif block_type.method?
+        block_type
+      end
     end
 
     def module_type
@@ -49,22 +65,16 @@ module Inkoc
     end
 
     def constructor?
-      if (method = method_block_type)
+      if (method = enclosing_method)
         self_type.object? && method.name == Inkoc::Config::INIT_MESSAGE
       else
         false
       end
     end
 
-    def method_block_type
-      current = self
-      current = current.parent while current && !current.method?
-
-      current&.block_type
-    end
-
     def lookup_constant(name)
       block_type.lookup_type(name) ||
+        enclosing_method&.lookup_type(name) ||
         self_type.lookup_type(name) ||
         @module.lookup_type(name)
     end

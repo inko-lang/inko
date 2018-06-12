@@ -17,7 +17,8 @@ module Inkoc
 
     def run(ast)
       locals = ast.locals
-      scope = TypeScope.new(@module.type, @module.body.type, @module, locals)
+      scope = TypeScope
+        .new(@module.type, @module.body.type, @module, locals: locals)
 
       scope.define_self_argument
 
