@@ -181,10 +181,8 @@ unsafe impl Sync for Block {}
 impl Block {
     pub fn new() -> Box<Block> {
         let lines = unsafe {
-            Global
-                .alloc(heap_layout_for_block())
-                .unwrap()
-                .as_ptr() as RawObjectPointer
+            Global.alloc(heap_layout_for_block()).unwrap().as_ptr()
+                as RawObjectPointer
         };
 
         let mut block = Box::new(Block {
@@ -533,8 +531,7 @@ impl Drop for Block {
         }
 
         unsafe {
-            let pointer =
-                ptr::NonNull::new_unchecked(self.lines as *mut u8);
+            let pointer = ptr::NonNull::new_unchecked(self.lines as *mut u8);
 
             Global.dealloc(pointer, heap_layout_for_block());
         }
@@ -716,10 +713,7 @@ mod tests {
     fn test_block_line_index_of_pointer() {
         let block = Block::new();
 
-        assert_eq!(
-            block.line_index_of_pointer(block.free_pointer),
-            1
-        );
+        assert_eq!(block.line_index_of_pointer(block.free_pointer), 1);
     }
 
     #[test]
@@ -830,9 +824,7 @@ mod tests {
         block.find_available_hole();
 
         let start_pointer = unsafe {
-            block
-                .start_address()
-                .offset(2 * OBJECTS_PER_LINE as isize)
+            block.start_address().offset(2 * OBJECTS_PER_LINE as isize)
         };
 
         let end_pointer =
@@ -890,12 +882,7 @@ mod tests {
 
         assert_eq!(block.is_finalizing(), false);
         assert!(block.finalize_bitmap.is_empty());
-        assert!(
-            block
-                .pending_finalization_bitmap
-                .lock()
-                .is_empty()
-        );
+        assert!(block.pending_finalization_bitmap.lock().is_empty());
     }
 
     #[test]
@@ -907,13 +894,7 @@ mod tests {
 
         assert!(block.is_finalizing());
         assert!(block.finalize_bitmap.is_empty());
-        assert_eq!(
-            block
-                .pending_finalization_bitmap
-                .lock()
-                .is_empty(),
-            false
-        );
+        assert_eq!(block.pending_finalization_bitmap.lock().is_empty(), false);
     }
 
     #[test]
@@ -926,12 +907,7 @@ mod tests {
 
         assert_eq!(block.is_finalizing(), false);
         assert!(block.finalize_bitmap.is_empty());
-        assert!(
-            block
-                .pending_finalization_bitmap
-                .lock()
-                .is_empty()
-        );
+        assert!(block.pending_finalization_bitmap.lock().is_empty());
     }
 
     #[test]

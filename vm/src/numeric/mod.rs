@@ -1,2 +1,2 @@
-pub mod modulo;
 pub mod division;
+pub mod modulo;

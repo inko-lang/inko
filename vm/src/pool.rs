@@ -240,11 +240,11 @@ mod tests {
     use std::time::Duration;
 
     macro_rules! wait_while {
-        ($condition: expr) => ({
+        ($condition:expr) => {{
             while $condition {
                 thread::sleep(Duration::from_millis(5));
             }
-        });
+        }};
     }
 
     #[test]

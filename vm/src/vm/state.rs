@@ -28,7 +28,7 @@ use suspension_list::SuspensionList;
 pub type RcState = Arc<State>;
 
 macro_rules! intern_string {
-    ($state: expr, $lookup: expr, $store: expr) => ({
+    ($state:expr, $lookup:expr, $store:expr) => {{
         let mut pool = $state.string_pool.lock();
 
         if let Some(value) = pool.get($lookup) {
@@ -49,7 +49,7 @@ macro_rules! intern_string {
         pool.add(ptr);
 
         ptr
-    })
+    }};
 }
 
 /// The state of a virtual machine.

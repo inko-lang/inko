@@ -14,8 +14,8 @@
 
 use rug::Integer;
 use std::fs::File;
-use std::io::Bytes;
 use std::io::prelude::*;
+use std::io::Bytes;
 use std::mem;
 use std::str;
 
@@ -26,35 +26,33 @@ use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
 macro_rules! parser_error {
-    ($variant: ident) => (
+    ($variant:ident) => {
         return Err(ParserError::$variant);
-    );
+    };
 }
 
 macro_rules! try_byte {
-    ($expr: expr, $variant: ident) => (
+    ($expr:expr, $variant:ident) => {
         match $expr {
-            Some(result) => {
-                match result {
-                    Ok(byte) => byte,
-                    Err(_)   => parser_error!($variant)
-                }
+            Some(result) => match result {
+                Ok(byte) => byte,
+                Err(_) => parser_error!($variant),
             },
-            None => parser_error!($variant)
+            None => parser_error!($variant),
         }
-    );
+    };
 }
 
 macro_rules! read_u16_to_usize_vector {
-    ($byte_type: ident, $bytes: expr) => (
+    ($byte_type:ident, $bytes:expr) => {
         read_vector::<usize, $byte_type>($bytes, read_u16_as_usize)?;
-    );
+    };
 }
 
 macro_rules! read_instruction_vector {
-    ($byte_type: ident, $bytes: expr) => (
+    ($byte_type:ident, $bytes:expr) => {
         read_vector::<Instruction, $byte_type>($bytes, read_instruction)?;
-    );
+    };
 }
 
 const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
@@ -385,61 +383,61 @@ mod tests {
     }
 
     macro_rules! unwrap {
-        ($expr: expr) => ({
+        ($expr:expr) => {{
             match $expr {
-                Ok(value)  => value,
-                Err(error) => panic!("Failed to parse input: {:?}", error)
+                Ok(value) => value,
+                Err(error) => panic!("Failed to parse input: {:?}", error),
             }
-        });
+        }};
     }
 
     macro_rules! read {
-        ($name: ident, $buffer: expr) => (
+        ($name:ident, $buffer:expr) => {
             $name(&mut $buffer.bytes())
-        );
+        };
     }
 
     macro_rules! pack_u8 {
-        ($num: expr, $buffer: expr) => ({
-            let num   = u8::to_be($num);
+        ($num:expr, $buffer:expr) => {{
+            let num = u8::to_be($num);
             let bytes = [num];
 
             $buffer.extend_from_slice(&bytes);
-        });
+        }};
     }
 
     macro_rules! pack_u16 {
-        ($num: expr, $buffer: expr) => ({
+        ($num:expr, $buffer:expr) => {{
             let num = u16::to_be($num);
             let bytes: [u8; 2] = unsafe { mem::transmute(num) };
 
             $buffer.extend_from_slice(&bytes);
-        });
+        }};
     }
 
     macro_rules! pack_u64 {
-        ($num: expr, $buffer: expr) => ({
+        ($num:expr, $buffer:expr) => {{
             let num = u64::to_be($num);
             let bytes: [u8; 8] = unsafe { mem::transmute(num) };
 
             $buffer.extend_from_slice(&bytes);
-        });
+        }};
     }
 
     macro_rules! pack_f64 {
-        ($num: expr, $buffer: expr) => ({
+        ($num:expr, $buffer:expr) => {{
             let int: u64 = unsafe { mem::transmute($num) };
 
             pack_u64!(int, $buffer);
-        });
+        }};
     }
 
     macro_rules! pack_string {
-        ($string: expr, $buffer: expr) => ({
+        ($string:expr, $buffer:expr) => {{
             pack_u64!($string.len() as u64, $buffer);
 
             $buffer.extend_from_slice(&$string.as_bytes());
-        });
+        }};
     }
 
     #[test]

@@ -1,7 +1,9 @@
 #![macro_use]
 
 macro_rules! to_expr {
-    ($e: expr) => ($e);
+    ($e:expr) => {
+        $e
+    };
 }
 
 /// Performs an integer operation that won't overflow.
@@ -14,14 +16,7 @@ macro_rules! to_expr {
 /// * `$instruction`: the instruction that is executed.
 /// * `$op`: the function to use for the operation.
 macro_rules! integer_op {
-    (
-        $process: expr,
-        $context: expr,
-        $proto: expr,
-        $instruction: expr,
-        $op: tt
-    ) => ({
-
+    ($process:expr, $context:expr, $proto:expr, $instruction:expr, $op:tt) => {{
         let register = $instruction.arg(0);
         let rec_ptr = $context.get_register($instruction.arg(1));
         let arg_ptr = $context.get_register($instruction.arg(2));
@@ -70,12 +65,12 @@ macro_rules! integer_op {
         } else {
             return Err(
                 "Integer instructions can only be performed using integers"
-                    .to_string()
+                    .to_string(),
             );
         };
 
         $context.set_register(register, pointer);
-    });
+    }};
 }
 
 /// Performs an integer shift operation that may overflow.
@@ -90,13 +85,13 @@ macro_rules! integer_op {
 /// * `$bigint_op`: the function to use for shifting a big integer.
 macro_rules! integer_shift_op {
     (
-        $process: expr,
-        $context: expr,
-        $proto: expr,
-        $instruction: expr,
-        $int_op: ident,
-        $bigint_op: ident
-    ) => ({
+        $process:expr,
+        $context:expr,
+        $proto:expr,
+        $instruction:expr,
+        $int_op:ident,
+        $bigint_op:ident
+    ) => {{
         let register = $instruction.arg(0);
         let rec_ptr = $context.get_register($instruction.arg(1));
         let arg_ptr = $context.get_register($instruction.arg(2));
@@ -110,7 +105,7 @@ macro_rules! integer_shift_op {
         };
 
         $context.set_register(register, pointer);
-    });
+    }};
 }
 
 /// Performs an integer binary operation that may overflow into a bigint.
@@ -125,13 +120,13 @@ macro_rules! integer_shift_op {
 /// * `$overflow`: the method to use for an overflowing operation.
 macro_rules! integer_overflow_op {
     (
-        $process: expr,
-        $context: expr,
-        $proto: expr,
-        $instruction: expr,
-        $op: ident,
-        $overflow: ident
-    ) => ({
+        $process:expr,
+        $context:expr,
+        $proto:expr,
+        $instruction:expr,
+        $op:ident,
+        $overflow:ident
+    ) => {{
         let register = $instruction.arg(0);
         let rec_ptr = $context.get_register($instruction.arg(1));
         let arg_ptr = $context.get_register($instruction.arg(2));
@@ -193,12 +188,12 @@ macro_rules! integer_overflow_op {
         } else {
             return Err(
                 "Integer instructions can only be performed using integers"
-                    .to_string()
+                    .to_string(),
             );
         };
 
         $context.set_register(register, result);
-    });
+    }};
 }
 
 /// Performs an integer binary boolean operation such as `X == Y`.
@@ -210,7 +205,7 @@ macro_rules! integer_overflow_op {
 /// * `$ins`: the current instruction.
 /// * `$op`: the binary operator to use (e.g. `==`).
 macro_rules! integer_bool_op {
-    ($state: expr, $context: expr, $ins: expr, $op: tt) => ({
+    ($state:expr, $context:expr, $ins:expr, $op:tt) => {{
         let register = $ins.arg(0);
         let rec_ptr = $context.get_register($ins.arg(1));
         let arg_ptr = $context.get_register($ins.arg(2));
@@ -246,23 +241,22 @@ macro_rules! integer_bool_op {
         } else {
             return Err(
                 "Integer instructions can only be performed using integers"
-                    .to_string()
+                    .to_string(),
             );
         };
 
         let boolean = if result {
             $state.true_object
-        }
-        else {
+        } else {
             $state.false_object
         };
 
         $context.set_register(register, boolean);
-    });
+    }};
 }
 
 macro_rules! float_op {
-    ($state: expr, $process: expr, $ins: expr, $op: tt) => ({
+    ($state:expr, $process:expr, $ins:expr, $op:tt) => {{
         let register = $ins.arg(0);
         let rec_ptr = $process.get_register($ins.arg(1));
         let arg_ptr = $process.get_register($ins.arg(2));
@@ -274,7 +268,7 @@ macro_rules! float_op {
             .allocate(object_value::float(result), $state.float_prototype);
 
         $process.set_register(register, obj);
-    });
+    }};
 }
 
 /// Performs a float binary boolean operation such as `X == Y`.
@@ -286,7 +280,7 @@ macro_rules! float_op {
 /// * `$ins`: the current instruction.
 /// * `$op`: the binary operator to use (e.g. `==`).
 macro_rules! float_bool_op {
-    ($state: expr, $context: expr, $ins: expr, $op: tt) => ({
+    ($state:expr, $context:expr, $ins:expr, $op:tt) => {{
         let register = $ins.arg(0);
         let rec_ptr = $context.get_register($ins.arg(1));
         let arg_ptr = $context.get_register($ins.arg(2));
@@ -295,11 +289,10 @@ macro_rules! float_bool_op {
 
         let boolean = if to_expr!(rec $op arg) {
             $state.true_object
-        }
-        else {
+        } else {
             $state.false_object
         };
 
         $context.set_register(register, boolean);
-    });
+    }};
 }

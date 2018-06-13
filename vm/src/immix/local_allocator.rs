@@ -202,7 +202,8 @@ impl LocalAllocator {
     }
 
     pub fn update_block_allocations(&mut self) {
-        self.young_config.block_allocations = self.young_generation
+        self.young_config.block_allocations = self
+            .young_generation
             .iter()
             .map(|bucket| bucket.number_of_blocks())
             .sum();

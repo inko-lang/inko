@@ -13,13 +13,13 @@ use object_pointer::ObjectPointer;
 use object_value::ObjectValue;
 
 macro_rules! push_collection {
-    ($map: expr, $what: ident, $vec: expr) => ({
+    ($map:expr, $what:ident, $vec:expr) => {{
         $vec.reserve($map.len());
 
         for thing in $map.$what() {
             $vec.push(*thing);
         }
-    })
+    }};
 }
 
 /// The status of an object.

@@ -17,9 +17,9 @@ const TYPE_FILE: i64 = 1;
 const TYPE_DIRECTORY: i64 = 2;
 
 macro_rules! map_io {
-    ($op: expr) => ({
+    ($op:expr) => {{
         $op.map_err(|err| error_messages::from_io_error(err))
-    })
+    }};
 }
 
 /// Returns a DateTime for the given path.

@@ -13,13 +13,13 @@ use std::path::PathBuf;
 
 /// Sets a configuration field based on an environment variable.
 macro_rules! set_from_env {
-    ($config: expr, $field: ident, $key: expr, $value_type: ty) => ({
+    ($config:expr, $field:ident, $key:expr, $value_type:ty) => {{
         if let Ok(raw_value) = env::var(concat!("INKO_", $key)) {
             if let Ok(value) = raw_value.parse::<$value_type>() {
                 $config.$field = value;
             }
         };
-    });
+    }};
 }
 
 /// Structure containing the configuration settings for the virtual machine.

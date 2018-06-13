@@ -142,7 +142,9 @@ impl ObjectValue {
         match self {
             &ObjectValue::String(ref val) => Ok(val),
             &ObjectValue::InternedString(ref val) => Ok(val),
-            _ => Err("ObjectValue::as_string() called on a non string".to_string()),
+            _ => Err(
+                "ObjectValue::as_string() called on a non string".to_string()
+            ),
         }
     }
 
@@ -156,7 +158,9 @@ impl ObjectValue {
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
         match self {
             &mut ObjectValue::File(ref mut val) => Ok(val),
-            _ => Err("ObjectValue::as_file_mut() called on a non file".to_string()),
+            _ => Err(
+                "ObjectValue::as_file_mut() called on a non file".to_string()
+            ),
         }
     }
 
@@ -179,14 +183,18 @@ impl ObjectValue {
     pub fn as_bigint(&self) -> Result<&Integer, String> {
         match self {
             &ObjectValue::BigInt(ref val) => Ok(val),
-            _ => Err("ObjectValue::as_bigint() called on a non BigInt".to_string()),
+            _ => Err(
+                "ObjectValue::as_bigint() called on a non BigInt".to_string()
+            ),
         }
     }
 
     pub fn as_integer(&self) -> Result<i64, String> {
         match self {
             &ObjectValue::Integer(val) => Ok(val),
-            _ => Err("ObjectValue::as_integer() called on a non integer".to_string()),
+            _ => Err(
+                "ObjectValue::as_integer() called on a non integer".to_string()
+            ),
         }
     }
 

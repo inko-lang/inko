@@ -6,8 +6,8 @@
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
-use std::sync::{Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use process::RcProcess;

@@ -19,13 +19,13 @@ use process::RcProcess;
 /// * `$overflow_op`: the operation to perform while checking for overflows.
 macro_rules! shift_integer {
     (
-        $process: expr,
-        $to_shift: expr,
-        $shift_with: expr,
-        $proto: expr,
-        $op: ident,
-        $overflow_op: ident
-    ) => ({
+        $process:expr,
+        $to_shift:expr,
+        $shift_with:expr,
+        $proto:expr,
+        $op:ident,
+        $overflow_op:ident
+    ) => {{
         let to_shift = $to_shift.integer_value()?;
         let shift_with = $shift_with.integer_value()?;
         let (res, overflowed) = to_shift.$overflow_op(shift_with as u32);
@@ -47,7 +47,7 @@ macro_rules! shift_integer {
         };
 
         Ok(pointer)
-    });
+    }};
 }
 
 /// Shifts a big integer to the left or right.
@@ -61,18 +61,14 @@ macro_rules! shift_integer {
 /// * `$op`: the operation to perform without checking for overflows.
 macro_rules! shift_big_integer {
     (
-        $process: expr,
-        $to_shift: expr,
-        $shift_with: expr,
-        $proto: expr,
-        $op: ident
-    ) => ({
+        $process:expr, $to_shift:expr, $shift_with:expr, $proto:expr, $op:ident
+    ) => {{
         let to_shift = $to_shift.bigint_value()?.clone();
         let shift_with = $shift_with.integer_value()?;
         let res = to_shift.$op(shift_with as i32);
 
         Ok($process.allocate(object_value::bigint(res), $proto))
-    });
+    }};
 }
 
 /// Inverts an argument for a shift and performs the shift.
@@ -86,33 +82,33 @@ macro_rules! shift_big_integer {
 /// * `$function`: the function to use for shifting the value.
 macro_rules! invert_shift {
     (
-        $process: expr,
-        $to_shift: expr,
-        $shift_with: expr,
-        $proto: expr,
-        $function: ident
-    ) => ({
+        $process:expr,
+        $to_shift:expr,
+        $shift_with:expr,
+        $proto:expr,
+        $function:ident
+    ) => {{
         let shift_with =
             invert_integer_for_shift($process, $shift_with, $proto);
 
         $function($process, $to_shift, shift_with, $proto)
-    });
+    }};
 }
 
 /// Converts an integer or a bigint to a String.
 macro_rules! format_integer {
-    ($pointer: expr) => ({
+    ($pointer:expr) => {{
         if $pointer.is_bigint() {
             $pointer.bigint_value()?.to_string()
         } else {
             $pointer.integer_value()?.to_string()
         }
-    })
+    }};
 }
 
 /// Generates an error message to display in the event of a shift error.
 macro_rules! shift_error {
-    ($to_shift: expr, $shift_with: expr) => ({
+    ($to_shift:expr, $shift_with:expr) => {{
         if $shift_with.is_integer() || $shift_with.is_bigint() {
             format!(
                 "Can't shift integer {} with {} as the operand is too big",
@@ -125,7 +121,7 @@ macro_rules! shift_error {
                 format_integer!($to_shift),
             )
         }
-    });
+    }};
 }
 
 pub fn invert_integer_for_shift(

@@ -8,7 +8,7 @@ use process::RcProcess;
 /// Macro used for conditionally moving objects or resolving forwarding
 /// pointers.
 macro_rules! move_object {
-    ($bucket: expr, $pointer: expr, $status: ident, $body: expr) => ({
+    ($bucket:expr, $pointer:expr, $status:ident, $body:expr) => {{
         let lock = $bucket.lock();
 
         match $pointer.status() {
@@ -19,13 +19,14 @@ macro_rules! move_object {
 
         // Let's explicitly drop the lock for good measurement.
         drop(lock);
-    });
+    }};
 }
 
 /// Macro that returns true if the pointer can be skipped during tracing.
 macro_rules! can_skip_pointer {
-    ($pointer: expr, $mature: expr) =>
-        ( $pointer.is_marked() || !$mature && $pointer.is_mature() );
+    ($pointer:expr, $mature:expr) => {
+        $pointer.is_marked() || !$mature && $pointer.is_mature()
+    };
 }
 
 /// Promotes an object to the mature generation.

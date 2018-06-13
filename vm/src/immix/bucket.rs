@@ -203,7 +203,8 @@ impl Bucket {
         self.available_histogram.reset();
         self.mark_histogram.reset();
 
-        let finalize = self.blocks
+        let finalize = self
+            .blocks
             .pointers()
             .into_par_iter()
             .filter_map(|mut block| {

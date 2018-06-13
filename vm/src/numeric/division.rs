@@ -1,8 +1,8 @@
 //! Floored integer divisions.
 
 use num_integer;
-use rug::Integer;
 use rug::ops::DivRounding;
+use rug::Integer;
 
 pub trait FlooredDiv<RHS = Self> {
     type Output;

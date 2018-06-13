@@ -136,7 +136,7 @@ pub enum InstructionType {
     Stacktrace,
     ProcessTerminateCurrent,
     StringSlice,
-    BlockMetadata
+    BlockMetadata,
 }
 
 /// Struct for storing information about a single instruction.

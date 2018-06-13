@@ -21,7 +21,7 @@ use vm::state::RcState;
 
 /// Performs a write to an object and tracks it in the write barrier.
 macro_rules! write_object {
-    ($receiver: expr, $process: expr, $action: expr, $value: expr) => ({
+    ($receiver:expr, $process:expr, $action:expr, $value:expr) => {{
         let track = !$receiver.get().has_attributes();
         let pointer = *$receiver;
 
@@ -32,7 +32,7 @@ macro_rules! write_object {
         if track && $receiver.is_finalizable() {
             $receiver.mark_for_finalization();
         }
-    })
+    }};
 }
 
 /// Defines a method for getting the value of an object as a given type.
@@ -484,7 +484,9 @@ impl ObjectPointer {
                 }
                 _ => {
                     if !self.is_permanent() {
-                        return Err("the provided object can not be hashed".to_string());
+                        return Err(
+                            "the provided object can not be hashed".to_string()
+                        );
                     }
 
                     hasher.write_unsigned_integer(self.raw.untagged() as usize);
