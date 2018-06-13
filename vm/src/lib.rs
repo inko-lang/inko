@@ -1,17 +1,5 @@
 #![cfg_attr(feature = "prefetch", feature(core_intrinsics))]
-#![cfg_attr(feature = "system-allocator",
-            feature(alloc_system, global_allocator))]
 #![feature(allocator_api, alloc)]
-
-#[cfg(feature = "system-allocator")]
-extern crate alloc_system;
-
-#[cfg(feature = "system-allocator")]
-use alloc_system::System;
-
-#[cfg(feature = "system-allocator")]
-#[global_allocator]
-static A: System = System;
 
 extern crate alloc;
 extern crate colored;

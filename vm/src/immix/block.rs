@@ -534,7 +534,7 @@ impl Drop for Block {
 
         unsafe {
             let pointer =
-                ptr::NonNull::new_unchecked(self.lines as *mut u8).as_opaque();
+                ptr::NonNull::new_unchecked(self.lines as *mut u8);
 
             Global.dealloc(pointer, heap_layout_for_block());
         }

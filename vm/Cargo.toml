@@ -27,10 +27,7 @@ default-features = false
 features = ["integer"]
 
 [features]
-default = ["system-allocator", "prefetch"]
-
-# Use the system allocator instead of Rust's default (jemalloc)
-system-allocator = []
+default = ["prefetch"]
 
 # Enables the use of prefetching to improve performance in various areas. This
 # requires a nightly build of Rust.
