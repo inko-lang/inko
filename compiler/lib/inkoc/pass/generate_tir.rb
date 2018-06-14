@@ -1269,6 +1269,10 @@ module Inkoc
         raw_binary_instruction(:BlockMetadata, node, body)
       end
 
+      def on_raw_string_format_debug(node, body)
+        raw_unary_instruction(:StringFormatDebug, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

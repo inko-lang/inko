@@ -137,6 +137,7 @@ pub enum InstructionType {
     ProcessTerminateCurrent,
     StringSlice,
     BlockMetadata,
+    StringFormatDebug,
 }
 
 /// Struct for storing information about a single instruction.

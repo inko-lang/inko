@@ -139,6 +139,7 @@ module Inkoc
         ProcessTerminateCurrent
         StringSlice
         BlockMetadata
+        StringFormatDebug
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

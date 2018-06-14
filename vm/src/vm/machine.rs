@@ -3245,6 +3245,24 @@ impl Machine {
 
                     context.set_register(register, result);
                 }
+                // Formats a string for debugging purposes.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in, as a string.
+                // 2. The register containing the string to format.
+                InstructionType::StringFormatDebug => {
+                    let register = instruction.arg(0);
+                    let str_ptr = context.get_register(instruction.arg(1));
+                    let new_str = format!("{:?}", str_ptr.string_value()?);
+
+                    let new_str_ptr = process.allocate(
+                        object_value::string(new_str),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, new_str_ptr);
+                }
             };
         }
 

@@ -1554,6 +1554,10 @@ module Inkoc
         TypeSystem::Dynamic.new
       end
 
+      def on_raw_string_format_debug(*)
+        typedb.string_type.new_instance
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)
