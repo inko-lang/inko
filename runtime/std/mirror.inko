@@ -75,6 +75,12 @@
 import std::reflection
 import std::fs::path::Path
 
+## The default name to use for objects that don't have an explicit name.
+let DEFAULT_OBJECT_NAME = 'Object'
+
+## The name of the attribute that contains the name of an object.
+let OBJECT_NAME_ATTRIBUTE = '@_object_name'
+
 ## A generic mirror for a regular object.
 object ObjectMirror!(T) {
   def init(subject: T) {
@@ -162,6 +168,35 @@ object ObjectMirror!(T) {
     _INKOC.get_attribute_names(@subject)
   }
 
+  ## Returns the names of all instance attributes defined directly on the
+  ## subject.
+  ##
+  ## Getting the attributes of an object:
+  ##
+  ##     import std::mirror
+  ##
+  ##     object Person {
+  ##       def init(name: String) {
+  ##         let @name = name
+  ##       }
+  ##     }
+  ##
+  ##     let person = Person.new('Alice')
+  ##
+  ##     ::mirror.reflect_object(person).attributes # => ['@name']
+  ##     ::mirror.reflect_object(Person).attributes # => ['@_object_name']
+  def instance_attributes -> Array!(String) {
+    let mut instance_attributes = []
+
+    attributes.each do (attribute) {
+      attribute.starts_with?('@').if_true {
+        instance_attributes.push(attribute)
+      }
+    }
+
+    instance_attributes
+  }
+
   ## Returns `True` if one object is an instance of another object.
   ##
   ## See `std::reflection.instance_of?` for more information.
@@ -176,7 +211,9 @@ object ObjectMirror!(T) {
     reflection.kind_of?(@subject, other)
   }
 
-  ## Returns the name of an object, if any.
+  ## Returns the name of an object.
+  ##
+  ## If the object doesn't have a name, a default name will be returned instead.
   ##
   ## # Examples
   ##
@@ -189,8 +226,14 @@ object ObjectMirror!(T) {
   ##     let mirror = ::mirror.reflect_object(Person)
   ##
   ##     mirror.name # => 'Person'
-  def name -> ?String {
-    get_attribute('@_object_name') as ?String
+  def name -> String {
+    let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
+
+    name.if true: {
+      name
+    }, false: {
+      DEFAULT_OBJECT_NAME
+    }
   }
 }
 

@@ -22,7 +22,7 @@
 #! Array. This means that -1 will access the last value, -2 the value before
 #! that, etc.
 
-import std::conversion::(ToArray, ToString)
+import std::conversion::ToArray
 import std::index::(Index, SetIndex)
 import std::length::Length
 import std::operators::Equal
@@ -215,6 +215,23 @@ impl Length for Array!(T) {
   }
 }
 
+impl Array!(T) {
+  ## Returns `True` if this `Array` contains one or more values.
+  ##
+  ## # Examples
+  ##
+  ## Using an empty `Array`:
+  ##
+  ##     [].empty? # => True
+  ##
+  ## Using a non-empty `Array`:
+  ##
+  ##     [10].empty? # => False
+  def empty? -> Boolean {
+    length.zero?
+  }
+}
+
 impl Index!(Integer, T) for Array!(T) {
   ## Returns the value at the given index, or Nil if no value was found.
   ##
@@ -319,38 +336,5 @@ impl Equal for Array!(T) {
     }
 
     True
-  }
-}
-
-impl ToString for Array!(T) {
-  ## Converts `self` to a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting an empty `Array`:
-  ##
-  ##     [].to_string # => '[]'
-  ##
-  ## Converting an `Array` with one value:
-  ##
-  ##     [10].to_string # => '[10]'
-  ##
-  ## Converting an `Array` containing multiple values:
-  ##
-  ##     [10, 20, 30].to_string # => '[10, 20, 30]'
-  def to_string -> String where T: ToString {
-    let mut output = '['
-    let last = length - 1
-
-    each_with_index do (value: T, index: Integer) {
-      output += value.to_string
-
-      index < last
-        .if_true {
-          output += ', '
-        }
-    }
-
-    output + ']'
   }
 }

@@ -1,0 +1,215 @@
+#! Implementations of the Inspect trait for various core types.
+#!
+#! Implementing Inspect requires various other types to be in place, meaning we
+#! can't implement this earlier in modules such as `std::boolean`.
+import std::conversion::ToString
+import std::format::(self, Formatter, Inspect)
+import std::hash_map::HashMap
+import std::mirror
+
+impl Inspect for Object {
+  ## Returns a human-readable representation of this object.
+  ##
+  ## # Examples
+  ##
+  ## Inspecting a simple object:
+  ##
+  ##     Object.new.inspect  # => 'Object}'
+  ##
+  ## Inspecting an object with attributes:
+  ##
+  ##     object Person {
+  ##       def init(name: String, age: Integer) {
+  ##         let @name = name
+  ##         let @age = age
+  ##       }
+  ##     }
+  ##
+  ##     let person = Person.new(name: 'Alice', age: 28)
+  ##
+  ##     person.inspect # => 'Person { @name = "Alice", @age = 28 }'
+  def inspect -> String {
+    ::format.inspect(self)
+  }
+
+  ## Formats a human-readable representation of this object.
+  def format(formatter: Formatter) {
+    let self_mirror = mirror.reflect_object(self)
+    let attributes = self_mirror.instance_attributes
+    let last_index = attributes.length - 1
+
+    formatter.push(self_mirror.name)
+
+    attributes.empty?.if_true {
+      return
+    }
+
+    formatter.push(' {')
+
+    attributes.each_with_index do (attr_name, index) {
+      formatter.push(' ')
+      formatter.push(attr_name)
+      formatter.push(' = ')
+
+      formatter.descend {
+        let value = _INKOC.get_attribute(self, attr_name) as ?Inspect
+
+        value.format(formatter)
+      }
+
+      index < last_index
+        .if_true {
+          formatter.push(',')
+        }
+    }
+
+    formatter.push(' }')
+  }
+}
+
+impl Inspect for Float {
+  def format(formatter: Formatter) {
+    formatter.push(to_string)
+  }
+}
+
+impl Inspect for Integer {
+  def format(formatter: Formatter) {
+    formatter.push(to_string)
+  }
+}
+
+impl Inspect for Nil {
+  def format(formatter: Formatter) {
+    formatter.push('Nil')
+  }
+}
+
+impl Inspect for Inko::TrueObject {
+  def format(formatter: Formatter) {
+    formatter.push('True')
+  }
+}
+
+impl Inspect for Inko::FalseObject {
+  def format(formatter: Formatter) {
+    formatter.push('False')
+  }
+}
+
+impl Inspect for String {
+  ## Formats a human-readable representation of this `String`, surrounded by
+  ## quotes.
+  ##
+  ## # Examples
+  ##
+  ## Formatting a `String`:
+  ##
+  ##     import std::format::DefaultFormatter
+  ##
+  ##     let fmt = DefaultFormatter.new
+  ##
+  ##     'hello'.format(fmt)
+  ##
+  ##     fmt.to_string # => '"hello"'
+  ##
+  ## Inspecting and printing a `String`:
+  ##
+  ##     import std::stdio::stdout
+  ##     import std::format::DefaultFormatter
+  ##
+  ##     let fmt = DefaultFormatter.new
+  ##
+  ##     'hello'.format(fmt)
+  ##
+  ##     # This would print "hello" (including quotes) to STDOUT.
+  ##     stdout.print(fmt.to_string)
+  def format(formatter: Formatter) {
+    formatter.push(_INKOC.string_format_debug(self))
+  }
+}
+
+impl Inspect for Array!(T) {
+  ## Returns a human-readable representation of this `Array`.
+  ##
+  ## # Examples
+  ##
+  ## Converting an empty `Array`:
+  ##
+  ##     [].inspect # => '[]'
+  ##
+  ## Converting an `Array` with one value:
+  ##
+  ##     [10].inspect # => '[10]'
+  ##
+  ## Converting an `Array` containing multiple values:
+  ##
+  ##     [10, 20, 30].inspect # => '[10, 20, 30]'
+  def inspect -> String where T: Inspect {
+    ::format.inspect(self)
+  }
+
+  ## Formats this `Array` into a human-readable representation.
+  def format(formatter: Formatter) where T: Inspect {
+    let last = length - 1
+
+    formatter.push('[')
+
+    each_with_index do (value, index) {
+      formatter.descend {
+        value.format(formatter)
+      }
+
+      index < last
+        .if_true {
+          formatter.push(', ')
+        }
+    }
+
+    formatter.push(']')
+  }
+}
+
+impl Inspect for HashMap!(K, V) {
+  ## Returns a human-readable representation of this `HashMap`.
+  ##
+  ## # Examples
+  ##
+  ## Inspecting a `HashMap`:
+  ##
+  ##     let map = %['name': 'Alice', 'address': 'Foo Street']
+  ##
+  ##     map.inspect # => '%["name": "Alice", "address": "Foo Street"]'
+  def inspect -> String where K: Inspect, V: Inspect {
+    ::format.inspect(self)
+  }
+
+  ## Formats this `HashMap` into a human-readable representation.
+  def format(formatter: Formatter) where K: Inspect, V: Inspect {
+    let last = length - 1
+    let mut index = 0
+
+    formatter.push('%[')
+
+    each do (key, value) {
+      formatter.descend {
+        key.format(formatter)
+      }
+
+      formatter.push(': ')
+
+      formatter.descend {
+        value.format(formatter)
+      }
+
+      index < last
+        .if_true {
+          formatter.push(', ')
+        }
+
+      index += 1
+    }
+
+    formatter.push(']')
+  }
+}
