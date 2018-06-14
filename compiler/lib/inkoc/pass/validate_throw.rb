@@ -9,6 +9,7 @@ module Inkoc
         @module = mod
         @state = state
         @try_nesting = 0
+        @block_nesting = []
       end
 
       def diagnostics
@@ -21,9 +22,24 @@ module Inkoc
         [ast]
       end
 
-      def on_block(node, block_type)
-        process_nodes(node.arguments, block_type)
-        process_node(node.body, block_type)
+      def inside_block(block)
+        @block_nesting << block
+
+        yield
+
+        @block_nesting.pop
+      end
+
+      def every_nested_block
+        @block_nesting.reverse_each do |block|
+          yield block
+        end
+      end
+
+      def on_block(node, *)
+        inside_block(node.block_type) do
+          error_for_missing_throw_in_block(node, node.block_type)
+        end
       end
       alias on_lambda on_block
 
@@ -45,7 +61,9 @@ module Inkoc
       end
 
       def on_method(node, *)
-        error_for_missing_throw_in_block(node, node.block_type)
+        inside_block(node.block_type) do
+          error_for_missing_throw_in_block(node, node.block_type)
+        end
       end
 
       def on_node_with_body(node, *)
@@ -83,19 +101,15 @@ module Inkoc
       def on_throw(node, block_type)
         process_node(node.value, block_type)
 
-        location = node.location
-        exp_throw = block_type.throw_type
         thrown = node.value.type
 
-        if exp_throw && !thrown.type_compatible?(exp_throw, @state)
-          diagnostics.type_error(exp_throw, thrown, location)
+        every_nested_block do |block|
+          break unless track_throw_type(thrown, block, node.location)
         end
-
-        block_type.thrown_types << thrown
 
         return if in_try?
 
-        error_for_undefined_throw(node.value.type, block_type, location)
+        error_for_undefined_throw(thrown, block_type, node.location)
       end
 
       def on_try(node, block_type)
@@ -113,17 +127,25 @@ module Inkoc
             error_for_undefined_throw(node.throw_type, block_type, loc)
           end
 
-          thrown = node.throw_type
-          expected = block_type.throw_type
-
-          if thrown && expected && !thrown.type_compatible?(expected, @state)
-            diagnostics.type_error(expected, thrown, loc)
+          every_nested_block do |block|
+            track_throw_type(node.throw_type, block, node.location)
           end
-
-          block_type.thrown_types << thrown
         end
 
         @try_nesting -= 1
+      end
+
+      def track_throw_type(thrown, block_type, location)
+        expected = block_type.throw_type
+
+        block_type.thrown_types << thrown if thrown
+
+        if thrown && expected && !thrown.type_compatible?(expected, @state)
+          diagnostics.type_error(expected, thrown, location)
+          false
+        else
+          true
+        end
       end
 
       def on_type_cast(node, block_type)
