@@ -62,7 +62,12 @@ module Inkoc
 
       def on_try(node, outer)
         process_node(node.expression, outer)
-        process_node(node.else_body, outer) if node.else_body
+
+        return unless node.else_body
+
+        process_node(node.else_body, outer)
+
+        node.else_body.locals.parent = outer.locals
       end
 
       def on_node_with_value(node, outer)

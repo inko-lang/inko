@@ -99,11 +99,6 @@ module Inkoc
 
         type.define_arguments(arg_types)
 
-        # if node.location.file.path.to_s.end_with?('process.inko') &&
-        #    node.location.line == 153
-        #   require 'pry'; binding.pry
-        # end
-
         if node.returns
           type.return_type = define_type_instance(node.returns, scope)
         end

@@ -1572,6 +1572,29 @@ describe Inkoc::Pass::DefineType do
 
         expect(error_local.type).to be_dynamic
       end
+
+      it 'allows referencing of outer local variables in the else block' do
+        body = parse_source(<<~SOURCE)
+          let number = 10
+
+          do { try 10 else { number } }
+        SOURCE
+
+        Inkoc::Pass::SetupSymbolTables
+          .new(tir_module, state)
+          .run(body)
+
+        type_scope = Inkoc::TypeScope.new(
+          self_type,
+          tir_module.body.type,
+          tir_module,
+          locals: body.locals
+        )
+
+        pass.on_module_body(body, type_scope)
+
+        expect(state.diagnostics.errors?).to eq(false)
+      end
     end
 
     context 'without an else statement' do
