@@ -3263,6 +3263,30 @@ impl Machine {
 
                     context.set_register(register, new_str_ptr);
                 }
+                // Takes an Array of String objects and concatenates them
+                // together efficiently.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the resulting String in.
+                // 2. The register containing the Array of Strings.
+                InstructionType::StringConcatMultiple => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let array = array_ptr.array_value()?;
+                    let mut buffer = String::new();
+
+                    for str_ptr in array.iter() {
+                        buffer.push_str(str_ptr.string_value()?);
+                    }
+
+                    let new_str_ptr = process.allocate(
+                        object_value::string(buffer),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, new_str_ptr);
+                }
             };
         }
 

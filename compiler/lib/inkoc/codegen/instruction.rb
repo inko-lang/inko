@@ -140,6 +140,7 @@ module Inkoc
         StringSlice
         BlockMetadata
         StringFormatDebug
+        StringConcatMultiple
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

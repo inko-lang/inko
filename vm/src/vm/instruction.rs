@@ -138,6 +138,7 @@ pub enum InstructionType {
     StringSlice,
     BlockMetadata,
     StringFormatDebug,
+    StringConcatMultiple,
 }
 
 /// Struct for storing information about a single instruction.

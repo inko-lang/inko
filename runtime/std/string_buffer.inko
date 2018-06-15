@@ -1,0 +1,75 @@
+#! Efficient concatenating of `String` objects.
+import std::conversion::ToString
+
+## A buffer for efficiently concatenating `String` objects together.
+##
+## When concatenating multiple `String` objects together, intermediate `String`
+## objects are created. For example, here we concatenate three `String` objects
+## together:
+##
+##     'foo' + 'bar' + 'baz'
+##
+## This code will allocate three interned `String` objects (for the `String`
+## literals), and two additional `String` objects. This is the result of the
+## above expression being evaluated as follows:
+##
+##     ('foo' + 'bar') + 'baz'
+##
+## This means that the first allocated `String` resulting from this expression
+## is `'foobar'`, which is then concatenated with `'baz'`, producing
+## `'foobarbaz'`.
+##
+## Using a `StringBuffer` we can work around this, only allocating a `String`
+## once we are done:
+##
+##     import std::string_buffer::StringBuffer
+##
+##     let buffer = StringBuffer.new
+##
+##     buffer.push('foo')
+##     buffer.push('bar')
+##     buffer.push('baz')
+##
+##     buffer.to_string # => 'foobarbaz'
+##
+## This would only allocate four `String` objects: three for the `String`
+## literals, and one for the resulting `String` returned by
+## `StringBuffer.to_string`.
+object StringBuffer impl ToString {
+  def init(strings: Array!(String) = []) {
+    let @strings = strings
+  }
+
+  ## Adds the given `String` to the buffer.
+  ##
+  ## # Examples
+  ##
+  ## Adding a `String` to a `StringBuffer`:
+  ##
+  ##     import std::string_buffer::StringBuffer
+  ##
+  ##     let buffer = StringBuffer.new
+  ##
+  ##     buffer.push('hello') # => 'hello'
+  def push(string: String) -> String {
+    @strings.push(string)
+  }
+
+  ## Generates a `String` using the current contents of the buffer.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `StringBuffer` to a `String`:
+  ##
+  ##     import std::string_buffer::StringBuffer
+  ##
+  ##     let buffer = StringBuffer.new
+  ##
+  ##     buffer.push('hello ')
+  ##     buffer.push('world')
+  ##
+  ##     buffer.to_string # => 'hello world'
+  def to_string -> String {
+    _INKOC.string_concat_multiple(@strings)
+  }
+}

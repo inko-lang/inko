@@ -1273,6 +1273,10 @@ module Inkoc
         raw_unary_instruction(:StringFormatDebug, node, body)
       end
 
+      def on_raw_string_concat_multiple(node, body)
+        raw_unary_instruction(:StringConcatMultiple, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =
