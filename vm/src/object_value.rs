@@ -40,6 +40,9 @@ pub enum ObjectValue {
 
     /// A heap allocator hasher used for hashing objects.
     Hasher(Box<Hasher>),
+
+    /// An Array of bytes, typically produced by reading from a stream of sorts.
+    ByteArray(Box<Vec<u8>>),
 }
 
 impl ObjectValue {
@@ -135,6 +138,24 @@ impl ObjectValue {
         match self {
             &mut ObjectValue::Array(ref mut val) => Ok(val),
             _ => Err("as_array_mut called on a non array".to_string()),
+        }
+    }
+
+    pub fn as_byte_array(&self) -> Result<&Vec<u8>, String> {
+        match self {
+            &ObjectValue::ByteArray(ref val) => Ok(val),
+            _ => Err(
+                "as_byte_array called non a non byte array value".to_string()
+            ),
+        }
+    }
+
+    pub fn as_byte_array_mut(&mut self) -> Result<&mut Vec<u8>, String> {
+        match self {
+            &mut ObjectValue::ByteArray(ref mut val) => Ok(val),
+            _ => {
+                Err("as_byte_array_mut called on a non byte array".to_string())
+            }
         }
     }
 
@@ -272,6 +293,10 @@ pub fn integer(value: i64) -> ObjectValue {
 
 pub fn hasher(value: Hasher) -> ObjectValue {
     ObjectValue::Hasher(Box::new(value))
+}
+
+pub fn byte_array(value: Vec<u8>) -> ObjectValue {
+    ObjectValue::ByteArray(Box::new(value))
 }
 
 #[cfg(test)]
@@ -583,5 +608,35 @@ mod tests {
         assert!(string("a".to_string()).is_immutable());
         assert!(float(10.5).is_immutable());
         assert!(interned_string("a".to_string()).is_immutable());
+    }
+
+    #[test]
+    fn test_as_byte_array_without_byte_array() {
+        assert!(ObjectValue::None.as_byte_array().is_err());
+    }
+
+    #[test]
+    fn test_as_byte_array_with_byte_array() {
+        let byte_array = Box::new(vec![1]);
+        let value = ObjectValue::ByteArray(byte_array);
+        let result = value.as_byte_array();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_as_byte_array_mut_without_byte_array() {
+        assert!(ObjectValue::None.as_byte_array_mut().is_err());
+    }
+
+    #[test]
+    fn test_as_byte_array_mut_with_byte_array() {
+        let byte_array = Box::new(vec![1]);
+        let mut value = ObjectValue::ByteArray(byte_array);
+        let result = value.as_byte_array_mut();
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 1);
     }
 }

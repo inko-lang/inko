@@ -1349,8 +1349,8 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
-      def on_raw_string_to_bytes(*)
-        typedb.new_array_of_type(typedb.integer_type.new_instance)
+      def on_raw_string_to_byte_array(*)
+        TypeSystem::Dynamic.new
       end
 
       def on_raw_string_size(*)
@@ -1365,10 +1365,6 @@ module Inkoc
         typedb.boolean_type.new_instance
       end
 
-      def on_raw_string_from_bytes(*)
-        typedb.string_type.new_instance
-      end
-
       def on_raw_string_concat(*)
         typedb.string_type.new_instance
       end
@@ -1377,16 +1373,8 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
-      def on_raw_stdin_read_line(*)
-        typedb.string_type.new_instance
-      end
-
       def on_raw_stdin_read(*)
-        typedb.string_type.new_instance
-      end
-
-      def on_raw_stdin_read_exact(*)
-        typedb.string_type.new_instance
+        typedb.integer_type.new_instance
       end
 
       def on_raw_stderr_write(*)
@@ -1461,15 +1449,7 @@ module Inkoc
       end
 
       def on_raw_file_read(*)
-        typedb.string_type.new_instance
-      end
-
-      def on_raw_file_read_line(*)
-        typedb.string_type.new_instance
-      end
-
-      def on_raw_file_read_exact(*)
-        typedb.string_type.new_instance
+        typedb.integer_type.new_instance
       end
 
       def on_raw_file_seek(*)
@@ -1559,6 +1539,38 @@ module Inkoc
       end
 
       def on_raw_string_concat_multiple(*)
+        typedb.string_type.new_instance
+      end
+
+      def on_raw_byte_array_from_array(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_byte_array_set(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_byte_array_at(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_byte_array_remove(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_byte_array_length(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_byte_array_clear(*)
+        TypeSystem::Void.new
+      end
+
+      def on_raw_byte_array_equals(*)
+        typedb.boolean_type.new_instance
+      end
+
+      def on_raw_byte_array_to_string(*)
         typedb.string_type.new_instance
       end
 

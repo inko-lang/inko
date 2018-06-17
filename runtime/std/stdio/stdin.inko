@@ -2,34 +2,16 @@
 #!
 #! This module provides various methods for reading data from STDIN.
 
+import std::byte_array::ByteArray
 import std::io::(Read, Error as IOError)
 import std::process
 
 impl Read for ThisModule {
-  ## Reads all available input from STDIN, returning it as a `String`.
-  def read !! IOError -> String {
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
     process.blocking {
-      try _INKOC.stdin_read else (error) {
-        throw IOError.new(error as String)
-      }
-    }
-  }
-
-  ## Reads the given number of bytes from STDIN, returning them as a `String`.
-  def read_exact(amount: Integer) !! IOError -> String {
-    process.blocking {
-      try _INKOC.stdin_read_exact(amount) else (error) {
-        throw IOError.new(error as String)
-      }
-    }
-  }
-
-  ## Reads a single line from STDIN, returning it as a `String`.
-  ##
-  ## The returned `String` includes the newline separator.
-  def read_line !! IOError -> String {
-    process.blocking {
-      try _INKOC.stdin_read_line else (error) {
+      try {
+        _INKOC.stdin_read(bytes, size)
+      } else (error) {
         throw IOError.new(error as String)
       }
     }

@@ -57,18 +57,15 @@ module Inkoc
         StringToLower
         StringToUpper
         StringEquals
-        StringToBytes
-        StringFromBytes
+        StringToByteArray
         StringLength
         StringSize
         StdoutWrite
         StderrWrite
         StdinRead
-        StdinReadLine
         FileOpen
         FileWrite
         FileRead
-        FileReadLine
         FileFlush
         FileSize
         FileSeek
@@ -84,8 +81,6 @@ module Inkoc
         ProcessCurrentPid
         SetParentLocal
         GetParentLocal
-        FileReadExact
-        StdinReadExact
         ObjectEquals
         GetToplevel
         GetNil
@@ -141,6 +136,14 @@ module Inkoc
         BlockMetadata
         StringFormatDebug
         StringConcatMultiple
+        ByteArrayFromArray
+        ByteArraySet
+        ByteArrayAt
+        ByteArrayRemove
+        ByteArrayLength
+        ByteArrayClear
+        ByteArrayEquals
+        ByteArrayToString
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

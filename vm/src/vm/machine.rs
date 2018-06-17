@@ -3,12 +3,13 @@ use rayon::ThreadPoolBuilder;
 use rug::Integer;
 use std::fs;
 use std::i32;
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::io::{self, Seek, SeekFrom, Write};
 use std::ops::{Add, Mul, Sub};
 use std::thread;
 
 use binding::Binding;
 use block::Block;
+use byte_array;
 use compiled_code::CompiledCodePointer;
 use date_time::DateTime;
 use execution_context::ExecutionContext;
@@ -17,6 +18,7 @@ use gc::request::Request as GcRequest;
 use hasher::Hasher;
 use immix::copy_object::CopyObject;
 use integer_operations;
+use io::{read_from_stream, ReadResult};
 use module_registry::{ModuleRegistry, RcModuleRegistry};
 use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use numeric::modulo::{Modulo, OverflowingModulo};
@@ -104,7 +106,7 @@ macro_rules! enter_context {
 /// Returns a slice index for an i64
 macro_rules! int_to_slice_index {
     ($vec:expr, $index:expr) => {{
-        if $index >= 0 as i64 {
+        if $index >= 0_i64 {
             $index as usize
         } else {
             ($vec.len() as i64 + $index) as usize
@@ -152,17 +154,6 @@ macro_rules! optional_timeout {
     }};
 }
 
-macro_rules! vec_to_string {
-    ($vec:expr) => {{
-        match String::from_utf8($vec) {
-            Ok(string) => string,
-            Err(error) => {
-                String::from_utf8_lossy(&error.into_bytes()).into_owned()
-            }
-        }
-    }};
-}
-
 macro_rules! create_or_remove_path {
     (
         $vm:expr,
@@ -189,6 +180,20 @@ macro_rules! boolean_to_pointer {
             $vm.state.true_object
         } else {
             $vm.state.false_object
+        }
+    };
+}
+
+macro_rules! write_bytes_or_string {
+    ($stream:expr, $pointer:expr) => {
+        if $pointer.is_string() {
+            let buffer = $pointer.string_value()?.as_bytes();
+
+            $stream.write(buffer)
+        } else {
+            let bytes = $pointer.byte_array_value()?;
+
+            $stream.write(&bytes)
         }
     };
 }
@@ -1168,7 +1173,7 @@ impl Machine {
                     let index =
                         int_to_slice_index!(vector, index_ptr.integer_value()?);
 
-                    let value = if index > vector.len() {
+                    let value = if index >= vector.len() {
                         self.state.nil_object
                     } else {
                         vector.remove(index)
@@ -1186,10 +1191,12 @@ impl Machine {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
                     let vector = array_ptr.array_value()?;
-                    let length = vector.len() as i64;
+                    let length = process.allocate_unsigned_integer(
+                        vector.len(),
+                        self.state.integer_prototype,
+                    );
 
-                    context
-                        .set_register(register, ObjectPointer::integer(length));
+                    context.set_register(register, length);
                 }
                 // Removes all elements from an array.
                 //
@@ -1197,9 +1204,8 @@ impl Machine {
                 // array.
                 InstructionType::ArrayClear => {
                     let array_ptr = context.get_register(instruction.arg(0));
-                    let vector = array_ptr.array_value_mut()?;
 
-                    vector.clear();
+                    array_ptr.array_value_mut()?.clear();
                 }
                 // Returns the lowercase equivalent of a string.
                 //
@@ -1267,55 +1273,21 @@ impl Machine {
 
                     context.set_register(register, boolean);
                 }
-                // Returns an array containing the bytes of a string.
+                // Returns a byte array containing the bytes of a given string.
                 //
                 // This instruction requires two arguments:
                 //
                 // 1. The register to store the result in.
                 // 2. The register containing the string to get the bytes
                 //    from.
-                InstructionType::StringToBytes => {
+                InstructionType::StringToByteArray => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
-
-                    let array = string_ptr
-                        .string_value()?
-                        .as_bytes()
-                        .iter()
-                        .map(|&b| ObjectPointer::integer(b as i64))
-                        .collect::<Vec<_>>();
+                    let bytes = string_ptr.string_value()?.as_bytes().to_vec();
 
                     let obj = process.allocate(
-                        object_value::array(array),
-                        self.state.array_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
-                // Creates a string from an array of bytes
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the result in.
-                // 2. The register containing the array of bytes.
-                //
-                // The result of this instruction is either a string based
-                // on the given bytes, or an error object.
-                InstructionType::StringFromBytes => {
-                    let register = instruction.arg(0);
-                    let arg_ptr = context.get_register(instruction.arg(1));
-                    let array = arg_ptr.array_value()?;
-                    let mut bytes = Vec::with_capacity(array.len());
-
-                    for ptr in array.iter() {
-                        bytes.push(ptr.integer_value()? as u8);
-                    }
-
-                    let string = vec_to_string!(bytes);
-
-                    let obj = process.allocate(
-                        object_value::string(string),
-                        self.state.string_prototype,
+                        object_value::byte_array(bytes),
+                        self.state.object_prototype,
                     );
 
                     context.set_register(register, obj);
@@ -1355,17 +1327,15 @@ impl Machine {
                 // This instruction requires two arguments:
                 //
                 // 1. The register to store the amount of written bytes in.
-                // 2. The register containing the string to write.
+                // 2. The register containing the string or byte array to write.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::StdoutWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
-                    let string = string_ptr.string_value()?;
                     let mut stdout = io::stdout();
 
-                    let result = stdout
-                        .write(string.as_bytes())
+                    let result = write_bytes_or_string!(stdout, string_ptr)
                         .and_then(|size| stdout.flush().and_then(|_| Ok(size)));
 
                     match result {
@@ -1404,17 +1374,15 @@ impl Machine {
                 // This instruction requires two arguments:
                 //
                 // 1. The register to store the amount of written bytes in.
-                // 2. The register containing the string to write.
+                // 2. The register containing the string or byte array to write.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::StderrWrite => {
                     let register = instruction.arg(0);
                     let string_ptr = context.get_register(instruction.arg(1));
-                    let string = string_ptr.string_value()?;
                     let mut stderr = io::stderr();
 
-                    let result = stderr
-                        .write(string.as_bytes())
+                    let result = write_bytes_or_string!(stderr, string_ptr)
                         .and_then(|size| stderr.flush().and_then(|_| Ok(size)));
 
                     match result {
@@ -1449,51 +1417,39 @@ impl Machine {
                 }
                 // Reads all the data from STDIN.
                 //
-                // This instruction requires only one argument: the register to
-                // store the read data in as a string.
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the number of read bytes in.
+                // 2. The register containing the byte array to read the data
+                //    into.
+                // 3. The register containing the number of bytes to read. If
+                //    set to nil, all remaining data is read.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::StdinRead => {
                     let register = instruction.arg(0);
-                    let mut buffer = String::new();
+                    let buff_ptr = context.get_register(instruction.arg(1));
+                    let max_bytes = context.get_register(instruction.arg(2));
 
-                    if let Err(err) = io::stdin().read_to_string(&mut buffer) {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
-                        continue;
+                    let mut stdin = io::stdin();
+                    let mut buffer = buff_ptr.byte_array_value_mut()?;
+
+                    match read_from_stream(&mut stdin, &mut buffer, max_bytes) {
+                        ReadResult::Ok(amount) => {
+                            let size_ptr = process.allocate_unsigned_integer(
+                                amount,
+                                self.state.integer_prototype,
+                            );
+
+                            context.set_register(register, size_ptr);
+                        }
+                        ReadResult::Err(err) => {
+                            throw_io_error!(
+                                self, process, err, context, code, index
+                            );
+                        }
+                        ReadResult::Panic(message) => return Err(message),
                     }
-
-                    let obj = process.allocate(
-                        object_value::string(buffer),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
-                // Reads an entire line from STDIN into a string.
-                //
-                // This instruction requires only one argument: the register to
-                // store the read data in as a string.
-                //
-                // This instruction will throw when encountering an IO error.
-                InstructionType::StdinReadLine => {
-                    let register = instruction.arg(0);
-                    let mut buffer = String::new();
-
-                    if let Err(err) = io::stdin().read_line(&mut buffer) {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
-                        continue;
-                    }
-
-                    let obj = process.allocate(
-                        object_value::string(buffer),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
                 }
                 // Opens a file handle in a particular mode (read-only,
                 // write-only, etc).
@@ -1545,18 +1501,17 @@ impl Machine {
                 //
                 // 1. The register to store the amount of written bytes in.
                 // 2. The register containing the file object to write to.
-                // 3. The register containing the string to write.
+                // 3. The register containing the string or byte array to write.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::FileWrite => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let string_ptr = context.get_register(instruction.arg(2));
+                    let value_ptr = context.get_register(instruction.arg(2));
 
                     let file = file_ptr.file_value_mut()?;
-                    let bytes = string_ptr.string_value()?.as_bytes();
 
-                    match file.write(bytes) {
+                    match write_bytes_or_string!(file, value_ptr) {
                         Ok(num_bytes) => {
                             let obj = ObjectPointer::integer(num_bytes as i64);
 
@@ -1569,79 +1524,43 @@ impl Machine {
                         }
                     }
                 }
-                // Reads the all data from a file.
+                // Reads data from a file into an array of bytes.
                 //
-                // This instruction requires two arguments:
+                // This instruction requires three arguments:
                 //
-                // 1. The register to store the read data in as a string.
+                // 1. The register to store the number of read bytes in.
                 // 2. The register containing the file to read from.
+                // 3. The register containing the byte array to read the data
+                //    into.
+                // 4. The register containing the number of bytes to read. If
+                //    set to nil, all remaining data is read.
                 //
                 // This instruction will throw when encountering an IO error.
                 InstructionType::FileRead => {
                     let register = instruction.arg(0);
                     let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value_mut()?;
-                    let mut buffer = Vec::new();
+                    let buff_ptr = context.get_register(instruction.arg(2));
+                    let max_bytes = context.get_register(instruction.arg(3));
 
-                    if let Err(err) = file.read_to_end(&mut buffer) {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
-                        continue;
-                    }
+                    let mut file = file_ptr.file_value_mut()?;
+                    let mut buffer = buff_ptr.byte_array_value_mut()?;
 
-                    let string = vec_to_string!(buffer);
-
-                    let obj = process.allocate(
-                        object_value::string(string),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
-                // Reads an entire line from a file.
-                //
-                // This instruction requires two arguments:
-                //
-                // 1. The register to store the read data in as a string.
-                // 2. The register containing the file to read from.
-                //
-                // This instruction will throw when encountering an IO error.
-                InstructionType::FileReadLine => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let file = file_ptr.file_value_mut()?;
-                    let mut buffer = Vec::new();
-
-                    for result in file.bytes() {
-                        if let Ok(byte) = result {
-                            buffer.push(byte);
-
-                            if byte == 0xA {
-                                break;
-                            }
-                        } else {
-                            throw_io_error!(
-                                self,
-                                process,
-                                result.unwrap_err(),
-                                context,
-                                code,
-                                index
+                    match read_from_stream(&mut file, &mut buffer, max_bytes) {
+                        ReadResult::Ok(amount) => {
+                            let size_ptr = process.allocate_unsigned_integer(
+                                amount,
+                                self.state.integer_prototype,
                             );
 
-                            continue 'exec_loop;
+                            context.set_register(register, size_ptr);
                         }
+                        ReadResult::Err(err) => {
+                            throw_io_error!(
+                                self, process, err, context, code, index
+                            );
+                        }
+                        ReadResult::Panic(message) => return Err(message),
                     }
-
-                    let string = vec_to_string!(buffer);
-
-                    let obj = process.allocate(
-                        object_value::string(string),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
                 }
                 // Flushes a file.
                 //
@@ -2122,76 +2041,6 @@ impl Machine {
                     } else {
                         return Err(format!("No binding for depth {}", depth));
                     }
-                }
-                // Reads a given number of bytes from a file.
-                //
-                // This instruction takes 3 arguments:
-                //
-                // 1. The register to store the read data in as a string.
-                // 2. The register containing the file to read from.
-                // 3. The register containing the number of bytes to read, as a
-                //    positive integer.
-                //
-                // This instruction will throw when encountering an IO error.
-                InstructionType::FileReadExact => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let size_ptr = context.get_register(instruction.arg(2));
-
-                    let file = file_ptr.file_value_mut()?;
-                    let size = size_ptr.integer_value()? as usize;
-                    let mut buffer = Vec::with_capacity(size);
-
-                    if let Err(err) =
-                        file.take(size as u64).read_to_end(&mut buffer)
-                    {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
-                        continue;
-                    }
-
-                    let string = vec_to_string!(buffer);
-
-                    let obj = process.allocate(
-                        object_value::string(string),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
-                }
-                // Reads a given number of bytes from STDIN.
-                //
-                // This instruction takes 2 arguments:
-                //
-                // 1. The register to store the read data in as a string.
-                // 1. The register containing the number of bytes to read, as a
-                //    positive integer.
-                //
-                // This instruction will throw when encountering an IO error.
-                InstructionType::StdinReadExact => {
-                    let register = instruction.arg(0);
-                    let size_ptr = context.get_register(instruction.arg(1));
-
-                    let size = size_ptr.integer_value()? as usize;
-                    let mut buffer = String::with_capacity(size);
-                    let stdin = io::stdin();
-
-                    if let Err(err) =
-                        stdin.take(size as u64).read_to_string(&mut buffer)
-                    {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
-                        continue;
-                    }
-
-                    let obj = process.allocate(
-                        object_value::string(buffer),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
                 }
                 // Checks if two objects are equal.
                 //
@@ -3286,6 +3135,214 @@ impl Machine {
                     );
 
                     context.set_register(register, new_str_ptr);
+                }
+                // Creates a new byte array from an Array of integers.
+                //
+                // This instruction requires two arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing an array of integers to use for
+                //    creating the byte array.
+                //
+                // This instruction will panic if any of the bytes is not in the
+                // range 0..256.
+                InstructionType::ByteArrayFromArray => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+
+                    let integers = array_ptr.array_value()?;
+                    let mut bytes = Vec::with_capacity(integers.len());
+
+                    for value in integers.iter() {
+                        bytes.push(byte_array::integer_to_byte(*value)?);
+                    }
+
+                    let pointer = process.allocate(
+                        object_value::byte_array(bytes),
+                        self.state.object_prototype,
+                    );
+
+                    context.set_register(register, pointer);
+                }
+                // Inserts a value into a byte array.
+                //
+                // This instruction requires four arguments:
+                //
+                // 1. The register to store the written value in, as an integer.
+                // 2. The register containing the byte array to write to.
+                // 3. The register containing the index to store the byte at.
+                // 4. The register containing the integer to store in the byte
+                //    array.
+                //
+                // This instruction will panic if any of the bytes is not in the
+                // range 0..256.
+                //
+                // Unlike ArraySet, this instruction will panic if the index is
+                // out of bounds.
+                InstructionType::ByteArraySet => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
+                    let value_ptr = context.get_register(instruction.arg(3));
+
+                    let bytes = array_ptr.byte_array_value_mut()?;
+                    let index =
+                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+
+                    let value = byte_array::integer_to_byte(value_ptr)?;
+
+                    if index > bytes.len() {
+                        return Err(format!(
+                            "Byte array index {} is out of bounds",
+                            index
+                        ));
+                    }
+
+                    if index == bytes.len() {
+                        bytes.push(value);
+                    } else {
+                        bytes[index] = value;
+                    }
+
+                    context.set_register(register, value_ptr);
+                }
+                // Returns the value at the given position in a byte array.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the value in.
+                // 2. The register containing the byte array to retrieve the
+                //    value from.
+                // 3. The register containing the value index.
+                //
+                // This instruction will set the target register to nil if no
+                // value was found.
+                InstructionType::ByteArrayAt => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
+                    let bytes = array_ptr.byte_array_value()?;
+
+                    let index =
+                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+
+                    let value = bytes
+                        .get(index)
+                        .map(|byte| ObjectPointer::byte(*byte))
+                        .unwrap_or_else(|| self.state.nil_object);
+
+                    context.set_register(register, value);
+                }
+                // Removes a value from a byte array.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the removed value in.
+                // 2. The register containing the byte array to remove a value
+                //    from.
+                // 3. The register containing the index of the value to remove.
+                //
+                // This instruction will set the target register to nil if no
+                // value was removed.
+                InstructionType::ByteArrayRemove => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let index_ptr = context.get_register(instruction.arg(2));
+
+                    let bytes = array_ptr.byte_array_value_mut()?;
+                    let index =
+                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+
+                    let value = if index >= bytes.len() {
+                        self.state.nil_object
+                    } else {
+                        ObjectPointer::byte(bytes.remove(index))
+                    };
+
+                    context.set_register(register, value);
+                }
+                // Gets the amount of elements in a byte array.
+                //
+                // This instruction requires 2 arguments:
+                //
+                // 1. The register to store the length in.
+                // 2. The register containing the byte array.
+                InstructionType::ByteArrayLength => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let bytes = array_ptr.byte_array_value()?;
+                    let length = process.allocate_unsigned_integer(
+                        bytes.len(),
+                        self.state.integer_prototype,
+                    );
+
+                    context.set_register(register, length);
+                }
+                // Removes all elements from a byte array.
+                //
+                // This instruction only requires one argument: the register
+                // containing the byte array to clear.
+                InstructionType::ByteArrayClear => {
+                    let array_ptr = context.get_register(instruction.arg(0));
+
+                    array_ptr.byte_array_value_mut()?.clear();
+                }
+                // Checks two byte arrays for equality.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the result in as a boolean.
+                // 2. The register containing the byte array to compare.
+                // 3. The register containing the byte array to compare with.
+                InstructionType::ByteArrayEquals => {
+                    let register = instruction.arg(0);
+                    let compare_ptr = context.get_register(instruction.arg(1));
+                    let compare_with_ptr =
+                        context.get_register(instruction.arg(2));
+
+                    let result = if compare_ptr.byte_array_value()?
+                        == compare_with_ptr.byte_array_value()?
+                    {
+                        self.state.true_object
+                    } else {
+                        self.state.false_object
+                    };
+
+                    context.set_register(register, result);
+                }
+                // Converts a byte array to a string.
+                //
+                // This instruction requires three arguments:
+                //
+                // 1. The register to store the result in.
+                // 2. The register containing the byte array to convert.
+                // 3. The register containing a boolean indicating if the input
+                //    array should be drained.
+                InstructionType::ByteArrayToString => {
+                    let register = instruction.arg(0);
+                    let array_ptr = context.get_register(instruction.arg(1));
+                    let drain_ptr = context.get_register(instruction.arg(2));
+                    let mut input_bytes = array_ptr.byte_array_value_mut()?;
+
+                    let mut string_bytes =
+                        if drain_ptr == self.state.true_object {
+                            input_bytes.drain(0..).collect()
+                        } else {
+                            input_bytes.clone()
+                        };
+
+                    let string = match String::from_utf8(string_bytes) {
+                        Ok(string) => string,
+                        Err(err) => String::from_utf8_lossy(&err.into_bytes())
+                            .into_owned(),
+                    };
+
+                    let obj = process.allocate(
+                        object_value::string(string),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(register, obj);
                 }
             };
         }

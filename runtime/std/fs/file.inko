@@ -9,6 +9,7 @@
 #! will be given a `ReadOnlyFile` object while opening a file in write-only mode
 #! produces a `WriteOnlyFile` object.
 
+import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, READ_ONLY)
@@ -18,14 +19,18 @@ import std::reflection
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
+  ## Returns the `Path` of the file.
   def path -> Path
 }
 
 ## An object that allows the removal of an associated file on the filesystem.
-trait Remove {}
+trait Remove {
+  ## Removes the file from the underlying file system.
+  def remove !! IOError -> Nil
+}
 
 ## A file that can only be used for read operations.
-object ReadOnlyFile {
+object ReadOnlyFile impl Read, Seek, Size, FilePath, Close {
   ## Returns a new `ReadOnlyFile`.
   ##
   ## # Examples
@@ -50,10 +55,30 @@ object ReadOnlyFile {
   def init(path: Path) {
     let @path = path
   }
+
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
+    try raw.read_bytes(file: self, bytes: bytes, size: size)
+  }
+
+  def seek(position: Integer) !! IOError -> Integer {
+    try raw.seek(self, position)
+  }
+
+  def size !! IOError -> Integer {
+    try raw.size(@path.to_string)
+  }
+
+  def path -> Path {
+    @path
+  }
+
+  def close -> Nil {
+    _INKOC.drop(self)
+  }
 }
 
 ## A file that can only be used for write (or append) operations.
-object WriteOnlyFile {
+object WriteOnlyFile impl Write, Seek, Size, FilePath, Close, Remove {
   ## Returns a new `WriteOnlyFile`.
   ##
   ## # Examples
@@ -79,10 +104,42 @@ object WriteOnlyFile {
   def init(path: Path) {
     let @path = path
   }
+
+  def write_bytes(bytes: ByteArray) !! IOError -> Integer {
+    try raw.write_bytes(file: self, bytes: bytes)
+  }
+
+  def write_string(data: ToString) !! IOError -> Integer {
+    try raw.write_string(file: self, data: data.to_string)
+  }
+
+  def flush !! IOError -> Nil {
+    try raw.flush(self)
+  }
+
+  def seek(position: Integer) !! IOError -> Integer {
+    try raw.seek(self, position)
+  }
+
+  def size !! IOError -> Integer {
+    try raw.size(@path.to_string)
+  }
+
+  def path -> Path {
+    @path
+  }
+
+  def close -> Nil {
+    _INKOC.drop(self)
+  }
+
+  def remove !! IOError -> Nil {
+    try ThisModule.remove(@path)
+  }
 }
 
 ## A file that can be used for both read and write operations.
-object ReadWriteFile {
+object ReadWriteFile impl Read, Write, Seek, Size, FilePath, Close, Remove {
   ## Returns a new `ReadWriteFile`.
   ##
   ## # Examples
@@ -108,129 +165,39 @@ object ReadWriteFile {
   def init(path: Path) {
     let @path = path
   }
-}
 
-impl Read for ReadOnlyFile {
-  def read !! IOError -> String {
-    try raw.read(self)
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
+    try raw.read_bytes(file: self, bytes: bytes, size: size)
   }
 
-  def read_exact(amount: Integer) !! IOError -> String {
-    try raw.read_exact(self, amount)
-  }
-}
-
-impl Read for ReadWriteFile {
-  def read !! IOError -> String {
-    try raw.read(self)
+  def write_bytes(bytes: ByteArray) !! IOError -> Integer {
+    try raw.write_bytes(file: self, bytes: bytes)
   }
 
-  def read_exact(amount: Integer) !! IOError -> String {
-    try raw.read_exact(self, amount)
-  }
-}
-
-impl Write for WriteOnlyFile {
-  def write(data: ToString) !! IOError -> Integer {
-    try raw.write(self, data.to_string)
+  def write_string(data: ToString) !! IOError -> Integer {
+    try raw.write_string(file: self, data: data.to_string)
   }
 
   def flush !! IOError -> Nil {
     try raw.flush(self)
   }
-}
 
-impl Write for ReadWriteFile {
-  def write(data: ToString) !! IOError -> Integer {
-    try raw.write(self, data.to_string)
-  }
-
-  def flush !! IOError -> Nil {
-    try raw.flush(self)
-  }
-}
-
-impl Seek for ReadOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
     try raw.seek(self, position)
   }
-}
 
-impl Seek for WriteOnlyFile {
-  def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(self, position)
-  }
-}
-
-impl Seek for ReadWriteFile {
-  def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(self, position)
-  }
-}
-
-impl Size for ReadOnlyFile {
   def size !! IOError -> Integer {
     try raw.size(@path.to_string)
   }
-}
 
-impl Size for WriteOnlyFile {
-  def size !! IOError -> Integer {
-    try raw.size(@path.to_string)
-  }
-}
-
-impl Size for ReadWriteFile {
-  def size !! IOError -> Integer {
-    try raw.size(@path.to_string)
-  }
-}
-
-impl FilePath for ReadOnlyFile {
   def path -> Path {
     @path
   }
-}
 
-impl FilePath for WriteOnlyFile {
-  def path -> Path {
-    @path
-  }
-}
-
-impl FilePath for ReadWriteFile {
-  def path -> Path {
-    @path
-  }
-}
-
-impl Close for ReadOnlyFile {
   def close -> Nil {
     _INKOC.drop(self)
   }
-}
 
-impl Close for WriteOnlyFile {
-  def close -> Nil {
-    _INKOC.drop(self)
-  }
-}
-
-impl Close for ReadWriteFile {
-  def close -> Nil {
-    _INKOC.drop(self)
-  }
-}
-
-impl Remove for WriteOnlyFile {
-  ## Removes the file.
-  def remove !! IOError -> Nil {
-    try ThisModule.remove(@path)
-  }
-}
-
-impl Remove for ReadWriteFile {
-  ## Removes the file.
   def remove !! IOError -> Nil {
     try ThisModule.remove(@path)
   }

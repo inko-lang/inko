@@ -12,13 +12,21 @@
 #! STDERR more convenient as in almost all (if not all) cases a developer
 #! doesn't care if a write to STDERR succeeds or not.
 
+import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::io::Write
 import std::os::NEWLINE
 import std::process
 
 impl Write for ThisModule {
-  ## Writes the given string-like object to STDERR.
+  ## Writes a `ByteArray` to STDERR, returning the number of bytes written.
+  def write_bytes(bytes: ByteArray) -> Integer {
+    process.blocking {
+      try _INKOC.stderr_write(bytes) else 0
+    }
+  }
+
+  ## Writes a `ToString` to STDERR, returning the number of bytes written.
   ##
   ## # Examples
   ##
@@ -26,8 +34,8 @@ impl Write for ThisModule {
   ##
   ##     import std::stdio::stderr
   ##
-  ##     stderr.write('hello') # => 5
-  def write(data: ToString) -> Integer {
+  ##     stderr.write_string('hello') # => 5
+  def write_string(data: ToString) -> Integer {
     process.blocking {
       try _INKOC.stderr_write(data.to_string) else 0
     }
@@ -42,15 +50,18 @@ impl Write for ThisModule {
   ##     import std::stdio::stderr
   ##
   ##     stderr.print('hello') # => Nil
-  def print(data: ?ToString = Nil) -> Nil {
-    process.blocking {
-      write(data.to_string + NEWLINE)
-    }
-
-    Nil
+  ##
+  ## You can also leave out a message to write, in which case only a newline is
+  ## written:
+  ##
+  ##     import std::stdio::stderr
+  ##
+  ##     stderr.print # => Nil
+  def print(data: ?ToString = Nil) -> Integer {
+    write_string(data.to_string) +
+      write_string(NEWLINE)
   }
 
-  ## Flushes all pending writes to STDERR.
   def flush -> Nil {
     try _INKOC.stderr_flush else Nil
   }

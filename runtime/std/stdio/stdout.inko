@@ -12,13 +12,22 @@
 #! STDOUT more convenient as in almost all (if not all) cases a developer
 #! doesn't care if a write to STDOUT succeeds or not.
 
+import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::io::Write
 import std::os::NEWLINE
 import std::process
 
 impl Write for ThisModule {
-  ## Writes the given string-like object to STDOUT.
+  ## Writes a `ByteArray` of bytes to STDOUT, returning the number of bytes
+  ## written.
+  def write_bytes(bytes: ByteArray) -> Integer {
+    process.blocking {
+      try _INKOC.stdout_write(bytes) else 0
+    }
+  }
+
+  ## Writes a `ToString` to STDOUT, returning the number of bytes written.
   ##
   ## # Examples
   ##
@@ -26,8 +35,8 @@ impl Write for ThisModule {
   ##
   ##     import std::stdio::stdout
   ##
-  ##     stdout.write('hello') # => 5
-  def write(data: ToString) -> Integer {
+  ##     stdout.write_string('hello') # => 5
+  def write_string(data: ToString) -> Integer {
     process.blocking {
       try _INKOC.stdout_write(data.to_string) else 0
     }
@@ -49,15 +58,11 @@ impl Write for ThisModule {
   ##     import std::stdio::stdout
   ##
   ##     stdout.print # => Nil
-  def print(data: ?ToString = Nil) -> Nil {
-    process.blocking {
-      write(data.to_string + NEWLINE)
-    }
-
-    Nil
+  def print(data: ?ToString = Nil) -> Integer {
+    write_string(data.to_string) +
+      write_string(NEWLINE)
   }
 
-  ## Flushes all pending writes to STDOUT.
   def flush -> Nil {
     try _INKOC.stdout_flush else Nil
   }

@@ -3,6 +3,7 @@
 #! The methods in this module should not be used directly, instead they serve as
 #! building blocks for other modules such as `std::fs::file`.
 
+import std::byte_array::ByteArray
 import std::io::(Error as IOError)
 import std::process
 import std::time::(self, SystemTime)
@@ -99,18 +100,15 @@ def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   }
 }
 
-## Reads all data from a raw file.
-def read(file) !! IOError -> String {
-  process.blocking {
-    try _INKOC.file_read(file) else (err) throw IOError.new(err as String)
-  }
-}
-
-## Reads a fixed number of bytes from a raw file.
-def read_exact(file, amount: Integer) !! IOError -> String {
+## Reads a number of bytes from a file into the buffer.
+def read_bytes(
+  file,
+  bytes: ByteArray,
+  size: ?Integer = Nil
+) !! IOError -> Integer {
   process.blocking {
     try {
-      _INKOC.file_read_exact(file, amount)
+      _INKOC.file_read(file, bytes, size)
     } else (err) {
       throw IOError.new(err as String)
     }
@@ -118,10 +116,21 @@ def read_exact(file, amount: Integer) !! IOError -> String {
 }
 
 ## Writes a String to a raw file.
-def write(file, data: String) !! IOError -> Integer {
+def write_string(file, data: String) !! IOError -> Integer {
   process.blocking {
     try {
       _INKOC.file_write(file, data)
+    } else (err) {
+      throw IOError.new(err as String)
+    }
+  }
+}
+
+## Writes a `ByteArray` to a raw file object.
+def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
+  process.blocking {
+    try {
+      _INKOC.file_write(file, bytes)
     } else (err) {
       throw IOError.new(err as String)
     }

@@ -1065,8 +1065,8 @@ module Inkoc
         raw_unary_instruction(:StringToLower, node, body)
       end
 
-      def on_raw_string_to_bytes(node, body)
-        raw_unary_instruction(:StringToBytes, node, body)
+      def on_raw_string_to_byte_array(node, body)
+        raw_unary_instruction(:StringToByteArray, node, body)
       end
 
       def on_raw_string_size(node, body)
@@ -1081,10 +1081,6 @@ module Inkoc
         raw_binary_instruction(:StringEquals, node, body)
       end
 
-      def on_raw_string_from_bytes(node, body)
-        raw_unary_instruction(:StringFromBytes, node, body)
-      end
-
       def on_raw_string_concat(node, body)
         raw_binary_instruction(:StringConcat, node, body)
       end
@@ -1094,15 +1090,7 @@ module Inkoc
       end
 
       def on_raw_stdin_read(node, body)
-        raw_nullary_instruction(:StdinRead, node, body)
-      end
-
-      def on_raw_stdin_read_line(node, body)
-        raw_nullary_instruction(:StdinReadLine, node, body)
-      end
-
-      def on_raw_stdin_read_exact(node, body)
-        raw_unary_instruction(:StdinReadExact, node, body)
+        raw_binary_instruction(:StdinRead, node, body)
       end
 
       def on_raw_stderr_write(node, body)
@@ -1168,15 +1156,7 @@ module Inkoc
       end
 
       def on_raw_file_read(node, body)
-        raw_unary_instruction(:FileRead, node, body)
-      end
-
-      def on_raw_file_read_line(node, body)
-        raw_unary_instruction(:FileReadLine, node, body)
-      end
-
-      def on_raw_file_read_exact(node, body)
-        raw_binary_instruction(:FileReadExact, node, body)
+        raw_ternary_instruction(:FileRead, node, body)
       end
 
       def on_raw_file_seek(node, body)
@@ -1275,6 +1255,40 @@ module Inkoc
 
       def on_raw_string_concat_multiple(node, body)
         raw_unary_instruction(:StringConcatMultiple, node, body)
+      end
+
+      def on_raw_byte_array_from_array(node, body)
+        raw_unary_instruction(:ByteArrayFromArray, node, body)
+      end
+
+      def on_raw_byte_array_set(node, body)
+        raw_ternary_instruction(:ByteArraySet, node, body)
+      end
+
+      def on_raw_byte_array_at(node, body)
+        raw_binary_instruction(:ByteArrayAt, node, body)
+      end
+
+      def on_raw_byte_array_remove(node, body)
+        raw_binary_instruction(:ByteArrayRemove, node, body)
+      end
+
+      def on_raw_byte_array_length(node, body)
+        raw_unary_instruction(:ByteArrayLength, node, body)
+      end
+
+      def on_raw_byte_array_clear(node, body)
+        reg = process_node(node.arguments.fetch(0), body)
+
+        body.instruct(:Nullary, :ByteArrayClear, reg, node.location)
+      end
+
+      def on_raw_byte_array_equals(node, body)
+        raw_binary_instruction(:ByteArrayEquals, node, body)
+      end
+
+      def on_raw_byte_array_to_string(node, body)
+        raw_binary_instruction(:ByteArrayToString, node, body)
       end
 
       def on_return(node, body)

@@ -3,10 +3,11 @@
 #! The IO module provides the basic building blocks for IO operations such as
 #! reading from and writing to a file.
 
+import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::error::StandardError
 import std::os::NEWLINE
-import std::process
+import std::string
 
 ## The object to use when throwing IO related errors.
 ##
@@ -14,13 +15,12 @@ import std::process
 ## have to be changed if we ever decide to use a custom object for errors.
 let Error = StandardError
 
-## A trait providing a common way for disposing of objects.
+## A trait for closing streams, such as files and sockets.
 trait Close {
-  ## Diposes of any external resources that may be associated with `self`.
+  ## Closes the stream.
   ##
-  ## Sending `close` multiple times to the same object is allowed and should not
-  ## result in any errors being thrown or panics being triggered.
-  def close -> Nil
+  ## After a stream is closed, any reads or writes might panic.
+  def close !! Error -> Nil
 }
 
 ## Trait for retrieving the size of an IO object.
@@ -28,34 +28,47 @@ trait Size {
   def size !! Error -> Integer
 }
 
-## Trait for performing read operations on an object.
+## Trait for reading from a stream.
 trait Read {
-  ## Reads all available data and returns it as a `String`.
-  def read !! Error -> String
-
-  ## Reads up to the given number of bytes, returning them as a `String`.
+  ## Reads bytes from a stream into a `ByteArray`.
   ##
-  ## The read `String` may be smaller than the given number of bytes.
-  def read_exact(amount: Integer) !! Error -> String
+  ## The return value is the number of bytes read.
+  ##
+  ## If no argument is given, all remaining data is to be read. If the `size`
+  ## argument is given, up to `size` bytes will be read from the stream.
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! Error -> Integer
+
+  ## Reads data from a stream into a `String`.
+  ##
+  ## If no argument is given, all remaining data is to be read. If the `size`
+  ## argument is given, up to `size` bytes will be read from the stream.
+  def read_string(size: ?Integer = Nil) !! Error -> String {
+    let bytes = ByteArray.new
+
+    try read_bytes(bytes: bytes, size: size)
+
+    bytes.drain_to_string
+  }
 }
 
-## Trait for performing write operations on an object.
+## Trait for writing to a stream.
 trait Write {
-  ## Writes the given object to the output stream, returning the number of bytes
-  ## that were written.
-  def write(data: ToString) !! Error -> Integer
+  ## Writes an `Array` of bytes to the stream, returning the number of bytes
+  ## written.
+  def write_bytes(bytes: ByteArray) !! Error -> Integer
 
-  ## Writes the given `String` and a trailing newline to the object.
-  def print(data: ?ToString = Nil) !! Error -> Nil {
-    process.blocking {
-      try write(data.to_string + NEWLINE)
-    }
-
-    Nil
-  }
+  ## Writes a `ToString` to the stream, returning the number of bytes written.
+  def write_string(string: ToString) !! Error -> Integer
 
   ## Flushes any pending writes.
   def flush !! Error -> Nil
+
+  ## Writes the given `String` to the stream, followed by a line separator.
+  ##
+  ## The return value is the number of bytes written to the stream.
+  def print(data: ?ToString = Nil) !! Error -> Integer {
+    ( try write_string(data.to_string) ) + ( try write_string(NEWLINE) )
+  }
 }
 
 ## Trait for seeking to a given offset in a stream of bytes.
@@ -63,6 +76,3 @@ trait Seek {
   ## Seeks to the given byte offset, returning the new offset.
   def seek(position: Integer) !! Error -> Integer
 }
-
-## Trait for performing both read and write operations on an object.
-trait ReadWrite: Read + Write {}

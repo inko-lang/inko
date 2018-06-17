@@ -63,6 +63,9 @@ pub trait CopyObject: Sized {
             ObjectValue::Hasher(ref hasher) => {
                 ObjectValue::Hasher((*hasher).clone())
             }
+            ObjectValue::ByteArray(ref byte_array) => {
+                ObjectValue::ByteArray(byte_array.clone())
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

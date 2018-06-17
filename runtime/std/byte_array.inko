@@ -1,0 +1,387 @@
+#! Arrays of bytes
+#!
+#! Byte arrays are arrays specialised for storing individual bytes in the most
+#! efficient way possible. Unlike a regular `Array` of `Integer` values, each
+#! value only requires a single byte of space, instead of requiring 8 bytes of
+#! space.
+#!
+#! Byte arrays are primarily meant for reading and writing data from/to a
+#! stream, such as a file or a socket. If you simply want to store a list of
+#! numbers, you're better off using the `Array` object.
+import std::conversion::ToArray
+import std::conversion::ToString
+import std::format::(self, Formatter, Inspect)
+import std::index::(Index, SetIndex)
+import std::iterator::(Iterator as IteratorTrait)
+import std::length::Length
+import std::operators::Equal
+import std::reflection
+
+object ByteArray
+  impl ToArray!(Integer),
+       ToString,
+       Equal,
+       Length,
+       Index!(Integer, Integer),
+       SetIndex!(Integer, Integer),
+       Inspect {
+  ## Creates a new `ByteArray` from the given `Array` of `Integer` values.
+  ##
+  ## This method will panic if any of the integers in the `bytes` array are not
+  ## in the range `0..256`.
+  ##
+  ## # Examples
+  ##
+  ## Creating an empty `ByteArray`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new
+  ##
+  ## Creating a `ByteArray` from a list of `Integer` values:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new([10, 20, 30])
+  def new(bytes: Array!(Integer) = []) -> Self {
+    let byte_array = _INKOC.byte_array_from_array(bytes)
+
+    reflection.set_prototype(byte_array, self)
+
+    byte_array as ByteArray
+  }
+
+  ## Removes all values from this `ByteArray`.
+  ##
+  ## # Examples
+  ##
+  ## Removing all values:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10, 20, 30])
+  ##
+  ##     bytes.clear
+  ##     bytes.length # => 0
+  def clear -> Self {
+    _INKOC.byte_array_clear(self)
+    self
+  }
+
+  ## Pushes a value to the back of the `ByteArray`, returning the pushed value.
+  ##
+  ## # Examples
+  ##
+  ## Pushing a value into a `ByteArray`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new
+  ##
+  ##     bytes.push(10) # => 10
+  ##     bytes.length   # => 1
+  def push(value: Integer) -> Integer {
+    self[length] = value
+  }
+
+  ## Removes a value from the back of the `ByteArray`, returning the removed
+  ## value.
+  ##
+  ## If no value was found, `Nil` is returned instead.
+  ##
+  ## ## Examples
+  ##
+  ## Popping an existing value:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10])
+  ##
+  ##     bytes.pop    # => 10
+  ##     bytes.length # => 0
+  ##
+  ## Popping a value when the `ByteArray` is empty:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new
+  ##
+  ##     bytes.pop # => Nil
+  def pop -> ?Integer {
+    (length > 0).if true: {
+      remove_at(length - 1)
+    }, false: {
+      Nil
+    }
+  }
+
+  ## Removes the value at the given index, returning the removed value.
+  ##
+  ## This method will return `Nil` if no value was removed.
+  ##
+  ## # Examples
+  ##
+  ## Removing an existing value:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10])
+  ##
+  ##     bytes.remove_at(0) # => 10
+  ##     bytes.length       # => 0
+  ##
+  ## Removing a non-existing value:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new
+  ##
+  ##     bytes.remove_at(0) # => Nil
+  def remove_at(index: Integer) -> ?Integer {
+    _INKOC.byte_array_remove(self, index)
+  }
+
+  ## Yields all the bytes in this `ByteArray` to the supplied `Block`.
+  ##
+  ## While `std::iterator::Iterator` provides an `each` method using this would
+  ## require the allocation of an `Iterator`. Since iterating over an
+  ## `ByteArray` is so common we provide a specialised implementation for those
+  ## cases.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over all the values in a `ByteArray`:
+  ##
+  ##     import std::stdio::stdout
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new([10, 20, 30]).each do (byte) {
+  ##       stdout.print(byte)
+  ##     }
+  def each(block: do (Integer)) {
+    let mut index = 0
+    let max = length
+
+    { index < max }.while_true {
+      let value = self[index]
+
+      block.call(*value)
+
+      index += 1
+    }
+  }
+
+  ## Yields all the values and their indexes in this `ByteArray` to the supplied
+  ## `Block`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over the values of an `ByteArray` and their indexes:
+  ##
+  ##     import std::stdio::stdout
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new([10, 20, 30]).each_with_index do (byte, index) {
+  ##       stdout.print(index) # => 0, 1, 2
+  ##     }
+  def each_with_index(block: do (Integer, Integer)) {
+    let mut index = 0
+
+    each do (value) {
+      block.call(value, index)
+      index += 1
+    }
+  }
+
+  ## Returns the byte at the given index, or Nil if no value was found.
+  ##
+  ## # Examples
+  ##
+  ## Retrieving an existing byte:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10, 20])
+  ##
+  ##     bytes[0] # => 10
+  ##
+  ## Using an out of bounds index:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10, 20])
+  ##
+  ##     bytes[5] # => Nil
+  def [](index: Integer) -> ?Integer {
+    index >= length
+      .if true: {
+        Nil
+      }, false: {
+        _INKOC.byte_array_at(self, index)
+      }
+  }
+
+  ## Stores a byte at the given index, then returns it.
+  ##
+  ## Because there are no sensible values that can be used for padding a
+  ## `ByteArray` (unlike a regular `Array`, where we can use a `Nil`), this
+  ## method will panic if the supplied index is out of bounds.
+  ##
+  ## # Examples
+  ##
+  ## Setting the value of an existing index:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([10, 20])
+  ##
+  ##     bytes[0] = 30 # => 30
+  ##     bytes[0]      # => 30
+  def []=(index: Integer, value: Integer) -> Integer {
+    _INKOC.byte_array_set(self, index, value)
+  }
+
+  ## Returns a new `String` using the bytes in this `ByteArray`.
+  ##
+  ## Any invalid UTF-8 sequences will be replaced with `U+FFFD REPLACEMENT
+  ## CHARACTER`, which looks like this: �
+  ##
+  ## # Examples
+  ##
+  ## Converting a `ByteArray` into a `String`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##
+  ##     bytes.to_string # => 'inko'
+  def to_string -> String {
+    _INKOC.byte_array_to_string(self, False)
+  }
+
+  ## Returns a new `String` using the bytes in this `ByteArray`, draining it in
+  ## the process.
+  ##
+  ## After this method is finished, `self` is left empty. This allows one to
+  ## convert a temporary `ByteArray` into a `String`, without requiring the list
+  ## of bytes to be allocated twice.
+  ##
+  ## # Examples
+  ##
+  ## Draining a `ByteArray` into a `String`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##
+  ##     bytes.drain_to_string # => 'inko'
+  ##     bytes.empty?          # => True
+  def drain_to_string -> String {
+    _INKOC.byte_array_to_string(self, True)
+  }
+
+  ## Converts the `ByteArray` to an `Array!(Integer)`.
+  ##
+  ## It is recommended to not use this method for very large byte arrays, as
+  ## an `Integer` requires 8 times more memory compared to a single byte. This
+  ## means that a 1 MB `ByteArray` would require roughly 8 MB of memory.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `ByteArray`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##
+  ##     bytes.to_array # => [105, 110, 107, 111]
+  def to_array -> Array!(Integer) {
+    let integers = []
+
+    # This fills up the Array with zeroes, removing the need for reallocating
+    # the memory when inserting bytes into the array.
+    integers[length - 1] = 0
+
+    each_with_index do (byte, index) {
+      integers[index] = byte
+    }
+
+    integers
+  }
+
+  ## Returns `True` if two `ByteArray` objects are equal to each other.
+  ##
+  ## Two `ByteArray` objects are considered equal if they have the exact same
+  ## values in the exact same order.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `ByteArray` objects:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new([10]) == ByteArray.new([10]) # => True
+  ##     ByteArray.new([10]) == ByteArray.new([20]) # => False
+  def ==(other: ByteArray) -> Boolean {
+    _INKOC.byte_array_equals(self, other)
+  }
+
+  ## Returns the number of bytes in this `ByteArray`.
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the length of a `ByteArray`
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     ByteArray.new.length       # => 0
+  ##     ByteArray.new([10]).length # => 1
+  def length -> Integer {
+    _INKOC.byte_array_length(self)
+  }
+
+  ## Formats this `ByteArray` into a human-readable representation.
+  def format(formatter: Formatter) {
+    formatter.push('ByteArray { ')
+    formatter.push(length.to_string)
+    formatter.push(' bytes }')
+  }
+}
+
+impl String {
+  ## Returns a `ByteArray` containing the bytes of this `String`.
+  def to_byte_array -> ByteArray {
+    let bytes = _INKOC.string_to_byte_array(self)
+
+    reflection.set_prototype(bytes, ByteArray)
+
+    bytes as ByteArray
+  }
+}
+
+## An iterator over a `ByteArray`.
+object Iterator impl IteratorTrait!(Integer) {
+  def init(bytes: ByteArray) {
+    let @bytes = bytes
+    let mut @index = 0
+  }
+
+  def next? -> Boolean {
+    @index < @bytes.length
+  }
+
+  def next -> ?Integer {
+    let value = @bytes[@index]
+
+    @index += 1
+
+    value
+  }
+}
+
+impl ByteArray {
+  ## Returns an `Iterator` that iterates over all values in `self`.
+  def iter -> Iterator {
+    Iterator.new(self)
+  }
+}

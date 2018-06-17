@@ -1,3 +1,4 @@
+use rug::Integer;
 use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -220,6 +221,37 @@ impl Process {
 
     pub fn allocate_empty(&self) -> ObjectPointer {
         self.local_data_mut().allocator.allocate_empty()
+    }
+
+    pub fn allocate_unsigned_integer(
+        &self,
+        raw_value: usize,
+        prototype: ObjectPointer,
+    ) -> ObjectPointer {
+        // Obtaining the length of a slice or performing similar operations will
+        // typically produce a "usize" value.
+        //
+        // The below checks operate on an i64 value to ensure that a small
+        // enough unsigned integer can fit in a tagged integer, which use a i64
+        // under the hoods. Due to these checks casting types for their
+        // comparisons, using a "usize" as the input could result in an integer
+        // being heap allocated on a 32 bits platform when not strictly
+        // necessary. To work around this we force the input number to be a u64,
+        // ensuring our input value is of a fixed size regardless of the
+        // platform.
+        let value = raw_value as u64;
+
+        if ObjectPointer::unsigned_integer_as_big_integer(value) {
+            // The value is too large to fit in a i64, so we need to allocate it
+            // as a big integer.
+            self.allocate(object_value::bigint(Integer::from(value)), prototype)
+        } else if ObjectPointer::unsigned_integer_too_large(value) {
+            // The value is small enough that it can fit in an i64, but not
+            // small enough that it can fit in a _tagged_ i64.
+            self.allocate(object_value::integer(value as i64), prototype)
+        } else {
+            ObjectPointer::integer(value as i64)
+        }
     }
 
     pub fn allocate(

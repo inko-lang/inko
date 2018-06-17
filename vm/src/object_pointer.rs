@@ -115,6 +115,10 @@ impl ObjectPointer {
         }
     }
 
+    pub fn byte(value: u8) -> ObjectPointer {
+        Self::integer(value as i64)
+    }
+
     /// Returns `true` if the given unsigned integer is too large for a tagged
     /// pointer.
     pub fn unsigned_integer_too_large(value: u64) -> bool {
@@ -515,6 +519,14 @@ impl ObjectPointer {
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &Integer);
     def_value_getter!(hasher_value_mut, get_mut, as_hasher_mut, &mut Hasher);
+
+    def_value_getter!(byte_array_value, get, as_byte_array, &Vec<u8>);
+    def_value_getter!(
+        byte_array_value_mut,
+        get_mut,
+        as_byte_array_mut,
+        &mut Vec<u8>
+    );
 }
 
 impl ObjectPointerPointer {
@@ -616,6 +628,13 @@ mod tests {
         let pointer = ObjectPointer::null();
 
         assert_eq!(pointer.raw.raw as usize, 0x0);
+    }
+
+    #[test]
+    fn test_byte() {
+        let pointer = ObjectPointer::byte(5);
+
+        assert_eq!(pointer.integer_value().unwrap(), 5);
     }
 
     #[test]
