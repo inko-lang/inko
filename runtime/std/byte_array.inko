@@ -298,12 +298,14 @@ object ByteArray
   def to_array -> Array!(Integer) {
     let integers = []
 
-    # This fills up the Array with zeroes, removing the need for reallocating
-    # the memory when inserting bytes into the array.
-    integers[length - 1] = 0
+    length.positive?.if_true {
+      # This fills up the Array with zeroes, removing the need for reallocating
+      # the memory when inserting bytes into the array.
+      integers[length - 1] = 0
 
-    each_with_index do (byte, index) {
-      integers[index] = byte
+      each_with_index do (byte, index) {
+        integers[index] = byte
+      }
     }
 
     integers
