@@ -14,6 +14,7 @@ pub struct Chunk<T> {
     vec: RawVec<T>,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
         let mut chunk = Chunk {

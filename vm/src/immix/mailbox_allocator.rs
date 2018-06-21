@@ -32,9 +32,9 @@ impl MailboxAllocator {
         );
 
         MailboxAllocator {
-            global_allocator: global_allocator,
+            global_allocator,
             bucket: Bucket::with_age(MAILBOX),
-            config: config,
+            config,
         }
     }
 

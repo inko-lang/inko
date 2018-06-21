@@ -25,9 +25,9 @@ impl Block {
         global_scope: GlobalScopePointer,
     ) -> Self {
         Block {
-            code: code,
-            binding: binding,
-            global_scope: global_scope,
+            code,
+            binding,
+            global_scope,
         }
     }
 

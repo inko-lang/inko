@@ -1,8 +1,9 @@
 //! Scopes for module-local global variables.
-use std::cell::UnsafeCell;
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
+use std::cell::UnsafeCell;
 
 /// A GlobalScope contains all the global variables defined in a module.
 ///
@@ -53,6 +54,7 @@ impl GlobalScope {
         unsafe { &*self.variables.get() }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn locals_mut(&self) -> &mut Vec<ObjectPointer> {
         unsafe { &mut *self.variables.get() }
     }

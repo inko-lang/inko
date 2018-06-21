@@ -23,7 +23,7 @@ impl<T> DerefPointer<T> {
         }
     }
 
-    pub fn is_null(&self) -> bool {
+    pub fn is_null(self) -> bool {
         self.pointer.is_null()
     }
 }

@@ -27,7 +27,7 @@ impl GenerationConfig {
             block_allocations: 0,
             collect: false,
             growth_threshold: percentage,
-            growth_factor: growth_factor,
+            growth_factor,
         }
     }
 

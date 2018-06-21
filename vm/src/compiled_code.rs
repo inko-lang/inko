@@ -66,16 +66,16 @@ impl CompiledCode {
         instructions: Vec<Instruction>,
     ) -> CompiledCode {
         CompiledCode {
-            name: name,
-            file: file,
-            line: line,
+            name,
+            file,
+            line,
             arguments: Vec::new(),
             required_arguments: 0,
             rest_argument: false,
             locals: 0,
             registers: 0,
             captures: false,
-            instructions: instructions,
+            instructions,
             literals: Vec::new(),
             code_objects: Vec::new(),
             catch_table: CatchTable::new(),
@@ -145,9 +145,9 @@ impl CompiledCode {
         }
     }
 
-    pub fn argument_position(&self, name: &ObjectPointer) -> Option<usize> {
+    pub fn argument_position(&self, name: ObjectPointer) -> Option<usize> {
         for (index, arg) in self.arguments.iter().enumerate() {
-            if name == arg {
+            if name == *arg {
                 return Some(index);
             }
         }

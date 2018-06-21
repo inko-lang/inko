@@ -2,6 +2,8 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+
 use parking_lot::{Mutex, MutexGuard};
 use rayon::prelude::*;
 
@@ -62,7 +64,7 @@ impl Bucket {
         Bucket {
             blocks: BlockList::new(),
             current_block: DerefPointer::null(),
-            age: age,
+            age,
             available_histogram: Histogram::new(MAX_HOLES),
             mark_histogram: Histogram::new(LINES_PER_BLOCK),
             promote: false,

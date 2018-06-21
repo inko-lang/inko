@@ -18,7 +18,7 @@ const TYPE_DIRECTORY: i64 = 2;
 
 macro_rules! map_io {
     ($op:expr) => {{
-        $op.map_err(|err| error_messages::from_io_error(err))
+        $op.map_err(|err| error_messages::from_io_error(&err))
     }};
 }
 
@@ -26,10 +26,7 @@ macro_rules! map_io {
 ///
 /// The `kind` argument specifies whether the creation, modification or access
 /// time should be retrieved.
-pub fn date_time_for_path(
-    path: &String,
-    kind: i64,
-) -> Result<DateTime, String> {
+pub fn date_time_for_path(path: &str, kind: i64) -> Result<DateTime, String> {
     let meta = map_io!(fs::metadata(path))?;
 
     let system_time = match kind {
@@ -43,7 +40,7 @@ pub fn date_time_for_path(
 }
 
 /// Returns the type of the given path.
-pub fn type_of_path(path: &String) -> i64 {
+pub fn type_of_path(path: &str) -> i64 {
     if let Ok(meta) = map_io!(fs::metadata(path)) {
         if meta.is_dir() {
             TYPE_DIRECTORY
@@ -62,7 +59,7 @@ pub fn type_of_path(path: &String) -> i64 {
 pub fn list_directory_as_pointers(
     state: &RcState,
     process: &RcProcess,
-    path: &String,
+    path: &str,
 ) -> Result<ObjectPointer, String> {
     let mut paths = Vec::new();
 

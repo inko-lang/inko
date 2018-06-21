@@ -24,7 +24,7 @@ unsafe impl<T> Send for ArcWithoutWeak<T> {}
 impl<T> ArcWithoutWeak<T> {
     pub fn new(value: T) -> Self {
         let inner = Inner {
-            value: value,
+            value,
             references: AtomicUsize::new(1),
         };
 

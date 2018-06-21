@@ -43,7 +43,7 @@ impl Mailbox {
             return (false, Some(pointer));
         }
 
-        if self.internal.len() == 0 {
+        if self.internal.is_empty() {
             let _lock = self.write_lock.lock();
 
             self.internal
@@ -54,7 +54,7 @@ impl Mailbox {
     }
 
     pub fn has_local_pointers(&self) -> bool {
-        self.locals.len() > 0
+        !self.locals.is_empty()
     }
 
     pub fn mailbox_pointers(&self) -> WorkList {
@@ -70,7 +70,7 @@ impl Mailbox {
     pub fn local_pointers(&self) -> WorkList {
         let mut pointers = WorkList::new();
 
-        for pointer in self.locals.iter() {
+        for pointer in &self.locals {
             pointers.push(pointer.pointer());
         }
 
@@ -82,12 +82,12 @@ impl Mailbox {
     /// This method should only be called when the owning processes is suspended
     /// as otherwise the counts returned could be inaccurate.
     pub fn has_messages(&self) -> bool {
-        if self.locals.len() > 0 || self.internal.len() > 0 {
+        if !self.locals.is_empty() || !self.internal.is_empty() {
             return true;
         }
 
         let _lock = self.write_lock.lock();
 
-        self.external.len() > 0
+        !self.external.is_empty()
     }
 }

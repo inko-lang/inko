@@ -73,7 +73,7 @@ pub fn trace_pointers_with_moving(
     mature: bool,
 ) -> TraceResult {
     let local_data = process.local_data();
-    let ref allocator = local_data.allocator;
+    let allocator = &local_data.allocator;
     let mut marked = 0;
     let mut evacuated = 0;
     let mut promoted = 0;
@@ -88,7 +88,7 @@ pub fn trace_pointers_with_moving(
         match pointer.status() {
             ObjectStatus::Resolve => pointer.resolve_forwarding_pointer(),
             ObjectStatus::Promote => {
-                let ref bucket = allocator.mature_generation;
+                let bucket = &allocator.mature_generation;
 
                 move_object!(bucket, pointer, Promote, {
                     promote_mature(process, pointer);

@@ -1,4 +1,5 @@
 //! Types and methods for hashing objects.
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use rug::Integer;
 use std::collections::hash_map::DefaultHasher;
@@ -39,7 +40,7 @@ impl Hasher {
         value.hash(&mut self.hasher);
     }
 
-    pub fn write_string(&mut self, value: &String) {
+    pub fn write_string(&mut self, value: &str) {
         value.hash(&mut self.hasher);
     }
 

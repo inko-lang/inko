@@ -2,7 +2,7 @@ use colored::*;
 use process::RcProcess;
 
 /// Prints a runtime panic to STDERR.
-pub fn display_panic(process: &RcProcess, message: String) {
+pub fn display_panic(process: &RcProcess, message: &str) {
     let mut frames = Vec::new();
 
     for context in process.context().contexts() {

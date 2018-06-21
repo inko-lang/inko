@@ -162,18 +162,18 @@ impl State {
             Pools::new(config.primary_threads, config.secondary_threads);
 
         let state = State {
-            config: config,
+            config,
             process_table: RwLock::new(ProcessTable::new()),
-            process_pools: process_pools,
-            gc_pool: gc_pool,
-            finalizer_pool: finalizer_pool,
+            process_pools,
+            gc_pool,
+            finalizer_pool,
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),
             start_time: time::Instant::now(),
             exit_status: Mutex::new(0),
             suspension_list: SuspensionList::new(),
-            top_level: top_level,
+            top_level,
             object_prototype: object_proto,
             integer_prototype: integer_proto,
             float_prototype: float_proto,
@@ -193,10 +193,10 @@ impl State {
     /// If the pointer is already interned it's simply returned.
     pub fn intern_pointer(
         &self,
-        pointer: &ObjectPointer,
+        pointer: ObjectPointer,
     ) -> Result<ObjectPointer, String> {
         if pointer.is_interned_string() {
-            Ok(*pointer)
+            Ok(pointer)
         } else {
             Ok(self.intern(pointer.string_value()?))
         }
@@ -205,6 +205,7 @@ impl State {
     /// Interns a borrowed String.
     ///
     /// If a string was not yet interned it's allocated in the permanent space.
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn intern(&self, string: &String) -> ObjectPointer {
         intern_string!(self, string, string.clone())
     }
@@ -270,7 +271,7 @@ mod tests {
                 object_value::interned_string("hello".to_string()),
             );
 
-        assert!(state.intern_pointer(&string).unwrap() == string);
+        assert!(state.intern_pointer(string).unwrap() == string);
     }
 
     #[test]
@@ -278,7 +279,7 @@ mod tests {
         let state = State::new(Config::new());
         let string = state.permanent_allocator.lock().allocate_empty();
 
-        assert!(state.intern_pointer(&string).is_err());
+        assert!(state.intern_pointer(string).is_err());
     }
 
     #[test]

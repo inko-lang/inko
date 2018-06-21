@@ -47,10 +47,10 @@ impl Request {
         };
 
         Request {
-            vm_state: vm_state,
-            collection_type: collection_type,
-            process: process,
-            profile: profile,
+            vm_state,
+            collection_type,
+            process,
+            profile,
         }
     }
 

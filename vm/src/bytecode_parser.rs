@@ -13,6 +13,7 @@
 //!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
 use rug::Integer;
+use std::f64;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Bytes;
@@ -105,7 +106,7 @@ pub fn parse_file(state: &RcState, path: &str) -> BytecodeResult {
 ///     let result = bytecode_parser::parse(&state, &mut bytes);
 pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
     // Verify the bytecode signature.
-    for expected in SIGNATURE_BYTES.iter() {
+    for expected in &SIGNATURE_BYTES {
         let byte = try_byte!(bytes.next(), InvalidSignature);
 
         if byte != *expected {
@@ -164,6 +165,7 @@ fn read_bool<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<bool> {
     Ok(u8::from_be(value) == 1)
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     let mut buff: [u8; 2] = [0, 0];
 
@@ -176,6 +178,7 @@ fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     Ok(u16::from_be(value))
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_u16_as_usize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<usize> {
     let mut buff: [u8; 2] = [0, 0];
 
@@ -188,6 +191,7 @@ fn read_u16_as_usize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<usize> {
     Ok(u16::from_be(value) as usize)
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -204,6 +208,7 @@ fn read_u64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u64> {
     Ok(read_i64(bytes)? as u64)
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -212,9 +217,8 @@ fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
     }
 
     let int: u64 = u64::from_be(unsafe { mem::transmute(buff) });
-    let float: f64 = unsafe { mem::transmute(int) };
 
-    Ok(float)
+    Ok(f64::from_bits(int))
 }
 
 fn read_vector<V, T: Read>(
@@ -287,19 +291,19 @@ fn read_compiled_code<T: Read>(
     let catch_table = read_catch_table(bytes)?;
 
     Ok(CompiledCode {
-        name: name,
-        file: file,
-        line: line,
+        name,
+        file,
+        line,
         arguments: args,
         required_arguments: req_args,
         rest_argument: rest_arg,
-        locals: locals,
-        registers: registers,
-        captures: captures,
-        instructions: instructions,
-        literals: literals,
-        code_objects: code_objects,
-        catch_table: catch_table,
+        locals,
+        registers,
+        captures,
+        instructions,
+        literals,
+        code_objects,
+        catch_table,
     })
 }
 
@@ -358,7 +362,7 @@ fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
         entries.push(read_catch_entry(bytes)?);
     }
 
-    Ok(CatchTable { entries: entries })
+    Ok(CatchTable { entries })
 }
 
 fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {

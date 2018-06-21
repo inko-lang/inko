@@ -8,7 +8,7 @@ use vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     let local_data = process.local_data_mut();
-    let ref mut mailbox = local_data.mailbox;
+    let mailbox = &mut local_data.mailbox;
 
     profile.prepare.start();
 
@@ -34,7 +34,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     vm_state.process_pools.schedule(process.clone());
 
     profile.total.stop();
-    profile.populate_tracing_statistics(trace_result);
+    profile.populate_tracing_statistics(&trace_result);
 }
 
 pub fn trace(

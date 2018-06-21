@@ -48,10 +48,8 @@ pub trait CopyObject: Sized {
             }
             ObjectValue::Block(ref block) => {
                 let new_binding = block.binding.clone_to(self);
-                let new_scope = block.global_scope.clone();
-
-                let new_block =
-                    Block::new(block.code.clone(), new_binding, new_scope);
+                let new_scope = block.global_scope;
+                let new_block = Block::new(block.code, new_binding, new_scope);
 
                 object_value::block(new_block)
             }
@@ -96,6 +94,7 @@ pub trait CopyObject: Sized {
     ///
     /// This will copy over the object to the current heap, while _moving_ all
     /// related data from the old object into the new one.
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     fn move_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
         if to_copy_ptr.is_permanent() {
             return to_copy_ptr;

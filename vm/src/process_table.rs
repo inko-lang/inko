@@ -31,6 +31,8 @@
 //! available PIDs. This can happen when many processes are added and kept
 //! around. Callers should ensure they can handle such a scenario.
 
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+
 use std::collections::HashMap;
 use std::usize;
 
@@ -67,9 +69,7 @@ impl<T: Clone> ProcessTable<T> {
     ///
     /// If no PID could be reserved a None value is returned.
     pub fn reserve(&mut self) -> Option<PID> {
-        let available = self.processes.len() < MAX_PID;
-
-        while available {
+        while self.processes.len() < MAX_PID {
             let pid = self.next_pid();
 
             if self.recycle && self.processes.contains_key(&pid) {
@@ -90,16 +90,16 @@ impl<T: Clone> ProcessTable<T> {
     }
 
     /// Releases a PID.
-    pub fn release(&mut self, pid: &PID) {
-        self.processes.remove(pid);
+    pub fn release(&mut self, pid: PID) {
+        self.processes.remove(&pid);
     }
 
     /// Returns the process for a given PID.
-    pub fn get(&self, pid: &PID) -> Option<T> {
-        if let Some(slot) = self.processes.get(pid) {
-            match slot {
-                &Some(ref process) => Some(process.clone()),
-                &None => None,
+    pub fn get(&self, pid: PID) -> Option<T> {
+        if let Some(slot) = self.processes.get(&pid) {
+            match *slot {
+                Some(ref process) => Some(process.clone()),
+                None => None,
             }
         } else {
             None
@@ -167,7 +167,7 @@ mod tests {
 
         table.map(pid, 10);
 
-        assert_eq!(table.get(&pid).unwrap(), 10);
+        assert_eq!(table.get(pid).unwrap(), 10);
     }
 
     #[test]
@@ -176,24 +176,24 @@ mod tests {
         let pid = table.reserve().unwrap();
 
         table.map(pid, 10);
-        table.release(&pid);
+        table.release(pid);
 
-        assert!(table.get(&pid).is_none());
+        assert!(table.get(pid).is_none());
     }
 
     #[test]
     fn test_get() {
         let mut table = ProcessTable::new();
 
-        assert!(table.get(&0).is_none());
+        assert!(table.get(0).is_none());
 
         let pid = table.reserve().unwrap();
 
-        assert!(table.get(&pid).is_none());
+        assert!(table.get(pid).is_none());
 
         table.map(pid, 10);
 
-        assert!(table.get(&pid).is_some());
-        assert_eq!(table.get(&pid).unwrap(), 10);
+        assert!(table.get(pid).is_some());
+        assert_eq!(table.get(pid).unwrap(), 10);
     }
 }

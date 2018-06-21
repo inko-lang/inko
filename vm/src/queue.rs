@@ -7,6 +7,8 @@
 //!
 //! Values are processed in FIFO order.
 
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+
 use arc_without_weak::ArcWithoutWeak;
 use parking_lot::{Condvar, Mutex};
 use std::collections::VecDeque;
@@ -23,6 +25,7 @@ pub struct Queue<T> {
 
 pub type RcQueue<T> = ArcWithoutWeak<Queue<T>>;
 
+#[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Queue<T> {
     /// Returns a new Queue.
     pub fn new() -> Self {
@@ -79,7 +82,7 @@ impl<T> Queue<T> {
 
         let mut inner = self.inner.lock();
 
-        while inner.values.len() == 0 {
+        while inner.values.is_empty() {
             if inner.terminate {
                 return Err(());
             }

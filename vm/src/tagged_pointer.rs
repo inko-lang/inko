@@ -4,8 +4,6 @@
 //! of the lower 2 bits set (or unset).
 
 use std::hash::{Hash, Hasher};
-
-use std::mem::transmute;
 use std::ptr;
 
 /// The mask to use for untagging a pointer.
@@ -20,7 +18,7 @@ pub struct TaggedPointer<T> {
 impl<T> TaggedPointer<T> {
     /// Returns a new TaggedPointer without setting any bits.
     pub fn new(raw: *mut T) -> TaggedPointer<T> {
-        TaggedPointer { raw: raw }
+        TaggedPointer { raw }
     }
 
     /// Returns a new TaggedPointer with the given bit set.
@@ -40,18 +38,18 @@ impl<T> TaggedPointer<T> {
     }
 
     /// Returns the wrapped pointer without any tags.
-    pub fn untagged(&self) -> *mut T {
-        unsafe { transmute(self.raw as isize & UNTAG_MASK) }
+    pub fn untagged(self) -> *mut T {
+        (self.raw as isize & UNTAG_MASK) as *mut T
     }
 
     /// Returns a new TaggedPointer using the current pointer but without any
     /// tags.
-    pub fn without_tags(&self) -> Self {
+    pub fn without_tags(self) -> Self {
         Self::new(self.untagged())
     }
 
     /// Returns true if the given bit is set.
-    pub fn bit_is_set(&self, bit: usize) -> bool {
+    pub fn bit_is_set(self, bit: usize) -> bool {
         let shifted = 1 << bit;
 
         (self.raw as usize & shifted) == shifted
@@ -59,21 +57,21 @@ impl<T> TaggedPointer<T> {
 
     /// Sets the given bit.
     pub fn set_bit(&mut self, bit: usize) {
-        self.raw = unsafe { transmute(self.raw as usize | 1 << bit) };
+        self.raw = (self.raw as usize | 1 << bit) as *mut T;
     }
 
     /// Returns true if the current pointer is a null pointer.
-    pub fn is_null(&self) -> bool {
+    pub fn is_null(self) -> bool {
         self.untagged().is_null()
     }
 
     /// Returns an immutable to the pointer's value.
-    pub fn as_ref(&self) -> Option<&T> {
+    pub fn as_ref<'a>(self) -> Option<&'a T> {
         unsafe { self.untagged().as_ref() }
     }
 
     /// Returns a mutable reference to the pointer's value.
-    pub fn as_mut(&self) -> Option<&mut T> {
+    pub fn as_mut<'a>(self) -> Option<&'a mut T> {
         unsafe { self.untagged().as_mut() }
     }
 }

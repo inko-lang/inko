@@ -15,6 +15,7 @@ use hasher::Hasher;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
+#[cfg_attr(feature = "cargo-clippy", allow(box_vec))]
 pub enum ObjectValue {
     None,
     Float(f64),
@@ -47,8 +48,8 @@ pub enum ObjectValue {
 
 impl ObjectValue {
     pub fn is_none(&self) -> bool {
-        match self {
-            &ObjectValue::None => true,
+        match *self {
+            ObjectValue::None => true,
             _ => false,
         }
     }
@@ -58,92 +59,92 @@ impl ObjectValue {
     }
 
     pub fn is_float(&self) -> bool {
-        match self {
-            &ObjectValue::Float(_) => true,
+        match *self {
+            ObjectValue::Float(_) => true,
             _ => false,
         }
     }
 
     pub fn is_array(&self) -> bool {
-        match self {
-            &ObjectValue::Array(_) => true,
+        match *self {
+            ObjectValue::Array(_) => true,
             _ => false,
         }
     }
 
     pub fn is_string(&self) -> bool {
-        match self {
-            &ObjectValue::String(_) | &ObjectValue::InternedString(_) => true,
+        match *self {
+            ObjectValue::String(_) | ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }
 
     pub fn is_interned_string(&self) -> bool {
-        match self {
-            &ObjectValue::InternedString(_) => true,
+        match *self {
+            ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }
 
     pub fn is_file(&self) -> bool {
-        match self {
-            &ObjectValue::File(_) => true,
+        match *self {
+            ObjectValue::File(_) => true,
             _ => false,
         }
     }
 
     pub fn is_block(&self) -> bool {
-        match self {
-            &ObjectValue::Block(_) => true,
+        match *self {
+            ObjectValue::Block(_) => true,
             _ => false,
         }
     }
 
     pub fn is_binding(&self) -> bool {
-        match self {
-            &ObjectValue::Binding(_) => true,
+        match *self {
+            ObjectValue::Binding(_) => true,
             _ => false,
         }
     }
 
     pub fn is_integer(&self) -> bool {
-        match self {
-            &ObjectValue::Integer(_) => true,
+        match *self {
+            ObjectValue::Integer(_) => true,
             _ => false,
         }
     }
 
     pub fn is_bigint(&self) -> bool {
-        match self {
-            &ObjectValue::BigInt(_) => true,
+        match *self {
+            ObjectValue::BigInt(_) => true,
             _ => false,
         }
     }
 
     pub fn as_float(&self) -> Result<f64, String> {
-        match self {
-            &ObjectValue::Float(val) => Ok(val),
+        match *self {
+            ObjectValue::Float(val) => Ok(val),
             _ => Err("as_float called non a non float value".to_string()),
         }
     }
 
     pub fn as_array(&self) -> Result<&Vec<ObjectPointer>, String> {
-        match self {
-            &ObjectValue::Array(ref val) => Ok(val),
+        match *self {
+            ObjectValue::Array(ref val) => Ok(val),
             _ => Err("as_array called non a non array value".to_string()),
         }
     }
 
     pub fn as_array_mut(&mut self) -> Result<&mut Vec<ObjectPointer>, String> {
-        match self {
-            &mut ObjectValue::Array(ref mut val) => Ok(val),
+        match *self {
+            ObjectValue::Array(ref mut val) => Ok(val),
             _ => Err("as_array_mut called on a non array".to_string()),
         }
     }
 
     pub fn as_byte_array(&self) -> Result<&Vec<u8>, String> {
-        match self {
-            &ObjectValue::ByteArray(ref val) => Ok(val),
+        match *self {
+            ObjectValue::ByteArray(ref val) => Ok(val),
             _ => Err(
                 "as_byte_array called non a non byte array value".to_string()
             ),
@@ -151,8 +152,8 @@ impl ObjectValue {
     }
 
     pub fn as_byte_array_mut(&mut self) -> Result<&mut Vec<u8>, String> {
-        match self {
-            &mut ObjectValue::ByteArray(ref mut val) => Ok(val),
+        match *self {
+            ObjectValue::ByteArray(ref mut val) => Ok(val),
             _ => {
                 Err("as_byte_array_mut called on a non byte array".to_string())
             }
@@ -160,9 +161,9 @@ impl ObjectValue {
     }
 
     pub fn as_string(&self) -> Result<&String, String> {
-        match self {
-            &ObjectValue::String(ref val) => Ok(val),
-            &ObjectValue::InternedString(ref val) => Ok(val),
+        match *self {
+            ObjectValue::String(ref val) => Ok(val),
+            ObjectValue::InternedString(ref val) => Ok(val),
             _ => Err(
                 "ObjectValue::as_string() called on a non string".to_string()
             ),
@@ -170,40 +171,41 @@ impl ObjectValue {
     }
 
     pub fn as_file(&self) -> Result<&fs::File, String> {
-        match self {
-            &ObjectValue::File(ref val) => Ok(val),
+        match *self {
+            ObjectValue::File(ref val) => Ok(val),
             _ => Err("ObjectValue::as_file() called on a non file".to_string()),
         }
     }
 
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
-        match self {
-            &mut ObjectValue::File(ref mut val) => Ok(val),
+        match *self {
+            ObjectValue::File(ref mut val) => Ok(val),
             _ => Err(
                 "ObjectValue::as_file_mut() called on a non file".to_string()
             ),
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
     pub fn as_block(&self) -> Result<&Box<Block>, String> {
-        match self {
-            &ObjectValue::Block(ref val) => Ok(val),
+        match *self {
+            ObjectValue::Block(ref val) => Ok(val),
             _ => Err("ObjectValue::as_block() called on a non block object"
                 .to_string()),
         }
     }
 
     pub fn as_binding(&self) -> Result<RcBinding, String> {
-        match self {
-            &ObjectValue::Binding(ref val) => Ok(val.clone()),
+        match *self {
+            ObjectValue::Binding(ref val) => Ok(val.clone()),
             _ => Err("ObjectValue::as_binding() called non a non Binding"
                 .to_string()),
         }
     }
 
     pub fn as_bigint(&self) -> Result<&Integer, String> {
-        match self {
-            &ObjectValue::BigInt(ref val) => Ok(val),
+        match *self {
+            ObjectValue::BigInt(ref val) => Ok(val),
             _ => Err(
                 "ObjectValue::as_bigint() called on a non BigInt".to_string()
             ),
@@ -211,8 +213,8 @@ impl ObjectValue {
     }
 
     pub fn as_integer(&self) -> Result<i64, String> {
-        match self {
-            &ObjectValue::Integer(val) => Ok(val),
+        match *self {
+            ObjectValue::Integer(val) => Ok(val),
             _ => Err(
                 "ObjectValue::as_integer() called on a non integer".to_string()
             ),
@@ -220,8 +222,8 @@ impl ObjectValue {
     }
 
     pub fn as_hasher_mut(&mut self) -> Result<&mut Hasher, String> {
-        match self {
-            &mut ObjectValue::Hasher(ref mut val) => Ok(val),
+        match *self {
+            ObjectValue::Hasher(ref mut val) => Ok(val),
             _ => Err("ObjectValue::as_hasher_mut() called on a non hasher"
                 .to_string()),
         }
@@ -233,19 +235,19 @@ impl ObjectValue {
 
     /// Returns true if this value should be deallocated explicitly.
     pub fn should_deallocate_native(&self) -> bool {
-        match self {
-            &ObjectValue::None => false,
+        match *self {
+            ObjectValue::None => false,
             _ => true,
         }
     }
 
     pub fn is_immutable(&self) -> bool {
-        match self {
-            &ObjectValue::Float(_)
-            | &ObjectValue::Integer(_)
-            | &ObjectValue::String(_)
-            | &ObjectValue::BigInt(_)
-            | &ObjectValue::InternedString(_) => true,
+        match *self {
+            ObjectValue::Float(_)
+            | ObjectValue::Integer(_)
+            | ObjectValue::String(_)
+            | ObjectValue::BigInt(_)
+            | ObjectValue::InternedString(_) => true,
             _ => false,
         }
     }

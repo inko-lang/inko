@@ -101,6 +101,7 @@ impl Binding {
     }
 
     /// Returns a mutable reference to this binding's local variables.
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn locals_mut(&self) -> &mut Chunk<ObjectPointer> {
         unsafe { &mut *self.locals.get() }
     }
@@ -142,11 +143,12 @@ impl Binding {
 
         ArcWithoutWeak::new(Binding {
             locals: UnsafeCell::new(new_locals),
-            parent: parent,
+            parent,
         })
     }
 
     // Moves all pointers in this binding to the given heap.
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     pub fn move_pointers_to<H: CopyObject>(&self, heap: &mut H) {
         if let Some(ref bind) = self.parent {
             bind.move_pointers_to(heap);
@@ -170,7 +172,7 @@ impl<'a> Iterator for PointerIterator<'a> {
     fn next(&mut self) -> Option<ObjectPointerPointer> {
         loop {
             while self.local_index < self.binding.locals().len() {
-                let ref local = self.binding.locals()[self.local_index];
+                let local = &self.binding.locals()[self.local_index];
 
                 self.local_index += 1;
 

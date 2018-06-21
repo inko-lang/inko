@@ -68,16 +68,19 @@ impl Object {
         Object {
             prototype: ObjectPointer::null(),
             attributes: ptr::null::<AttributesMap>(),
-            value: value,
+            value,
         }
     }
 
     /// Returns a new object with the given value and prototype.
-    pub fn with_prototype(value: ObjectValue, proto: ObjectPointer) -> Object {
+    pub fn with_prototype(
+        value: ObjectValue,
+        prototype: ObjectPointer,
+    ) -> Object {
         Object {
-            prototype: proto,
+            prototype,
             attributes: ptr::null::<AttributesMap>(),
-            value: value,
+            value,
         }
     }
 
@@ -111,10 +114,10 @@ impl Object {
     /// Removes an attribute and returns it.
     pub fn remove_attribute(
         &mut self,
-        name: &ObjectPointer,
+        name: ObjectPointer,
     ) -> Option<ObjectPointer> {
         if let Some(map) = self.attributes_map_mut() {
-            map.remove(name)
+            map.remove(&name)
         } else {
             None
         }
@@ -145,7 +148,7 @@ impl Object {
     /// Looks up an attribute in either the current object or a parent object.
     pub fn lookup_attribute(
         &self,
-        name: &ObjectPointer,
+        name: ObjectPointer,
     ) -> Option<ObjectPointer> {
         let got = self.lookup_attribute_in_self(name);
 
@@ -186,10 +189,10 @@ impl Object {
     /// Looks up an attribute without walking the prototype chain.
     pub fn lookup_attribute_in_self(
         &self,
-        name: &ObjectPointer,
+        name: ObjectPointer,
     ) -> Option<ObjectPointer> {
         if let Some(map) = self.attributes_map() {
-            map.get(name).cloned()
+            map.get(&name).cloned()
         } else {
             None
         }
@@ -382,10 +385,10 @@ mod tests {
 
         obj.add_attribute(name, fake_pointer());
 
-        let attr = obj.remove_attribute(&name);
+        let attr = obj.remove_attribute(name);
 
         assert!(attr.is_some());
-        assert!(obj.lookup_attribute(&name).is_none());
+        assert!(obj.lookup_attribute(name).is_none());
     }
 
     #[test]
@@ -413,7 +416,7 @@ mod tests {
 
         obj.add_attribute(name.clone(), fake_pointer());
 
-        assert!(obj.lookup_attribute(&name).is_some());
+        assert!(obj.lookup_attribute(name).is_some());
     }
 
     #[test]
@@ -425,7 +428,7 @@ mod tests {
         proto.add_attribute(name.clone(), fake_pointer());
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_attribute(&name).is_some());
+        assert!(child.lookup_attribute(name).is_some());
     }
 
     #[test]
@@ -436,7 +439,7 @@ mod tests {
 
         child.set_prototype(object_pointer_for(&proto));
 
-        assert!(child.lookup_attribute(&name).is_none());
+        assert!(child.lookup_attribute(name).is_none());
     }
 
     #[test]
@@ -446,7 +449,7 @@ mod tests {
 
         obj.add_attribute(name.clone(), fake_pointer());
 
-        assert!(obj.lookup_attribute(&name).is_some());
+        assert!(obj.lookup_attribute(name).is_some());
     }
 
     #[test]
@@ -454,7 +457,7 @@ mod tests {
         let obj = new_object();
         let name = fake_pointer();
 
-        assert!(obj.lookup_attribute(&name).is_none());
+        assert!(obj.lookup_attribute(name).is_none());
     }
 
     #[test]
@@ -464,7 +467,7 @@ mod tests {
 
         obj.add_attribute(name.clone(), fake_pointer());
 
-        assert!(obj.lookup_attribute(&name).is_some());
+        assert!(obj.lookup_attribute(name).is_some());
     }
 
     #[test]

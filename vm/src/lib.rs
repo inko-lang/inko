@@ -3,6 +3,7 @@
 
 extern crate alloc;
 extern crate colored;
+extern crate float_cmp;
 extern crate fnv;
 extern crate num_cpus;
 extern crate num_integer;

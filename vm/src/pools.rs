@@ -44,7 +44,7 @@ impl Pools {
     }
 
     pub fn terminate(&self) {
-        for pool in self.pools.iter() {
+        for pool in &self.pools {
             pool.terminate();
         }
     }

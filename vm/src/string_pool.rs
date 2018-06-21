@@ -14,18 +14,20 @@ pub struct StringPointer {
     raw: *const String,
 }
 
+#[derive(Default)]
 pub struct StringPool {
     mapping: HashMap<StringPointer, ObjectPointer>,
 }
 
 impl StringPointer {
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn new(pointer: &String) -> Self {
         StringPointer {
             raw: pointer as *const String,
         }
     }
 
-    pub fn as_ref(&self) -> &String {
+    pub fn as_ref<'a>(self) -> &'a String {
         unsafe { &*self.raw }
     }
 }
@@ -49,11 +51,10 @@ impl Hash for StringPointer {
 
 impl StringPool {
     pub fn new() -> Self {
-        StringPool {
-            mapping: HashMap::new(),
-        }
+        Self::default()
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn get(&self, string: &String) -> Option<ObjectPointer> {
         let pointer = StringPointer::new(string);
 

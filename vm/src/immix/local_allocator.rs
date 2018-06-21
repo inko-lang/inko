@@ -64,7 +64,7 @@ impl LocalAllocator {
         );
 
         LocalAllocator {
-            global_allocator: global_allocator,
+            global_allocator,
             young_generation: [
                 Bucket::with_age(0),
                 Bucket::with_age(-1),
@@ -73,8 +73,8 @@ impl LocalAllocator {
             ],
             eden_index: 0,
             mature_generation: Bucket::with_age(MATURE),
-            young_config: young_config,
-            mature_config: mature_config,
+            young_config,
+            mature_config,
             remembered_set: HashSet::new(),
         }
     }
@@ -105,7 +105,7 @@ impl LocalAllocator {
     pub fn prepare_for_collection(&mut self, mature: bool) -> bool {
         let mut move_objects = false;
 
-        for bucket in self.young_generation.iter_mut() {
+        for bucket in &mut self.young_generation {
             if bucket.prepare_for_collection() {
                 move_objects = true;
             }
@@ -128,7 +128,7 @@ impl LocalAllocator {
 
     /// Reclaims blocks in the young (and mature) generation.
     pub fn reclaim_blocks(&mut self, state: &RcState, mature: bool) {
-        for bucket in self.young_generation.iter_mut() {
+        for bucket in &mut self.young_generation {
             bucket.reclaim_blocks(state);
         }
 
@@ -231,7 +231,7 @@ impl LocalAllocator {
     }
 
     pub fn has_remembered_objects(&self) -> bool {
-        self.remembered_set.len() > 0
+        !self.remembered_set.is_empty()
     }
 
     pub fn remember_object(&mut self, pointer: ObjectPointer) {
@@ -243,7 +243,7 @@ impl LocalAllocator {
     }
 
     pub fn prepare_remembered_objects_for_collection(&mut self) {
-        for pointer in self.remembered_set.iter() {
+        for pointer in &self.remembered_set {
             // We prepare the entire block because this is simpler than having
             // to figure out if we can unmark a line or not (since a line may
             // contain multiple objects).
@@ -254,7 +254,7 @@ impl LocalAllocator {
     pub fn remembered_pointers(&self) -> WorkList {
         let mut pointers = WorkList::new();
 
-        for pointer in self.remembered_set.iter() {
+        for pointer in &self.remembered_set {
             pointers.push(pointer.pointer());
         }
 

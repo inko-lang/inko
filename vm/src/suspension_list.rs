@@ -3,6 +3,8 @@
 //! A SuspensionList can be used to track processes that are suspended for a
 //! variety of reasons (e.g. because they're waiting for a message to arrive).
 
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -62,9 +64,9 @@ impl Hash for SuspendedProcess {
 impl SuspendedProcess {
     pub fn new(process: RcProcess, timeout: Option<Duration>) -> Self {
         SuspendedProcess {
-            process: process,
+            process,
             suspended_at: Instant::now(),
-            timeout: timeout,
+            timeout,
         }
     }
 
@@ -106,10 +108,8 @@ impl SuspensionList {
 
     /// Suspends the given process, optionally with a timeout in milliseconds.
     pub fn suspend(&self, process: RcProcess, timeout: Option<u64>) {
-        let entry = SuspendedProcess::new(
-            process,
-            timeout.map(|num| Duration::from_millis(num)),
-        );
+        let entry =
+            SuspendedProcess::new(process, timeout.map(Duration::from_millis));
 
         lock!(self.outer).insert(entry);
 
@@ -147,6 +147,7 @@ impl SuspensionList {
         }
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn inner_mut(&self) -> &mut HashSet<SuspendedProcess> {
         unsafe { &mut *self.inner.get() }
     }
@@ -167,7 +168,7 @@ impl SuspensionList {
     fn process_inner(&self, state: &RcState) {
         let inner = self.inner_mut();
 
-        if inner.len() > 0 {
+        if !inner.is_empty() {
             inner.retain(|entry| {
                 if entry.should_reschedule() {
                     state.process_pools.schedule(entry.process.clone());

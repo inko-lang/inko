@@ -1,9 +1,12 @@
+// This lint is disabled here as not passing pointers by reference could
+// potentially result in forwarding pointers not working properly.
+#![cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+
 use rug::Integer;
 use std::fs;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i32;
 use std::i64;
-use std::mem::transmute;
 use std::u32;
 use std::usize;
 
@@ -93,7 +96,7 @@ fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
     let addr = (pointer as isize & block::OBJECT_BITMAP_MASK) as usize;
 
     unsafe {
-        let ptr: *mut block::BlockHeader = transmute(addr);
+        let ptr = addr as *mut block::BlockHeader;
 
         &*ptr
     }
@@ -117,7 +120,7 @@ impl ObjectPointer {
     }
 
     pub fn byte(value: u8) -> ObjectPointer {
-        Self::integer(value as i64)
+        Self::integer(i64::from(value))
     }
 
     /// Returns `true` if the given unsigned integer is too large for a tagged
@@ -148,7 +151,7 @@ impl ObjectPointer {
     pub fn forwarding_pointer(&self) -> ObjectPointer {
         let raw = TaggedPointer::with_bit(self.raw.raw, FORWARDING_BIT);
 
-        ObjectPointer { raw: raw }
+        ObjectPointer { raw }
     }
 
     /// Returns true if the current pointer points to a forwarded object.
@@ -215,6 +218,7 @@ impl ObjectPointer {
 
     /// Returns a mutable reference to the Object.
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn get_mut(&self) -> &mut Object {
         self.raw
             .as_mut()
@@ -274,7 +278,7 @@ impl ObjectPointer {
     pub fn mark(&self) {
         let pointer = self.raw.untagged();
         let header = block_header_of(pointer);
-        let ref mut block = header.block_mut();
+        let block = header.block_mut();
 
         let object_index = block.object_index_of_pointer(pointer);
         let line_index = block.line_index_of_pointer(pointer);
@@ -297,7 +301,7 @@ impl ObjectPointer {
 
         let pointer = self.raw.untagged();
         let header = block_header_of(pointer);
-        let ref mut block = header.block_mut();
+        let block = header.block_mut();
         let index = block.object_index_of_pointer(pointer);
 
         block.marked_objects_bitmap.is_set(index)
@@ -305,6 +309,7 @@ impl ObjectPointer {
 
     /// Returns a mutable reference to the block this pointer belongs to.
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn block_mut(&self) -> &mut block::Block {
         self.block_header().block_mut()
     }
@@ -346,7 +351,7 @@ impl ObjectPointer {
     pub fn lookup_attribute(
         &self,
         state: &RcState,
-        name: &ObjectPointer,
+        name: ObjectPointer,
     ) -> Option<ObjectPointer> {
         if self.is_tagged_integer() {
             state.integer_prototype.get().lookup_attribute(name)
@@ -423,13 +428,7 @@ impl ObjectPointer {
     }
 
     pub fn is_integer(&self) -> bool {
-        if self.is_tagged_integer() {
-            true
-        } else if self.get().value.is_integer() {
-            true
-        } else {
-            false
-        }
+        self.is_tagged_integer() || self.get().value.is_integer()
     }
 
     pub fn is_bigint(&self) -> bool {
@@ -442,7 +441,7 @@ impl ObjectPointer {
 
     pub fn is_in_u32_range(&self) -> bool {
         if let Ok(integer) = self.integer_value() {
-            integer >= u32::MIN as i64 && integer <= u32::MAX as i64
+            integer >= i64::from(u32::MIN) && integer <= i64::from(u32::MAX)
         } else {
             false
         }
@@ -450,7 +449,7 @@ impl ObjectPointer {
 
     pub fn is_in_i32_range(&self) -> bool {
         if let Ok(integer) = self.integer_value() {
-            integer >= i32::MIN as i64 && integer <= i32::MAX as i64
+            integer >= i64::from(i32::MIN) && integer <= i64::from(i32::MAX)
         } else {
             false
         }
@@ -505,7 +504,7 @@ impl ObjectPointer {
     pub fn i32_value(&self) -> Result<i32, String> {
         let int_val = self.integer_value()?;
 
-        if int_val < i32::MIN as i64 || int_val > i32::MAX as i64 {
+        if int_val < i64::from(i32::MIN) || int_val > i64::from(i32::MAX) {
             Err(format!("{} is not a valid exit status code", int_val))
         } else {
             Ok(int_val as i32)
@@ -518,12 +517,12 @@ impl ObjectPointer {
         } else {
             let value_ref = self.get();
 
-            match &value_ref.value {
-                &ObjectValue::Float(val) => hasher.write_float(val),
-                &ObjectValue::Integer(val) => hasher.write_integer(val),
-                &ObjectValue::BigInt(ref val) => hasher.write_bigint(val),
-                &ObjectValue::String(ref val) => hasher.write_string(val),
-                &ObjectValue::InternedString(ref val) => {
+            match value_ref.value {
+                ObjectValue::Float(val) => hasher.write_float(val),
+                ObjectValue::Integer(val) => hasher.write_integer(val),
+                ObjectValue::BigInt(ref val) => hasher.write_bigint(val),
+                ObjectValue::String(ref val) => hasher.write_string(val),
+                ObjectValue::InternedString(ref val) => {
                     hasher.write_string(val)
                 }
                 _ => {
@@ -570,6 +569,7 @@ impl ObjectPointer {
 }
 
 impl ObjectPointerPointer {
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
     pub fn new(pointer: &ObjectPointer) -> ObjectPointerPointer {
         ObjectPointerPointer {
             raw: pointer as *const ObjectPointer,
@@ -577,6 +577,7 @@ impl ObjectPointerPointer {
     }
 
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn get_mut(&self) -> &mut ObjectPointer {
         unsafe { &mut *(self.raw as *mut ObjectPointer) }
     }
@@ -1049,7 +1050,7 @@ mod tests {
 
         state.integer_prototype.mark_for_finalization();
 
-        assert!(ptr.lookup_attribute(&state, &name).unwrap() == method);
+        assert!(ptr.lookup_attribute(&state, name).unwrap() == method);
     }
 
     #[test]
@@ -1058,7 +1059,7 @@ mod tests {
         let ptr = ObjectPointer::integer(5);
         let name = state.intern_owned("foo".to_string());
 
-        assert!(ptr.lookup_attribute(&state, &name).is_none());
+        assert!(ptr.lookup_attribute(&state, name).is_none());
     }
 
     #[test]
@@ -1071,7 +1072,7 @@ mod tests {
         ptr.get_mut().add_attribute(name, value);
         ptr.mark_for_finalization();
 
-        assert!(ptr.lookup_attribute(&state, &name).unwrap() == value);
+        assert!(ptr.lookup_attribute(&state, name).unwrap() == value);
     }
 
     #[test]

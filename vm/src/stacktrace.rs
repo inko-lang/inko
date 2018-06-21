@@ -3,6 +3,7 @@ use execution_context::ExecutionContext;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
+use std::i64;
 use vm::state::RcState;
 
 /// Produces a stacktrace containing up to N stack frames.
@@ -41,7 +42,7 @@ pub fn allocate_stacktrace(
             state.string_prototype,
         );
 
-        let line = ObjectPointer::integer(context.line as i64);
+        let line = ObjectPointer::integer(i64::from(context.line));
 
         let tuple = process.allocate(
             object_value::array(vec![file, name, line]),

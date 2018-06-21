@@ -1,7 +1,9 @@
 //! Timer for measuring the elapsed time between two points.
 
 use std::time::Instant;
+use std::u64;
 
+#[derive(Default)]
 pub struct Timer {
     start: Option<Instant>,
     stop: Option<Instant>,
@@ -9,10 +11,7 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Self {
-        Timer {
-            start: None,
-            stop: None,
-        }
+        Self::default()
     }
 
     pub fn now() -> Self {
@@ -33,7 +32,8 @@ impl Timer {
             let stop = self.stop.unwrap();
             let duration = stop.duration_since(start);
 
-            (duration.as_secs() * 1000000000) + duration.subsec_nanos() as u64
+            (duration.as_secs() * 1_000_000_000)
+                + u64::from(duration.subsec_nanos())
         } else {
             0
         }
@@ -41,12 +41,12 @@ impl Timer {
 
     /// Returns the duration in milliseconds.
     pub fn duration_msec(&self) -> f64 {
-        self.duration_nanosec() as f64 / 1000000.0
+        self.duration_nanosec() as f64 / 1_000_000.0
     }
 
     /// Returns the duration in seconds.
     pub fn duration_sec(&self) -> f64 {
-        self.duration_nanosec() as f64 / 1000000000.0
+        self.duration_nanosec() as f64 / 1_000_000_000.0
     }
 
     pub fn set_start_time(&mut self, time: Instant) {

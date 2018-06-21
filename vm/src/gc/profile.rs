@@ -48,7 +48,7 @@ pub struct Profile {
 impl Profile {
     pub fn new(collection_type: CollectionType) -> Self {
         Profile {
-            collection_type: collection_type,
+            collection_type,
             marked: 0,
             evacuated: 0,
             promoted: 0,
@@ -76,7 +76,7 @@ impl Profile {
         Self::new(CollectionType::Finished)
     }
 
-    pub fn populate_tracing_statistics(&mut self, result: TraceResult) {
+    pub fn populate_tracing_statistics(&mut self, result: &TraceResult) {
         self.marked = result.marked;
         self.evacuated = result.evacuated;
         self.promoted = result.promoted;
@@ -123,7 +123,7 @@ mod tests {
     fn test_populate_tracing_statistics() {
         let mut profile = Profile::new(CollectionType::Young);
 
-        profile.populate_tracing_statistics(TraceResult::with(1, 2, 3));
+        profile.populate_tracing_statistics(&TraceResult::with(1, 2, 3));
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 2);

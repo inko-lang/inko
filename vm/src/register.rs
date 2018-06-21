@@ -55,7 +55,7 @@ impl<'a> Iterator for PointerIterator<'a> {
 
     fn next(&mut self) -> Option<ObjectPointerPointer> {
         while self.index < self.register.values.len() {
-            let ref local = self.register.values[self.index];
+            let local = &self.register.values[self.index];
 
             self.index += 1;
 

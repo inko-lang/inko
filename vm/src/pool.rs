@@ -100,7 +100,7 @@ impl<T: Send + 'static> Pool<T> {
     pub fn new(amount: usize, name: Option<String>) -> Self {
         Pool {
             inner: ArcWithoutWeak::new(PoolInner::new(amount)),
-            name: name,
+            name,
         }
     }
 
@@ -123,7 +123,7 @@ impl<T: Send + 'static> Pool<T> {
                 builder = builder.name(format!("{} {}", name, idx));
             }
 
-            let result = builder.spawn(move || inner.process(idx, closure));
+            let result = builder.spawn(move || inner.process(idx, &closure));
 
             handles.push(result.unwrap());
         }
@@ -142,7 +142,7 @@ impl<T: Send + 'static> Pool<T> {
 
     /// Terminates all the schedulers, ignoring any remaining jobs
     pub fn terminate(&self) {
-        for queue in self.inner.queues.iter() {
+        for queue in &self.inner.queues {
             queue.terminate_queue();
         }
 
@@ -164,11 +164,11 @@ impl<T: Send + 'static> PoolInner<T> {
     }
 
     /// Processes jobs from a queue.
-    pub fn process<F>(&self, index: usize, closure: ArcWithoutWeak<F>)
+    pub fn process<F>(&self, index: usize, closure: &ArcWithoutWeak<F>)
     where
         F: Fn(T) + Sync + Send + 'static,
     {
-        let ref queue = self.queues[index];
+        let queue = &self.queues[index];
 
         while !queue.should_terminate() {
             let job = if let Some(job) = queue.pop_nonblock() {
@@ -177,12 +177,10 @@ impl<T: Send + 'static> PoolInner<T> {
                 job
             } else if let Some(job) = self.steal_from_global(&queue) {
                 job
+            } else if let Ok(job) = self.global_queue.pop() {
+                job
             } else {
-                if let Ok(job) = self.global_queue.pop() {
-                    job
-                } else {
-                    break;
-                }
+                break;
             };
 
             closure(job);
@@ -219,7 +217,7 @@ impl<T: Send + 'static> PoolInner<T> {
 
 impl<T> JoinGuard<T> {
     pub fn new(handles: Vec<JoinHandle<T>>) -> Self {
-        JoinGuard { handles: handles }
+        JoinGuard { handles }
     }
 
     /// Waits for all the threads to finish.
@@ -328,7 +326,7 @@ mod tests {
         inner.queues[0].push(1);
 
         let t_closure = closure.clone();
-        let handle = thread::spawn(move || t_inner.process(0, t_closure));
+        let handle = thread::spawn(move || t_inner.process(0, &t_closure));
 
         wait_while!(!started.load(Ordering::Acquire));
 

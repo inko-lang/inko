@@ -46,8 +46,8 @@ pub enum ProcessStatus {
 
 impl ProcessStatus {
     pub fn is_running(&self) -> bool {
-        match self {
-            &ProcessStatus::Running => true,
+        match *self {
+            ProcessStatus::Running => true,
             _ => false,
         }
     }
@@ -112,11 +112,11 @@ impl Process {
             young_collections: 0,
             mature_collections: 0,
             mailbox_collections: 0,
-            pool_id: pool_id,
+            pool_id,
         };
 
         let process = Process {
-            pid: pid,
+            pid,
             status: Mutex::new(ProcessStatus::Scheduled),
             local_data: UnsafeCell::new(local_data),
         };
@@ -144,6 +144,7 @@ impl Process {
         self.local_data().pool_id
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn local_data_mut(&self) -> &mut LocalData {
         unsafe { &mut *self.local_data.get() }
     }
@@ -155,7 +156,7 @@ impl Process {
     pub fn push_context(&self, context: ExecutionContext) {
         let mut boxed = Box::new(context);
         let local_data = self.local_data_mut();
-        let ref mut target = local_data.context;
+        let target = &mut local_data.context;
 
         mem::swap(target, &mut boxed);
 
@@ -314,16 +315,18 @@ impl Process {
         &self.context().global_scope
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
     pub fn context(&self) -> &Box<ExecutionContext> {
         &self.local_data().context
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box, mut_from_ref))]
     pub fn context_mut(&self) -> &mut Box<ExecutionContext> {
         &mut self.local_data_mut().context
     }
 
     pub fn compiled_code(&self) -> CompiledCodePointer {
-        self.context().code.clone()
+        self.context().code
     }
 
     pub fn available_for_execution(&self) -> bool {
@@ -433,7 +436,7 @@ impl Process {
         let local_data = self.local_data_mut();
         let mut blocks = BlockList::new();
 
-        for bucket in local_data.allocator.young_generation.iter_mut() {
+        for bucket in &mut local_data.allocator.young_generation {
             blocks.append(&mut bucket.blocks);
         }
 

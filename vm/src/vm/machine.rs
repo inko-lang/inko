@@ -1,8 +1,11 @@
 //! Virtual Machine for running instructions
+use float_cmp::ApproxEqUlps;
 use rayon::ThreadPoolBuilder;
 use rug::Integer;
+use std::f64;
 use std::fs;
 use std::i32;
+use std::i64;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::ops::{Add, Mul, Sub};
 use std::thread;
@@ -90,7 +93,7 @@ macro_rules! throw_io_error {
         $code:ident,
         $index:ident
     ) => {{
-        let msg = $crate::error_messages::from_io_error($error);
+        let msg = $crate::error_messages::from_io_error(&$error);
 
         throw_error_message!($machine, $process, msg, $context, $code, $index);
     }};
@@ -204,8 +207,8 @@ impl Machine {
 
     pub fn new(state: RcState, module_registry: RcModuleRegistry) -> Self {
         Machine {
-            state: state,
-            module_registry: module_registry,
+            state,
+            module_registry,
         }
     }
 
@@ -215,7 +218,7 @@ impl Machine {
     ///
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
-    pub fn start(&self, file: &String) {
+    pub fn start(&self, file: &str) {
         self.configure_rayon();
 
         let primary_guard = self.start_primary_threads();
@@ -294,7 +297,7 @@ impl Machine {
     }
 
     /// Starts the main process
-    pub fn start_main_process(&self, file: &String) {
+    pub fn start_main_process(&self, file: &str) {
         let process = {
             let mut registry = write_lock!(self.module_registry);
 
@@ -344,11 +347,12 @@ impl Machine {
     /// Executes a single process, terminating in the event of an error.
     pub fn run_with_error_handling(&self, process: &RcProcess) {
         if let Err(message) = self.run(process) {
-            self.panic(process, message);
+            self.panic(process, &message);
         }
     }
 
     /// Executes a single process.
+    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn run(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
@@ -559,11 +563,8 @@ impl Machine {
                         Binding::new(locals)
                     };
 
-                    let block = Block::new(
-                        cc.clone(),
-                        binding,
-                        process.global_scope().clone(),
-                    );
+                    let block =
+                        Block::new(cc, binding, *process.global_scope());
 
                     let obj = process.allocate(
                         object_value::block(block),
@@ -1047,7 +1048,19 @@ impl Machine {
                 // The result of this instruction is either boolean true or
                 // false.
                 InstructionType::FloatEquals => {
-                    float_bool_op!(self.state, context, instruction, ==);
+                    let register = instruction.arg(0);
+                    let rec_ptr = context.get_register(instruction.arg(1));
+                    let arg_ptr = context.get_register(instruction.arg(2));
+                    let rec = rec_ptr.float_value()?;
+                    let arg = arg_ptr.float_value()?;
+
+                    let boolean = if rec.approx_eq_ulps(&arg, 2) {
+                        self.state.true_object
+                    } else {
+                        self.state.false_object
+                    };
+
+                    context.set_register(register, boolean);
                 }
                 // Checks if one float is greater than or requal to the other.
                 //
@@ -1259,12 +1272,11 @@ impl Machine {
                         } else {
                             self.state.false_object
                         }
+                    } else if rec_ptr.string_value()? == arg_ptr.string_value()?
+                    {
+                        self.state.true_object
                     } else {
-                        if rec_ptr.string_value()? == arg_ptr.string_value()? {
-                            self.state.true_object
-                        } else {
-                            self.state.false_object
-                        }
+                        self.state.false_object
                     };
 
                     context.set_register(register, boolean);
@@ -1739,7 +1751,7 @@ impl Machine {
 
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| {
                             copy_if_permanent!(
                                 self.state.permanent_allocator,
@@ -1754,7 +1766,7 @@ impl Machine {
                         target_ptr
                     );
 
-                    target_ptr.add_attribute(&process, name.clone(), value);
+                    target_ptr.add_attribute(&process, name, value);
 
                     context.set_register(register, value);
                 }
@@ -1776,7 +1788,7 @@ impl Machine {
 
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| {
                             copy_if_permanent!(
                                 self.state.permanent_allocator,
@@ -1786,7 +1798,7 @@ impl Machine {
                         });
 
                     let attribute = if let Some(ptr) =
-                        obj_ptr.get().lookup_attribute_in_self(&name)
+                        obj_ptr.get().lookup_attribute_in_self(name)
                     {
                         ptr
                     } else {
@@ -1828,11 +1840,11 @@ impl Machine {
 
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
                     let method = rec_ptr
-                        .lookup_attribute(&self.state, &name)
+                        .lookup_attribute(&self.state, name)
                         .unwrap_or_else(|| self.state.nil_object);
 
                     context.set_register(register, method);
@@ -1933,7 +1945,7 @@ impl Machine {
                     let pid = pid_ptr.usize_value()?;
 
                     if let Some(receiver) =
-                        read_lock!(self.state.process_table).get(&pid)
+                        read_lock!(self.state.process_table).get(pid)
                     {
                         receiver.send_message(&process, msg_ptr);
 
@@ -2012,7 +2024,7 @@ impl Machine {
                     let pid = pid_ptr.usize_value()?;
                     let table = read_lock!(self.state.process_table);
 
-                    let status = if let Some(receiver) = table.get(&pid) {
+                    let status = if let Some(receiver) = table.get(pid) {
                         receiver.status_integer()
                     } else {
                         ProcessStatus::Finished as usize
@@ -2152,7 +2164,7 @@ impl Machine {
 
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
                     // For every object in the prototype chain (including self)
@@ -2160,10 +2172,10 @@ impl Machine {
                     // is in said object.
                     loop {
                         if let Some(obj) =
-                            source.get().lookup_attribute_in_self(&name)
+                            source.get().lookup_attribute_in_self(name)
                         {
                             if obj
-                                .lookup_attribute(&self.state, &val_ptr)
+                                .lookup_attribute(&self.state, val_ptr)
                                 .is_some()
                             {
                                 result = self.state.true_object;
@@ -2212,16 +2224,16 @@ impl Machine {
 
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
                     let obj = if source_ptr
-                        .lookup_attribute(&self.state, &name)
+                        .lookup_attribute(&self.state, name)
                         .is_some()
                     {
-                        self.state.true_object.clone()
+                        self.state.true_object
                     } else {
-                        self.state.false_object.clone()
+                        self.state.false_object
                     };
 
                     context.set_register(register, obj);
@@ -2243,13 +2255,13 @@ impl Machine {
                     let name_ptr = context.get_register(instruction.arg(2));
                     let name = self
                         .state
-                        .intern_pointer(&name_ptr)
+                        .intern_pointer(name_ptr)
                         .unwrap_or_else(|_| name_ptr);
 
                     set_nil_if_immutable!(self, context, rec_ptr, register);
 
                     let obj = if let Some(attribute) =
-                        rec_ptr.get_mut().remove_attribute(&name)
+                        rec_ptr.get_mut().remove_attribute(name)
                     {
                         attribute
                     } else {
@@ -2285,7 +2297,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let duration = self.state.start_time.elapsed();
                     let seconds = duration.as_secs() as f64
-                        + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
+                        + (f64::from(duration.subsec_nanos())
+                            / 1_000_000_000.0);
 
                     let pointer = process.allocate(
                         object_value::float(seconds),
@@ -3101,14 +3114,14 @@ impl Machine {
                     let result = match kind {
                         0 => self.state.intern(&code.name),
                         1 => self.state.intern(&code.file),
-                        2 => ObjectPointer::integer(code.line as i64),
+                        2 => ObjectPointer::integer(i64::from(code.line)),
                         3 => process.allocate(
                             object_value::array(code.arguments.clone()),
                             self.state.array_prototype,
                         ),
-                        4 => ObjectPointer::integer(
-                            code.required_arguments as i64,
-                        ),
+                        4 => ObjectPointer::integer(i64::from(
+                            code.required_arguments,
+                        )),
                         5 => boolean_to_pointer!(self, code.rest_argument),
                         _ => {
                             return Err(format!(
@@ -3381,7 +3394,7 @@ impl Machine {
 
         process.finished();
 
-        write_lock!(self.state.process_table).release(&process.pid);
+        write_lock!(self.state.process_table).release(process.pid);
 
         // We must clean up _after_ removing the process from the process table
         // to prevent a cleanup from happening while the process is still
@@ -3457,7 +3470,7 @@ impl Machine {
     #[inline(always)]
     fn validate_number_of_arguments(
         &self,
-        code: &CompiledCodePointer,
+        code: CompiledCodePointer,
         given_positional: usize,
         given_keyword: usize,
     ) -> Result<(), String> {
@@ -3518,7 +3531,7 @@ impl Machine {
         pos_start: usize,
     ) -> Result<(), String> {
         self.validate_number_of_arguments(
-            &context.code,
+            context.code,
             given_positional,
             given_keyword,
         )?;
@@ -3568,7 +3581,7 @@ impl Machine {
             let key = process.get_register(slice[0]);
             let val = process.get_register(slice[1]);
 
-            if let Some(index) = context.code.argument_position(&key) {
+            if let Some(index) = context.code.argument_position(key) {
                 locals[index] = val;
             }
         }
@@ -3584,7 +3597,7 @@ impl Machine {
             let context = process.context_mut();
             let index = context.instruction_index;
 
-            for entry in code.catch_table.entries.iter() {
+            for entry in &code.catch_table.entries {
                 if entry.start < index && entry.end >= index {
                     context.instruction_index = entry.jump_to;
                     context.set_register(entry.register, value);
@@ -3602,7 +3615,7 @@ impl Machine {
         }
     }
 
-    fn panic(&self, process: &RcProcess, message: String) {
+    fn panic(&self, process: &RcProcess, message: &str) {
         runtime_panic::display_panic(process, message);
 
         self.state.set_exit_status(1);

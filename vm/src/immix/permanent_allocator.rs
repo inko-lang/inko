@@ -23,7 +23,7 @@ pub struct PermanentAllocator {
 impl PermanentAllocator {
     pub fn new(global_allocator: RcGlobalAllocator) -> Self {
         PermanentAllocator {
-            global_allocator: global_allocator,
+            global_allocator,
             bucket: Bucket::with_age(PERMANENT),
         }
     }

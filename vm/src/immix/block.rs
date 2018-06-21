@@ -87,7 +87,7 @@ pub struct BlockHeader {
 impl BlockHeader {
     pub fn new(block: *mut Block) -> BlockHeader {
         BlockHeader {
-            block: block,
+            block,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
             holes: 1,
             next: None,
@@ -103,6 +103,7 @@ impl BlockHeader {
 
     /// Returns a mutable reference to the block.
     #[inline(always)]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn block_mut(&self) -> &mut Block {
         unsafe { &mut *self.block }
     }
@@ -179,6 +180,7 @@ unsafe impl Send for Block {}
 unsafe impl Sync for Block {}
 
 impl Block {
+    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
     pub fn new() -> Box<Block> {
         let lines = unsafe {
             Global.alloc(heap_layout_for_block()).unwrap().as_ptr()
@@ -186,7 +188,7 @@ impl Block {
         };
 
         let mut block = Box::new(Block {
-            lines: lines,
+            lines,
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
             finalize_bitmap: ObjectMap::new(),
@@ -348,6 +350,7 @@ impl Block {
         self.find_available_hole_starting_at(line_index);
     }
 
+    #[cfg_attr(feature = "cargo-clippy", allow(wrong_self_convention))]
     pub fn is_available_for_allocation(&mut self) -> bool {
         if self.can_bump_allocate() {
             true

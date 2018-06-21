@@ -32,11 +32,11 @@ pub struct LookupResult<'a> {
 impl ModuleError {
     /// Returns a human friendly error message.
     pub fn message(&self) -> String {
-        match self {
-            &ModuleError::FailedToParse(ref path, ref error) => {
+        match *self {
+            ModuleError::FailedToParse(ref path, ref error) => {
                 format!("Failed to parse {}: {:?}", path, error)
             }
-            &ModuleError::ModuleDoesNotExist(ref path) => {
+            ModuleError::ModuleDoesNotExist(ref path) => {
                 format!("Module does not exist: {}", path)
             }
         }
@@ -45,10 +45,7 @@ impl ModuleError {
 
 impl<'a> LookupResult<'a> {
     pub fn new(module: &'a Module, parsed: bool) -> Self {
-        LookupResult {
-            module: module,
-            parsed: parsed,
-        }
+        LookupResult { module, parsed }
     }
 }
 
@@ -59,12 +56,13 @@ impl ModuleRegistry {
 
     pub fn new(state: RcState) -> Self {
         ModuleRegistry {
-            state: state,
+            state,
             parsed: HashMap::new(),
         }
     }
 
     /// Returns true if the given module has been parsed.
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn contains_path(&self, path: &String) -> bool {
         self.parsed.contains_key(path)
     }
@@ -80,10 +78,7 @@ impl ModuleRegistry {
             self.parse_module(&full_path)
                 .map(|module| LookupResult::new(module, true))
         } else {
-            Ok(LookupResult::new(
-                self.parsed.get(&full_path).unwrap(),
-                false,
-            ))
+            Ok(LookupResult::new(&self.parsed[&full_path], false))
         }
     }
 
@@ -94,7 +89,7 @@ impl ModuleRegistry {
         if input_path.is_relative() {
             let mut found = false;
 
-            for directory in self.state.config.directories.iter() {
+            for directory in &self.state.config.directories {
                 let full_path = directory.join(path);
 
                 if full_path.exists() {
@@ -120,7 +115,7 @@ impl ModuleRegistry {
 
         self.add_module(path, Module::new(code));
 
-        Ok(self.parsed.get(path).unwrap())
+        Ok(&self.parsed[path])
     }
 
     pub fn add_module(&mut self, path: &str, module: Module) {

@@ -27,10 +27,10 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         // in the module registry.
         registry.add_module("/test", Module::new(code));
 
-        let lookup = match registry.get_or_set(&"/test") {
-            Ok(module) => module,
-            Err(_) => panic!("The test module does not exist"),
-        };
+        let lookup = registry
+            .get_or_set(&"/test")
+            .map_err(|err| err.message())
+            .unwrap();
 
         let module = lookup.module;
         let scope = module.global_scope_ref();

@@ -54,7 +54,7 @@ impl Histogram {
 
     /// Returns an iterator for traversing the most fragmented bins in
     /// descending order.
-    pub fn iter<'a>(&'a self) -> HistogramIterator<'a> {
+    pub fn iter(&self) -> HistogramIterator {
         HistogramIterator {
             index: self.most_fragmented_bin() as isize,
             histogram: self,

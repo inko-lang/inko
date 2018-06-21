@@ -20,6 +20,7 @@ fnv = "^1.0"
 colored = "^1.6"
 time = "^0.1"
 num-integer = "^0.1"
+float-cmp = "^0.4"
 
 [dependencies.rug]
 version = "^1.1"

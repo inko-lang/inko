@@ -1,4 +1,5 @@
 //! Statistics produced by tracing object graphs.
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use std::ops::Add;
 
@@ -20,9 +21,9 @@ impl TraceResult {
 
     pub fn with(marked: usize, evacuated: usize, promoted: usize) -> Self {
         TraceResult {
-            marked: marked,
-            evacuated: evacuated,
-            promoted: promoted,
+            marked,
+            evacuated,
+            promoted,
         }
     }
 }

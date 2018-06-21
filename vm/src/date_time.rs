@@ -50,7 +50,7 @@ impl DateTime {
 
     /// Returns the nanoseconds after the second.
     pub fn nanoseconds(&self) -> i64 {
-        self.time.tm_nsec as i64
+        i64::from(self.time.tm_nsec)
     }
 
     /// Returns a flag indicating if Daylight Saving Time is active.
@@ -60,7 +60,7 @@ impl DateTime {
 
     /// Returns the offset in seconds relative to UTC.
     pub fn utc_offset(&self) -> i64 {
-        self.time.tm_utcoff as i64
+        i64::from(self.time.tm_utcoff)
     }
 
     /// Returns the seconds since the Unix epoch (including sub seconds).
