@@ -10,17 +10,18 @@ use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
 fn print_usage(options: &getopts::Options) {
-    print_stderr(format!("{}", options.usage("Usage: ivm FILE [OPTIONS]")));
+    print_stderr(&options.usage("Usage: ivm FILE [OPTIONS]").to_string());
 }
 
-fn print_stderr(message: String) {
+fn print_stderr(message: &str) {
     let mut stderr = io::stderr();
 
-    stderr.write(message.as_bytes()).unwrap();
-    stderr.write(b"\n").unwrap();
+    stderr.write_all(message.as_bytes()).unwrap();
+    stderr.write_all(b"\n").unwrap();
     stderr.flush().unwrap();
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(print_literal))]
 fn run() -> i32 {
     let args: Vec<String> = env::args().collect();
     let mut options = getopts::Options::new();
@@ -38,7 +39,7 @@ fn run() -> i32 {
     let matches = match options.parse(&args[1..]) {
         Ok(matches) => matches,
         Err(err) => {
-            print_stderr(format!("{}\n", err));
+            print_stderr(&format!("{}\n", err));
             print_usage(&options);
             return 1;
         }
@@ -56,10 +57,11 @@ fn run() -> i32 {
 
     if matches.free.is_empty() {
         print_usage(&options);
-        return 1;
+
+        1
     } else {
         let mut config = Config::new();
-        let ref path = matches.free[0];
+        let path = &matches.free[0];
 
         if matches.opt_present("I") {
             for dir in matches.opt_strs("I") {
