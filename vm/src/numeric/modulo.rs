@@ -36,6 +36,14 @@ impl OverflowingModulo for i64 {
     }
 }
 
+impl Modulo for i128 {
+    type Output = i128;
+
+    fn modulo(self, rhs: Self) -> Self::Output {
+        ((self % rhs) + rhs) % rhs
+    }
+}
+
 impl<'a> Modulo<&'a Integer> for Integer {
     type Output = Integer;
 
@@ -66,7 +74,12 @@ mod tests {
 
     #[test]
     fn test_modulo_i64() {
-        assert_eq!((-5).modulo(86_400), 86395);
+        assert_eq!((-5_i64).modulo(86_400_i64), 86395_i64);
+    }
+
+    #[test]
+    fn test_modulo_i128() {
+        assert_eq!((-5_i128).modulo(86_400_i128), 86_395_i128);
     }
 
     #[test]

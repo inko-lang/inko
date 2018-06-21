@@ -47,6 +47,7 @@ pub mod process_table;
 pub mod queue;
 pub mod register;
 pub mod runtime_panic;
+pub mod slicing;
 pub mod stacktrace;
 pub mod string_pool;
 pub mod suspension_list;

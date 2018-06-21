@@ -28,6 +28,7 @@ use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
+use slicing;
 use stacktrace;
 use vm::file_open_mode;
 use vm::instruction::{Instruction, InstructionType};
@@ -100,17 +101,6 @@ macro_rules! enter_context {
         $context.instruction_index = $index;
 
         reset_context!($process, $context, $code, $index);
-    }};
-}
-
-/// Returns a slice index for an i64
-macro_rules! int_to_slice_index {
-    ($vec:expr, $index:expr) => {{
-        if $index >= 0_i64 {
-            $index as usize
-        } else {
-            ($vec.len() as i64 + $index) as usize
-        }
     }};
 }
 
@@ -1106,8 +1096,10 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(3));
 
                     let vector = array_ptr.array_value_mut()?;
-                    let index =
-                        int_to_slice_index!(vector, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        vector.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = copy_if_permanent!(
                         self.state.permanent_allocator,
@@ -1142,8 +1134,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let vector = array_ptr.array_value()?;
 
-                    let index =
-                        int_to_slice_index!(vector, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        vector.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = vector
                         .get(index)
@@ -1170,8 +1164,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
 
                     let vector = array_ptr.array_value_mut()?;
-                    let index =
-                        int_to_slice_index!(vector, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        vector.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = if index >= vector.len() {
                         self.state.nil_object
@@ -3020,8 +3016,10 @@ impl Machine {
 
                     let string = str_ptr.string_value()?;
 
-                    let start =
-                        int_to_slice_index!(string, start_ptr.integer_value()?);
+                    let start = slicing::index_for_slice(
+                        string.chars().count(),
+                        start_ptr.integer_value()?,
+                    );
 
                     let amount = amount_ptr.integer_value()?;
 
@@ -3186,8 +3184,10 @@ impl Machine {
                     let value_ptr = context.get_register(instruction.arg(3));
 
                     let bytes = array_ptr.byte_array_value_mut()?;
-                    let index =
-                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        bytes.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = byte_array::integer_to_byte(value_ptr)?;
 
@@ -3223,8 +3223,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
                     let bytes = array_ptr.byte_array_value()?;
 
-                    let index =
-                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        bytes.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = bytes
                         .get(index)
@@ -3250,8 +3252,10 @@ impl Machine {
                     let index_ptr = context.get_register(instruction.arg(2));
 
                     let bytes = array_ptr.byte_array_value_mut()?;
-                    let index =
-                        int_to_slice_index!(bytes, index_ptr.integer_value()?);
+                    let index = slicing::index_for_slice(
+                        bytes.len(),
+                        index_ptr.integer_value()?,
+                    );
 
                     let value = if index >= bytes.len() {
                         self.state.nil_object
