@@ -49,8 +49,8 @@ impl Pools {
         }
     }
 
-    pub fn pool_id_is_valid(&self, id: i64) -> bool {
-        id < self.pools.len() as i64
+    pub fn pool_id_is_valid(&self, id: usize) -> bool {
+        id < self.pools.len()
     }
 }
 
@@ -101,5 +101,14 @@ mod tests {
 
         assert!(pools.pools[0].inner.queues[0].should_terminate());
         assert!(pools.pools[1].inner.queues[0].should_terminate());
+    }
+
+    #[test]
+    fn test_pool_id_is_valid() {
+        let pools = Pools::new(1, 1);
+
+        assert_eq!(pools.pool_id_is_valid(0), true);
+        assert_eq!(pools.pool_id_is_valid(1), true);
+        assert_eq!(pools.pool_id_is_valid(2), false);
     }
 }

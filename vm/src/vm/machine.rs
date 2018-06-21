@@ -1187,7 +1187,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
                     let vector = array_ptr.array_value()?;
-                    let length = process.allocate_unsigned_integer(
+                    let length = process.allocate_usize(
                         vector.len(),
                         self.state.integer_prototype,
                     );
@@ -1297,11 +1297,12 @@ impl Machine {
                 InstructionType::StringLength => {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
+                    let length = process.allocate_usize(
+                        arg_ptr.string_value()?.chars().count(),
+                        self.state.integer_prototype,
+                    );
 
-                    let length = arg_ptr.string_value()?.chars().count() as i64;
-
-                    context
-                        .set_register(register, ObjectPointer::integer(length));
+                    context.set_register(register, length);
                 }
                 // Returns the amount of bytes in a string.
                 //
@@ -1312,10 +1313,12 @@ impl Machine {
                 InstructionType::StringSize => {
                     let register = instruction.arg(0);
                     let arg_ptr = context.get_register(instruction.arg(1));
-                    let size = arg_ptr.string_value()?.len() as i64;
+                    let size = process.allocate_usize(
+                        arg_ptr.string_value()?.len(),
+                        self.state.integer_prototype,
+                    );
 
-                    context
-                        .set_register(register, ObjectPointer::integer(size));
+                    context.set_register(register, size);
                 }
                 // Writes a string to STDOUT and returns the amount of
                 // written bytes.
@@ -1336,7 +1339,10 @@ impl Machine {
 
                     match result {
                         Ok(size) => {
-                            let obj = ObjectPointer::integer(size as i64);
+                            let obj = process.allocate_usize(
+                                size,
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, obj);
                         }
@@ -1383,7 +1389,10 @@ impl Machine {
 
                     match result {
                         Ok(size) => {
-                            let obj = ObjectPointer::integer(size as i64);
+                            let obj = process.allocate_usize(
+                                size,
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, obj);
                         }
@@ -1432,7 +1441,7 @@ impl Machine {
 
                     match read_from_stream(&mut stdin, &mut buffer, max_bytes) {
                         ReadResult::Ok(amount) => {
-                            let size_ptr = process.allocate_unsigned_integer(
+                            let size_ptr = process.allocate_usize(
                                 amount,
                                 self.state.integer_prototype,
                             );
@@ -1509,7 +1518,10 @@ impl Machine {
 
                     match write_bytes_or_string!(file, value_ptr) {
                         Ok(num_bytes) => {
-                            let obj = ObjectPointer::integer(num_bytes as i64);
+                            let obj = process.allocate_usize(
+                                num_bytes,
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, obj);
                         }
@@ -1543,7 +1555,7 @@ impl Machine {
 
                     match read_from_stream(&mut file, &mut buffer, max_bytes) {
                         ReadResult::Ok(amount) => {
-                            let size_ptr = process.allocate_unsigned_integer(
+                            let size_ptr = process.allocate_usize(
                                 amount,
                                 self.state.integer_prototype,
                             );
@@ -1589,7 +1601,10 @@ impl Machine {
 
                     match fs::metadata(path) {
                         Ok(meta) => {
-                            let obj = ObjectPointer::integer(meta.len() as i64);
+                            let obj = process.allocate_u64(
+                                meta.len(),
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, obj);
                         }
@@ -1615,11 +1630,37 @@ impl Machine {
                     let file_ptr = context.get_register(instruction.arg(1));
                     let offset_ptr = context.get_register(instruction.arg(2));
                     let file = file_ptr.file_value_mut()?;
-                    let offset = offset_ptr.integer_value()?;
 
-                    match file.seek(SeekFrom::Start(offset as u64)) {
+                    let offset = if offset_ptr.is_bigint() {
+                        let big_offset = offset_ptr.bigint_value()?;
+
+                        if let Some(offset) = big_offset.to_u64() {
+                            offset
+                        } else {
+                            return Err(format!(
+                                "{} is too big for a seek offset",
+                                big_offset
+                            ));
+                        }
+                    } else {
+                        let offset = offset_ptr.integer_value()?;
+
+                        if offset < 0 {
+                            return Err(format!(
+                                "{} is not a valid seek offset",
+                                offset
+                            ));
+                        }
+
+                        offset as u64
+                    };
+
+                    match file.seek(SeekFrom::Start(offset)) {
                         Ok(cursor) => {
-                            let obj = ObjectPointer::integer(cursor as i64);
+                            let obj = process.allocate_u64(
+                                cursor,
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, obj);
                         }
@@ -1860,11 +1901,8 @@ impl Machine {
                     let register = instruction.arg(0);
                     let block_ptr = context.get_register(instruction.arg(1));
 
-                    let pool_id = if let Some(pool_reg) = instruction.arg_opt(2)
-                    {
-                        let ptr = context.get_register(pool_reg);
-
-                        ptr.integer_value()? as usize
+                    let pool_id = if let Some(reg) = instruction.arg_opt(2) {
+                        context.get_register(reg).usize_value()?
                     } else {
                         PRIMARY_POOL
                     };
@@ -1872,13 +1910,12 @@ impl Machine {
                     let block_obj = block_ptr.block_value()?;
                     let new_proc = self.allocate_process(pool_id, block_obj)?;
                     let new_pid = new_proc.pid;
+                    let pid_ptr = new_proc
+                        .allocate_usize(new_pid, self.state.integer_prototype);
 
                     self.state.process_pools.schedule(new_proc);
 
-                    context.set_register(
-                        register,
-                        ObjectPointer::integer(new_pid as i64),
-                    );
+                    context.set_register(register, pid_ptr);
                 }
                 // Sends a message to a process.
                 //
@@ -1893,7 +1930,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let pid_ptr = context.get_register(instruction.arg(1));
                     let msg_ptr = context.get_register(instruction.arg(2));
-                    let pid = pid_ptr.integer_value()? as usize;
+                    let pid = pid_ptr.usize_value()?;
 
                     if let Some(receiver) =
                         read_lock!(self.state.process_table).get(&pid)
@@ -1956,7 +1993,10 @@ impl Machine {
                 // store the PID in (as an integer).
                 InstructionType::ProcessCurrentPid => {
                     let register = instruction.arg(0);
-                    let pid = ObjectPointer::integer(process.pid as i64);
+                    let pid = process.allocate_usize(
+                        process.pid,
+                        self.state.integer_prototype,
+                    );
 
                     context.set_register(register, pid);
                 }
@@ -1969,7 +2009,7 @@ impl Machine {
                 InstructionType::ProcessStatus => {
                     let register = instruction.arg(0);
                     let pid_ptr = process.get_register(instruction.arg(1));
-                    let pid = pid_ptr.integer_value()? as usize;
+                    let pid = pid_ptr.usize_value()?;
                     let table = read_lock!(self.state.process_table);
 
                     let status = if let Some(receiver) = table.get(&pid) {
@@ -1978,7 +2018,8 @@ impl Machine {
                         ProcessStatus::Finished as usize
                     };
 
-                    let status_ptr = ObjectPointer::integer(status as i64);
+                    let status_ptr = process
+                        .allocate_usize(status, self.state.integer_prototype);
 
                     context.set_register(register, status_ptr);
                 }
@@ -2550,7 +2591,7 @@ impl Machine {
                 // instruction does nothing.
                 InstructionType::MoveToPool => {
                     let pool_ptr = context.get_register(instruction.arg(0));
-                    let pool_id = pool_ptr.integer_value()?;
+                    let pool_id = pool_ptr.usize_value()?;
 
                     if !self.state.process_pools.pool_id_is_valid(pool_id) {
                         return Err(format!(
@@ -2559,8 +2600,8 @@ impl Machine {
                         ));
                     }
 
-                    if pool_id as usize != process.pool_id() {
-                        process.set_pool_id(pool_id as usize);
+                    if pool_id != process.pool_id() {
+                        process.set_pool_id(pool_id);
 
                         context.instruction_index = index;
 
@@ -2614,19 +2655,11 @@ impl Machine {
                 // integer to use for the exit status.
                 InstructionType::Exit => {
                     let status_ptr = context.get_register(instruction.arg(0));
-                    let status = status_ptr.integer_value()?;
-                    let min = i32::MIN as i64;
-                    let max = i32::MAX as i64;
+                    let status = status_ptr.i32_value()?;
 
-                    if status < min || status > max {
-                        return Err(format!(
-                            "{} is not a valid exit code",
-                            status
-                        ));
-                    }
-
-                    self.state.set_exit_status(status as i32);
+                    self.state.set_exit_status(status);
                     self.terminate();
+
                     return Ok(());
                 }
                 // Returns the type of the platform as an integer.
@@ -2666,7 +2699,10 @@ impl Machine {
 
                     match fs::copy(src, dst) {
                         Ok(bytes) => {
-                            let pointer = ObjectPointer::integer(bytes as i64);
+                            let pointer = process.allocate_u64(
+                                bytes,
+                                self.state.integer_prototype,
+                            );
 
                             context.set_register(register, pointer);
                         }
@@ -2977,10 +3013,10 @@ impl Machine {
                     let limit = if limit_ptr == self.state.nil_object {
                         None
                     } else {
-                        Some(limit_ptr.integer_value()? as usize)
+                        Some(limit_ptr.usize_value()?)
                     };
 
-                    let skip = skip_ptr.integer_value()? as usize;
+                    let skip = skip_ptr.usize_value()?;
 
                     let array = stacktrace::allocate_stacktrace(
                         process,
@@ -3015,25 +3051,17 @@ impl Machine {
                     let amount_ptr = context.get_register(instruction.arg(3));
 
                     let string = str_ptr.string_value()?;
+                    let amount = amount_ptr.usize_value()?;
 
                     let start = slicing::index_for_slice(
                         string.chars().count(),
                         start_ptr.integer_value()?,
                     );
 
-                    let amount = amount_ptr.integer_value()?;
-
-                    if amount < 0 {
-                        return Err(format!(
-                            "{} is not a valid amount of characters to include",
-                            amount
-                        ));
-                    }
-
                     let new_string = string
                         .chars()
                         .skip(start)
-                        .take(amount as usize)
+                        .take(amount)
                         .collect::<String>();
 
                     let new_string_ptr = process.allocate(
@@ -3275,7 +3303,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let array_ptr = context.get_register(instruction.arg(1));
                     let bytes = array_ptr.byte_array_value()?;
-                    let length = process.allocate_unsigned_integer(
+                    let length = process.allocate_usize(
                         bytes.len(),
                         self.state.integer_prototype,
                     );

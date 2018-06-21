@@ -5,6 +5,7 @@ use std::i32;
 use std::i64;
 use std::mem::transmute;
 use std::u32;
+use std::usize;
 
 use binding::RcBinding;
 use block::Block;
@@ -472,6 +473,45 @@ impl ObjectPointer {
         }
     }
 
+    pub fn integer_to_usize(&self) -> Result<usize, String> {
+        let int_val = self.integer_value()?;
+
+        if int_val < 0 || int_val as u64 > usize::MAX as u64 {
+            Err(format!(
+                "{} is too big to convert to an unsigned integer",
+                int_val
+            ))
+        } else {
+            Ok(int_val as usize)
+        }
+    }
+
+    pub fn bigint_to_usize(&self) -> Result<usize, String> {
+        let int_val = self.bigint_value()?;
+
+        int_val.to_usize().ok_or_else(|| {
+            format!("{} is too big to convert to an unsigned integer", int_val)
+        })
+    }
+
+    pub fn usize_value(&self) -> Result<usize, String> {
+        if self.is_bigint() {
+            self.bigint_to_usize()
+        } else {
+            self.integer_to_usize()
+        }
+    }
+
+    pub fn i32_value(&self) -> Result<i32, String> {
+        let int_val = self.integer_value()?;
+
+        if int_val < i32::MIN as i64 || int_val > i32::MAX as i64 {
+            Err(format!("{} is not a valid exit status code", int_val))
+        } else {
+            Ok(int_val as i32)
+        }
+    }
+
     pub fn hash_object(&self, hasher: &mut Hasher) -> Result<(), String> {
         if self.is_tagged_integer() {
             hasher.write_integer(self.integer_value()?);
@@ -573,6 +613,7 @@ impl Eq for ObjectPointerPointer {}
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use std::i128;
 
     use config::Config;
     use immix::bitmap::Bitmap;
@@ -581,7 +622,7 @@ mod tests {
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
     use object::{Object, ObjectStatus};
-    use object_value::ObjectValue;
+    use object_value::{self, ObjectValue};
     use vm::state::State;
 
     fn fake_raw_pointer() -> RawObjectPointer {
@@ -1069,5 +1110,41 @@ mod tests {
 
         assert!(ptr.is_finalizable());
         assert_eq!(ObjectPointer::integer(5).is_finalizable(), false);
+    }
+
+    #[test]
+    fn test_usize_value() {
+        let ptr = ObjectPointer::integer(5);
+
+        assert_eq!(ptr.usize_value().unwrap(), 5);
+    }
+
+    #[test]
+    fn test_integer_to_usize() {
+        assert_eq!(ObjectPointer::integer(5).integer_to_usize().unwrap(), 5);
+        assert!(ObjectPointer::integer(-5).integer_to_usize().is_err());
+    }
+
+    #[test]
+    fn test_bigint_to_usize() {
+        let mut alloc = local_allocator();
+        let small = alloc
+            .allocate_without_prototype(object_value::bigint(Integer::from(5)));
+
+        let big = alloc.allocate_without_prototype(object_value::bigint(
+            Integer::from(i128::MAX),
+        ));
+
+        assert_eq!(small.bigint_to_usize().unwrap(), 5);
+        assert!(big.bigint_to_usize().is_err());
+    }
+
+    #[test]
+    fn test_i32_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(i32::MAX as i64 + 1);
+
+        assert_eq!(small.i32_value().unwrap(), 5);
+        assert!(large.i32_value().is_err());
     }
 }

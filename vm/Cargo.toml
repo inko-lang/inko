@@ -22,7 +22,7 @@ time = "^0.1"
 num-integer = "^0.1"
 
 [dependencies.rug]
-version = "^0.9"
+version = "^1.1"
 default-features = false
 features = ["integer"]
 

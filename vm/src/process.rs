@@ -223,24 +223,19 @@ impl Process {
         self.local_data_mut().allocator.allocate_empty()
     }
 
-    pub fn allocate_unsigned_integer(
+    pub fn allocate_usize(
         &self,
-        raw_value: usize,
+        value: usize,
         prototype: ObjectPointer,
     ) -> ObjectPointer {
-        // Obtaining the length of a slice or performing similar operations will
-        // typically produce a "usize" value.
-        //
-        // The below checks operate on an i64 value to ensure that a small
-        // enough unsigned integer can fit in a tagged integer, which use a i64
-        // under the hoods. Due to these checks casting types for their
-        // comparisons, using a "usize" as the input could result in an integer
-        // being heap allocated on a 32 bits platform when not strictly
-        // necessary. To work around this we force the input number to be a u64,
-        // ensuring our input value is of a fixed size regardless of the
-        // platform.
-        let value = raw_value as u64;
+        self.allocate_u64(value as u64, prototype)
+    }
 
+    pub fn allocate_u64(
+        &self,
+        value: u64,
+        prototype: ObjectPointer,
+    ) -> ObjectPointer {
         if ObjectPointer::unsigned_integer_as_big_integer(value) {
             // The value is too large to fit in a i64, so we need to allocate it
             // as a big integer.
