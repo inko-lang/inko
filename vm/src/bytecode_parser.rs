@@ -44,9 +44,9 @@ macro_rules! try_byte {
     };
 }
 
-macro_rules! read_u16_to_usize_vector {
+macro_rules! read_u16_vector {
     ($byte_type:ident, $bytes:expr) => {
-        read_vector::<usize, $byte_type>($bytes, read_u16_as_usize)?;
+        read_vector::<u16, $byte_type>($bytes, read_u16)?;
     };
 }
 
@@ -254,7 +254,7 @@ fn read_instruction<T: Read>(
 ) -> ParserResult<Instruction> {
     let ins_type: InstructionType = unsafe { mem::transmute(read_u8(bytes)?) };
 
-    let args = read_u16_to_usize_vector!(T, bytes);
+    let args = read_u16_vector!(T, bytes);
     let line = read_u16(bytes)?;
     let ins = Instruction::new(ins_type, args, line);
 

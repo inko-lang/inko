@@ -3492,12 +3492,12 @@ impl Machine {
         &self,
         process: &RcProcess,
         context: &ExecutionContext,
-        registers: &[usize],
+        registers: &[u16],
     ) {
         let locals = context.binding.locals_mut();
 
         for (index, register) in registers.iter().enumerate() {
-            locals[index] = process.get_register(*register);
+            locals[index] = process.get_register(usize::from(*register));
         }
     }
 
@@ -3506,13 +3506,13 @@ impl Machine {
         process: &RcProcess,
         context: &ExecutionContext,
         pack_local: usize,
-        registers: &[usize],
+        registers: &[u16],
     ) {
         let locals = context.binding.locals_mut();
 
         let pointers = registers
             .iter()
-            .map(|register| process.get_register(*register))
+            .map(|register| process.get_register(usize::from(*register)))
             .collect::<Vec<ObjectPointer>>();
 
         locals[pack_local] = process.allocate(
@@ -3578,8 +3578,8 @@ impl Machine {
         let locals = context.binding.locals_mut();
 
         for slice in keyword_args.chunks(2) {
-            let key = process.get_register(slice[0]);
-            let val = process.get_register(slice[1]);
+            let key = process.get_register(usize::from(slice[0]));
+            let val = process.get_register(usize::from(slice[1]));
 
             if let Some(index) = context.code.argument_position(key) {
                 locals[index] = val;
