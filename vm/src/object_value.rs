@@ -307,10 +307,16 @@ mod tests {
     use binding::Binding;
     use block::Block;
     use compiled_code::CompiledCode;
+    use config::Config;
     use deref_pointer::DerefPointer;
     use global_scope::{GlobalScope, GlobalScopePointer};
     use object_pointer::ObjectPointer;
     use std::fs::File;
+    use vm::state::{RcState, State};
+
+    fn state() -> RcState {
+        State::new(Config::new())
+    }
 
     #[test]
     fn test_is_none() {
@@ -379,9 +385,10 @@ mod tests {
 
     #[test]
     fn test_is_block() {
+        let state = state();
         let code = CompiledCode::new(
-            "a".to_string(),
-            "a.inko".to_string(),
+            state.intern_owned("a".to_string()),
+            state.intern_owned("a.inko".to_string()),
             1,
             Vec::new(),
         );
@@ -501,9 +508,10 @@ mod tests {
 
     #[test]
     fn test_as_block_with_block() {
+        let state = state();
         let code = CompiledCode::new(
-            "a".to_string(),
-            "a.inko".to_string(),
+            state.intern_owned("a".to_string()),
+            state.intern_owned("a.inko".to_string()),
             1,
             Vec::new(),
         );
@@ -579,9 +587,10 @@ mod tests {
 
     #[test]
     fn test_block() {
+        let state = state();
         let code = CompiledCode::new(
-            "a".to_string(),
-            "a.inko".to_string(),
+            state.intern_owned("a".to_string()),
+            state.intern_owned("a.inko".to_string()),
             1,
             Vec::new(),
         );

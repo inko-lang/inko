@@ -265,8 +265,8 @@ fn read_compiled_code<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<CompiledCode> {
-    let name = read_string(bytes)?;
-    let file = read_string(bytes)?;
+    let name_string = read_string(bytes)?;
+    let file_string = read_string(bytes)?;
     let line = read_u16(bytes)?;
     let args = read_literals_vector(state, bytes)?;
     let req_args = read_u8(bytes)?;
@@ -280,10 +280,15 @@ fn read_compiled_code<T: Read>(
     if let Some(ins) = instructions.last() {
         match ins.instruction_type {
             InstructionType::Return | InstructionType::Throw => {}
-            _ => return Err(ParserError::MissingReturnInstruction(file, line)),
+            _ => {
+                return Err(ParserError::MissingReturnInstruction(
+                    file_string,
+                    line,
+                ))
+            }
         };
     } else {
-        return Err(ParserError::MissingInstructions(file, line));
+        return Err(ParserError::MissingInstructions(file_string, line));
     }
 
     let literals = read_literals_vector(state, bytes)?;
@@ -291,8 +296,8 @@ fn read_compiled_code<T: Read>(
     let catch_table = read_catch_table(bytes)?;
 
     Ok(CompiledCode {
-        name,
-        file,
+        name: state.intern_owned(name_string),
+        file: state.intern_owned(file_string),
         line,
         arguments: args,
         required_arguments: req_args,
@@ -517,8 +522,11 @@ mod tests {
 
         let object = unwrap!(parse(&state, &mut buffer.bytes()));
 
-        assert_eq!(object.name, "main".to_string());
-        assert_eq!(object.file, "test.inko".to_string());
+        assert_eq!(*object.name.string_value().unwrap(), "main".to_string());
+        assert_eq!(
+            *object.file.string_value().unwrap(),
+            "test.inko".to_string()
+        );
         assert_eq!(object.line, 4);
     }
 
@@ -773,8 +781,11 @@ mod tests {
 
         let object = unwrap!(read_compiled_code(&state, &mut buffer.bytes()));
 
-        assert_eq!(object.name, "main".to_string());
-        assert_eq!(object.file, "test.inko".to_string());
+        assert_eq!(*object.name.string_value().unwrap(), "main".to_string());
+        assert_eq!(
+            *object.file.string_value().unwrap(),
+            "test.inko".to_string()
+        );
         assert_eq!(object.line, 4);
         assert_eq!(object.locals, 1);
         assert_eq!(object.registers, 2);

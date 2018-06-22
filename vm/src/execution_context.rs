@@ -81,12 +81,12 @@ impl ExecutionContext {
         }
     }
 
-    pub fn file(&self) -> &String {
-        &self.code.file
+    pub fn file(&self) -> ObjectPointer {
+        self.code.file
     }
 
-    pub fn name(&self) -> &String {
-        &self.code.name
+    pub fn name(&self) -> ObjectPointer {
+        self.code.name
     }
 
     pub fn set_parent(&mut self, parent: Box<ExecutionContext>) {

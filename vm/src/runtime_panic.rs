@@ -8,9 +8,9 @@ pub fn display_panic(process: &RcProcess, message: &str) {
     for context in process.context().contexts() {
         frames.push(format!(
             "{}, line {}, in {}",
-            format!("{:?}", context.code.file).green(),
+            format!("{:?}", context.code.file.string_value().unwrap()).green(),
             context.line.to_string().cyan(),
-            format!("{:?}", context.code.name).yellow()
+            format!("{:?}", context.code.name.string_value().unwrap()).yellow()
         ));
     }
 

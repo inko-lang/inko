@@ -12,9 +12,9 @@ use vm::state::State;
 /// Sets up a VM with a single process.
 pub fn setup() -> (Machine, Block, RcProcess) {
     let state = State::new(Config::new());
+    let name = state.intern(&"a".to_string());
     let machine = Machine::default(state);
-    let mut code =
-        CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
+    let mut code = CompiledCode::new(name, name, 1, Vec::new());
 
     // Reserve enough space for registers/locals for most tests.
     code.locals = 32;

@@ -164,6 +164,7 @@ mod tests {
     use object::Object;
     use object_pointer::ObjectPointer;
     use object_value;
+    use vm::state::{RcState, State};
 
     struct DummyAllocator {
         pub allocator: LocalAllocator,
@@ -183,6 +184,10 @@ mod tests {
         fn allocate_copy(&mut self, object: Object) -> ObjectPointer {
             self.allocator.allocate_copy(object)
         }
+    }
+
+    fn state() -> RcState {
+        State::new(Config::new())
     }
 
     #[test]
@@ -279,8 +284,13 @@ mod tests {
     #[test]
     fn test_copy_block() {
         let mut dummy = DummyAllocator::new();
-        let cc =
-            CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
+        let state = state();
+        let cc = CompiledCode::new(
+            state.intern_owned("a".to_string()),
+            state.intern_owned("a".to_string()),
+            1,
+            Vec::new(),
+        );
 
         let scope = GlobalScope::new();
 
@@ -446,8 +456,13 @@ mod tests {
     #[test]
     fn test_move_block() {
         let mut dummy = DummyAllocator::new();
-        let cc =
-            CompiledCode::new("a".to_string(), "a".to_string(), 1, Vec::new());
+        let state = state();
+        let cc = CompiledCode::new(
+            state.intern_owned("a".to_string()),
+            state.intern_owned("a".to_string()),
+            1,
+            Vec::new(),
+        );
 
         let scope = GlobalScope::new();
 

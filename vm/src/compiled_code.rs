@@ -10,10 +10,10 @@ pub type CompiledCodePointer = DerefPointer<CompiledCode>;
 /// Structure for storing compiled code information.
 pub struct CompiledCode {
     /// The name of the CompiledCode, usually the method name.
-    pub name: String,
+    pub name: ObjectPointer,
 
     /// The full file path.
-    pub file: String,
+    pub file: ObjectPointer,
 
     /// The starting line number.
     pub line: u16,
@@ -54,14 +54,9 @@ pub struct CompiledCode {
 impl CompiledCode {
     /// Creates a basic CompiledCode with a set of instructions. Other data such
     /// as the required arguments and any literals can be added later on.
-    ///
-    /// # Examples
-    ///
-    ///     let code = CompiledCode::new("(main)", "test.inko", 1, vec![...]);
-    ///
     pub fn new(
-        name: String,
-        file: String,
+        name: ObjectPointer,
+        file: ObjectPointer,
         line: u16,
         instructions: Vec<Instruction>,
     ) -> CompiledCode {
@@ -163,15 +158,21 @@ impl CompiledCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::Config;
     use object_pointer::ObjectPointer;
     use vm::instruction::{Instruction, InstructionType};
+    use vm::state::{RcState, State};
 
-    fn new_compiled_code() -> CompiledCode {
+    fn state() -> RcState {
+        State::new(Config::new())
+    }
+
+    fn new_compiled_code(state: &RcState) -> CompiledCode {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1);
 
         CompiledCode::new(
-            "foo".to_string(),
-            "bar.inko".to_string(),
+            state.intern(&"foo".to_string()),
+            state.intern(&"bar.inko".to_string()),
             1,
             vec![ins],
         )
@@ -179,17 +180,21 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let code = new_compiled_code();
+        let state = state();
+        let code = new_compiled_code(&state);
+        let name = state.intern(&"foo".to_string());
+        let file = state.intern(&"bar.inko".to_string());
 
-        assert_eq!(code.name, "foo".to_string());
-        assert_eq!(code.file, "bar.inko".to_string());
+        assert!(code.name == name);
+        assert!(code.file == file);
         assert_eq!(code.line, 1);
         assert_eq!(code.instructions.len(), 1);
     }
 
     #[test]
     fn test_literal() {
-        let mut code = new_compiled_code();
+        let state = state();
+        let mut code = new_compiled_code(&state);
         let pointer = ObjectPointer::integer(5);
 
         code.literals.push(pointer);
@@ -200,16 +205,20 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_code_object_invalid() {
-        new_compiled_code().code_object(0);
+        let state = state();
+        let code = new_compiled_code(&state);
+
+        code.code_object(0);
     }
 
     #[test]
     fn test_code_object_valid() {
-        let mut code = new_compiled_code();
-        let child = new_compiled_code();
+        let state = state();
+        let mut code = new_compiled_code(&state);
+        let child = new_compiled_code(&state);
 
         code.code_objects.push(child);
 
-        assert_eq!(code.code_object(0).name, code.name);
+        assert!(code.code_object(0).name == code.name);
     }
 }

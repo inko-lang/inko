@@ -32,16 +32,8 @@ pub fn allocate_stacktrace(
     contexts.reverse();
 
     for context in contexts {
-        let file = process.allocate(
-            object_value::string(context.code.file.clone()),
-            state.string_prototype,
-        );
-
-        let name = process.allocate(
-            object_value::string(context.code.name.clone()),
-            state.string_prototype,
-        );
-
+        let file = context.code.file;
+        let name = context.code.name;
         let line = ObjectPointer::integer(i64::from(context.line));
 
         let tuple = process.allocate(

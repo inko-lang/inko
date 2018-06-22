@@ -3112,8 +3112,8 @@ impl Machine {
                     let kind = field_ptr.integer_value()?;
 
                     let result = match kind {
-                        0 => self.state.intern(&code.name),
-                        1 => self.state.intern(&code.file),
+                        0 => code.name,
+                        1 => code.file,
                         2 => ObjectPointer::integer(i64::from(code.line)),
                         3 => process.allocate(
                             object_value::array(code.arguments.clone()),
@@ -3479,7 +3479,7 @@ impl Machine {
         if !code.valid_number_of_arguments(arguments) {
             return Err(format!(
                 "{} takes {} arguments but {} were supplied",
-                code.name,
+                code.name.string_value().unwrap(),
                 code.label_for_number_of_arguments(),
                 arguments
             ));
