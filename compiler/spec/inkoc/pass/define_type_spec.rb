@@ -13,6 +13,13 @@ describe Inkoc::Pass::DefineType do
     it 'defines the type of the implicit "self" argument' do
       type = expression_type("#{header} {}")
 
+      self_type =
+        if type.lambda?
+          type_scope.module_type
+        else
+          type_scope.self_type
+        end
+
       expect(type.arguments['self'].type).to eq(self_type)
     end
 
@@ -262,7 +269,7 @@ describe Inkoc::Pass::DefineType do
         foo_method.define_self_argument(type_scope.self_type)
         foo_method.throw_type = throw_type
 
-        type_scope.self_type.define_attribute('foo', foo_method)
+        type_scope.module_type.define_attribute('foo', foo_method)
       end
 
       it 'infers the throw type according to the try statement' do
@@ -299,7 +306,7 @@ describe Inkoc::Pass::DefineType do
       let(:throw_type) { Inkoc::TypeSystem::Object.new(name: 'Error') }
 
       before do
-        type_scope.self_type.define_attribute('Error', throw_type)
+        type_scope.module_type.define_attribute('Error', throw_type)
       end
 
       it 'infers the throw type according to the throw statement' do
@@ -1954,6 +1961,12 @@ describe Inkoc::Pass::DefineType do
       type = expression_type('lambda {}')
 
       expect(type).to be_lambda
+    end
+
+    it 'defines the type of self as the module type' do
+      type = expression_type('lambda { self }')
+
+      expect(type.return_type).to be_type_instance_of(tir_module.type)
     end
   end
 

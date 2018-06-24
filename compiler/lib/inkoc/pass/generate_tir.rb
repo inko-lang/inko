@@ -293,11 +293,26 @@ module Inkoc
       )
         code_object = body.add_code_object(name, type, location, locals: locals)
 
+        define_missing_self(code_object, type, location)
         define_block_arguments(code_object, arguments)
 
         on_body(block_body, code_object)
 
         body.instruct(:SetBlock, body.register(type), code_object, location)
+      end
+
+      def define_missing_self(body, type, location)
+        return unless type.lambda?
+
+        # lambdas passed to "process.spawn" won't receive any arguments, thus
+        # "self" won't be set. In the future this should be handled in
+        # "get_self" in some shape or form, but we can't do this at the moment
+        # since we don't keep a list of parent scopes to walk.
+        local = body.type.arguments[Config::SELF_LOCAL]
+
+        generate_argument_default(body, local, location) do
+          get_global(Config::MODULE_GLOBAL, body, location)
+        end
       end
 
       def define_block_arguments(code_object, arguments)

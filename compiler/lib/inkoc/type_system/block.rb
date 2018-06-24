@@ -241,7 +241,7 @@ module Inkoc
 
       # Defines the type of the implicit "self" argument.
       def define_self_argument(type)
-        define_required_argument('self', type)
+        define_required_argument(Config::SELF_LOCAL, type)
       end
 
       # Defines arguments for the given Array of types.

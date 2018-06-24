@@ -848,7 +848,7 @@ module Inkoc
       def on_lambda(node, scope, expected_block = nil)
         block_type = TypeSystem::Block.lambda(typedb.block_type)
         new_scope = TypeScope.new(
-          scope.self_type,
+          @module.type,
           block_type,
           @module,
           locals: node.body.locals,
