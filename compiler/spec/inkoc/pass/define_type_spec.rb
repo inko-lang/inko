@@ -475,7 +475,8 @@ describe Inkoc::Pass::DefineType do
         type = constant_type('A!(Integer)')
         param = type.lookup_type_parameter('T')
 
-        expect(type.lookup_type_parameter_instance(param)).to eq(integer_type)
+        expect(type.lookup_type_parameter_instance(param))
+          .to be_type_instance_of(integer_type)
       end
 
       it 'initialises the type parameters when using a Self type' do

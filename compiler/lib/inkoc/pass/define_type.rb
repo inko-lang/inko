@@ -144,7 +144,7 @@ module Inkoc
           .type_parameters
           .zip(type.type_parameters)
           .map do |param_node, param|
-            param_instance = define_type(param_node, scope)
+            param_instance = define_type_instance(param_node, scope)
 
             if param && !param_instance.type_compatible?(param, @state)
               return diagnostics
