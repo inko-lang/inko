@@ -90,7 +90,7 @@ impl SuspendedProcess {
                 false
             }
         } else {
-            true
+            false
         }
     }
 }
