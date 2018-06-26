@@ -1,3 +1,4 @@
 compiler/target
 vm/target
+runtime/target
 .*.rustfmt

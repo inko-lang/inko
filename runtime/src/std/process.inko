@@ -173,6 +173,76 @@ def receive(timeout: ?Integer = Nil) {
   _INKOC.process_receive_message(timeout)
 }
 
+## Receives a message that matches a condition.
+##
+## The `condition` argument is a `Block` that takes a single argument, which is
+## the message to test. If the `Block` returns `True`, then the message is
+## returned by this method. If the `Block` returns `False`, the message is
+## put back into the mailbox.
+##
+## If no messages match the condition, this method will suspend the current
+## process for a brief period of time. The time the process will be suspended
+## for can be controlled using the `recheck_interval` argument. This argument
+## specifies the minimum suspension time in milliseconds.
+##
+## # Examples
+##
+## Receiving a message that matches our condition:
+##
+##     import std::process
+##
+##     process.send(pid: process.current, message: 20)
+##     process.send(pid: process.current, message: 10)
+##
+##     let message = process.receive_if do (message) {
+##       message == 10
+##     }
+##
+##     message # => 10
+##
+## Receiving a message with a timeout:
+##
+##     import std::process
+##
+##     process.send(pid: process.current, message: 10)
+##
+##     let message = process.receive_if timeout: 10, condition: do (message) {
+##       message == 10
+##     }
+##
+##     message # => 10
+##
+## When supplying both the `timeout` and `condition` arguments, it is preferred
+## to specify the `timeout` argument first.
+def receive_if(
+  condition: do (Dynamic) -> Dynamic,
+  timeout: ?Integer = Nil,
+  recheck_interval = 50
+) {
+  let first_message = receive(timeout)
+  let mut message = first_message
+
+  {
+    condition.call(message).if_true {
+      return message
+    }
+
+    send(pid: current, message: message)
+
+    message = receive(timeout)
+
+    # It's possible none of the messages in our mailbox match the given
+    # condition. This could lead to this process being suspended and resumed
+    # many times, using a lot of CPU time.
+    #
+    # To prevent this from happening we'll manually suspend ourselves for a
+    # brief period of time once we have checked all messages in the mailbox.
+    message.equal?(first_message).if_true {
+      suspend(recheck_interval)
+    }
+  }.loop
+}
+
 ## Spawns a new process that will execute the given lambda.
 ##
 ## Processes are completely isolated and as such "self" in the lambda will refer

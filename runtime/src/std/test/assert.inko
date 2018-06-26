@@ -1,0 +1,55 @@
+#! Assertions for writing unit tests.
+#!
+#! Assertions can be used to define requirements that must be met for a unit
+#! test to pass. For example, the `equal` method can be used to assert that two
+#! values must be equal to each other.
+#!
+#! Assertions will throw in the event of a failure, requiring the use of the
+#! `try` keyword. The use of `try!` is discouraged as it will result in the
+#! entire test suite terminating in the event of an assertion failing.
+import std::format::Inspect
+import std::operators::Equal
+import std::string_buffer::StringBuffer
+import std::test::error::TestFailure
+import std::vm::(self, CallFrame)
+
+## Returns a `CallFrame` pointing to the location of the failed assertion.
+def location_of_failure -> CallFrame {
+  *vm.stacktrace(skip: 3, limit: 1)[0]
+}
+
+## Asserts that the given arguments are equal to each other.
+def equal!(T: Inspect + Equal)(given: T, expected: T) !! TestFailure {
+  given == expected
+    .if_true {
+      return
+    }
+
+  let buffer = StringBuffer.new([
+    'Expected ',
+    given.inspect,
+    ' to equal ',
+    expected.inspect
+  ])
+
+  throw TestFailure
+    .new(message: buffer.to_string, location: location_of_failure)
+}
+
+## Asserts that the given arguments are not equal to each other.
+def not_equal!(T: Inspect + Equal)(given: T, expected: T) !! TestFailure {
+  given == expected
+    .if_false {
+      return
+    }
+
+  let buffer = StringBuffer.new([
+    'Expected ',
+    given.inspect,
+    ' not to equal ',
+    expected.inspect
+  ])
+
+  throw TestFailure
+    .new(message: buffer.to_string, location: location_of_failure)
+}

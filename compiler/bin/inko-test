@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# This script acts as a simple way of running the tests in an Inko project,
+# until a better way of running tests is available.
+#
+# Basic usage:
+#
+# Inside a directory containing the src/ and tests/ directory:
+#
+#     inko-test
+#
+# If the source code is located elsewhere:
+#
+#     inko-test -d ../runtime
+#
+# If the "ivm" executable is not in $PATH:
+#
+#     inkoc-test -d ../runtime --vm ../vm/target/release/ivm
+
+gem_path = File.expand_path('../lib', __dir__)
+
+$LOAD_PATH.unshift(gem_path) unless $LOAD_PATH.include?(gem_path)
+
+require 'inkoc'
+require 'optparse'
+require 'pathname'
+
+options = {
+  directory: Pathname.pwd,
+  vm: 'ivm'
+}
+
+parser = OptionParser.new do |o|
+  o.banner = 'Usage: inko-test [OPTIONS]'
+
+  o.separator("\nOptions:")
+
+  o.on('-h', '--help', 'Shows this help message') do
+    puts(o)
+    exit
+  end
+
+  o.on('-d', '--directory DIR', 'The directory containing source code') do |val|
+    options[:directory] = Pathname.new(val)
+  end
+
+  o.on('--vm PATH', 'The path to the ivm executable') do |val|
+    options[:vm] = val
+  end
+end
+
+parser.parse!(ARGV)
+
+src_dir = options[:directory].join('src')
+target_dir = options[:directory].join('target', 'test')
+tests_dir = options[:directory].join('tests')
+main_mod = tests_dir.join('main.inko')
+
+abort("#{src_dir} does not exist") unless src_dir.directory?
+abort("#{tests_dir} does not exist") unless tests_dir.directory?
+abort("#{main_mod} does not exist") unless main_mod.file?
+
+config = Inkoc::Config.new(:test)
+
+config.target = target_dir
+
+config.add_source_directories([src_dir, tests_dir])
+config.create_directories
+
+state = Inkoc::State.new(config)
+compiler = Inkoc::Compiler.new(state)
+mod = compiler.compile_main(main_mod)
+
+if state.diagnostics?
+  state.display_diagnostics
+  exit(1)
+end
+
+main_mod_path = config.target.join(mod.bytecode_import_path)
+
+exec(options[:vm], '-I', target_dir.to_s, main_mod_path.to_s)

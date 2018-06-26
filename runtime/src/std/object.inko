@@ -1,6 +1,16 @@
 import std::conditional::Conditional
 import std::operators::Equal
 
+impl Object {
+  ## Returns `True` if `self` and the given object are identical.
+  ##
+  ## Two objects are considered identical if they reside at the exact same
+  ## memory address. This is also known as referential equality.
+  def equal?(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+}
+
 impl Conditional for Object {
   def if_true!(R)(block: do -> R) -> ?R {
     block.call
@@ -52,7 +62,7 @@ impl Equal for Object {
   ##
   ##     obj1 == obj2 # => False
   def ==(other: Self) -> Boolean {
-    _INKOC.object_equals(self, other)
+    equal?(other)
   }
 
   def !=(other: Self) -> Boolean {

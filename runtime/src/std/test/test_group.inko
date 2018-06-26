@@ -1,0 +1,34 @@
+#! Types for defining groups of unit tests.
+#!
+#! A `TestGroup` can be used to define multiple, related unit tests. Test groups
+#! are typically defined by sending `group` to the `std::test` module.
+import std::test::error::TestFailure
+import std::test::runner::Client
+import std::test::test::Test
+import std::vm
+
+## A collection of tests that all belong to the same group.
+object TestGroup {
+  def init(name: String, client: Client) {
+    ## The name of the group.
+    let @name = name
+
+    ## The `Client` to use for communicating with a `Runner`.
+    let @client = client
+  }
+
+  ## Registers a new test with a runner.
+  def test(name: String, body: lambda !! TestFailure) {
+    let location = *vm.stacktrace(skip: 2, limit: 1)[0]
+
+    let test = Test.new(
+      name: name,
+      group_name: @name,
+      runner_pid: @client.runner_pid,
+      location: location,
+      body: body
+    )
+
+    @client.add_test(test)
+  }
+}

@@ -1,0 +1,118 @@
+#! Unit testing of Inko source code
+#!
+#! The `std::test` module and its child modules provide various types and
+#! methods that can be used to write unit tests. Most of the functionality is
+#! implemented in separate modules, and `std::test` just provides a simpler
+#! interface to that functionality.
+#!
+#! To write a unit test, start by importing `std::test`, `std::test::assert`,
+#! and any other modules your test may depend on:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#! You can define a group of tests using `std::test.group`:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#!     test.group 'The name of the group', do (group) {
+#!
+#!     }
+#!
+#! The name of the group can be arbitrary, but it is recommended to use the name
+#! of a type and method. For example, tests for `Integer.==` would be defined as
+#! follows:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#!     test.group 'Integer.==', do (group) {
+#!
+#!     }
+#!
+#! Tests can be defined by sending `test` to the `group` variable, which is an
+#! instance of `std::test::test_group::TestGroup`:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#!     test.group 'Integer.==', do (group) {
+#!       group.test 'This is the name of the test', {
+#!
+#!       }
+#!     }
+#!
+#! The name of a test can be arbitrary, but it's best to briefly describe what
+#! the test does:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#!     test.group 'Integer.==', do (group) {
+#!       group.test 'Comparing two identical integers', {
+#!
+#!       }
+#!     }
+#!
+#! Assertions can be defined by sending messages to the `std::test::assert`
+#! module. Because these assertion methods may throw, you need to use `try` when
+#! sending a message:
+#!
+#!     import std::test
+#!     import std::test::assert
+#!
+#!     test.group 'Integer.==', do (group) {
+#!       group.test 'Comparing two identical integers', {
+#!         try assert.equal(10, 10)
+#!       }
+#!     }
+#!
+#! For more information on the available assertions, refer to the
+#! `std::test::assert` module.
+#!
+#! # Configuring test suites
+#!
+#! A test suite's configuration details can be changed by sending the
+#! `configure` message to the `std::test` module. For example, changing the
+#! number of concurrently running tests can be done as follows:
+#!
+#!     import std::test
+#!
+#!     test.configure('concurrency', 16)
+#!
+#! For more information about the available configuration options, refer to the
+#! `std::test::config` module.
+#!
+#! # Running tests
+#!
+#! To run a test suite, simply send `run` to the `std::test` module:
+#!
+#!     import std::test
+#!
+#!     test.run
+#!
+#! This will run all currently registered tests and wait for them to complete.
+#! For more information, refer to the `std::test::runner` module.
+import std::test::runner::(self, Client)
+import std::test::test_group::TestGroup
+
+## The default `Client` to use for registering and running tests.
+let DEFAULT_CLIENT = runner.start
+
+## Defines a new test group and sends it to the default test runner.
+def group(name: String, body: do (TestGroup)) {
+  let group = TestGroup.new(name: name, client: DEFAULT_CLIENT)
+
+  body.call(group)
+}
+
+## Sets a configuration option of the default `Client` to the given value.
+def configure(option: String, value: Dynamic) {
+  DEFAULT_CLIENT.configure(option, value)
+}
+
+## Runs all the tests registered with the default `Client`.
+def run {
+  DEFAULT_CLIENT.run
+}

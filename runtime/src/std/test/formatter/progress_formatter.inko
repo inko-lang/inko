@@ -1,0 +1,168 @@
+#! Formatter for displaying test results similar to a progress bar.
+#!
+#! The produced output is inspired by existing test frameworks such as RSpec and
+#! ExUnit. Output is colorised using ANSI escape sequences, though this can be
+#! disabled if necessary.
+import std::ansi
+import std::conversion::ToString
+import std::stdio::stdout
+import std::string_buffer::StringBuffer
+import std::test::error::TestFailure
+import std::test::formatter::Formatter
+import std::test::test::Test
+import std::time::Duration
+
+## The minimum amount of time (in seconds) the test suite should run, before
+## displaying the execution time in seconds.
+let TIME_IN_SECONDS_THRESHOLD = 1.0
+
+## A formatter that displays tests similar to a progress bar.
+##
+## Passed tests are displayed as a ".", while failed tests are displayed as "F".
+## All output is written to STDOUT.
+object ProgressFormatter impl Formatter {
+  def init(colors = True) {
+    ## The number of failed tests.
+    let mut @failed = 0
+
+    ## When set to `True`, certain parts of the output will be wrapped in ANSI
+    ## escape sequences.
+    let @colors = colors
+  }
+
+  def passed(test: Test) {
+    stdout.write_string(green('.'))
+  }
+
+  def failed(test: Test) {
+    @failed += 1
+
+    stdout.write_string(red('F'))
+  }
+
+  ## Displays a list of all the failed tests.
+  def failures(tests: Array!(Test)) {
+    stdout.write_string("\n\nFailures:")
+
+    tests.each do (test) {
+      let failure = *test.failure
+
+      let buffer = StringBuffer.new([
+        "\n\n",
+        '  Test: ',
+        bold(failure_title(test)),
+        "\n",
+        '  Location: ',
+        cyan(failure_location(failure)),
+        "\n\n",
+        '  ',
+        red(failure.message)
+      ])
+
+      stdout.write_string(buffer)
+    }
+  }
+
+  ## Displays a summary of the test suite, once the suite has finished running.
+  def summary(tests: Array!(Test), duration: Duration) {
+    let buffer = StringBuffer.new([
+      "\n\nFinished running in ",
+      test_suite_duration_time(duration).to_string,
+      ' ',
+      test_suite_duration_unit(duration),
+      " \n",
+      test_suite_statistics(tests)
+    ])
+
+    stdout.print(buffer.to_string)
+  }
+
+  ## Returns the title to use for a failed test.
+  def failure_title(test: Test) -> String {
+    StringBuffer.new([test.group_name, ' ', test.name]).to_string
+  }
+
+  ## Returns the location of a test failure.
+  def failure_location(failure: TestFailure) -> String {
+    let location = failure.location
+
+    StringBuffer
+      .new([location.file, ':', location.line.to_string])
+      .to_string
+  }
+
+  ## Returns the unit of time to use for displaying the test suite execution
+  ## time.
+  def test_suite_duration_unit(duration: Duration) -> String {
+    duration.as_seconds > TIME_IN_SECONDS_THRESHOLD
+      .if true: {
+        'seconds'
+      }, false: {
+        'milliseconds'
+      }
+  }
+
+  ## Returns the duration of the test suite as a Float.
+  ##
+  ## If the test suite took more than 1 second to execute, then the returned
+  ## value is in seconds. If the suite took less than 1 second, then the value
+  ## is in milliseconds instead.
+  def test_suite_duration_time(duration: Duration) -> Float {
+    let time = duration.as_seconds
+
+    time > TIME_IN_SECONDS_THRESHOLD
+      .if true: {
+        time
+      }, false: {
+        duration.as_milliseconds
+      }
+  }
+
+  ## Returns a `String` containing some statistics about the test suite.
+  def test_suite_statistics(tests: Array!(Test)) -> String {
+    let statistics = StringBuffer.new([
+      tests.length.to_string,
+      ' tests, ',
+      @failed.to_string,
+      ' failures '
+    ])
+
+    @failed.positive?.if true: {
+      red(statistics)
+    }, false: {
+      green(statistics)
+    }
+  }
+
+  def green(string: ToString) -> String {
+    @colors.if true: {
+      ansi.green(string)
+    }, false: {
+      string
+    }
+  }
+
+  def red(string: ToString) -> String {
+    @colors.if true: {
+      ansi.red(string)
+    }, false: {
+      string
+    }
+  }
+
+  def cyan(string: ToString) -> String {
+    @colors.if true: {
+      ansi.cyan(string)
+    }, false: {
+      string
+    }
+  }
+
+  def bold(string: ToString) -> String {
+    @colors.if true: {
+      ansi.bold(string)
+    }, false: {
+      string
+    }
+  }
+}

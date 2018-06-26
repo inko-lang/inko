@@ -89,9 +89,9 @@ module Inkoc
 
     attr_reader :source_directories, :mode, :target
 
-    def initialize
+    def initialize(mode = :debug)
       @source_directories = Set.new
-      @mode = :debug
+      @mode = mode
       @target = Pathname
         .new(File.join(SXDG::XDG_CACHE_HOME, PROGRAM_NAME, BYTECODE_DIR))
     end

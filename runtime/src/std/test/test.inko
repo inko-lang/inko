@@ -1,0 +1,85 @@
+#! Types for defining individual unit tests.
+#!
+#! The `Test` type is used for defining tests and their details, such as the
+#! source location and the `Block` to run. Tests are typically defined by
+#! sending `test` to an instance of `std::test::test_group::TestGroup`.
+import std::process
+import std::test::error::TestFailure
+import std::vm::CallFrame
+
+## A test defined by the user, including details such as the name and the
+## location it was defined at.
+object Test {
+  def init(
+    name: String,
+    group_name: String,
+    runner_pid: Integer,
+    location: CallFrame,
+    body: lambda !! TestFailure
+  ) {
+    ## The name of this test.
+    let @name = name
+
+    ## The name of the group this test belongs to.
+    let @group_name = group_name
+
+    ## A CallFrame pointing to the location the test was defined on by the user.
+    let @location = location
+
+    ## The PID of the runner this test belongs.
+    let @runner_pid = runner_pid
+
+    ## The failure of this test, if any.
+    let mut @failure: ?TestFailure = Nil
+
+    ## The test body to execute.
+    let @body = body
+  }
+
+  ## Returns the name of this test.
+  def name -> String {
+    @name
+  }
+
+  ## Returns the name of the group this test belongs to.
+  def group_name -> String {
+    @group_name
+  }
+
+  ## Returns the location this test was defined on.
+  def location -> CallFrame {
+    @location
+  }
+
+  ## Returns the body of the test to run.
+  def body -> lambda !! TestFailure {
+    @body
+  }
+
+  ## Returns the failure of the test, if any.
+  def failure -> ?TestFailure {
+    @failure
+  }
+
+  ## Returns `True` if the test passed, `False` otherwise.
+  def passed? -> Boolean {
+    @failure.if true: {
+      False
+    }, false: {
+      True
+    }
+  }
+
+  ## Runs the test, and notifies a `Runner` of the result.
+  ##
+  ## The message sent to a `Runner` is this `Test` itself.
+  def run {
+    try {
+      @body.call
+    } else (failure) {
+      @failure = failure
+    }
+
+    process.send(pid: @runner_pid, message: self)
+  }
+}

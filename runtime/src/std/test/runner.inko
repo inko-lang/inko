@@ -1,0 +1,285 @@
+#! Registering and running of unit tests
+#!
+#! This module provides various types and methods for working with test runners.
+#! A runner is an object that manages a list of tests, executes them, and
+#! displays the results using a `std::test::formatter::Formatter`.
+#!
+#! A runner is made out of three components:
+#!
+#! 1. A `RunnerState` object, which stores the state of a `Runner`.
+#! 2. A `Runner` object, which runs in a separate process and is responsible for
+#!    executing tests.
+#! 3. A `Client` object, which sends messages to a `Runner`. A `Client` can be
+#!    copied to other processes, but each `Client` always belongs to a single
+#!    `Runner`.
+#!
+#! A `Client` communicates with a `Runner` by sending it objects that implement
+#! the `Command` trait. A `Runner` in turn will send the `run` message to these
+#! objects, passing its instance of `RunnerState`. This allows for type-safe
+#! message passing, without the need for pattern matching.
+import std::process::(self, Receiver, Sender)
+import std::reflection
+import std::stdio::stdout
+import std::test::config::Configuration
+import std::test::formatter::Formatter
+import std::test::test::Test
+import std::time::(self, Duration)
+import std::vm
+
+## The exit status to use if one or more tests failed to run.
+let FAILURE_EXIT_STATUS = 1
+
+## The internal state of a `Runner`.
+object RunnerState {
+  def init {
+    ## All the tests registered with this runner.
+    let @tests: Array!(Test) = []
+
+    ## The configuration details for this runner.
+    let @configuration = Configuration.new
+
+    ## A boolean indicating if the runner should terminate after receiving a
+    ## message.
+    let mut @terminate = False
+  }
+
+  ## Returns `True` if the `Runner` this state belongs to should terminate.
+  def terminate? -> Boolean {
+    @terminate
+  }
+
+  ## Adds a new `Test` to this `Runner`.
+  def add_test(test: Test) {
+    @tests.push(test)
+  }
+
+  ## Returns all the currently registered tests.
+  def tests -> Array!(Test) {
+    @tests
+  }
+
+  ## Returns the `Configuration` of a `Runner`.
+  def configuration -> Configuration {
+    @configuration
+  }
+
+  ## Returns the number of tests to be executed concurrently
+  def concurrency -> Integer {
+    @configuration.concurrency
+  }
+
+  ## Returns the `Formatter` to use for formatting test results.
+  def formatter -> Formatter {
+    @configuration.formatter
+  }
+}
+
+## A command sent from a runner client to the server.
+trait Command {
+  ## Runs the command.
+  def run(state: RunnerState)
+}
+
+## A Command for setting configuration options of a `Runner`.
+object ConfigureRunner impl Command {
+  def init(option: String, value) {
+    ## The name of the option to set.
+    let @option = option
+
+    ## The value to set the option to. The type of this value is Dynamic and can
+    ## vary based on the name of the option.
+    let @value = value
+  }
+
+  def run(state: RunnerState) {
+    state.configuration[@option] = @value
+  }
+}
+
+## A command for adding a new test to a runner.
+object AddTest impl Command {
+  def init(test: Test) {
+    ## The test to add.
+    let @test = test
+  }
+
+  def run(state: RunnerState) {
+    state.add_test(@test)
+  }
+}
+
+## A command for running all tests currently registered with a `Runner`.
+object RunTests impl Command {
+  def init(notify: Integer) {
+    ## The PID of the process to notify once all tests have been completed.
+    let @notify = notify
+  }
+
+  ## Runs all the tests currently registered, returning once they have been
+  ## completed.
+  def run(state: RunnerState) {
+    let mut pending = 0
+    let start_time = time.monotonic
+    let last_index = state.tests.length - 1
+    let executed = []
+    let failed = []
+
+    state.tests.each_with_index do (test, index) {
+      let sender = process.channel!(Test) lambda (receiver) {
+        receiver.receive.run
+      }
+
+      sender.send(test)
+
+      pending += 1
+
+      pending == state.concurrency
+        .or { index == last_index }
+        .if_true {
+          { pending > 0 }.while_true {
+            # We may receive messages of other types, such as newly registered
+            # tests. In practise this shouldn't happen, but technically it's
+            # possible. As such we use `process.receive_if` here, instead of
+            # `process.channel`.
+            let finished_test = process.receive_if do (msg) {
+              reflection.instance_of?(msg, Test)
+            } as Test
+
+            state.formatter.test(finished_test)
+
+            finished_test.passed?.if_false {
+              failed.push(finished_test)
+            }
+
+            executed.push(finished_test)
+
+            pending -= 1
+          }
+        }
+    }
+
+    let duration = Duration.from_seconds((time.monotonic - start_time).to_float)
+
+    failed.empty?.if_false {
+      state.formatter.failures(failed)
+    }
+
+    state.formatter.summary(tests: executed, duration: duration)
+
+    let finished_message = RunnerFinished
+      .new(pid: process.current, failures: failed.empty?.not)
+
+    process.send(pid: @notify, message: finished_message)
+  }
+}
+
+## A message sent by a `Runner` to inform a process that the `Runner` has
+## finished.
+object RunnerFinished {
+  def init(pid: Integer, failures: Boolean) {
+    ## The PID of the `Runner` that sent the message.
+    let @pid = pid
+
+    ## A boolean indicating if there were any test failures.
+    let @failures = failures
+  }
+
+  ## Returns the PID of the `Runner` that sent the message.
+  def pid -> Integer {
+    @pid
+  }
+
+  ## Returns `True` if one or more tests failed, `False` otherwise.
+  def failures? -> Boolean {
+    @failures
+  }
+}
+
+## An object for executing test commands, such as setting configuring options or
+## running the tests.
+##
+## A test runner consists out of two components: a server (an instance of
+## `Runner`), and one or more clients (instances of `Client`). The state of a
+## `Runner` is stored in a separate `RunnerState` instance.
+object Runner {
+  def init(receiver: Receiver!(Command)) {
+    ## The Receiver to use for receiving commands from one or more clients.
+    let @receiver = receiver
+
+    ## The internal state of a Runner.
+    let @state = RunnerState.new
+  }
+
+  ## Starts the runner.
+  ##
+  ## This method will not return until a command has instructed this Runner to
+  ## terminate.
+  def run {
+    let command = @receiver.receive
+
+    command.run(@state)
+
+    @state.terminate?.if_true {
+      return
+    }
+
+    run
+  }
+}
+
+## A client that communicates with a certain `Runner`.
+object Client {
+  def init(sender: Sender!(Command)) {
+    ## The Sender to use for communicating with the `Runner`.
+    let @sender = sender
+  }
+
+  ## Returns the PID of the `Runner`.
+  def runner_pid -> Integer {
+    @sender.pid
+  }
+
+  ## Sets a configuration option to the given value.
+  def configure(option: String, value: Dynamic) {
+    @sender.send(ConfigureRunner.new(option, value))
+  }
+
+  ## Adds a new test to the `Runner`.
+  def add_test(test: Test) {
+    @sender.send(AddTest.new(test))
+  }
+
+  ## Schedules all tests for execution and waits for them to complete.
+  def run {
+    @sender.send(RunTests.new(process.current))
+
+    wait_for_tests
+  }
+
+  ## Blocks the current process until all tests have finished running.
+  ##
+  ## If any tests failed to run, this method will terminate the VM with exit
+  ## status code 1.
+  def wait_for_tests {
+    # We have no control over what messages may be sent to the current process.
+    # This means we can't use `process.channel`, and instead have to make sure
+    # that the message we receive is the message we actually want.
+    let message = process.receive_if do (message) {
+      reflection.instance_of?(message, RunnerFinished)
+        .and { message.pid == @sender.pid as Boolean }
+    } as RunnerFinished
+
+    message.failures?.if_true {
+      vm.exit(FAILURE_EXIT_STATUS)
+    }
+  }
+}
+
+## Starts a new `Runner` in a separate process.
+def start -> Client {
+  let sender = process.channel!(Command) lambda (receiver) {
+    Runner.new(receiver).run
+  }
+
+  Client.new(sender)
+}

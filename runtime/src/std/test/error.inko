@@ -1,0 +1,33 @@
+#! Types for signalling test failures
+import std::conversion::ToString
+import std::error::Error
+import std::vm::CallFrame
+
+## A `TestFailure` is used to indicate that a particular assertion failed.
+##
+## Each `TestFailure` is given a message describing the failure, and a
+## `CallFrame` that points to the location of the failure.
+object TestFailure impl ToString, Error {
+  def init(message: String, location: CallFrame) {
+    ## A message describing the assertion failure.
+    let @message = message
+
+    ## The location of the assertion failure.
+    let @location = location
+  }
+
+  ## Returns the location of the failure.
+  def location -> CallFrame {
+    @location
+  }
+
+  ## Returns a message describing the assertion failure.
+  def to_string -> String {
+    @message
+  }
+
+  ## Returns a message describing the assertion failure.
+  def message -> String {
+    @message
+  }
+}
