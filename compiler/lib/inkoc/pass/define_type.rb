@@ -567,7 +567,14 @@ module Inkoc
       end
 
       def infer_try_as_optional?(try_type, else_type)
-        !try_type.optional? && else_type.type_instance_of?(typedb.nil_type)
+        nil_type = typedb.nil_type
+
+        if try_type.type_instance_of?(nil_type) &&
+           else_type.type_instance_of?(nil_type)
+          return false
+        end
+
+        !try_type.optional? && else_type.type_instance_of?(nil_type)
       end
 
       def on_throw(node, scope)

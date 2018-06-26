@@ -1542,6 +1542,20 @@ describe Inkoc::Pass::DefineType do
         expect(rtype.type).to be_type_instance_of(state.typedb.integer_type)
       end
 
+      it 'does not infer the return type as optional if both types are Nil' do
+        method.return_type = state.typedb.nil_type.new_instance
+
+        type_scope
+          .self_type
+          .define_attribute('Nil', state.typedb.nil_type.new_instance)
+
+        type = expression_type('do { try throws else Nil }')
+        rtype = type.return_type
+
+        expect(rtype).not_to be_optional
+        expect(rtype).to be_type_instance_of(state.typedb.nil_type)
+      end
+
       it 'defines the type of the "self" and error arguments' do
         body = parse_source('do { try throws else (error) error }')
 

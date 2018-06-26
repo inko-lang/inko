@@ -268,7 +268,7 @@ object Table!(K: Hash + Equal, V) {
   def backwards_shift(mut index: Integer) {
     let mut pair = @buckets[index]
 
-    { pair.and { pair.distance.positive? } }.while_true {
+    { pair.and { (*pair).distance.positive? } }.while_true {
       @buckets[index - 1] = pair
       @buckets[index] = Nil
 

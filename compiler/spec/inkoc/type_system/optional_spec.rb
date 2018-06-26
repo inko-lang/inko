@@ -54,7 +54,21 @@ describe Inkoc::TypeSystem::Optional do
   end
 
   describe '#type_compatible?' do
+    let(:state) { Inkoc::State.new(Inkoc::Config.new) }
+
     it 'returns true when the underlying type is compatible' do
+      trait = Inkoc::TypeSystem::Trait.new(name: 'Inspect')
+      object = Inkoc::TypeSystem::Object.new
+
+      object.implement_trait(trait)
+
+      ours = described_class.new(object)
+      theirs = described_class.new(trait)
+
+      expect(ours.type_compatible?(theirs, state)).to eq(true)
+    end
+
+    it 'returns false when passing an optional to a non-optional' do
       trait = Inkoc::TypeSystem::Trait.new(name: 'Inspect')
       object = Inkoc::TypeSystem::Object.new
       state = Inkoc::State.new(Inkoc::Config.new)
@@ -62,7 +76,23 @@ describe Inkoc::TypeSystem::Optional do
       object.implement_trait(trait)
 
       ours = described_class.new(object)
-      theirs = described_class.new(trait)
+      theirs = trait
+
+      expect(ours.type_compatible?(theirs, state)).to eq(false)
+    end
+
+    it 'returns true when passing to a dynamic type' do
+      type = Inkoc::TypeSystem::Object.new
+      ours = described_class.new(type)
+      theirs = Inkoc::TypeSystem::Dynamic.new
+
+      expect(ours.type_compatible?(theirs, state)).to eq(true)
+    end
+
+    it 'returns true when passing to a type parameter' do
+      type = Inkoc::TypeSystem::Object.new
+      ours = described_class.new(type)
+      theirs = Inkoc::TypeSystem::TypeParameter.new(name: 'A')
 
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end

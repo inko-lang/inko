@@ -57,7 +57,11 @@ module Inkoc
       end
 
       def type_compatible?(other, state)
-        type.type_compatible?(other, state)
+        if other.optional? || other.type_parameter? || other.dynamic?
+          type.type_compatible?(other, state)
+        else
+          false
+        end
       end
 
       def dereference?
