@@ -421,7 +421,7 @@ module Inkoc
         end
 
         type_args = node.type_arguments.map do |type_arg_node|
-          define_type(type_arg_node, scope)
+          define_type_instance(type_arg_node, scope)
         end
 
         method.new_instance_for_send(type_args)
