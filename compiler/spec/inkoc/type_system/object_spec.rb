@@ -121,6 +121,21 @@ describe Inkoc::TypeSystem::Object do
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
 
+      it 'returns true when a type is initialised with its own parameters' do
+        param = state
+          .typedb
+          .array_type
+          .lookup_type_parameter(Inkoc::Config::ARRAY_TYPE_PARAMETER)
+
+        ours = state.typedb.new_array_of_type(param)
+
+        theirs = state
+          .typedb
+          .new_array_of_type(state.typedb.integer_type.new_instance)
+
+        expect(ours.type_compatible?(theirs, state)).to eq(true)
+      end
+
       it 'returns true when an array is compatible with an array of traits' do
         trait = Inkoc::TypeSystem::Trait.new(name: 'A')
         int_type = state.typedb.integer_type

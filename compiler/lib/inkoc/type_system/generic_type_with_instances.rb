@@ -48,7 +48,7 @@ module Inkoc
           ours = lookup_type_parameter_instance(param) || param
           theirs = other.lookup_type_parameter_instance(param) || param
 
-          ours.type_compatible?(theirs, state)
+          ours == param || ours.type_compatible?(theirs, state)
         end
       end
 
