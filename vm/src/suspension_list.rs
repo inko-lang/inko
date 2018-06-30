@@ -90,7 +90,7 @@ impl SuspendedProcess {
                 false
             }
         } else {
-            false
+            !waiting_for_message
         }
     }
 }
