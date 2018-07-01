@@ -877,7 +877,7 @@ module Inkoc
 
       def on_define_variable_with_explicit_type(node, scope)
         vtype = define_type(node.value, scope)
-        exp_type = define_type(node.value_type, scope)
+        exp_type = define_type_instance(node.value_type, scope)
         callback = node.variable.define_variable_visitor_method
 
         vtype =
