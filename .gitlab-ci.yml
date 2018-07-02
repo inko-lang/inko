@@ -1,7 +1,16 @@
 ---
 
-inkoc:
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+
+stages:
+  - pre-test
+  - build
+  - post-test
+
+test:compiler:
   image: ruby:2.4-alpine
+  stage: pre-test
   before_script:
     - cd compiler
     - apk add --update build-base
@@ -14,13 +23,50 @@ inkoc:
     - bundle exec rake test
   cache:
     paths:
-      - vendor/ruby
+      - compiler/vendor
 
-ivm:
+test:ivm:
   image: rustlang/rust:nightly
+  stage: pre-test
   before_script:
     - cd vm
     - rustc --version
     - cargo --version
   script:
-    - cargo test --all --verbose
+    - make test
+
+build:ivm:
+  image: rustlang/rust:nightly
+  stage: build
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - make release
+    - strip target/release/ivm
+  cache:
+    paths:
+      - .cargo
+  artifacts:
+    expire_in: 1 hour
+    paths:
+      - vm/target/release/ivm
+
+test:runtime:
+  image: ruby:2.4-slim
+  stage: post-test
+  before_script:
+    - gem install bundler --no-ri --no-rdoc
+    - ruby --version
+    - vm/target/release/ivm --version
+    - bundle --version
+    - cd compiler
+    - bundle install --path vendor --retry=3
+  script:
+    - bundle exec ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
+  cache:
+    paths:
+      - compiler/vendor
+  dependencies:
+    - build:ivm
