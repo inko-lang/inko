@@ -1,0 +1,35 @@
+import std::ansi
+import std::test
+import std::test::assert
+
+test.group 'std::ansi.wrap', do (g) {
+  g.test 'Wrapping a String in an ANSI escape sequence', {
+    let wrapped = ansi.wrap(string: 'hello', code: '1')
+
+    try assert.equal(wrapped, "\e[1mhello\e[0m")
+  }
+}
+
+test.group 'std::ansi.bold', do (g) {
+  g.test 'Making a String bold', {
+    try assert.equal(ansi.bold('hello'), "\e[1mhello\e[0m")
+  }
+}
+
+test.group 'std::ansi.red', do (g) {
+  g.test 'Applying the color red to a String', {
+    try assert.equal(ansi.red('hello'), "\e[31mhello\e[0m")
+  }
+}
+
+test.group 'std::ansi.green', do (g) {
+  g.test 'Applying the color green to a String', {
+    try assert.equal(ansi.green('hello'), "\e[32mhello\e[0m")
+  }
+}
+
+test.group 'std::ansi.cyan', do (g) {
+  g.test 'Applying the color cyan to a String', {
+    try assert.equal(ansi.cyan('hello'), "\e[36mhello\e[0m")
+  }
+}
