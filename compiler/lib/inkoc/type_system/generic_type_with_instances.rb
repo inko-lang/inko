@@ -62,6 +62,8 @@ module Inkoc
           rtype.type_parameters.each do |param|
             direct_instance = rtype.lookup_type_parameter_instance(param)
 
+            break unless direct_instance
+
             # If the initialised value is a type parameter we need to look up
             # its actual instance in either the block or the current type of
             # "self".
