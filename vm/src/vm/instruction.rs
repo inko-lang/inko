@@ -142,6 +142,7 @@ pub enum InstructionType {
     ByteArrayClear,
     ByteArrayEquals,
     ByteArrayToString,
+    GetBooleanPrototype,
 }
 
 /// Struct for storing information about a single instruction.

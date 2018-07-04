@@ -14,8 +14,9 @@
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this
 # point.
-let TrueObject = _INKOC.get_true
-let FalseObject = _INKOC.get_false
+let Boolean = _INKOC.get_boolean_prototype
+let True = _INKOC.get_true
+let False = _INKOC.get_false
 let Nil = _INKOC.get_nil
 
 let Object = _INKOC.get_object_prototype
@@ -25,8 +26,9 @@ let Float = _INKOC.get_float_prototype
 let Block = _INKOC.get_block_prototype
 let Array = _INKOC.get_array_prototype
 
-_INKOC.set_attribute(TrueObject, '@_object_name', 'True')
-_INKOC.set_attribute(FalseObject, '@_object_name', 'False')
+_INKOC.set_attribute(Boolean, '@_object_name', 'Boolean')
+_INKOC.set_attribute(True, '@_object_name', 'True')
+_INKOC.set_attribute(False, '@_object_name', 'False')
 _INKOC.set_attribute(Nil, '@_object_name', 'Nil')
 _INKOC.set_attribute(Object, '@_object_name', 'Object')
 _INKOC.set_attribute(String, '@_object_name', 'String')
@@ -40,7 +42,7 @@ _INKOC.set_attribute(Block, '@_object_name', 'Block')
 # creating of modules.
 impl Object {
   def new -> Self {
-    let obj = _INKOC.set_object(FalseObject, self)
+    let obj = _INKOC.set_object(False, self)
 
     obj.init
 
@@ -52,10 +54,6 @@ impl Object {
 
 # Now that the basics are in place we can define Trait the usual way.
 object Trait {}
-
-# The Boolean trait must be defined as early as possible since other types rely
-# on it. We later refine it in std::boolean.
-trait Boolean {}
 
 # Inko::Modules contains all of the imported modules mapped to their fully
 # qualified module names.

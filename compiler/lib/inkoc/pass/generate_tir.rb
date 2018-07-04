@@ -1306,6 +1306,10 @@ module Inkoc
         raw_binary_instruction(:ByteArrayToString, node, body)
       end
 
+      def on_raw_get_boolean_prototype(node, body)
+        raw_nullary_instruction(:GetBooleanPrototype, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

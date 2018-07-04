@@ -3389,6 +3389,16 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
+                // Sets the prototype of booleans in a register.
+                //
+                // This instruction only requires one argument: the register to
+                // store the prototype in.
+                InstructionType::GetBooleanPrototype => {
+                    context.set_register(
+                        instruction.arg(0),
+                        self.state.boolean_prototype,
+                    );
+                }
             };
         }
 

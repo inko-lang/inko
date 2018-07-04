@@ -2835,7 +2835,7 @@ describe Inkoc::Pass::DefineType do
     it 'returns the type of a raw instruction' do
       type = expression_type('_INKOC.get_true')
 
-      expect(type).to be_type_instance_of(state.typedb.true_type)
+      expect(type).to be_type_instance_of(state.typedb.boolean_type)
     end
 
     it 'errors for an unknown raw instruction' do

@@ -1,19 +1,21 @@
 #! Boolean true and false.
 #!
 #! In Inko boolean true is the object `True` and boolean false is the object
-#! `False`. Both are regular objects that implement a common trait: `Boolean`.
+#! `False`. Both are regular objects that are instances of the `Boolean` object.
 
 import std::conditional::Conditional
 import std::conversion::ToString
 import std::hash::(Hasher, Hash)
 import std::operators::Equal
 
-trait Boolean: ToString + Conditional + Hash + Equal {
+impl Boolean {
   ## Returns the `Boolean` that is the opposite of `self`.
-  def not -> Boolean
+  def not -> Boolean {
+    False
+  }
 }
 
-impl Conditional for Inko::TrueObject {
+impl Conditional for Boolean {
   def if_true!(R)(block: do -> R) -> ?R {
     block.call
   }
@@ -35,7 +37,45 @@ impl Conditional for Inko::TrueObject {
   }
 }
 
-impl Conditional for Inko::FalseObject {
+impl Equal for Boolean {
+  ## Returns `True` if the given `Boolean` equals `self`.
+  ##
+  ## `True` is only equal to `True` itself, and `False` is only equal to `False`
+  ## itself.
+  ##
+  ## # Examples
+  ##
+  ## Checking if two booleans are equal:
+  ##
+  ##     True == True # => True
+  ##
+  ## Checking if two booleans are not equal:
+  ##
+  ##     True == False # => False
+  def ==(other: Self) -> Boolean {
+    _INKOC.object_equals(self, other)
+  }
+
+  ## Returns `True` if the given `Boolean` does not equal `self`.
+  def !=(other: Self) -> Boolean {
+    self == other
+      .not
+  }
+}
+
+impl ToString for Boolean {
+  def to_string -> String {
+    'Boolean'
+  }
+}
+
+impl Hash for Boolean {
+  def hash(hasher: Hasher) {
+    _INKOC.hasher_write(hasher, self)
+  }
+}
+
+impl Conditional for False {
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
   }
@@ -57,59 +97,19 @@ impl Conditional for Inko::FalseObject {
   }
 }
 
-impl ToString for Inko::TrueObject {
+impl ToString for True {
   def to_string -> String {
     'True'
   }
 }
 
-impl ToString for Inko::FalseObject {
+impl ToString for False {
   def to_string -> String {
     'False'
   }
 }
 
-impl Equal for Inko::TrueObject {
-  def ==(other: Self) -> Boolean {
-    _INKOC.object_equals(self, other)
-  }
-
-  def !=(other: Self) -> Boolean {
-    self == other
-      .not
-  }
-}
-
-impl Equal for Inko::FalseObject {
-  def ==(other: Self) -> Boolean {
-    _INKOC.object_equals(self, other)
-  }
-
-  def !=(other: Self) -> Boolean {
-    self == other
-      .not
-  }
-}
-
-impl Hash for Inko::TrueObject {
-  def hash(hasher: Hasher) {
-    _INKOC.hasher_write(hasher, self)
-  }
-}
-
-impl Hash for Inko::FalseObject {
-  def hash(hasher: Hasher) {
-    _INKOC.hasher_write(hasher, self)
-  }
-}
-
-impl Boolean for Inko::TrueObject {
-  def not -> Boolean {
-    False
-  }
-}
-
-impl Boolean for Inko::FalseObject {
+impl False {
   def not -> Boolean {
     True
   }

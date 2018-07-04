@@ -6,20 +6,9 @@
 ![import_globals: false]
 
 let Inko = _INKOC.get_toplevel
-
 let Boolean = Inko::Boolean
-let TrueObject = Inko::TrueObject
-let FalseObject = Inko::FalseObject
-
-# True and False are re-exported as a Boolean, making it easier to accept/return
-# Boolean types.
-#
-# Because TrueObject and FalseObject do not yet implement Boolean at this point
-# we can't directly cast them to Boolean. To work around this we first cast them
-# to Dynamic, then to Boolean.
-let True = Inko::TrueObject as Dynamic as Boolean
-let False = Inko::FalseObject as Dynamic as Boolean
-
+let True = Inko::True
+let False = Inko::False
 let Nil = Inko::Nil
 let Object = Inko::Object
 let String = Inko::String

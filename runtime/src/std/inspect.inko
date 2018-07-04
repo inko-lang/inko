@@ -85,13 +85,19 @@ impl Inspect for Nil {
   }
 }
 
-impl Inspect for Inko::TrueObject {
+impl Inspect for Boolean {
+  def format(formatter: Formatter) {
+    formatter.push('Boolean')
+  }
+}
+
+impl Inspect for True {
   def format(formatter: Formatter) {
     formatter.push('True')
   }
 }
 
-impl Inspect for Inko::FalseObject {
+impl Inspect for False {
   def format(formatter: Formatter) {
     formatter.push('False')
   }

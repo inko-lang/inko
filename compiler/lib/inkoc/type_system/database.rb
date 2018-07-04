@@ -5,13 +5,14 @@ module Inkoc
     class Database
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :file_type, :object_type, :hasher_type
+                  :file_type, :object_type, :hasher_type, :boolean_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
         @top_level = new_object_type(Config::INKO_CONST)
-        @true_type = new_object_type(Config::TRUE_CONST)
-        @false_type = new_object_type(Config::FALSE_CONST)
+        @boolean_type = new_object_type(Config::BOOLEAN_CONST)
+        @true_type = @boolean_type.new_instance
+        @false_type = @boolean_type.new_instance
         @nil_type = new_object_type(Config::NIL_CONST)
         @block_type = new_object_type(Config::BLOCK_CONST)
         @integer_type = new_object_type(Config::INTEGER_CONST)
@@ -25,10 +26,6 @@ module Inkoc
 
       def trait_type
         top_level.lookup_attribute(Config::TRAIT_CONST).type
-      end
-
-      def boolean_type
-        top_level.lookup_attribute(Config::BOOLEAN_CONST).type
       end
 
       def new_array_of_type(type)
