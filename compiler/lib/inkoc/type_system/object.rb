@@ -122,7 +122,7 @@ module Inkoc
           to_init = lookup_type_parameter_instance(ours)
           init_as = type.lookup_type_parameter_instance(theirs)
 
-          to_init.initialize_as(init_as, method_type, self_type) if init_as
+          to_init&.initialize_as(init_as, method_type, self_type) if init_as
         end
       end
 
