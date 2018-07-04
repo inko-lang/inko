@@ -1,0 +1,59 @@
+import std::test
+import std::test::assert
+
+# The only way to break out of an infinite loop is to use a block return. Doing
+# this directly in a test would abort the entire test, so we perform this work
+# in a separate method instead.
+def test_loop -> Integer {
+  let mut number = 0
+
+  {
+    number == 100
+      .if_true {
+        return number
+      }
+
+    number += 1
+  }.loop
+}
+
+test.group 'std::block::Block.call', do (g) {
+  g.test 'Running a Block', {
+    # Without casting the Block to Dynamic, the compiler might optimise the
+    # "call" message, resulting in the underlying "call" method never being
+    # called.
+    let block = { 10 } as Dynamic
+
+    try assert.equal(block.call as Integer, 10)
+  }
+}
+
+test.group 'std::block::Block.while_false', do (g) {
+  g.test 'Calling a Block as long as a condition returns False', {
+    let mut number = 0
+
+    { number == 10 }.while_false {
+      number += 1
+    }
+
+    try assert.equal(number, 10)
+  }
+}
+
+test.group 'std::block::Block.while_true', do (g) {
+  g.test 'Calling a Block as long as a condition returns True', {
+    let mut number = 0
+
+    { number < 10 }.while_true {
+      number += 1
+    }
+
+    try assert.equal(number, 10)
+  }
+}
+
+test.group 'std::block::Block.loop', do (g) {
+  g.test 'Calling a Block indefinitely', {
+    try assert.equal(test_loop, 100)
+  }
+}

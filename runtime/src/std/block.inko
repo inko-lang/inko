@@ -201,6 +201,8 @@ impl Block {
 
   ## Repeatedly executes `self`.
   ##
+  ## This method will never return on its own.
+  ##
   ## # Examples
   ##
   ## Executing a block until we break out of it explicitly:
@@ -215,7 +217,7 @@ impl Block {
   ##
   ##       number += 1
   ##     }.loop
-  def loop -> Nil {
+  def loop -> Void {
     call
     loop
   }
