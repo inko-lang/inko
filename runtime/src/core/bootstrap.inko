@@ -14,16 +14,16 @@
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this
 # point.
-let mut TrueObject = _INKOC.get_true
-let mut FalseObject = _INKOC.get_false
-let mut Nil = _INKOC.get_nil
+let TrueObject = _INKOC.get_true
+let FalseObject = _INKOC.get_false
+let Nil = _INKOC.get_nil
 
-let mut Object = _INKOC.get_object_prototype
-let mut String = _INKOC.get_string_prototype
-let mut Integer = _INKOC.get_integer_prototype
-let mut Float = _INKOC.get_float_prototype
-let mut Block = _INKOC.get_block_prototype
-let mut Array = _INKOC.get_array_prototype
+let Object = _INKOC.get_object_prototype
+let String = _INKOC.get_string_prototype
+let Integer = _INKOC.get_integer_prototype
+let Float = _INKOC.get_float_prototype
+let Block = _INKOC.get_block_prototype
+let Array = _INKOC.get_array_prototype
 
 _INKOC.set_attribute(TrueObject, '@_object_name', 'True')
 _INKOC.set_attribute(FalseObject, '@_object_name', 'False')
