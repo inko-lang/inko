@@ -1,0 +1,211 @@
+import std::test
+import std::test::assert
+
+test.group 'std::array::Array.new', do (g) {
+  g.test 'Creating an empty Array', {
+    try assert.equal(Array.new, [])
+  }
+
+  g.test 'Creating an Array with one value', {
+    try assert.equal(Array.new(10), [10])
+  }
+
+  g.test 'Creating an Array with multiple values', {
+    try assert.equal(Array.new(10, 20, 30), [10, 20, 30])
+  }
+}
+
+test.group 'std::array::Array.clear', do (g) {
+  g.test 'Removing all values from an Array', {
+    let numbers = [10, 20, 30]
+
+    try assert.equal(numbers.clear, [])
+    try assert.equal(numbers, [])
+  }
+}
+
+test.group 'std::array::Array.push', do (g) {
+  g.test 'Adding a value to the end of an Array', {
+    let numbers = []
+
+    numbers.push(10)
+    numbers.push(20)
+
+    try assert.equal(numbers, [10, 20])
+  }
+}
+
+test.group 'std::array::Array.pop', do (g) {
+  g.test 'Removing a value from the end of an Array', {
+    let numbers = [10, 20]
+
+    try assert.equal(numbers.pop, 20)
+    try assert.equal(numbers, [10])
+  }
+}
+
+test.group 'std::array::Array.remove_at', do (g) {
+  g.test 'Removing a value using an existing index', {
+    let numbers = [10, 20]
+
+    try assert.equal(numbers.remove_at(0), 10)
+    try assert.equal(numbers, [20])
+  }
+
+  g.test 'Removing a value using a non-existing index', {
+    let numbers = [10]
+
+    try assert.equal(numbers.remove_at(1), Nil)
+    try assert.equal(numbers, [10])
+  }
+}
+
+test.group 'std::array::Array.each', do (g) {
+  g.test 'Iterating over the values of an Array', {
+    let input = [10, 20, 30]
+    let output = []
+
+    input.each do (number) {
+      output.push(number)
+    }
+
+    try assert.equal(output, [10, 20, 30])
+  }
+}
+
+test.group 'std::array::Array.each_with_index', do (g) {
+  g.test 'Iterating over the values and indexes of an Array', {
+    let input = [10, 20, 30]
+    let output = []
+    let indexes = []
+
+    input.each_with_index do (number, index) {
+      output.push(number)
+      indexes.push(index)
+    }
+
+    try assert.equal(output, [10, 20, 30])
+    try assert.equal(indexes, [0, 1, 2])
+  }
+}
+
+test.group 'std::array::Array.append', do (g) {
+  g.test 'Appending all the values of one Array to another Array', {
+    let first = [10, 20, 30]
+    let second = [40, 50, 60]
+
+    try assert.equal(first.append(second), [10, 20, 30, 40, 50, 60])
+    try assert.equal(first, [10, 20, 30, 40, 50, 60])
+  }
+}
+
+test.group 'std::array::Array.length', do (g) {
+  g.test 'Obtaining the number of values in an Array', {
+    try assert.equal([].length, 0)
+    try assert.equal([10].length, 1)
+    try assert.equal([10, 20, 30].length, 3)
+  }
+}
+
+test.group 'std::array::Array.empty?', do (g) {
+  g.test 'Checking if an Array is empty or not', {
+    try assert.equal([].empty?, True)
+    try assert.equal([10].empty?, False)
+  }
+}
+
+test.group 'std::array::Array.[]', do (g) {
+  g.test 'Returning the value of an existing index', {
+    let numbers = [10, 20, 30]
+
+    try assert.equal(numbers[0], 10)
+    try assert.equal(numbers[1], 20)
+    try assert.equal(numbers[2], 30)
+  }
+
+  g.test 'Returning the value of a non-existing index', {
+    let numbers = [10]
+
+    try assert.equal(numbers[1], Nil)
+    try assert.equal(numbers[2], Nil)
+  }
+
+  g.test 'Returning the value of an existing negative index', {
+    let numbers = [10, 20, 30]
+
+    try assert.equal(numbers[-1], 30)
+    try assert.equal(numbers[-2], 20)
+    try assert.equal(numbers[-3], 10)
+    try assert.equal(numbers[-4], 30)
+    try assert.equal(numbers[-5], 20)
+    try assert.equal(numbers[-6], 10)
+  }
+}
+
+test.group 'std::array::Array.[]=', do (g) {
+  g.test 'Setting the value of non-existing index', {
+    let numbers = []
+
+    try assert.equal(numbers[0] = 1, 1)
+    try assert.equal(numbers, [1])
+  }
+
+  g.test 'Setting the value of an out-of-bounds index', {
+    let numbers = []
+
+    try assert.equal(numbers[2] = 1, 1)
+    try assert.equal(numbers[0], Nil)
+    try assert.equal(numbers[1], Nil)
+    try assert.equal(numbers[2], 1)
+  }
+
+  g.test 'Setting the value of a negative index using an empty Array', {
+    let numbers = []
+
+    try assert.equal(numbers[-1] = 1, 1)
+    try assert.equal(numbers, [1])
+  }
+
+  g.test 'Setting the value of a negative index using a non-empty Array', {
+    let numbers = [10, 20, 30]
+
+    numbers[-1] = 60
+    numbers[-2] = 50
+
+    try assert.equal(numbers, [10, 50, 60])
+  }
+}
+
+test.group 'std::array::Array.to_array', do (g) {
+  g.test 'Converting an Array to another Array', {
+    let numbers = [10, 20, 30]
+
+    try assert.equal(numbers, [10, 20, 30])
+  }
+}
+
+test.group 'std::array::Array.==', do (g) {
+  g.test 'Comparing two equal Arrays', {
+    try assert.equal([10, 20], [10, 20])
+  }
+
+  g.test 'Comparing two Arrays with a different length', {
+    try assert.not_equal([10], [10, 20])
+  }
+
+  g.test 'Comparing two Arrays that are not equal but have the same length', {
+    try assert.not_equal([10], [20])
+  }
+}
+
+test.group 'std::array::Array.iter', do (g) {
+  g.test 'Obtaining an Iterator from an Array', {
+    let numbers = [10, 20, 30]
+    let iter = numbers.iter
+
+    try assert.equal(iter.next, 10)
+    try assert.equal(iter.next, 20)
+    try assert.equal(iter.next, 30)
+    try assert.equal(iter.next, Nil)
+  }
+}

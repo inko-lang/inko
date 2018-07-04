@@ -289,7 +289,7 @@ impl SetIndex!(Integer, T) for Array!(T) {
   ##     let array = [10]
   ##
   ##     array[-1] = 20 # => 20
-  ##     array          # => [10, 20]
+  ##     array          # => [20]
   def []=(index: Integer, value: T) -> T {
     _INKOC.array_set(self, index, value)
   }

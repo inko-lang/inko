@@ -4,6 +4,8 @@ import std::test
 # to automatically compile and import all test modules. This means that for the
 # time being you'll have to manually import any test modules here.
 import test::std::test_ansi
+import test::std::test_array
+import test::std::test_array_iter
 import test::std::test_integer
 
 test.run
