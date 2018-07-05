@@ -7,6 +7,7 @@ import test::std::test_ansi
 import test::std::test_array
 import test::std::test_array_iter
 import test::std::test_block
+import test::std::test_boolean
 import test::std::test_integer
 
 test.run
