@@ -209,3 +209,10 @@ test.group 'std::array::Array.iter', do (g) {
     try assert.equal(iter.next, Nil)
   }
 }
+
+test.group 'std::array::Array.inspect', do (g) {
+  g.test 'Inspecting an Array', {
+    try assert.equal([10].inspect, '[10]')
+    try assert.equal([10, 20, 30].inspect, '[10, 20, 30]')
+  }
+}

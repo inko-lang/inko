@@ -82,6 +82,12 @@ test.group 'std::boolean::Boolean.hash', do (g) {
   }
 }
 
+test.group 'std::boolean::Boolean.inspect', do (g) {
+  g.test 'Inspecting a Boolean', {
+    try assert.equal(Boolean.inspect, 'Boolean')
+  }
+}
+
 test.group 'std::boolean::True.not', do (g) {
   g.test 'Returning the opposite of True', {
     try assert.equal(True.not, False)
@@ -162,6 +168,12 @@ test.group 'std::boolean::True.hash', do (g) {
   }
 }
 
+test.group 'std::boolean::True.inspect', do (g) {
+  g.test 'Inspecting True', {
+    try assert.equal(True.inspect, 'True')
+  }
+}
+
 test.group 'std::boolean::False.not', do (g) {
   g.test 'Returning the opposite of False', {
     try assert.equal(False.not, True)
@@ -239,5 +251,11 @@ test.group 'std::boolean::False.hash', do (g) {
     # we can do is assert that the value is the same every time we send `hash`
     # to `True`.
     try assert.equal(hasher1.finish, hasher2.finish)
+  }
+}
+
+test.group 'std::boolean::False.inspect', do (g) {
+  g.test 'Inspecting False', {
+    try assert.equal(False.inspect, 'False')
   }
 }
