@@ -1,3 +1,4 @@
+import std::format::DefaultFormatter
 import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
@@ -88,6 +89,16 @@ test.group 'std::boolean::Boolean.inspect', do (g) {
   }
 }
 
+test.group 'std::boolean::Boolean.format', do (g) {
+  g.test 'Formatting a Boolean', {
+    let formatter = DefaultFormatter.new
+
+    Boolean.format(formatter)
+
+    try assert.equal(formatter.to_string, 'Boolean')
+  }
+}
+
 test.group 'std::boolean::True.not', do (g) {
   g.test 'Returning the opposite of True', {
     try assert.equal(True.not, False)
@@ -174,6 +185,16 @@ test.group 'std::boolean::True.inspect', do (g) {
   }
 }
 
+test.group 'std::boolean::True.format', do (g) {
+  g.test 'Formatting a True', {
+    let formatter = DefaultFormatter.new
+
+    True.format(formatter)
+
+    try assert.equal(formatter.to_string, 'True')
+  }
+}
+
 test.group 'std::boolean::False.not', do (g) {
   g.test 'Returning the opposite of False', {
     try assert.equal(False.not, True)
@@ -257,5 +278,15 @@ test.group 'std::boolean::False.hash', do (g) {
 test.group 'std::boolean::False.inspect', do (g) {
   g.test 'Inspecting False', {
     try assert.equal(False.inspect, 'False')
+  }
+}
+
+test.group 'std::boolean::False.format', do (g) {
+  g.test 'Formatting a False', {
+    let formatter = DefaultFormatter.new
+
+    False.format(formatter)
+
+    try assert.equal(formatter.to_string, 'False')
   }
 }

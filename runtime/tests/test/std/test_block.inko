@@ -1,3 +1,4 @@
+import std::format::DefaultFormatter
 import std::test
 import std::test::assert
 
@@ -55,5 +56,24 @@ test.group 'std::block::Block.while_true', do (g) {
 test.group 'std::block::Block.loop', do (g) {
   g.test 'Calling a Block indefinitely', {
     try assert.equal(test_loop, 100)
+  }
+}
+
+test.group 'std::block::Block.format', do (g) {
+  g.test 'Formatting a block', {
+    let block = { 10 }
+    let formatter = DefaultFormatter.new
+
+    block.format(formatter)
+
+    try assert.equal(formatter.to_string, 'Block')
+  }
+}
+
+test.group 'std::block::Block.inspect', do (g) {
+  g.test 'Inspecting a Block', {
+    let block = { 10 }
+
+    try assert.equal(block.inspect, 'Block')
   }
 }
