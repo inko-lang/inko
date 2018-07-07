@@ -1054,7 +1054,10 @@ impl Machine {
                     let rec = rec_ptr.float_value()?;
                     let arg = arg_ptr.float_value()?;
 
-                    let boolean = if rec.approx_eq_ulps(&arg, 2) {
+                    let boolean = if !rec.is_nan()
+                        && !arg.is_nan()
+                        && rec.approx_eq_ulps(&arg, 2)
+                    {
                         self.state.true_object
                     } else {
                         self.state.false_object
