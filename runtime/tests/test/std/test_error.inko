@@ -1,0 +1,19 @@
+import std::error::StandardError
+import std::test
+import std::test::assert
+
+test.group 'std::error::StandardError.to_string', do (g) {
+  g.test 'Converting a StandardError to a String', {
+    let error = StandardError.new('hello')
+
+    try assert.equal(error.to_string, 'hello')
+  }
+}
+
+test.group 'std::error::StandardError.message', do (g) {
+  g.test 'Obtaining the message from a StandardError', {
+    let error = StandardError.new('hello')
+
+    try assert.equal(error.message, 'hello')
+  }
+}
