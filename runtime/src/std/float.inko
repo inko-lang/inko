@@ -85,7 +85,11 @@ impl Numeric for Float {
 
   def absolute -> Self {
     negative?.if true: {
-      self - (self * 2.0)
+      infinite?.if true: {
+        INFINITY
+      }, false: {
+        self - (self * 2.0)
+      }
     }, false: {
       self
     }
@@ -95,13 +99,17 @@ impl Numeric for Float {
     positive?.if true: {
       0.0 - self
     }, false: {
-      self - (self * 2.0)
+      infinite?.if true: {
+        INFINITY
+      }, false: {
+        self - (self * 2.0)
+      }
     }
   }
 }
 
 impl Float {
-  ## Returns `True` if `self` is not a number (NaN).
+  ## Returns `True` if `self` is not a number (NAN).
   ##
   ## # Examples
   ##
@@ -109,7 +117,7 @@ impl Float {
   ##
   ##     10.5.not_a_number? => False
   ##
-  ## Using a NaN value:
+  ## Using a NAN value:
   ##
   ##     0.0 / 0.0
   ##       .not_a_number? # => True
@@ -133,7 +141,7 @@ impl Float {
     _INKOC.float_is_infinite(self)
   }
 
-  ## Returns `True` if `self` is neither infinite nor `NaN`.
+  ## Returns `True` if `self` is neither infinite nor `NAN`.
   ##
   ## # Examples
   ##
@@ -141,7 +149,7 @@ impl Float {
   ##
   ##     10.5.finite? # => True
   ##
-  ## Using a NaN value:
+  ## Using a NAN value:
   ##
   ##     0.0 / 0.0
   ##       .finite? # => False
@@ -166,11 +174,11 @@ impl Float {
   ##
   ##     3.5.floor # => 3.0
   ##
-  ## Using a NaN value will produce a new NaN:
+  ## Using a NAN value will produce a new NAN:
   ##
-  ##     import std::float::NaN
+  ##     import std::float::NAN
   ##
-  ##     NaN.floor.not_a_number? # => True
+  ##     NAN.floor.not_a_number? # => True
   def floor -> Float {
     _INKOC.float_floor(self)
   }
@@ -183,16 +191,20 @@ impl Float {
   ##
   ##     3.5.ceil # => 4.0
   ##
-  ## Using a NaN value will produce a new NaN:
+  ## Using a NAN value will produce a new NAN:
   ##
-  ##     import std::float::NaN
+  ##     import std::float::NAN
   ##
-  ##     NaN.ceil.not_a_number? # => True
+  ##     NAN.ceil.not_a_number? # => True
   def ceil -> Float {
     _INKOC.float_ceil(self)
   }
 
   ## Rounds `self` to the nearest number.
+  ##
+  ## The `decimals` argument can be used to control the number of decimals of
+  ## the returned `Float`. When a negative value is used, the number is rounded
+  ## on the lef hand side of the decimal point.
   ##
   ## # Examples
   ##
@@ -200,13 +212,21 @@ impl Float {
   ##
   ##     3.5.round # => 3.0
   ##
-  ## Using a NaN value will produce a new NaN:
+  ## Rounding to a given number of decimals:
   ##
-  ##     import std::float::NaN
+  ##     3.123.round(1) # => 3.1
   ##
-  ##     NaN.round.not_a_number? # => True
-  def round -> Float {
-    _INKOC.float_round(self)
+  ## Rounding a number using a negative number of decimals:
+  ##
+  ##     34567.89.round(-2) # => 34600.0
+  ##
+  ## Using a NAN value will produce a new NAN:
+  ##
+  ##     import std::float::NAN
+  ##
+  ##     NAN.round.not_a_number? # => True
+  def round(decimals = 0) -> Float {
+    _INKOC.float_round(self, decimals)
   }
 
   ## Returns the fractional part of this float.
@@ -222,6 +242,10 @@ impl Float {
 }
 
 impl ToInteger for Float {
+  ## Converts a `Float` to an `Integer`.
+  ##
+  ## The `Float` will be rounded towards zero. Converting a `NAN`, `INFINITY`,
+  ## or `NEGATIVE_INFINITY` to an `Integer` will result in a panic.
   def to_integer -> Integer {
     _INKOC.float_to_integer(self)
   }
@@ -246,20 +270,30 @@ impl ToString for Float {
   ##
   ##     -10.5.to_string # => '-10.5'
   ##
-  ## Converting a NaN:
+  ## Converting a NAN:
   ##
-  ##     import std::float::NaN
+  ##     import std::float::NAN
   ##
-  ##     NaN.to_string # => 'NaN'
+  ##     NAN.to_string # => 'NAN'
   ##
   ## Converting an infinite number:
   ##
-  ##     import std::float::Infinity
+  ##     import std::float::INFINITY
   ##
-  ##     Infinity.to_string # => 'Infinity'
+  ##     INFINITY.to_string # => 'INFINITY'
   def to_string -> String {
-    infinite?.if_true { return 'Infinity' }
-    not_a_number?.if_true { return 'NaN' }
+
+    infinite?.if_true {
+      positive?.if true: {
+        return 'Infinity'
+      }, false: {
+        return '-Infinity'
+      }
+    }
+
+    not_a_number?.if_true {
+      return 'NaN'
+    }
 
     _INKOC.float_to_string(self)
   }
@@ -271,8 +305,11 @@ impl Hash for Float {
   }
 }
 
-## The NaN (Not A Number) value.
-let NaN = 0.0 / 0.0
+## The NAN (Not A Number) value.
+let NAN = 0.0 / 0.0
 
 ## The infinity value.
-let Infinity = 1.0 / 0.0
+let INFINITY = 1.0 / 0.0
+
+## The negative infinity value.
+let NEGATIVE_INFINITY = -1.0 / 0.0
