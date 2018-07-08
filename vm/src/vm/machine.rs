@@ -745,7 +745,12 @@ impl Machine {
                 InstructionType::IntegerToFloat => {
                     let register = instruction.arg(0);
                     let integer_ptr = context.get_register(instruction.arg(1));
-                    let result = integer_ptr.integer_value()? as f64;
+
+                    let result = if integer_ptr.is_bigint() {
+                        integer_ptr.bigint_value().unwrap().to_f64()
+                    } else {
+                        integer_ptr.integer_value()? as f64
+                    };
 
                     let obj = process.allocate(
                         object_value::float(result),
@@ -988,10 +993,14 @@ impl Machine {
                 InstructionType::FloatToInteger => {
                     let register = instruction.arg(0);
                     let float_ptr = context.get_register(instruction.arg(1));
-                    let result = float_ptr.float_value()? as i64;
+                    let float_val = float_ptr.float_value()?;
 
-                    context
-                        .set_register(register, ObjectPointer::integer(result));
+                    let result = process.allocate_f64_as_i64(
+                        float_val,
+                        self.state.integer_prototype,
+                    )?;
+
+                    context.set_register(register, result);
                 }
                 // Converts a float to a string
                 //
@@ -2559,19 +2568,44 @@ impl Machine {
                 }
                 // Rounds a float to the nearest number.
                 //
-                // This instruction takes 2 arguments:
+                // This instruction takes 3 arguments:
                 //
                 // 1. The register to store the result in as a float.
                 // 2. The register containing the float.
+                // 3. The register containing an integer indicating the number
+                //    of decimals to round to.
                 InstructionType::FloatRound => {
                     let register = instruction.arg(0);
                     let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value()?.round();
+                    let prec_ptr = context.get_register(instruction.arg(2));
+
+                    let precision = prec_ptr.integer_value()?;
+                    let float = pointer.float_value()?;
+
+                    let result = if precision == 0 {
+                        float.round()
+                    } else if precision >= i32::MIN as i64
+                        && precision <= i32::MAX as i64
+                    {
+                        let power = 10.0_f64.powi(precision as i32);
+                        let multiplied = float * power;
+
+                        // Certain very large numbers (e.g. f64::MAX) would
+                        // produce Infinity when multiplied with the power. In
+                        // this case we just return the input float directly.
+                        if multiplied.is_finite() {
+                            multiplied.round() / power
+                        } else {
+                            float
+                        }
+                    } else {
+                        float
+                    };
 
                     context.set_register(
                         register,
                         process.allocate(
-                            object_value::float(float),
+                            object_value::float(result),
                             self.state.float_prototype,
                         ),
                     );

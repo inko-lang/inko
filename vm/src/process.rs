@@ -1,6 +1,7 @@
 use rug::Integer;
 use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
+use std::i64;
 use std::mem;
 use std::sync::{Arc, Mutex};
 
@@ -248,6 +249,39 @@ impl Process {
         } else {
             ObjectPointer::integer(value as i64)
         }
+    }
+
+    pub fn allocate_f64_as_i64(
+        &self,
+        value: f64,
+        prototype: ObjectPointer,
+    ) -> Result<ObjectPointer, String> {
+        if value.is_nan() {
+            return Err("A NaN can not be converted to an Integer".to_string());
+        } else if value.is_infinite() {
+            return Err("An infinite Float can not be converted to an Integer"
+                .to_string());
+        }
+
+        // We use >= and <= here, as i64::MAX as a f64 can't be casted back to
+        // i64, since `i64::MAX as f64` will produce a value slightly larger
+        // than `i64::MAX`.
+        let pointer = if value >= i64::MAX as f64 || value <= i64::MIN as f64 {
+            self.allocate(
+                object_value::bigint(Integer::from_f64(value).unwrap()),
+                prototype,
+            )
+        } else {
+            let value_int = value as i64;
+
+            if ObjectPointer::integer_too_large(value_int) {
+                self.allocate(object_value::integer(value_int), prototype)
+            } else {
+                ObjectPointer::integer(value_int)
+            }
+        };
+
+        Ok(pointer)
     }
 
     pub fn allocate(
@@ -501,6 +535,9 @@ impl Hash for Process {
 #[cfg(test)]
 mod tests {
     use object_value;
+    use std::f64;
+    use std::i32;
+    use std::i64;
     use vm::test::setup;
 
     #[test]
@@ -568,5 +605,71 @@ mod tests {
         assert!(received.get().prototype().is_some());
         assert!(received.get().attributes_map().is_some());
         assert!(received.is_finalizable());
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_a_small_float() {
+        let (machine, _block, process) = setup();
+
+        let result =
+            process.allocate_f64_as_i64(1.5, machine.state.integer_prototype);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().integer_value().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_a_medium_float() {
+        let (machine, _block, process) = setup();
+
+        let float = i32::MAX as f64;
+        let result =
+            process.allocate_f64_as_i64(float, machine.state.integer_prototype);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().integer_value().unwrap(), i32::MAX as i64);
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_a_large_float() {
+        let (machine, _block, process) = setup();
+
+        let float = i64::MAX as f64;
+        let result =
+            process.allocate_f64_as_i64(float, machine.state.integer_prototype);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap().bigint_value().unwrap() >= &i64::MAX);
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_a_nan() {
+        let (machine, _block, process) = setup();
+        let result = process
+            .allocate_f64_as_i64(f64::NAN, machine.state.integer_prototype);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_infinity() {
+        let (machine, _block, process) = setup();
+        let result = process.allocate_f64_as_i64(
+            f64::INFINITY,
+            machine.state.integer_prototype,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_allocate_f64_as_i64_with_negative_infinity() {
+        let (machine, _block, process) = setup();
+        let result = process.allocate_f64_as_i64(
+            f64::NEG_INFINITY,
+            machine.state.integer_prototype,
+        );
+
+        assert!(result.is_err());
     }
 }

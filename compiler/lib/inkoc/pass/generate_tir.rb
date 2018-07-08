@@ -962,7 +962,7 @@ module Inkoc
       end
 
       def on_raw_float_round(node, body)
-        raw_unary_instruction(:FloatRound, node, body)
+        raw_binary_instruction(:FloatRound, node, body)
       end
 
       def on_raw_stdout_write(node, body)
