@@ -1,5 +1,5 @@
 #![cfg_attr(feature = "prefetch", feature(core_intrinsics))]
-#![feature(alloc, alloc_system, allocator_api)]
+#![feature(alloc, alloc_system, allocator_api, raw_vec_internals)]
 
 extern crate alloc_system;
 
