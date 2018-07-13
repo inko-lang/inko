@@ -44,6 +44,8 @@ module Inkoc
         for
         impl
         try
+        do
+        lambda
       ]
     ).freeze
 
