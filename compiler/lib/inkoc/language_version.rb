@@ -2,5 +2,6 @@
 
 module Inkoc
   # The version of the Inko language to target.
-  LANGUAGE_VERSION = '0.0.1'
+  LANGUAGE_VERSION =
+    File.read(File.expand_path('../../LANGUAGE_VERSION', __dir__)).strip
 end

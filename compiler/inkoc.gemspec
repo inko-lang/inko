@@ -1,8 +1,6 @@
-require File.expand_path('../lib/inkoc/version', __FILE__)
-
 Gem::Specification.new do |gem|
   gem.name        = 'inkoc'
-  gem.version     = Inkoc::VERSION
+  gem.version     = File.read(File.expand_path('VERSION', __dir__))
   gem.authors     = ['Yorick Peterse']
   gem.email       = 'yorickpeterse@gmail.com'
   gem.summary     = 'The Inko compiler'
@@ -17,7 +15,9 @@ Gem::Specification.new do |gem|
     'bin/inko',
     'lib/**/*.rb',
     'LICENSE',
-    'README.md'
+    'README.md',
+    'VERSION',
+    'LANGUAGE_VERSION'
   ]).select { |file| File.file?(file) }
 
   gem.required_ruby_version = '>= 2.4.0'
