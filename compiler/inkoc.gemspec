@@ -14,6 +14,7 @@ Gem::Specification.new do |gem|
   gem.files = Dir.glob([
     'bin/inkoc',
     'bin/inko-test',
+    'bin/inko',
     'lib/**/*.rb',
     'LICENSE',
     'README.md'
