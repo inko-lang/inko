@@ -87,9 +87,6 @@ module Inkoc
       ]
     ).freeze
 
-    # The version of the Inko language to target.
-    LANGUAGE_VERSION = '0.0.1'
-
     attr_reader :source_directories, :mode, :target
 
     def initialize(mode = :debug)

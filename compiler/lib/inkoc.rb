@@ -8,6 +8,7 @@ require 'forwardable'
 require 'digest/sha1'
 
 require 'inkoc/version'
+require 'inkoc/language_version'
 require 'inkoc/inspect'
 require 'inkoc/source_file'
 require 'inkoc/source_location'
