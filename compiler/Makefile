@@ -1,3 +1,4 @@
+# The version of the _compiler_, not the runtime to target.
 VERSION != cat VERSION
 
 test:
@@ -6,8 +7,9 @@ test:
 install:
 	gem build --silent inkoc.gemspec
 	gem install "inkoc-${VERSION}.gem"
+	rm "inkoc-${VERSION}.gem"
 
 uninstall:
-	gem uninstall inkoc
+	gem uninstall -x inkoc
 
 .PHONY: test install uninstall
