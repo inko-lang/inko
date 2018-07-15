@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+gem_path = File.expand_path('../lib', __dir__)
+
+$LOAD_PATH.unshift(gem_path) unless $LOAD_PATH.include?(gem_path)
+
+require 'inkoc'
+require 'tmpdir'
+require 'optparse'
+
+options = {
+  include: [],
+  vm: 'ivm',
+  eval: nil
+}
+
+parser = OptionParser.new do |o|
+  o.banner = 'Usage: inko [OPTIONS] [FILE]'
+
+  o.separator("\nOptions:")
+
+  o.on('-i', '--include [DIR]', 'Path to search for source files') do |path|
+    options[:include] << path
+  end
+
+  o.on('-t', '--target [DIR]', 'The path to store bytecode files in') do |path|
+    options[:target] = path
+  end
+
+  o.on('--vm PATH', 'The path to the ivm executable') do |val|
+    options[:vm] = val
+  end
+
+  o.on('-e', '--eval STRING', 'An expression to evaluate') do |expr|
+    options[:eval] = expr
+  end
+
+  o.on('-v', '--version', 'Shows the current version') do
+    puts Inkoc::VERSION
+    exit
+  end
+
+  o.on('-h', '--help', 'Shows this help message') do
+    puts(o)
+    exit
+  end
+end
+
+parser.parse!(ARGV)
+
+if ARGV.empty? && options[:eval].nil?
+  puts 'You must specify a source file to run'
+  abort(parser.to_s)
+end
+
+config = Inkoc::Config.new(:release)
+
+config.target = options[:target] if options[:target]
+config.add_source_directories(options[:include])
+
+config.create_directories
+
+state = Inkoc::State.new(config)
+compiler = Inkoc::Compiler.new(state)
+
+mod =
+  if options[:eval]
+    # We don't use Tempfile here as the input path (and thus the byte code path)
+    # would be different every time. This would result in many bytecode files
+    # being left behind.
+    temp = File.open(File.join(Dir.tmpdir, 'inko-eval.inko'), 'w')
+    temp.write(options[:eval])
+    temp.rewind
+
+    mod = compiler.compile_main(Pathname.new(temp.path))
+
+    temp.close
+
+    File.unlink(temp.path)
+
+    mod
+  else
+    compiler.compile_main(Pathname.new(ARGV[0]))
+  end
+
+if state.diagnostics?
+  state.display_diagnostics
+  exit(1)
+end
+
+main_mod_path = File.join(config.target, mod.bytecode_import_path)
+
+exec(options[:vm], '-I', config.target.to_s, main_mod_path.to_s)
