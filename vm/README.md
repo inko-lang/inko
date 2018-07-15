@@ -38,14 +38,29 @@ to start. Some files/directories that may be of interest are:
 
 ## Requirements
 
-* Rust 1.10 or newer using a nightly build (stable Rust is not supported)
+* Rust 1.28 or newer using a nightly build (stable Rust is not supported)
 * Cargo
 * Make
 
+## Installation
+
+Installing the VM is done as follows:
+
+    make install
+
+Uninstalling can be done as follows:
+
+    make uninstall
+
+By default the VM is installed in `/usr/bin/ivm`. The prefix (`/bin`) can be
+changed by setting `PREFIX` when running `make install` or `make uninstall`:
+
+    make install PREFIX=~/.local
+
 ## Building
 
-To build the compiler, simply run `make` in this directory. This will generate a
-debug build. Other make tasks that are available:
+To build the VM during development, simply run `make` in this directory. This
+will generate a debug build. Other make tasks that are available:
 
 * `make debug`: produces a debug build (the default)
 * `make check`: runs `cargo check` to perform type verification
@@ -53,3 +68,5 @@ debug build. Other make tasks that are available:
 * `make release`: produces a release build
 * `make profile`: produces a release build without removing debugging symbols
 * `make clean`: removes all build artifacts
+* `make install`: builds and installs the VM
+* `make uninstall`: uninstalls the VM

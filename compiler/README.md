@@ -28,3 +28,7 @@ Use a custom directory for storing the bytecode files:
 Simply run the following to install the compiler into your Ruby environment:
 
     make install
+
+To uninstall:
+
+    make uninstall
