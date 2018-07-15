@@ -8,7 +8,7 @@ Gem::Specification.new do |gem|
   gem.summary     = 'The Inko compiler'
   gem.homepage    = 'https://gitlab.com.com/inko-lang/inko/'
   gem.description = gem.summary
-  gem.executables = %w[inkoc inko-test]
+  gem.executables = %w[inko inkoc inko-test]
   gem.license     = 'MPL-2.0'
 
   gem.files = Dir.glob([
