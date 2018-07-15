@@ -10,8 +10,10 @@ stages:
   - test-runtime
 
 test:language-version:
-  image: ruby:2.4-alpine
+  image: alpine:latest
   stage: prepare
+  before_script:
+    - apk add --update bash
   script:
     - bash ci/verify_version.sh
 
