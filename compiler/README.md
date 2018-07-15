@@ -21,22 +21,16 @@ Use a custom directory for storing the bytecode files:
 ## Requirements
 
 * Ruby 2.4 or newer
-* Bundler
+* RubyGems
 
 ## Installation
 
-For users:
+Build a Gem:
 
-    gem install inkoc
+    gem build inkoc.gemspec
+    gem install inkoc-X.gem # where X is the version of the compiler
 
-For developers:
+Alternatively (this requires [Bundler](https://bundler.io/)):
 
-    gem install bundler
-    git clone https://gitlab.com/inko-lang/inko.git
-    cd compiler
     bundle install
-
-You can then use the compiler by running `./bin/inkoc`, or by installing it as a
-Gem:
-
     rake install
