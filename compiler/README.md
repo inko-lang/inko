@@ -1,27 +1,42 @@
 # Inko Compiler
 
-**NOTE:** the compiler is still being developed and it is currently not really
-usable.
-
 This directory contains the source code of the Inko bytecode compiler, commonly
 known as "inkoc". The compiler is currently written in Ruby but the long term
 plan is to rewrite it in Inko and make it self hosting.
 
-## Compilation Process
+## Usage
 
-The compiler takes Inko source code, parses it into an AST, then converts it
-into an IR called "Typed Intermediate Representation" or "TIR" for short. This
-IR is a simplified version of the AST with type annotations added. This IR is
-then used to verify the program, perform optimisations, and eventually generate
-bytecode.
+Compile a program:
 
-## Backends
+    inkoc example.inko
 
-The long term plan is to provide multiple backends for the compiler. In
-particular the plan is to support both IVM bytecode, and either JavaScript or
-WebAssembly; depending on how long it takes for WebAssembly to mature.
+Add a directory to the list of directories to use for source files:
+
+    inkoc -i ../runtime/src example.inko
+
+Use a custom directory for storing the bytecode files:
+
+    inkoc -t /tmp/bytecode example.inko
 
 ## Requirements
 
 * Ruby 2.4 or newer
 * Bundler
+
+## Installation
+
+For users:
+
+    gem install inkoc
+
+For developers:
+
+    gem install bundler
+    git clone https://gitlab.com/inko-lang/inko.git
+    cd compiler
+    bundle install
+
+You can then use the compiler by running `./bin/inkoc`, or by installing it as a
+Gem:
+
+    rake install
