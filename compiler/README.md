@@ -25,12 +25,6 @@ Use a custom directory for storing the bytecode files:
 
 ## Installation
 
-Build a Gem:
+Simply run the following to install the compiler into your Ruby environment:
 
-    gem build inkoc.gemspec
-    gem install inkoc-X.gem # where X is the version of the compiler
-
-Alternatively (this requires [Bundler](https://bundler.io/)):
-
-    bundle install
-    rake install
+    make install

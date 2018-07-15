@@ -20,7 +20,7 @@ test:compiler:
     - bundle --version
     - bundle install --path vendor --retry=3
   script:
-    - bundle exec rake test
+    - make test
   cache:
     paths:
       - compiler/vendor
