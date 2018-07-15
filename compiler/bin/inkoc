@@ -9,7 +9,8 @@ require 'inkoc'
 require 'optparse'
 
 options = {
-  include: []
+  include: [],
+  mode: :debug
 }
 
 parser = OptionParser.new do |o|
@@ -26,7 +27,7 @@ parser = OptionParser.new do |o|
   end
 
   o.on('-r', '--release', 'Compiles a release build') do
-    options[:release] = true
+    options[:mode] = :release
   end
 
   o.on('-v', '--version', 'Shows the current version') do
@@ -47,10 +48,9 @@ if ARGV.empty?
   abort(parser.to_s)
 end
 
-config = Inkoc::Config.new
+config = Inkoc::Config.new(options[:mode])
 
 config.target = options[:target] if options[:target]
-config.release_mode if options[:release]
 config.add_source_directories(options[:include])
 
 config.create_directories

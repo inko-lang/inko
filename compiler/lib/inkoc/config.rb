@@ -2,7 +2,7 @@
 
 module Inkoc
   class Config
-    PROGRAM_NAME = 'inkoc'
+    CACHE_NAME = 'inko'
 
     # The name of the directory to store bytecode files in.
     BYTECODE_DIR = 'bytecode'
@@ -87,13 +87,37 @@ module Inkoc
       ]
     ).freeze
 
+    # The version of the Inko language to target.
+    LANGUAGE_VERSION = '0.0.1'
+
     attr_reader :source_directories, :mode, :target
 
     def initialize(mode = :debug)
       @source_directories = Set.new
       @mode = mode
-      @target = Pathname
-        .new(File.join(SXDG::XDG_CACHE_HOME, PROGRAM_NAME, BYTECODE_DIR))
+      @target = nil
+
+      set_default_target_directory
+      add_default_source_directories
+    end
+
+    def set_default_target_directory
+      self.target =
+        File.join(cache_directory, LANGUAGE_VERSION, BYTECODE_DIR, mode.to_s)
+    end
+
+    def cache_directory
+      if (env = ENV['INKOC_CACHE'])
+        env
+      else
+        File.join(SXDG::XDG_CACHE_HOME, CACHE_NAME)
+      end
+    end
+
+    def add_default_source_directories
+      directory = ENV['INKOC_HOME']
+
+      add_source_directories([directory]) if directory
     end
 
     def target=(path)
@@ -102,10 +126,6 @@ module Inkoc
 
     def release_mode?
       @mode == :release
-    end
-
-    def release_mode
-      @mode = :release
     end
 
     def add_source_directories(directories)
