@@ -67,6 +67,7 @@ test:runtime:
   image: ruby:2.4-slim
   stage: test-runtime
   before_script:
+    - apt-get update -q
     - apt-get install -y -q build-essential
     - gem install bundler --no-ri --no-rdoc
     - ruby --version
