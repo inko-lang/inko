@@ -4,10 +4,15 @@ VERSION != cat VERSION
 test:
 	bundle exec rspec spec
 
-install:
+pkg/inkoc-${VERSION}.gem:
+	mkdir -p pkg
 	gem build --silent inkoc.gemspec
-	gem install "inkoc-${VERSION}.gem"
-	rm "inkoc-${VERSION}.gem"
+	mv inkoc-${VERSION}.gem pkg/
+
+build: pkg/inkoc-${VERSION}.gem
+
+install: build
+	gem install "pkg/inkoc-${VERSION}.gem"
 
 uninstall:
 	gem uninstall -x inkoc
