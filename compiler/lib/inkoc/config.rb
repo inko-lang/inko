@@ -87,6 +87,10 @@ module Inkoc
       ]
     ).freeze
 
+    DEFAULT_SOURCE_DIRECTORY = '/usr/lib/inko'
+
+    RUNTIME_DIRECTORY = 'runtime'
+
     attr_reader :source_directories, :mode, :target
 
     def initialize(mode = :debug)
@@ -113,8 +117,10 @@ module Inkoc
 
     def add_default_source_directories
       directory = ENV['INKOC_HOME']
+      directory = DEFAULT_SOURCE_DIRECTORY if directory.nil? || directory.empty?
+      source = File.join(directory, LANGUAGE_VERSION, RUNTIME_DIRECTORY)
 
-      add_source_directories([directory]) if directory
+      add_source_directories([source])
     end
 
     def target=(path)
