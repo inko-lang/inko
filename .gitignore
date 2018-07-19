@@ -1,7 +1,6 @@
-compiler/target
-compiler/pkg
-vm/target
-runtime/target
+/compiler/target
+/compiler/pkg
+/vm/target
+/runtime/target
 .*.rustfmt
-target
-*.tar.gz
+/build
