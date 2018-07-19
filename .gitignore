@@ -3,3 +3,5 @@ compiler/pkg
 vm/target
 runtime/target
 .*.rustfmt
+target
+*.tar.gz
