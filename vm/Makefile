@@ -28,7 +28,8 @@ clean:
 
 install:
 	${CARGO_CMD} build --release
-	install -Dm755 target/release/ivm "${BINDIR}/ivm"
+	mkdir -p "${BINDIR}"
+	install -m755 target/release/ivm "${BINDIR}/ivm"
 
 uninstall:
 	rm -f "${BINDIR}/ivm"
