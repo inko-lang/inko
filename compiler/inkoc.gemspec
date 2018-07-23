@@ -17,7 +17,6 @@ Gem::Specification.new do |gem|
     'LICENSE',
     'README.md',
     'VERSION',
-    'LANGUAGE_VERSION'
   ]).select { |file| File.file?(file) }
 
   gem.required_ruby_version = '>= 2.4.0'

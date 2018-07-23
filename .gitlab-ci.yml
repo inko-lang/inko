@@ -5,18 +5,9 @@ variables:
   DEBIAN_FRONTEND: noninteractive
 
 stages:
-  - prepare
   - test
   - build
   - test-runtime
-
-test:language-version:
-  image: alpine:latest
-  stage: prepare
-  before_script:
-    - apk add --update bash
-  script:
-    - bash ci/verify_version.sh
 
 test:compiler:
   image: ruby:2.4-alpine

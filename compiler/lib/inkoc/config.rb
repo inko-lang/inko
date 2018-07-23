@@ -103,8 +103,7 @@ module Inkoc
     end
 
     def set_default_target_directory
-      self.target =
-        File.join(cache_directory, LANGUAGE_VERSION, BYTECODE_DIR, mode.to_s)
+      self.target = File.join(cache_directory, BYTECODE_DIR, mode.to_s)
     end
 
     def cache_directory
@@ -118,7 +117,7 @@ module Inkoc
     def add_default_source_directories
       directory = ENV['INKOC_HOME']
       directory = DEFAULT_SOURCE_DIRECTORY if directory.nil? || directory.empty?
-      source = File.join(directory, LANGUAGE_VERSION, RUNTIME_DIRECTORY)
+      source = File.join(directory, RUNTIME_DIRECTORY)
 
       add_source_directories([source])
     end
