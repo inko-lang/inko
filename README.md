@@ -38,6 +38,6 @@ or a similar command.
 
 ## License
 
-This Source Code Form is subject to the terms of the Mozilla Public License, v.
-2.0. If a copy of the MPL was not distributed with this file, You can obtain one
-at http://mozilla.org/MPL/2.0/.
+All source code in this repository is licensed under the Mozilla Public License
+version 2.0, unless stated otherwise. A copy of this license can be found in the
+file "LICENSE".
