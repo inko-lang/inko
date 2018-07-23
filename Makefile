@@ -33,21 +33,21 @@ MANIFEST := ${BUILD}/manifest.txt
 DISTRIBUTION := E3SFQ1OG1H5PCN
 
 install:
-	(cd compiler && make install)
-	(cd runtime && make install PREFIX="${PREFIX}")
-	(cd vm && make install PREFIX="${PREFIX}")
+	(cd compiler && $(MAKE) install)
+	(cd runtime && $(MAKE) install PREFIX="${PREFIX}")
+	(cd vm && $(MAKE) install PREFIX="${PREFIX}")
 
 uninstall:
-	(cd compiler && make uninstall)
-	(cd runtime && make uninstall PREFIX="${PREFIX}")
-	(cd vm && make uninstall PREFIX="${PREFIX}")
+	(cd compiler && $(MAKE) uninstall)
+	(cd runtime && $(MAKE) uninstall PREFIX="${PREFIX}")
+	(cd vm && $(MAKE) uninstall PREFIX="${PREFIX}")
 
 build-release:
 	rm -rf "${STAGING}"
 	mkdir -p "${STAGING}"
-	(cd compiler && make build PREFIX="../${STAGING}")
-	(cd runtime && make install PREFIX="../${STAGING}")
-	(cd vm && make install PREFIX="../${STAGING}")
+	(cd compiler &&$(MAKE)build PREFIX="../${STAGING}")
+	(cd runtime &&$(MAKE)install PREFIX="../${STAGING}")
+	(cd vm &&$(MAKE)install PREFIX="../${STAGING}")
 	cp VERSION "${STAGING}"
 	cp LICENSE "${STAGING}"
 	tar --directory "${STAGING}" --create --gzip --file "${TARBALL_PATH}" .
