@@ -15,7 +15,7 @@ For more information, see the [Inko website](https://inko-lang.org).
 
 * Ruby 2.4 or newer and RubyGems, for the compiler.
 * Rust nightly 1.28 or newer. Stable Rust is currently not supported.
-* Make
+* Make 4.0 or newer
 
 ## Installation
 
