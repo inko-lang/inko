@@ -3,7 +3,7 @@
 PREFIX := /usr
 
 # The architecture to use for building the VM.
-ARCH != uname -m
+ARCH != ./scripts/arch.sh
 
 # The version to build.
 VERSION != cat VERSION
