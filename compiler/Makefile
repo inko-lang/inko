@@ -9,7 +9,7 @@ test:
 
 ${PREFIX}/inkoc-${VERSION}.gem:
 	mkdir -p ${PREFIX}
-	gem build --silent inkoc.gemspec
+	gem build inkoc.gemspec
 	mv inkoc-${VERSION}.gem ${PREFIX}/
 
 build: ${PREFIX}/inkoc-${VERSION}.gem
