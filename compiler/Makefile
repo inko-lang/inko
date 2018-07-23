@@ -15,7 +15,7 @@ ${PREFIX}/inkoc-${VERSION}.gem:
 build: ${PREFIX}/inkoc-${VERSION}.gem
 
 install: build
-	gem install "${PREFIX}/inkoc-${VERSION}.gem"
+	(cd "${PREFIX}" && gem install "$${PWD}/inkoc-${VERSION}.gem")
 
 uninstall:
 	gem uninstall -x inkoc
