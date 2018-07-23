@@ -3,4 +3,4 @@
 /vm/target
 /runtime/target
 .*.rustfmt
-/build
+/tmp

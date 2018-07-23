@@ -2,67 +2,108 @@
 # /usr or ~/.local.
 PREFIX := /usr
 
-# The version to use for building a source tarball.
-RELEASE_VERSION != cat VERSION
-
 # The architecture to use for building the VM.
 ARCH != uname -m
 
-# The directory to build Inko in.
-BUILD := build
+# The version to build.
+VERSION != cat VERSION
 
-# The directory to install Inko into before bundling.
-STAGING := ${BUILD}/staging
+# The name of the S3 bucket that contains all releases.
+S3_BUCKET := releases.inko-lang.org
 
-# The name of the tarball to build.
-TARBALL := inko-${RELEASE_VERSION}-${ARCH}.tar.gz
+# The ID of the cloudfront distribution that serves all packages.
+CLOUDFRONT_ID := https://gitlab.com/inko-lang/inko.git
 
-# The path of the tarball to build.
-TARBALL_PATH := ${BUILD}/${TARBALL}
+# The directory to store temporary files in.
+TMP_DIR := tmp
 
-# The name of the checksum file to generate.
-CHECKSUM := ${TARBALL_PATH}.sha512
+# The directory to use as a staging area for installing compiled files.
+STAGING_DIR := ${TMP_DIR}/staging
 
-# The S3 bucket to upload source builds to.
-BUCKET := releases.inko-lang.org
+# The path of the archive to build for source releases.
+SOURCE_TAR := ${TMP_DIR}/inko-${VERSION}-source.tar.gz
 
-# The path of the manifest to manage.
-MANIFEST := ${BUILD}/manifest.txt
+# The path of the checksum for the source tar archive.
+SOURCE_TAR_CHECKSUM := ${SOURCE_TAR}.sha256
 
-# The Cloudfront distribution to use.
-DISTRIBUTION := E3SFQ1OG1H5PCN
+# The path of the archive to build for precompiled releases.
+COMPILED_TAR := ${TMP_DIR}/inko-${VERSION}-${ARCH}-compiled.tar.gz
 
+# The path of the checksum for the compiled tar archive.
+COMPILED_TAR_CHECKSUM := ${COMPILED_TAR}.sha256
+
+# The path to the manifest file.
+MANIFEST := ${TMP_DIR}/manifest.txt
+
+${TMP_DIR}:
+	mkdir -p "${TMP_DIR}"
+
+${STAGING_DIR}:
+	mkdir -p "${STAGING_DIR}"
+
+${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
+	git archive --format tar HEAD \
+		compiler/bin \
+		compiler/lib \
+		compiler/inkoc.gemspec \
+		compiler/VERSION \
+		compiler/Makefile \
+		compiler/README.md \
+		runtime/src \
+		runtime/Makefile \
+		runtime/README.md \
+		vm/src \
+		vm/Cargo.toml \
+		vm/Cargo.lock \
+		vm/Makefile \
+		vm/README.md \
+		LICENSE \
+		Makefile \
+		README.md \
+		VERSION \
+		| gzip > "${SOURCE_TAR}"
+
+${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
+	sha256sum "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
+
+${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
+	$(MAKE) install PREFIX="$(realpath ${STAGING_DIR})"
+	cp LICENSE "${STAGING_DIR}/LICENSE"
+	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
+
+${COMPILED_TAR_CHECKSUM}: ${COMPILED_TAR}
+	sha256sum "${COMPILED_TAR}" | awk '{print $$1}' > "${COMPILED_TAR_CHECKSUM}"
+
+clean:
+	rm -rf "${TMP_DIR}"
+
+# Builds a tar archive containing just the source code.
+release-source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
+	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}
+	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}
+
+# Builds a tar archive containing various precompiled components (e.g. the VM).
+release-compiled: ${COMPILED_TAR} ${COMPILED_TAR_CHECKSUM}
+	aws s3 cp --acl public-read "${COMPILED_TAR}" s3://${S3_BUCKET}
+	aws s3 cp --acl public-read "${COMPILED_TAR_CHECKSUM}" s3://${S3_BUCKET}
+
+# Rebuilds the manifest from scratch.
+rebuild-manifest:
+	aws s3 ls s3://${S3_BUCKET} | \
+		grep -oP '(inko-.+tar\.gz$$)' | \
+		sort > "${MANIFEST}"
+	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}
+
+# Installs all components into a prefix directory.
 install:
 	(cd compiler && $(MAKE) install)
 	(cd runtime && $(MAKE) install PREFIX="${PREFIX}")
 	(cd vm && $(MAKE) install PREFIX="${PREFIX}")
 
+# Removes all components from a prefix directory.
 uninstall:
 	(cd compiler && $(MAKE) uninstall)
 	(cd runtime && $(MAKE) uninstall PREFIX="${PREFIX}")
 	(cd vm && $(MAKE) uninstall PREFIX="${PREFIX}")
 
-build-release:
-	rm -rf "${STAGING}"
-	mkdir -p "${STAGING}"
-	(cd compiler && $(MAKE) build PREFIX="../${STAGING}")
-	(cd runtime && $(MAKE) install PREFIX="../${STAGING}")
-	(cd vm && $(MAKE) install PREFIX="../${STAGING}")
-	cp VERSION "${STAGING}"
-	cp LICENSE "${STAGING}"
-	tar --directory "${STAGING}" --create --gzip --file "${TARBALL_PATH}" .
-	sha512sum "${TARBALL_PATH}" | awk '{print $$1}' > "${CHECKSUM}"
-
-upload-release: build-release
-	aws s3 cp s3://${BUCKET}/manifest.txt "${MANIFEST}"
-	echo "${TARBALL}" >> "${MANIFEST}"
-	aws s3 cp --acl public-read "${TARBALL_PATH}" s3://${BUCKET}/
-	aws s3 cp --acl public-read "${CHECKSUM}" s3://${BUCKET}/
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${BUCKET}/
-	aws cloudfront create-invalidation \
-		--distribution-id ${DISTRIBUTION} --paths "/*"
-
-clean-release:
-	rm -rf "${BUILD}"
-
-.PHONY: install uninstall build-release upload-release clean-release
+.PHONY: clean release-source release-compiled install uninstall rebuild-manifest
