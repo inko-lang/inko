@@ -12,7 +12,7 @@ module Inkoc
 
       # name - The name of the type parameter.
       # required_traits - The traits required by the type parameter.
-      def initialize(name:, required_traits: [])
+      def initialize(name: nil, required_traits: [])
         @name = name
         @required_traits = required_traits.to_set
       end
