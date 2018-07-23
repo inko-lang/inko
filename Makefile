@@ -45,9 +45,9 @@ uninstall:
 build-release:
 	rm -rf "${STAGING}"
 	mkdir -p "${STAGING}"
-	(cd compiler && $(MAKE)build PREFIX="../${STAGING}")
-	(cd runtime && $(MAKE)install PREFIX="../${STAGING}")
-	(cd vm && $(MAKE)install PREFIX="../${STAGING}")
+	(cd compiler && $(MAKE) build PREFIX="../${STAGING}")
+	(cd runtime && $(MAKE) install PREFIX="../${STAGING}")
+	(cd vm && $(MAKE) install PREFIX="../${STAGING}")
 	cp VERSION "${STAGING}"
 	cp LICENSE "${STAGING}"
 	tar --directory "${STAGING}" --create --gzip --file "${TARBALL_PATH}" .
