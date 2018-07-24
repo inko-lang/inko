@@ -80,6 +80,7 @@ release:source:
   image: alpine:latest
   stage: release
   before_script:
+    - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
     - apk add --update coreutils build-base aws-cli
   script:
     - make release-source
@@ -105,6 +106,7 @@ post-release:manifest:
   image: alpine:latest
   stage: post-release
   before_script:
+    - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
     - apk add --update coreutils build-base aws-cli
   script:
     - make rebuild-manifest
