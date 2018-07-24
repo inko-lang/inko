@@ -106,4 +106,9 @@ uninstall:
 	(cd runtime && $(MAKE) uninstall PREFIX="${PREFIX}")
 	(cd vm && $(MAKE) uninstall PREFIX="${PREFIX}")
 
-.PHONY: clean release-source release-compiled install uninstall rebuild-manifest
+# Tags the current version in Git.
+tag:
+	git tag -a -m "Release v${VERSION}" "v${VERSION}"
+	git push origin "v${VERSION}"
+
+.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag

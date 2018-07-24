@@ -8,6 +8,8 @@ stages:
   - test
   - build
   - test-runtime
+  - release
+  - post-release
 
 test:compiler:
   image: ruby:2.4-alpine
@@ -73,3 +75,38 @@ test:runtime:
       - compiler/vendor
   dependencies:
     - build:ivm
+
+release:source:
+  image: alpine:latest
+  stage: release
+  before_script:
+    - apk add --update coreutils build-base aws-cli
+  script:
+    - make release-source
+  only:
+    - tags
+
+release:compiled:
+  image: rustlang/rust:nightly
+  stage: release
+  before_script:
+    - apt-get update -q
+    - apt-get install -y -q build-essential awscli ruby-full
+    - ruby --version
+    - rustc --version
+    - cargo --version
+    - aws --version
+  script:
+    - make release-compiled
+  only:
+    - tags
+
+post-release:manifest:
+  image: alpine:latest
+  stage: post-release
+  before_script:
+    - apk add --update coreutils build-base aws-cli
+  script:
+    - make rebuild-manifest
+  only:
+    - tags
