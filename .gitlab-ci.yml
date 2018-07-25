@@ -38,6 +38,9 @@ test:ivm:
     - cargo --version
   script:
     - make test
+  cache:
+    paths:
+      - .cargo
 
 build:ivm:
   image: rustlang/rust:nightly
@@ -102,6 +105,9 @@ release:compiled:
     - make release-compiled
   only:
     - tags
+  cache:
+    paths:
+      - .cargo
 
 post-release:manifest:
   image: alpine:latest
