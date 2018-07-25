@@ -90,7 +90,7 @@ release-compiled: ${COMPILED_TAR} ${COMPILED_TAR_CHECKSUM}
 	aws s3 cp --acl public-read "${COMPILED_TAR_CHECKSUM}" s3://${S3_BUCKET}
 
 # Rebuilds the manifest from scratch.
-rebuild-manifest:
+rebuild-manifest: ${TMP_DIR}
 	aws s3 ls s3://${S3_BUCKET} | \
 		grep -oP '(inko-.+tar\.gz$$)' | \
 		sort > "${MANIFEST}"
