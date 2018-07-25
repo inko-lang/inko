@@ -3,6 +3,7 @@
 variables:
   CARGO_HOME: $CI_PROJECT_DIR/.cargo
   DEBIAN_FRONTEND: noninteractive
+  AWS_REGION: eu-west-1
 
 stages:
   - test
