@@ -81,7 +81,7 @@ release:source:
   stage: release
   before_script:
     - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
-    - apk add --update coreutils build-base aws-cli
+    - apk add --update coreutils build-base aws-cli git bash
   script:
     - make release-source
   only:
@@ -92,7 +92,7 @@ release:compiled:
   stage: release
   before_script:
     - apt-get update -q
-    - apt-get install -y -q build-essential awscli ruby-full
+    - apt-get install -y -q build-essential awscli ruby-full git bash
     - ruby --version
     - rustc --version
     - cargo --version
