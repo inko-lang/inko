@@ -27,7 +27,7 @@ SOURCE_TAR := ${TMP_DIR}/inko-${VERSION}-source.tar.gz
 SOURCE_TAR_CHECKSUM := ${SOURCE_TAR}.sha256
 
 # The path of the archive to build for precompiled releases.
-COMPILED_TAR := ${TMP_DIR}/inko-${VERSION}-${ARCH}-compiled.tar.gz
+COMPILED_TAR := ${TMP_DIR}/inko-${VERSION}-compiled-${ARCH}.tar.gz
 
 # The path of the checksum for the compiled tar archive.
 COMPILED_TAR_CHECKSUM := ${COMPILED_TAR}.sha256
