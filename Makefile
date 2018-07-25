@@ -81,20 +81,20 @@ clean:
 
 # Builds a tar archive containing just the source code.
 release-source: ${SOURCE_TAR} ${SOURCE_TAR_CHECKSUM}
-	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}
-	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}
+	aws s3 cp --acl public-read "${SOURCE_TAR}" s3://${S3_BUCKET}/inko/
+	aws s3 cp --acl public-read "${SOURCE_TAR_CHECKSUM}" s3://${S3_BUCKET}/inko/
 
 # Builds a tar archive containing various precompiled components (e.g. the VM).
 release-compiled: ${COMPILED_TAR} ${COMPILED_TAR_CHECKSUM}
-	aws s3 cp --acl public-read "${COMPILED_TAR}" s3://${S3_BUCKET}
-	aws s3 cp --acl public-read "${COMPILED_TAR_CHECKSUM}" s3://${S3_BUCKET}
+	aws s3 cp --acl public-read "${COMPILED_TAR}" s3://${S3_BUCKET}/inko/
+	aws s3 cp --acl public-read "${COMPILED_TAR_CHECKSUM}" s3://${S3_BUCKET}/inko/
 
 # Rebuilds the manifest from scratch.
 rebuild-manifest: ${TMP_DIR}
-	aws s3 ls s3://${S3_BUCKET} | \
+	aws s3 ls s3://${S3_BUCKET}/inko/ | \
 		grep -oP '(inko-.+tar\.gz$$)' | \
 		sort > "${MANIFEST}"
-	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}
+	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}/inko/
 
 # Installs all components into a prefix directory.
 install:
