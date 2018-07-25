@@ -4,6 +4,7 @@ variables:
   CARGO_HOME: $CI_PROJECT_DIR/.cargo
   DEBIAN_FRONTEND: noninteractive
   AWS_REGION: eu-west-1
+  AWS_S3_HOST: s3-eu-west-1.amazonaws.com
 
 stages:
   - test
