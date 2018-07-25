@@ -96,7 +96,8 @@ release:compiled:
   stage: release
   before_script:
     - apt-get update -q
-    - apt-get install -y -q build-essential awscli ruby-full git bash
+    - apt-get install -y -q build-essential python-pip ruby-full git bash
+    - pip install awscli
     - ruby --version
     - rustc --version
     - cargo --version
