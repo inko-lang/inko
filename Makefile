@@ -12,7 +12,7 @@ VERSION != cat VERSION
 S3_BUCKET := releases.inko-lang.org
 
 # The ID of the cloudfront distribution that serves all packages.
-CLOUDFRONT_ID := https://gitlab.com/inko-lang/inko.git
+CLOUDFRONT_ID := E3SFQ1OG1H5PCN
 
 # The directory to store temporary files in.
 TMP_DIR := tmp
@@ -95,6 +95,8 @@ rebuild-manifest: ${TMP_DIR}
 		grep -oP '(inko-.+tar\.gz$$)' | \
 		sort > "${MANIFEST}"
 	aws s3 cp --acl public-read "${MANIFEST}" s3://${S3_BUCKET}/inko/
+	aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} \
+		--paths "/inko/*"
 
 # Installs all components into a prefix directory.
 install:
