@@ -13,7 +13,7 @@ For more information, see the [Inko website](https://inko-lang.org).
 
 ## Requirements
 
-* Ruby 2.4 or newer and RubyGems, for the compiler.
+* Ruby 2.3 or newer and RubyGems, for the compiler.
 * Rust nightly 1.28 or newer. Stable Rust is currently not supported.
 * Make 4.0 or newer
 

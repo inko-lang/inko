@@ -19,7 +19,7 @@ Gem::Specification.new do |gem|
     'VERSION',
   ]).select { |file| File.file?(file) }
 
-  gem.required_ruby_version = '>= 2.4.0'
+  gem.required_ruby_version = '>= 2.3.0'
 
   gem.add_dependency 'ansi', '~> 1.5'
   gem.add_dependency 'sxdg', '~> 1.0'

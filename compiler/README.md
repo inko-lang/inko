@@ -20,7 +20,7 @@ Use a custom directory for storing the bytecode files:
 
 ## Requirements
 
-* Ruby 2.4 or newer
+* Ruby 2.3 or newer
 * RubyGems
 
 ## Installation
