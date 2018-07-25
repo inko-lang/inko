@@ -2,9 +2,16 @@
 
 set -e
 
-if [[ $(rustc --print cfg | grep 'target_env="musl"') == *"musl"* ]]
-then
-    echo "$(uname -m)-musl"
-else
-    uname -m
-fi
+function print-arch {
+    local os
+    local arch
+    local env
+
+    os="$(rustc --print cfg | grep -oP 'target_os="\K(\w+)(?=")')"
+    arch="$(rustc --print cfg | grep -oP 'target_arch="\K(\w+)(?=")')"
+    env="$(rustc --print cfg | grep -oP 'target_env="\K(\w+)(?=")')"
+
+    echo "${arch}-${os}-${env}"
+}
+
+print-arch
