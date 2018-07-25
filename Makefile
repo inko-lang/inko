@@ -67,7 +67,9 @@ ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 	sha256sum "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
-	$(MAKE) install PREFIX="$(realpath ${STAGING_DIR})"
+	(cd compiler && $(MAKE) build PREFIX="$(realpath ${STAGING_DIR})")
+	(cd runtime && $(MAKE) install PREFIX="$(realpath ${STAGING_DIR})")
+	(cd vm && $(MAKE) install PREFIX="$(realpath ${STAGING_DIR})")
 	cp LICENSE "${STAGING_DIR}/LICENSE"
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
 
