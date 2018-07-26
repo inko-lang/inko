@@ -18,6 +18,7 @@ install: build
 	(cd ${PREFIX} && gem install "$${PWD}/inkoc-${VERSION}.gem")
 
 uninstall:
+	rm -f ${PREFIX}/inkoc-${VERSION}.gem
 	gem uninstall -x inkoc
 
 .PHONY: test install uninstall

@@ -6,10 +6,10 @@ PREFIX := /usr
 LIBDIR := ${PREFIX}/lib/inko
 
 install:
-	mkdir -p "${LIBDIR}/runtime"
-	cp -r src/* "${LIBDIR}/runtime"
+	mkdir -p ${LIBDIR}/runtime
+	cp -r src/* ${LIBDIR}/runtime
 
 uninstall:
-	rm -rf "${LIBDIR}"
+	rm -rf ${LIBDIR}
 
 .PHONY: install uninstall

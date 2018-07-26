@@ -28,10 +28,10 @@ clean:
 
 install:
 	${CARGO_CMD} build --release
-	mkdir -p "${BINDIR}"
-	install -m755 target/release/ivm "${BINDIR}/ivm"
+	mkdir -p ${BINDIR}
+	install -m755 target/release/ivm ${BINDIR}/ivm
 
 uninstall:
-	rm -f "${BINDIR}/ivm"
+	rm -f ${BINDIR}/ivm
 
 .PHONY: debug test release profile clean install
