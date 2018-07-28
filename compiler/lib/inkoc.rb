@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'ansi'
 require 'set'
 require 'pathname'
 require 'forwardable'
