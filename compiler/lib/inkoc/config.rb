@@ -110,7 +110,16 @@ module Inkoc
       if (env = ENV['INKOC_CACHE'])
         env
       else
-        File.join(SXDG::XDG_CACHE_HOME, CACHE_NAME)
+        xdg_home = ENV['XDG_CACHE_HOME']
+
+        cache_home =
+          if xdg_home && !xdg_home.empty?
+            xdg_home
+          else
+            File.join(Dir.home, '.cache')
+          end
+
+        File.join(cache_home, CACHE_NAME)
       end
     end
 

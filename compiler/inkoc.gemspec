@@ -22,7 +22,6 @@ Gem::Specification.new do |gem|
   gem.required_ruby_version = '>= 2.3.0'
 
   gem.add_dependency 'ansi', '~> 1.5'
-  gem.add_dependency 'sxdg', '~> 1.0'
 
   gem.add_development_dependency 'rspec', '~> 3.6'
   gem.add_development_dependency 'rubocop', '~> 0.49'
