@@ -1,23 +1,24 @@
-# The version of the _compiler_, not the runtime to target.
-VERSION != cat VERSION
-
 # The location to store the built Gem in.
-PREFIX := pkg
+PREFIX := /usr
+
+# The location to install the Ruby code into.
+LIBDIR := ${PREFIX}/lib/inko
+
+# The location to store the executable files in.
+BINDIR := ${PREFIX}/bin
 
 test:
 	bundle exec rspec spec
 
-${PREFIX}/inkoc-${VERSION}.gem:
-	mkdir -p ${PREFIX}
-	gem build inkoc.gemspec
-	mv inkoc-${VERSION}.gem ${PREFIX}/
-
-build: ${PREFIX}/inkoc-${VERSION}.gem
-
-install: build
-	(cd ${PREFIX} && gem install "$${PWD}/inkoc-${VERSION}.gem")
+install:
+	mkdir -p "${LIBDIR}" "${BINDIR}"
+	cp -r lib "${LIBDIR}/compiler"
+	install -m755 bin/* "${BINDIR}"
 
 uninstall:
-	gem uninstall -x inkoc
+	rm -f "${BINDIR}/inko"
+	rm -f "${BINDIR}/inko-test"
+	rm -f "${BINDIR}/inkoc"
+	rm -rf "${LIBDIR}/compiler"
 
 .PHONY: test install uninstall

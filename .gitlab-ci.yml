@@ -73,7 +73,7 @@ test:runtime:
     - cd compiler
     - bundle install --path vendor --retry=3
   script:
-    - bundle exec ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
+    - env RUBYLIB=lib bundle exec ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
   cache:
     paths:
       - compiler/vendor

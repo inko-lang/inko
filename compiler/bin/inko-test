@@ -18,10 +18,6 @@
 #
 #     inkoc-test -d ../runtime --vm ../vm/target/release/ivm
 
-gem_path = File.expand_path('../lib', __dir__)
-
-$LOAD_PATH.unshift(gem_path) unless $LOAD_PATH.include?(gem_path)
-
 require 'inkoc'
 require 'optparse'
 require 'pathname'

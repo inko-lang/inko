@@ -1,6 +1,7 @@
 # The base directory to install the runtime in. Typically this will be either
 # /usr or ~/.local.
 PREFIX := /usr
+ABS_PREFIX != ./scripts/realpath.sh "${PREFIX}"
 
 # The architecture to use for building the VM.
 ARCH != ./scripts/arch.sh
@@ -19,6 +20,7 @@ TMP_DIR := tmp
 
 # The directory to use as a staging area for installing compiled files.
 STAGING_DIR := ${TMP_DIR}/staging
+ABS_STAGING_DIR != ./scripts/realpath.sh "${STAGING_DIR}"
 
 # The path of the archive to build for source releases.
 SOURCE_TAR := ${TMP_DIR}/inko-${VERSION}-source.tar.gz
@@ -45,8 +47,6 @@ ${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
 	git archive --format tar HEAD \
 		compiler/bin \
 		compiler/lib \
-		compiler/inkoc.gemspec \
-		compiler/VERSION \
 		compiler/Makefile \
 		compiler/README.md \
 		runtime/src \
@@ -61,15 +61,14 @@ ${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
 		Makefile \
 		README.md \
 		VERSION \
+		scripts \
 		| gzip > "${SOURCE_TAR}"
 
 ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 	sha256sum "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
-	(cd compiler && $(MAKE) build PREFIX="$(realpath ${STAGING_DIR})")
-	(cd runtime && $(MAKE) install PREFIX="$(realpath ${STAGING_DIR})")
-	(cd vm && $(MAKE) install PREFIX="$(realpath ${STAGING_DIR})")
+	$(MAKE) install PREFIX="${ABS_STAGING_DIR}"
 	cp LICENSE "${STAGING_DIR}/LICENSE"
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
 
@@ -100,15 +99,15 @@ rebuild-manifest: ${TMP_DIR}
 
 # Installs all components into a prefix directory.
 install:
-	(cd compiler && $(MAKE) install)
-	(cd runtime && $(MAKE) install PREFIX="${PREFIX}")
-	(cd vm && $(MAKE) install PREFIX="${PREFIX}")
+	(cd compiler && $(MAKE) install PREFIX="${ABS_PREFIX}")
+	(cd runtime && $(MAKE) install PREFIX="${ABS_PREFIX}")
+	(cd vm && $(MAKE) install PREFIX="${ABS_PREFIX}")
 
 # Removes all components from a prefix directory.
 uninstall:
-	(cd compiler && $(MAKE) uninstall)
-	(cd runtime && $(MAKE) uninstall PREFIX="${PREFIX}")
-	(cd vm && $(MAKE) uninstall PREFIX="${PREFIX}")
+	(cd compiler && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
+	(cd runtime && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
+	(cd vm && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
 
 # Tags the current version in Git.
 tag:
