@@ -14,8 +14,10 @@ TARGET :=
 
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
+	TARGET_BINARY=target/${TARGET}/release/ivm
 else
 	TARGET_OPTION=
+	TARGET_BINARY=target/release/ivm
 endif
 
 debug:
@@ -39,7 +41,7 @@ clean:
 install:
 	${CARGO_CMD} build --release ${TARGET_OPTION}
 	mkdir -p "${BINDIR}"
-	install -m755 target/release/ivm "${BINDIR}/ivm"
+	install -m755 "${TARGET_BINARY}" "${BINDIR}/ivm"
 
 uninstall:
 	rm -f "${BINDIR}/ivm"
