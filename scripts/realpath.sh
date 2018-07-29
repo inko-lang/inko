@@ -6,7 +6,7 @@ function real-path() {
         realpath -m "${1}"
     elif [[ -x "$(command -v grealpath)" ]]
     then
-        realpath -m "${1}"
+        grealpath -m "${1}"
     else
         echo 'Could not find (g)realpath, make sure (GNU) coreutils is installed'
         exit 1
