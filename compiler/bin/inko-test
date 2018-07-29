@@ -48,7 +48,7 @@ parser = OptionParser.new do |o|
   end
 
   o.on('-v', '--version', 'Shows the current version') do
-    puts Inkoc::VERSION
+    puts "inko-test #{Inkoc::VERSION}"
     exit
   end
 end
