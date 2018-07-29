@@ -37,14 +37,6 @@ way requires a bit more effort. Instead, it is recommended to use
 [ienv](https://gitlab.com/inko-lang/ienv). If you truly want to install from the
 repository, you can do so by running the following:
 
-    make install
+    make install PREFIX=foo
 
-To run the executables you need to set the `RUBYLIB` environment variable to the
-compiler's source directory. For example:
-
-    make install PREFIX=example
-    env RUBYLIB=example/lib/inko/compiler example/bin/inko --help
-
-To uninstall:
-
-    make uninstall PREFIX=example
+The compiler will then be installed in the `foo` directory.

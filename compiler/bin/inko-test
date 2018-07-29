@@ -18,6 +18,8 @@
 #
 #     inkoc-test -d ../runtime --vm ../vm/target/release/ivm
 
+# LOAD_PATH_FOR_INSTALL
+
 require 'inkoc'
 require 'optparse'
 require 'pathname'

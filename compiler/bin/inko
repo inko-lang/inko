@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# LOAD_PATH_FOR_INSTALL
+
 require 'inkoc'
 require 'tmpdir'
 require 'optparse'
