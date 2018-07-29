@@ -43,6 +43,9 @@ COMPILED_TAR_CHECKSUM := ${COMPILED_TAR}.sha256
 # The path to the manifest file.
 MANIFEST := ${TMP_DIR}/manifest.txt
 
+# The directory (relative to an install prefix) to copy the license to.
+LICENSE_DIR := share/licenses/inko
+
 ${TMP_DIR}:
 	mkdir -p "${TMP_DIR}"
 
@@ -78,7 +81,8 @@ ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
 	(cd compiler && $(MAKE) build PREFIX="${ABS_STAGING_DIR}")
 	(cd runtime && $(MAKE) install PREFIX="${ABS_STAGING_DIR}")
 	(cd vm && $(MAKE) install PREFIX="${ABS_STAGING_DIR}" TARGET="${TARGET}")
-	cp LICENSE "${STAGING_DIR}/LICENSE"
+	mkdir -p "${ABS_STAGING_DIR}/${LICENSE_DIR}"
+	cp LICENSE "${ABS_STAGING_DIR}/${LICENSE_DIR}"
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
 
 ${COMPILED_TAR_CHECKSUM}: ${COMPILED_TAR}
@@ -111,6 +115,8 @@ install:
 	(cd compiler && $(MAKE) install PREFIX="${ABS_PREFIX}")
 	(cd runtime && $(MAKE) install PREFIX="${ABS_PREFIX}")
 	(cd vm && $(MAKE) install PREFIX="${ABS_PREFIX}" TARGET="${TARGET}")
+	mkdir -p "${ABS_PREFIX}/${LICENSE_DIR}"
+	cp LICENSE "${ABS_PREFIX}/${LICENSE_DIR}"
 
 # Removes all components from a prefix directory.
 uninstall:
