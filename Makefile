@@ -6,6 +6,12 @@ ABS_PREFIX != ./scripts/realpath.sh "${PREFIX}"
 # The architecture to use for building the VM.
 ARCH != ./scripts/arch.sh
 
+# The target to use for cross compiling the VM. When setting this, make sure
+# that ARCH is also manually set.
+#
+# By default the underlying platform's target is used.
+TARGET :=
+
 # The version to build.
 VERSION != cat VERSION
 
@@ -70,7 +76,7 @@ ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
 	(cd compiler && $(MAKE) build PREFIX="${ABS_STAGING_DIR}")
 	(cd runtime && $(MAKE) install PREFIX="${ABS_STAGING_DIR}")
-	(cd vm && $(MAKE) install PREFIX="${ABS_STAGING_DIR}")
+	(cd vm && $(MAKE) install PREFIX="${ABS_STAGING_DIR}" TARGET="${TARGET}")
 	cp LICENSE "${STAGING_DIR}/LICENSE"
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
 
@@ -103,7 +109,7 @@ rebuild-manifest: ${TMP_DIR}
 install:
 	(cd compiler && $(MAKE) install PREFIX="${ABS_PREFIX}")
 	(cd runtime && $(MAKE) install PREFIX="${ABS_PREFIX}")
-	(cd vm && $(MAKE) install PREFIX="${ABS_PREFIX}")
+	(cd vm && $(MAKE) install PREFIX="${ABS_PREFIX}" TARGET="${TARGET}")
 
 # Removes all components from a prefix directory.
 uninstall:
