@@ -55,6 +55,7 @@ ${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
 		compiler/lib \
 		compiler/Makefile \
 		compiler/README.md \
+		compiler/install.rb \
 		runtime/src \
 		runtime/Makefile \
 		runtime/README.md \
