@@ -2,7 +2,8 @@
 // potentially result in forwarding pointers not working properly.
 #![cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
 
-use rug::Integer;
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use std::fs;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i32;
@@ -556,7 +557,7 @@ impl ObjectPointer {
 
     def_value_getter!(block_value, get, as_block, &Box<Block>);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
-    def_value_getter!(bigint_value, get, as_bigint, &Integer);
+    def_value_getter!(bigint_value, get, as_bigint, &BigInt);
     def_value_getter!(hasher_value_mut, get_mut, as_hasher_mut, &mut Hasher);
 
     def_value_getter!(byte_array_value, get, as_byte_array, &Vec<u8>);
@@ -1130,10 +1131,10 @@ mod tests {
     fn test_bigint_to_usize() {
         let mut alloc = local_allocator();
         let small = alloc
-            .allocate_without_prototype(object_value::bigint(Integer::from(5)));
+            .allocate_without_prototype(object_value::bigint(BigInt::from(5)));
 
         let big = alloc.allocate_without_prototype(object_value::bigint(
-            Integer::from(i128::MAX),
+            BigInt::from(i128::MAX),
         ));
 
         assert_eq!(small.bigint_to_usize().unwrap(), 5);

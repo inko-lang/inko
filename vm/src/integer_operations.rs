@@ -1,6 +1,6 @@
 //! Operations for manipulating integers that may overflow into big integers.
 
-use rug::Integer;
+use num_bigint::BigInt;
 use std::ops::{Shl, Shr};
 
 use object_pointer::ObjectPointer;
@@ -17,6 +17,7 @@ use process::RcProcess;
 /// * `$proto`: the pointer to the prototype to use for allocating integers.
 /// * `$op`: the operation to perform without checking for overflows.
 /// * `$overflow_op`: the operation to perform while checking for overflows.
+/// * `$opposite_op`: the opposite operator of `$op`.
 macro_rules! shift_integer {
     (
         $process:expr,
@@ -24,17 +25,24 @@ macro_rules! shift_integer {
         $shift_with:expr,
         $proto:expr,
         $op:ident,
-        $overflow_op:ident
+        $overflow_op:ident,
+        $opposite_op:ident
     ) => {{
         let to_shift = $to_shift.integer_value()?;
         let shift_with = $shift_with.integer_value()?;
         let (res, overflowed) = to_shift.$overflow_op(shift_with as u32);
 
         let pointer = if overflowed {
-            let to_shift_big = Integer::from(to_shift);
+            let to_shift_big = BigInt::from(to_shift);
 
             let bigint = if $shift_with.is_in_i32_range() {
-                to_shift_big.$op(shift_with as i32)
+                // A negative shift inverts the shift operation. For example,
+                // `10 << -2` is the same as `10 >> 2`.
+                if shift_with < 0 {
+                    to_shift_big.$opposite_op(shift_with.abs() as usize)
+                } else {
+                    to_shift_big.$op(shift_with as usize)
+                }
             } else {
                 return Err(shift_error!($to_shift, $shift_with));
             };
@@ -59,13 +67,24 @@ macro_rules! shift_integer {
 /// * `$shift_with`: the pointer to the integer to shift with.
 /// * `$proto`: the pointer to the prototype to use for allocating integers.
 /// * `$op`: the operation to perform without checking for overflows.
+/// * `$opposite_op`: the opposite operation of `$op`
 macro_rules! shift_big_integer {
     (
-        $process:expr, $to_shift:expr, $shift_with:expr, $proto:expr, $op:ident
+        $process:expr,
+        $to_shift:expr,
+        $shift_with:expr,
+        $proto:expr,
+        $op:ident,
+        $opposite_op:ident
     ) => {{
         let to_shift = $to_shift.bigint_value()?.clone();
         let shift_with = $shift_with.integer_value()?;
-        let res = to_shift.$op(shift_with as i32);
+
+        let res = if shift_with < 0 {
+            to_shift.$opposite_op(shift_with.abs() as usize)
+        } else {
+            to_shift.$op(shift_with as usize)
+        };
 
         Ok($process.allocate(object_value::bigint(res), $proto))
     }};
@@ -159,7 +178,8 @@ pub fn integer_shift_left(
             shift_with_ptr,
             prototype,
             shl,
-            overflowing_shl
+            overflowing_shl,
+            shr
         )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(
@@ -190,7 +210,8 @@ pub fn integer_shift_right(
             shift_with_ptr,
             prototype,
             shr,
-            overflowing_shr
+            overflowing_shr,
+            shl
         )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(
@@ -219,7 +240,8 @@ pub fn bigint_shift_left(
             to_shift_ptr,
             shift_with_ptr,
             prototype,
-            shl
+            shl,
+            shr
         )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(
@@ -248,7 +270,8 @@ pub fn bigint_shift_right(
             to_shift_ptr,
             shift_with_ptr,
             prototype,
-            shr
+            shr,
+            shl
         )
     } else if should_invert_for_shift(shift_with_ptr) {
         invert_shift!(

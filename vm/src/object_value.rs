@@ -4,7 +4,7 @@
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
-use rug::Integer;
+use num_bigint::BigInt;
 use std::fs;
 use std::mem;
 
@@ -33,7 +33,7 @@ pub enum ObjectValue {
     Binding(RcBinding),
 
     /// An arbitrary precision integer stored on the heap.
-    BigInt(Box<Integer>),
+    BigInt(Box<BigInt>),
 
     /// A heap allocated integer that doesn't fit in a tagged pointer, but is
     /// too small for a BigInt.
@@ -203,7 +203,7 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_bigint(&self) -> Result<&Integer, String> {
+    pub fn as_bigint(&self) -> Result<&BigInt, String> {
         match *self {
             ObjectValue::BigInt(ref val) => Ok(val),
             _ => Err(
@@ -285,7 +285,7 @@ pub fn binding(value: RcBinding) -> ObjectValue {
     ObjectValue::Binding(value)
 }
 
-pub fn bigint(value: Integer) -> ObjectValue {
+pub fn bigint(value: BigInt) -> ObjectValue {
     ObjectValue::BigInt(Box::new(value))
 }
 

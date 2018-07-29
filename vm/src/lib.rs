@@ -10,11 +10,12 @@ extern crate alloc;
 extern crate colored;
 extern crate float_cmp;
 extern crate fnv;
+extern crate num_bigint;
 extern crate num_cpus;
 extern crate num_integer;
+extern crate num_traits;
 extern crate parking_lot;
 extern crate rayon;
-extern crate rug;
 extern crate time;
 
 pub mod macros;

@@ -1,7 +1,8 @@
 //! Virtual Machine for running instructions
 use float_cmp::ApproxEqUlps;
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use rayon::ThreadPoolBuilder;
-use rug::Integer;
 use std::f64;
 use std::fs;
 use std::i32;
@@ -747,7 +748,7 @@ impl Machine {
                     let integer_ptr = context.get_register(instruction.arg(1));
 
                     let result = if integer_ptr.is_bigint() {
-                        integer_ptr.bigint_value().unwrap().to_f64()
+                        integer_ptr.bigint_value().unwrap().to_f64().unwrap()
                     } else {
                         integer_ptr.integer_value()? as f64
                     };

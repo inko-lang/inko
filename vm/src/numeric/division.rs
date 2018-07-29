@@ -1,8 +1,8 @@
 //! Floored integer divisions.
 
+use num_bigint::BigInt;
 use num_integer;
-use rug::ops::DivRounding;
-use rug::Integer;
+use num_integer::Integer;
 
 pub trait FlooredDiv<RHS = Self> {
     type Output;
@@ -36,24 +36,25 @@ impl OverflowingFlooredDiv for i64 {
     }
 }
 
-impl FlooredDiv for Integer {
-    type Output = Integer;
+impl FlooredDiv for BigInt {
+    type Output = BigInt;
 
     fn floored_division(self, rhs: Self) -> Self::Output {
-        self.div_floor(rhs)
+        self.div_floor(&rhs)
     }
 }
 
-impl FlooredDiv<i32> for Integer {
-    type Output = Integer;
+impl FlooredDiv<i32> for BigInt {
+    type Output = BigInt;
 
     fn floored_division(self, rhs: i32) -> Self::Output {
-        self.div_floor(rhs)
+        let rhs = BigInt::from(rhs);
+        self.div_floor(&rhs)
     }
 }
 
-impl<'a> FlooredDiv<&'a Integer> for Integer {
-    type Output = Integer;
+impl<'a> FlooredDiv<&'a BigInt> for BigInt {
+    type Output = BigInt;
 
     fn floored_division(self, rhs: &Self) -> Self::Output {
         self.div_floor(rhs)

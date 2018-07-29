@@ -2,7 +2,7 @@
 //!
 //! The Modulo trait can be used for getting the modulo (instead of remainder)
 //! of a number.
-use rug::Integer;
+use num_bigint::BigInt;
 
 pub trait Modulo<RHS = Self> {
     type Output;
@@ -44,24 +44,24 @@ impl Modulo for i128 {
     }
 }
 
-impl<'a> Modulo<&'a Integer> for Integer {
-    type Output = Integer;
+impl<'a> Modulo<&'a BigInt> for BigInt {
+    type Output = BigInt;
 
     fn modulo(self, rhs: &Self) -> Self::Output {
         ((self % rhs) + rhs) % rhs
     }
 }
 
-impl Modulo<i32> for Integer {
-    type Output = Integer;
+impl Modulo<i32> for BigInt {
+    type Output = BigInt;
 
     fn modulo(self, rhs: i32) -> Self::Output {
         ((self % rhs) + rhs) % rhs
     }
 }
 
-impl Modulo for Integer {
-    type Output = Integer;
+impl Modulo for BigInt {
+    type Output = BigInt;
 
     fn modulo(self, rhs: Self) -> Self::Output {
         self.modulo(&rhs)
@@ -84,17 +84,17 @@ mod tests {
 
     #[test]
     fn test_modulo_big_integer_with_i64() {
-        let a = Integer::from(-5);
+        let a = BigInt::from(-5);
         let b = 86_400;
 
-        assert_eq!(a.modulo(b), Integer::from(86395));
+        assert_eq!(a.modulo(b), BigInt::from(86395));
     }
 
     #[test]
     fn test_modulo_big_integer_with_big_integer() {
-        let a = Integer::from(-5);
-        let b = Integer::from(86_400);
+        let a = BigInt::from(-5);
+        let b = BigInt::from(86_400);
 
-        assert_eq!(a.modulo(&b), Integer::from(86395));
+        assert_eq!(a.modulo(&b), BigInt::from(86395));
     }
 }

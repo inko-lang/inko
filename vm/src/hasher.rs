@@ -1,7 +1,7 @@
 //! Types and methods for hashing objects.
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
-use rug::Integer;
+use num_bigint::BigInt;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i64;
@@ -36,7 +36,7 @@ impl Hasher {
         self.write_integer(bits);
     }
 
-    pub fn write_bigint(&mut self, value: &Integer) {
+    pub fn write_bigint(&mut self, value: &BigInt) {
         value.hash(&mut self.hasher);
     }
 

@@ -1,4 +1,5 @@
-use rug::Integer;
+use num_bigint::BigInt;
+use num_traits::FromPrimitive;
 use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
 use std::i64;
@@ -241,7 +242,7 @@ impl Process {
         if ObjectPointer::unsigned_integer_as_big_integer(value) {
             // The value is too large to fit in a i64, so we need to allocate it
             // as a big integer.
-            self.allocate(object_value::bigint(Integer::from(value)), prototype)
+            self.allocate(object_value::bigint(BigInt::from(value)), prototype)
         } else if ObjectPointer::unsigned_integer_too_large(value) {
             // The value is small enough that it can fit in an i64, but not
             // small enough that it can fit in a _tagged_ i64.
@@ -268,7 +269,7 @@ impl Process {
         // than `i64::MAX`.
         let pointer = if value >= i64::MAX as f64 || value <= i64::MIN as f64 {
             self.allocate(
-                object_value::bigint(Integer::from_f64(value).unwrap()),
+                object_value::bigint(BigInt::from_f64(value).unwrap()),
                 prototype,
             )
         } else {
@@ -534,6 +535,7 @@ impl Hash for Process {
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigInt;
     use object_value;
     use std::f64;
     use std::i32;
@@ -638,8 +640,10 @@ mod tests {
         let result =
             process.allocate_f64_as_i64(float, machine.state.integer_prototype);
 
+        let max = BigInt::from(i64::MAX);
+
         assert!(result.is_ok());
-        assert!(result.unwrap().bigint_value().unwrap() >= &i64::MAX);
+        assert!(result.unwrap().bigint_value().unwrap() >= &max);
     }
 
     #[test]

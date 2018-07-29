@@ -36,7 +36,7 @@ macro_rules! integer_op {
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // int | bigint
 
-            let rec = Integer::from(rec_ptr.integer_value()?);
+            let rec = BigInt::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
             let result = to_expr!(rec $op arg);
 
@@ -46,12 +46,7 @@ macro_rules! integer_op {
 
             let rec = rec_ptr.bigint_value()?.clone();
             let arg = arg_ptr.integer_value()?;
-
-            let result = if arg_ptr.is_in_i32_range() {
-                to_expr!(rec $op arg as i32)
-            } else {
-                to_expr!(rec $op Integer::from(arg))
-            };
+            let result = to_expr!(rec $op BigInt::from(arg));
 
             $process.allocate(object_value::bigint(result), $proto)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
@@ -144,8 +139,7 @@ macro_rules! integer_overflow_op {
             if overflowed {
                 // If the operation overflowed we need to retry it but using
                 // big integers.
-                let result =
-                    to_expr!(Integer::from(rec).$op(Integer::from(arg)));
+                let result = to_expr!(BigInt::from(rec).$op(BigInt::from(arg)));
 
                 $process.allocate(object_value::bigint(result), $proto)
             } else if ObjectPointer::integer_too_large(result) {
@@ -165,14 +159,14 @@ macro_rules! integer_overflow_op {
             let bigint = if arg_ptr.is_in_i32_range() {
                 to_expr!(rec.$op(arg as i32))
             } else {
-                to_expr!(rec.$op(Integer::from(arg)))
+                to_expr!(rec.$op(BigInt::from(arg)))
             };
 
             $process.allocate(object_value::bigint(bigint), $proto)
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: int + bigint -> bigint
 
-            let rec = Integer::from(rec_ptr.integer_value()?);
+            let rec = BigInt::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
             let bigint = to_expr!(rec.$op(arg));
 
@@ -220,7 +214,7 @@ macro_rules! integer_bool_op {
         } else if rec_ptr.is_integer() && arg_ptr.is_bigint() {
             // Example: integer < bigint
 
-            let rec = Integer::from(rec_ptr.integer_value()?);
+            let rec = BigInt::from(rec_ptr.integer_value()?);
             let arg = arg_ptr.bigint_value()?;
 
             to_expr!(&rec $op arg)
@@ -228,7 +222,7 @@ macro_rules! integer_bool_op {
             // Example: bigint < integer
 
             let rec = rec_ptr.bigint_value()?;
-            let arg = Integer::from(arg_ptr.integer_value()?);
+            let arg = BigInt::from(arg_ptr.integer_value()?);
 
             to_expr!(rec $op &arg)
         } else if rec_ptr.is_bigint() && arg_ptr.is_bigint() {
