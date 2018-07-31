@@ -1,0 +1,44 @@
+---
+image: Visual Studio 2017
+build: off
+version: '{build}'
+
+environment:
+  matrix:
+    - TARGET: x86_64-pc-windows-gnu
+      CHANNEL: nightly
+    - TARGET: x86_64-pc-windows-msvc
+      CHANNEL: nightly
+
+install:
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs
+  - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - set PATH=C:\Ruby24-x64\bin;%PATH%
+  # Install the dependencies of the compiler.
+  - cd compiler
+  - bundle install --retry 3
+  - cd ..
+
+before_test:
+  - rustc --version
+  - cargo --version
+  - ruby --version
+
+test_script:
+  # Test the compiler
+  - cd compiler
+  - make test
+  - cd ..
+  # Test the VM
+  - cd vm
+  - make test
+  - cd ..
+  # Build the VM for the runtime
+  - cd vm
+  - make release
+  - cd ..
+  # Run the runtime tests
+  - cd compiler
+  - bundle exec ruby -I lib ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
+  - cd ..
