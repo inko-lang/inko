@@ -30,11 +30,22 @@ You can uninstall all of them by running:
 By default everything is installed into directories relative to `/usr`. To
 change this, pass the `PREFIX` variable to Make:
 
-    make install PREFIX=~/.local
+    make install PREFIX=$HOME/.local/share/inko
 
 Individual components can be (un)installed by simply changing into the
 appropriate directory (e.g. `cd compiler`), followed by running `make install`
 or a similar command.
+
+**NOTE:** The Makefile quotes the `PREFIX` variable in various places in order
+to properly support spaces in file paths. This means that the tilde (`~`) in a
+path is _not_ expanded. This means that commands like this won't work:
+
+    make install PREFIX=~/.local/share/inko
+
+Instead, use either the full path or use the `$HOME` variable:
+
+    make install PREFIX=$HOME/.local/share/inko
+    make install PREFIX=/home/alice/.local/share/inko
 
 ## License
 
