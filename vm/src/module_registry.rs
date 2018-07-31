@@ -127,12 +127,29 @@ impl ModuleRegistry {
 mod tests {
     use super::*;
     use config::Config;
+    use std::env;
+    use std::path::PathBuf;
     use vm::state::State;
+
+    fn executable_path() -> PathBuf {
+        env::current_exe().unwrap()
+    }
+
+    fn executable_path_string() -> String {
+        executable_path().to_str().unwrap().to_string()
+    }
 
     fn new_config() -> Config {
         let mut config = Config::new();
 
-        config.add_directory("/bin".to_string());
+        config.add_directory(
+            executable_path()
+                .parent()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+        );
 
         config
     }
@@ -141,17 +158,25 @@ mod tests {
     fn test_find_path_relative() {
         let state = State::new(new_config());
         let reg = ModuleRegistry::new(state);
-        let result = reg.find_path("ls");
+        let look_for = executable_path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
 
-        assert_eq!(result.ok().unwrap(), "/bin/ls".to_string());
+        let result = reg.find_path(&look_for);
+
+        assert_eq!(result.ok().unwrap(), executable_path_string());
     }
 
     #[test]
     fn test_find_path_absolute() {
         let state = State::new(new_config());
         let reg = ModuleRegistry::new(state);
-        let result = reg.find_path("/bin/ls");
+        let look_for = executable_path_string();
+        let result = reg.find_path(&look_for);
 
-        assert_eq!(result.ok().unwrap(), "/bin/ls".to_string());
+        assert_eq!(result.ok().unwrap(), look_for);
     }
 }

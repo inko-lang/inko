@@ -22,13 +22,14 @@ pub fn setup() -> (Machine, Block, RcProcess) {
 
     let (block, process) = {
         let mut registry = write_lock!(machine.module_registry);
+        let module_name = if cfg!(windows) { "C:\\test" } else { "/test" };
 
         // To ensure the module sticks around long enough we'll manually store in
         // in the module registry.
-        registry.add_module("/test", Module::new(code));
+        registry.add_module(module_name, Module::new(code));
 
         let lookup = registry
-            .get_or_set(&"/test")
+            .get_or_set(&module_name)
             .map_err(|err| err.message())
             .unwrap();
 

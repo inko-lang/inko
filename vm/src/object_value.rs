@@ -314,6 +314,14 @@ mod tests {
     use std::fs::File;
     use vm::state::{RcState, State};
 
+    fn null_device_path() -> &'static str {
+        if cfg!(windows) {
+            "nul"
+        } else {
+            "/dev/null"
+        }
+    }
+
     fn state() -> RcState {
         State::new(Config::new())
     }
@@ -375,9 +383,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(platform = "windows"))]
     fn test_is_file() {
-        let file = Box::new(File::open("/dev/null").unwrap());
+        let file = Box::new(File::open(null_device_path()).unwrap());
 
         assert!(ObjectValue::File(file).is_file());
         assert_eq!(ObjectValue::None.is_file(), false);
@@ -477,9 +484,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(platform = "windows"))]
     fn test_as_file_with_file() {
-        let file = Box::new(File::open("/dev/null").unwrap());
+        let file = Box::new(File::open(null_device_path()).unwrap());
         let value = ObjectValue::File(file);
         let result = value.as_file();
 
@@ -492,9 +498,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(platform = "windows"))]
     fn test_as_file_mut_with_file() {
-        let file = Box::new(File::open("/dev/null").unwrap());
+        let file = Box::new(File::open(null_device_path()).unwrap());
         let mut value = ObjectValue::File(file);
         let result = value.as_file_mut();
 
@@ -578,9 +583,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(platform = "windows"))]
     fn test_file() {
-        let f = File::open("/dev/null").unwrap();
+        let f = File::open(null_device_path()).unwrap();
 
         assert!(file(f).is_file());
     }
