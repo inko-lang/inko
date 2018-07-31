@@ -20,8 +20,12 @@ install:
   - set PATH=C:\msys64\usr\bin;%PATH%
   # Install the dependencies of the compiler.
   - cd compiler
-  - bundle install --retry 3
+  - bundle install --path vendor --retry=3
   - cd ..
+
+cache:
+  - C:\Users\appveyor\.cargo
+  - compiler\vendor
 
 before_test:
   - rustc --version
