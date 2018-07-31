@@ -15,6 +15,8 @@ install:
   - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   - set PATH=C:\Ruby24-x64\bin;%PATH%
+  # Install Make and other core utilities.
+  - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S coreutils findutils make grep"
   # Install the dependencies of the compiler.
   - cd compiler
   - bundle install --retry 3
