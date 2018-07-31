@@ -17,6 +17,7 @@ install:
   - set PATH=C:\Ruby24-x64\bin;%PATH%
   # Install Make and other core utilities.
   - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S coreutils findutils make grep"
+  - set PATH=C:\msys64\mingw64\bin;%PATH%
   # Install the dependencies of the compiler.
   - cd compiler
   - bundle install --retry 3
