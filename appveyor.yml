@@ -3,7 +3,15 @@ image: Visual Studio 2017
 build: off
 version: '{build}'
 
-environment:
+platform:
+  - x64
+
+notifications:
+  - provider: Email
+    on_build_success: false
+    on_build_failure: false
+    on_build_status_changed: false
+
   matrix:
     - TARGET: x86_64-pc-windows-gnu
       CHANNEL: nightly
@@ -13,10 +21,9 @@ environment:
 install:
   - curl -sSf -o rustup-init.exe https://win.rustup.rs
   - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
-  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - set PATH=C:\Users\appveyor\.cargo\bin;%PATH%
   - set PATH=C:\Ruby24-x64\bin;%PATH%
-  # Install Make and other core utilities.
-  - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S coreutils findutils make grep"
+  - set PATH=C:\Python37-x64;%PATH%
   - set PATH=C:\msys64\usr\bin;%PATH%
   # Install the dependencies of the compiler.
   - cd compiler
