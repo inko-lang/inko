@@ -17,6 +17,13 @@ For more information, see the [Inko website](https://inko-lang.org).
 * Rust nightly 1.28 or newer. Stable Rust is currently not supported.
 * Make 4.0 or newer
 
+## Supported Platforms
+
+Inko supports any Unix like platform, such as Linux, Mac OS, or BSD. Technically
+Inko also works on Windows, but installing from source requires a Linux
+compatibility layer such as [MSYS2](http://www.msys2.org/) or [Linux for
+Windows](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+
 ## Installation
 
 Installing all components can be done as follows:
