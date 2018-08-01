@@ -3,7 +3,22 @@ image: Visual Studio 2017
 build: off
 version: '{build}'
 
+platform:
+  - x64
+
+notifications:
+  - provider: Email
+    on_build_success: false
+    on_build_failure: false
+    on_build_status_changed: false
+
 environment:
+  AWS_REGION: eu-west-1
+  AWS_ACCESS_KEY_ID:
+    secure: FYkfVvo0YEc+1P52F1ySP2fGPjRZ+4mZDhaqdf2i+b8=
+  AWS_SECRET_ACCESS_KEY:
+    secure: 1EiFExL8FT6tlB+1YBt/Fu9SmXt85uGfULKrMew1Vgrp4X6QyN1jyf8bw0ah74XF
+
   matrix:
     - TARGET: x86_64-pc-windows-gnu
       CHANNEL: nightly
@@ -13,11 +28,12 @@ environment:
 install:
   - curl -sSf -o rustup-init.exe https://win.rustup.rs
   - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
-  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - set PATH=C:\Users\appveyor\.cargo\bin;%PATH%
   - set PATH=C:\Ruby24-x64\bin;%PATH%
-  # Install Make and other core utilities.
-  - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S coreutils findutils make grep"
+  - set PATH=C:\Python37-x64;%PATH%
   - set PATH=C:\msys64\usr\bin;%PATH%
+  # Install Make and other core utilities.
+  - pip -q install awscli
   # Install the dependencies of the compiler.
   - cd compiler
   - bundle install --path vendor --retry=3
@@ -49,3 +65,5 @@ test_script:
   - cd compiler
   - bundle exec ruby -I lib ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
   - cd ..
+  # Build and upload release archives, when pushing to a tag.
+  - bash ./scripts/release-windows.sh
