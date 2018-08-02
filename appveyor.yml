@@ -12,6 +12,7 @@ notifications:
     on_build_failure: false
     on_build_status_changed: false
 
+environment:
   matrix:
     - TARGET: x86_64-pc-windows-gnu
       CHANNEL: nightly
