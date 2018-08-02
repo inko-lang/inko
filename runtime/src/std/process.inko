@@ -368,7 +368,7 @@ def blocking!(R)(block: do -> R) -> R {
 ## * 4: The process is waiting for a message to arrive.
 ## * 5: The process finished execution.
 ##
-## If a process does not exist (any more) then the status will also be `3`.
+## If a process does not exist (any more) then the status will also be `5`.
 ##
 ## # Examples
 ##
