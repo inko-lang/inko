@@ -275,8 +275,7 @@ impl Machine {
         builder
             .spawn(move || {
                 state.suspension_list.process_suspended_processes(&state)
-            })
-            .unwrap()
+            }).unwrap()
     }
 
     /// Starts the garbage collection threads.
@@ -1285,7 +1284,8 @@ impl Machine {
                         } else {
                             self.state.false_object
                         }
-                    } else if rec_ptr.string_value()? == arg_ptr.string_value()?
+                    } else if rec_ptr.string_value()?
+                        == arg_ptr.string_value()?
                     {
                         self.state.true_object
                     } else {
@@ -2585,8 +2585,8 @@ impl Machine {
 
                     let result = if precision == 0 {
                         float.round()
-                    } else if precision >= i32::MIN as i64
-                        && precision <= i32::MAX as i64
+                    } else if precision >= i64::from(i32::MIN)
+                        && precision <= i64::from(i32::MAX)
                     {
                         let power = 10.0_f64.powi(precision as i32);
                         let multiplied = float * power;
