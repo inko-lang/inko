@@ -32,6 +32,10 @@ check:
 test:
 	CARGO_INCREMENTAL=1 ${CARGO_CMD} test ${FEATURES}
 
+clippy:
+	touch src/lib.rs
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} clippy ${FEATURES}
+
 release:
 	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES}
 
@@ -49,4 +53,4 @@ install:
 uninstall:
 	rm -f "${BINDIR}/ivm"
 
-.PHONY: debug test release profile clean install
+.PHONY: debug test release profile clean install clippy

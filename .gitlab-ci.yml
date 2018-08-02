@@ -42,6 +42,21 @@ test:ivm:
     paths:
       - .cargo
 
+test:clippy:
+  image: rustlang/rust:nightly
+  stage: test
+  before_script:
+    - rustup component add clippy-preview --toolchain=nightly
+    - cd vm
+    - rustc --version
+    - cargo --version
+    - clippy-driver --version
+  script:
+    - make clippy
+  cache:
+    paths:
+      - .cargo
+
 build:ivm:
   image: rustlang/rust:nightly
   stage: build
