@@ -1,12 +1,8 @@
 #![cfg_attr(feature = "prefetch", feature(core_intrinsics))]
-#![feature(alloc, alloc_system, allocator_api, raw_vec_internals)]
-
-extern crate alloc_system;
 
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 
-extern crate alloc;
 extern crate colored;
 extern crate float_cmp;
 extern crate fnv;

@@ -16,7 +16,8 @@
 //! In the best case scenario using this technique can improve tracing
 //! performance by 20-30%.
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-#![cfg(feature = "prefetch")]
+
+#[cfg(feature = "prefetch")]
 use std::intrinsics;
 
 use object_pointer::ObjectPointerPointer;
