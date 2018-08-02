@@ -3,8 +3,8 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
-use alloc::alloc::{Alloc, Global, Layout};
 use parking_lot::Mutex;
+use std::alloc::{Alloc, Global, Layout};
 use std::ops::Drop;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
