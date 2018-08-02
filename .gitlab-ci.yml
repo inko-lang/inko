@@ -91,7 +91,7 @@ release:source:
   only:
     - tags
 
-release:compiled:
+release:compiled-gnu:
   image: rustlang/rust:nightly
   stage: release
   before_script:
@@ -104,6 +104,26 @@ release:compiled:
     - aws --version
   script:
     - make release-compiled
+  only:
+    - tags
+  cache:
+    paths:
+      - .cargo
+
+release:compiled-musl:
+  image: rustlang/rust:nightly
+  stage: release
+  before_script:
+    - apt-get update -q
+    - apt-get install -y -q build-essential python-pip ruby-full git bash
+    - pip install awscli
+    - ruby --version
+    - rustc --version
+    - cargo --version
+    - aws --version
+    - rustup target add x86_64-unknown-linux-musl
+  script:
+    - make release-compiled ARCH=x86_64-linux-musl TARGET=x86_64-unknown-linux-musl
   only:
     - tags
   cache:
