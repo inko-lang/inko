@@ -4,7 +4,7 @@
 //! to be exact).
 
 use parking_lot::Mutex;
-use std::alloc::{Alloc, Global, Layout};
+use std::alloc::{self, Layout};
 use std::ops::Drop;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -182,10 +182,12 @@ unsafe impl Sync for Block {}
 impl Block {
     #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
     pub fn new() -> Box<Block> {
-        let lines = unsafe {
-            Global.alloc(heap_layout_for_block()).unwrap().as_ptr()
-                as RawObjectPointer
-        };
+        let layout = unsafe { heap_layout_for_block() };
+        let lines = unsafe { alloc::alloc(layout) as RawObjectPointer };
+
+        if lines.is_null() {
+            alloc::handle_alloc_error(layout);
+        }
 
         let mut block = Box::new(Block {
             lines,
@@ -534,9 +536,7 @@ impl Drop for Block {
         }
 
         unsafe {
-            let pointer = ptr::NonNull::new_unchecked(self.lines as *mut u8);
-
-            Global.dealloc(pointer, heap_layout_for_block());
+            alloc::dealloc(self.lines as *mut u8, heap_layout_for_block());
         }
     }
 }
