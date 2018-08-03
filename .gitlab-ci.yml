@@ -50,7 +50,6 @@ test:clippy:
     - cd vm
     - rustc --version
     - cargo --version
-    - clippy-driver --version
   script:
     - make clippy
   cache:
