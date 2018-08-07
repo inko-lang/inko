@@ -676,6 +676,12 @@ impl Machine {
                 // 2. The register of the left-hand side object.
                 // 3. The register of the right-hand side object.
                 InstructionType::IntegerDiv => {
+                    let divide_with = context.get_register(instruction.arg(2));
+
+                    if divide_with.is_zero_integer() {
+                        return Err("Can not divide an Integer by 0".to_string());
+                    }
+
                     integer_overflow_op!(
                         process,
                         context,

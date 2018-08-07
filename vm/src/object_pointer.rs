@@ -3,7 +3,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
 
 use num_bigint::BigInt;
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive, Zero};
 use std::fs;
 use std::hash::{Hash, Hasher as HasherTrait};
 use std::i32;
@@ -433,10 +433,20 @@ impl ObjectPointer {
     }
 
     pub fn is_bigint(&self) -> bool {
-        if self.is_tagged_integer() {
+        if self.is_integer() {
             false
         } else {
             self.get().value.is_bigint()
+        }
+    }
+
+    pub fn is_zero_integer(&self) -> bool {
+        if self.is_integer() {
+            self.integer_value().unwrap().is_zero()
+        } else if self.is_bigint() {
+            self.bigint_value().unwrap().is_zero()
+        } else {
+            false
         }
     }
 
@@ -1148,5 +1158,36 @@ mod tests {
 
         assert_eq!(small.i32_value().unwrap(), 5);
         assert!(large.i32_value().is_err());
+    }
+
+    #[test]
+    fn test_is_zero_integer_with_tagged_integers() {
+        assert_eq!(ObjectPointer::integer(5).is_zero_integer(), false);
+        assert!(ObjectPointer::integer(0).is_zero_integer());
+    }
+
+    #[test]
+    fn test_is_zero_integer_with_heap_integers() {
+        let mut alloc = local_allocator();
+        let non_zero =
+            alloc.allocate_without_prototype(object_value::integer(5));
+
+        let zero = alloc.allocate_without_prototype(object_value::integer(0));
+
+        assert_eq!(non_zero.is_zero_integer(), false);
+        assert!(zero.is_zero_integer());
+    }
+
+    #[test]
+    fn test_is_zero_integer_with_big_integers() {
+        let mut alloc = local_allocator();
+        let non_zero = alloc
+            .allocate_without_prototype(object_value::bigint(BigInt::from(5)));
+
+        let zero = alloc
+            .allocate_without_prototype(object_value::bigint(BigInt::from(0)));
+
+        assert_eq!(non_zero.is_zero_integer(), false);
+        assert!(zero.is_zero_integer());
     }
 }
