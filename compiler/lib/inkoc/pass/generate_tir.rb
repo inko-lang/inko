@@ -301,18 +301,21 @@ module Inkoc
         body.instruct(:SetBlock, body.register(type), code_object, location)
       end
 
+      # Manually defines "self" in a lambda.
+      #
+      # lambdas passed to "process.spawn" won't receive any arguments, thus
+      # "self" won't be set. In the future this should be handled in
+      # "get_self" in some shape or form, but we can't do this at the moment
+      # since we don't keep a list of parent scopes to walk.
       def define_missing_self(body, type, location)
         return unless type.lambda?
 
-        # lambdas passed to "process.spawn" won't receive any arguments, thus
-        # "self" won't be set. In the future this should be handled in
-        # "get_self" in some shape or form, but we can't do this at the moment
-        # since we don't keep a list of parent scopes to walk.
-        local = body.type.arguments[Config::SELF_LOCAL]
+        body.add_connected_basic_block('set_self_for_lambda')
 
-        generate_argument_default(body, local, location) do
-          get_global(Config::MODULE_GLOBAL, body, location)
-        end
+        local = body.type.arguments[Config::SELF_LOCAL]
+        global = get_global(Config::MODULE_GLOBAL, body, location)
+
+        set_local(local, global, body, location)
       end
 
       def define_block_arguments(code_object, arguments)
