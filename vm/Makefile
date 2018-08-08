@@ -36,6 +36,12 @@ clippy:
 	touch src/lib.rs
 	CARGO_INCREMENTAL=1 ${CARGO_CMD} clippy ${FEATURES}
 
+rustfmt-check:
+	rustfmt --check src/lib.rs src/bin/ivm.rs
+
+rustfmt:
+	rustfmt --emit files src/lib.rs src/bin/ivm.rs
+
 release:
 	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES}
 
@@ -53,4 +59,4 @@ install:
 uninstall:
 	rm -f "${BINDIR}/ivm"
 
-.PHONY: debug test release profile clean install clippy
+.PHONY: debug test release profile clean install clippy rustfmt-check rustfmt

@@ -42,7 +42,7 @@ test:ivm:
     paths:
       - .cargo
 
-test:clippy:
+lint:clippy:
   image: rustlang/rust:nightly
   stage: test
   before_script:
@@ -52,6 +52,21 @@ test:clippy:
     - cargo --version
   script:
     - make clippy
+  cache:
+    paths:
+      - .cargo
+
+lint:rustfmt:
+  image: rustlang/rust:nightly
+  stage: test
+  before_script:
+    - rustup component add rustfmt-preview --toolchain=nightly
+    - cd vm
+    - rustc --version
+    - cargo --version
+    - rustfmt --version
+  script:
+    - make rustfmt-check
   cache:
     paths:
       - .cargo
