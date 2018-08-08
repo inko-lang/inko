@@ -738,7 +738,7 @@ test.group 'std::float::Float.format', do (g) {
   g.test 'Formatting a Float', {
     let formatter = DefaultFormatter.new
 
-    1.1234.format(formatter)
+    1.1234.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, '1.1234')
   }
@@ -746,7 +746,7 @@ test.group 'std::float::Float.format', do (g) {
   g.test 'Inspecting a NAN', {
     let formatter = DefaultFormatter.new
 
-    NAN.format(formatter)
+    NAN.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'NaN')
   }
@@ -754,7 +754,7 @@ test.group 'std::float::Float.format', do (g) {
   g.test 'Inspecting Infinity', {
     let formatter = DefaultFormatter.new
 
-    INFINITY.format(formatter)
+    INFINITY.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'Infinity')
   }
@@ -762,7 +762,7 @@ test.group 'std::float::Float.format', do (g) {
   g.test 'Inspecting negative Infinity', {
     let formatter = DefaultFormatter.new
 
-    NEGATIVE_INFINITY.format(formatter)
+    NEGATIVE_INFINITY.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, '-Infinity')
   }

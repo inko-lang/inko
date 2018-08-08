@@ -33,7 +33,7 @@ impl Inspect for Object {
   }
 
   ## Formats a human-readable representation of this object.
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     let self_mirror = mirror.reflect_object(self)
     let attributes = self_mirror.instance_attributes
     let last_index = attributes.length - 1
@@ -54,7 +54,7 @@ impl Inspect for Object {
       formatter.descend {
         let value = _INKOC.get_attribute(self, attr_name) as ?Inspect
 
-        value.format(formatter)
+        value.format_for_inspect(formatter)
       }
 
       index < last_index
@@ -68,37 +68,37 @@ impl Inspect for Object {
 }
 
 impl Inspect for Float {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push(to_string)
   }
 }
 
 impl Inspect for Integer {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push(to_string)
   }
 }
 
 impl Inspect for Nil {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push('Nil')
   }
 }
 
 impl Inspect for Boolean {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push('Boolean')
   }
 }
 
 impl Inspect for True {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push('True')
   }
 }
 
 impl Inspect for False {
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push('False')
   }
 }
@@ -115,7 +115,7 @@ impl Inspect for String {
   ##
   ##     let fmt = DefaultFormatter.new
   ##
-  ##     'hello'.format(fmt)
+  ##     'hello'.format_for_inspect(fmt)
   ##
   ##     fmt.to_string # => '"hello"'
   ##
@@ -126,11 +126,11 @@ impl Inspect for String {
   ##
   ##     let fmt = DefaultFormatter.new
   ##
-  ##     'hello'.format(fmt)
+  ##     'hello'.format_for_inspect(fmt)
   ##
   ##     # This would print "hello" (including quotes) to STDOUT.
   ##     stdout.print(fmt.to_string)
-  def format(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) {
     formatter.push(_INKOC.string_format_debug(self))
   }
 }
@@ -156,14 +156,14 @@ impl Inspect for Array!(T) {
   }
 
   ## Formats this `Array` into a human-readable representation.
-  def format(formatter: Formatter) where T: Inspect {
+  def format_for_inspect(formatter: Formatter) where T: Inspect {
     let last = length - 1
 
     formatter.push('[')
 
     each_with_index do (value, index) {
       formatter.descend {
-        value.format(formatter)
+        value.format_for_inspect(formatter)
       }
 
       index < last
@@ -191,7 +191,7 @@ impl Inspect for HashMap!(K, V) {
   }
 
   ## Formats this `HashMap` into a human-readable representation.
-  def format(formatter: Formatter) where K: Inspect, V: Inspect {
+  def format_for_inspect(formatter: Formatter) where K: Inspect, V: Inspect {
     let last = length - 1
     let mut index = 0
 
@@ -199,13 +199,13 @@ impl Inspect for HashMap!(K, V) {
 
     each do (key, value) {
       formatter.descend {
-        key.format(formatter)
+        key.format_for_inspect(formatter)
       }
 
       formatter.push(': ')
 
       formatter.descend {
-        value.format(formatter)
+        value.format_for_inspect(formatter)
       }
 
       index < last

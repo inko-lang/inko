@@ -223,7 +223,7 @@ test.group 'std::array::Array.format', do (g) {
     let array = [10, 20]
     let formatter = DefaultFormatter.new
 
-    array.format(formatter)
+    array.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, '[10, 20]')
   }

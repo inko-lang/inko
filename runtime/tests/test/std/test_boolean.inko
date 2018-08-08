@@ -93,7 +93,7 @@ test.group 'std::boolean::Boolean.format', do (g) {
   g.test 'Formatting a Boolean', {
     let formatter = DefaultFormatter.new
 
-    Boolean.format(formatter)
+    Boolean.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'Boolean')
   }
@@ -189,7 +189,7 @@ test.group 'std::boolean::True.format', do (g) {
   g.test 'Formatting a True', {
     let formatter = DefaultFormatter.new
 
-    True.format(formatter)
+    True.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'True')
   }
@@ -285,7 +285,7 @@ test.group 'std::boolean::False.format', do (g) {
   g.test 'Formatting a False', {
     let formatter = DefaultFormatter.new
 
-    False.format(formatter)
+    False.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'False')
   }

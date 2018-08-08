@@ -70,7 +70,7 @@ trait Inspect {
   ##
   ## Objects implementing this method should push their values into the given
   ## `Formatter`, instead of immediately returning a `String`.
-  def format(formatter: Formatter)
+  def format_for_inspect(formatter: Formatter)
 }
 
 ## Returns a human-readable representation of the object.
@@ -80,7 +80,7 @@ trait Inspect {
 def inspect(value: Inspect) -> String {
   let formatter = DefaultFormatter.new
 
-  value.format(formatter)
+  value.format_for_inspect(formatter)
 
   formatter.to_string
 }

@@ -64,7 +64,7 @@ test.group 'std::block::Block.format', do (g) {
     let block = { 10 }
     let formatter = DefaultFormatter.new
 
-    block.format(formatter)
+    block.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'Block')
   }

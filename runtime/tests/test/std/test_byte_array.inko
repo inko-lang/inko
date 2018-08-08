@@ -186,7 +186,7 @@ test.group 'std::byte_array::ByteArray.format', do (g) {
     let formatter = DefaultFormatter.new
     let bytes = ByteArray.new([10, 20, 30])
 
-    bytes.format(formatter)
+    bytes.format_for_inspect(formatter)
 
     try assert.equal(formatter.to_string, 'ByteArray { 3 bytes }')
   }
