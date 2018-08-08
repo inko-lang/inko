@@ -8,7 +8,7 @@
 #! `try` keyword. The use of `try!` is discouraged as it will result in the
 #! entire test suite terminating in the event of an assertion failing.
 import std::format::Inspect
-import std::operators::Equal
+import std::operators::(Equal, Greater)
 import std::string_buffer::StringBuffer
 import std::test::error::TestFailure
 import std::debug::(self, CallFrame)
@@ -53,3 +53,21 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) !! TestFailure {
   throw TestFailure
     .new(message: buffer.to_string, location: location_of_failure)
 }
+
+## Asserts that the first argument is greater than the second argument.
+def greater!(T: Inspect + Greater)(given: T, minimum: T) !! TestFailure {
+  given > minimum
+    .if_true {
+      return
+    }
+
+  let buffer = StringBuffer.new([
+    'Expected ',
+    given.inspect,
+    ' to be greater than ',
+    minimum.inspect
+  ])
+
+  throw TestFailure
+    .new(message: buffer.to_string, location: location_of_failure)
+  }

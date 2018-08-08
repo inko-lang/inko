@@ -1,0 +1,155 @@
+import std::fs
+import std::mirror
+import std::test
+import std::test::assert
+import std::time::SystemTime
+
+## The path to the file this test is defined in.
+let CURRENT_FILE = mirror.reflect_module(ThisModule).path
+
+## The SystemTime to use when a certain filesystem operation couldn't produce
+## one.
+let INVALID_TIME = SystemTime.new
+
+## The path of a file that definitely does not exist.
+let INVALID_FILE = 'does_not_exist.inko'
+
+## Returns `True` if the current platform supports obtaining creation/birth
+## timings of files.
+def supports_creation_time? -> Boolean {
+  try fs.created_at(CURRENT_FILE) else return False
+
+  True
+}
+
+## Returns `True` if the current platform supports obtaining the modification
+## time of a file.
+def supports_modification_time? -> Boolean {
+  try fs.modified_at(CURRENT_FILE) else return False
+
+  True
+}
+
+## Returns `True` if the current platform supports obtaining the access time of
+## a file.
+def supports_access_time? -> Boolean {
+  try fs.accessed_at(CURRENT_FILE) else return False
+
+  True
+}
+
+test.group 'std::fs.size', do (g) {
+  g.test 'Obtaining the size of an existing file', {
+    let size = try fs.size(CURRENT_FILE) else 0
+
+    try assert.greater(size, 0)
+  }
+
+  g.test 'Obtaining the size of a non-existing file', {
+    let size = try fs.size(INVALID_FILE) else -1
+
+    try assert.equal(size, -1)
+  }
+}
+
+supports_creation_time?.if_true {
+  test.group 'std::fs.created_at', do (g) {
+    g.test 'Obtaining the creation time of an existing file', {
+      let time = try fs.created_at(CURRENT_FILE) else INVALID_TIME
+
+      try assert.not_equal(time, INVALID_TIME)
+    }
+
+    g.test 'Obtaining the creation time of a non-existing file', {
+      let time = try fs.created_at(INVALID_FILE) else INVALID_TIME
+
+      try assert.equal(time, INVALID_TIME)
+    }
+  }
+}
+
+supports_modification_time?.if_true {
+  test.group 'std::fs.modified_at', do (g) {
+    g.test 'Obtaining the modification time of an existing file', {
+      let time = try fs.modified_at(CURRENT_FILE) else INVALID_TIME
+
+      try assert.not_equal(time, INVALID_TIME)
+    }
+
+    g.test 'Obtaining the modification time of a non-existing file', {
+      let time = try fs.modified_at(INVALID_FILE) else INVALID_TIME
+
+      try assert.equal(time, INVALID_TIME)
+    }
+  }
+}
+
+supports_access_time?.if_true {
+  test.group 'std::fs.accessed_at', do (g) {
+    g.test 'Obtaining the access time of an existing file', {
+      let time = try fs.accessed_at(CURRENT_FILE) else INVALID_TIME
+
+      try assert.not_equal(time, INVALID_TIME)
+    }
+
+    g.test 'Obtaining the access time of a non-existing file', {
+      let time = try fs.accessed_at(INVALID_FILE) else INVALID_TIME
+
+      try assert.equal(time, INVALID_TIME)
+    }
+  }
+}
+
+test.group 'std::fs.file?', do (g) {
+  g.test 'Testing an existing file', {
+    try assert.equal(fs.file?(CURRENT_FILE), True)
+  }
+
+  g.test 'Testing a non-existing file', {
+    try assert.equal(fs.file?(INVALID_FILE), False)
+  }
+
+  g.test 'Testing an existing directory', {
+    try assert.equal(fs.file?('.'), False)
+  }
+
+  g.test 'Testing a non-existing directory', {
+    try assert.equal(fs.file?('does_not_exist'), False)
+  }
+}
+
+test.group 'std::fs.directory?', do (g) {
+  g.test 'Testing an existing directory', {
+    try assert.equal(fs.directory?('.'), True)
+  }
+
+  g.test 'Testing a non-existing directory', {
+    try assert.equal(fs.directory?('this_does_not_exist'), False)
+  }
+
+  g.test 'Testing an existing file', {
+    try assert.equal(fs.directory?(CURRENT_FILE), False)
+  }
+
+  g.test 'Testing a non-existing file', {
+    try assert.equal(fs.directory?(INVALID_FILE), False)
+  }
+}
+
+test.group 'std::fs.exists?', do (g) {
+  g.test 'Testing an existing file', {
+    try assert.equal(fs.exists?(CURRENT_FILE), True)
+  }
+
+  g.test 'Testing a non-existing file', {
+    try assert.equal(fs.exists?(INVALID_FILE), False)
+  }
+
+  g.test 'Testing an existing directory', {
+    try assert.equal(fs.exists?('.'), True)
+  }
+
+  g.test 'Testing a non-existing directory', {
+    try assert.equal(fs.exists?('does_not_exist'), False)
+  }
+}
