@@ -1,0 +1,53 @@
+import std::format::(self, DefaultFormatter, MAX_DEPTH, PLACEHOLDER)
+import std::test
+import std::test::assert
+
+test.group 'std::format::DefaultFormatter.push', do (g) {
+  g.test 'Pushing a String into the underlying buffer', {
+    let fmt = DefaultFormatter.new
+
+    fmt.push('hello')
+
+    try assert.equal(fmt.to_string, 'hello')
+  }
+}
+
+test.group 'std::format::DefaultFormatter.descend', do (g) {
+  g.test 'Formatting an object when the nesting level is not too great', {
+    let fmt = DefaultFormatter.new
+
+    fmt.descend {
+      fmt.push('hello')
+    }
+
+    try assert.equal(fmt.to_string, 'hello')
+  }
+
+  g.test 'Formatting an object when the nesting level is too great', {
+    let fmt = DefaultFormatter.new
+
+    let mut block = { fmt.push('hello') }
+    let mut index = 0
+
+    # Generate a chain of calls to "descend", at least MAX_DEPTH levels deep.
+    { index < MAX_DEPTH }.while_true {
+      block = {
+        fmt.descend {
+          block.call
+        }
+      }
+
+      index += 1
+    }
+
+    fmt.descend(block)
+
+    try assert.equal(fmt.to_string, PLACEHOLDER)
+  }
+}
+
+test.group 'std::format.inspect', do (g) {
+  g.test 'Inspecting an object', {
+    try assert.equal(::format.inspect([10]), '[10]')
+  }
+}
