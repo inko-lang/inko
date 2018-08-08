@@ -232,8 +232,7 @@ impl Bucket {
                 } else {
                     None
                 }
-            })
-            .collect();
+            }).collect();
 
         state.finalizer_pool.schedule_multiple(finalize);
 

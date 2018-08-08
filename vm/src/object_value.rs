@@ -145,9 +145,10 @@ impl ObjectValue {
     pub fn as_byte_array(&self) -> Result<&Vec<u8>, String> {
         match *self {
             ObjectValue::ByteArray(ref val) => Ok(val),
-            _ => Err(
-                "as_byte_array called non a non byte array value".to_string()
-            ),
+            _ => {
+                Err("as_byte_array called non a non byte array value"
+                    .to_string())
+            }
         }
     }
 
@@ -164,9 +165,10 @@ impl ObjectValue {
         match *self {
             ObjectValue::String(ref val) => Ok(val),
             ObjectValue::InternedString(ref val) => Ok(val),
-            _ => Err(
-                "ObjectValue::as_string() called on a non string".to_string()
-            ),
+            _ => {
+                Err("ObjectValue::as_string() called on a non string"
+                    .to_string())
+            }
         }
     }
 
@@ -180,9 +182,10 @@ impl ObjectValue {
     pub fn as_file_mut(&mut self) -> Result<&mut fs::File, String> {
         match *self {
             ObjectValue::File(ref mut val) => Ok(val),
-            _ => Err(
-                "ObjectValue::as_file_mut() called on a non file".to_string()
-            ),
+            _ => {
+                Err("ObjectValue::as_file_mut() called on a non file"
+                    .to_string())
+            }
         }
     }
 
@@ -206,18 +209,20 @@ impl ObjectValue {
     pub fn as_bigint(&self) -> Result<&BigInt, String> {
         match *self {
             ObjectValue::BigInt(ref val) => Ok(val),
-            _ => Err(
-                "ObjectValue::as_bigint() called on a non BigInt".to_string()
-            ),
+            _ => {
+                Err("ObjectValue::as_bigint() called on a non BigInt"
+                    .to_string())
+            }
         }
     }
 
     pub fn as_integer(&self) -> Result<i64, String> {
         match *self {
             ObjectValue::Integer(val) => Ok(val),
-            _ => Err(
-                "ObjectValue::as_integer() called on a non integer".to_string()
-            ),
+            _ => {
+                Err("ObjectValue::as_integer() called on a non integer"
+                    .to_string())
+            }
         }
     }
 
