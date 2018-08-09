@@ -342,6 +342,25 @@ object BlockMirror {
   }
 }
 
+## A mirror for a `Module`.
+object ModuleMirror {
+  def init(subject: Module) {
+    let @mirror = ObjectMirror.new(subject)
+  }
+
+  ## Returns the name of the module.
+  def name -> String {
+    @mirror.get_attribute('@name') as String
+  }
+
+  ## Returns the path of the source file that defined the module.
+  def path -> Path {
+    let raw_path = @mirror.get_attribute('@path') as String
+
+    Path.new(raw_path)
+  }
+}
+
 ## Returns a regular mirror for the given object.
 def reflect_object!(T)(subject: T) -> ObjectMirror!(T) {
   ObjectMirror.new(subject)
@@ -350,4 +369,9 @@ def reflect_object!(T)(subject: T) -> ObjectMirror!(T) {
 ## Returns a mirror for the given `Block`.
 def reflect_block(subject: Block) -> BlockMirror {
   BlockMirror.new(subject)
+}
+
+## Returns a mirror for the given `Module`.
+def reflect_module(subject: Module) -> ModuleMirror {
+  ModuleMirror.new(subject)
 }

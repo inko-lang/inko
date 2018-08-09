@@ -52,17 +52,40 @@ impl Object {
   def init {}
 }
 
-# Now that the basics are in place we can define Trait the usual way.
+## A trait.
+##
+## A trait can contain both required methods and default implementations of
+## methods.
 object Trait {}
 
-# Inko::Modules contains all of the imported modules mapped to their fully
-# qualified module names.
+## An object to use for storing all modules created from source files.
 object Modules {}
 
-# Inkoc::Module will act as the prototype for all modules. We'll later refine
-# this object in the std::module module, but we need it here to allow us to
-# define new modules in the first place.
-object Module {}
+## An object containing methods and types defined in a source file.
+##
+## This object does not define any meaningful methods on its own, as those could
+## conflict with the methods defined in a module by the user. Instead, use the
+## `std::mirror` module to obtain module information such as its name or file
+## path.
+object Module {
+  def new(name: String, path: String) -> Self {
+    # Modules are always global objects, so we create them as such right away.
+    let obj = _INKOC.set_object(True, self)
+
+    obj.init(name: name, path: path)
+
+    obj
+  }
+
+  def init(name: String, path: String) {
+    let @name = name
+    let @path = path
+  }
+}
 
 # Now we can define the object for the bootstrap module.
-_INKOC.set_attribute(Modules, 'std::bootstrap', Module.new)
+_INKOC.set_attribute(
+  Modules,
+  'core::bootstrap',
+  Module.new(name: 'core::bootstrap', path: _INKOC.current_file_path)
+)

@@ -67,8 +67,10 @@ module Inkoc
       end
 
       def on_module_body(node, body)
-        define_module(body)
         process_imports(@module.body)
+
+        define_module(body)
+
         process_node(node, body)
       end
 
@@ -102,10 +104,30 @@ module Inkoc
         proto = get_attribute(top, Config::MODULE_TYPE, body, loc)
 
         # Create the new module and store it in the modules list.
-        true_reg = get_true(body, loc)
-        mod = set_object_with_prototype(body.type, true_reg, proto, body, loc)
+        mod = initialize_module_type(body.type, proto, body, loc)
 
         set_literal_attribute(modules, @module.name.to_s, mod, body, loc)
+      end
+
+      def initialize_module_type(type, receiver, body, location)
+        new_method = receiver.type.lookup_method(Config::NEW_MESSAGE)
+        module_name = set_string(@module.name.to_s, body, location)
+        file_path = set_current_file_path(body, location)
+
+        send_object_message(
+          receiver,
+          new_method.name,
+          [module_name, file_path],
+          [],
+          new_method,
+          type,
+          body,
+          location
+        )
+      end
+
+      def set_current_file_path(body, location)
+        set_string(@module.location.file.path.to_s, body, location)
       end
 
       def on_import(import, mod_reg, body)
@@ -1311,6 +1333,10 @@ module Inkoc
 
       def on_raw_get_boolean_prototype(node, body)
         raw_nullary_instruction(:GetBooleanPrototype, node, body)
+      end
+
+      def on_raw_current_file_path(node, body)
+        set_current_file_path(body, node.location)
       end
 
       def on_return(node, body)

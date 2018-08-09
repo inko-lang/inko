@@ -17,3 +17,4 @@ let Float = Inko::Float
 let Block = Inko::Block
 let Array = Inko::Array
 let Trait = Inko::Trait
+let Module = Inko::Module
