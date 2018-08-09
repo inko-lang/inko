@@ -1,7 +1,7 @@
 #! Types for signalling test failures
 import std::conversion::ToString
 import std::error::Error
-import std::vm::CallFrame
+import std::debug::CallFrame
 
 ## A `TestFailure` is used to indicate that a particular assertion failed.
 ##

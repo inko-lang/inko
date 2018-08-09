@@ -5,7 +5,7 @@
 #! sending `test` to an instance of `std::test::test_group::TestGroup`.
 import std::process
 import std::test::error::TestFailure
-import std::vm::CallFrame
+import std::debug::CallFrame
 
 ## A test defined by the user, including details such as the name and the
 ## location it was defined at.

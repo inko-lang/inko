@@ -5,7 +5,7 @@
 import std::test::error::TestFailure
 import std::test::runner::Client
 import std::test::test::Test
-import std::vm
+import std::debug
 
 ## A collection of tests that all belong to the same group.
 object TestGroup {
@@ -19,7 +19,7 @@ object TestGroup {
 
   ## Registers a new test with a runner.
   def test(name: String, body: lambda !! TestFailure) {
-    let location = *vm.stacktrace(skip: 2, limit: 1)[0]
+    let location = *debug.stacktrace(skip: 2, limit: 1)[0]
 
     let test = Test.new(
       name: name,
