@@ -48,7 +48,10 @@ impl PermanentAllocator {
     }
 
     fn allocate(&mut self, object: Object) -> ObjectPointer {
-        let (_, pointer) = self.bucket.allocate(&self.global_allocator, object);
+        let (_, pointer) = unsafe {
+            self.bucket
+                .allocate_for_mutator(&self.global_allocator, object)
+        };
 
         pointer.mark();
         pointer

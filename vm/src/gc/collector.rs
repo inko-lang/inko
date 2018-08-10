@@ -5,23 +5,6 @@ use object::ObjectStatus;
 use object_pointer::ObjectPointer;
 use process::RcProcess;
 
-/// Macro used for conditionally moving objects or resolving forwarding
-/// pointers.
-macro_rules! move_object {
-    ($bucket:expr, $pointer:expr, $status:ident, $body:expr) => {{
-        let lock = $bucket.lock();
-
-        match $pointer.status() {
-            ObjectStatus::Resolve => $pointer.resolve_forwarding_pointer(),
-            ObjectStatus::$status => $body,
-            _ => {}
-        }
-
-        // Let's explicitly drop the lock for good measurement.
-        drop(lock);
-    }};
-}
-
 /// Macro that returns true if the pointer can be skipped during tracing.
 macro_rules! can_skip_pointer {
     ($pointer:expr, $mature:expr) => {
@@ -35,11 +18,13 @@ macro_rules! can_skip_pointer {
 pub fn promote_mature(process: &RcProcess, pointer: &mut ObjectPointer) {
     pointer.unmark_for_finalization();
 
-    let local_data = process.local_data_mut();
-    let old_obj = pointer.get_mut();
-    let new_pointer = local_data.allocator.allocate_mature(old_obj.take());
+    {
+        let local_data = process.local_data_mut();
+        let old_obj = pointer.get_mut();
+        let new_pointer = local_data.allocator.allocate_mature(old_obj.take());
 
-    old_obj.forward_to(new_pointer);
+        old_obj.forward_to(new_pointer);
+    }
 
     pointer.resolve_forwarding_pointer();
 }
@@ -50,18 +35,20 @@ pub fn promote_mature(process: &RcProcess, pointer: &mut ObjectPointer) {
 pub fn evacuate(process: &RcProcess, pointer: &mut ObjectPointer) {
     pointer.unmark_for_finalization();
 
-    // When evacuating an object we must ensure we evacuate the object into
-    // the same bucket.
-    let local_data = process.local_data_mut();
-    let bucket = pointer.block_mut().bucket_mut().unwrap();
+    {
+        // When evacuating an object we must ensure we evacuate the object into
+        // the same bucket.
+        let local_data = process.local_data_mut();
+        let bucket = pointer.block_mut().bucket_mut().unwrap();
 
-    let old_obj = pointer.get_mut();
-    let new_obj = old_obj.take();
+        let old_obj = pointer.get_mut();
+        let new_obj = old_obj.take();
 
-    let (_, new_pointer) =
-        bucket.allocate(&local_data.allocator.global_allocator, new_obj);
+        let (_, new_pointer) =
+            bucket.allocate(&local_data.allocator.global_allocator, new_obj);
 
-    old_obj.forward_to(new_pointer);
+        old_obj.forward_to(new_pointer);
+    }
 
     pointer.resolve_forwarding_pointer();
 }
@@ -72,8 +59,6 @@ pub fn trace_pointers_with_moving(
     mut objects: WorkList,
     mature: bool,
 ) -> TraceResult {
-    let local_data = process.local_data();
-    let allocator = &local_data.allocator;
     let mut marked = 0;
     let mut evacuated = 0;
     let mut promoted = 0;
@@ -88,25 +73,12 @@ pub fn trace_pointers_with_moving(
         match pointer.status() {
             ObjectStatus::Resolve => pointer.resolve_forwarding_pointer(),
             ObjectStatus::Promote => {
-                let bucket = &allocator.mature_generation;
-
-                move_object!(bucket, pointer, Promote, {
-                    promote_mature(process, pointer);
-
-                    promoted += 1;
-                });
+                promote_mature(process, pointer);
+                promoted += 1;
             }
             ObjectStatus::Evacuate => {
-                // To prevent borrow problems we first acquire a new
-                // reference to the pointer before locking its
-                // bucket.
-                let bucket = pointer_pointer.get().block().bucket().unwrap();
-
-                move_object!(bucket, pointer, Evacuate, {
-                    evacuate(process, pointer);
-
-                    evacuated += 1;
-                });
+                evacuate(process, pointer);
+                evacuated += 1;
             }
             _ => {}
         }

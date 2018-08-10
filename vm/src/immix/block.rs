@@ -8,12 +8,14 @@ use std::alloc::{self, Layout};
 use std::ops::Drop;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 
+use deref_pointer::DerefPointer;
 use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::block_list::BlockIteratorMut;
 use immix::bucket::Bucket;
 use object::Object;
-use object_pointer::{ObjectPointer, RawObjectPointer};
+use object_pointer::RawObjectPointer;
 
 /// The number of bytes in a block.
 pub const BLOCK_SIZE: usize = 32 * 1024;
@@ -131,7 +133,7 @@ impl BlockHeader {
     pub fn reset(&mut self) {
         self.fragmented = false;
         self.holes = 1;
-        self.bucket = ptr::null::<Bucket>() as *mut Bucket;
+        self.bucket = ptr::null_mut();
     }
 }
 
@@ -141,11 +143,11 @@ impl BlockHeader {
 /// size due to the various types used.
 pub struct Block {
     /// The pointer to use for allocating a new object.
-    pub free_pointer: RawObjectPointer,
+    pub free_pointer: DerefPointer<Object>,
 
     /// Pointer marking the end of the free pointer. Objects may not be
     /// allocated into or beyond this pointer.
-    pub end_pointer: RawObjectPointer,
+    pub end_pointer: DerefPointer<Object>,
 
     /// The memory to use for the mark bitmap and allocating objects. The first
     /// 128 bytes of this field are reserved and used for storing a BlockHeader.
@@ -194,14 +196,14 @@ impl Block {
             marked_objects_bitmap: ObjectMap::new(),
             used_lines_bitmap: LineMap::new(),
             finalize_bitmap: ObjectMap::new(),
-            free_pointer: ptr::null::<Object>() as RawObjectPointer,
-            end_pointer: ptr::null::<Object>() as RawObjectPointer,
+            free_pointer: DerefPointer::null(),
+            end_pointer: DerefPointer::null(),
             finalizing: AtomicBool::new(false),
             pending_finalization_bitmap: Mutex::new(ObjectMap::new()),
         });
 
-        block.free_pointer = block.start_address();
-        block.end_pointer = block.end_address();
+        block.free_pointer = DerefPointer::from_pointer(block.start_address());
+        block.end_pointer = DerefPointer::from_pointer(block.end_address());
 
         // Store a pointer to the block in the first (reserved) line.
         unsafe {
@@ -292,8 +294,31 @@ impl Block {
         unsafe { self.lines.offset(OBJECTS_PER_BLOCK as isize) }
     }
 
-    /// Bump allocates an object into the current block.
-    pub fn bump_allocate(&mut self, object: Object) -> ObjectPointer {
+    /// Atomically loads the current free pointer.
+    pub fn free_pointer(&self) -> RawObjectPointer {
+        self.free_pointer.atomic_load().pointer
+    }
+
+    /// Atomically loads the current end pointer.
+    pub fn end_pointer(&self) -> RawObjectPointer {
+        self.end_pointer.atomic_load().pointer
+    }
+
+    /// Atomically sets the new free pointer.
+    pub fn set_free_pointer(&mut self, pointer: RawObjectPointer) {
+        self.free_pointer.atomic_store(pointer);
+    }
+
+    /// Atomically sets the new end pointer.
+    pub fn set_end_pointer(&mut self, pointer: RawObjectPointer) {
+        self.end_pointer.atomic_store(pointer);
+    }
+
+    /// Requests a new pointer to use for an object.
+    ///
+    /// This method will return a None if no space is available in the current
+    /// block.
+    pub fn request_pointer(&mut self) -> Option<RawObjectPointer> {
         // If the block is supposed to be finalized we'll finalize the entire
         // block right away. This is much simpler to implement and removes the
         // need for additional checks in future allocations into the current
@@ -302,24 +327,88 @@ impl Block {
             self.finalize_pending();
         }
 
-        unsafe {
-            ptr::write(self.free_pointer, object);
+        loop {
+            let current = self.free_pointer();
+            let end = self.end_pointer();
+
+            if current == end {
+                if current == self.end_address() {
+                    return None;
+                }
+
+                if self.find_available_hole(current, end) {
+                    continue;
+                } else {
+                    return None;
+                }
+            }
+
+            if current > end {
+                // It is possible for a thread to try and request a pointer
+                // while another thread is advancing the cursor to the next
+                // hole. Between setting the new free and end pointers, there is
+                // a small time frame where the free pointer is greated than the
+                // end pointer, because the end pointer is still the old value.
+                //
+                // For this to happen, the order of operations has to be as
+                // follows:
+                //
+                //     Thread A             | Thread B
+                //     request_pointer()    | find_available_hole()
+                //     -----------------------------------------------
+                //                          | 1. update free pointer
+                //     2. load free pointer |
+                //     3. load end pointer  |
+                //                          | 4. update end pointer
+                //
+                // When this happens, in thread A the free pointer will be
+                // observed as being greater than the end pointer. Since the end
+                // pointer will be updated very soon, we can just spin for a
+                // little while.
+                thread::yield_now();
+                continue;
+            }
+
+            let next_ptr = unsafe { current.offset(1) };
+
+            if self.free_pointer.compare_and_swap(current, next_ptr) {
+                return Some(current);
+            }
         }
-
-        let obj_pointer = ObjectPointer::new(self.free_pointer);
-
-        self.free_pointer = unsafe { self.free_pointer.offset(1) };
-
-        if obj_pointer.is_finalizable() {
-            obj_pointer.mark_for_finalization();
-        }
-
-        obj_pointer
     }
 
-    /// Returns true if we can bump allocate into the current block.
-    pub fn can_bump_allocate(&self) -> bool {
-        self.free_pointer < self.end_pointer
+    /// Requests a new pointer to use for an object allocated by a mutator.
+    ///
+    /// Unlike `Block::request_pointer()`, this method _does not_ use atomic
+    /// operations for bump allocations. This means it _can not_ be used by any
+    /// collector threads.
+    pub unsafe fn request_pointer_for_mutator(
+        &mut self,
+    ) -> Option<RawObjectPointer> {
+        if self.is_finalizing() {
+            self.finalize_pending();
+        }
+
+        loop {
+            let current = self.free_pointer.pointer;
+            let end = self.end_pointer.pointer;
+
+            if current == end {
+                if current == self.end_address() {
+                    return None;
+                }
+
+                if self.find_available_hole(current, end) {
+                    continue;
+                } else {
+                    return None;
+                }
+            }
+
+            self.free_pointer = DerefPointer::from_pointer(current.offset(1));
+
+            return Some(current);
+        }
     }
 
     pub fn line_index_of_pointer(&self, pointer: RawObjectPointer) -> usize {
@@ -338,28 +427,15 @@ impl Block {
 
     /// Recycles the current block
     pub fn recycle(&mut self) {
-        self.find_available_hole_starting_at(LINE_START_SLOT);
-    }
+        let start = self.start_address();
+        let end = self.end_address();
 
-    /// Moves the free/end pointer to the next available hole if any.
-    pub fn find_available_hole(&mut self) {
-        if self.free_pointer == self.end_address() {
-            return;
-        }
+        // Reset the free and end pointer, then try to find a new hole based on
+        // the used lines.
+        self.set_free_pointer(start);
+        self.set_end_pointer(end);
 
-        let line_index = self.line_index_of_pointer(self.free_pointer);
-
-        self.find_available_hole_starting_at(line_index);
-    }
-
-    #[cfg_attr(feature = "cargo-clippy", allow(wrong_self_convention))]
-    pub fn is_available_for_allocation(&mut self) -> bool {
-        if self.can_bump_allocate() {
-            true
-        } else {
-            self.find_available_hole();
-            self.can_bump_allocate()
-        }
+        self.find_available_hole(start, end);
     }
 
     /// Resets the block to a pristine state.
@@ -368,8 +444,11 @@ impl Block {
     pub fn reset(&mut self) {
         self.header_mut().reset();
 
-        self.free_pointer = self.start_address();
-        self.end_pointer = self.end_address();
+        let start_addr = self.start_address();
+        let end_addr = self.end_address();
+
+        self.set_free_pointer(start_addr);
+        self.set_end_pointer(end_addr);
 
         self.reset_mark_bitmaps();
 
@@ -490,39 +569,53 @@ impl Block {
         self.finalizing.load(Ordering::Acquire)
     }
 
-    fn find_available_hole_starting_at(&mut self, index: usize) {
-        let mut start_set = false;
-        let mut stop_set = false;
+    fn find_available_hole(
+        &mut self,
+        old_free: RawObjectPointer,
+        old_end: RawObjectPointer,
+    ) -> bool {
+        let mut found_hole = false;
+        let mut new_free = self.end_address();
+        let mut new_end = self.end_address();
+        let mut line = self.line_index_of_pointer(old_free);
 
-        for index in index..LINES_PER_BLOCK {
-            if start_set && stop_set {
+        // Find the start of the hole.
+        while line < LINES_PER_BLOCK {
+            if !self.used_lines_bitmap.is_set(line) {
+                new_free = self.pointer_for_hole_starting_at_line(line);
+                found_hole = true;
+
                 break;
             }
 
-            let offset = ((index - 1) * OBJECTS_PER_LINE) as isize;
-
-            // Set the free pointer to the start of a hole.
-            if !self.used_lines_bitmap.is_set(index) && !start_set {
-                unsafe {
-                    self.free_pointer = self.start_address().offset(offset);
-                }
-
-                start_set = true;
-            }
-
-            // Set the end pointer to the end of the hole.
-            if start_set && !stop_set && self.used_lines_bitmap.is_set(index) {
-                unsafe {
-                    self.end_pointer = self.start_address().offset(offset);
-                }
-
-                stop_set = true;
-            }
+            line += 1;
         }
 
-        if !stop_set {
-            self.end_pointer = self.end_address();
+        // Find the end of the hole.
+        while line < LINES_PER_BLOCK {
+            if self.used_lines_bitmap.is_set(line) {
+                new_end = self.pointer_for_hole_starting_at_line(line);
+                break;
+            }
+
+            line += 1;
         }
+
+        // We use CAS here so that we don't overwrite changes made by
+        // concurrently running threads.
+        self.free_pointer.compare_and_swap(old_free, new_free);
+        self.end_pointer.compare_and_swap(old_end, new_end);
+
+        found_hole
+    }
+
+    fn pointer_for_hole_starting_at_line(
+        &self,
+        line: usize,
+    ) -> RawObjectPointer {
+        let offset = ((line - 1) * OBJECTS_PER_LINE) as isize;
+
+        unsafe { self.start_address().offset(offset) }
     }
 }
 
@@ -549,6 +642,15 @@ mod tests {
     use object::Object;
     use object_value::ObjectValue;
     use std::mem;
+
+    macro_rules! find_available_hole {
+        ($block: expr) => {
+            let free = $block.free_pointer.pointer;
+            let end = $block.end_pointer.pointer;
+
+            $block.find_available_hole(free, end)
+        };
+    }
 
     #[test]
     fn test_block_header_type_size() {
@@ -584,8 +686,8 @@ mod tests {
         let block = Block::new();
 
         assert_eq!(block.lines.is_null(), false);
-        assert_eq!(block.free_pointer.is_null(), false);
-        assert_eq!(block.end_pointer.is_null(), false);
+        assert_eq!(block.free_pointer().is_null(), false);
+        assert_eq!(block.end_pointer().is_null(), false);
         assert!(block.bucket().is_none());
     }
 
@@ -666,65 +768,95 @@ mod tests {
     }
 
     #[test]
-    fn test_block_bump_allocate() {
+    fn test_block_request_pointer() {
         let mut block = Block::new();
-        let obj = Object::new(ObjectValue::Float(10.0));
 
-        assert!(block.free_pointer == block.start_address());
+        assert!(block.request_pointer().is_some());
 
-        assert!(block.bump_allocate(obj).get().value.is_float());
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(1) }
-        );
-
-        block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(2) }
-        );
-
-        block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(3) }
-        );
-
-        block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(4) }
-        );
-
-        block.bump_allocate(Object::new(ObjectValue::None));
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(5) }
-        );
-
-        assert!(block.finalize_bitmap.is_set(4));
-        assert_eq!(block.finalize_bitmap.is_set(5), false);
+        assert_eq!(block.free_pointer(), unsafe {
+            block.start_address().offset(1)
+        });
     }
 
     #[test]
-    fn test_block_can_bump_allocate() {
+    fn test_block_request_pointer_for_mutator() {
         let mut block = Block::new();
 
-        assert!(block.can_bump_allocate());
+        assert!(unsafe { block.request_pointer_for_mutator().is_some() });
 
-        block.free_pointer = block.end_pointer;
+        assert_eq!(block.free_pointer(), unsafe {
+            block.start_address().offset(1)
+        });
+    }
 
-        assert_eq!(block.can_bump_allocate(), false);
+    #[test]
+    fn test_block_request_pointer_advances_hole() {
+        let mut block = Block::new();
+        let start = block.start_address();
+
+        block.used_lines_bitmap.set(2);
+
+        find_available_hole!(block);
+
+        for _ in 0..4 {
+            block.request_pointer();
+        }
+
+        assert!(block.request_pointer().is_some());
+
+        assert_eq!(block.free_pointer(), unsafe { start.offset(9) });
+    }
+
+    #[test]
+    fn test_block_request_pointer_for_mutator_advances_hole() {
+        let mut block = Block::new();
+        let start = block.start_address();
+
+        block.used_lines_bitmap.set(2);
+
+        find_available_hole!(block);
+
+        for _ in 0..4 {
+            unsafe {
+                block.request_pointer_for_mutator();
+            }
+        }
+
+        assert!(unsafe { block.request_pointer_for_mutator().is_some() });
+
+        assert_eq!(block.free_pointer(), unsafe { start.offset(9) });
+    }
+
+    #[test]
+    fn test_block_request_all_pointers() {
+        let mut block = Block::new();
+        let mut offset = 0;
+
+        while let Some(pointer) = block.request_pointer() {
+            let expected = unsafe { block.start_address().offset(offset) };
+
+            assert_eq!(pointer, expected);
+            assert_ne!(pointer, block.end_address());
+
+            offset += 1;
+        }
+
+        assert_eq!(block.free_pointer(), block.end_address());
     }
 
     #[test]
     fn test_block_line_index_of_pointer() {
         let block = Block::new();
 
-        assert_eq!(block.line_index_of_pointer(block.free_pointer), 1);
+        assert_eq!(block.line_index_of_pointer(block.free_pointer()), 1);
     }
 
     #[test]
     fn test_block_object_index_of_pointer() {
         let block = Block::new();
 
-        let ptr1 = block.free_pointer;
-        let ptr2 = unsafe { block.free_pointer.offset(1) };
+        let ptr1 = block.free_pointer();
+        let ptr2 = unsafe { block.free_pointer().offset(1) };
 
         assert_eq!(block.object_index_of_pointer(ptr1), 4);
         assert_eq!(block.object_index_of_pointer(ptr2), 5);
@@ -738,38 +870,45 @@ mod tests {
         block.used_lines_bitmap.set(1);
         block.recycle();
 
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(4) }
-        );
-        assert!(block.end_pointer == block.end_address());
+        assert_eq!(block.free_pointer(), unsafe {
+            block.start_address().offset(4)
+        });
+
+        assert_eq!(block.end_pointer(), block.end_address());
 
         // first line is available, followed by a used line
         block.used_lines_bitmap.reset();
         block.used_lines_bitmap.set(2);
         block.recycle();
 
-        assert!(block.free_pointer == block.start_address());
-        assert!(
-            block.end_pointer == unsafe { block.start_address().offset(4) }
-        );
+        assert_eq!(block.free_pointer(), block.start_address());
+
+        assert_eq!(block.end_pointer(), unsafe {
+            block.start_address().offset(4)
+        });
     }
 
     #[test]
-    fn test_block_find_available_hole() {
+    fn test_block_find_available_hole_lines_of_pointers() {
         let mut block = Block::new();
 
-        let pointer1 = block.bump_allocate(Object::new(ObjectValue::None));
+        let pointer1 = Object::new(ObjectValue::None)
+            .write_to(block.request_pointer().unwrap());
 
         block.used_lines_bitmap.set(1);
-        block.find_available_hole();
 
-        let pointer2 = block.bump_allocate(Object::new(ObjectValue::None));
+        find_available_hole!(block);
+
+        let pointer2 = Object::new(ObjectValue::None)
+            .write_to(block.request_pointer().unwrap());
 
         block.used_lines_bitmap.set(2);
         block.used_lines_bitmap.set(3);
-        block.find_available_hole();
 
-        let pointer3 = block.bump_allocate(Object::new(ObjectValue::None));
+        find_available_hole!(block);
+
+        let pointer3 = Object::new(ObjectValue::None)
+            .write_to(block.request_pointer().unwrap());
 
         assert_eq!(block.line_index_of_pointer(pointer1.raw.raw), 1);
         assert_eq!(block.line_index_of_pointer(pointer2.raw.raw), 2);
@@ -777,15 +916,44 @@ mod tests {
     }
 
     #[test]
-    fn test_is_available_for_allocation() {
+    fn test_block_find_available_hole() {
         let mut block = Block::new();
+        let start = block.start_address();
 
-        assert!(block.is_available_for_allocation());
-
-        block.bump_allocate(Object::new(ObjectValue::None));
         block.used_lines_bitmap.set(1);
 
-        assert!(block.is_available_for_allocation());
+        find_available_hole!(block);
+
+        assert_eq!(block.free_pointer(), unsafe { start.offset(4) });
+        assert_eq!(block.end_pointer(), block.end_address());
+    }
+
+    #[test]
+    fn test_block_find_available_hole_with_empty_line_between_used_ones() {
+        let mut block = Block::new();
+        let start = block.start_address();
+
+        block.used_lines_bitmap.set(1);
+        block.used_lines_bitmap.set(3);
+
+        find_available_hole!(block);
+
+        assert_eq!(block.free_pointer(), unsafe { start.offset(4) });
+        assert_eq!(block.end_pointer(), unsafe { start.offset(8) });
+    }
+
+    #[test]
+    fn test_block_find_available_hole_full_block() {
+        let mut block = Block::new();
+
+        for index in 1..LINES_PER_BLOCK {
+            block.used_lines_bitmap.set(index);
+        }
+
+        find_available_hole!(block);
+
+        assert_eq!(block.free_pointer(), block.end_address());
+        assert_eq!(block.end_pointer(), block.end_address());
     }
 
     #[test]
@@ -796,24 +964,11 @@ mod tests {
         block.used_lines_bitmap.set(2);
         block.used_lines_bitmap.reset_previous_marks();
 
-        block.find_available_hole_starting_at(1);
+        find_available_hole!(block);
 
-        assert_eq!(block.free_pointer, unsafe {
+        assert_eq!(block.free_pointer(), unsafe {
             block.start_address().offset(8)
         });
-    }
-
-    #[test]
-    fn test_block_find_available_hole_full_block() {
-        let mut block = Block::new();
-
-        block.free_pointer = block.end_pointer;
-
-        // Since the block has been "consumed" this method should not modify the
-        // free pointer in any way.
-        block.find_available_hole();
-
-        assert!(block.free_pointer == block.end_pointer);
     }
 
     #[test]
@@ -824,7 +979,7 @@ mod tests {
         block.used_lines_bitmap.set(2);
         block.used_lines_bitmap.set(255);
 
-        block.find_available_hole();
+        find_available_hole!(block);
 
         let start_pointer = unsafe {
             block.start_address().offset(2 * OBJECTS_PER_LINE as isize)
@@ -833,8 +988,8 @@ mod tests {
         let end_pointer =
             (block.end_address() as usize - LINE_SIZE) as *mut Object;
 
-        assert!(block.free_pointer == start_pointer);
-        assert!(block.end_pointer == end_pointer);
+        assert!(block.free_pointer() == start_pointer);
+        assert!(block.end_pointer() == end_pointer);
     }
 
     #[test]
@@ -845,8 +1000,12 @@ mod tests {
         block.set_fragmented();
         block.header_mut().holes = 4;
 
-        block.free_pointer = block.end_address();
-        block.end_pointer = block.start_address();
+        let start_addr = block.start_address();
+        let end_addr = block.end_address();
+
+        block.set_free_pointer(end_addr);
+        block.set_end_pointer(start_addr);
+
         block.set_bucket(&mut bucket as *mut Bucket);
         block.used_lines_bitmap.set(1);
         block.marked_objects_bitmap.set(1);
@@ -855,8 +1014,8 @@ mod tests {
 
         assert_eq!(block.is_fragmented(), false);
         assert_eq!(block.holes(), 1);
-        assert!(block.free_pointer == block.start_address());
-        assert!(block.end_pointer == block.end_address());
+        assert!(block.free_pointer() == block.start_address());
+        assert!(block.end_pointer() == block.end_address());
         assert!(block.bucket().is_none());
         assert!(block.used_lines_bitmap.is_empty());
         assert!(block.marked_objects_bitmap.is_empty());
@@ -866,9 +1025,9 @@ mod tests {
     #[test]
     fn test_block_finalize() {
         let mut block = Block::new();
-        let obj = Object::new(ObjectValue::Float(10.0));
 
-        block.bump_allocate(obj);
+        Object::new(ObjectValue::Float(10.0))
+            .write_to(block.request_pointer().unwrap());
 
         block.finalize();
 
@@ -879,7 +1038,9 @@ mod tests {
     fn test_block_finalize_pending() {
         let mut block = Block::new();
 
-        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        Object::new(ObjectValue::Float(10.0))
+            .write_to(block.request_pointer().unwrap());
+
         block.prepare_finalization();
         block.finalize_pending();
 
@@ -892,7 +1053,9 @@ mod tests {
     fn test_block_prepare_finalization() {
         let mut block = Block::new();
 
-        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        Object::new(ObjectValue::Float(10.0))
+            .write_to(block.request_pointer().unwrap());
+
         block.prepare_finalization();
 
         assert!(block.is_finalizing());
@@ -904,7 +1067,9 @@ mod tests {
     fn test_block_prepare_finalization_twice() {
         let mut block = Block::new();
 
-        block.bump_allocate(Object::new(ObjectValue::Float(10.0)));
+        Object::new(ObjectValue::Float(10.5))
+            .write_to(block.request_pointer().unwrap());
+
         block.prepare_finalization();
         block.prepare_finalization();
 

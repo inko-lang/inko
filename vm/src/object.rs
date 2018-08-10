@@ -4,13 +4,13 @@
 //! can be used to wrap native values (e.g. an integer or a string), look up
 //! methods, add attributes, etc.
 use fnv::FnvHashMap;
-
 use std::ops::Drop;
 use std::ptr;
 
 use gc::work_list::WorkList;
-use object_pointer::ObjectPointer;
+use object_pointer::{ObjectPointer, RawObjectPointer};
 use object_value::ObjectValue;
+use tagged_pointer::TaggedPointer;
 
 macro_rules! push_collection {
     ($map:expr, $what:ident, $vec:expr) => {{
@@ -23,6 +23,7 @@ macro_rules! push_collection {
 }
 
 /// The status of an object.
+#[derive(Eq, PartialEq, Debug)]
 pub enum ObjectStatus {
     /// This object is OK and no action has to be taken by a collector.
     OK,
@@ -40,20 +41,31 @@ pub enum ObjectStatus {
 
 pub type AttributesMap = FnvHashMap<ObjectPointer, ObjectPointer>;
 
+/// The bit to set for objects that are being forwarded.
+pub const PENDING_FORWARD_BIT: usize = 0;
+
+/// The bit to set for objects that have been forwarded.
+pub const FORWARDED_BIT: usize = 1;
+
+/// The mask to apply when installing a forwarding pointer.
+pub const FORWARDING_MASK: usize = 0x3;
+
 /// Structure containing data of a single object.
 pub struct Object {
     /// The prototype of this object.
-    ///
-    /// This pointer may be tagged to store extra information. The following
-    /// bits can be set:
-    ///
-    ///     00: this field contains a regular pointer
-    ///     10: this field contains a forwarding pointer
     pub prototype: ObjectPointer,
 
     /// A pointer to the attributes of this object. Attributes are allocated
     /// on-demand and default to a NULL pointer.
-    pub attributes: *const AttributesMap,
+    ///
+    /// This pointer may be tagged to store extra information. The following
+    /// bits can be set:
+    ///
+    /// * 00: this field contains a regular pointer.
+    /// * 01: this object is in the process of being forwarded.
+    /// * 10: this object has been forwarded, and this field is set to the
+    ///   target object.
+    pub attributes: TaggedPointer<AttributesMap>,
 
     /// A native Rust value (e.g. a String) that belongs to this object.
     pub value: ObjectValue,
@@ -67,7 +79,7 @@ impl Object {
     pub fn new(value: ObjectValue) -> Object {
         Object {
             prototype: ObjectPointer::null(),
-            attributes: ptr::null::<AttributesMap>(),
+            attributes: TaggedPointer::null(),
             value,
         }
     }
@@ -79,7 +91,7 @@ impl Object {
     ) -> Object {
         Object {
             prototype,
-            attributes: ptr::null::<AttributesMap>(),
+            attributes: TaggedPointer::null(),
             value,
         }
     }
@@ -200,23 +212,15 @@ impl Object {
 
     /// Returns an immutable reference to the attributes.
     pub fn attributes_map(&self) -> Option<&AttributesMap> {
-        if self.attributes.is_null() {
-            None
-        } else {
-            Some(unsafe { &*self.attributes })
-        }
+        self.attributes.as_ref()
     }
 
     pub fn attributes_map_mut(&self) -> Option<&mut AttributesMap> {
-        if self.attributes.is_null() {
-            None
-        } else {
-            Some(unsafe { &mut *(self.attributes as *mut AttributesMap) })
-        }
+        self.attributes.as_mut()
     }
 
     pub fn set_attributes_map(&mut self, attrs: AttributesMap) {
-        self.attributes = Box::into_raw(Box::new(attrs));
+        self.attributes = TaggedPointer::new(Box::into_raw(Box::new(attrs)));
     }
 
     /// Pushes all pointers in this object into the given Vec.
@@ -259,21 +263,57 @@ impl Object {
         new_obj
     }
 
-    pub fn take_attributes(&mut self) -> Option<*const AttributesMap> {
-        let attrs = self.attributes;
-
-        self.attributes = ptr::null::<AttributesMap>();
-
-        if attrs.is_null() {
-            None
-        } else {
-            Some(attrs)
+    pub fn take_attributes(&mut self) -> Option<TaggedPointer<AttributesMap>> {
+        if !self.has_attributes() {
+            return None;
         }
+
+        let attrs = self.attributes.without_tags();
+
+        // When the object is being forwarded we don't want to lose this status
+        // by just setting the attributes to NULL. Doing so could result in
+        // another collector thread to try and move the same object.
+        self.attributes =
+            TaggedPointer::with_bit(0x0 as _, PENDING_FORWARD_BIT);
+
+        Some(attrs)
+    }
+
+    /// Tries to mark this object as pending a forward.
+    ///
+    /// This method returns true if forwarding is necessary, false otherwise.
+    pub fn mark_for_forward(&mut self) -> bool {
+        // This _must_ be a reference, otherwise we'll be operating on a _copy_
+        // of the pointer, since TaggedPointer is a Copy type.
+        let current = &mut self.attributes;
+        let current_raw = current.raw;
+
+        if current.atomic_bit_is_set(PENDING_FORWARD_BIT) {
+            // Another thread is in the process of forwarding this object, or
+            // just finished forwarding it (since forward_to() sets both bits).
+            return false;
+        }
+
+        let desired =
+            TaggedPointer::with_bit(current_raw, PENDING_FORWARD_BIT).raw;
+
+        current.compare_and_swap(current_raw, desired)
     }
 
     /// Forwards this object to the given pointer.
     pub fn forward_to(&mut self, pointer: ObjectPointer) {
-        self.prototype = pointer.forwarding_pointer();
+        // We use a mask that sets the lower 2 bits, instead of only setting
+        // one. This removes the need for checking both bits when determining if
+        // forwarding is necessary.
+        let new_attrs =
+            (pointer.raw.raw as usize | FORWARDING_MASK) as *mut AttributesMap;
+
+        self.attributes.atomic_store(new_attrs);
+    }
+
+    /// Returns true if this object is forwarded.
+    pub fn is_forwarded(&self) -> bool {
+        self.attributes.atomic_bit_is_set(FORWARDED_BIT)
     }
 
     /// Returns true if this object should be finalized.
@@ -283,13 +323,27 @@ impl Object {
 
     /// Returns true if an attributes map has been allocated.
     pub fn has_attributes(&self) -> bool {
-        !self.attributes.is_null()
+        !self.attributes.is_null() && !self.is_forwarded()
     }
 
     pub fn drop_attributes(&mut self) {
         if let Some(attributes) = self.take_attributes() {
-            drop(unsafe { Box::from_raw(attributes as *mut AttributesMap) });
+            drop(unsafe { Box::from_raw(attributes.untagged()) });
         }
+    }
+
+    pub fn write_to(self, raw_pointer: RawObjectPointer) -> ObjectPointer {
+        unsafe {
+            ptr::write(raw_pointer, self);
+        }
+
+        let pointer = ObjectPointer::new(raw_pointer);
+
+        if pointer.is_finalizable() {
+            pointer.mark_for_finalization();
+        }
+
+        pointer
     }
 
     /// Allocates an attribute map if needed.
@@ -309,6 +363,7 @@ impl Drop for Object {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use immix::block::Block;
     use object_pointer::{ObjectPointer, RawObjectPointer};
     use object_value::ObjectValue;
     use std::mem;
@@ -537,13 +592,26 @@ mod tests {
     }
 
     #[test]
+    fn test_object_take_attributes() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+        let map = AttributesMap::default();
+
+        obj.set_attributes_map(map);
+
+        assert!(obj.take_attributes().is_some());
+        assert!(obj.attributes.bit_is_set(PENDING_FORWARD_BIT));
+        assert!(obj.attributes.is_null());
+    }
+
+    #[test]
     fn test_object_forward_to() {
         let mut obj = new_object();
         let target = new_object();
 
         obj.forward_to(object_pointer_for(&target));
 
-        assert!(obj.prototype().is_some());
+        assert!(obj.is_forwarded());
+        assert!(!obj.attributes.is_null());
         assert!(object_pointer_for(&obj).is_forwarded());
     }
 
@@ -560,5 +628,27 @@ mod tests {
         obj.drop_attributes();
 
         assert!(obj.attributes_map().is_none());
+    }
+
+    #[test]
+    fn test_object_write_to() {
+        let mut block = Block::new();
+        let raw_pointer = block.request_pointer().unwrap();
+        let pointer = ObjectPointer::new(raw_pointer);
+
+        Object::new(ObjectValue::Float(10.5)).write_to(raw_pointer);
+
+        assert_eq!(pointer.float_value().unwrap(), 10.5);
+    }
+
+    #[test]
+    fn test_object_mark_for_forward() {
+        let mut block = Block::new();
+        let pointer = ObjectPointer::new(block.request_pointer().unwrap());
+
+        assert!(pointer.get_mut().mark_for_forward());
+        assert!(pointer.get().attributes.bit_is_set(PENDING_FORWARD_BIT));
+
+        assert_eq!(pointer.get_mut().mark_for_forward(), false);
     }
 }

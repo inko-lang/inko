@@ -39,8 +39,10 @@ impl MailboxAllocator {
     }
 
     pub fn allocate(&mut self, object: Object) -> ObjectPointer {
-        let (new_block, pointer) =
-            self.bucket.allocate(&self.global_allocator, object);
+        let (new_block, pointer) = unsafe {
+            self.bucket
+                .allocate_for_mutator(&self.global_allocator, object)
+        };
 
         if new_block {
             self.config.increment_allocations();

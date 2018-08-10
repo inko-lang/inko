@@ -18,7 +18,7 @@ use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
-use object::{Object, ObjectStatus};
+use object::{Object, ObjectStatus, FORWARDED_BIT};
 use object_value::ObjectValue;
 use process::RcProcess;
 use tagged_pointer::TaggedPointer;
@@ -89,9 +89,6 @@ unsafe impl Sync for ObjectPointerPointer {}
 /// The bit to set for tagged integers.
 pub const INTEGER_BIT: usize = 0;
 
-/// The bit to set for forwarding pointers
-pub const FORWARDING_BIT: usize = 1;
-
 /// Returns the BlockHeader of the given pointer.
 fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
     let addr = (pointer as isize & block::OBJECT_BITMAP_MASK) as usize;
@@ -148,64 +145,44 @@ impl ObjectPointer {
         }
     }
 
-    /// Returns a forwarding pointer to the current pointer.
-    pub fn forwarding_pointer(&self) -> ObjectPointer {
-        let raw = TaggedPointer::with_bit(self.raw.raw, FORWARDING_BIT);
-
-        ObjectPointer { raw }
-    }
-
     /// Returns true if the current pointer points to a forwarded object.
     #[inline(always)]
     pub fn is_forwarded(&self) -> bool {
-        self.get().prototype.raw.bit_is_set(FORWARDING_BIT)
+        self.get().is_forwarded()
     }
 
     /// Returns the status of the object.
     #[inline(always)]
-    pub fn status(&self) -> ObjectStatus {
+    pub fn status(&mut self) -> ObjectStatus {
         if self.is_forwarded() {
             return ObjectStatus::Resolve;
         }
 
         let block = self.block();
 
-        if block.bucket().unwrap().promote {
-            return ObjectStatus::Promote;
+        if block.is_fragmented() && self.get_mut().mark_for_forward() {
+            return ObjectStatus::Evacuate;
         }
 
-        if block.is_fragmented() {
-            return ObjectStatus::Evacuate;
+        if block.bucket().unwrap().promote && self.get_mut().mark_for_forward()
+        {
+            return ObjectStatus::Promote;
         }
 
         ObjectStatus::OK
     }
 
     /// Replaces the current pointer with a pointer to the forwarded object.
-    pub fn resolve_forwarding_pointer(&self) {
-        let object = self.get();
+    pub fn resolve_forwarding_pointer(&mut self) {
+        let raw_attrs = self.get().attributes;
 
-        if let Some(proto) = object.prototype() {
-            let raw_proto = proto.raw;
-
-            // It's possible that between a previous check and calling this
-            // method the pointer has already been resolved. In this case we
-            // should _not_ try to resolve anything as we'd end up storing the
-            // address to the target objects' _prototype_, and not the target
-            // object itself.
-            if !raw_proto.bit_is_set(FORWARDING_BIT) {
-                return;
-            }
-
-            // Since object pointers are _usually_ immutable we have to use an
-            // extra layer of indirection to update "self".
-            unsafe {
-                let self_ptr =
-                    self as *const ObjectPointer as *mut ObjectPointer;
-                let self_ref = &mut *self_ptr;
-
-                self_ref.raw = raw_proto.without_tags();
-            };
+        // It's possible that between a previous check and calling this method
+        // the pointer has already been resolved. In this case we should _not_
+        // try to resolve anything as we'd end up storing the address to the
+        // target objects' _prototype_, and not the target object itself.
+        if raw_attrs.bit_is_set(FORWARDED_BIT) {
+            self.raw =
+                TaggedPointer::new(raw_attrs.untagged() as RawObjectPointer);
         }
     }
 
@@ -663,10 +640,10 @@ mod tests {
             bucket.add_block(Block::new());
         }
 
-        bucket
-            .current_block_mut()
-            .unwrap()
-            .bump_allocate(Object::new(ObjectValue::None))
+        let raw_pointer =
+            bucket.current_block().unwrap().request_pointer().unwrap();
+
+        Object::new(ObjectValue::None).write_to(raw_pointer)
     }
 
     #[test]
@@ -691,13 +668,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_forwarding_pointer() {
-        let pointer = ObjectPointer::null().forwarding_pointer();
-
-        assert!(pointer.raw.bit_is_set(FORWARDING_BIT));
-    }
-
-    #[test]
     fn test_object_pointer_is_forwarded_with_regular_pointer() {
         let object = Object::new(ObjectValue::None);
         let pointer = object_pointer_for(&object);
@@ -711,7 +681,7 @@ mod tests {
         let target = Object::new(ObjectValue::None);
         let target_ptr = object_pointer_for(&target);
 
-        source.set_prototype(target_ptr.forwarding_pointer());
+        source.forward_to(target_ptr);
 
         let source_ptr = object_pointer_for(&source);
 
@@ -721,35 +691,42 @@ mod tests {
     #[test]
     fn test_object_pointer_status() {
         let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-        let pointer2 = allocator.allocate_empty();
+        let mut pointer = allocator.allocate_empty();
 
-        assert!(match pointer.status() {
-            ObjectStatus::OK => true,
-            _ => false,
-        });
+        assert_eq!(pointer.status(), ObjectStatus::OK);
+    }
+
+    #[test]
+    fn test_object_pointer_status_promote() {
+        let mut allocator = local_allocator();
+        let mut pointer = allocator.allocate_empty();
 
         pointer.block_mut().bucket_mut().unwrap().promote = true;
 
-        assert!(match pointer.status() {
-            ObjectStatus::Promote => true,
-            _ => false,
-        });
+        assert_eq!(pointer.status(), ObjectStatus::Promote);
 
-        pointer.block_mut().bucket_mut().unwrap().promote = false;
+        // The first status check will acquire the "right" to promote the
+        // object. All other status checks will simply return OK.
+        assert_eq!(pointer.status(), ObjectStatus::OK);
+    }
+
+    #[test]
+    fn test_object_pointer_status_fragmented() {
+        let mut allocator = local_allocator();
+        let mut pointer = allocator.allocate_empty();
+        let pointer2 = allocator.allocate_empty();
+
         pointer.block_mut().set_fragmented();
 
-        assert!(match pointer.status() {
-            ObjectStatus::Evacuate => true,
-            _ => false,
-        });
+        assert_eq!(pointer.status(), ObjectStatus::Evacuate);
+
+        // The first status check will acquire the "right" to promote the
+        // object. All other status checks will simply return OK.
+        assert_eq!(pointer.status(), ObjectStatus::OK);
 
         pointer.get_mut().forward_to(pointer2);
 
-        assert!(match pointer.status() {
-            ObjectStatus::Resolve => true,
-            _ => false,
-        });
+        assert_eq!(pointer.status(), ObjectStatus::Resolve);
     }
 
     #[test]
@@ -758,9 +735,9 @@ mod tests {
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));
 
-        object.set_prototype(proto_pointer.forwarding_pointer());
+        object.forward_to(proto_pointer);
 
-        let pointer = object_pointer_for(&object);
+        let mut pointer = object_pointer_for(&object);
 
         pointer.resolve_forwarding_pointer();
 
@@ -782,7 +759,7 @@ mod tests {
         // The object that is being forwarded.
         let mut forwarded_object = Object::new(ObjectValue::None);
 
-        forwarded_object.set_prototype(target_pointer.forwarding_pointer());
+        forwarded_object.forward_to(target_pointer);
 
         let forwarded_pointer = object_pointer_for(&forwarded_object);
 
@@ -806,11 +783,11 @@ mod tests {
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));
 
-        object.set_prototype(proto_pointer.forwarding_pointer());
+        object.forward_to(proto_pointer);
 
-        let pointers = vec![object_pointer_for(&object)];
+        let mut pointers = vec![object_pointer_for(&object)];
 
-        pointers.get(0).unwrap().resolve_forwarding_pointer();
+        pointers.get_mut(0).unwrap().resolve_forwarding_pointer();
 
         assert!(pointers[0] == proto_pointer);
     }
@@ -822,7 +799,7 @@ mod tests {
         let proto_pointer = object_pointer_for(&proto);
         let mut object = Object::new(ObjectValue::Float(2.0));
 
-        object.set_prototype(proto_pointer.forwarding_pointer());
+        object.forward_to(proto_pointer);
 
         let mut pointers = vec![object_pointer_for(&object)];
         let mut pointer_pointers = vec![&mut pointers[0] as *mut ObjectPointer];

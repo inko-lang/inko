@@ -5,6 +5,7 @@
 
 use std::hash::{Hash, Hasher};
 use std::ptr;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// The mask to use for untagging a pointer.
 const UNTAG_MASK: isize = !(0x3 as isize);
@@ -73,6 +74,37 @@ impl<T> TaggedPointer<T> {
     /// Returns a mutable reference to the pointer's value.
     pub fn as_mut<'a>(self) -> Option<&'a mut T> {
         unsafe { self.untagged().as_mut() }
+    }
+
+    /// Atomically swaps the internal pointer with another one.
+    ///
+    /// This boolean returns true if the pointer was swapped, false otherwise.
+    pub fn compare_and_swap(&mut self, current: *mut T, other: *mut T) -> bool {
+        self.as_atomic()
+            .compare_and_swap(current, other, Ordering::Release)
+            == current
+    }
+
+    /// Atomically replaces the current pointer with the given one.
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    pub fn atomic_store(&self, other: *mut T) {
+        self.as_atomic().store(other, Ordering::Release);
+    }
+
+    /// Atomically loads the pointer.
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    pub fn atomic_load(&self) -> *mut T {
+        self.as_atomic().load(Ordering::Acquire)
+    }
+
+    /// Checks if a bit is set using an atomic load.
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    pub fn atomic_bit_is_set(&self, bit: usize) -> bool {
+        Self::new(self.as_atomic().load(Ordering::Acquire)).bit_is_set(bit)
+    }
+
+    fn as_atomic(&self) -> &AtomicPtr<T> {
+        unsafe { &*(self as *const TaggedPointer<T> as *const AtomicPtr<T>) }
     }
 }
 
@@ -214,5 +246,52 @@ mod tests {
         assert!(set.contains(&ptr2));
 
         assert_eq!(set.contains(&ptr3), false);
+    }
+
+    #[test]
+    fn test_compare_and_swap() {
+        let mut alice = "Alice".to_string();
+        let mut bob = "Bob".to_string();
+
+        let mut pointer = TaggedPointer::new(&mut alice as *mut String);
+        let current = pointer.raw;
+        let target = &mut bob as *mut String;
+
+        pointer.compare_and_swap(current, target);
+
+        assert!(pointer.raw == target);
+    }
+
+    #[test]
+    fn test_atomic_store() {
+        let mut alice = "Alice".to_string();
+        let mut bob = "Bob".to_string();
+
+        let pointer = TaggedPointer::new(&mut alice as *mut String);
+        let target = &mut bob as *mut String;
+
+        pointer.atomic_store(target);
+
+        assert!(pointer.raw == target);
+    }
+
+    #[test]
+    fn test_atomic_load() {
+        let mut alice = "Alice".to_string();
+
+        let pointer = TaggedPointer::new(&mut alice as *mut String);
+
+        assert_eq!(pointer.atomic_load(), &mut alice as *mut String);
+    }
+
+    #[test]
+    fn test_atomic_bit_is_set() {
+        let mut pointer = TaggedPointer::new(0x10 as *mut ());
+
+        assert_eq!(pointer.atomic_bit_is_set(0), false);
+
+        pointer.set_bit(0);
+
+        assert!(pointer.atomic_bit_is_set(0));
     }
 }

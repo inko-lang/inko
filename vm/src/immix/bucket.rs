@@ -4,8 +4,9 @@
 //! same age.
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::Mutex;
 use rayon::prelude::*;
+use std::cell::UnsafeCell;
 
 use deref_pointer::DerefPointer;
 use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
@@ -15,6 +16,12 @@ use immix::histogram::Histogram;
 use object::Object;
 use object_pointer::ObjectPointer;
 use vm::state::RcState;
+
+macro_rules! lock_bucket {
+    ($bucket: expr) => {
+        unsafe { &*$bucket.lock.get() }.lock()
+    };
+}
 
 /// The age of a bucket containing mature objects.
 pub const MATURE: isize = 100;
@@ -35,7 +42,7 @@ pub struct Bucket {
 
     /// Lock used whenever moving objects around (e.g. when evacuating or
     /// promoting them).
-    pub lock: Mutex<()>,
+    pub lock: UnsafeCell<Mutex<()>>,
 
     /// The blocks managed by this bucket.
     pub blocks: BlockList,
@@ -68,12 +75,8 @@ impl Bucket {
             available_histogram: Histogram::new(MAX_HOLES),
             mark_histogram: Histogram::new(LINES_PER_BLOCK),
             promote: false,
-            lock: Mutex::new(()),
+            lock: UnsafeCell::new(Mutex::new(())),
         }
-    }
-
-    pub fn lock(&self) -> MutexGuard<()> {
-        self.lock.lock()
     }
 
     pub fn reset_age(&mut self) {
@@ -89,99 +92,134 @@ impl Bucket {
         self.blocks.len()
     }
 
-    pub fn current_block(&self) -> Option<&DerefPointer<Block>> {
-        if self.current_block.is_null() {
+    pub fn current_block(&self) -> Option<DerefPointer<Block>> {
+        let pointer = self.current_block.atomic_load();
+
+        if pointer.is_null() {
             None
         } else {
-            Some(&self.current_block)
+            Some(pointer)
         }
     }
 
-    pub fn current_block_mut(&mut self) -> Option<&mut DerefPointer<Block>> {
-        if self.current_block.is_null() {
-            None
-        } else {
-            Some(&mut self.current_block)
-        }
+    pub fn has_current_block(&self) -> bool {
+        self.current_block().is_some()
+    }
+
+    pub fn set_current_block(&mut self, block: DerefPointer<Block>) {
+        self.current_block.atomic_store(block.pointer);
     }
 
     pub fn add_block(&mut self, mut block: Box<Block>) {
         block.set_bucket(self as *mut Bucket);
 
-        self.current_block = DerefPointer::new(&*block);
+        self.set_current_block(DerefPointer::new(&*block));
         self.blocks.push_back(block);
     }
 
-    // Finds a hole to allocate into.
-    //
-    // Returns true if a hole was found.
-    pub fn find_available_hole(&mut self) -> bool {
-        if let Some(current) = self.current_block_mut() {
-            if current.is_available_for_allocation() {
-                return true;
-            }
-        } else {
-            return false;
-        }
-
-        // We have a block but we can't allocate into it. This means we need to
-        // find another block to allocate into, if there are any at all.
-        if let Some(block) = self.find_next_available_block() {
-            self.current_block = block;
-
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn find_next_available_block(&mut self) -> Option<DerefPointer<Block>> {
-        if let Some(current) = self.current_block_mut() {
-            for block in current.iter_mut() {
-                if block.is_available_for_allocation() && !block.is_fragmented()
-                {
-                    return Some(DerefPointer::new(block));
-                }
-            }
-        }
-
-        None
-    }
-
     pub fn reset_current_block(&mut self) {
-        let pointer = self.blocks.head().map(|block| DerefPointer::new(block));
-
-        if let Some(block) = pointer {
-            self.current_block = block;
-
-            // This little dance ensures that the allocator starts off with a
-            // block it can actually allocate into.
-            if self.current_block.is_fragmented() {
-                self.find_next_available_block();
-            }
-
-            self.find_available_hole();
+        let new_pointer = if let Some(pointer) = self.blocks.head_mut() {
+            DerefPointer::new(pointer)
         } else {
-            self.current_block = DerefPointer::null();
-        }
+            DerefPointer::null()
+        };
+
+        self.set_current_block(new_pointer);
     }
 
     /// Allocates an object into this bucket
+    ///
+    /// The return value is a tuple containing a boolean that indicates if a new
+    /// block was requested, and the pointer to the allocated object.
+    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
     pub fn allocate(
         &mut self,
         global_allocator: &RcGlobalAllocator,
         object: Object,
     ) -> (bool, ObjectPointer) {
-        let found_hole = self.find_available_hole();
+        let mut new_block = false;
 
-        if !found_hole {
+        loop {
+            let mut advance_block = false;
+            let started_at = self.current_block.atomic_load();
+
+            for mut block in self.current_block() {
+                if block.is_fragmented() {
+                    // The block is fragmented, so skip it. The next time we
+                    // find an available block we'll set it as the current
+                    // block.
+                    advance_block = true;
+
+                    continue;
+                }
+
+                if let Some(raw_pointer) = block.request_pointer() {
+                    if advance_block {
+                        let _lock = lock_bucket!(self);
+
+                        // Only advance the block if another thread didn't
+                        // request a new one in the mean time.
+                        self.current_block.compare_and_swap(
+                            started_at.pointer,
+                            block.pointer,
+                        );
+                    }
+
+                    return (new_block, object.write_to(raw_pointer));
+                }
+            }
+
+            // All blocks have been exhausted, or there weren't any to begin
+            // with. Let's request a new one, if still necessary after obtaining
+            // the lock.
+            let _lock = lock_bucket!(self);
+
+            if started_at == self.current_block.atomic_load() {
+                new_block = true;
+                self.add_block(global_allocator.request_block());
+            }
+        }
+    }
+
+    /// Allocates an object for a mutator into this bucket
+    ///
+    /// The return value is the same as `Bucket::allocate()`.
+    ///
+    /// This method does not use synchronisation, so it _can not_ be safely used
+    /// from a collector thread.
+    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
+    pub unsafe fn allocate_for_mutator(
+        &mut self,
+        global_allocator: &RcGlobalAllocator,
+        object: Object,
+    ) -> (bool, ObjectPointer) {
+        let mut new_block = false;
+
+        loop {
+            let mut advance_block = false;
+
+            for mut block in self.current_block() {
+                if block.is_fragmented() {
+                    // The block is fragmented, so skip it. The next time we
+                    // find an available block we'll set it as the current
+                    // block.
+                    advance_block = true;
+
+                    continue;
+                }
+
+                if let Some(raw_pointer) = block.request_pointer_for_mutator() {
+                    if advance_block {
+                        self.current_block = block;
+                    }
+
+                    return (new_block, object.write_to(raw_pointer));
+                }
+            }
+
+            new_block = true;
             self.add_block(global_allocator.request_block());
         }
-
-        (
-            !found_hole,
-            self.current_block_mut().unwrap().bump_allocate(object),
-        )
     }
 
     /// Returns true if this bucket contains blocks that need to be evacuated.
@@ -369,13 +407,6 @@ mod tests {
     }
 
     #[test]
-    fn test_current_block_without_block() {
-        let bucket = Bucket::new();
-
-        assert!(bucket.current_block().is_none());
-    }
-
-    #[test]
     fn test_current_block_with_block() {
         let mut bucket = Bucket::new();
         let block = Block::new();
@@ -386,20 +417,10 @@ mod tests {
     }
 
     #[test]
-    fn test_current_block_mut_without_block() {
-        let mut bucket = Bucket::new();
+    fn test_current_block_without_block() {
+        let bucket = Bucket::new();
 
-        assert!(bucket.current_block_mut().is_none());
-    }
-
-    #[test]
-    fn test_current_block_mut() {
-        let mut bucket = Bucket::new();
-        let block = Block::new();
-
-        bucket.add_block(block);
-
-        assert!(bucket.current_block_mut().is_some());
+        assert!(bucket.current_block().is_none());
     }
 
     #[test]
@@ -413,8 +434,8 @@ mod tests {
         assert!(bucket.blocks[0].bucket().is_some());
 
         assert!(
-            &*bucket.current_block as *const Block
-                == &bucket.blocks[0] as *const Block
+            bucket.current_block.pointer as *const Block
+                == &*bucket.blocks.head().unwrap() as *const Block
         );
 
         bucket.add_block(Block::new());
@@ -422,42 +443,8 @@ mod tests {
         assert_eq!(bucket.blocks.len(), 2);
 
         assert!(
-            &*bucket.current_block as *const Block
+            bucket.current_block.pointer as *const Block
                 == &bucket.blocks[1] as *const Block
-        );
-    }
-
-    #[test]
-    fn test_find_available_hole_first_line_free() {
-        let mut bucket = Bucket::new();
-
-        bucket.add_block(Block::new());
-
-        assert!(bucket.find_available_hole());
-
-        let block = bucket.current_block().unwrap();
-
-        assert!(block.free_pointer == block.start_address());
-    }
-
-    #[test]
-    fn test_find_available_hole_first_line_full() {
-        let mut bucket = Bucket::new();
-
-        {
-            let mut block = Block::new();
-
-            block.used_lines_bitmap.set(1);
-            block.find_available_hole();
-            bucket.add_block(block);
-        }
-
-        assert!(bucket.find_available_hole());
-
-        let block = bucket.current_block().unwrap();
-
-        assert!(
-            block.free_pointer == unsafe { block.start_address().offset(4) }
         );
     }
 
@@ -475,13 +462,13 @@ mod tests {
         let block = pointer.block();
 
         assert!(
-            block.free_pointer == unsafe { block.start_address().offset(1) }
+            block.free_pointer() == unsafe { block.start_address().offset(1) }
         );
 
         bucket.allocate(&global_alloc, Object::new(object_value::none()));
 
         assert!(
-            block.free_pointer == unsafe { block.start_address().offset(2) }
+            block.free_pointer() == unsafe { block.start_address().offset(2) }
         );
     }
 
@@ -509,7 +496,79 @@ mod tests {
 
         let head = bucket.blocks.head().unwrap();
 
-        assert!(head.free_pointer == unsafe { head.start_address().offset(5) });
+        assert!(
+            head.free_pointer() == unsafe { head.start_address().offset(5) }
+        );
+    }
+
+    #[test]
+    fn test_allocate_for_mutator_without_blocks() {
+        let global_alloc = global_allocator();
+        let mut bucket = Bucket::new();
+
+        let (new_block, pointer) = unsafe {
+            bucket.allocate_for_mutator(
+                &global_alloc,
+                Object::new(object_value::none()),
+            )
+        };
+
+        assert!(new_block);
+        assert!(pointer.get().value.is_none());
+
+        let block = pointer.block();
+
+        assert!(
+            block.free_pointer() == unsafe { block.start_address().offset(1) }
+        );
+
+        unsafe {
+            bucket.allocate_for_mutator(
+                &global_alloc,
+                Object::new(object_value::none()),
+            );
+        }
+
+        assert!(
+            block.free_pointer() == unsafe { block.start_address().offset(2) }
+        );
+    }
+
+    #[test]
+    fn test_allocate_for_mutator_with_recyclable_blocks() {
+        let state = State::new(Config::new());
+        let global_alloc = global_allocator();
+        let mut bucket = Bucket::new();
+
+        let (_, pointer) = unsafe {
+            bucket.allocate_for_mutator(
+                &global_alloc,
+                Object::new(object_value::none()),
+            )
+        };
+
+        pointer.mark();
+
+        bucket.reclaim_blocks(&state);
+
+        assert_eq!(bucket.blocks.len(), 1);
+
+        let (new_block, new_pointer) = unsafe {
+            bucket.allocate_for_mutator(
+                &global_alloc,
+                Object::new(object_value::float(4.0)),
+            )
+        };
+
+        assert_eq!(new_block, false);
+        assert!(pointer.get().value.is_none());
+        assert!(new_pointer.get().value.is_float());
+
+        let head = bucket.blocks.head().unwrap();
+
+        assert!(
+            head.free_pointer() == unsafe { head.start_address().offset(5) }
+        );
     }
 
     #[test]
@@ -571,7 +630,7 @@ mod tests {
         let mut bucket = Bucket::new();
 
         bucket.add_block(Block::new());
-        bucket.current_block_mut().unwrap().used_lines_bitmap.set(1);
+        bucket.current_block().unwrap().used_lines_bitmap.set(1);
 
         assert_eq!(bucket.prepare_for_collection(), false);
 

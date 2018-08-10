@@ -262,8 +262,10 @@ impl LocalAllocator {
     }
 
     fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.young_generation[self.eden_index]
-            .allocate(&self.global_allocator, object)
+        unsafe {
+            self.young_generation[self.eden_index]
+                .allocate_for_mutator(&self.global_allocator, object)
+        }
     }
 
     fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
