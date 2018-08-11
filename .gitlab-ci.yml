@@ -71,6 +71,14 @@ lint:rustfmt:
     paths:
       - .cargo
 
+lint:versions:
+  image: alpine:latest
+  stage: test
+  before_script:
+    - apk add --update coreutils bash coreutils
+  script:
+    - bash scripts/versions.sh
+
 build:ivm:
   image: rustlang/rust:nightly
   stage: build

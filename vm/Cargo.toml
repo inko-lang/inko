@@ -1,6 +1,6 @@
 [package]
 name    = "inko"
-version = "0.2.0"
+version = "0.2.0" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 
 [lib]
