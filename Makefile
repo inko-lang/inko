@@ -79,9 +79,9 @@ ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
 	sha256sum "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
-	(cd compiler && $(MAKE) build PREFIX="${ABS_STAGING_DIR}")
-	(cd runtime && $(MAKE) install PREFIX="${ABS_STAGING_DIR}")
-	(cd vm && $(MAKE) install PREFIX="${ABS_STAGING_DIR}" TARGET="${TARGET}")
+	$(MAKE) -C compiler build PREFIX="${ABS_STAGING_DIR}"
+	$(MAKE) -C runtime install PREFIX="${ABS_STAGING_DIR}"
+	$(MAKE) -C vm install PREFIX="${ABS_STAGING_DIR}" TARGET="${TARGET}"
 	mkdir -p "${ABS_STAGING_DIR}/${LICENSE_DIR}"
 	cp LICENSE "${ABS_STAGING_DIR}/${LICENSE_DIR}"
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
@@ -113,17 +113,17 @@ rebuild-manifest: ${TMP_DIR}
 
 # Installs all components into a prefix directory.
 install:
-	(cd compiler && $(MAKE) install PREFIX="${ABS_PREFIX}")
-	(cd runtime && $(MAKE) install PREFIX="${ABS_PREFIX}")
-	(cd vm && $(MAKE) install PREFIX="${ABS_PREFIX}" TARGET="${TARGET}")
+	$(MAKE) -C compiler install PREFIX="${ABS_PREFIX}"
+	$(MAKE) -C runtime install PREFIX="${ABS_PREFIX}"
+	$(MAKE) -C vm install PREFIX="${ABS_PREFIX}" TARGET="${TARGET}"
 	mkdir -p "${ABS_PREFIX}/${LICENSE_DIR}"
 	cp LICENSE "${ABS_PREFIX}/${LICENSE_DIR}"
 
 # Removes all components from a prefix directory.
 uninstall:
-	(cd compiler && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
-	(cd runtime && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
-	(cd vm && $(MAKE) uninstall PREFIX="${ABS_PREFIX}")
+	$(MAKE) -C compiler uninstall PREFIX="${ABS_PREFIX}"
+	$(MAKE) -C runtime uninstall PREFIX="${ABS_PREFIX}"
+	$(MAKE) -C vm uninstall PREFIX="${ABS_PREFIX}"
 
 # Tags the current version in Git.
 tag:
