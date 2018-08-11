@@ -75,7 +75,7 @@ lint:versions:
   image: alpine:latest
   stage: test
   before_script:
-    - apk add --update coreutils bash coreutils
+    - apk add --update coreutils bash grep
   script:
     - bash scripts/versions.sh
 
