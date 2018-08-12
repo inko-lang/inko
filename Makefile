@@ -4,7 +4,7 @@ PREFIX := /usr
 ABS_PREFIX != ./scripts/realpath.sh "${PREFIX}"
 
 ifeq ($(findstring Could not find,${ABS_PREFIX}),Could not find)
-$(echo Could not find (g)realpath, make sure (GNU) coreutils is installed)
+$(error Could not find (g)realpath, make sure (GNU) coreutils is installed)
 endif
 
 # The architecture to use for building the VM.
