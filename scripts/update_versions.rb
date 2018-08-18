@@ -12,7 +12,7 @@ compiler_version = File.expand_path('../compiler/lib/inkoc/version.rb', __dir__)
 cargo_toml = File.expand_path('../vm/Cargo.toml', __dir__)
 
 File.open(version_file, 'w') do |handle|
-  handle.write(new_version)
+  handle.puts(new_version)
 end
 
 File.open(compiler_version, 'w') do |handle|
