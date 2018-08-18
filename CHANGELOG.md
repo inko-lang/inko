@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.3 - August 19, 2018
+
+### Compiler
+
+No changes.
+
+### Runtime
+
+No changes.
+
+### Virtual machine
+
+No changes.
+
+### Other
+
+* e672582: Moved tagging/releasing code to separate scripts
+* 0888635: Use a single Make task for building a release
+
 ## 0.2.2 - August 13, 2018
 
 ### Compiler
