@@ -135,9 +135,17 @@ changelog:
 versions:
 	ruby scripts/update_versions.rb ${VERSION}
 
+commit-release:
+	git commit VERSION \
+		compiler/lib/inkoc/version.rb vm/Cargo.toml vm/Cargo.lock CHANGELOG.md \
+		-m "Release v${VERSION}"
+	git push origin "$(git rev-parse --abbrev-ref HEAD)"
+
+release: versions changelog commit-release tag
+
 # Tags the current version in Git.
 tag:
 	git tag -a -m "Release v${VERSION}" "v${VERSION}"
 	git push origin "v${VERSION}"
 
-.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag changelog versions
+.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag changelog versions release commit-release
