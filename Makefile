@@ -133,7 +133,7 @@ changelog:
 	ruby scripts/changelog.rb
 
 versions:
-	ruby scripts/update_versions.rb $(version)
+	ruby scripts/update_versions.rb ${VERSION}
 
 # Tags the current version in Git.
 tag:
