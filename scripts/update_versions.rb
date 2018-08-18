@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'English'
+
 new_version = ARGV[0]
 
 if !new_version || new_version.empty?
@@ -26,9 +28,20 @@ File.open(compiler_version, 'w') do |handle|
 end
 
 old_toml = File.read(cargo_toml)
-new_toml =
-  old_toml.gsub(/version.+# VERSION/, %(version = "#{new_version}" # VERSION))
+new_toml = old_toml.gsub(
+  /version.+# VERSION/,
+  %(version = "#{new_version}" # VERSION)
+)
 
 File.open(cargo_toml, 'w') do |handle|
   handle.write(new_toml)
+end
+
+# Make sure that Cargo.lock is also updated
+Dir.chdir(File.expand_path('../vm', __dir__)) do
+  output = `make check 2>&1`
+
+  unless $CHILD_STATUS.success?
+    abort "Failed to update vm/Cargo.lock: #{output}"
+  end
 end
