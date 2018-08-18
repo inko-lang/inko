@@ -12,12 +12,15 @@ No changes.
 
 ### Virtual machine
 
-No changes.
+* 02a2cbd: Rework allocations to support parallel moving
 
 ### Other
 
 * e672582: Moved tagging/releasing code to separate scripts
 * 0888635: Use a single Make task for building a release
+* 5504bb7: Use VERSION not version in "make versions"
+* 019b186: Added Make task for updating version files
+* 9542354: Added tooling for managing a changelog
 
 ## 0.2.2 - August 13, 2018
 
