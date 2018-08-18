@@ -132,9 +132,12 @@ uninstall:
 changelog:
 	ruby scripts/changelog.rb
 
+versions:
+	ruby scripts/update_versions.rb $(version)
+
 # Tags the current version in Git.
 tag:
 	git tag -a -m "Release v${VERSION}" "v${VERSION}"
 	git push origin "v${VERSION}"
 
-.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag changelog
+.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag changelog versions
