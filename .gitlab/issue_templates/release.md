@@ -13,3 +13,5 @@ This issue tracks the work necessary to release version NEW_VERSION.
 1. [ ] Mention noteworthy changes based on the changelog, such as big features
    or breaking changes.
 1. [ ] Followed the "news" checklist in the website repository.
+
+/label ~Release
