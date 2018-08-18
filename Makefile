@@ -129,9 +129,12 @@ uninstall:
 	$(MAKE) -C runtime uninstall PREFIX="${ABS_PREFIX}"
 	$(MAKE) -C vm uninstall PREFIX="${ABS_PREFIX}"
 
+changelog:
+	ruby scripts/changelog.rb
+
 # Tags the current version in Git.
 tag:
 	git tag -a -m "Release v${VERSION}" "v${VERSION}"
 	git push origin "v${VERSION}"
 
-.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag
+.PHONY: clean release-source release-compiled install uninstall rebuild-manifest tag changelog
