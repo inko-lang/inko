@@ -1339,6 +1339,42 @@ module Inkoc
         set_current_file_path(body, node.location)
       end
 
+      def on_raw_env_get(node, body)
+        raw_unary_instruction(:EnvGet, node, body)
+      end
+
+      def on_raw_env_set(node, body)
+        raw_binary_instruction(:EnvSet, node, body)
+      end
+
+      def on_raw_env_remove(node, body)
+        raw_unary_instruction(:EnvRemove, node, body)
+      end
+
+      def on_raw_env_variables(node, body)
+        raw_nullary_instruction(:EnvVariables, node, body)
+      end
+
+      def on_raw_env_home_directory(node, body)
+        raw_nullary_instruction(:EnvHomeDirectory, node, body)
+      end
+
+      def on_raw_env_temp_directory(node, body)
+        raw_nullary_instruction(:EnvTempDirectory, node, body)
+      end
+
+      def on_raw_env_get_working_directory(node, body)
+        raw_nullary_instruction(:EnvGetWorkingDirectory, node, body)
+      end
+
+      def on_raw_env_set_working_directory(node, body)
+        raw_unary_instruction(:EnvSetWorkingDirectory, node, body)
+      end
+
+      def on_raw_env_arguments(node, body)
+        raw_nullary_instruction(:EnvArguments, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

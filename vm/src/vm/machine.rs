@@ -3,6 +3,7 @@ use float_cmp::ApproxEqUlps;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use rayon::ThreadPoolBuilder;
+use std::env;
 use std::f64;
 use std::fs;
 use std::i32;
@@ -16,6 +17,7 @@ use block::Block;
 use byte_array;
 use compiled_code::CompiledCodePointer;
 use date_time::DateTime;
+use directories;
 use execution_context::ExecutionContext;
 use filesystem;
 use gc::request::Request as GcRequest;
@@ -3411,6 +3413,128 @@ impl Machine {
                         instruction.arg(0),
                         self.state.boolean_prototype,
                     );
+                }
+                InstructionType::EnvGet => {
+                    let reg = instruction.arg(0);
+                    let var = context.get_register(instruction.arg(1));
+                    let var_name = var.string_value()?;
+
+                    let val = if let Some(val) = env::var_os(var_name) {
+                        let string = val.to_string_lossy().into_owned();
+
+                        process.allocate(
+                            object_value::string(string),
+                            self.state.string_prototype,
+                        )
+                    } else {
+                        self.state.nil_object
+                    };
+
+                    context.set_register(reg, val);
+                }
+                InstructionType::EnvSet => {
+                    let reg = instruction.arg(0);
+                    let var = context.get_register(instruction.arg(1));
+                    let val = context.get_register(instruction.arg(2));
+
+                    env::set_var(var.string_value()?, val.string_value()?);
+
+                    context.set_register(reg, val);
+                }
+                InstructionType::EnvVariables => {
+                    let reg = instruction.arg(0);
+                    let names = env::vars_os()
+                        .map(|(key, _)| {
+                            process.allocate(
+                                object_value::string(
+                                    key.to_string_lossy().into_owned(),
+                                ),
+                                self.state.string_prototype,
+                            )
+                        }).collect();
+
+                    let array = process.allocate(
+                        object_value::array(names),
+                        self.state.array_prototype,
+                    );
+
+                    context.set_register(reg, array);
+                }
+                InstructionType::EnvHomeDirectory => {
+                    let reg = instruction.arg(0);
+
+                    let path = if let Some(path) = directories::home() {
+                        process.allocate(
+                            object_value::string(path),
+                            self.state.string_prototype,
+                        )
+                    } else {
+                        self.state.nil_object
+                    };
+
+                    context.set_register(reg, path);
+                }
+                InstructionType::EnvTempDirectory => {
+                    let reg = instruction.arg(0);
+
+                    let path = process.allocate(
+                        object_value::string(directories::temp()),
+                        self.state.string_prototype,
+                    );
+
+                    context.set_register(reg, path);
+                }
+                InstructionType::EnvGetWorkingDirectory => {
+                    let reg = instruction.arg(0);
+
+                    match directories::working_directory() {
+                        Ok(path_string) => {
+                            let path = process.allocate(
+                                object_value::string(path_string),
+                                self.state.string_prototype,
+                            );
+
+                            context.set_register(reg, path);
+                        }
+                        Err(error) => {
+                            throw_io_error!(
+                                self, process, error, context, index
+                            );
+                        }
+                    }
+                }
+                InstructionType::EnvSetWorkingDirectory => {
+                    let reg = instruction.arg(0);
+                    let dir_ptr = context.get_register(instruction.arg(1));
+                    let dir = dir_ptr.string_value()?;
+
+                    match directories::set_working_directory(dir) {
+                        Ok(_) => {
+                            context.set_register(reg, dir_ptr);
+                        }
+                        Err(error) => {
+                            throw_io_error!(
+                                self, process, error, context, index
+                            );
+                        }
+                    }
+                }
+                InstructionType::EnvArguments => {
+                    let reg = instruction.arg(0);
+                    let args = process.allocate(
+                        object_value::array(self.state.arguments.clone()),
+                        self.state.array_prototype,
+                    );
+
+                    context.set_register(reg, args);
+                }
+                InstructionType::EnvRemove => {
+                    let reg = instruction.arg(0);
+                    let var = context.get_register(instruction.arg(1));
+
+                    env::remove_var(var.string_value()?);
+
+                    context.set_register(reg, self.state.nil_object);
                 }
             };
         }

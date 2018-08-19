@@ -143,6 +143,15 @@ pub enum InstructionType {
     ByteArrayEquals,
     ByteArrayToString,
     GetBooleanPrototype,
+    EnvGet,
+    EnvSet,
+    EnvVariables,
+    EnvHomeDirectory,
+    EnvTempDirectory,
+    EnvGetWorkingDirectory,
+    EnvSetWorkingDirectory,
+    EnvArguments,
+    EnvRemove,
 }
 
 /// Struct for storing information about a single instruction.

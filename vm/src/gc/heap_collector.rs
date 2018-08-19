@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_collect() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let pointer = process.allocate_empty();
         let mut profile = Profile::young();
 

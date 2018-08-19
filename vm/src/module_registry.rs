@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_find_path_relative() {
-        let state = State::new(new_config());
+        let state = State::new(new_config(), &[]);
         let reg = ModuleRegistry::new(state);
         let look_for = executable_path()
             .file_name()
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_find_path_absolute() {
-        let state = State::new(new_config());
+        let state = State::new(new_config(), &[]);
         let reg = ModuleRegistry::new(state);
         let look_for = executable_path_string();
         let result = reg.find_path(&look_for);

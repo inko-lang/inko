@@ -82,4 +82,6 @@ end
 
 main_mod_path = config.target.join(mod.bytecode_import_path)
 
-exec(options[:vm], '-I', target_dir.to_s, main_mod_path.to_s)
+# The last argument is a dummy argument, allowing ARGV related tests to use this
+# value.
+exec(options[:vm], '-I', target_dir.to_s, main_mod_path.to_s, 'dummy')

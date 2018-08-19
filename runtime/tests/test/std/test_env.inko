@@ -1,0 +1,113 @@
+import std::env
+import std::test
+import std::test::assert
+
+env['INKO_VALID'] = 'foo'
+
+test.group 'std::env.[]', do (g) {
+  g.test 'Obtaining the value of an existing environment variable', {
+    try assert.equal(env['INKO_VALID'], 'foo')
+  }
+
+  g.test 'Obtaining the value of a non-existing environment variable', {
+    try assert.equal(env['INKO_INVALID'], Nil)
+  }
+}
+
+test.group 'std::env.[]=', do (g) {
+  g.test 'Setting the value of an environment variable', {
+    env['INKO_TEST_ENV_SET'] = 'foo'
+
+    try assert.equal(env['INKO_TEST_ENV_SET'], 'foo')
+
+    env['INKO_TEST_ENV_SET'] = 'bar'
+
+    try assert.equal(env['INKO_TEST_ENV_SET'], 'bar')
+  }
+}
+
+test.group 'std::env.remove', do (g) {
+  g.test 'Removing an existing environment variable', {
+    env['INKO_TO_REMOVE'] = 'foo'
+
+    env.remove('INKO_TO_REMOVE')
+
+    try assert.equal(env['INKO_TO_REMOVE'], Nil)
+  }
+
+  g.test 'Removing a non-existing environment variable', {
+    env.remove('INKO_TO_REMOVE')
+
+    try assert.equal(env['INKO_TO_REMOVE'], Nil)
+  }
+}
+
+test.group 'std::env.variables', do (g) {
+  g.test 'Obtaining all environment variables and their values', {
+    let vars = env.variables
+
+    try assert.equal(vars.empty?, False)
+    try assert.equal(vars['INKO_VALID'], 'foo')
+  }
+}
+
+test.group 'std::env.home_directory', do (g) {
+  g.test 'Obtaining the home directory of the current user', {
+    # For the time being we'll assume that the user executing the tests has a
+    # home directory set.
+    try assert.greater(env.home_directory.length, 0)
+  }
+}
+
+test.group 'std::env.temporary_directory', do (g) {
+  g.test 'Obtaining the temporary directory', {
+    try assert.greater(env.temporary_directory.length, 0)
+  }
+}
+
+test.group 'std::env.working_directory', do (g) {
+  g.test 'Obtaining the current working directory', {
+    let path = try env.working_directory else ''
+
+    try assert.greater(path.length, 0)
+  }
+}
+
+test.group 'std::env.working_directory=', do (g) {
+  g.test 'Changing the current working directory', {
+    let path = try env.working_directory else '.'
+    let new_path = try env.working_directory = path else ''
+
+    try assert.equal(new_path, path)
+  }
+
+  g.test 'Changing the working directory to an invalid directory', {
+    let path = try env.working_directory = 'does-not-exist' else 'not-set'
+
+    try assert.equal(path, 'not-set')
+  }
+}
+
+test.group 'std::env.arguments', do (g) {
+  g.test 'Obtaining the commandline arguments', {
+    try assert.equal(env.arguments, ['dummy'])
+  }
+
+  g.test 'Every call results in a new Array being returned', {
+    let args1 = env.arguments
+    let args2 = env.arguments
+
+    try assert.equal(args1.equal?(args2), False)
+  }
+
+  g.test 'Modifying the arguments Array does not affect other calls', {
+    let args1 = env.arguments
+
+    args1.push('bar')
+
+    let args2 = env.arguments
+
+    try assert.equal(args1, ['dummy', 'bar'])
+    try assert.equal(args2, ['dummy'])
+  }
+}

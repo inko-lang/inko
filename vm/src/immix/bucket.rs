@@ -474,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_allocate_with_recyclable_blocks() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
 
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn test_allocate_for_mutator_with_recyclable_blocks() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
 
@@ -589,7 +589,7 @@ mod tests {
         let mut block1 = Block::new();
         let block2 = Block::new();
         let mut block3 = Block::new();
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
 
         block1.used_lines_bitmap.set(255);
         block3.used_lines_bitmap.set(2);
@@ -612,7 +612,7 @@ mod tests {
     fn test_reclaim_blocks_full() {
         let mut bucket = Bucket::new();
         let mut block = Block::new();
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
 
         for i in 0..256 {
             block.used_lines_bitmap.set(i);

@@ -328,7 +328,7 @@ mod tests {
     }
 
     fn state() -> RcState {
-        State::new(Config::new())
+        State::new(Config::new(), &[])
     }
 
     #[test]

@@ -88,7 +88,7 @@ pub type BytecodeResult = ParserResult<CompiledCode>;
 ///
 /// # Examples
 ///
-///     let state = State::new(Config::new());
+///     let state = State::new(Config::new(), &[]);
 ///     let result = bytecode_parser::parse_file(&state, "path/to/file.inkoc");
 pub fn parse_file(state: &RcState, path: &str) -> BytecodeResult {
     match File::open(path) {
@@ -102,7 +102,7 @@ pub fn parse_file(state: &RcState, path: &str) -> BytecodeResult {
 /// # Examples
 ///
 ///     let mut bytes = File::open("path/to/file.inkoc").unwrap().bytes();
-///     let state = State::new(Config::new());
+///     let state = State::new(Config::new(), &[]);
 ///     let result = bytecode_parser::parse(&state, &mut bytes);
 pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
     // Verify the bytecode signature.
@@ -390,7 +390,7 @@ mod tests {
     use vm::state::{RcState, State};
 
     fn state() -> RcState {
-        State::new(Config::new())
+        State::new(Config::new(), &[])
     }
 
     macro_rules! unwrap {

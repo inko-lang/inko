@@ -145,6 +145,15 @@ module Inkoc
         ByteArrayEquals
         ByteArrayToString
         GetBooleanPrototype
+        EnvGet
+        EnvSet
+        EnvVariables
+        EnvHomeDirectory
+        EnvTempDirectory
+        EnvGetWorkingDirectory
+        EnvSetWorkingDirectory
+        EnvArguments
+        EnvRemove
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

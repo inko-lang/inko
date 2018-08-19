@@ -170,7 +170,7 @@ mod tests {
     use vm::state::{RcState, State};
 
     fn state() -> RcState {
-        State::new(Config::new())
+        State::new(Config::new(), &[])
     }
 
     fn new_compiled_code(state: &RcState) -> CompiledCode {

@@ -120,10 +120,13 @@ pub struct State {
 
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
+
+    /// The commandline arguments passed to an Inko program.
+    pub arguments: Vec<ObjectPointer>,
 }
 
 impl State {
-    pub fn new(config: Config) -> RcState {
+    pub fn new(config: Config, arguments: &[String]) -> RcState {
         let global_alloc = GlobalAllocator::new();
 
         // Boxed since moving around the allocator can break pointers from the
@@ -166,7 +169,7 @@ impl State {
         let process_pools =
             Pools::new(config.primary_threads, config.secondary_threads);
 
-        let state = State {
+        let mut state = State {
             config,
             process_table: RwLock::new(ProcessTable::new()),
             process_pools,
@@ -189,7 +192,14 @@ impl State {
             true_object: true_obj,
             false_object: false_obj,
             nil_object: nil_obj,
+            arguments: Vec::with_capacity(arguments.len()),
         };
+
+        for argument in arguments {
+            let pointer = state.intern(argument);
+
+            state.arguments.push(pointer);
+        }
 
         Arc::new(state)
     }
@@ -258,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_intern() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let string = "number".to_string();
 
         let ptr1 = state.intern(&string);
@@ -271,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_intern_pointer_with_string() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let string =
             state.permanent_allocator.lock().allocate_without_prototype(
                 object_value::interned_string("hello".to_string()),
@@ -282,7 +292,7 @@ mod tests {
 
     #[test]
     fn test_intern_pointer_without_string() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let string = state.permanent_allocator.lock().allocate_empty();
 
         assert!(state.intern_pointer(string).is_err());
@@ -290,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_allocate_permanent_float() {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let float = state.allocate_permanent_float(10.5);
 
         assert_eq!(float.float_value().unwrap(), 10.5);

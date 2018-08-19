@@ -1,6 +1,7 @@
 extern crate getopts;
 extern crate libinko;
 
+use getopts::{Options, ParsingStyle};
 use std::env;
 use std::io::{self, Write};
 use std::process;
@@ -10,7 +11,7 @@ use libinko::prefetch;
 use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
-fn print_usage(options: &getopts::Options) {
+fn print_usage(options: &Options) {
     print_stderr(&options.usage("Usage: ivm FILE [OPTIONS]").to_string());
 }
 
@@ -25,8 +26,9 @@ fn print_stderr(message: &str) {
 #[cfg_attr(feature = "cargo-clippy", allow(print_literal))]
 fn run() -> i32 {
     let args: Vec<String> = env::args().collect();
-    let mut options = getopts::Options::new();
+    let mut options = Options::new();
 
+    options.parsing_style(ParsingStyle::StopAtFirstFree);
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
     options.optflag("f", "features", "Displays the state of various features");
@@ -80,7 +82,7 @@ fn run() -> i32 {
 
         config.populate_from_env();
 
-        let machine = Machine::default(State::new(config));
+        let machine = Machine::default(State::new(config, &matches.free[1..]));
 
         machine.start(path);
         machine.state.current_exit_status()

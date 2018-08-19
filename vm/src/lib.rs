@@ -2,6 +2,7 @@
 static A: std::alloc::System = std::alloc::System;
 
 extern crate colored;
+extern crate dirs;
 extern crate float_cmp;
 extern crate fnv;
 extern crate num_bigint;
@@ -25,6 +26,7 @@ pub mod compiled_code;
 pub mod config;
 pub mod date_time;
 pub mod deref_pointer;
+pub mod directories;
 pub mod error_messages;
 pub mod execution_context;
 pub mod filesystem;

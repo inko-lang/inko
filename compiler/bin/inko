@@ -45,7 +45,7 @@ parser = OptionParser.new do |o|
   end
 end
 
-parser.parse!(ARGV)
+parser.order!(ARGV)
 
 if ARGV.empty? && options[:eval].nil?
   puts 'You must specify a source file to run'
@@ -53,6 +53,7 @@ if ARGV.empty? && options[:eval].nil?
 end
 
 config = Inkoc::Config.new(:release)
+input_file = ARGV.shift
 
 config.target = options[:target] if options[:target]
 config.add_source_directories(options[:include])
@@ -79,7 +80,7 @@ mod =
 
     mod
   else
-    compiler.compile_main(Pathname.new(ARGV[0]))
+    compiler.compile_main(Pathname.new(input_file))
   end
 
 if state.diagnostics?
@@ -89,4 +90,4 @@ end
 
 main_mod_path = File.join(config.target, mod.bytecode_import_path)
 
-exec(options[:vm], '-I', config.target.to_s, main_mod_path.to_s)
+exec(options[:vm], '-I', config.target.to_s, main_mod_path.to_s, *ARGV)

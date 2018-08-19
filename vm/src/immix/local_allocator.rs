@@ -291,7 +291,7 @@ mod tests {
     use vm::state::{RcState, State};
 
     fn local_allocator() -> (RcState, LocalAllocator) {
-        let state = State::new(Config::new());
+        let state = State::new(Config::new(), &[]);
         let alloc = LocalAllocator::new(GlobalAllocator::new(), &state.config);
 
         (state, alloc)
