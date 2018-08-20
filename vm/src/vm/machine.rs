@@ -39,14 +39,9 @@ use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
 macro_rules! reset_context {
-    ($process:expr, $context:ident, $code:ident, $index:ident) => {{
-        // We're storing a &mut ExecutionContext here instead of using &mut
-        // Box<ExecutionContext>. This is because such a reference (as returned
-        // by context()/context_mut()) will become invalid once an instruction
-        // changes the current execution context.
-        $context = &mut **$process.context_mut();
+    ($process:expr, $context:ident, $index:ident) => {{
+        $context = $process.context_mut();
         $index = $context.instruction_index;
-        $code = $context.code;
     }};
 }
 
@@ -56,14 +51,13 @@ macro_rules! throw_value {
         $process:expr,
         $value:expr,
         $context:ident,
-        $code:ident,
         $index:ident
     ) => {{
         $context.instruction_index = $index;
 
         $machine.throw($process, $value)?;
 
-        reset_context!($process, $context, $code, $index);
+        reset_context!($process, $context, $index);
     }};
 }
 
@@ -73,7 +67,6 @@ macro_rules! throw_error_message {
         $process:expr,
         $message:expr,
         $context:ident,
-        $code:ident,
         $index:ident
     ) => {{
         let value = $process.allocate(
@@ -81,7 +74,7 @@ macro_rules! throw_error_message {
             $machine.state.string_prototype,
         );
 
-        throw_value!($machine, $process, value, $context, $code, $index);
+        throw_value!($machine, $process, value, $context, $index);
     }};
 }
 
@@ -91,20 +84,19 @@ macro_rules! throw_io_error {
         $process:expr,
         $error:expr,
         $context:ident,
-        $code:ident,
         $index:ident
     ) => {{
         let msg = $crate::error_messages::from_io_error(&$error);
 
-        throw_error_message!($machine, $process, msg, $context, $code, $index);
+        throw_error_message!($machine, $process, msg, $context, $index);
     }};
 }
 
 macro_rules! enter_context {
-    ($process:expr, $context:ident, $code:ident, $index:ident) => {{
+    ($process:expr, $context:ident, $index:ident) => {{
         $context.instruction_index = $index;
 
-        reset_context!($process, $context, $code, $index);
+        reset_context!($process, $context, $index);
     }};
 }
 
@@ -359,20 +351,13 @@ impl Machine {
         process.running();
 
         let mut context;
-        let mut code;
         let mut index;
         let mut instruction;
 
-        reset_context!(process, context, code, index);
+        reset_context!(process, context, index);
 
         'exec_loop: loop {
-            instruction = unsafe {
-                // This little dance is necessary to decouple the reference to
-                // the instruction from the CompiledCode reference, allowing us
-                // to re-assign any of these variables whenever necessary.
-                &*(code.instruction(index) as *const Instruction)
-            };
-
+            instruction = unsafe { context.code.instruction(index) };
             index += 1;
 
             match instruction.instruction_type {
@@ -386,8 +371,9 @@ impl Machine {
                 InstructionType::SetLiteral => {
                     let register = instruction.arg(0);
                     let index = instruction.arg(1);
+                    let literal = unsafe { context.code.literal(index) };
 
-                    context.set_register(register, code.literal(index));
+                    context.set_register(register, literal);
                 }
                 // Sets an object in a register.
                 //
@@ -441,7 +427,7 @@ impl Machine {
 
                     let values = self.collect_arguments(
                         &process,
-                        instruction,
+                        &instruction,
                         1,
                         val_count,
                     );
@@ -554,7 +540,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let cc_index = instruction.arg(1);
 
-                    let cc = code.code_object(cc_index);
+                    let cc = context.code.code_object(cc_index);
                     let locals = cc.locals as usize;
 
                     let binding = if cc.captures {
@@ -597,7 +583,7 @@ impl Machine {
                     if block_return {
                         self.unwind_until_defining_scope(process);
 
-                        context = &mut **process.context_mut();
+                        context = process.context_mut();
                     }
 
                     if let Some(register) = context.return_register {
@@ -613,7 +599,7 @@ impl Machine {
                         break 'exec_loop;
                     }
 
-                    reset_context!(process, context, code, index);
+                    reset_context!(process, context, index);
 
                     safepoint_and_reduce!(self, process, reductions);
                 }
@@ -1379,7 +1365,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self, process, error, context, code, index
+                                self, process, error, context, index
                             );
                         }
                     }
@@ -1396,9 +1382,9 @@ impl Machine {
                     match io::stdout().flush() {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
-                        Err(err) => throw_io_error!(
-                            self, process, err, context, code, index
-                        ),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
+                        }
                     };
                 }
                 // Writes a string to STDERR and returns the amount of
@@ -1429,7 +1415,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self, process, error, context, code, index
+                                self, process, error, context, index
                             );
                         }
                     }
@@ -1446,9 +1432,9 @@ impl Machine {
                     match io::stderr().flush() {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
-                        Err(err) => throw_io_error!(
-                            self, process, err, context, code, index
-                        ),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
+                        }
                     };
                 }
                 // Reads all the data from STDIN.
@@ -1480,9 +1466,7 @@ impl Machine {
                             context.set_register(register, size_ptr);
                         }
                         ReadResult::Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                         ReadResult::Panic(message) => return Err(message),
                     }
@@ -1525,9 +1509,7 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                     }
                 }
@@ -1557,9 +1539,7 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                     }
                 }
@@ -1594,9 +1574,7 @@ impl Machine {
                             context.set_register(register, size_ptr);
                         }
                         ReadResult::Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                         ReadResult::Panic(message) => return Err(message),
                     }
@@ -1612,9 +1590,7 @@ impl Machine {
                     let file = file_ptr.file_value_mut()?;
 
                     if let Err(err) = file.flush() {
-                        throw_io_error!(
-                            self, process, err, context, code, index
-                        );
+                        throw_io_error!(self, process, err, context, index);
                     }
                 }
                 // Returns the size of a file in bytes.
@@ -1640,9 +1616,7 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                     }
                 }
@@ -1696,9 +1670,7 @@ impl Machine {
                             context.set_register(register, obj);
                         }
                         Err(err) => {
-                            throw_io_error!(
-                                self, process, err, context, code, index
-                            );
+                            throw_io_error!(self, process, err, context, index);
                         }
                     }
                 }
@@ -1745,7 +1717,7 @@ impl Machine {
 
                         process.push_context(new_context);
 
-                        enter_context!(process, context, code, index);
+                        enter_context!(process, context, index);
                     } else {
                         context.set_register(register, self.state.nil_object);
                     }
@@ -2349,7 +2321,7 @@ impl Machine {
 
                     self.prepare_new_context(
                         process,
-                        instruction,
+                        &instruction,
                         &new_ctx,
                         instruction.arg(2),
                         instruction.arg(3),
@@ -2358,7 +2330,7 @@ impl Machine {
 
                     process.push_context(new_ctx);
 
-                    enter_context!(process, context, code, index);
+                    enter_context!(process, context, index);
                 }
                 // Sets a global variable to a given register's value.
                 //
@@ -2412,7 +2384,7 @@ impl Machine {
                 InstructionType::Throw => {
                     let value = context.get_register(instruction.arg(0));
 
-                    throw_value!(self, process, value, context, code, index);
+                    throw_value!(self, process, value, context, index);
                 }
                 // Sets a register to the value of another register.
                 //
@@ -2434,7 +2406,7 @@ impl Machine {
 
                     self.prepare_new_context(
                         process,
-                        instruction,
+                        &instruction,
                         context,
                         instruction.arg(0),
                         instruction.arg(1),
@@ -2445,7 +2417,7 @@ impl Machine {
 
                     context.instruction_index = 0;
 
-                    reset_context!(process, context, code, index);
+                    reset_context!(process, context, index);
 
                     safepoint_and_reduce!(self, process, reductions);
                 }
@@ -2687,9 +2659,9 @@ impl Machine {
                     match fs::remove_file(path_str) {
                         Ok(_) => context
                             .set_register(register, self.state.nil_object),
-                        Err(err) => throw_io_error!(
-                            self, process, err, context, code, index
-                        ),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
+                        }
                     };
                 }
                 // Produces a VM panic.
@@ -2765,7 +2737,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_io_error!(
-                                self, process, error, context, code, index
+                                self, process, error, context, index
                             );
                         }
                     };
@@ -2825,7 +2797,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_error_message!(
-                                self, process, error, context, code, index
+                                self, process, error, context, index
                             );
                         }
                     }
@@ -2892,9 +2864,7 @@ impl Machine {
                     );
 
                     if let Err(error) = result {
-                        throw_io_error!(
-                            self, process, error, context, code, index
-                        );
+                        throw_io_error!(self, process, error, context, index);
                     } else {
                         context.set_register(register, self.state.nil_object);
                     }
@@ -2922,9 +2892,7 @@ impl Machine {
                     );
 
                     if let Err(error) = result {
-                        throw_io_error!(
-                            self, process, error, context, code, index
-                        );
+                        throw_io_error!(self, process, error, context, index);
                     } else {
                         context.set_register(register, self.state.nil_object);
                     }
@@ -2953,7 +2921,7 @@ impl Machine {
                         }
                         Err(error) => {
                             throw_error_message!(
-                                self, process, error, context, code, index
+                                self, process, error, context, index
                             );
                         }
                     }
@@ -3152,21 +3120,22 @@ impl Machine {
                     let field_ptr = context.get_register(instruction.arg(2));
 
                     let block = block_ptr.block_value()?;
-                    let code = &block.code;
                     let kind = field_ptr.integer_value()?;
 
                     let result = match kind {
-                        0 => code.name,
-                        1 => code.file,
-                        2 => ObjectPointer::integer(i64::from(code.line)),
+                        0 => block.code.name,
+                        1 => block.code.file,
+                        2 => ObjectPointer::integer(i64::from(block.code.line)),
                         3 => process.allocate(
-                            object_value::array(code.arguments.clone()),
+                            object_value::array(block.code.arguments.clone()),
                             self.state.array_prototype,
                         ),
                         4 => ObjectPointer::integer(i64::from(
-                            code.required_arguments,
+                            block.code.required_arguments,
                         )),
-                        5 => boolean_to_pointer!(self, code.rest_argument),
+                        5 => {
+                            boolean_to_pointer!(self, block.code.rest_argument)
+                        }
                         _ => {
                             return Err(format!(
                                 "{} is not a valid block metadata type",

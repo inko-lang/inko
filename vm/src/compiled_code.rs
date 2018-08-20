@@ -82,8 +82,8 @@ impl CompiledCode {
     }
 
     #[inline(always)]
-    pub fn literal(&self, index: usize) -> ObjectPointer {
-        unsafe { *self.literals.get_unchecked(index) }
+    pub unsafe fn literal(&self, index: usize) -> ObjectPointer {
+        *self.literals.get_unchecked(index)
     }
 
     #[inline(always)]
@@ -92,9 +92,15 @@ impl CompiledCode {
     }
 
     /// Returns the instruction at the given index, without checking for bounds.
+    ///
+    /// The instruction is returned as a DerefPointer, allowing it to be used
+    /// while also borrowing an ExecutionContext.
     #[inline(always)]
-    pub fn instruction(&self, index: usize) -> &Instruction {
-        unsafe { &self.instructions.get_unchecked(index) }
+    pub unsafe fn instruction(
+        &self,
+        index: usize,
+    ) -> DerefPointer<Instruction> {
+        DerefPointer::new(&self.instructions.get_unchecked(index))
     }
 
     #[inline(always)]
@@ -199,7 +205,7 @@ mod tests {
 
         code.literals.push(pointer);
 
-        assert!(code.literal(0) == pointer);
+        assert!(unsafe { code.literal(0) } == pointer);
     }
 
     #[test]
