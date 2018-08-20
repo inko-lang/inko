@@ -29,10 +29,24 @@ test:compiler:
     paths:
       - compiler/vendor
 
-test:ivm:
+test:ivm-nightly:
   image: rustlang/rust:nightly
   stage: test
   before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - make test
+  cache:
+    paths:
+      - .cargo
+
+test:ivm-stable:
+  image: alpine:edge
+  stage: test
+  before_script:
+    - apk add --update rust cargo build-base coreutils
     - cd vm
     - rustc --version
     - cargo --version
@@ -80,22 +94,24 @@ lint:versions:
     - bash scripts/versions.sh
 
 build:ivm:
-  image: rustlang/rust:nightly
+  image: rust:latest
   stage: build
   before_script:
     - cd vm
     - rustc --version
     - cargo --version
+    - rustup target add x86_64-unknown-linux-musl
   script:
-    - make release
-    - strip target/release/ivm
+    - make release ARCH=x86_64-linux-musl TARGET=x86_64-unknown-linux-musl
+    - mv target/x86_64-unknown-linux-musl/release/ivm ../ivm
+    - strip ../ivm
   cache:
     paths:
       - .cargo
   artifacts:
     expire_in: 1 hour
     paths:
-      - vm/target/release/ivm
+      - ivm
 
 test:runtime:
   image: ruby:2.4-slim
@@ -103,22 +119,16 @@ test:runtime:
   before_script:
     - apt-get update -q
     - apt-get install -y -q build-essential
-    - gem install bundler --no-ri --no-rdoc
     - ruby --version
-    - vm/target/release/ivm --version
-    - bundle --version
-    - cd compiler
-    - bundle install --path vendor --retry=3
+    - ./ivm --version
+    - ./ivm --features
   script:
-    - env RUBYLIB=lib bundle exec ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
-  cache:
-    paths:
-      - compiler/vendor
+    - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./ivm
   dependencies:
     - build:ivm
 
 release:source:
-  image: alpine:latest
+  image: alpine:edge
   stage: release
   before_script:
     - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
@@ -129,7 +139,7 @@ release:source:
     - tags
 
 release:compiled-gnu:
-  image: rustlang/rust:nightly
+  image: rust:latest
   stage: release
   before_script:
     - apt-get update -q
@@ -148,7 +158,7 @@ release:compiled-gnu:
       - .cargo
 
 release:compiled-musl:
-  image: rustlang/rust:nightly
+  image: rust:latest
   stage: release
   before_script:
     - apt-get update -q
@@ -160,7 +170,7 @@ release:compiled-musl:
     - aws --version
     - rustup target add x86_64-unknown-linux-musl
   script:
-    - make release-compiled ARCH=x86_64-linux-musl TARGET=x86_64-unknown-linux-musl
+    - make release-compiled
   only:
     - tags
   cache:
