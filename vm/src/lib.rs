@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "prefetch", feature(core_intrinsics))]
-
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 
@@ -45,6 +43,7 @@ pub mod object_pointer;
 pub mod object_value;
 pub mod pool;
 pub mod pools;
+pub mod prefetch;
 pub mod process;
 pub mod process_table;
 pub mod queue;

@@ -1,10 +1,10 @@
 [package]
-name    = "inko"
+name = "inko"
 version = "0.2.3" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 
 [lib]
-name    = "libinko"
+name = "libinko"
 doctest = false
 
 [[bin]]
@@ -15,7 +15,7 @@ test = false
 getopts = "^0.2"
 num_cpus = "^1.0"
 rayon = "^1.0"
-parking_lot = { version = "^0.5" }
+parking_lot = "^0.5"
 fnv = "^1.0"
 colored = "^1.6"
 time = "^0.1"
@@ -23,14 +23,3 @@ num-integer = "^0.1"
 float-cmp = "^0.4"
 num-bigint = "^0.2"
 num-traits = "^0.2"
-
-[features]
-# Enables the use of prefetching to improve performance in various areas. This
-# requires a nightly build of Rust.
-prefetch = []
-
-# Enables various nightly features. This is disabled by default to make it
-# easier to compile the VM.
-nightly = ["prefetch", "parking_lot/nightly"]
-
-default = []

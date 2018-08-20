@@ -20,21 +20,18 @@ else
 	TARGET_BINARY=target/release/ivm
 endif
 
-# The enabled features to use when building the VM.
-FEATURES != env CARGO_CMD="${CARGO_CMD}" bash scripts/features.sh
-
 debug:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} build ${TARGET_OPTION} ${FEATURES}
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} build ${TARGET_OPTION}
 
 check:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} check ${FEATURES}
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} check
 
 test:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} test ${FEATURES}
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} test
 
 clippy:
 	touch src/lib.rs
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} clippy ${FEATURES}
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} clippy
 
 rustfmt-check:
 	rustfmt --check src/lib.rs src/bin/ivm.rs
@@ -43,16 +40,16 @@ rustfmt:
 	rustfmt --emit files src/lib.rs src/bin/ivm.rs
 
 release:
-	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES}
+	${CARGO_CMD} build --release ${TARGET_OPTION}
 
 profile:
-	RUSTFLAGS="-g" ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES}
+	RUSTFLAGS="-g" ${CARGO_CMD} build --release ${TARGET_OPTION}
 
 clean:
 	${CARGO_CMD} clean
 
 install:
-	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES}
+	${CARGO_CMD} build --release ${TARGET_OPTION}
 	mkdir -p "${BINDIR}"
 	install -m755 "${TARGET_BINARY}" "${BINDIR}/ivm"
 

@@ -57,18 +57,6 @@ changed by setting `PREFIX` when running `make install` or `make uninstall`:
 
     make install PREFIX=~/.local
 
-## Rust nightly only features
-
-While IVM supports stable Rust, we _highly_ recommend compiling IVM using Rust
-nightly as this will result in better performance.
-
-The following features will be enabled when building using nightly Rust:
-
-* `prefetch`: use prefetching to speed up the garbage collector. This can speed
-  of tracing through objects by up to 30%.
-* `parking_lot/nightly`: enabling this will reduce memory usage a little bit,
-  though it is unlikely to have a significant impact.
-
 ## Building
 
 To build the VM during development, simply run `make` in this directory. This

@@ -17,10 +17,8 @@
 //! performance by 20-30%.
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
-#[cfg(feature = "prefetch")]
-use std::intrinsics;
-
 use object_pointer::ObjectPointerPointer;
+use prefetch;
 use std::collections::VecDeque;
 
 /// The number of pointers to prefetch when the buffer is empty. This size is
@@ -78,19 +76,10 @@ impl WorkList {
         }
     }
 
-    #[cfg(feature = "prefetch")]
     #[inline(always)]
     pub fn push_to_prefetch_buffer(&mut self, pointer: ObjectPointerPointer) {
-        unsafe {
-            intrinsics::prefetch_read_data(pointer.raw, 0);
-        }
+        prefetch::prefetch_read(pointer.raw);
 
-        self.prefetch_buffer.push_back(pointer);
-    }
-
-    #[cfg(not(feature = "prefetch"))]
-    #[inline(always)]
-    pub fn push_to_prefetch_buffer(&mut self, pointer: ObjectPointerPointer) {
         self.prefetch_buffer.push_back(pointer);
     }
 }
