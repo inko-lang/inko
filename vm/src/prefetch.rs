@@ -1,5 +1,11 @@
 //! Support for CPU prefetching.
 
+/// Indicates if prefetching is available.
+pub const ENABLED: bool = cfg!(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_feature = "sse"
+));
+
 /// Prefetches a pointer for a read operation.
 ///
 /// On unsupported platforms this function will be a noop.
