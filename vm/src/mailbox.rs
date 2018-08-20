@@ -46,8 +46,8 @@ impl Mailbox {
         if self.internal.is_empty() {
             let _lock = self.write_lock.lock();
 
-            self.internal
-                .append(&mut self.external.drain(0..).collect());
+            // FIXME: https://github.com/rust-lang/rust/issues/53529
+            self.internal.extend(self.external.drain(..));
         }
 
         (true, self.internal.pop_front())

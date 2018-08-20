@@ -107,7 +107,8 @@ impl<T> Queue<T> {
 
     /// Pushes multiple values into the queue.
     pub fn push_multiple(&self, mut to_add: VecDeque<T>) {
-        self.inner.lock().values.append(&mut to_add);
+        // FIXME: https://github.com/rust-lang/rust/issues/53529
+        self.inner.lock().values.extend(to_add.drain(..));
     }
 
     /// Removes the first value from the queue without blocking the caller if
