@@ -42,7 +42,7 @@ pub fn trace(
     mailbox: &Mailbox,
     move_objects: bool,
 ) -> TraceResult {
-    let roots = mailbox.mailbox_pointers();
+    let roots = unsafe { mailbox.mailbox_pointers() };
 
     if move_objects {
         collector::trace_pointers_with_moving(process, roots, false)

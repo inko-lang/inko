@@ -57,7 +57,9 @@ impl Mailbox {
         !self.locals.is_empty()
     }
 
-    pub fn mailbox_pointers(&self) -> WorkList {
+    /// This method is unsafe because it does not explicitly synchronise access
+    /// to `self.external`, instead this is up to the caller.
+    pub unsafe fn mailbox_pointers(&self) -> WorkList {
         let mut pointers = WorkList::new();
 
         for pointer in self.internal.iter().chain(self.external.iter()) {
