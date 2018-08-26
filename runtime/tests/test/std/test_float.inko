@@ -680,6 +680,18 @@ test.group 'std::float::Float.to_integer', do (g) {
 
     try assert.equal(float.to_integer, 1 << 100)
   }
+
+  g.test 'Converting NaN to an Integer', {
+    try assert.panic { NAN.to_integer }
+  }
+
+  g.test 'Converting Infinity to an Integer', {
+    try assert.panic { INFINITY.to_integer }
+  }
+
+  g.test 'Converting negative Infinity to an Integer', {
+    try assert.panic { NEGATIVE_INFINITY.to_integer }
+  }
 }
 
 test.group 'std::float::Float.to_float', do (g) {
