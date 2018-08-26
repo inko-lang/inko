@@ -4,6 +4,7 @@ use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
 use std::i64;
 use std::mem;
+use std::panic::RefUnwindSafe;
 use std::sync::{Arc, Mutex};
 
 use binding::RcBinding;
@@ -12,6 +13,7 @@ use compiled_code::CompiledCodePointer;
 use config::Config;
 use deref_pointer::DerefPointer;
 use execution_context::ExecutionContext;
+use gc::work_list::WorkList;
 use global_scope::GlobalScopePointer;
 use immix::block_list::BlockList;
 use immix::copy_object::CopyObject;
@@ -59,9 +61,6 @@ pub struct LocalData {
     /// The process-local memory allocator.
     pub allocator: LocalAllocator,
 
-    /// The current execution context of this process.
-    pub context: Box<ExecutionContext>,
-
     /// The mailbox for sending/receiving messages.
     ///
     /// The Mailbox is stored in LocalData as a Mailbox uses internal locking
@@ -69,6 +68,12 @@ pub struct LocalData {
     /// some operations need a &mut self, which won't be possible if a Mailbox
     /// is stored directly in a Process.
     pub mailbox: Mailbox,
+
+    // A block to execute in the event of a panic.
+    pub panic_handler: Option<ObjectPointer>,
+
+    /// The current execution context of this process.
+    pub context: Box<ExecutionContext>,
 
     /// The number of young garbage collections that have been performed.
     pub young_collections: usize,
@@ -98,6 +103,7 @@ pub struct Process {
 unsafe impl Sync for LocalData {}
 unsafe impl Send for LocalData {}
 unsafe impl Sync for Process {}
+impl RefUnwindSafe for Process {}
 
 impl Process {
     pub fn new(
@@ -114,6 +120,7 @@ impl Process {
             young_collections: 0,
             mature_collections: 0,
             mailbox_collections: 0,
+            panic_handler: None,
             pool_id,
         };
 
@@ -516,6 +523,24 @@ impl Process {
 
     pub fn is_main(&self) -> bool {
         self.pid == 0
+    }
+
+    pub fn panic_handler(&self) -> Option<&ObjectPointer> {
+        self.local_data().panic_handler.as_ref()
+    }
+
+    pub fn set_panic_handler(&self, handler: ObjectPointer) {
+        self.local_data_mut().panic_handler = Some(handler);
+    }
+
+    pub fn global_pointers_to_trace(&self) -> WorkList {
+        let mut pointers = WorkList::new();
+
+        if let Some(handler) = self.panic_handler() {
+            pointers.push(handler.pointer());
+        }
+
+        pointers
     }
 }
 

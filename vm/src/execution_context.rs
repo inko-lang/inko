@@ -35,6 +35,9 @@ pub struct ExecutionContext {
 
     /// The current global scope.
     pub global_scope: GlobalScopePointer,
+
+    /// If a process should terminate once it returns from this context.
+    pub terminate_upon_return: bool,
 }
 
 // While an ExecutionContext is not thread-safe we need to implement Sync/Send
@@ -65,6 +68,7 @@ impl ExecutionContext {
             return_register,
             line: block.code.line,
             global_scope: block.global_scope,
+            terminate_upon_return: false,
         }
     }
 
@@ -78,6 +82,7 @@ impl ExecutionContext {
             return_register: None,
             line: block.code.line,
             global_scope: block.global_scope,
+            terminate_upon_return: false,
         }
     }
 
@@ -182,6 +187,10 @@ impl ExecutionContext {
 
     pub fn binding_pointer(&self) -> *const Binding {
         &*self.binding as *const Binding
+    }
+
+    pub fn terminate_upon_return(&mut self) {
+        self.terminate_upon_return = true;
     }
 }
 

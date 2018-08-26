@@ -425,3 +425,34 @@ def terminate -> Nil {
   _INKOC.process_terminate_current
   Nil
 }
+
+## Registers the given block as this process' panic handler.
+##
+## A panic handler is a block to execute when the process panicks. Each process
+## can only have a single handler, and newly registered handlers will overwrite
+## any previous ones.
+##
+## Once the handler returns, the current process will be terminated. If the main
+## process terminates, so does the entire program.
+##
+## The argument passed to the provided block is a `String` containing the panic
+## message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
+## the call stack does not unwind before running the panick handler.
+##
+## # Examples
+##
+## Registering a panic handler:
+##
+##     import std::process
+##     import std::stdio::stderr
+##     import std::vm
+##
+##     process.panicking do (error) {
+##       stderr.print(error)
+##     }
+##
+##     vm.panic('This will run the above panick handler')
+def panicking(block: do (String)) -> Nil {
+  _INKOC.process_set_panic_handler(block)
+  Nil
+}

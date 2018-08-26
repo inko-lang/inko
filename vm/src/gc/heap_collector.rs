@@ -116,18 +116,23 @@ pub fn trace_mailbox_locals_with_moving(
 
 /// Traces through all objects without moving any.
 pub fn trace_without_moving(process: &RcProcess, mature: bool) -> TraceResult {
-    process
+    let result = process
         .contexts()
         .par_iter()
         .map(|context| {
             collector::trace_pointers_without_moving(context.pointers(), mature)
-        }).reduce(TraceResult::new, |acc, curr| acc + curr)
+        }).reduce(TraceResult::new, |acc, curr| acc + curr);
+
+    result + collector::trace_pointers_without_moving(
+        process.global_pointers_to_trace(),
+        mature,
+    )
 }
 
 /// Traces through the roots and all their child pointers, potentially
 /// moving objects around.
 pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
-    process
+    let result = process
         .contexts()
         .par_iter()
         .map(|context| {
@@ -136,12 +141,19 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
                 context.pointers(),
                 mature,
             )
-        }).reduce(TraceResult::new, |acc, curr| acc + curr)
+        }).reduce(TraceResult::new, |acc, curr| acc + curr);
+
+    result + collector::trace_pointers_with_moving(
+        process,
+        process.global_pointers_to_trace(),
+        mature,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use binding::Binding;
     use block::Block;
     use config::Config;
     use execution_context::ExecutionContext;
@@ -466,6 +478,84 @@ mod tests {
 
         assert_eq!(mature.is_marked(), false);
         assert!(receiver.is_marked());
+    }
+
+    #[test]
+    fn test_trace_without_moving_with_panic_handler() {
+        let (_machine, block, process) = setup();
+        let local = process.allocate_empty();
+        let receiver = process.allocate_empty();
+
+        let code = process.context().code.clone();
+        let binding = Binding::new(1, ObjectPointer::integer(1));
+
+        binding.set_local(0, local);
+
+        let new_block =
+            Block::new(code, Some(binding), receiver, block.global_scope);
+
+        let panic_handler =
+            process.allocate_without_prototype(object_value::block(new_block));
+
+        process.set_panic_handler(panic_handler);
+        process.prepare_for_collection(false);
+
+        let result = trace_without_moving(&process, false);
+
+        assert_eq!(result.marked, 3);
+        assert_eq!(result.evacuated, 0);
+        assert_eq!(result.promoted, 0);
+
+        assert!(panic_handler.is_marked());
+        assert!(receiver.is_marked());
+        assert!(local.is_marked());
+    }
+
+    #[test]
+    fn test_trace_with_moving_with_panic_handler() {
+        let (_machine, block, process) = setup();
+        let local = process.allocate_empty();
+        let receiver = process.allocate_empty();
+
+        let code = process.context().code.clone();
+        let binding = Binding::new(1, ObjectPointer::integer(1));
+
+        binding.set_local(0, local);
+
+        let new_block =
+            Block::new(code, Some(binding), receiver, block.global_scope);
+
+        let panic_handler =
+            process.allocate_without_prototype(object_value::block(new_block));
+
+        receiver.block_mut().set_fragmented();
+
+        process.set_panic_handler(panic_handler);
+        process.prepare_for_collection(false);
+
+        let result = trace_with_moving(&process, false);
+
+        assert_eq!(result.marked, 3);
+        assert_eq!(result.evacuated, 3);
+        assert_eq!(result.promoted, 0);
+
+        {
+            let handler = process.panic_handler().unwrap();
+            let block = handler.block_value().unwrap();
+
+            assert!(handler.is_marked());
+
+            assert!(block.receiver.is_marked());
+
+            assert!(
+                block
+                    .captures_from
+                    .as_ref()
+                    .unwrap()
+                    .get_local(0)
+                    .is_marked()
+            );
+        }
     }
 
     #[test]

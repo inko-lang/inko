@@ -6,6 +6,7 @@
 
 use num_bigint::BigInt;
 use parking_lot::Mutex;
+use std::panic::RefUnwindSafe;
 use std::sync::{Arc, RwLock};
 use std::time;
 
@@ -124,6 +125,8 @@ pub struct State {
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 }
+
+impl RefUnwindSafe for State {}
 
 impl State {
     pub fn new(config: Config, arguments: &[String]) -> RcState {

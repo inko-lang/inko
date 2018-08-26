@@ -10,6 +10,7 @@ use std::i32;
 use std::i64;
 use std::io::{self, Seek, SeekFrom, Write};
 use std::ops::{Add, Mul, Sub};
+use std::panic;
 use std::thread;
 
 use block::Block;
@@ -340,8 +341,18 @@ impl Machine {
 
     /// Executes a single process, terminating in the event of an error.
     pub fn run_with_error_handling(&self, process: &RcProcess) {
-        if let Err(message) = self.run(process) {
-            self.panic(process, &message);
+        let result = panic::catch_unwind(|| {
+            if let Err(message) = self.run(process) {
+                self.panic(process, &message);
+            }
+        });
+
+        if let Err(error) = result {
+            if let Ok(message) = error.downcast::<String>() {
+                self.panic(process, &message);
+            } else {
+                self.panic(process, &"The VM panicked with an unknown error");
+            };
         }
     }
 
@@ -584,6 +595,10 @@ impl Machine {
                 // When performing a block return we'll first unwind the call
                 // stack to the scope that defined the current block.
                 InstructionType::Return => {
+                    if context.terminate_upon_return {
+                        break 'exec_loop;
+                    }
+
                     let block_return = instruction.arg(0) == 1;
 
                     let object = if let Some(register) = instruction.arg_opt(1)
@@ -3587,6 +3602,13 @@ impl Machine {
 
                     enter_context!(process, context, index);
                 }
+                InstructionType::ProcessSetPanicHandler => {
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+
+                    process.set_panic_handler(block);
+                    context.set_register(reg, block);
+                }
             };
         }
 
@@ -3814,8 +3836,51 @@ impl Machine {
     }
 
     fn panic(&self, process: &RcProcess, message: &str) {
+        if let Some(handler) = process.panic_handler() {
+            if let Err(message) =
+                self.run_custom_panic_handler(process, message, *handler)
+            {
+                self.run_default_panic_handler(process, &message);
+            }
+        } else {
+            self.run_default_panic_handler(process, message);
+        }
+    }
+
+    fn run_custom_panic_handler(
+        &self,
+        process: &RcProcess,
+        message: &str,
+        handler: ObjectPointer,
+    ) -> Result<(), String> {
+        let block = handler.block_value()?;
+
+        self.validate_number_of_arguments(block.code, 1, 0)?;
+
+        let mut new_context = ExecutionContext::from_block(block, None);
+
+        let error = process.allocate(
+            object_value::string(message.to_string()),
+            self.state.string_prototype,
+        );
+
+        new_context.terminate_upon_return();
+        new_context.binding.locals_mut()[0] = error;
+
+        process.push_context(new_context);
+
+        self.run_with_error_handling(&process);
+
+        Ok(())
+    }
+
+    fn run_default_panic_handler(&self, process: &RcProcess, message: &str) {
         runtime_panic::display_panic(process, message);
 
+        self.terminate_for_panic();
+    }
+
+    fn terminate_for_panic(&self) {
         self.state.set_exit_status(1);
         self.terminate();
     }
