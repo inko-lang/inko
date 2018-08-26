@@ -3,6 +3,18 @@ import std::format::DefaultFormatter
 import std::test
 import std::test::assert
 
+test.group 'std::byte_array::ByteArray.new', do (g) {
+  g.test 'Creating a new ByteArray', {
+    let bytes = ByteArray.new([10])
+
+    try assert.equal(bytes.length, 1)
+  }
+
+  g.test 'Creating a ByteArray with invalid bytes', {
+    try assert.panic { ByteArray.new([300]) }
+  }
+}
+
 test.group 'std::byte_array::ByteArray.clear', do (g) {
   g.test 'Removing all values from a ByteArray', {
     let bytes = ByteArray.new([10, 20, 30])
@@ -120,6 +132,10 @@ test.group 'std::byte_array::ByteArray.[]=', do (g) {
     bytes[1] = 40
 
     try assert.equal(bytes, ByteArray.new([30, 40]))
+  }
+
+  g.test 'Setting the value of an invalid index', {
+    try assert.panic { ByteArray.new([10])[4] = 1 }
   }
 }
 
