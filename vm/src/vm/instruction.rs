@@ -152,6 +152,9 @@ pub enum InstructionType {
     EnvSetWorkingDirectory,
     EnvArguments,
     EnvRemove,
+    BlockGetReceiver,
+    BlockSetReceiver,
+    RunBlockWithReceiver,
 }
 
 /// Struct for storing information about a single instruction.

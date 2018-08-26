@@ -20,8 +20,6 @@ module Inkoc
       scope = TypeScope
         .new(@module.type, @module.body.type, @module, locals: locals)
 
-      scope.define_self_argument
-
       on_module_body(ast, scope)
 
       [ast]

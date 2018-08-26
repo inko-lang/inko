@@ -10,19 +10,6 @@ describe Inkoc::Pass::DefineType do
       expect(type).to be_an_instance_of(Inkoc::TypeSystem::Block)
     end
 
-    it 'defines the type of the implicit "self" argument' do
-      type = expression_type("#{header} {}")
-
-      self_type =
-        if type.lambda?
-          type_scope.module_type
-        else
-          type_scope.self_type
-        end
-
-      expect(type.arguments['self'].type).to eq(self_type)
-    end
-
     context 'when the method includes type parameters' do
       it 'defines the type parameters' do
         type = expression_type("#{header} !(A, B) {}")
@@ -266,7 +253,6 @@ describe Inkoc::Pass::DefineType do
         foo_method = Inkoc::TypeSystem::Block
           .named_method('foo', state.typedb.block_type)
 
-        foo_method.define_self_argument(type_scope.self_type)
         foo_method.throw_type = throw_type
 
         type_scope.module_type.define_attribute('foo', foo_method)
@@ -291,7 +277,6 @@ describe Inkoc::Pass::DefineType do
         foo_method = Inkoc::TypeSystem::Block
           .named_method('foo', state.typedb.block_type)
 
-        foo_method.define_self_argument(type_scope.self_type)
         foo_method.throw_type = throw_type
 
         type_scope.self_type.define_attribute('foo', foo_method)
@@ -356,17 +341,6 @@ describe Inkoc::Pass::DefineType do
     pass.on_module_body(node, scope)
 
     node.expressions[0].type
-  end
-
-  describe '#on_module_body' do
-    it 'defines the type of the "self" local variable' do
-      expression_type('10')
-
-      symbol = type_scope.locals['self']
-
-      expect(symbol).to be_any
-      expect(symbol.type).to eq(type_scope.self_type)
-    end
   end
 
   describe '#on_integer' do
@@ -720,7 +694,6 @@ describe Inkoc::Pass::DefineType do
       it 'produces a type error' do
         method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('foo', state.typedb.integer_type)
 
         type_scope.self_type.define_attribute('foo', method)
@@ -735,8 +708,6 @@ describe Inkoc::Pass::DefineType do
     context 'when too many arguments are given' do
       it 'produces a type error' do
         method = Inkoc::TypeSystem::Block.new(name: 'foo')
-
-        method.define_self_argument(type_scope.self_type)
 
         type_scope.self_type.define_attribute('foo', method)
 
@@ -753,7 +724,6 @@ describe Inkoc::Pass::DefineType do
         rtype = Inkoc::TypeSystem::Object.new(name: 'A')
 
         method.return_type = rtype
-        method.define_self_argument(type_scope.self_type)
 
         type_scope.self_type.define_attribute('foo', method)
 
@@ -769,7 +739,6 @@ describe Inkoc::Pass::DefineType do
         rtype = Inkoc::TypeSystem::Object.new(name: 'A')
 
         method.return_type = rtype
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
 
         type_scope.self_type.define_attribute('foo', method)
@@ -785,7 +754,6 @@ describe Inkoc::Pass::DefineType do
         int_type = state.typedb.integer_type
         method = Inkoc::TypeSystem::Block.new(name: 'foo', return_type: param)
 
-        method.define_self_argument(receiver)
 
         receiver.define_attribute(method.name, method)
         receiver.initialize_type_parameter(param, int_type)
@@ -802,7 +770,6 @@ describe Inkoc::Pass::DefineType do
         rtype = Inkoc::TypeSystem::Object.new(name: 'A')
 
         method.return_type = rtype
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('thing', state.typedb.integer_type)
 
         type_scope.self_type.define_attribute('foo', method)
@@ -818,7 +785,6 @@ describe Inkoc::Pass::DefineType do
         param = method.define_type_parameter('T')
 
         # foo!(T)(thing: T) -> T
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('thing', param)
         method.return_type = param
 
@@ -835,7 +801,6 @@ describe Inkoc::Pass::DefineType do
         param1 = method.define_type_parameter('A')
         param2 = method.define_type_parameter('B')
 
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('first', param1)
         method.define_required_argument('second', param2)
 
@@ -853,7 +818,6 @@ describe Inkoc::Pass::DefineType do
         method = Inkoc::TypeSystem::Block.new(name: 'foo')
         param = method.define_type_parameter('A')
 
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('first', param)
         method.define_required_argument('second', param)
 
@@ -873,7 +837,6 @@ describe Inkoc::Pass::DefineType do
         param = type_scope.self_type.define_type_parameter('A')
         int_type = state.typedb.integer_type
 
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('first', param)
         type_scope.self_type.initialize_type_parameter(param, int_type)
 
@@ -893,7 +856,6 @@ describe Inkoc::Pass::DefineType do
         int_type = state.typedb.integer_type
 
         # foo(thing: T) -> T
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('thing', param)
         method.return_type = param
 
@@ -914,7 +876,6 @@ describe Inkoc::Pass::DefineType do
         int_type = state.typedb.integer_type
 
         # foo(thing: T) -> T
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('thing', param)
         method.return_type = param
 
@@ -935,8 +896,6 @@ describe Inkoc::Pass::DefineType do
       let(:block) { Inkoc::TypeSystem::Block.new(name: 'foo') }
 
       before do
-        block.define_self_argument(type_scope.self_type)
-
         type_scope.self_type.define_attribute('foo', block)
       end
 
@@ -993,17 +952,10 @@ describe Inkoc::Pass::DefineType do
       end
 
       let(:integer_type) { state.typedb.integer_type }
-
-      let(:expected_block) do
-        Inkoc::TypeSystem::Block.new.tap do |block|
-          block.define_self_argument(type_scope.self_type)
-        end
-      end
-
+      let(:expected_block) { Inkoc::TypeSystem::Block.new }
       let(:method) { Inkoc::TypeSystem::Block.new(name: 'foo') }
 
       before do
-        method.define_self_argument(type_scope.self_type)
         method.define_required_argument('callback', expected_block)
 
         type_scope.self_type.define_attribute('foo', method)
@@ -1127,7 +1079,6 @@ describe Inkoc::Pass::DefineType do
     it 'supports the use of keyword arguments' do
       method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-      method.define_self_argument(type_scope.self_type)
       method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
 
       type_scope.self_type.define_attribute('foo', method)
@@ -1141,7 +1092,6 @@ describe Inkoc::Pass::DefineType do
     it 'produces a type error when using an invalid keyword argument' do
       method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-      method.define_self_argument(type_scope.self_type)
       method.define_required_argument('thing', Inkoc::TypeSystem::Dynamic.new)
 
       type_scope.self_type.define_attribute('foo', method)
@@ -1156,7 +1106,6 @@ describe Inkoc::Pass::DefineType do
       it 'returns the type of the message' do
         method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-        method.define_self_argument(type_scope.self_type)
         method.return_type = state.typedb.integer_type
 
         type_scope.self_type.define_attribute('foo', method)
@@ -1173,7 +1122,6 @@ describe Inkoc::Pass::DefineType do
         method = Inkoc::TypeSystem::Block.new(name: 'A')
         param = a_type.define_type_parameter('T')
 
-        method.define_self_argument(a_type.new_instance)
         method.define_required_argument('foo', param)
         method.return_type = a_type.new_instance([param])
 
@@ -1235,7 +1183,6 @@ describe Inkoc::Pass::DefineType do
 
         method.method_bounds.define(param.name, [trait])
         method.return_type = int_type.new_instance
-        method.define_self_argument(type_scope.self_type)
 
         type_scope.self_type.initialize_type_parameter(param, int_type)
         type_scope.self_type.define_attribute(method.name, method)
@@ -1254,7 +1201,6 @@ describe Inkoc::Pass::DefineType do
 
         method.method_bounds.define(param.name, [trait])
         method.return_type = int_type.new_instance
-        method.define_self_argument(type_scope.self_type)
 
         type_scope.self_type.initialize_type_parameter(param, int_type)
         type_scope.self_type.define_attribute(method.name, method)
@@ -1269,7 +1215,6 @@ describe Inkoc::Pass::DefineType do
     it 'stores the method type in the AST node' do
       method = Inkoc::TypeSystem::Block.new(name: 'foo')
 
-      method.define_self_argument(type_scope.self_type)
       type_scope.self_type.define_attribute('foo', method)
 
       node = parse_expression('foo()')
@@ -1287,7 +1232,6 @@ describe Inkoc::Pass::DefineType do
         to_string = Inkoc::TypeSystem::Block
           .named_method('to_string', state.typedb.block_type)
 
-        to_string.define_self_argument(int_type.new_instance)
         to_string.return_type = str_type.new_instance
 
         type_scope.locals.define(
@@ -1313,9 +1257,6 @@ describe Inkoc::Pass::DefineType do
 
         nil_to_string = Inkoc::TypeSystem::Block
           .named_method('to_string', state.typedb.block_type)
-
-        int_to_string.define_self_argument(int_type.new_instance)
-        nil_to_string.define_self_argument(nil_type.new_instance)
 
         int_to_string.return_type = str_type.new_instance
         nil_to_string.return_type = str_type.new_instance
@@ -1344,9 +1285,6 @@ describe Inkoc::Pass::DefineType do
         nil_to_string = Inkoc::TypeSystem::Block
           .named_method('to_string', state.typedb.block_type)
 
-        int_to_string.define_self_argument(int_type.new_instance)
-        nil_to_string.define_self_argument(nil_type.new_instance)
-
         int_to_string.return_type = str_type.new_instance
         nil_to_string.return_type = int_type.new_instance
 
@@ -1372,7 +1310,6 @@ describe Inkoc::Pass::DefineType do
 
         param = method.define_type_parameter('T')
 
-        method.define_self_argument(type_scope.self_type)
         method.return_type = param
 
         tir_module.globals.define('Integer', state.typedb.integer_type)
@@ -1389,7 +1326,6 @@ describe Inkoc::Pass::DefineType do
 
         param = method.define_type_parameter('T')
 
-        method.define_self_argument(type_scope.self_type)
         method.return_type = param
 
         tir_module.globals.define('Integer', state.typedb.integer_type)
@@ -1556,7 +1492,7 @@ describe Inkoc::Pass::DefineType do
         expect(rtype).to be_type_instance_of(state.typedb.nil_type)
       end
 
-      it 'defines the type of the "self" and error arguments' do
+      it 'defines the type of the error argument' do
         body = parse_source('do { try throws else (error) error }')
 
         Inkoc::Pass::SetupSymbolTables
@@ -1568,16 +1504,12 @@ describe Inkoc::Pass::DefineType do
         try_node = body.expressions[0].body.expressions[0]
         error_local = try_node.else_body.locals['error']
         error_arg = try_node.else_block_type.arguments['error']
-        self_local = try_node.else_body.locals['self']
 
         expect(error_local.type)
           .to be_type_instance_of(state.typedb.integer_type)
 
         expect(error_arg.type)
           .to be_type_instance_of(state.typedb.integer_type)
-
-        expect(self_local.type)
-          .to be_type_instance_of(type_scope.self_type)
       end
 
       it 'defines the error argument as a dynamic type if no error is thrown' do
@@ -2062,8 +1994,6 @@ describe Inkoc::Pass::DefineType do
         .string_type
         .new_instance
 
-      inspect_method.define_self_argument(type_scope.self_type)
-
       inspect.define_attribute(inspect_method.name, inspect_method)
 
       param = type_scope
@@ -2073,7 +2003,6 @@ describe Inkoc::Pass::DefineType do
       foo = Inkoc::TypeSystem::Block
         .named_method('foo', state.typedb.block_type)
 
-      foo.define_self_argument(type_scope.self_type)
       foo.return_type = param
 
       type_scope
@@ -2653,7 +2582,6 @@ describe Inkoc::Pass::DefineType do
       method = Inkoc::TypeSystem::Block
         .named_method('foo', state.typedb.block_type)
 
-      method.define_self_argument(type_scope.self_type)
       trait.define_required_method(method)
 
       type = expression_type('impl Inspect for List {}')
@@ -2700,7 +2628,6 @@ describe Inkoc::Pass::DefineType do
       method = Inkoc::TypeSystem::Block
         .named_method('inspect', state.typedb.block_type)
 
-      method.define_self_argument(object.new_instance)
       method.return_type = param
 
       trait.define_required_method(method)
@@ -2727,7 +2654,6 @@ describe Inkoc::Pass::DefineType do
       method = Inkoc::TypeSystem::Block
         .named_method('inspect', state.typedb.block_type)
 
-      method.define_self_argument(object.new_instance)
       method.return_type = param
 
       trait.define_required_method(method)
@@ -2754,7 +2680,6 @@ describe Inkoc::Pass::DefineType do
       method = Inkoc::TypeSystem::Block
         .named_method('inspect', state.typedb.block_type)
 
-      method.define_self_argument(object.new_instance)
 
       trait.define_required_method(method)
 
@@ -3040,13 +2965,6 @@ describe Inkoc::Pass::DefineType do
       expect(type.return_type).to be_type_instance_of(string)
     end
 
-    it 'defines the self type of the block' do
-      type = constant_type('do (Integer) !! Float -> String')
-
-      expect(type.arguments['self'].type)
-        .to be_type_instance_of(type_scope.self_type)
-    end
-
     it 'allows the use of type parameters defined in an enclosing method' do
       method_type = Inkoc::TypeSystem::Block
         .named_method('foo', state.typedb.block_type)
@@ -3087,8 +3005,6 @@ describe Inkoc::Pass::DefineType do
         .named_method(Inkoc::Config::NEW_MESSAGE, state.typedb.block_type)
 
       param = new_method.define_type_parameter('V')
-
-      new_method.define_self_argument(array_type)
 
       new_method
         .define_rest_argument('values', state.typedb.new_array_of_type(param))

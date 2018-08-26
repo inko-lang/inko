@@ -61,7 +61,6 @@ module Inkoc
     FROM_ARRAY_MESSAGE = 'from_array'
     SET_INDEX_MESSAGE = '[]='
     MODULE_GLOBAL = 'ThisModule'
-    SELF_LOCAL = 'self'
     CALL_MESSAGE = 'call'
     PANIC_MESSAGE = 'panic'
     TO_STRING_MESSAGE = 'to_string'

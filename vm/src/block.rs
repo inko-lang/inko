@@ -5,14 +5,18 @@
 use binding::RcBinding;
 use compiled_code::CompiledCodePointer;
 use global_scope::GlobalScopePointer;
+use object_pointer::ObjectPointer;
 
 #[derive(Clone)]
 pub struct Block {
     /// The CompiledCode containing the instructions to run.
     pub code: CompiledCodePointer,
 
-    /// The binding of the scope in which this block was created.
-    pub binding: RcBinding,
+    /// The binding this block captures variables from, if any.
+    pub captures_from: Option<RcBinding>,
+
+    /// The receiver of the block.
+    pub receiver: ObjectPointer,
 
     /// The global scope this block belongs to.
     pub global_scope: GlobalScopePointer,
@@ -21,12 +25,14 @@ pub struct Block {
 impl Block {
     pub fn new(
         code: CompiledCodePointer,
-        binding: RcBinding,
+        captures_from: Option<RcBinding>,
+        receiver: ObjectPointer,
         global_scope: GlobalScopePointer,
     ) -> Self {
         Block {
             code,
-            binding,
+            captures_from,
+            receiver,
             global_scope,
         }
     }

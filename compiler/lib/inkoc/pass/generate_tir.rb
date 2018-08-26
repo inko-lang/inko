@@ -82,7 +82,7 @@ module Inkoc
         mod_reg = value_for_module_self(body)
         mod_reg = set_global(Config::MODULE_GLOBAL, mod_reg, body, loc)
 
-        set_local(body.self_local, mod_reg, body, loc)
+        set_block_receiver(mod_reg, body, loc)
       end
 
       def value_for_module_self(body)
@@ -283,7 +283,21 @@ module Inkoc
           node.location
         )
       end
-      alias on_lambda on_block
+
+      def on_lambda(node, body)
+        this_module = get_global(Config::MODULE_GLOBAL, body, node.location)
+
+        define_block(
+          node.block_name,
+          node.type,
+          node.arguments,
+          node.body,
+          node.body.locals,
+          body,
+          node.location,
+          this_module
+        )
+      end
 
       def define_method(node, receiver, body)
         location = node.location
@@ -295,7 +309,8 @@ module Inkoc
           node.body,
           node.body.locals,
           body,
-          location
+          location,
+          receiver
         )
 
         block_reg =
@@ -311,33 +326,22 @@ module Inkoc
         block_body,
         locals,
         body,
-        location
+        location,
+        receiver = nil
       )
         code_object = body.add_code_object(name, type, location, locals: locals)
 
-        define_missing_self(code_object, type, location)
         define_block_arguments(code_object, arguments)
 
         on_body(block_body, code_object)
 
-        body.instruct(:SetBlock, body.register(type), code_object, location)
-      end
-
-      # Manually defines "self" in a lambda.
-      #
-      # lambdas passed to "process.spawn" won't receive any arguments, thus
-      # "self" won't be set. In the future this should be handled in
-      # "get_self" in some shape or form, but we can't do this at the moment
-      # since we don't keep a list of parent scopes to walk.
-      def define_missing_self(body, type, location)
-        return unless type.lambda?
-
-        body.add_connected_basic_block('set_self_for_lambda')
-
-        local = body.type.arguments[Config::SELF_LOCAL]
-        global = get_global(Config::MODULE_GLOBAL, body, location)
-
-        set_local(local, global, body, location)
+        body.instruct(
+          :SetBlock,
+          body.register(type),
+          code_object,
+          receiver,
+          location
+        )
       end
 
       def define_block_arguments(code_object, arguments)
@@ -398,10 +402,11 @@ module Inkoc
           node.body,
           node.body.locals,
           body,
-          loc
+          loc,
+          trait
         )
 
-        run_block(block, [trait], [], node.type, body, loc)
+        run_block(block, [], [], node.type, body, loc)
 
         trait
       end
@@ -437,10 +442,11 @@ module Inkoc
           node.body,
           node.body.locals,
           body,
-          loc
+          loc,
+          object
         )
 
-        run_block(block, [object], [], node.type, body, loc)
+        run_block(block, [], [], node.type, body, loc)
 
         object
       end
@@ -459,10 +465,11 @@ module Inkoc
           node.body,
           node.body.locals,
           body,
-          loc
+          loc,
+          object
         )
 
-        run_block(block, [object], [], node.type, body, loc)
+        run_block(block, [], [], node.type, body, loc)
 
         trait
       end
@@ -502,10 +509,11 @@ module Inkoc
           node.body,
           node.body.locals,
           body,
-          loc
+          loc,
+          object
         )
 
-        run_block(block, [object], [], node.type, body, loc)
+        run_block(block, [], [], node.type, body, loc)
 
         object
       end
@@ -659,13 +667,8 @@ module Inkoc
         body.instruct(:SetLocal, symbol, value, location)
       end
 
-      def get_local(name, body, location, in_root: false)
-        depth, symbol =
-          if in_root
-            body.locals.lookup_in_root(name)
-          else
-            body.locals.lookup_with_parent(name)
-          end
+      def get_local(name, body, location)
+        depth, symbol = body.locals.lookup_with_parent(name)
 
         get_local_symbol(depth, symbol, body, location)
       end
@@ -1432,36 +1435,31 @@ module Inkoc
       end
 
       def register_for_else_block(node, body, catch_reg)
-        block_reg = define_block_for_else(node, body)
         self_reg = get_self(body, node.else_body.location)
+        block_reg = define_block_for_else(node, self_reg, body)
         else_loc = node.else_body.location
-
-        arguments =
-          if node.else_argument
-            [self_reg, catch_reg]
-          else
-            [self_reg]
-          end
-
+        arguments = node.else_argument ? [catch_reg] : []
         return_type = block_reg.type.return_type
 
         run_block(block_reg, arguments, [], return_type, body, else_loc)
       end
 
-      def define_block_for_else(node, body)
-        location = node.else_body.location
+      def define_block_for_else(node, receiver, body)
+        loc = node.else_body.location
         block_type = node.else_block_type
 
         else_code = body.add_code_object(
           block_type.name,
           block_type,
-          location,
+          loc,
           locals: node.else_body.locals
         )
 
         on_body(node.else_body, else_code)
 
-        body.instruct(:SetBlock, body.register(block_type), else_code, location)
+        block_reg = body.register(block_type)
+
+        body.instruct(:SetBlock, block_reg, else_code, receiver, loc)
       end
 
       def run_block(block, args, kwargs, return_type, body, location)
@@ -1493,10 +1491,20 @@ module Inkoc
       )
         block = body.register(block_type)
         name_reg = set_string(name, body, loc)
+        register = body.register(return_type)
 
         body.instruct(:Binary, :GetAttribute, block, rec, name_reg, loc)
 
-        run_block(block, args, kwargs, return_type, body, loc)
+        body.instruct(
+          :RunBlockWithReceiver,
+          register,
+          block,
+          rec,
+          args,
+          kwargs,
+          block_type,
+          loc
+        )
       end
 
       # Gets and executes a block, using a fallback if the block could not be
@@ -1536,15 +1544,16 @@ module Inkoc
         body.instruct(:GotoNextBlockIfTrue, block_reg, loc)
         body.instruct(:Binary, :GetAttribute, block_reg, rec, alt_name_reg, loc)
 
-        # Store all the arguments passed (except "self") in the array and
-        # execute the "unknown_message" method.
-        body.instruct(:SetArray, args_reg, args[1..-1], loc)
+        # Store all the arguments passed in the array and execute the
+        # "unknown_message" method.
+        body.instruct(:SetArray, args_reg, args, loc)
 
         body.instruct(
-          :RunBlock,
+          :RunBlockWithReceiver,
           ret_reg,
           block_reg,
-          [rec, name_reg, args_reg],
+          rec,
+          [name_reg, args_reg],
           [],
           block_reg.type,
           loc
@@ -1556,9 +1565,10 @@ module Inkoc
         body.add_connected_basic_block
 
         body.instruct(
-          :RunBlock,
+          :RunBlockWithReceiver,
           ret_reg,
           block_reg,
+          rec,
           args,
           kwargs,
           block_reg.type,
@@ -1592,13 +1602,19 @@ module Inkoc
       end
 
       def get_self(body, location)
-        name = Config::SELF_LOCAL
+        get_block_receiver(body, location)
+      end
 
-        if body.type.lambda?
-          get_global(Config::MODULE_GLOBAL, body, location)
-        else
-          get_local(name, body, location, in_root: body.type.closure?)
-        end
+      def set_block_receiver(receiver, body, location)
+        register = body.register(receiver.type)
+
+        body.instruct(:Unary, :BlockSetReceiver, register, receiver, location)
+      end
+
+      def get_block_receiver(body, location)
+        register = body.register(body.self_type)
+
+        body.instruct(:Nullary, :BlockGetReceiver, register, location)
       end
 
       def get_nil(body, location)
@@ -1636,18 +1652,17 @@ module Inkoc
         loc
       )
         rec_type = rec.type
-        sargs = [rec, *arguments]
 
         if send_initializes_array?(rec_type, name)
           send_sets_array(arguments, return_type, body, loc)
         elsif send_runs_block?(rec_type, name)
-          run_block(rec, sargs, kwargs, return_type, body, loc)
+          run_block(rec, arguments, kwargs, return_type, body, loc)
         else
           lookup_and_run_block(
             rec,
             rec_type,
             name,
-            sargs,
+            arguments,
             kwargs,
             block_type,
             return_type,

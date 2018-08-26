@@ -7,25 +7,6 @@ describe Inkoc::TypeScope do
   let(:block_type) { Inkoc::TypeSystem::Block.new }
   let(:module_type) { Inkoc::TypeSystem::Object.new }
 
-  describe '#define_self_argument' do
-    let(:type_scope) do
-      described_class
-        .new(self_type, block_type, module_type, locals: Inkoc::SymbolTable.new)
-    end
-
-    before do
-      type_scope.define_self_argument
-    end
-
-    it 'defines "self" as a block argument' do
-      expect(block_type.arguments['self'].type).to eq(self_type)
-    end
-
-    it 'defines "self" as a local varaible' do
-      expect(type_scope.locals['self']).to eq(block_type.arguments['self'])
-    end
-  end
-
   describe '#lookup_type' do
     let(:type_scope) do
       described_class

@@ -90,7 +90,7 @@ module Inkoc
             TypeSystem::Block.closure(proto)
           end
 
-        type.define_self_argument(scope.self_type)
+        type.self_type = scope.self_type
         type.define_call_method
 
         arg_types = node.arguments.map do |arg|
@@ -461,8 +461,6 @@ module Inkoc
       end
 
       def on_body(node, scope)
-        scope.define_self_local
-
         type =
           define_types(node.expressions, scope).last ||
           typedb.nil_type.new_instance
@@ -544,7 +542,7 @@ module Inkoc
           parent: scope
         )
 
-        else_scope.define_self_argument
+        else_scope.define_receiver_type
 
         if (else_arg_name = node.else_argument_name)
           node.else_block_type.arguments.define(else_arg_name, throw_type)
@@ -621,7 +619,7 @@ module Inkoc
         body_scope = TypeScope
           .new(trait, body_type, @module, locals: node.body.locals)
 
-        body_scope.define_self_argument
+        body_scope.define_receiver_type
 
         node.block_type = body_type
 
@@ -652,7 +650,7 @@ module Inkoc
         body_scope = TypeScope
           .new(new_type, body_type, @module, locals: node.body.locals)
 
-        body_scope.define_self_argument
+        body_scope.define_receiver_type
 
         node.block_type = body_type
 
@@ -707,7 +705,7 @@ module Inkoc
         new_scope = TypeScope
           .new(type, block_type, @module, locals: node.body.locals)
 
-        new_scope.define_self_argument
+        new_scope.define_receiver_type
 
         node.block_type = block_type
 
@@ -729,7 +727,7 @@ module Inkoc
         impl_scope = TypeScope
           .new(object, impl_block, @module, locals: node.body.locals)
 
-        impl_scope.define_self_argument
+        impl_scope.define_receiver_type
 
         trait = define_type(node.trait_name, impl_scope)
 
@@ -1631,6 +1629,7 @@ module Inkoc
         define_throw_type(node, scope)
         define_return_type(node, scope)
 
+        scope.define_receiver_type
         scope.block_type.define_call_method
       end
 
@@ -1685,8 +1684,6 @@ module Inkoc
       end
 
       def define_argument_types(node, scope, expected_block = nil)
-        scope.define_self_argument
-
         if expected_block
           define_argument_types_with_expected_block(node, scope, expected_block)
         else
@@ -1699,7 +1696,7 @@ module Inkoc
       end
 
       def define_argument_types_with_expected_block(node, scope, expected_block)
-        expected_args = expected_block.arguments_without_self
+        expected_args = expected_block.arguments
 
         node.arguments.zip(expected_args) do |arg_node, exp_arg|
           expected_type = exp_arg

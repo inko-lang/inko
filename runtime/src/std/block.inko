@@ -156,7 +156,7 @@ impl Block {
   ##
   ##     block.call(10) # => 10
   def call {
-    _INKOC.run_block(self, self)
+    _INKOC.run_block(self)
   }
 
   ## Executes the given `Block` as long as the receiving `Block` evaluates to

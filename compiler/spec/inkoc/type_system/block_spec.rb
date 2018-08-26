@@ -53,22 +53,6 @@ describe Inkoc::TypeSystem::Block do
     end
   end
 
-  describe '#arguments_without_self' do
-    it 'returns an Array containing all but the first arguments' do
-      block = described_class.new
-      integer = Inkoc::TypeSystem::Object.new
-
-      block.arguments.define('self', Inkoc::TypeSystem::Dynamic.new)
-      block.arguments.define('number', integer)
-
-      args = block.arguments_without_self
-
-      expect(args.length).to eq(1)
-      expect(args[0]).to be_an_instance_of(Inkoc::Symbol)
-      expect(args[0].type).to eq(integer)
-    end
-  end
-
   describe '#implemented_traits' do
     context 'with a prototype' do
       it 'returns the traits implemented by the prototype' do
@@ -358,9 +342,7 @@ describe Inkoc::TypeSystem::Block do
         ours = described_class.new
         theirs = described_class.new
 
-        ours.arguments.define('self', Inkoc::TypeSystem::Object.new)
         ours.arguments.define('number', Inkoc::TypeSystem::Object.new)
-        theirs.arguments.define('self', Inkoc::TypeSystem::Object.new)
 
         expect(ours.type_compatible?(theirs, state)).to eq(false)
       end
@@ -371,40 +353,29 @@ describe Inkoc::TypeSystem::Block do
       let(:theirs) { described_class.new }
 
       it 'returns false when the arguments are not compatible' do
-        self_type = Inkoc::TypeSystem::Object.new
-
-        ours.arguments.define('self', self_type)
         ours.arguments.define('number', Inkoc::TypeSystem::Object.new)
 
-        theirs.arguments.define('self', self_type)
         theirs.arguments.define('number', Inkoc::TypeSystem::Object.new)
 
         expect(ours.type_compatible?(theirs, state)).to eq(false)
       end
 
       it 'returns true when the arguments are compatible' do
-        self_type = Inkoc::TypeSystem::Object.new
         object = Inkoc::TypeSystem::Object.new
 
-        ours.arguments.define('self', self_type)
         ours.arguments.define('number', object)
 
-        theirs.arguments.define('self', self_type)
         theirs.arguments.define('number', object)
 
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
 
       it 'uses type parameter instances when available' do
-        self_type = Inkoc::TypeSystem::Object.new
-
         our_param = ours.define_type_parameter('T')
         their_param = theirs.define_type_parameter('T')
 
-        ours.arguments.define('self', self_type)
         ours.arguments.define('number', our_param)
 
-        theirs.arguments.define('self', self_type)
         theirs.arguments.define('number', their_param)
 
         ours.initialize_type_parameter(our_param, state.typedb.integer_type)
@@ -511,13 +482,12 @@ describe Inkoc::TypeSystem::Block do
 
   describe '#type_name' do
     it 'returns the type name of a block' do
-      block = described_class.new
+      block = described_class.new(block_type: described_class::METHOD)
       trait = Inkoc::TypeSystem::Trait.new(name: 'Equal')
       integer = Inkoc::TypeSystem::Object.new(name: 'Integer')
 
       block.define_type_parameter('T', [trait])
 
-      block.arguments.define('self', Inkoc::TypeSystem::Object.new)
       block.arguments.define('number', integer)
 
       block.throw_type = Inkoc::TypeSystem::Object.new(name: 'Error')
@@ -556,26 +526,14 @@ describe Inkoc::TypeSystem::Block do
 
   describe '#formatted_argument_type_names' do
     it 'returns a String' do
-      block = described_class.new
+      block = described_class.new(block_type: described_class::METHOD)
       trait1 = Inkoc::TypeSystem::Trait.new(name: 'Trait1')
       trait2 = Inkoc::TypeSystem::Trait.new(name: 'Trait2')
 
-      block.arguments.define('self', Inkoc::TypeSystem::Dynamic.new)
       block.arguments.define('foo', trait1)
       block.arguments.define('bar', trait2)
 
       expect(block.formatted_argument_type_names).to eq('Trait1, Trait2')
-    end
-  end
-
-  describe '#define_self_argument' do
-    it 'defines the "self" argument' do
-      block = described_class.new
-      self_type = Inkoc::TypeSystem::Object.new
-
-      block.define_self_argument(self_type)
-
-      expect(block.arguments['self'].type).to eq(self_type)
     end
   end
 
@@ -725,10 +683,8 @@ describe Inkoc::TypeSystem::Block do
 
   describe '#argument_count_range' do
     it 'returns a range of the possible number of arguments' do
-      block = described_class.new(name: 'foo')
-      self_type = Inkoc::TypeSystem::Object.new(name: 'A')
-
-      block.define_self_argument(self_type)
+      block = described_class
+        .new(name: 'foo', block_type: described_class::METHOD)
 
       block.define_required_argument('foo', Inkoc::TypeSystem::Dynamic.new)
       block.define_required_argument('bar', Inkoc::TypeSystem::Dynamic.new)
@@ -738,11 +694,11 @@ describe Inkoc::TypeSystem::Block do
     end
 
     it 'returns an infinite upper bound when a rest argument is defined' do
-      block = described_class.new(name: 'foo')
-      self_type = Inkoc::TypeSystem::Object.new(name: 'A')
+      block = described_class
+        .new(name: 'foo', block_type: described_class::METHOD)
+
       rest_type = state.typedb.new_array_of_type(state.typedb.integer_type)
 
-      block.define_self_argument(self_type)
       block.define_rest_argument('rest', rest_type)
 
       range = block.argument_count_range
@@ -796,24 +752,14 @@ describe Inkoc::TypeSystem::Block do
     end
   end
 
-  describe '#argument_count_without_self' do
-    it 'returns the number of arguments excluding self' do
-      block = described_class.new(name: 'foo')
-
-      block.define_self_argument(state.typedb.integer_type)
-      block.define_required_argument('foo', state.typedb.integer_type)
-
-      expect(block.argument_count_without_self).to eq(1)
-    end
-  end
-
   describe '#argument_count_without_rest' do
     context 'when a rest argument is defined' do
       it 'returns the number of arguments excluding the rest argument' do
-        block = described_class.new(name: 'foo')
+        block = described_class
+          .new(name: 'foo', block_type: described_class::METHOD)
+
         rest_type = state.typedb.new_array_of_type(state.typedb.integer_type)
 
-        block.define_self_argument(state.typedb.integer_type)
         block.define_required_argument('foo', state.typedb.integer_type)
         block.define_rest_argument('bar', rest_type)
 
@@ -823,9 +769,9 @@ describe Inkoc::TypeSystem::Block do
 
     context 'when a rest argument is not defined' do
       it 'returns the number of arguments' do
-        block = described_class.new(name: 'foo')
+        block = described_class
+          .new(name: 'foo', block_type: described_class::METHOD)
 
-        block.define_self_argument(state.typedb.integer_type)
         block.define_required_argument('foo', state.typedb.integer_type)
 
         expect(block.argument_count_without_rest).to eq(1)
@@ -834,11 +780,13 @@ describe Inkoc::TypeSystem::Block do
   end
 
   describe '#argument_type_at' do
-    let(:block) { described_class.new(name: 'foo') }
+    let(:block) do
+      described_class.new(name: 'foo', block_type: described_class::METHOD)
+    end
+
     let(:self_type) { Inkoc::TypeSystem::Object.new }
 
     before do
-      block.define_self_argument(state.typedb.integer_type)
       block.define_required_argument('foo', state.typedb.float_type)
     end
 
@@ -898,7 +846,6 @@ describe Inkoc::TypeSystem::Block do
       # do (A) !! B -> C
       to_init = described_class.new
 
-      to_init.define_self_argument(self_type)
       to_init.arguments.define('foo', param1)
       to_init.throw_type = param2
       to_init.return_type = param3
@@ -906,7 +853,6 @@ describe Inkoc::TypeSystem::Block do
       # do (Integer) !! Float -> String
       init_as = described_class.new
 
-      init_as.define_self_argument(self_type)
       init_as.arguments.define('foo', int_type)
       init_as.throw_type = float_type
       init_as.return_type = string_type

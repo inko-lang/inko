@@ -242,10 +242,14 @@ impl Object {
                 pointers.push(pointer.pointer());
             },
             ObjectValue::Block(ref block) => {
-                block.binding.push_pointers(pointers)
+                if let Some(captures_from) = block.captures_from.as_ref() {
+                    captures_from.push_pointers(pointers);
+                }
+
+                pointers.push(block.receiver.pointer());
             }
             ObjectValue::Binding(ref binding) => {
-                binding.push_pointers(pointers)
+                binding.push_pointers(pointers);
             }
             _ => {}
         }

@@ -21,7 +21,7 @@ module Inkoc
 
       attr_accessor :prototype, :captures, :last_argument_is_rest, :throw_type,
                     :return_type, :type_parameter_instances, :infer_return_type,
-                    :infer_throw_type, :block_type
+                    :infer_throw_type, :block_type, :self_type
 
       def self.closure(prototype, return_type: nil)
         new(
@@ -80,6 +80,7 @@ module Inkoc
         @infer_throw_type = infer_throw_type
         @method_bounds = TypeParameterTable.new
         @thrown_types = []
+        @self_type = Dynamic.new
       end
 
       def block?
@@ -108,11 +109,6 @@ module Inkoc
 
       def infer_throw_type?
         infer_throw_type && !throw_type
-      end
-
-      # Returns all the arguments except for "self" (= the first argument).
-      def arguments_without_self
-        arguments.slice(1..-1)
       end
 
       # Returns all the traits implemented by every block.
@@ -173,7 +169,7 @@ module Inkoc
       def compatible_arguments?(other, state)
         return false unless arguments.length == other.arguments.length
 
-        args = arguments_without_self.zip(other.arguments_without_self)
+        args = arguments.zip(other.arguments)
 
         args.all? do |our, their|
           our_type = resolve_type_parameter(our.type)
@@ -214,9 +210,7 @@ module Inkoc
           type_name += " !(#{formatted_type_parameter_names})"
         end
 
-        if arguments_without_self.any?
-          type_name += " (#{formatted_argument_type_names})"
-        end
+        type_name += " (#{formatted_argument_type_names})" if arguments.any?
 
         if throw_type
           type_name += " !! #{resolve_type_parameter(throw_type).type_name}"
@@ -234,14 +228,9 @@ module Inkoc
       end
 
       def formatted_argument_type_names
-        arguments_without_self
+        arguments
           .map { |sym| resolve_type_parameter(sym.type).type_name }
           .join(', ')
-      end
-
-      # Defines the type of the implicit "self" argument.
-      def define_self_argument(type)
-        define_required_argument(Config::SELF_LOCAL, type)
       end
 
       # Defines arguments for the given Array of types.
@@ -282,18 +271,17 @@ module Inkoc
       end
 
       def argument_count_range
-        max =
-          last_argument_is_rest ? Float::INFINITY : argument_count_without_self
+        max = last_argument_is_rest ? Float::INFINITY : argument_count
 
-        (required_arguments - 1)..max
+        required_arguments..max
       end
 
-      def argument_count_without_self
-        arguments.length - 1
+      def argument_count
+        arguments.length
       end
 
       def argument_count_without_rest
-        amount = argument_count_without_self
+        amount = argument_count
 
         if last_argument_is_rest
           amount - 1
@@ -328,7 +316,8 @@ module Inkoc
           end
         else
           [
-            arguments[index + 1].type
+            arguments[index]
+              .type
               .resolve_type_parameter_with_self(self_type, self),
             false
           ]
@@ -355,10 +344,9 @@ module Inkoc
       #
       # This method assumes that self and the given type are type compatible.
       def initialize_as(type, method_type, self_type)
-        arguments_without_self
-          .zip(type.arguments_without_self) do |ours, theirs|
-            ours.type.initialize_as(theirs.type, method_type, self_type)
-          end
+        arguments.zip(type.arguments) do |ours, theirs|
+          ours.type.initialize_as(theirs.type, method_type, self_type)
+        end
 
         if type.throw_type
           throw_type&.initialize_as(type.throw_type, method_type, self_type)

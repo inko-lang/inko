@@ -47,9 +47,13 @@ pub trait CopyObject: Sized {
                 panic!("ObjectValue::File can not be cloned");
             }
             ObjectValue::Block(ref block) => {
-                let new_binding = block.binding.clone_to(self);
-                let new_scope = block.global_scope;
-                let new_block = Block::new(block.code, new_binding, new_scope);
+                let captures_from =
+                    block.captures_from.as_ref().map(|b| b.clone_to(self));
+
+                let scope = block.global_scope;
+                let receiver = self.copy_object(block.receiver);
+                let new_block =
+                    Block::new(block.code, captures_from, receiver, scope);
 
                 object_value::block(new_block)
             }
@@ -110,12 +114,16 @@ pub trait CopyObject: Sized {
 
                 ObjectValue::Array(array)
             }
-            ObjectValue::Block(block) => {
-                block.binding.move_pointers_to(self);
+            ObjectValue::Block(mut block) => {
+                if let Some(mut captures_from) = block.captures_from.as_mut() {
+                    captures_from.move_pointers_to(self);
+                }
+
+                block.receiver = self.move_object(block.receiver);
 
                 ObjectValue::Block(block)
             }
-            ObjectValue::Binding(binding) => {
+            ObjectValue::Binding(mut binding) => {
                 binding.move_pointers_to(self);
 
                 ObjectValue::Binding(binding)
@@ -296,7 +304,8 @@ mod tests {
 
         let block = Block::new(
             DerefPointer::new(&cc),
-            Binding::new(0),
+            None,
+            ObjectPointer::integer(1),
             GlobalScopePointer::new(&scope),
         );
 
@@ -313,9 +322,6 @@ mod tests {
     fn test_copy_binding() {
         let mut dummy = DummyAllocator::new();
 
-        let binding1 = Binding::new(1);
-        let binding2 = Binding::with_parent(binding1.clone(), 1);
-
         let local1 = dummy
             .allocator
             .allocate_without_prototype(object_value::float(15.0));
@@ -323,6 +329,15 @@ mod tests {
         let local2 = dummy
             .allocator
             .allocate_without_prototype(object_value::float(20.0));
+
+        let receiver = dummy
+            .allocator
+            .allocate_without_prototype(object_value::float(12.0));
+
+        let binding1 = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding2 = Binding::new(1, receiver);
+
+        binding2.parent = Some(binding1.clone());
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);
@@ -338,6 +353,7 @@ mod tests {
         let parent_copy = binding_copy.parent.clone().unwrap();
 
         assert!(binding_copy.parent.is_some());
+        assert_eq!(binding_copy.receiver.float_value().unwrap(), 12.0);
 
         let local1_copy = binding_copy.get_local(0);
         let local2_copy = parent_copy.get_local(0);
@@ -468,7 +484,8 @@ mod tests {
 
         let block = Block::new(
             DerefPointer::new(&cc),
-            Binding::new(0),
+            None,
+            ObjectPointer::integer(1),
             GlobalScopePointer::new(&scope),
         );
 
@@ -486,9 +503,6 @@ mod tests {
     fn test_move_binding() {
         let mut dummy = DummyAllocator::new();
 
-        let binding1 = Binding::new(1);
-        let binding2 = Binding::with_parent(binding1.clone(), 1);
-
         let local1 = dummy
             .allocator
             .allocate_without_prototype(object_value::float(15.0));
@@ -496,6 +510,13 @@ mod tests {
         let local2 = dummy
             .allocator
             .allocate_without_prototype(object_value::float(20.0));
+
+        let receiver = dummy
+            .allocator
+            .allocate_without_prototype(object_value::float(12.0));
+
+        let binding1 = Binding::new(1, ObjectPointer::integer(1));
+        let binding2 = Binding::new(1, receiver);
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);
@@ -506,8 +527,10 @@ mod tests {
 
         let binding_move_ptr = dummy.move_object(binding_ptr);
         let binding_move = binding_move_ptr.get();
+        let binding_val = binding_move.value.as_binding().unwrap();
 
-        assert!(binding_move.value.as_binding().unwrap().local_exists(0));
+        assert!(binding_val.local_exists(0));
         assert!(binding_ptr.get().value.is_none());
+        assert_eq!(binding_val.receiver.float_value().unwrap(), 12.0);
     }
 }

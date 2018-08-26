@@ -4,7 +4,7 @@
 //! references are supported. This makes ArcWithoutWeak ideal for performance
 //! sensitive code where weak references are not needed.
 
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The inner value of a pointer.
@@ -15,7 +15,7 @@ pub struct Inner<T> {
 
 /// A thread-safe reference counted pointer.
 pub struct ArcWithoutWeak<T> {
-    inner: *const Inner<T>,
+    inner: *mut Inner<T>,
 }
 
 unsafe impl<T> Sync for ArcWithoutWeak<T> {}
@@ -47,6 +47,12 @@ impl<T> Deref for ArcWithoutWeak<T> {
 
     fn deref(&self) -> &T {
         unsafe { &(*self.inner).value }
+    }
+}
+
+impl<T> DerefMut for ArcWithoutWeak<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut (*self.inner).value }
     }
 }
 

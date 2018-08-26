@@ -19,12 +19,12 @@ module Inkoc
         @catch_table = CatchTable.new
       end
 
-      def captures?
-        type.closure?
+      def self_type
+        type.self_type
       end
 
-      def arguments_count
-        @type.arguments_count
+      def captures?
+        type.closure?
       end
 
       def argument_names
@@ -101,14 +101,6 @@ module Inkoc
       def instruct(*args)
         instruction = current_block.instruct(*args)
         instruction.register
-      end
-
-      def self_local
-        locals[Config::SELF_LOCAL]
-      end
-
-      def self_type
-        self_local.type
       end
 
       def add_code_object(*args)

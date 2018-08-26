@@ -71,7 +71,7 @@ impl ExecutionContext {
     pub fn from_isolated_block(block: &Block) -> ExecutionContext {
         ExecutionContext {
             register: Register::new(block.code.registers as usize),
-            binding: Binding::new(block.locals()),
+            binding: Binding::new(block.locals(), block.receiver),
             code: block.code,
             parent: None,
             instruction_index: 0,

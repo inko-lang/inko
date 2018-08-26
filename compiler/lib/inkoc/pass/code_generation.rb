@@ -137,6 +137,26 @@ module Inkoc
         compiled_code.instruct(:RunBlock, ins_args, tir_ins.location)
       end
 
+      def on_run_block_with_receiver(tir_ins, compiled_code, *)
+        register = tir_ins.register.id
+        block = tir_ins.block.id
+        receiver = tir_ins.receiver.id
+        args = tir_ins.arguments.map(&:id)
+        kwargs = tir_ins.keyword_arguments.map(&:id)
+        ins_args = [
+          register,
+          block,
+          receiver,
+          args.length,
+          kwargs.length / 2,
+          *args,
+          *kwargs
+        ]
+
+        compiled_code
+          .instruct(:RunBlockWithReceiver, ins_args, tir_ins.location)
+      end
+
       def on_tail_call(tir_ins, compiled_code, *)
         args = tir_ins.arguments.map(&:id)
         kwargs = tir_ins.keyword_arguments.map(&:id)
@@ -167,9 +187,12 @@ module Inkoc
         register = tir_ins.register.id
         block_code = process_node(tir_ins.code_object)
         code_index = compiled_code.code_objects.add(block_code)
+        arguments = [register, code_index]
+
+        arguments << tir_ins.receiver.id if tir_ins.receiver
 
         compiled_code
-          .instruct(:SetBlock, [register, code_index], tir_ins.location)
+          .instruct(:SetBlock, arguments, tir_ins.location)
       end
 
       def on_set_literal(tir_ins, compiled_code, *)

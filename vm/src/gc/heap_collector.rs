@@ -142,11 +142,11 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
     use block::Block;
     use config::Config;
     use execution_context::ExecutionContext;
     use object::Object;
+    use object_pointer::ObjectPointer;
     use object_value;
     use vm::state::State;
     use vm::test::setup;
@@ -444,11 +444,11 @@ mod tests {
             .allocator
             .allocate_mature(Object::new(object_value::none()));
 
+        let receiver = process.allocate_empty();
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(0), block.global_scope);
+        let new_block = Block::new(code, None, receiver, block.global_scope);
 
         process.set_register(0, pointer1);
-
         process.push_context(ExecutionContext::from_block(&new_block, None));
 
         process.set_register(0, pointer2);
@@ -460,11 +460,12 @@ mod tests {
 
         let result = trace_without_moving(&process, false);
 
-        assert_eq!(result.marked, 2);
+        assert_eq!(result.marked, 3);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
         assert_eq!(mature.is_marked(), false);
+        assert!(receiver.is_marked());
     }
 
     #[test]
@@ -479,7 +480,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(0), block.global_scope);
+        let new_block = Block::new(
+            code,
+            None,
+            ObjectPointer::integer(1),
+            block.global_scope,
+        );
 
         process.set_register(0, pointer1);
 
@@ -513,7 +519,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(0), block.global_scope);
+        let new_block = Block::new(
+            code,
+            None,
+            ObjectPointer::integer(1),
+            block.global_scope,
+        );
 
         process.set_register(0, pointer1);
 
@@ -547,7 +558,12 @@ mod tests {
             .allocate_mature(Object::new(object_value::none()));
 
         let code = process.context().code.clone();
-        let new_block = Block::new(code, Binding::new(0), block.global_scope);
+        let new_block = Block::new(
+            code,
+            None,
+            ObjectPointer::integer(1),
+            block.global_scope,
+        );
 
         process.set_register(0, pointer1);
 

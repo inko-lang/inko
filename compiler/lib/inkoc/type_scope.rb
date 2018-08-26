@@ -20,6 +20,10 @@ module Inkoc
       @enclosing_method = enclosing_method
     end
 
+    def define_receiver_type
+      block_type.self_type = self_type
+    end
+
     def enclosing_method
       if @enclosing_method
         @enclosing_method
@@ -30,18 +34,6 @@ module Inkoc
 
     def module_type
       @module.type
-    end
-
-    def define_self_argument
-      symbol = block_type.define_self_argument(self_type)
-
-      locals&.add_symbol(symbol)
-    end
-
-    def define_self_local
-      name = Config::SELF_LOCAL
-
-      locals.define(name, self_type) if locals[name].nil?
     end
 
     def depth_and_symbol_for_local(name)

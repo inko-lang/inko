@@ -6,9 +6,7 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :body, :globals, :config,
-                  :bytecode_directory, :bytecode_file, :imports
-
-      attr_accessor :type
+                  :bytecode_directory, :bytecode_file, :imports, :type
 
       def initialize(name, location)
         @name = name
@@ -28,6 +26,11 @@ module Inkoc
         @bytecode_directory = hash[0..1]
         @bytecode_file = hash[1..-1] + Config::BYTECODE_EXT
         @imports = []
+      end
+
+      def type=(value)
+        @type = value
+        @body.type.self_type = value
       end
 
       def attributes

@@ -12,7 +12,6 @@ use std::io::{self, Seek, SeekFrom, Write};
 use std::ops::{Add, Mul, Sub};
 use std::thread;
 
-use binding::Binding;
 use block::Block;
 use byte_array;
 use compiled_code::CompiledCodePointer;
@@ -303,7 +302,8 @@ impl Machine {
             let code = module.code();
             let block = Block::new(
                 code,
-                Binding::new(code.locals()),
+                None,
+                self.state.top_level,
                 module.global_scope_ref(),
             );
 
@@ -530,6 +530,8 @@ impl Machine {
                 // 1. The register to store the object in.
                 // 2. The index of the CompiledCode object literal to use for
                 //    creating the Block.
+                // 3. The register containing the object to use as the block
+                //    receiver, if any.
                 //
                 // If the underlying CompiledCode object captures any outer
                 // locals the block's binding will have its parent set to the
@@ -541,18 +543,27 @@ impl Machine {
                 InstructionType::SetBlock => {
                     let register = instruction.arg(0);
                     let cc_index = instruction.arg(1);
-
                     let cc = context.code.code_object(cc_index);
-                    let locals = cc.locals as usize;
 
-                    let binding = if cc.captures {
-                        context.binding.clone()
+                    let captures_from = if cc.captures {
+                        Some(context.binding.clone())
                     } else {
-                        Binding::new(locals)
+                        None
                     };
 
-                    let block =
-                        Block::new(cc, binding, *process.global_scope());
+                    let receiver = if let Some(rec_reg) = instruction.arg_opt(2)
+                    {
+                        context.get_register(rec_reg)
+                    } else {
+                        context.binding.receiver
+                    };
+
+                    let block = Block::new(
+                        cc,
+                        captures_from,
+                        receiver,
+                        *process.global_scope(),
+                    );
 
                     let obj = process.allocate(
                         object_value::block(block),
@@ -1704,7 +1715,8 @@ impl Machine {
 
                         let block = Block::new(
                             module.code(),
-                            Binding::new(module.code.locals()),
+                            None,
+                            self.state.top_level,
                             module.global_scope_ref(),
                         );
 
@@ -3535,6 +3547,45 @@ impl Machine {
                     env::remove_var(var.string_value()?);
 
                     context.set_register(reg, self.state.nil_object);
+                }
+                InstructionType::BlockGetReceiver => {
+                    let reg = instruction.arg(0);
+                    let rec = context.binding.receiver;
+
+                    context.set_register(reg, rec);
+                }
+                InstructionType::BlockSetReceiver => {
+                    let reg = instruction.arg(0);
+                    let rec = context.get_register(instruction.arg(1));
+
+                    context.binding.receiver = rec;
+                    context.set_register(reg, rec);
+                }
+                InstructionType::RunBlockWithReceiver => {
+                    context.line = instruction.line;
+
+                    let register = instruction.arg(0);
+                    let block_ptr = context.get_register(instruction.arg(1));
+                    let rec_ptr = context.get_register(instruction.arg(2));
+                    let block = block_ptr.block_value()?;
+
+                    let mut new_ctx =
+                        ExecutionContext::from_block(&block, Some(register));
+
+                    new_ctx.binding.receiver = rec_ptr;
+
+                    self.prepare_new_context(
+                        process,
+                        &instruction,
+                        &new_ctx,
+                        instruction.arg(3),
+                        instruction.arg(4),
+                        5,
+                    )?;
+
+                    process.push_context(new_ctx);
+
+                    enter_context!(process, context, index);
                 }
             };
         }
