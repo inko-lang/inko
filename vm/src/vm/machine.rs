@@ -2192,7 +2192,7 @@ impl Machine {
                     // is in said object.
                     loop {
                         if let Some(obj) =
-                            source.get().lookup_attribute_in_self(name)
+                            source.lookup_attribute_in_self(&self.state, name)
                         {
                             if obj
                                 .lookup_attribute(&self.state, val_ptr)

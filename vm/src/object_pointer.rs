@@ -338,6 +338,19 @@ impl ObjectPointer {
         }
     }
 
+    /// Looks up an attribute without walking the prototype chain.
+    pub fn lookup_attribute_in_self(
+        &self,
+        state: &RcState,
+        name: ObjectPointer,
+    ) -> Option<ObjectPointer> {
+        if self.is_tagged_integer() {
+            state.integer_prototype.get().lookup_attribute_in_self(name)
+        } else {
+            self.get().lookup_attribute_in_self(name)
+        }
+    }
+
     pub fn attributes(&self) -> Vec<ObjectPointer> {
         if self.is_tagged_integer() {
             Vec::new()
@@ -1039,6 +1052,23 @@ mod tests {
         state.integer_prototype.mark_for_finalization();
 
         assert!(ptr.lookup_attribute(&state, name).unwrap() == method);
+    }
+
+    #[test]
+    fn test_object_pointer_lookup_attribute_in_self_with_integer() {
+        let state = State::new(Config::new(), &[]);
+        let ptr = ObjectPointer::integer(5);
+        let name = state.intern_owned("foo".to_string());
+        let method = state.permanent_allocator.lock().allocate_empty();
+
+        state
+            .integer_prototype
+            .get_mut()
+            .add_attribute(name, method);
+
+        state.integer_prototype.mark_for_finalization();
+
+        assert!(ptr.lookup_attribute_in_self(&state, name).unwrap() == method);
     }
 
     #[test]
