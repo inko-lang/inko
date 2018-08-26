@@ -7,11 +7,35 @@
 #! Assertions will throw in the event of a failure, requiring the use of the
 #! `try` keyword. The use of `try!` is discouraged as it will result in the
 #! entire test suite terminating in the event of an assertion failing.
+import std::debug::(self, CallFrame)
 import std::format::Inspect
 import std::operators::(Equal, Greater)
+import std::process
 import std::string_buffer::StringBuffer
 import std::test::error::TestFailure
-import std::debug::(self, CallFrame)
+
+## A test to verify if a block will panic or not.
+object PanicTest {
+  def init(owner: Integer, block: lambda) {
+    let @owner = owner
+    let @block = block
+  }
+
+  ## Runs the test, reporting the result back to the owning process.
+  def run {
+    process.panicking do (_) {
+      notify(panicked: True)
+    }
+
+    @block.call
+
+    notify(panicked: False)
+  }
+
+  def notify(panicked: Boolean) {
+    process.send(pid: @owner, message: panicked)
+  }
+}
 
 ## Returns a `CallFrame` pointing to the location of the failed assertion.
 def location_of_failure -> CallFrame {
@@ -71,3 +95,21 @@ def greater!(T: Inspect + Greater)(given: T, minimum: T) !! TestFailure {
   throw TestFailure
     .new(message: buffer.to_string, location: location_of_failure)
   }
+
+## Asserts that the given lambda panics.
+def panic(block: lambda) !! TestFailure {
+  let sender = process.channel!(PanicTest) lambda (receiver) {
+    receiver.receive.run
+  }
+
+  sender.send(PanicTest.new(owner: process.current, block: block))
+
+  process.receive.if_true {
+    return
+  }
+
+  throw TestFailure.new(
+    message: 'The provided block did not panic',
+    location: location_of_failure
+  )
+}
