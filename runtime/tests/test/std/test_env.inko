@@ -55,19 +55,25 @@ test.group 'std::env.home_directory', do (g) {
   g.test 'Obtaining the home directory of the current user', {
     # For the time being we'll assume that the user executing the tests has a
     # home directory set.
-    try assert.greater(env.home_directory.length, 0)
+    let home_dir = env.home_directory
+
+    try assert.equal(home_dir.exists?, True)
+    try assert.greater(home_dir.to_string.length, 0)
   }
 }
 
 test.group 'std::env.temporary_directory', do (g) {
   g.test 'Obtaining the temporary directory', {
-    try assert.greater(env.temporary_directory.length, 0)
+    let temp_dir = env.temporary_directory
+
+    try assert.equal(temp_dir.exists?, True)
+    try assert.greater(temp_dir.to_string.length, 0)
   }
 }
 
 test.group 'std::env.working_directory', do (g) {
   g.test 'Obtaining the current working directory', {
-    let path = try env.working_directory else ''
+    let path = try env.working_directory.to_string else ''
 
     try assert.greater(path.length, 0)
   }
@@ -75,14 +81,22 @@ test.group 'std::env.working_directory', do (g) {
 
 test.group 'std::env.working_directory=', do (g) {
   g.test 'Changing the current working directory', {
-    let path = try env.working_directory else '.'
-    let new_path = try env.working_directory = path else ''
+    let path = try env.working_directory.to_string else '.'
+    let new_path = try {
+      (env.working_directory = path).to_string
+    } else {
+      ''
+    }
 
     try assert.equal(new_path, path)
   }
 
   g.test 'Changing the working directory to an invalid directory', {
-    let path = try env.working_directory = 'does-not-exist' else 'not-set'
+    let path = try {
+      (env.working_directory = 'does-not-exist').to_string
+    } else {
+      'not-set'
+    }
 
     try assert.equal(path, 'not-set')
   }
