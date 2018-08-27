@@ -18,10 +18,14 @@ def platform -> String {
   *PLATFORMS[_INKOC.platform]
 }
 
+## Returns `True` if the program is currently running on Windows.
+def windows? -> Boolean {
+  platform == 'windows'
+}
+
 ## The newline separator to use on the current platform.
-let NEWLINE = platform == 'windows'
-  .if true: {
-    "\r\n"
-  }, false: {
-    "\n"
-  }
+let NEWLINE = windows?.if true: {
+  "\r\n"
+}, false: {
+  "\n"
+}
