@@ -38,10 +38,17 @@
 #!
 #!     file.read_only('/dev/urandom')
 #!     file.read_only(Path.new('/dev/urandom'))
-
 import std::conversion::ToString
 import std::fs::raw
 import std::io::(Error as IOError, Size)
+import std::os
+
+## The primary separator of path components.
+let SEPARATOR = os.windows?.if true: {
+  '\\'
+}, false: {
+  '/'
+}
 
 ## A path to a file or directory.
 ##
