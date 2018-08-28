@@ -340,21 +340,36 @@ module Inkoc
       start = @position
       has_escape = false
       has_special = false
+      in_escape = false
+      replace_backslash = false
 
       loop do
         char = @input[@position]
 
         break unless char
 
-        has_special = true if char == '\\'
-
         @position += 1
 
-        next unless char == quote
+        if char == quote && in_escape
+          has_escape = true
 
-        break unless @input[@position - 2] == '\\'
+          next
+        elsif char == '\\'
+          has_special = true
 
-        has_escape = true
+          if in_escape
+            in_escape = false
+            replace_backslash = true
+          else
+            in_escape = true
+          end
+
+          next
+        end
+
+        in_escape = false if in_escape
+
+        break if char == quote
       end
 
       token = new_token(:string, start, @position - 1)
@@ -370,6 +385,8 @@ module Inkoc
           '\e' => "\e"
         )
       end
+
+      token.value.gsub!('\\\\', '\\') if replace_backslash
 
       @column += 2
 

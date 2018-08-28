@@ -42,6 +42,19 @@ describe Inkoc::Lexer do
         expect(token.value).to eq(value)
       end
     end
+
+    it 'tokenizes a quoted backslash inside a block' do
+      lexer = described_class.new("{ '\\\\' }")
+
+      expect(lexer.advance.type).to eq(:curly_open)
+
+      string = lexer.advance
+
+      expect(string.type).to eq(:string)
+      expect(string.value).to eq('\\')
+
+      expect(lexer.advance.type).to eq(:curly_close)
+    end
   end
 
   describe '#peek' do
