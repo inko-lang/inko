@@ -3,17 +3,19 @@
 #! This module provides various facilities for debugging programs during
 #! runtime, such as obtaining stack traces.
 import std::conversion::ToString
+import std::fs::path::(Path, ToPath)
+import std::string_buffer::StringBuffer
 
 ## Details of a single call frame in a call stack.
 object CallFrame {
-  def init(file: String, name: String, line: Integer) {
-    let @file = file
+  def init(file: ToPath, name: String, line: Integer) {
+    let @file = file.to_path
     let @name = name
     let @line = line
   }
 
   ## Returns the path of the file the frame belongs to.
-  def file -> String {
+  def file -> Path {
     @file
   }
 
@@ -31,7 +33,16 @@ object CallFrame {
 impl ToString for CallFrame {
   ## Formats the CallFrame as a String
   def to_string -> String {
-    @file + ', line ' + @line.to_string + ', in "' + @name + '"'
+    let buffer = StringBuffer.new([
+      @file.to_string,
+      ', line ',
+      @line.to_string,
+      ', in "',
+      @name,
+      '"'
+    ])
+
+    buffer.to_string
   }
 }
 
@@ -76,7 +87,7 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   raw_frames.each do (raw_frame) {
     frames.push(
       CallFrame.new(
-        file: raw_frame[0] as String,
+        file: (raw_frame[0] as String).to_path,
         name: raw_frame[1] as String,
         line: raw_frame[2] as Integer
       )
@@ -88,4 +99,34 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   _INKOC.drop(raw_frames)
 
   frames
+}
+
+## Returns the last `CallFrame` originating from the given `Path`.
+##
+## # Examples
+##
+## Obtaining the last `CallFrame` from a given file:
+##
+##     import std::debug
+def last_call_frame_in(file: ToPath) -> CallFrame {
+  let frames = stacktrace(skip: 1)
+  let default = *frames[-1]
+  let path = file.to_path
+
+  # The last CallFrame is the default, and will point to this method itself.
+  # This means we don't need to check that frame.
+  let mut index = frames.length - 2
+
+  { index >= 0 }.while_true {
+    let frame = *frames[index]
+
+    frame.file == path
+      .if_true {
+        return frame
+      }
+
+    index -= 1
+  }
+
+  default
 }

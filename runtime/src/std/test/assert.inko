@@ -7,12 +7,11 @@
 #! Assertions will throw in the event of a failure, requiring the use of the
 #! `try` keyword. The use of `try!` is discouraged as it will result in the
 #! entire test suite terminating in the event of an assertion failing.
-import std::debug::(self, CallFrame)
 import std::format::Inspect
 import std::operators::(Equal, Greater)
 import std::process
 import std::string_buffer::StringBuffer
-import std::test::error::TestFailure
+import std::vm
 
 ## A test to verify if a block will panic or not.
 object PanicTest {
@@ -37,67 +36,59 @@ object PanicTest {
   }
 }
 
-## Returns a `CallFrame` pointing to the location of the failed assertion.
-def location_of_failure -> CallFrame {
-  *debug.stacktrace(skip: 3, limit: 1)[0]
-}
-
 ## Asserts that the given arguments are equal to each other.
-def equal!(T: Inspect + Equal)(given: T, expected: T) !! TestFailure {
+def equal!(T: Inspect + Equal)(given: T, expected: T) {
   given == expected
     .if_true {
       return
     }
 
-  let buffer = StringBuffer.new([
+  let error = StringBuffer.new([
     'Expected ',
     given.inspect,
     ' to equal ',
     expected.inspect
   ])
 
-  throw TestFailure
-    .new(message: buffer.to_string, location: location_of_failure)
+  vm.panic(error)
 }
 
 ## Asserts that the given arguments are not equal to each other.
-def not_equal!(T: Inspect + Equal)(given: T, expected: T) !! TestFailure {
+def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
   given == expected
     .if_false {
       return
     }
 
-  let buffer = StringBuffer.new([
+  let error = StringBuffer.new([
     'Expected ',
     given.inspect,
     ' not to equal ',
     expected.inspect
   ])
 
-  throw TestFailure
-    .new(message: buffer.to_string, location: location_of_failure)
+  vm.panic(error)
 }
 
 ## Asserts that the first argument is greater than the second argument.
-def greater!(T: Inspect + Greater)(given: T, minimum: T) !! TestFailure {
+def greater!(T: Inspect + Greater)(given: T, minimum: T) {
   given > minimum
     .if_true {
       return
     }
 
-  let buffer = StringBuffer.new([
+  let error = StringBuffer.new([
     'Expected ',
     given.inspect,
     ' to be greater than ',
     minimum.inspect
   ])
 
-  throw TestFailure
-    .new(message: buffer.to_string, location: location_of_failure)
-  }
+  vm.panic(error)
+}
 
 ## Asserts that the given lambda panics.
-def panic(block: lambda) !! TestFailure {
+def panic(block: lambda) {
   let sender = process.channel!(PanicTest) lambda (receiver) {
     receiver.receive.run
   }
@@ -108,8 +99,5 @@ def panic(block: lambda) !! TestFailure {
     return
   }
 
-  throw TestFailure.new(
-    message: 'The provided block did not panic',
-    location: location_of_failure
-  )
+  vm.panic('The provided block did not panic')
 }

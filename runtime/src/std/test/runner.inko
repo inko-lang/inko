@@ -19,7 +19,6 @@
 #! message passing, without the need for pattern matching.
 import std::process::(self, Receiver, Sender)
 import std::reflection
-import std::stdio::stdout
 import std::test::config::Configuration
 import std::test::formatter::Formatter
 import std::test::test::Test

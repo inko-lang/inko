@@ -8,7 +8,7 @@ test.group 'std::format::DefaultFormatter.push', do (g) {
 
     fmt.push('hello')
 
-    try assert.equal(fmt.to_string, 'hello')
+    assert.equal(fmt.to_string, 'hello')
   }
 }
 
@@ -20,7 +20,7 @@ test.group 'std::format::DefaultFormatter.descend', do (g) {
       fmt.push('hello')
     }
 
-    try assert.equal(fmt.to_string, 'hello')
+    assert.equal(fmt.to_string, 'hello')
   }
 
   g.test 'Formatting an object when the nesting level is too great', {
@@ -42,12 +42,12 @@ test.group 'std::format::DefaultFormatter.descend', do (g) {
 
     fmt.descend(block)
 
-    try assert.equal(fmt.to_string, PLACEHOLDER)
+    assert.equal(fmt.to_string, PLACEHOLDER)
   }
 }
 
 test.group 'std::format.inspect', do (g) {
   g.test 'Inspecting an object', {
-    try assert.equal(::format.inspect([10]), '[10]')
+    assert.equal(::format.inspect([10]), '[10]')
   }
 }

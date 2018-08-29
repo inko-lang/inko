@@ -41,6 +41,7 @@
 import std::conversion::ToString
 import std::fs::raw
 import std::io::(Error as IOError, Size)
+import std::operators::Equal
 import std::os
 
 ## The primary separator of path components.
@@ -69,7 +70,7 @@ let SEPARATOR = os.windows?.if true: {
 ##     import std::fs::path::Path
 ##
 ##     '/tmp/hello.txt'.to_path
-object Path {
+object Path impl Equal, ToString, Size {
   def init(path: String) {
     let @path = path
   }
@@ -88,15 +89,7 @@ object Path {
   def exists? -> Boolean {
     raw.exists?(@path)
   }
-}
 
-## Trait for converting an object to a `Path`.
-trait ToPath {
-  ## Converts `Self` to a `Path`.
-  def to_path -> Path
-}
-
-impl ToString for Path {
   ## Converts a `Path` to a `String`.
   ##
   ## # Examples
@@ -111,9 +104,7 @@ impl ToString for Path {
   def to_string -> String {
     @path
   }
-}
 
-impl Size for Path {
   ## Returns the size of the path in bytes.
   ##
   ## # Examples
@@ -128,6 +119,28 @@ impl Size for Path {
   def size !! IOError -> Integer {
     try raw.size(@path)
   }
+
+  ## Returns `True` if `self` is equal to the given `Path`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two paths:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path1 = Path.new('foo')
+  ##     let path2 = Path.new('foo')
+  ##
+  ##     path1 == path2 # => True
+  def ==(other: Self) -> Boolean {
+    to_string == other.to_string
+  }
+}
+
+## Trait for converting an object to a `Path`.
+trait ToPath {
+  ## Converts `Self` to a `Path`.
+  def to_path -> Path
 }
 
 impl ToPath for Path {

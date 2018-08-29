@@ -25,7 +25,7 @@ test.group 'std::block::Block.call', do (g) {
     # called.
     let block = { 10 } as Dynamic
 
-    try assert.equal(block.call as Integer, 10)
+    assert.equal(block.call as Integer, 10)
   }
 }
 
@@ -37,7 +37,7 @@ test.group 'std::block::Block.while_false', do (g) {
       number += 1
     }
 
-    try assert.equal(number, 10)
+    assert.equal(number, 10)
   }
 }
 
@@ -49,13 +49,13 @@ test.group 'std::block::Block.while_true', do (g) {
       number += 1
     }
 
-    try assert.equal(number, 10)
+    assert.equal(number, 10)
   }
 }
 
 test.group 'std::block::Block.loop', do (g) {
   g.test 'Calling a Block indefinitely', {
-    try assert.equal(test_loop, 100)
+    assert.equal(test_loop, 100)
   }
 }
 
@@ -66,7 +66,7 @@ test.group 'std::block::Block.format', do (g) {
 
     block.format_for_inspect(formatter)
 
-    try assert.equal(formatter.to_string, 'Block')
+    assert.equal(formatter.to_string, 'Block')
   }
 }
 
@@ -74,6 +74,6 @@ test.group 'std::block::Block.inspect', do (g) {
   g.test 'Inspecting a Block', {
     let block = { 10 }
 
-    try assert.equal(block.inspect, 'Block')
+    assert.equal(block.inspect, 'Block')
   }
 }

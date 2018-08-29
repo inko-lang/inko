@@ -2,10 +2,9 @@
 #!
 #! A `TestGroup` can be used to define multiple, related unit tests. Test groups
 #! are typically defined by sending `group` to the `std::test` module.
-import std::test::error::TestFailure
+import std::debug
 import std::test::runner::Client
 import std::test::test::Test
-import std::debug
 
 ## A collection of tests that all belong to the same group.
 object TestGroup {
@@ -18,7 +17,7 @@ object TestGroup {
   }
 
   ## Registers a new test with a runner.
-  def test(name: String, body: lambda !! TestFailure) {
+  def test(name: String, body: lambda) {
     let location = *debug.stacktrace(skip: 2, limit: 1)[0]
 
     let test = Test.new(

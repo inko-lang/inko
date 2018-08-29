@@ -3,9 +3,10 @@
 #! The `Test` type is used for defining tests and their details, such as the
 #! source location and the `Block` to run. Tests are typically defined by
 #! sending `test` to an instance of `std::test::test_group::TestGroup`.
+import std::debug::(self, CallFrame)
 import std::process
+import std::stdio::stdout
 import std::test::error::TestFailure
-import std::debug::CallFrame
 
 ## A test defined by the user, including details such as the name and the
 ## location it was defined at.
@@ -15,7 +16,7 @@ object Test {
     group_name: String,
     runner_pid: Integer,
     location: CallFrame,
-    body: lambda !! TestFailure
+    body: lambda
   ) {
     ## The name of this test.
     let @name = name
@@ -51,11 +52,6 @@ object Test {
     @location
   }
 
-  ## Returns the body of the test to run.
-  def body -> lambda !! TestFailure {
-    @body
-  }
-
   ## Returns the failure of the test, if any.
   def failure -> ?TestFailure {
     @failure
@@ -74,12 +70,21 @@ object Test {
   ##
   ## The message sent to a `Runner` is this `Test` itself.
   def run {
-    try {
-      @body.call
-    } else (failure) {
-      @failure = failure
+    process.panicking do (error) {
+      @failure = TestFailure.new(
+        message: error,
+        location: debug.last_call_frame_in(location.file)
+      )
+
+      notify_runner
     }
 
+    @body.call
+
+    notify_runner
+  }
+
+  def notify_runner {
     process.send(pid: @runner_pid, message: self)
   }
 }
