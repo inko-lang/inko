@@ -1,0 +1,155 @@
+import std::env
+import std::fs
+import std::fs::dir
+import std::fs::path::SEPARATOR
+import std::process
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+
+import std::stdio::stdout
+
+## The path of the base temporary directory, such as /tmp on Linux.
+let TEMP = env.temporary_directory.to_string
+
+def join(components: Array!(String)) -> String {
+  let buffer = StringBuffer.new([TEMP])
+
+  components.each do (component) {
+    buffer.push(SEPARATOR)
+    buffer.push(component)
+  }
+
+  buffer.to_string
+}
+
+def remove(path: String, recursive = False) -> Nil {
+  try dir.remove(path: path, recursive: recursive) else Nil
+}
+
+def create(path: String, recursive = False) -> Nil {
+  try dir.create(path: path, recursive: recursive) else Nil
+}
+
+def temp_dir -> String {
+  join(['inko-test-' + process.current.to_string])
+}
+
+test.group 'std::fs::dir.create', do (g) {
+  g.test 'Creating a valid directory', {
+    let path = temp_dir
+
+    remove(path)
+    create(path)
+
+    assert.equal(fs.directory?(path), True)
+  }
+
+  g.test 'Creating an already existing directory', {
+    assert.panic {
+      let path = temp_dir
+
+      remove(path)
+      create(path)
+
+      try! dir.create(path)
+    }
+  }
+
+  g.test 'Creating a directory recursively', {
+    let path = join(['inko-test', process.current.to_string, 'foo', 'bar'])
+
+    remove(path: path, recursive: True)
+    create(path: path, recursive: True)
+
+    assert.equal(fs.directory?(path), True)
+  }
+
+  g.test 'Creating an existing directory recursively', {
+    assert.no_panic {
+      let path = join(['inko-test', process.current.to_string, 'foo', 'bar'])
+
+      remove(path: path, recursive: True)
+      create(path: path, recursive: True)
+
+      try! dir.create(path: path, recursive: True)
+    }
+  }
+}
+
+test.group 'std::fs::dir.remove', do (g) {
+  g.test 'Removing an empty directory', {
+    let path = temp_dir
+
+    create(path)
+    remove(path)
+
+    assert.equal(fs.directory?(path), False)
+  }
+
+  g.test 'Removing a non-empty directory', {
+    assert.panic {
+      let root = join(['inko-test'])
+      let path = join(['inko-test', process.current.to_string])
+
+      create(path: path, recursive: True)
+
+      try! dir.remove(root)
+    }
+  }
+
+  g.test 'Removing an empty directory recursively', {
+    let path = join(['inko-test', process.current.to_string])
+
+    create(path: path, recursive: True)
+    remove(path: path, recursive: True)
+
+    assert.equal(fs.directory?(path), False)
+  }
+
+  g.test 'Removing a non-empty directory recursively', {
+    assert.no_panic {
+      let root = join(['inko-test-remove-recursive'])
+      let path = join(['inko-test-remove-recursive', process.current.to_string])
+
+      remove(path: path, recursive: True)
+      create(path: path, recursive: True)
+
+      try! dir.remove(path: root, recursive: True)
+    }
+  }
+}
+
+test.group 'std::fs::dir.list', do (g) {
+  g.test 'Listing the contents of an empty directory', {
+    let path = temp_dir
+
+    remove(path)
+    create(path)
+
+    let contents = try! dir.list(path)
+
+    assert.equal(contents, [])
+  }
+
+  g.test 'Listing the contents of a non-existing directory', {
+    assert.panic {
+      let path = join(['inko-test-does-not-exist', process.current.to_string])
+
+      try! dir.list(path)
+    }
+  }
+
+  g.test 'Listing the contents of a non-empty directory', {
+    let root = join(['inko-test', process.current.to_string])
+    let path = join(['inko-test', process.current.to_string, 'foo'])
+
+    remove(path: path, recursive: True)
+    create(path: path, recursive: True)
+
+    let contents = try! dir.list(root)
+
+    assert.equal(contents.length, 1)
+    assert.equal(contents[0].to_string, path)
+  }
+}
