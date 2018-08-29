@@ -221,7 +221,7 @@ module Inkoc
       end
 
       def on_send(node, scope)
-        source = type_of_receiver(node, scope)
+        node.receiver_type = source = type_of_receiver(node, scope)
 
         if source.dynamic?
           send_to_dynamic_type(node, scope)
