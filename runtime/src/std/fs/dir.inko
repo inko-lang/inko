@@ -93,13 +93,26 @@ def remove(path: ToPath, recursive = False) !! IOError -> Nil {
 ##
 ##     import std::fs::dir
 ##
-##     try! dir.list('.') # => ['README.md', 'Cargo.toml', 'src']
-def list(path: ToPath) !! IOError -> Array!(String) {
-  process.blocking {
+##     let paths = try! dir.list('.')
+##
+##     paths[0].to_string # => 'README.md'
+def list(path: ToPath) !! IOError -> Array!(Path) {
+  let raw_paths = process.blocking {
     try {
       _INKOC.directory_list(path.to_path.to_string)
     } else (error) {
       throw IOError.new(error as String)
     }
   }
+
+  let paths = raw_paths
+    .iter
+    .map do (path: String) { Path.new(path) }
+    .to_array
+
+  # We know for a fact that the old Array won't be used any more at this point,
+  # so we get rid of it right away.
+  _INKOC.drop(raw_paths)
+
+  paths
 }
