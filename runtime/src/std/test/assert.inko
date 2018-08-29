@@ -13,26 +13,47 @@ import std::process
 import std::string_buffer::StringBuffer
 import std::vm
 
+## The result of a PanicTest.
+object PanicResult {
+  def init(panicked: Boolean, error: ?String = Nil) {
+    ## A `Boolean` that indicates if a block panicked or not.
+    let @panicked = panicked
+
+    ## A `String` containing the panic error message, if a panic happened.
+    let @error = error
+  }
+
+  def panicked? -> Boolean {
+    @panicked
+  }
+
+  def error -> ?String {
+     @error
+  }
+}
+
 ## A test to verify if a block will panic or not.
 object PanicTest {
   def init(owner: Integer, block: lambda) {
+    ## The PID (as an `Integer`) of the process that owns the test.
     let @owner = owner
+
+    ## The `Block` to run.
     let @block = block
   }
 
-  ## Runs the test, reporting the result back to the owning process.
   def run {
-    process.panicking do (_) {
-      notify(panicked: True)
+    process.panicking do (error) {
+      notify_owner(PanicResult.new(panicked: True, error: error))
     }
 
     @block.call
 
-    notify(panicked: False)
+    notify_owner(PanicResult.new(panicked: False))
   }
 
-  def notify(panicked: Boolean) {
-    process.send(pid: @owner, message: panicked)
+  def notify_owner(result: PanicResult) {
+    process.send(pid: @owner, message: result)
   }
 }
 
@@ -95,9 +116,28 @@ def panic(block: lambda) {
 
   sender.send(PanicTest.new(owner: process.current, block: block))
 
-  process.receive.if_true {
+  let result = process.receive as PanicResult
+
+  result.panicked?.if_true {
     return
   }
 
   vm.panic('The provided block did not panic')
+}
+
+## Asserts that the given lambda does not panic.
+def no_panic(block: lambda) {
+  let sender = process.channel!(PanicTest) lambda (receiver) {
+    receiver.receive.run
+  }
+
+  sender.send(PanicTest.new(owner: process.current, block: block))
+
+  let result = process.receive as PanicResult
+
+  result.panicked?.if_false {
+    return
+  }
+
+  vm.panic('The provided block panicked: ' + result.error.to_string)
 }
