@@ -19,7 +19,7 @@ pub fn working_directory() -> io::Result<String> {
 }
 
 /// Returns the current working directory.
-pub fn set_working_directory(directory: &String) -> io::Result<()> {
+pub fn set_working_directory(directory: &str) -> io::Result<()> {
     env::set_current_dir(directory)
 }
 

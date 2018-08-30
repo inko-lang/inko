@@ -512,7 +512,7 @@ impl ObjectPointer {
         } else {
             let int_val = self.integer_value()?;
 
-            if int_val < 0 || int_val > u8::MAX as i64 {
+            if int_val < 0 || int_val > i64::from(u8::MAX) {
                 Err(format!("{} is too big to convert to a byte", int_val))
             } else {
                 Ok(int_val as u8)

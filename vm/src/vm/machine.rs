@@ -2050,7 +2050,7 @@ impl Machine {
                         ProcessStatus::Finished as u8
                     };
 
-                    let status_ptr = ObjectPointer::integer(status as i64);
+                    let status_ptr = ObjectPointer::integer(i64::from(status));
 
                     context.set_register(register, status_ptr);
                 }
