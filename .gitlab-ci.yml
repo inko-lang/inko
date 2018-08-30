@@ -60,7 +60,9 @@ lint:clippy:
   image: rustlang/rust:nightly
   stage: test
   before_script:
-    - rustup component add clippy-preview --toolchain=nightly
+    - rustup toolchain install nightly-2018-08-28
+    - rustup component add clippy-preview --toolchain=nightly-2018-08-28
+    - rustup default nightly-2018-08-28
     - cd vm
     - rustc --version
     - cargo --version
