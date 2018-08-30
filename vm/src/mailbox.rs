@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use std::collections::VecDeque;
+use std::collections::LinkedList;
 
 use config::Config;
 use gc::work_list::WorkList;
@@ -9,19 +9,29 @@ use immix::mailbox_allocator::MailboxAllocator;
 use object_pointer::ObjectPointer;
 
 pub struct Mailbox {
-    pub external: VecDeque<ObjectPointer>,
-    pub internal: VecDeque<ObjectPointer>,
-    pub locals: VecDeque<ObjectPointer>,
+    /// Messages sent from external processes.
+    pub external: LinkedList<ObjectPointer>,
+
+    /// Messages that were moved from the external to the internal queue.
+    pub internal: LinkedList<ObjectPointer>,
+
+    /// Messages sent by the owning process itself.
+    pub locals: LinkedList<ObjectPointer>,
+
+    /// The allocator to use for storing messages.
     pub allocator: MailboxAllocator,
+
+    /// A lock to use when synchronising various operations, such as sending
+    /// messages from external processes.
     pub write_lock: Mutex<()>,
 }
 
 impl Mailbox {
     pub fn new(global_allocator: RcGlobalAllocator, config: &Config) -> Self {
         Mailbox {
-            external: VecDeque::new(),
-            internal: VecDeque::new(),
-            locals: VecDeque::new(),
+            external: LinkedList::new(),
+            internal: LinkedList::new(),
+            locals: LinkedList::new(),
             allocator: MailboxAllocator::new(global_allocator, config),
             write_lock: Mutex::new(()),
         }
@@ -46,8 +56,7 @@ impl Mailbox {
         if self.internal.is_empty() {
             let _lock = self.write_lock.lock();
 
-            // FIXME: https://github.com/rust-lang/rust/issues/53529
-            self.internal.extend(self.external.drain(..));
+            self.internal.append(&mut self.external);
         }
 
         (true, self.internal.pop_front())

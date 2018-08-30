@@ -73,7 +73,15 @@ mod tests {
 
         collect(&state, &process, &mut profile);
 
-        assert!(local_data.mailbox.external[0].is_marked());
+        assert!(
+            local_data
+                .mailbox
+                .external
+                .iter()
+                .next()
+                .unwrap()
+                .is_marked()
+        );
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);
@@ -109,7 +117,14 @@ mod tests {
             .mailbox
             .send_from_external(process.allocate_empty());
 
-        local_data.mailbox.external[0].block_mut().set_fragmented();
+        local_data
+            .mailbox
+            .external
+            .iter_mut()
+            .next()
+            .unwrap()
+            .block_mut()
+            .set_fragmented();
 
         local_data.mailbox.allocator.prepare_for_collection();
 
