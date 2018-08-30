@@ -17,7 +17,7 @@ use object_value::ObjectValue;
 use vm::state::RcState;
 
 /// The maximum age of a bucket in the young generation.
-pub const YOUNG_MAX_AGE: isize = 3;
+pub const YOUNG_MAX_AGE: i16 = 3;
 
 /// Structure containing the state of a process-local allocator.
 pub struct LocalAllocator {

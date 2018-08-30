@@ -317,7 +317,7 @@ impl Machine {
     /// Allocates a new process and returns the PID and Process structure.
     pub fn allocate_process(
         &self,
-        pool_id: usize,
+        pool_id: u8,
         block: &Block,
     ) -> Result<RcProcess, String> {
         let mut process_table = write_lock!(self.state.process_table);
@@ -1934,7 +1934,7 @@ impl Machine {
                     let block_ptr = context.get_register(instruction.arg(1));
 
                     let pool_id = if let Some(reg) = instruction.arg_opt(2) {
-                        context.get_register(reg).usize_value()?
+                        context.get_register(reg).u8_value()?
                     } else {
                         PRIMARY_POOL
                     };
@@ -2047,11 +2047,10 @@ impl Machine {
                     let status = if let Some(receiver) = table.get(pid) {
                         receiver.status_integer()
                     } else {
-                        ProcessStatus::Finished as usize
+                        ProcessStatus::Finished as u8
                     };
 
-                    let status_ptr = process
-                        .allocate_usize(status, self.state.integer_prototype);
+                    let status_ptr = ObjectPointer::integer(status as i64);
 
                     context.set_register(register, status_ptr);
                 }
@@ -2649,7 +2648,7 @@ impl Machine {
                 // instruction does nothing.
                 InstructionType::MoveToPool => {
                     let pool_ptr = context.get_register(instruction.arg(0));
-                    let pool_id = pool_ptr.usize_value()?;
+                    let pool_id = pool_ptr.u8_value()?;
 
                     if !self.state.process_pools.pool_id_is_valid(pool_id) {
                         return Err(format!(

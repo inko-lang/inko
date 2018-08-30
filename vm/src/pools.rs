@@ -6,10 +6,10 @@ use process::RcProcess;
 const POOL_AMOUNT: usize = 2;
 
 /// The index of the primary process pool.
-pub const PRIMARY_POOL: usize = 0;
+pub const PRIMARY_POOL: u8 = 0;
 
 /// The index of the secondary process pool.
-pub const SECONDARY_POOL: usize = 1;
+pub const SECONDARY_POOL: u8 = 1;
 
 pub struct Pools {
     pools: [Pool<RcProcess>; POOL_AMOUNT],
@@ -25,8 +25,8 @@ impl Pools {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<&Pool<RcProcess>> {
-        self.pools.get(index)
+    pub fn get(&self, index: u8) -> Option<&Pool<RcProcess>> {
+        self.pools.get(index as usize)
     }
 
     pub fn schedule(&self, process: RcProcess) {
@@ -49,8 +49,8 @@ impl Pools {
         }
     }
 
-    pub fn pool_id_is_valid(&self, id: usize) -> bool {
-        id < self.pools.len()
+    pub fn pool_id_is_valid(&self, id: u8) -> bool {
+        (id as usize) < self.pools.len()
     }
 }
 

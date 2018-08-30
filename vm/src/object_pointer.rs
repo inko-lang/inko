@@ -9,6 +9,7 @@ use std::hash::{Hash, Hasher as HasherTrait};
 use std::i32;
 use std::i64;
 use std::u32;
+use std::u8;
 use std::usize;
 
 use binding::RcBinding;
@@ -499,6 +500,23 @@ impl ObjectPointer {
             self.bigint_to_usize()
         } else {
             self.integer_to_usize()
+        }
+    }
+
+    pub fn u8_value(&self) -> Result<u8, String> {
+        if self.is_bigint() {
+            Err(format!(
+                "{} is too big to be converted to a byte",
+                self.bigint_value()?
+            ))
+        } else {
+            let int_val = self.integer_value()?;
+
+            if int_val < 0 || int_val > u8::MAX as i64 {
+                Err(format!("{} is too big to convert to a byte", int_val))
+            } else {
+                Ok(int_val as u8)
+            }
         }
     }
 
@@ -1136,6 +1154,23 @@ mod tests {
         let ptr = ObjectPointer::integer(5);
 
         assert_eq!(ptr.usize_value().unwrap(), 5);
+    }
+
+    #[test]
+    fn test_u8_value() {
+        let mut alloc = local_allocator();
+
+        let valid = ObjectPointer::integer(5);
+        let invalid = ObjectPointer::integer(300);
+        let bigint = alloc.allocate_without_prototype(object_value::bigint(
+            BigInt::from(5000),
+        ));
+
+        assert!(valid.u8_value().is_ok());
+        assert!(invalid.u8_value().is_err());
+        assert!(bigint.u8_value().is_err());
+
+        assert_eq!(valid.u8_value().unwrap(), 5);
     }
 
     #[test]

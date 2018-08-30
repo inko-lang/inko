@@ -5,7 +5,8 @@ use std::hash::{Hash, Hasher};
 use std::i64;
 use std::mem;
 use std::panic::RefUnwindSafe;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use binding::RcBinding;
 use block::Block;
@@ -27,7 +28,8 @@ use vm::state::RcState;
 
 pub type RcProcess = Arc<Process>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
+#[repr(usize)]
 pub enum ProcessStatus {
     /// The process has been (re-)scheduled for execution.
     Scheduled,
@@ -48,15 +50,6 @@ pub enum ProcessStatus {
     Finished,
 }
 
-impl ProcessStatus {
-    pub fn is_running(&self) -> bool {
-        match *self {
-            ProcessStatus::Running => true,
-            _ => false,
-        }
-    }
-}
-
 pub struct LocalData {
     /// The process-local memory allocator.
     pub allocator: LocalAllocator,
@@ -70,34 +63,34 @@ pub struct LocalData {
     pub mailbox: Mailbox,
 
     // A block to execute in the event of a panic.
-    pub panic_handler: Option<ObjectPointer>,
+    pub panic_handler: ObjectPointer,
 
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
 
     /// The number of young garbage collections that have been performed.
-    pub young_collections: usize,
+    pub young_collections: u16,
 
     /// The number of mature garbage collections that have been performed.
-    pub mature_collections: usize,
+    pub mature_collections: u16,
 
     /// The number of mailbox collections that have been performed.
-    pub mailbox_collections: usize,
+    pub mailbox_collections: u16,
 
     /// The ID of the pool that this process belongs to.
-    pub pool_id: usize,
+    pub pool_id: u8,
 }
 
 pub struct Process {
+    /// Data stored in a process that should only be modified by a single thread
+    /// at once.
+    pub local_data: UnsafeCell<LocalData>,
+
     /// The process identifier of this process.
     pub pid: PID,
 
     /// The status of this process.
-    pub status: Mutex<ProcessStatus>,
-
-    /// Data stored in a process that should only be modified by a single thread
-    /// at once.
-    pub local_data: UnsafeCell<LocalData>,
+    pub status: AtomicUsize,
 }
 
 unsafe impl Sync for LocalData {}
@@ -108,7 +101,7 @@ impl RefUnwindSafe for Process {}
 impl Process {
     pub fn new(
         pid: PID,
-        pool_id: usize,
+        pool_id: u8,
         context: ExecutionContext,
         global_allocator: RcGlobalAllocator,
         config: &Config,
@@ -120,13 +113,13 @@ impl Process {
             young_collections: 0,
             mature_collections: 0,
             mailbox_collections: 0,
-            panic_handler: None,
+            panic_handler: ObjectPointer::null(),
             pool_id,
         };
 
         let process = Process {
             pid,
-            status: Mutex::new(ProcessStatus::Scheduled),
+            status: AtomicUsize::new(ProcessStatus::Scheduled as usize),
             local_data: UnsafeCell::new(local_data),
         };
 
@@ -135,7 +128,7 @@ impl Process {
 
     pub fn from_block(
         pid: PID,
-        pool_id: usize,
+        pool_id: u8,
         block: &Block,
         global_allocator: RcGlobalAllocator,
         config: &Config,
@@ -145,11 +138,11 @@ impl Process {
         Process::new(pid, pool_id, context, global_allocator, config)
     }
 
-    pub fn set_pool_id(&self, id: usize) {
+    pub fn set_pool_id(&self, id: u8) {
         self.local_data_mut().pool_id = id;
     }
 
-    pub fn pool_id(&self) -> usize {
+    pub fn pool_id(&self) -> u8 {
         self.local_data().pool_id
     }
 
@@ -172,14 +165,21 @@ impl Process {
         target.set_parent(boxed);
     }
 
-    pub fn status_integer(&self) -> usize {
-        match *lock!(self.status) {
-            ProcessStatus::Scheduled => 0,
-            ProcessStatus::Running => 1,
-            ProcessStatus::Suspended => 2,
-            ProcessStatus::SuspendForGc => 3,
-            ProcessStatus::WaitingForMessage => 4,
-            ProcessStatus::Finished => 5,
+    pub fn status_integer(&self) -> u8 {
+        self.status() as u8
+    }
+
+    pub fn status(&self) -> ProcessStatus {
+        let status = self.status.load(Ordering::Acquire);
+
+        match status {
+            0 => ProcessStatus::Scheduled,
+            1 => ProcessStatus::Running,
+            2 => ProcessStatus::Suspended,
+            3 => ProcessStatus::SuspendForGc,
+            4 => ProcessStatus::WaitingForMessage,
+            5 => ProcessStatus::Finished,
+            _ => panic!("invalid process status: {}", status),
         }
     }
 
@@ -372,16 +372,14 @@ impl Process {
     }
 
     pub fn available_for_execution(&self) -> bool {
-        match *lock!(self.status) {
+        match self.status() {
             ProcessStatus::Scheduled => true,
             _ => false,
         }
     }
 
     pub fn set_status(&self, new_status: ProcessStatus) {
-        let mut status = lock!(self.status);
-
-        *status = new_status;
+        self.status.store(new_status as usize, Ordering::Release);
     }
 
     pub fn running(&self) {
@@ -409,7 +407,7 @@ impl Process {
     }
 
     pub fn is_waiting_for_message(&self) -> bool {
-        match *lock!(self.status) {
+        match self.status() {
             ProcessStatus::WaitingForMessage => true,
             _ => false,
         }
@@ -526,11 +524,17 @@ impl Process {
     }
 
     pub fn panic_handler(&self) -> Option<&ObjectPointer> {
-        self.local_data().panic_handler.as_ref()
+        let local_data = self.local_data();
+
+        if local_data.panic_handler.is_null() {
+            None
+        } else {
+            Some(&local_data.panic_handler)
+        }
     }
 
     pub fn set_panic_handler(&self, handler: ObjectPointer) {
-        self.local_data_mut().panic_handler = Some(handler);
+        self.local_data_mut().panic_handler = handler;
     }
 
     pub fn global_pointers_to_trace(&self) -> WorkList {

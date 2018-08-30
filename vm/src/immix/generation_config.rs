@@ -9,15 +9,15 @@ pub struct GenerationConfig {
     /// The number of blocks that have been allocated.
     pub block_allocations: usize,
 
-    /// Boolean indicating if this generation should be collected.
-    pub collect: bool,
-
     /// The percentage of blocks that should be used (relative to the threshold)
     /// before incrementing the threshold.
     pub growth_threshold: f64,
 
     /// The factor to grow the allocation threshold by.
     pub growth_factor: f64,
+
+    /// Boolean indicating if this generation should be collected.
+    pub collect: bool,
 }
 
 impl GenerationConfig {
