@@ -3,13 +3,14 @@ import std::test
 # Because the compiler is not available to the Inko runtime we don't have a way
 # to automatically compile and import all test modules. This means that for the
 # time being you'll have to manually import any test modules here.
+import test::std::fs::test_dir
+import test::std::fs::test_file
 import test::std::test_ansi
 import test::std::test_array
 import test::std::test_array_iter
 import test::std::test_block
 import test::std::test_boolean
 import test::std::test_byte_array
-import test::std::fs::test_dir
 import test::std::test_env
 import test::std::test_error
 import test::std::test_float

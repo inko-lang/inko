@@ -1,0 +1,523 @@
+import std::byte_array::ByteArray
+import std::env
+import std::fs
+import std::fs::file::(self, ReadOnlyFile, ReadWriteFile, Remove, WriteOnlyFile)
+import std::fs::path::(SEPARATOR, ToPath)
+import std::io::Close
+import std::mirror
+import std::process
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+
+## The path to the file this test is defined in.
+let CURRENT_FILE = mirror.reflect_module(ThisModule).path
+
+def read_string(path: ToPath) -> String {
+  let file = try! ReadOnlyFile.new(path)
+
+  process.defer {
+    file.close
+  }
+
+  try! file.read_string
+}
+
+def temporary_file_path -> String {
+  StringBuffer
+    .new([
+      env.temporary_directory.to_string,
+      SEPARATOR,
+      'inko-test-fs-file-',
+      process.current.to_string
+    ])
+    .to_string
+}
+
+def close_and_remove_file!(T: Close + Remove)(file: T) {
+  try file.close else Nil
+
+  # If the removal fails that's OK, because in the worst case we just leave the
+  # file behind in /tmp.
+  try file.remove else Nil
+}
+
+def read_only_file(block: do (ReadOnlyFile), path: ToPath = CURRENT_FILE) {
+  let file = try! ::file.read_only(path)
+
+  process.defer {
+    file.close
+  }
+
+  block.call(file)
+}
+
+def write_only_file(block: do (WriteOnlyFile)) {
+  let file = try! ::file.write_only(temporary_file_path)
+
+  process.defer {
+    close_and_remove_file(file)
+  }
+
+  block.call(file)
+}
+
+def read_write_file(block: do (ReadWriteFile)) {
+  let file = try! ::file.read_write(temporary_file_path)
+
+  process.defer {
+    close_and_remove_file(file)
+  }
+
+  block.call(file)
+}
+
+test.group('std::fs::file::ReadOnlyFile.new') do (g) {
+  g.test('Opening an existing file in read-only mode') {
+    assert.no_panic {
+      read_only_file do (_) {}
+    }
+  }
+
+  g.test('Opening a non-existing file in read-only mode') {
+    assert.panic {
+      try! ReadOnlyFile.new('this-file-does-not-exist.inko')
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.read_bytes') do (g) {
+  g.test('Reading all bytes') {
+    read_only_file do (file) {
+      let bytes = ByteArray.new
+      let read = try! file.read_bytes(bytes)
+
+      assert.greater(read, 0)
+      assert.equal(bytes.length, read)
+    }
+  }
+
+  g.test('Reading a limited number of bytes') {
+    read_only_file do (file) {
+      let bytes = ByteArray.new
+      let read = try! file.read_bytes(bytes: bytes, size: 4)
+
+      assert.equal(read, 4)
+      assert.equal(bytes.length, 4)
+    }
+  }
+
+  g.test('Reading an invalid number of bytes') {
+    assert.panic {
+      read_only_file do (file) {
+        try! file.read_bytes(bytes: ByteArray.new, size: -1)
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.read_string') do (g) {
+  g.test('Reading all bytes') {
+    read_only_file do (file) {
+      let string = try! file.read_string
+
+      assert.greater(string.length, 0)
+    }
+  }
+
+  g.test('Reading a limited number of bytes') {
+    read_only_file do (file) {
+      let string = try! file.read_string(4)
+
+      assert.equal(string.length, 4)
+    }
+  }
+
+  g.test('Reading an invalid number of bytes') {
+    assert.panic {
+      read_only_file do (file) {
+        try! file.read_string(-1)
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.seek') do (g) {
+  g.test('Seeking to a valid offset') {
+    read_only_file do (file) {
+      let position = try! file.seek(3)
+      let data = try! file.read_string(3)
+
+      assert.equal(position, 3)
+      assert.equal(data, 'ort')
+    }
+  }
+
+  g.test('Seeking to an invalid offset') {
+    assert.panic {
+      read_only_file do (file) {
+        try! file.seek(-1)
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.size') do (g) {
+  g.test('Obtaining the size of a file') {
+    read_only_file do (file) {
+      assert.greater(try! file.size, 0)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.path') do (g) {
+  g.test('Obtaining the path of a file') {
+    read_only_file do (file) {
+      assert.equal(file.path, CURRENT_FILE)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadOnlyFile.close') do (g) {
+  g.test('Closing an open file') {
+    read_only_file do (file) {
+      assert.equal(file.close, Nil)
+    }
+  }
+
+  g.test('Closing an already closed file') {
+    read_only_file do (file) {
+      assert.equal(file.close, Nil)
+      assert.equal(file.close, Nil)
+    }
+  }
+
+  g.test('Closing a file will cause read operations to panic') {
+    assert.panic {
+      read_only_file do (file) {
+        file.close
+
+        try! file.read_string
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.new') do (g) {
+  g.test('Opening a file in write-only mode') {
+    assert.no_panic {
+      write_only_file do (_) {}
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
+  g.test('Writing a number of bytes') {
+    write_only_file do (file) {
+      let written = try! file.write_bytes(ByteArray.new([105, 110, 107, 111]))
+
+      assert.equal(written, 4)
+    }
+  }
+
+  g.test('Appending a number of bytes') {
+    write_only_file do (file) {
+      try! file.write_bytes(ByteArray.new([105, 110]))
+
+      let append = try! WriteOnlyFile
+        .new(path: temporary_file_path, append: True)
+
+      process.defer {
+        close_and_remove_file(append)
+      }
+
+      try! append.write_bytes(ByteArray.new([107, 111]))
+      try! append.flush
+
+      assert.equal(read_string(append.path), 'inko')
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.write_string') do (g) {
+  g.test('Writing a String') {
+    write_only_file do (file) {
+      let written = try! file.write_string('inko')
+
+      assert.equal(written, 4)
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.flush') do (g) {
+  g.test('Flushing any pending writes to disk') {
+    assert.no_panic {
+      write_only_file do (file) {
+        try! file.write_string('hello')
+
+        # It's hard to test if a flush succeeds or not. We could read from the
+        # file, but that doesn't mean much since we're also writing. As such we
+        # just assert that none of these operations panic.
+        try! file.flush
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.seek') do (g) {
+  g.test('Seeking to a valid offset') {
+    write_only_file do (file) {
+      try! file.write_string('hello')
+      try! file.seek(1)
+      try! file.write_string('a')
+
+      assert.equal(read_string(file.path), 'hallo')
+    }
+  }
+
+  g.test('Seeking to an invalid offset') {
+    assert.panic {
+      write_only_file do (file) {
+        try! file.seek(-1)
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.size') do (g) {
+  g.test('Obtaining the size of a file') {
+    write_only_file do (file) {
+      assert.equal(try! file.size, 0)
+    }
+  }
+
+  g.test('Obtaining the size of a file after a write') {
+    write_only_file do (file) {
+      try! file.write_string('hello')
+
+      assert.equal(try! file.size, 5)
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.path') do (g) {
+  g.test('Obtaining the path of a file') {
+    write_only_file do (file) {
+      assert.equal(file.path.to_string, temporary_file_path)
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.close') do (g) {
+  g.test('Closing an open file') {
+    write_only_file do (file) {
+      assert.equal(file.close, Nil)
+    }
+  }
+
+  g.test('Closing an already closed file') {
+    write_only_file do (file) {
+      assert.equal(file.close, Nil)
+      assert.equal(file.close, Nil)
+    }
+  }
+}
+
+test.group('std::fs::file::WriteOnlyFile.remove') do (g) {
+  g.test('Removing an existing file') {
+    write_only_file do (file) {
+      try! file.remove
+
+      assert.equal(fs.exists?(file.path), False)
+    }
+  }
+
+  g.test('Removing an already removed file') {
+    assert.panic {
+      write_only_file do (file) {
+        try! file.remove
+        try! file.remove
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.new') do (g) {
+  g.test('Opening a file in read-write mode') {
+    assert.no_panic {
+      read_write_file do (_) {}
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.read_bytes') do (g) {
+  g.test('Reading all bytes from a file') {
+    read_write_file do (file) {
+      let bytes = ByteArray.new
+
+      try! file.write_string('inko')
+      try! file.seek(0)
+      try! file.read_bytes(bytes)
+
+      assert.equal(bytes, ByteArray.new([105, 110, 107, 111]))
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.read_string') do (g) {
+  g.test('Reading all bytes from a file') {
+    read_write_file do (file) {
+      try! file.write_string('inko')
+      try! file.seek(0)
+
+      assert.equal(try! file.read_string, 'inko')
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.write_bytes') do (g) {
+  g.test('Writing a number of bytes') {
+    read_write_file do (file) {
+      try! file.write_bytes(ByteArray.new([97, 98]))
+
+      assert.equal(try! file.size, 2)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.write_string') do (g) {
+  g.test('Writing a String') {
+    read_write_file do (file) {
+      try! file.write_string('ab')
+
+      assert.equal(try! file.size, 2)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.flush') do (g) {
+  g.test('Flushing any pending writes to disk') {
+    read_write_file do (file) {
+      try! file.write_string('hello')
+      try! file.flush
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.seek') do (g) {
+  g.test('Seeking to a valid offset') {
+    read_write_file do (file) {
+      try! file.write_string('hello')
+      try! file.seek(1)
+      try! file.write_string('a')
+      try! file.seek(0)
+
+      assert.equal(try! file.read_string, 'hallo')
+    }
+  }
+
+  g.test('Seeking to an invalid offset') {
+    assert.panic {
+      read_write_file do (file) {
+        try! file.seek(-1)
+      }
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.size') do (g) {
+  g.test('Obtaining the size of a file') {
+    read_write_file do (file) {
+      assert.equal(try! file.size, 0)
+    }
+  }
+
+  g.test('Obtaining the size of a file after a write') {
+    read_write_file do (file) {
+      try! file.write_string('ab')
+
+      assert.equal(try! file.size, 2)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.path') do (g) {
+  g.test('Obtaining the path of a file') {
+    read_write_file do (file) {
+      assert.equal(file.path.to_string, temporary_file_path)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.close') do (g) {
+  g.test('Closing an open file') {
+    read_write_file do (file) {
+      assert.equal(file.close, Nil)
+    }
+  }
+
+  g.test('Closing an already closed file') {
+    read_write_file do (file) {
+      assert.equal(file.close, Nil)
+      assert.equal(file.close, Nil)
+    }
+  }
+}
+
+test.group('std::fs::file::ReadWriteFile.remove') do (g) {
+  g.test('Removing an existing file') {
+    read_write_file do (file) {
+      try! file.remove
+
+      assert.equal(fs.exists?(file.path), False)
+    }
+  }
+
+  g.test('Removing an already removed file') {
+    assert.panic {
+      read_write_file do (file) {
+        try! file.remove
+        try! file.remove
+      }
+    }
+  }
+}
+
+test.group('std::fs::file.remove') do (g) {
+  g.test('Removing an existing file') {
+    write_only_file do (f) {
+      try! file.remove(f.path)
+
+      assert.equal(fs.exists?(f.path), False)
+    }
+  }
+
+  g.test('Removing a non-existing file') {
+    assert.panic {
+      try! file.remove(temporary_file_path)
+    }
+  }
+}
+
+test.group('std::fs::file.copy') do (g) {
+  g.test('Copying an existing file') {
+    write_only_file do (f) {
+      let new_path = f.path.to_string + process.current.to_string
+
+      process.defer {
+        try file.remove(new_path) else Nil
+      }
+
+      try! file.copy(f.path, new_path)
+
+      assert.equal(fs.exists?(f.path), True)
+      assert.equal(fs.exists?(new_path), True)
+    }
+  }
+
+  g.test('Copying a non-existing file') {
+    assert.panic {
+      try! file.copy('does-not-exist', 'foo')
+    }
+  }
+}
