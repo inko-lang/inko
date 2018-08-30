@@ -12,11 +12,9 @@ pub struct Mailbox {
     /// Messages sent from external processes.
     pub external: LinkedList<ObjectPointer>,
 
-    /// Messages that were moved from the external to the internal queue.
+    /// Messages that were moved from the external to the internal queue, or
+    /// were sent by the owning process itself.
     pub internal: LinkedList<ObjectPointer>,
-
-    /// Messages sent by the owning process itself.
-    pub locals: LinkedList<ObjectPointer>,
 
     /// The allocator to use for storing messages.
     pub allocator: MailboxAllocator,
@@ -31,7 +29,6 @@ impl Mailbox {
         Mailbox {
             external: LinkedList::new(),
             internal: LinkedList::new(),
-            locals: LinkedList::new(),
             allocator: MailboxAllocator::new(global_allocator, config),
             write_lock: Mutex::new(()),
         }
@@ -45,25 +42,25 @@ impl Mailbox {
     }
 
     pub fn send_from_self(&mut self, pointer: ObjectPointer) {
-        self.locals.push_back(pointer);
+        self.internal.push_back(pointer);
     }
 
+    /// Returns a tuple containing a boolean and an optional message.
+    ///
+    /// If the boolean is set to `true`, the returned pointer must be copied to
+    /// a process' local heap.
     pub fn receive(&mut self) -> (bool, Option<ObjectPointer>) {
-        if let Some(pointer) = self.locals.pop_front() {
-            return (false, Some(pointer));
-        }
-
         if self.internal.is_empty() {
             let _lock = self.write_lock.lock();
 
             self.internal.append(&mut self.external);
         }
 
-        (true, self.internal.pop_front())
-    }
-
-    pub fn has_local_pointers(&self) -> bool {
-        !self.locals.is_empty()
+        if let Some(pointer) = self.internal.pop_front() {
+            return (pointer.is_mailbox(), Some(pointer));
+        } else {
+            (false, None)
+        }
     }
 
     /// This method is unsafe because it does not explicitly synchronise access
@@ -81,8 +78,10 @@ impl Mailbox {
     pub fn local_pointers(&self) -> WorkList {
         let mut pointers = WorkList::new();
 
-        for pointer in &self.locals {
-            pointers.push(pointer.pointer());
+        for pointer in &self.internal {
+            if !pointer.is_mailbox() {
+                pointers.push(pointer.pointer());
+            }
         }
 
         pointers
@@ -93,7 +92,7 @@ impl Mailbox {
     /// This method should only be called when the owning processes is suspended
     /// as otherwise the counts returned could be inaccurate.
     pub fn has_messages(&self) -> bool {
-        if !self.locals.is_empty() || !self.internal.is_empty() {
+        if !self.internal.is_empty() {
             return true;
         }
 
