@@ -47,6 +47,15 @@ macro_rules! reset_context {
     }};
 }
 
+macro_rules! remember_and_reset {
+    ($process: expr, $context: ident, $index: ident) => {
+        $context.instruction_index = $index - 1;
+
+        reset_context!($process, $context, $index);
+        continue;
+    };
+}
+
 macro_rules! throw_value {
     (
         $machine:expr,
@@ -595,6 +604,12 @@ impl Machine {
                 // When performing a block return we'll first unwind the call
                 // stack to the scope that defined the current block.
                 InstructionType::Return => {
+                    // If there are any pending deferred blocks, execute these
+                    // first, then retry this instruction.
+                    if context.schedule_deferred_blocks(process)? {
+                        remember_and_reset!(process, context, index);
+                    }
+
                     if context.terminate_upon_return {
                         break 'exec_loop;
                     }
@@ -2711,6 +2726,13 @@ impl Machine {
                 // This instruction takes one argument: a register containing an
                 // integer to use for the exit status.
                 InstructionType::Exit => {
+                    // Any pending deferred blocks should be executed first.
+                    if context
+                        .schedule_deferred_blocks_of_all_parents(process)?
+                    {
+                        remember_and_reset!(process, context, index);
+                    }
+
                     let status_ptr = context.get_register(instruction.arg(0));
                     let status = status_ptr.i32_value()?;
 
@@ -3608,6 +3630,33 @@ impl Machine {
                     process.set_panic_handler(block);
                     context.set_register(reg, block);
                 }
+                InstructionType::ProcessAddDeferToCaller => {
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+
+                    if block.block_value().is_err() {
+                        return Err("only Blocks can be deferred".to_string());
+                    }
+
+                    // We can not use `if let Some(...) = ...` here as the
+                    // mutable borrow of "context" prevents the 2nd mutable
+                    // borrow inside the "else".
+                    if context.parent().is_some() {
+                        context.parent_mut().unwrap().add_defer(block);
+                    } else {
+                        context.add_defer(block);
+                    }
+
+                    context.set_register(reg, block);
+                }
+                InstructionType::SetDefaultPanicHandler => {
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+                    let handler =
+                        self.state.set_default_panic_handler(block)?;
+
+                    context.set_register(reg, handler);
+                }
             };
         }
 
@@ -3811,6 +3860,8 @@ impl Machine {
         process: &RcProcess,
         value: ObjectPointer,
     ) -> Result<(), String> {
+        let mut deferred = Vec::new();
+
         loop {
             let code = process.compiled_code();
             let context = process.context_mut();
@@ -3821,11 +3872,26 @@ impl Machine {
                     context.instruction_index = entry.jump_to;
                     context.set_register(entry.register, value);
 
+                    // When unwinding, move all deferred blocks to the context
+                    // that handles the error. This makes unwinding easier, at
+                    // the cost of making a return from this context slightly
+                    // more expensive.
+                    context.append_deferred_blocks(&mut deferred);
+
                     return Ok(());
                 }
             }
 
+            if context.parent().is_some() {
+                context.move_deferred_blocks_to(&mut deferred);
+            }
+
             if process.pop_context() {
+                // Move all the pending deferred blocks from previous frames
+                // into the top-level frame. These will be scheduled once we
+                // return from the panic handler.
+                process.context_mut().append_deferred_blocks(&mut deferred);
+
                 return Err(format!(
                     "A thrown value reached the top-level in process {}",
                     process.pid
@@ -3835,9 +3901,14 @@ impl Machine {
     }
 
     fn panic(&self, process: &RcProcess, message: &str) {
-        if let Some(handler) = process.panic_handler() {
+        let handler_opt = process
+            .panic_handler()
+            .cloned()
+            .or_else(|| self.state.default_panic_handler());
+
+        if let Some(handler) = handler_opt {
             if let Err(message) =
-                self.run_custom_panic_handler(process, message, *handler)
+                self.run_custom_panic_handler(process, message, handler)
             {
                 self.run_default_panic_handler(process, &message);
             }
@@ -3846,6 +3917,10 @@ impl Machine {
         }
     }
 
+    /// Executes a custom panic handler.
+    ///
+    /// Any deferred blocks will be executed before executing the registered
+    /// panic handler.
     fn run_custom_panic_handler(
         &self,
         process: &RcProcess,
@@ -3868,11 +3943,21 @@ impl Machine {
 
         process.push_context(new_context);
 
+        // We want to schedule any remaining deferred blocks _before_ running
+        // the panic handler. This way, if the panic handler hard terminates, we
+        // still run the deferred blocks.
+        process
+            .context_mut()
+            .schedule_deferred_blocks_of_all_parents(process)?;
+
         self.run_with_error_handling(&process);
 
         Ok(())
     }
 
+    /// Executes the default panic handler.
+    ///
+    /// This handler will _not_ execute any deferred blocks.
     fn run_default_panic_handler(&self, process: &RcProcess, message: &str) {
         runtime_panic::display_panic(process, message);
 

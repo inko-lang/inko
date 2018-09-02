@@ -450,6 +450,7 @@ mod tests {
         let (_machine, block, process) = setup();
         let pointer1 = process.allocate_empty();
         let pointer2 = process.allocate_empty();
+        let pointer3 = process.allocate_empty();
 
         let mature = process
             .local_data_mut()
@@ -459,9 +460,11 @@ mod tests {
         let receiver = process.allocate_empty();
         let code = process.context().code.clone();
         let new_block = Block::new(code, None, receiver, block.global_scope);
+        let mut context = ExecutionContext::from_block(&new_block, None);
 
+        context.add_defer(pointer3);
         process.set_register(0, pointer1);
-        process.push_context(ExecutionContext::from_block(&new_block, None));
+        process.push_context(context);
 
         process.set_register(0, pointer2);
         process.set_register(1, mature);
@@ -472,12 +475,13 @@ mod tests {
 
         let result = trace_without_moving(&process, false);
 
-        assert_eq!(result.marked, 3);
+        assert_eq!(result.marked, 4);
         assert_eq!(result.evacuated, 0);
         assert_eq!(result.promoted, 0);
 
         assert_eq!(mature.is_marked(), false);
         assert!(receiver.is_marked());
+        assert!(pointer3.is_marked());
     }
 
     #[test]

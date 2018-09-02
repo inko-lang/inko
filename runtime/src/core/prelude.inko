@@ -34,6 +34,7 @@ import std::array_iter
 import std::hash_map::(HashMap as _HashMap)
 import std::inspect
 import std::byte_array
+import std::vm
 
 # These constants are re-exported so they're available to all modules by
 # default. Core types such as String should be exposed in std::globals instead.

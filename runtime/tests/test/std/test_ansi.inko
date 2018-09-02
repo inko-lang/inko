@@ -33,3 +33,9 @@ test.group 'std::ansi.cyan', do (g) {
     assert.equal(ansi.cyan('hello'), "\e[36mhello\e[0m")
   }
 }
+
+test.group 'std::ansi.yellow', do (g) {
+  g.test 'Applying the color yellow to a String', {
+    assert.equal(ansi.yellow('hello'), "\e[33mhello\e[0m")
+  }
+}

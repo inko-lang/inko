@@ -1627,6 +1627,14 @@ module Inkoc
         typedb.block_type.new_instance
       end
 
+      def on_raw_process_add_defer_to_caller(*)
+        TypeSystem::Block.closure(typedb.block_type)
+      end
+
+      def on_raw_set_default_panic_handler(*)
+        TypeSystem::Block.lambda(typedb.block_type)
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)

@@ -585,6 +585,13 @@ impl ObjectPointer {
         as_byte_array_mut,
         &mut Vec<u8>
     );
+
+    /// Atomically loads the underlying pointer, returning a new ObjectPointer.
+    pub fn atomic_load(&self) -> Self {
+        ObjectPointer {
+            raw: TaggedPointer::new(self.raw.atomic_load()),
+        }
+    }
 }
 
 impl ObjectPointerPointer {
@@ -1231,5 +1238,13 @@ mod tests {
 
         assert_eq!(non_zero.is_zero_integer(), false);
         assert!(zero.is_zero_integer());
+    }
+
+    #[test]
+    fn test_atomic_load() {
+        let mut alloc = local_allocator();
+        let pointer = alloc.allocate_empty();
+
+        assert!(pointer.atomic_load() == pointer);
     }
 }

@@ -1,5 +1,10 @@
 #! Methods for interacting with the Inko virtual machine.
 import std::conversion::ToString
+import std::debug
+import std::mirror
+import std::process
+import std::stdio::stderr
+import std::string_buffer::StringBuffer
 
 ## Triggers a panic, terminating the VM.
 ##
@@ -40,4 +45,69 @@ def panic(message: ToString) -> Void {
 ##     vm.exit(1)
 def exit(status: Integer) -> Void {
   _INKOC.exit(status)
+}
+
+## Defines the default panic handler.
+##
+## The provided `lambda` is executed whenever a process panics and doesn't
+## define its own panic handler. Once the block returns, the process will
+## terminate.
+##
+## The argument passed to the provided block is a `String` containing the panic
+## message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
+## the call stack does not unwind before running the panick handler.
+##
+## # Examples
+##
+## Defining a custom default panic handler:
+##
+##     import std::vm
+##     import std::stdio::stderr
+##
+##     vm.panicking lambda (error) {
+##       stderr.print(error)
+##     }
+def panicking(block: lambda (String)) -> Nil {
+  _INKOC.set_default_panic_handler(block)
+  Nil
+}
+
+# Registers the default panic handler.
+#
+# When this handler is invoked, an error and stacktrace is printed, followed by
+# terminating the _entire_ program. The program will be terminated with exit
+# status code 1.
+panicking lambda (error) {
+  # We use a single buffer for the entire error, instead of writing to STDERR
+  # multiple times. This ensures the output does not get messed up by other
+  # processes writing to STDERR concurrently.
+  let output = StringBuffer
+    .new(['Stack trace (the most recent call comes last):'])
+
+  let module_path = mirror.reflect_module(ThisModule).path
+
+  debug.stacktrace(skip: 2).each_with_index do (frame, index) {
+    # If the frame originates from this particular module, we ignore it. This
+    # way we ignore any frames produced by this handler itself.
+    frame.file == module_path
+      .if_false {
+        output.push("\n  ")
+        output.push(index.to_string)
+        output.push(': ')
+        output.push(frame.file.to_string.inspect)
+        output.push(', line ')
+        output.push(frame.line.to_string)
+        output.push(', in ')
+        output.push(frame.name.inspect)
+      }
+  }
+
+  output.push("\nProcess ")
+  output.push(process.current.to_string)
+  output.push(' panicked: ')
+  output.push(error)
+
+  stderr.print(output)
+
+  exit(1)
 }

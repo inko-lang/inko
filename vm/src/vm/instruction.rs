@@ -156,6 +156,8 @@ pub enum InstructionType {
     BlockSetReceiver,
     RunBlockWithReceiver,
     ProcessSetPanicHandler,
+    ProcessAddDeferToCaller,
+    SetDefaultPanicHandler,
 }
 
 /// Struct for storing information about a single instruction.

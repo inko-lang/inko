@@ -564,11 +564,13 @@ impl Hash for Process {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use num_bigint::BigInt;
     use object_value;
     use std::f64;
     use std::i32;
     use std::i64;
+    use std::mem;
     use vm::test::setup;
 
     #[test]
@@ -704,5 +706,14 @@ mod tests {
         );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_process_type_size() {
+        let size = mem::size_of::<Process>();
+
+        // This test is put in place to ensure the type size doesn't change
+        // unintentionally.
+        assert_eq!(size, 808);
     }
 }

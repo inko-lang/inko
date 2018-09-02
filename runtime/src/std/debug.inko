@@ -34,12 +34,11 @@ impl ToString for CallFrame {
   ## Formats the CallFrame as a String
   def to_string -> String {
     let buffer = StringBuffer.new([
-      @file.to_string,
+      @file.to_string.inspect,
       ', line ',
       @line.to_string,
-      ', in "',
-      @name,
-      '"'
+      ', in ',
+      @name.inspect
     ])
 
     buffer.to_string

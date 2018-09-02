@@ -1,7 +1,6 @@
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 
-extern crate colored;
 extern crate dirs;
 extern crate float_cmp;
 extern crate fnv;

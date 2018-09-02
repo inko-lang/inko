@@ -1382,6 +1382,14 @@ module Inkoc
         raw_unary_instruction(:ProcessSetPanicHandler, node, body)
       end
 
+      def on_raw_process_add_defer_to_caller(node, body)
+        raw_unary_instruction(:ProcessAddDeferToCaller, node, body)
+      end
+
+      def on_raw_set_default_panic_handler(node, body)
+        raw_unary_instruction(:SetDefaultPanicHandler, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

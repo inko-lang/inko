@@ -15,6 +15,7 @@ use gc::request::Request;
 use config::Config;
 use deref_pointer::DerefPointer;
 use immix::block::Block;
+use immix::copy_object::CopyObject;
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
 use object_pointer::ObjectPointer;
@@ -124,6 +125,12 @@ pub struct State {
 
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
+
+    /// The default panic handler for all processes.
+    ///
+    /// This field defaults to a null pointer. Reading and writing this field
+    /// should be done using atomic operations.
+    pub default_panic_handler: ObjectPointer,
 }
 
 impl RefUnwindSafe for State {}
@@ -196,6 +203,7 @@ impl State {
             false_object: false_obj,
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
+            default_panic_handler: ObjectPointer::null(),
         };
 
         for argument in arguments {
@@ -261,6 +269,38 @@ impl State {
 
     pub fn current_exit_status(&self) -> i32 {
         *self.exit_status.lock()
+    }
+
+    pub fn set_default_panic_handler(
+        &self,
+        handler: ObjectPointer,
+    ) -> Result<ObjectPointer, String> {
+        if handler.block_value()?.captures_from.is_some() {
+            return Err("default panic handlers can not capture any variables"
+                .to_string());
+        }
+
+        let handler_to_use = if handler.is_permanent() {
+            handler
+        } else {
+            self.permanent_allocator.lock().copy_object(handler)
+        };
+
+        self.default_panic_handler
+            .raw
+            .atomic_store(handler_to_use.raw.raw);
+
+        Ok(handler_to_use)
+    }
+
+    pub fn default_panic_handler(&self) -> Option<ObjectPointer> {
+        let handler = self.default_panic_handler.atomic_load();
+
+        if handler.is_null() {
+            None
+        } else {
+            Some(handler)
+        }
     }
 }
 

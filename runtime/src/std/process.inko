@@ -456,3 +456,72 @@ def panicking(block: do (String)) -> Nil {
   _INKOC.process_set_panic_handler(block)
   Nil
 }
+
+## Defers execution of the provided block, executing it when the block this
+## method is called from returns.
+##
+## Deferring the execution of a block can be usedul to clean up resources that
+## do not outlive the scope they are defined in. For example, we can open a file
+## and close it using a deferred block:
+##
+##     import std::process
+##     import std::fs::file
+##
+##     def example {
+##       let readme = try! file.read_only('README.md')
+##
+##       process.defer {
+##         readme.close
+##       }
+##
+##       try! readme.read_string
+##     }
+##
+## Here the `ReadOnlyFile` object stored in the `readme` variable would be
+## closed once we return from the `example` method.
+##
+## Deferred blocks are executed even when panicking, but a panic inside a
+## deferred block will terminate the execution of said deferred block. When
+## using `std::vm.exit`, any deferred blocks pending execution will be executed
+## first.
+##
+## The order in which deferred blocks are executed is unspecified, and
+## programs should not assume these blocks are executed in a fixed order.
+##
+## Deferred blocks are free to capture any variables from the enclosing scope,
+## like any other closure. This means that the variables will have their values
+## set to whatever the last assigned value was, prior to a return. Take this
+## code for example:
+##
+##     import std::process
+##     import std::stdio::stdout
+##
+##     let mut number = 10
+##
+##     process.defer {
+##       stdout.print(number)
+##     }
+##
+##     number = 20
+##
+## When the deferred block executes, the value of `number` will be `20`, because
+## that was the value last assigned to `number` before we return from the scope
+## this code is defined in. This means our deferred block will print `20` as
+## well, _not_ `10`.
+##
+## # Examples
+##
+## Closing a file using a deferred block:
+##
+##     import std::process
+##     import std::fs::file
+##
+##     let readme = try! file.read_only('README.md')
+##
+##     process.defer {
+##       readme.close
+##     }
+def defer(block: do) -> Nil {
+  _INKOC.process_add_defer_to_caller(block)
+  Nil
+}
