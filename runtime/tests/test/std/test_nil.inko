@@ -3,19 +3,19 @@ import std::test::assert
 
 test.group 'std::nil impl ToInteger', do (g) {
   g.test 'Returns 0', {
-    try assert.equal(Nil.to_integer, 0)
+    assert.equal(Nil.to_integer, 0)
   }
 }
 
 test.group 'std::nil impl ToFloat', do (g) {
   g.test 'Returns 0.0', {
-    try assert.equal(Nil.to_float, 0.0)
+    assert.equal(Nil.to_float, 0.0)
   }
 }
 
 test.group 'std::nil impl ToString', do (g) {
   g.test 'Returns an empty string', {
-    try assert.equal(Nil.to_string, '')
+    assert.equal(Nil.to_string, '')
   }
 }
 
@@ -24,14 +24,14 @@ test.group 'std::nil impl Conditional', do (g) {
     let actual = Nil.if_true {
       42
     }
-    try assert.equal(actual, Nil)
+    assert.equal(actual, Nil)
   }
 
   g.test 'Calls the block for if_false', {
     let actual = Nil.if_false {
       42
     }
-    try assert.equal(actual, 42)
+    assert.equal(actual, 42)
   }
 
   g.test 'Calls the false block for if', {
@@ -40,21 +40,28 @@ test.group 'std::nil impl Conditional', do (g) {
     }, false: {
       42
     }
-    try assert.equal(actual, 42)
+    assert.equal(actual, 42)
   }
 
   g.test 'Returns False for and', {
     let actual = Nil.and other: { True }
-    try assert.equal(actual, False)
+    assert.equal(actual, False)
   }
 
   g.test 'Returns True if the other object evaluates to True', {
     let actual = Nil.or other: { 42 == 42 }
-    try assert.equal(actual, True)
+    assert.equal(actual, True)
   }
 
   g.test 'Returns False if the other object evaluates anything but True', {
     let actual = Nil.or other: { 42 != 42 }
-    try assert.equal(actual, False)
+    assert.equal(actual, False)
+  }
+}
+
+test.group 'std::nil impl UnknownMessage', do (g) {
+  g.test 'Returns Nil', {
+    let actual = Nil.asdf
+    assert.equal(actual, Nil)
   }
 }
