@@ -52,17 +52,20 @@ module Inkoc
     VALUE_START = Set.new(
       %i[
         attribute
+        bracket_open
         constant
         curly_open
-        float
         define
         do
+        float
         hash_open
         identifier
         impl
         integer
+        lambda
         let
         let
+        paren_open
         return
         self
         string
@@ -70,8 +73,6 @@ module Inkoc
         trait
         try
         try_bang
-        paren_open
-        lambda
       ]
     ).freeze
 
@@ -432,7 +433,9 @@ module Inkoc
     end
 
     def send_chain_with_receiver(receiver)
-      name, location = send_name_and_location
+      name_start = advance!
+      name = message_name_for_token(name_start)
+      location = name_start.location
       args = []
       peeked = @lexer.peek
 
@@ -447,26 +450,26 @@ module Inkoc
 
       if peeked.type == :paren_open && peeked.line == location.line
         args = arguments_with_parenthesis
-      elsif next_expression_is_argument?(location.line)
+      elsif next_expression_is_argument?(name_start)
         return send_without_parenthesis(receiver, name, type_args, location)
       end
 
       AST::Send.new(name, receiver, type_args, args, location)
     end
 
-    # Returns the name and location to use for sending a message to an object.
-    def send_name_and_location
-      token = advance!
-
-      [message_name_for_token(token), token.location]
-    end
-
     # Returns true if the next expression is an argument to use when parsing
     # arguments without parenthesis.
-    def next_expression_is_argument?(line)
+    def next_expression_is_argument?(current)
       peeked = @lexer.peek
+      current_end = current.value.length + current.column
 
-      VALUE_START.include?(peeked.type) && peeked.line == line
+      # Something is only an argument if:
+      #
+      # 1. It resides on the same line.
+      # 2. It is separated by at least a single space.
+      VALUE_START.include?(peeked.type) &&
+        peeked.line == current.line &&
+        (peeked.column - current_end) >= 1
     end
 
     # Parses a list of send arguments wrapped in parenthesis.
@@ -619,7 +622,7 @@ module Inkoc
         args = arguments_with_parenthesis
 
         AST::Send.new(start.value, nil, type_args, args, start.location)
-      elsif next_expression_is_argument?(start.line)
+      elsif next_expression_is_argument?(start)
         # If an identifier is followed by another expression on the same line
         # we'll treat said expression as the start of an argument list.
         send_without_parenthesis(nil, start.value, type_args, start.location)
@@ -1165,7 +1168,7 @@ module Inkoc
     #
     #     return 10
     def return_value(start)
-      value = expression(advance!) if next_expression_is_argument?(start.line)
+      value = expression(advance!) if next_expression_is_argument?(start)
 
       AST::Return.new(value, start.location)
     end
