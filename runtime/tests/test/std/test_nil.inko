@@ -1,0 +1,78 @@
+import std::test
+import std::test::assert
+
+test.group('std::nil::Nil.to_integer') do (g) {
+  g.test('Converting Nil to 0') {
+    assert.equal(Nil.to_integer, 0)
+  }
+}
+
+test.group('std::nil::Nil.to_float') do (g) {
+  g.test('Converting Nil to 0.0') {
+    assert.equal(Nil.to_float, 0.0)
+  }
+}
+
+test.group('std::nil::Nil.to_string') do (g) {
+  g.test('Converting Nil to an empty String') {
+    assert.equal(Nil.to_string, '')
+  }
+}
+
+test.group('std::nil::Nil.if_true') do (g) {
+  g.test('Returning Nil') {
+    let actual = Nil.if_true {
+      42
+    }
+
+    assert.equal(actual, Nil)
+  }
+}
+
+test.group('std::nil::Nil.if_false') do (g) {
+  g.test('The supplied block is called') {
+    let actual = Nil.if_false {
+      42
+    }
+
+    assert.equal(actual, 42)
+  }
+}
+
+test.group('std::nil::Nil.if') do (g) {
+  g.test('The False block is called') {
+    let actual = Nil.if true: {
+      1729
+    }, false: {
+      42
+    }
+
+    assert.equal(actual, 42)
+  }
+}
+
+test.group('std::nil::Nil.and') do (g) {
+  g.test('Returning False') {
+    let actual = Nil.and { True }
+
+    assert.false(actual)
+  }
+}
+
+test.group('std::nil::Nil.or') do (g) {
+  g.test('Returning the Boolean evaluation of the other object') {
+    let t = Nil.or { 42 == 42 }
+    let f = Nil.or { 42 != 42 }
+
+    assert.true(t)
+    assert.false(f)
+  }
+}
+
+test.group('std::nil::Nil.an_unknown_message') do (g) {
+  g.test('Returning Nil') {
+    let actual = Nil.an_unknown_message
+
+    assert.equal(actual, Nil)
+  }
+}
