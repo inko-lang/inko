@@ -105,7 +105,7 @@ impl BlockHeader {
 
     /// Returns a mutable reference to the block.
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
     pub fn block_mut(&self) -> &mut Block {
         unsafe { &mut *self.block }
     }
@@ -182,7 +182,7 @@ unsafe impl Send for Block {}
 unsafe impl Sync for Block {}
 
 impl Block {
-    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
     pub fn new() -> Box<Block> {
         let layout = unsafe { heap_layout_for_block() };
         let lines = unsafe { alloc::alloc(layout) as RawObjectPointer };
@@ -282,7 +282,7 @@ impl Block {
 
     /// Returns a pointer to the first address to be used for objects.
     pub fn start_address(&self) -> RawObjectPointer {
-        unsafe { self.lines.offset(OBJECT_START_SLOT as isize) }
+        unsafe { self.lines.add(OBJECT_START_SLOT) }
     }
 
     /// Returns a pointer to the end of this block.
@@ -291,7 +291,7 @@ impl Block {
     /// allocated into this pointer, instead it should _only_ be used to
     /// determine if another pointer falls within a block or not.
     pub fn end_address(&self) -> RawObjectPointer {
-        unsafe { self.lines.offset(OBJECTS_PER_BLOCK as isize) }
+        unsafe { self.lines.add(OBJECTS_PER_BLOCK) }
     }
 
     /// Atomically loads the current free pointer.
@@ -485,7 +485,7 @@ impl Block {
         for index in OBJECT_START_SLOT..OBJECTS_PER_BLOCK {
             if bitmap.is_set(index) {
                 unsafe {
-                    ptr::drop_in_place(self.lines.offset(index as isize));
+                    ptr::drop_in_place(self.lines.add(index));
                 }
 
                 bitmap.unset(index);

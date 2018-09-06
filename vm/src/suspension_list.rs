@@ -3,7 +3,7 @@
 //! A SuspensionList can be used to track processes that are suspended for a
 //! variety of reasons (e.g. because they're waiting for a message to arrive).
 
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
 
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
@@ -147,7 +147,7 @@ impl SuspensionList {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
     fn inner_mut(&self) -> &mut HashSet<SuspendedProcess> {
         unsafe { &mut *self.inner.get() }
     }

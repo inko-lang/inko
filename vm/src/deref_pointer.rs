@@ -43,13 +43,19 @@ impl<T> DerefPointer<T> {
     }
 
     /// Atomically replaces the current pointer with the given one.
-    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::trivially_copy_pass_by_ref)
+    )]
     pub fn atomic_store(&self, other: *mut T) {
         self.as_atomic().store(other, Ordering::Release);
     }
 
     /// Atomically loads the pointer.
-    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::trivially_copy_pass_by_ref)
+    )]
     pub fn atomic_load(&self) -> Self {
         DerefPointer {
             pointer: self.as_atomic().load(Ordering::Acquire),

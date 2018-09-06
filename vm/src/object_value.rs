@@ -15,7 +15,7 @@ use hasher::Hasher;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
-#[cfg_attr(feature = "cargo-clippy", allow(box_vec))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::box_vec))]
 pub enum ObjectValue {
     None,
     Float(f64),
@@ -189,7 +189,7 @@ impl ObjectValue {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
     pub fn as_block(&self) -> Result<&Box<Block>, String> {
         match *self {
             ObjectValue::Block(ref val) => Ok(val),

@@ -16,7 +16,10 @@ pub struct Chunk<T> {
     capacity: usize,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::len_without_is_empty)
+)]
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
         let layout = unsafe {
@@ -55,13 +58,13 @@ impl<T> Index<usize> for Chunk<T> {
     type Output = T;
 
     fn index(&self, offset: usize) -> &T {
-        unsafe { &*self.ptr.offset(offset as isize) }
+        unsafe { &*self.ptr.add(offset) }
     }
 }
 
 impl<T> IndexMut<usize> for Chunk<T> {
     fn index_mut(&mut self, offset: usize) -> &mut T {
-        unsafe { &mut *self.ptr.offset(offset as isize) }
+        unsafe { &mut *self.ptr.add(offset) }
     }
 }
 

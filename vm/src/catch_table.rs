@@ -3,7 +3,7 @@
 //! A CatchTable is used to track which instruction sequences may catch a value
 //! that is being thrown. Whenever the VM finds a match it will jump to a target
 //! instruction, set a register, and continue execution.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
 
 pub struct CatchEntry {
     /// The start position of the instruction range for which to catch a value.

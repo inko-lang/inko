@@ -3,7 +3,7 @@
 //! A BlockList is used to construct a linked list of (owned) Immix blocks. To
 //! conserve space the pointer to the next block is stored in each block's
 //! header.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 
 use deref_pointer::DerefPointer;
 use immix::block::Block;

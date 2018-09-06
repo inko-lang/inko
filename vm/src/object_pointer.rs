@@ -1,6 +1,6 @@
 // This lint is disabled here as not passing pointers by reference could
 // potentially result in forwarding pointers not working properly.
-#![cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::trivially_copy_pass_by_ref))]
 
 use num_bigint::BigInt;
 use num_traits::{ToPrimitive, Zero};
@@ -197,7 +197,7 @@ impl ObjectPointer {
 
     /// Returns a mutable reference to the Object.
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
     pub fn get_mut(&self) -> &mut Object {
         self.raw
             .as_mut()
@@ -288,7 +288,7 @@ impl ObjectPointer {
 
     /// Returns a mutable reference to the block this pointer belongs to.
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
     pub fn block_mut(&self) -> &mut block::Block {
         self.block_header().block_mut()
     }
@@ -595,7 +595,10 @@ impl ObjectPointer {
 }
 
 impl ObjectPointerPointer {
-    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::trivially_copy_pass_by_ref)
+    )]
     pub fn new(pointer: &ObjectPointer) -> ObjectPointerPointer {
         ObjectPointerPointer {
             raw: pointer as *const ObjectPointer,
@@ -603,7 +606,7 @@ impl ObjectPointerPointer {
     }
 
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
     pub fn get_mut(&self) -> &mut ObjectPointer {
         unsafe { &mut *(self.raw as *mut ObjectPointer) }
     }

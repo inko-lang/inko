@@ -366,7 +366,10 @@ impl Machine {
     }
 
     /// Executes a single process.
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::cyclomatic_complexity)
+    )]
     pub fn run(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 

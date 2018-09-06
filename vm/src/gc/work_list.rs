@@ -15,7 +15,7 @@
 //! performance drastically compared to just prefetching one pointer at a time.
 //! In the best case scenario using this technique can improve tracing
 //! performance by 20-30%.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
 
 use object_pointer::ObjectPointerPointer;
 use prefetch;

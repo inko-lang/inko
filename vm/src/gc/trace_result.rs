@@ -1,5 +1,5 @@
 //! Statistics produced by tracing object graphs.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
 
 use std::ops::Add;
 

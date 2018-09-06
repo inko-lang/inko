@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
+
 extern crate getopts;
 extern crate libinko;
 
@@ -23,7 +25,7 @@ fn print_stderr(message: &str) {
     stderr.flush().unwrap();
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(print_literal))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::print_literal))]
 fn run() -> i32 {
     let args: Vec<String> = env::args().collect();
     let mut options = Options::new();

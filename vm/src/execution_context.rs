@@ -103,12 +103,12 @@ impl ExecutionContext {
         self.parent = Some(parent);
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
     pub fn parent(&self) -> Option<&Box<ExecutionContext>> {
         self.parent.as_ref()
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
     pub fn parent_mut(&mut self) -> Option<&mut Box<ExecutionContext>> {
         self.parent.as_mut()
     }
@@ -145,7 +145,7 @@ impl ExecutionContext {
     ///
     /// For example, using a `depth` of 2 means this method will at most
     /// traverse 2 parent contexts.
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
     pub fn find_parent(&self, depth: usize) -> Option<&Box<ExecutionContext>> {
         let mut found = self.parent();
 

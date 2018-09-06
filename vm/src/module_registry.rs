@@ -62,7 +62,7 @@ impl ModuleRegistry {
     }
 
     /// Returns true if the given module has been parsed.
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn contains_path(&self, path: &String) -> bool {
         self.parsed.contains_key(path)
     }
