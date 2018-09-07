@@ -2,22 +2,22 @@ import std::format::DefaultFormatter
 import std::test
 import std::test::assert
 
-test.group 'std::array::Array.new', do (g) {
-  g.test 'Creating an empty Array', {
+test.group('std::array::Array.new') do (g) {
+  g.test('Creating an empty Array') {
     assert.equal(Array.new, [])
   }
 
-  g.test 'Creating an Array with one value', {
+  g.test('Creating an Array with one value') {
     assert.equal(Array.new(10), [10])
   }
 
-  g.test 'Creating an Array with multiple values', {
+  g.test('Creating an Array with multiple values') {
     assert.equal(Array.new(10, 20, 30), [10, 20, 30])
   }
 }
 
-test.group 'std::array::Array.clear', do (g) {
-  g.test 'Removing all values from an Array', {
+test.group('std::array::Array.clear') do (g) {
+  g.test('Removing all values from an Array') {
     let numbers = [10, 20, 30]
 
     assert.equal(numbers.clear, [])
@@ -25,8 +25,8 @@ test.group 'std::array::Array.clear', do (g) {
   }
 }
 
-test.group 'std::array::Array.push', do (g) {
-  g.test 'Adding a value to the end of an Array', {
+test.group('std::array::Array.push') do (g) {
+  g.test('Adding a value to the end of an Array') {
     let numbers = []
 
     numbers.push(10)
@@ -36,8 +36,8 @@ test.group 'std::array::Array.push', do (g) {
   }
 }
 
-test.group 'std::array::Array.pop', do (g) {
-  g.test 'Removing a value from the end of an Array', {
+test.group('std::array::Array.pop') do (g) {
+  g.test('Removing a value from the end of an Array') {
     let numbers = [10, 20]
 
     assert.equal(numbers.pop, 20)
@@ -45,15 +45,15 @@ test.group 'std::array::Array.pop', do (g) {
   }
 }
 
-test.group 'std::array::Array.remove_at', do (g) {
-  g.test 'Removing a value using an existing index', {
+test.group('std::array::Array.remove_at') do (g) {
+  g.test('Removing a value using an existing index') {
     let numbers = [10, 20]
 
     assert.equal(numbers.remove_at(0), 10)
     assert.equal(numbers, [20])
   }
 
-  g.test 'Removing a value using a non-existing index', {
+  g.test('Removing a value using a non-existing index') {
     let numbers = [10]
 
     assert.equal(numbers.remove_at(1), Nil)
@@ -61,8 +61,8 @@ test.group 'std::array::Array.remove_at', do (g) {
   }
 }
 
-test.group 'std::array::Array.each', do (g) {
-  g.test 'Iterating over the values of an Array', {
+test.group('std::array::Array.each') do (g) {
+  g.test('Iterating over the values of an Array') {
     let input = [10, 20, 30]
     let output = []
 
@@ -74,8 +74,8 @@ test.group 'std::array::Array.each', do (g) {
   }
 }
 
-test.group 'std::array::Array.each_with_index', do (g) {
-  g.test 'Iterating over the values and indexes of an Array', {
+test.group('std::array::Array.each_with_index') do (g) {
+  g.test('Iterating over the values and indexes of an Array') {
     let input = [10, 20, 30]
     let output = []
     let indexes = []
@@ -90,8 +90,8 @@ test.group 'std::array::Array.each_with_index', do (g) {
   }
 }
 
-test.group 'std::array::Array.append', do (g) {
-  g.test 'Appending all the values of one Array to another Array', {
+test.group('std::array::Array.append') do (g) {
+  g.test('Appending all the values of one Array to another Array') {
     let first = [10, 20, 30]
     let second = [40, 50, 60]
 
@@ -100,23 +100,23 @@ test.group 'std::array::Array.append', do (g) {
   }
 }
 
-test.group 'std::array::Array.length', do (g) {
-  g.test 'Obtaining the number of values in an Array', {
+test.group('std::array::Array.length') do (g) {
+  g.test('Obtaining the number of values in an Array') {
     assert.equal([].length, 0)
     assert.equal([10].length, 1)
     assert.equal([10, 20, 30].length, 3)
   }
 }
 
-test.group 'std::array::Array.empty?', do (g) {
-  g.test 'Checking if an Array is empty or not', {
+test.group('std::array::Array.empty?') do (g) {
+  g.test('Checking if an Array is empty or not') {
     assert.equal([].empty?, True)
     assert.equal([10].empty?, False)
   }
 }
 
-test.group 'std::array::Array.[]', do (g) {
-  g.test 'Returning the value of an existing index', {
+test.group('std::array::Array.[]') do (g) {
+  g.test('Returning the value of an existing index') {
     let numbers = [10, 20, 30]
 
     assert.equal(numbers[0], 10)
@@ -124,14 +124,14 @@ test.group 'std::array::Array.[]', do (g) {
     assert.equal(numbers[2], 30)
   }
 
-  g.test 'Returning the value of a non-existing index', {
+  g.test('Returning the value of a non-existing index') {
     let numbers = [10]
 
     assert.equal(numbers[1], Nil)
     assert.equal(numbers[2], Nil)
   }
 
-  g.test 'Returning the value of an existing negative index', {
+  g.test('Returning the value of an existing negative index') {
     let numbers = [10, 20, 30]
 
     assert.equal(numbers[-1], 30)
@@ -143,15 +143,15 @@ test.group 'std::array::Array.[]', do (g) {
   }
 }
 
-test.group 'std::array::Array.[]=', do (g) {
-  g.test 'Setting the value of non-existing index', {
+test.group('std::array::Array.[]=') do (g) {
+  g.test('Setting the value of non-existing index') {
     let numbers = []
 
     assert.equal(numbers[0] = 1, 1)
     assert.equal(numbers, [1])
   }
 
-  g.test 'Setting the value of an out-of-bounds index', {
+  g.test('Setting the value of an out-of-bounds index') {
     let numbers = []
 
     assert.equal(numbers[2] = 1, 1)
@@ -160,14 +160,14 @@ test.group 'std::array::Array.[]=', do (g) {
     assert.equal(numbers[2], 1)
   }
 
-  g.test 'Setting the value of a negative index using an empty Array', {
+  g.test('Setting the value of a negative index using an empty Array') {
     let numbers = []
 
     assert.equal(numbers[-1] = 1, 1)
     assert.equal(numbers, [1])
   }
 
-  g.test 'Setting the value of a negative index using a non-empty Array', {
+  g.test('Setting the value of a negative index using a non-empty Array') {
     let numbers = [10, 20, 30]
 
     numbers[-1] = 60
@@ -177,30 +177,30 @@ test.group 'std::array::Array.[]=', do (g) {
   }
 }
 
-test.group 'std::array::Array.to_array', do (g) {
-  g.test 'Converting an Array to another Array', {
+test.group('std::array::Array.to_array') do (g) {
+  g.test('Converting an Array to another Array') {
     let numbers = [10, 20, 30]
 
     assert.equal(numbers, [10, 20, 30])
   }
 }
 
-test.group 'std::array::Array.==', do (g) {
-  g.test 'Comparing two equal Arrays', {
+test.group('std::array::Array.==') do (g) {
+  g.test('Comparing two equal Arrays') {
     assert.equal([10, 20], [10, 20])
   }
 
-  g.test 'Comparing two Arrays with a different length', {
+  g.test('Comparing two Arrays with a different length') {
     assert.not_equal([10], [10, 20])
   }
 
-  g.test 'Comparing two Arrays that are not equal but have the same length', {
+  g.test('Comparing two Arrays that are not equal but have the same length') {
     assert.not_equal([10], [20])
   }
 }
 
-test.group 'std::array::Array.iter', do (g) {
-  g.test 'Obtaining an Iterator from an Array', {
+test.group('std::array::Array.iter') do (g) {
+  g.test('Obtaining an Iterator from an Array') {
     let numbers = [10, 20, 30]
     let iter = numbers.iter
 
@@ -211,15 +211,15 @@ test.group 'std::array::Array.iter', do (g) {
   }
 }
 
-test.group 'std::array::Array.inspect', do (g) {
-  g.test 'Inspecting an Array', {
+test.group('std::array::Array.inspect') do (g) {
+  g.test('Inspecting an Array') {
     assert.equal([10].inspect, '[10]')
     assert.equal([10, 20, 30].inspect, '[10, 20, 30]')
   }
 }
 
-test.group 'std::array::Array.format', do (g) {
-  g.test 'Formatting an Array', {
+test.group('std::array::Array.format') do (g) {
+  g.test('Formatting an Array') {
     let array = [10, 20]
     let formatter = DefaultFormatter.new
 

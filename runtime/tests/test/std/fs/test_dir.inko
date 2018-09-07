@@ -40,35 +40,35 @@ def with_temp_dir(components: Array!(String) = [], block: do (String)) {
   block.call(path)
 }
 
-test.group 'std::fs::dir.create', do (g) {
-  g.test 'Creating a valid directory', {
-    with_temp_dir ['foo'], do (path) {
+test.group('std::fs::dir.create') do (g) {
+  g.test('Creating a valid directory') {
+    with_temp_dir(['foo']) do (path) {
       try! dir.create(path)
 
       assert.equal(fs.directory?(path), True)
     }
   }
 
-  g.test 'Creating an already existing directory', {
+  g.test('Creating an already existing directory') {
     assert.panic {
-      with_temp_dir ['foo'], do (path) {
+      with_temp_dir(['foo']) do (path) {
         try! dir.create(path)
         try! dir.create(path)
       }
     }
   }
 
-  g.test 'Creating a directory recursively', {
-    with_temp_dir ['foo', 'bar'], do (path) {
+  g.test('Creating a directory recursively') {
+    with_temp_dir(['foo', 'bar']) do (path) {
       try! dir.create(path: path, recursive: True)
 
       assert.equal(fs.directory?(path), True)
     }
   }
 
-  g.test 'Creating an existing directory recursively', {
+  g.test('Creating an existing directory recursively') {
     assert.no_panic {
-      with_temp_dir ['foo', 'bar'], do (path) {
+      with_temp_dir(['foo', 'bar']) do (path) {
         try! dir.create(path: path, recursive: True)
         try! dir.create(path: path, recursive: True)
       }
@@ -76,9 +76,9 @@ test.group 'std::fs::dir.create', do (g) {
   }
 }
 
-test.group 'std::fs::dir.remove', do (g) {
-  g.test 'Removing an empty directory', {
-    with_temp_dir ['foo'], do (path) {
+test.group('std::fs::dir.remove') do (g) {
+  g.test('Removing an empty directory') {
+    with_temp_dir(['foo']) do (path) {
       try! dir.create(path)
       try! dir.remove(path)
 
@@ -86,17 +86,17 @@ test.group 'std::fs::dir.remove', do (g) {
     }
   }
 
-  g.test 'Removing a non-empty directory', {
+  g.test('Removing a non-empty directory') {
     assert.panic {
-      with_temp_dir ['foo', 'bar'], do (path) {
+      with_temp_dir(['foo', 'bar']) do (path) {
         try! dir.create(path: path, recursive: True)
         try! dir.remove(temp_dir)
       }
     }
   }
 
-  g.test 'Removing an empty directory recursively', {
-    with_temp_dir ['foo', 'bar'], do (path) {
+  g.test('Removing an empty directory recursively') {
+    with_temp_dir(['foo', 'bar']) do (path) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: path, recursive: True)
 
@@ -104,10 +104,10 @@ test.group 'std::fs::dir.remove', do (g) {
     }
   }
 
-  g.test 'Removing a non-empty directory recursively', {
+  g.test('Removing a non-empty directory recursively') {
     let root = temp_dir
 
-    with_temp_dir ['foo', 'bar'], do (path) {
+    with_temp_dir(['foo', 'bar']) do (path) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: root, recursive: True)
 
@@ -116,27 +116,27 @@ test.group 'std::fs::dir.remove', do (g) {
   }
 }
 
-test.group 'std::fs::dir.list', do (g) {
-  g.test 'Listing the contents of an empty directory', {
-    with_temp_dir [], do (path) {
+test.group('std::fs::dir.list') do (g) {
+  g.test('Listing the contents of an empty directory') {
+    with_temp_dir([]) do (path) {
       let contents = try! dir.list(path)
 
       assert.equal(contents, [])
     }
   }
 
-  g.test 'Listing the contents of a non-existing directory', {
+  g.test('Listing the contents of a non-existing directory') {
     assert.panic {
-      with_temp_dir ['foo'], do (path) {
+      with_temp_dir(['foo']) do (path) {
         try! dir.list(path)
       }
     }
   }
 
-  g.test 'Listing the contents of a non-empty directory', {
+  g.test('Listing the contents of a non-empty directory') {
     let root = temp_dir
 
-    with_temp_dir ['foo'], do (path) {
+    with_temp_dir(['foo']) do (path) {
       try! dir.create(path)
 
       let contents = try! dir.list(root)

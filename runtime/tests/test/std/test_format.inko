@@ -2,8 +2,8 @@ import std::format::(self, DefaultFormatter, MAX_DEPTH, PLACEHOLDER)
 import std::test
 import std::test::assert
 
-test.group 'std::format::DefaultFormatter.push', do (g) {
-  g.test 'Pushing a String into the underlying buffer', {
+test.group('std::format::DefaultFormatter.push') do (g) {
+  g.test('Pushing a String into the underlying buffer') {
     let fmt = DefaultFormatter.new
 
     fmt.push('hello')
@@ -12,8 +12,8 @@ test.group 'std::format::DefaultFormatter.push', do (g) {
   }
 }
 
-test.group 'std::format::DefaultFormatter.descend', do (g) {
-  g.test 'Formatting an object when the nesting level is not too great', {
+test.group('std::format::DefaultFormatter.descend') do (g) {
+  g.test('Formatting an object when the nesting level is not too great') {
     let fmt = DefaultFormatter.new
 
     fmt.descend {
@@ -23,7 +23,7 @@ test.group 'std::format::DefaultFormatter.descend', do (g) {
     assert.equal(fmt.to_string, 'hello')
   }
 
-  g.test 'Formatting an object when the nesting level is too great', {
+  g.test('Formatting an object when the nesting level is too great') {
     let fmt = DefaultFormatter.new
 
     let mut block = { fmt.push('hello') }
@@ -46,8 +46,8 @@ test.group 'std::format::DefaultFormatter.descend', do (g) {
   }
 }
 
-test.group 'std::format.inspect', do (g) {
-  g.test 'Inspecting an object', {
+test.group('std::format.inspect') do (g) {
+  g.test('Inspecting an object') {
     assert.equal(::format.inspect([10]), '[10]')
   }
 }

@@ -4,18 +4,18 @@ import std::test::assert
 
 env['INKO_VALID'] = 'foo'
 
-test.group 'std::env.[]', do (g) {
-  g.test 'Obtaining the value of an existing environment variable', {
+test.group('std::env.[]') do (g) {
+  g.test('Obtaining the value of an existing environment variable') {
     assert.equal(env['INKO_VALID'], 'foo')
   }
 
-  g.test 'Obtaining the value of a non-existing environment variable', {
+  g.test('Obtaining the value of a non-existing environment variable') {
     assert.equal(env['INKO_INVALID'], Nil)
   }
 }
 
-test.group 'std::env.[]=', do (g) {
-  g.test 'Setting the value of an environment variable', {
+test.group('std::env.[]=') do (g) {
+  g.test('Setting the value of an environment variable') {
     env['INKO_TEST_ENV_SET'] = 'foo'
 
     assert.equal(env['INKO_TEST_ENV_SET'], 'foo')
@@ -26,8 +26,8 @@ test.group 'std::env.[]=', do (g) {
   }
 }
 
-test.group 'std::env.remove', do (g) {
-  g.test 'Removing an existing environment variable', {
+test.group('std::env.remove') do (g) {
+  g.test('Removing an existing environment variable') {
     env['INKO_TO_REMOVE'] = 'foo'
 
     env.remove('INKO_TO_REMOVE')
@@ -35,15 +35,15 @@ test.group 'std::env.remove', do (g) {
     assert.equal(env['INKO_TO_REMOVE'], Nil)
   }
 
-  g.test 'Removing a non-existing environment variable', {
+  g.test('Removing a non-existing environment variable') {
     env.remove('INKO_TO_REMOVE')
 
     assert.equal(env['INKO_TO_REMOVE'], Nil)
   }
 }
 
-test.group 'std::env.variables', do (g) {
-  g.test 'Obtaining all environment variables and their values', {
+test.group('std::env.variables') do (g) {
+  g.test('Obtaining all environment variables and their values') {
     let vars = env.variables
 
     assert.equal(vars.empty?, False)
@@ -51,8 +51,8 @@ test.group 'std::env.variables', do (g) {
   }
 }
 
-test.group 'std::env.home_directory', do (g) {
-  g.test 'Obtaining the home directory of the current user', {
+test.group('std::env.home_directory') do (g) {
+  g.test('Obtaining the home directory of the current user') {
     # For the time being we'll assume that the user executing the tests has a
     # home directory set.
     let home_dir = env.home_directory
@@ -62,8 +62,8 @@ test.group 'std::env.home_directory', do (g) {
   }
 }
 
-test.group 'std::env.temporary_directory', do (g) {
-  g.test 'Obtaining the temporary directory', {
+test.group('std::env.temporary_directory') do (g) {
+  g.test('Obtaining the temporary directory') {
     let temp_dir = env.temporary_directory
 
     assert.equal(temp_dir.exists?, True)
@@ -71,16 +71,16 @@ test.group 'std::env.temporary_directory', do (g) {
   }
 }
 
-test.group 'std::env.working_directory', do (g) {
-  g.test 'Obtaining the current working directory', {
+test.group('std::env.working_directory') do (g) {
+  g.test('Obtaining the current working directory') {
     let path = try env.working_directory.to_string else ''
 
     assert.greater(path.length, 0)
   }
 }
 
-test.group 'std::env.working_directory=', do (g) {
-  g.test 'Changing the current working directory', {
+test.group('std::env.working_directory=') do (g) {
+  g.test('Changing the current working directory') {
     let path = try env.working_directory.to_string else '.'
     let new_path = try {
       (env.working_directory = path).to_string
@@ -91,7 +91,7 @@ test.group 'std::env.working_directory=', do (g) {
     assert.equal(new_path, path)
   }
 
-  g.test 'Changing the working directory to an invalid directory', {
+  g.test('Changing the working directory to an invalid directory') {
     let path = try {
       (env.working_directory = 'does-not-exist').to_string
     } else {
@@ -102,19 +102,19 @@ test.group 'std::env.working_directory=', do (g) {
   }
 }
 
-test.group 'std::env.arguments', do (g) {
-  g.test 'Obtaining the commandline arguments', {
+test.group('std::env.arguments') do (g) {
+  g.test('Obtaining the commandline arguments') {
     assert.equal(env.arguments, ['dummy'])
   }
 
-  g.test 'Every call results in a new Array being returned', {
+  g.test('Every call results in a new Array being returned') {
     let args1 = env.arguments
     let args2 = env.arguments
 
     assert.equal(args1.equal?(args2), False)
   }
 
-  g.test 'Modifying the arguments Array does not affect other calls', {
+  g.test('Modifying the arguments Array does not affect other calls') {
     let args1 = env.arguments
 
     args1.push('bar')

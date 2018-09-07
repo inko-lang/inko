@@ -2,20 +2,20 @@
 import std::test
 import std::test::assert
 
-test.group 'Integer.==', do (g) {
-  g.test 'Comparing two equal Integers', {
+test.group('Integer.==') do (g) {
+  g.test('Comparing two equal Integers') {
     assert.equal(10, 10)
   }
 
-  g.test 'Comparing two Integers that are not equal', {
+  g.test('Comparing two Integers that are not equal') {
     assert.not_equal(10, 5)
   }
 
-  g.test 'Comparing the maximum value of a signed 64 bits integer', {
+  g.test('Comparing the maximum value of a signed 64 bits integer') {
     assert.equal(9_223_372_036_854_775_807, 9_223_372_036_854_775_807)
   }
 
-  g.test 'Comparing the maximum value of a signed 128 bits integer', {
+  g.test('Comparing the maximum value of a signed 128 bits integer') {
     assert.equal(
       170_141_183_460_469_231_731_687_303_715_884_105_727,
       170_141_183_460_469_231_731_687_303_715_884_105_727

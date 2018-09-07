@@ -16,7 +16,7 @@
 #!     import std::test
 #!     import std::test::assert
 #!
-#!     test.group 'The name of the group', do (group) {
+#!     test.group('The name of the group') do (group) {
 #!
 #!     }
 #!
@@ -27,7 +27,7 @@
 #!     import std::test
 #!     import std::test::assert
 #!
-#!     test.group 'Integer.==', do (group) {
+#!     test.group('Integer.==') do (group) {
 #!
 #!     }
 #!
@@ -37,8 +37,8 @@
 #!     import std::test
 #!     import std::test::assert
 #!
-#!     test.group 'Integer.==', do (group) {
-#!       group.test 'This is the name of the test', {
+#!     test.group('Integer.==') do (group) {
+#!       group.test('This is the name of the test') {
 #!
 #!       }
 #!     }
@@ -49,8 +49,8 @@
 #!     import std::test
 #!     import std::test::assert
 #!
-#!     test.group 'Integer.==', do (group) {
-#!       group.test 'Comparing two identical integers', {
+#!     test.group('Integer.==') do (group) {
+#!       group.test('Comparing two identical integers') {
 #!
 #!       }
 #!     }
@@ -62,8 +62,8 @@
 #!     import std::test
 #!     import std::test::assert
 #!
-#!     test.group 'Integer.==', do (group) {
-#!       group.test 'Comparing two identical integers', {
+#!     test.group('Integer.==') do (group) {
+#!       group.test('Comparing two identical integers') {
 #!         try assert.equal(10, 10)
 #!       }
 #!     }

@@ -18,8 +18,8 @@ def test_loop -> Integer {
   }.loop
 }
 
-test.group 'std::block::Block.call', do (g) {
-  g.test 'Running a Block', {
+test.group('std::block::Block.call') do (g) {
+  g.test('Running a Block') {
     # Without casting the Block to Dynamic, the compiler might optimise the
     # "call" message, resulting in the underlying "call" method never being
     # called.
@@ -29,8 +29,8 @@ test.group 'std::block::Block.call', do (g) {
   }
 }
 
-test.group 'std::block::Block.while_false', do (g) {
-  g.test 'Calling a Block as long as a condition returns False', {
+test.group('std::block::Block.while_false') do (g) {
+  g.test('Calling a Block as long as a condition returns False') {
     let mut number = 0
 
     { number == 10 }.while_false {
@@ -41,8 +41,8 @@ test.group 'std::block::Block.while_false', do (g) {
   }
 }
 
-test.group 'std::block::Block.while_true', do (g) {
-  g.test 'Calling a Block as long as a condition returns True', {
+test.group('std::block::Block.while_true') do (g) {
+  g.test('Calling a Block as long as a condition returns True') {
     let mut number = 0
 
     { number < 10 }.while_true {
@@ -53,14 +53,14 @@ test.group 'std::block::Block.while_true', do (g) {
   }
 }
 
-test.group 'std::block::Block.loop', do (g) {
-  g.test 'Calling a Block indefinitely', {
+test.group('std::block::Block.loop') do (g) {
+  g.test('Calling a Block indefinitely') {
     assert.equal(test_loop, 100)
   }
 }
 
-test.group 'std::block::Block.format', do (g) {
-  g.test 'Formatting a block', {
+test.group('std::block::Block.format') do (g) {
+  g.test('Formatting a block') {
     let block = { 10 }
     let formatter = DefaultFormatter.new
 
@@ -70,8 +70,8 @@ test.group 'std::block::Block.format', do (g) {
   }
 }
 
-test.group 'std::block::Block.inspect', do (g) {
-  g.test 'Inspecting a Block', {
+test.group('std::block::Block.inspect') do (g) {
+  g.test('Inspecting a Block') {
     let block = { 10 }
 
     assert.equal(block.inspect, 'Block')

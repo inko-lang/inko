@@ -3,15 +3,15 @@ import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
-test.group 'std::boolean::Boolean.not', do (g) {
-  g.test 'Returning the opposite of Boolean', {
+test.group('std::boolean::Boolean.not') do (g) {
+  g.test('Returning the opposite of Boolean') {
     assert.equal(Boolean.not, False)
   }
 }
 
 
-test.group 'std::boolean::Boolean.if_true', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::Boolean.if_true') do (g) {
+  g.test('The supplied Block is always executed') {
     let number = Boolean.if_true {
       10
     }
@@ -20,8 +20,8 @@ test.group 'std::boolean::Boolean.if_true', do (g) {
   }
 }
 
-test.group 'std::boolean::Boolean.if_false', do (g) {
-  g.test 'The supplied Block is never executed', {
+test.group('std::boolean::Boolean.if_false') do (g) {
+  g.test('The supplied Block is never executed') {
     let number = Boolean.if_false {
       10
     }
@@ -30,8 +30,8 @@ test.group 'std::boolean::Boolean.if_false', do (g) {
   }
 }
 
-test.group 'std::boolean::Boolean.if', do (g) {
-  g.test 'The Block passed to the "true" argument is always executed', {
+test.group('std::boolean::Boolean.if') do (g) {
+  g.test('The Block passed to the "true" argument is always executed') {
     let number = Boolean.if true: {
       10
     }, false: {
@@ -42,34 +42,34 @@ test.group 'std::boolean::Boolean.if', do (g) {
   }
 }
 
-test.group 'std::boolean::Boolean.and', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::Boolean.and') do (g) {
+  g.test('The supplied Block is always executed') {
     assert.equal(Boolean.and({ True }), True)
   }
 }
 
-test.group 'std::boolean::Boolean.or', do (g) {
-  g.test 'The return value is always True', {
+test.group('std::boolean::Boolean.or') do (g) {
+  g.test('The return value is always True') {
     assert.equal(Boolean.or({ False }), True)
   }
 }
 
-test.group 'std::boolean::Boolean.==', do (g) {
-  g.test 'Comparing Boolean with other booleans', {
+test.group('std::boolean::Boolean.==') do (g) {
+  g.test('Comparing Boolean with other booleans') {
     assert.equal(Boolean, Boolean)
     assert.not_equal(Boolean, True)
     assert.not_equal(Boolean, False)
   }
 }
 
-test.group 'std::boolean::Boolean.to_string', do (g) {
-  g.test 'Converting Boolean to a String', {
+test.group('std::boolean::Boolean.to_string') do (g) {
+  g.test('Converting Boolean to a String') {
     assert.equal(Boolean.to_string, 'Boolean')
   }
 }
 
-test.group 'std::boolean::Boolean.hash', do (g) {
-  g.test 'Hashing a Boolean', {
+test.group('std::boolean::Boolean.hash') do (g) {
+  g.test('Hashing a Boolean') {
     let hasher1 = DefaultHasher.new
     let hasher2 = DefaultHasher.new
 
@@ -83,14 +83,14 @@ test.group 'std::boolean::Boolean.hash', do (g) {
   }
 }
 
-test.group 'std::boolean::Boolean.inspect', do (g) {
-  g.test 'Inspecting a Boolean', {
+test.group('std::boolean::Boolean.inspect') do (g) {
+  g.test('Inspecting a Boolean') {
     assert.equal(Boolean.inspect, 'Boolean')
   }
 }
 
-test.group 'std::boolean::Boolean.format', do (g) {
-  g.test 'Formatting a Boolean', {
+test.group('std::boolean::Boolean.format') do (g) {
+  g.test('Formatting a Boolean') {
     let formatter = DefaultFormatter.new
 
     Boolean.format_for_inspect(formatter)
@@ -99,15 +99,15 @@ test.group 'std::boolean::Boolean.format', do (g) {
   }
 }
 
-test.group 'std::boolean::True.not', do (g) {
-  g.test 'Returning the opposite of True', {
+test.group('std::boolean::True.not') do (g) {
+  g.test('Returning the opposite of True') {
     assert.equal(True.not, False)
   }
 }
 
 
-test.group 'std::boolean::True.if_true', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::True.if_true') do (g) {
+  g.test('The supplied Block is always executed') {
     let number = True.if_true {
       10
     }
@@ -116,8 +116,8 @@ test.group 'std::boolean::True.if_true', do (g) {
   }
 }
 
-test.group 'std::boolean::True.if_false', do (g) {
-  g.test 'The supplied Block is never executed', {
+test.group('std::boolean::True.if_false') do (g) {
+  g.test('The supplied Block is never executed') {
     let number = True.if_false {
       10
     }
@@ -126,8 +126,8 @@ test.group 'std::boolean::True.if_false', do (g) {
   }
 }
 
-test.group 'std::boolean::True.if', do (g) {
-  g.test 'The Block passed to the "true" argument is always executed', {
+test.group('std::boolean::True.if') do (g) {
+  g.test('The Block passed to the "true" argument is always executed') {
     let number = True.if true: {
       10
     }, false: {
@@ -138,34 +138,34 @@ test.group 'std::boolean::True.if', do (g) {
   }
 }
 
-test.group 'std::boolean::True.and', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::True.and') do (g) {
+  g.test('The supplied Block is always executed') {
     assert.equal(True.and({ True }), True)
   }
 }
 
-test.group 'std::boolean::True.or', do (g) {
-  g.test 'The return value is always True', {
+test.group('std::boolean::True.or') do (g) {
+  g.test('The return value is always True') {
     assert.equal(True.or({ False }), True)
   }
 }
 
-test.group 'std::boolean::True.==', do (g) {
-  g.test 'Comparing True with other booleans', {
+test.group('std::boolean::True.==') do (g) {
+  g.test('Comparing True with other booleans') {
     assert.equal(True, True)
     assert.not_equal(True, Boolean)
     assert.not_equal(True, False)
   }
 }
 
-test.group 'std::boolean::True.to_string', do (g) {
-  g.test 'Converting True to a String', {
+test.group('std::boolean::True.to_string') do (g) {
+  g.test('Converting True to a String') {
     assert.equal(True.to_string, 'True')
   }
 }
 
-test.group 'std::boolean::True.hash', do (g) {
-  g.test 'Hashing a True', {
+test.group('std::boolean::True.hash') do (g) {
+  g.test('Hashing a True') {
     let hasher1 = DefaultHasher.new
     let hasher2 = DefaultHasher.new
 
@@ -179,14 +179,14 @@ test.group 'std::boolean::True.hash', do (g) {
   }
 }
 
-test.group 'std::boolean::True.inspect', do (g) {
-  g.test 'Inspecting True', {
+test.group('std::boolean::True.inspect') do (g) {
+  g.test('Inspecting True') {
     assert.equal(True.inspect, 'True')
   }
 }
 
-test.group 'std::boolean::True.format', do (g) {
-  g.test 'Formatting a True', {
+test.group('std::boolean::True.format') do (g) {
+  g.test('Formatting a True') {
     let formatter = DefaultFormatter.new
 
     True.format_for_inspect(formatter)
@@ -195,15 +195,15 @@ test.group 'std::boolean::True.format', do (g) {
   }
 }
 
-test.group 'std::boolean::False.not', do (g) {
-  g.test 'Returning the opposite of False', {
+test.group('std::boolean::False.not') do (g) {
+  g.test('Returning the opposite of False') {
     assert.equal(False.not, True)
   }
 }
 
 
-test.group 'std::boolean::False.if_true', do (g) {
-  g.test 'The supplied Block is never executed', {
+test.group('std::boolean::False.if_true') do (g) {
+  g.test('The supplied Block is never executed') {
     let number = False.if_true {
       10
     }
@@ -212,8 +212,8 @@ test.group 'std::boolean::False.if_true', do (g) {
   }
 }
 
-test.group 'std::boolean::False.if_false', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::False.if_false') do (g) {
+  g.test('The supplied Block is always executed') {
     let number = False.if_false {
       10
     }
@@ -222,8 +222,8 @@ test.group 'std::boolean::False.if_false', do (g) {
   }
 }
 
-test.group 'std::boolean::False.if', do (g) {
-  g.test 'The Block passed to the "false" argument is always executed', {
+test.group('std::boolean::False.if') do (g) {
+  g.test('The Block passed to the "false" argument is always executed') {
     let number = False.if true: {
       10
     }, false: {
@@ -234,34 +234,34 @@ test.group 'std::boolean::False.if', do (g) {
   }
 }
 
-test.group 'std::boolean::False.and', do (g) {
-  g.test 'The supplied Block is never executed', {
+test.group('std::boolean::False.and') do (g) {
+  g.test('The supplied Block is never executed') {
     assert.equal(False.and({ True }), False)
   }
 }
 
-test.group 'std::boolean::False.or', do (g) {
-  g.test 'The supplied Block is always executed', {
+test.group('std::boolean::False.or') do (g) {
+  g.test('The supplied Block is always executed') {
     assert.equal(False.or({ True }), True)
   }
 }
 
-test.group 'std::boolean::False.==', do (g) {
-  g.test 'Comparing False with other booleans', {
+test.group('std::boolean::False.==') do (g) {
+  g.test('Comparing False with other booleans') {
     assert.equal(False, False)
     assert.not_equal(False, Boolean)
     assert.not_equal(False, True)
   }
 }
 
-test.group 'std::boolean::False.to_string', do (g) {
-  g.test 'Converting False to a String', {
+test.group('std::boolean::False.to_string') do (g) {
+  g.test('Converting False to a String') {
     assert.equal(False.to_string, 'False')
   }
 }
 
-test.group 'std::boolean::False.hash', do (g) {
-  g.test 'Hashing a False', {
+test.group('std::boolean::False.hash') do (g) {
+  g.test('Hashing a False') {
     let hasher1 = DefaultHasher.new
     let hasher2 = DefaultHasher.new
 
@@ -275,14 +275,14 @@ test.group 'std::boolean::False.hash', do (g) {
   }
 }
 
-test.group 'std::boolean::False.inspect', do (g) {
-  g.test 'Inspecting False', {
+test.group('std::boolean::False.inspect') do (g) {
+  g.test('Inspecting False') {
     assert.equal(False.inspect, 'False')
   }
 }
 
-test.group 'std::boolean::False.format', do (g) {
-  g.test 'Formatting a False', {
+test.group('std::boolean::False.format') do (g) {
+  g.test('Formatting a False') {
     let formatter = DefaultFormatter.new
 
     False.format_for_inspect(formatter)

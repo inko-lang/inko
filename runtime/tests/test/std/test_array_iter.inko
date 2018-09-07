@@ -2,8 +2,8 @@ import std::array_iter::(Iterator as ArrayIterator)
 import std::test
 import std::test::assert
 
-test.group 'std::array_iter::Iterator.next?', do (g) {
-  g.test 'Testing if there are any remaining values', {
+test.group('std::array_iter::Iterator.next?') do (g) {
+  g.test('Testing if there are any remaining values') {
     let iter = ArrayIterator.new([10])
 
     assert.equal(iter.next?, True)
@@ -14,8 +14,8 @@ test.group 'std::array_iter::Iterator.next?', do (g) {
   }
 }
 
-test.group 'std::array_iter::Iterator.next', do (g) {
-  g.test 'Obtaining the next value', {
+test.group('std::array_iter::Iterator.next') do (g) {
+  g.test('Obtaining the next value') {
     let iter = ArrayIterator.new([10])
 
     assert.equal(iter.next, 10)
