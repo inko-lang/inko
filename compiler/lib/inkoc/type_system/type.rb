@@ -3,6 +3,7 @@
 module Inkoc
   module TypeSystem
     # Module defining various (required) methods for regular types.
+    # rubocop: disable Metrics/ModuleLength
     module Type
       def type_name
         raise NotImplementedError, "#{self.class} does not implement #type_name"
@@ -72,6 +73,18 @@ module Inkoc
         self
       end
 
+      def lookup_unknown_message(state)
+        mod = state.modules[Config::UNKNOWN_MESSAGE_MODULE]
+        method_name = Config::UNKNOWN_MESSAGE_MESSAGE
+
+        if mod &&
+           implements_trait?(mod.lookup_type(Config::UNKNOWN_MESSAGE_TRAIT))
+          lookup_method(method_name)
+        else
+          NullSymbol.new(method_name)
+        end
+      end
+
       def guard_unknown_message?(name)
         optional? || dynamic? || lookup_method(name).nil?
       end
@@ -127,5 +140,6 @@ module Inkoc
         self
       end
     end
+    # rubocop: enable Metrics/ModuleLength
   end
 end

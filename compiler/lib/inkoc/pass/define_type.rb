@@ -275,7 +275,16 @@ module Inkoc
       def send_to_known_type(node, source, scope)
         name = node.name
         method = source.lookup_method(name).type_or_else do
-          return diagnostics.undefined_method_error(source, name, node.location)
+          unknown_method = source.lookup_unknown_message(@state)
+
+          unless unknown_method
+            return diagnostics
+                .undefined_method_error(source, name, node.location)
+          end
+
+          # If the method is not defined, but the receiver _does_ implement
+          # "unknown_message", just return the type of that implementation.
+          return unknown_method.type.resolved_return_type(source)
         end
 
         unless verify_method_bounds(source, method, node.location)

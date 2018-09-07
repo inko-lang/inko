@@ -58,6 +58,8 @@ module Inkoc
     RAW_INSTRUCTION_RECEIVER = '_INKOC'
     NEW_MESSAGE = 'new'
     UNKNOWN_MESSAGE_MESSAGE = 'unknown_message'
+    UNKNOWN_MESSAGE_TRAIT = 'UnknownMessage'
+    UNKNOWN_MESSAGE_MODULE = 'std::unknown_message'
     FROM_ARRAY_MESSAGE = 'from_array'
     SET_INDEX_MESSAGE = '[]='
     MODULE_GLOBAL = 'ThisModule'

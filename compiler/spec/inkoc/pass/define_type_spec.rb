@@ -754,7 +754,6 @@ describe Inkoc::Pass::DefineType do
         int_type = state.typedb.integer_type
         method = Inkoc::TypeSystem::Block.new(name: 'foo', return_type: param)
 
-
         receiver.define_attribute(method.name, method)
         receiver.initialize_type_parameter(param, int_type)
 
@@ -2679,7 +2678,6 @@ describe Inkoc::Pass::DefineType do
       param = trait.define_type_parameter('T')
       method = Inkoc::TypeSystem::Block
         .named_method('inspect', state.typedb.block_type)
-
 
       trait.define_required_method(method)
 
