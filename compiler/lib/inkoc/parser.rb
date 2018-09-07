@@ -477,14 +477,21 @@ module Inkoc
     # Example:
     #
     #     (10, 'foo', 'bar')
+    #     (10, 'foo', 'bar') do { ... }
+    # rubocop: disable Metrics/CyclomaticComplexity
+    # rubocop: disable Metrics/PerceivedComplexity
     def arguments_with_parenthesis
       args = []
+      paren_line = nil
 
       # Skip the opening parenthesis
       skip_one
 
       while (token = @lexer.advance) && token.valid?
-        break if token.type == :paren_close
+        if token.type == :paren_close
+          paren_line = token.line
+          break
+        end
 
         args << expression_or_keyword_argument(token)
 
@@ -495,7 +502,28 @@ module Inkoc
         end
       end
 
+      # If a block follows the send on the same line as the closing parenthesis,
+      # we include it as the last argument.
+      if (trailing_block = trailing_block_for_send(paren_line))
+        args << trailing_block
+      end
+
       args
+    end
+    # rubocop: enable Metrics/PerceivedComplexity
+    # rubocop: enable Metrics/CyclomaticComplexity
+
+    def trailing_block_for_send(paren_line)
+      return unless @lexer.peek.line == paren_line
+
+      case @lexer.peek.type
+      when :curly_open
+        block_without_arguments(advance!)
+      when :do, :lambda
+        token = advance!
+
+        block(token, token.type)
+      end
     end
 
     # Parses a list of send arguments without parenthesis.
