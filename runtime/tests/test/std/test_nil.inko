@@ -1,67 +1,82 @@
 import std::test
 import std::test::assert
 
-test.group 'std::nil impl ToInteger', do (g) {
-  g.test 'Returns 0', {
+test.group('std::nil::Nil.to_integer') do (g) {
+  g.test('Returns 0') {
     assert.equal(Nil.to_integer, 0)
   }
 }
 
-test.group 'std::nil impl ToFloat', do (g) {
-  g.test 'Returns 0.0', {
+test.group('std::nil::Nil.to_float') do (g) {
+  g.test('Returns 0.0') {
     assert.equal(Nil.to_float, 0.0)
   }
 }
 
-test.group 'std::nil impl ToString', do (g) {
-  g.test 'Returns an empty string', {
+test.group('std::nil::Nil.to_string') do (g) {
+  g.test('Returns an empty String') {
     assert.equal(Nil.to_string, '')
   }
 }
 
-test.group 'std::nil impl Conditional', do (g) {
-  g.test 'Returns Nil for if_true', {
+test.group('std::nil::Nil.if_true') do (g) {
+  g.test('Returns Nil') {
     let actual = Nil.if_true {
       42
     }
+
     assert.equal(actual, Nil)
   }
+}
 
-  g.test 'Calls the block for if_false', {
+test.group('std::nil::Nil.if_false') do (g) {
+  g.test('Calls the supplied block') {
     let actual = Nil.if_false {
       42
     }
+
     assert.equal(actual, 42)
   }
+}
 
-  g.test 'Calls the false block for if', {
+test.group('std::nil::Nil.if') do (g) {
+  g.test('Calls the false block') {
     let actual = Nil.if true: {
       1729
     }, false: {
       42
     }
+
     assert.equal(actual, 42)
   }
+}
 
-  g.test 'Returns False for and', {
-    let actual = Nil.and other: { True }
-    assert.equal(actual, False)
-  }
+test.group('std::nil::Nil.and') do (g) {
+  g.test('Returns False') {
+    let actual = Nil.and { True }
 
-  g.test 'Returns True if the other object evaluates to True', {
-    let actual = Nil.or other: { 42 == 42 }
-    assert.equal(actual, True)
-  }
-
-  g.test 'Returns False if the other object evaluates anything but True', {
-    let actual = Nil.or other: { 42 != 42 }
     assert.equal(actual, False)
   }
 }
 
-test.group 'std::nil impl UnknownMessage', do (g) {
-  g.test 'Returns Nil', {
-    let actual = Nil.asdf
+test.group('std::nil::Nil.or') do (g) {
+  g.test('Returns True if the other object evaluates to True') {
+    let actual = Nil.or other: { 42 == 42 }
+
+    assert.equal(actual, True)
+  }
+
+  g.test('Returns False if the other object evaluates anything but True') {
+    let actual = Nil.or other: { 42 != 42 }
+
+    assert.equal(actual, False)
+  }
+}
+
+test.group('std::nil::Nil.an_unknown_message') do (g) {
+  g.test('Returns Nil') {
+    let actual = Nil.an_unknown_message
+
     assert.equal(actual, Nil)
   }
 }
