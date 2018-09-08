@@ -35,7 +35,7 @@ def temporary_file_path -> String {
 }
 
 def close_and_remove_file!(T: Close + Remove)(file: T) {
-  try file.close else Nil
+  file.close
 
   # If the removal fails that's OK, because in the worst case we just leave the
   # file behind in /tmp.

@@ -20,7 +20,7 @@ trait Close {
   ## Closes the stream.
   ##
   ## After a stream is closed, any reads or writes might panic.
-  def close !! Error -> Nil
+  def close -> Nil
 }
 
 ## Trait for retrieving the size of an IO object.
