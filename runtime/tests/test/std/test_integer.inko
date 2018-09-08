@@ -1,8 +1,9 @@
 #! Unit tests for the `std::integer` module.
+import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
-test.group('Integer.==') do (g) {
+test.group('std::integer::Integer.==') do (g) {
   g.test('Comparing two equal Integers') {
     assert.equal(10, 10)
   }
@@ -18,7 +19,202 @@ test.group('Integer.==') do (g) {
   g.test('Comparing the maximum value of a signed 128 bits integer') {
     assert.equal(
       170_141_183_460_469_231_731_687_303_715_884_105_727,
-      170_141_183_460_469_231_731_687_303_715_884_105_727,
+      170_141_183_460_469_231_731_687_303_715_884_105_727
     )
+  }
+}
+
+test.group('std::integer::Integer.to_integer') do (g) {
+  g.test('Converting an Integer to an Integer returns the same Integer') {
+    assert.equal(42.to_integer, 42)
+  }
+}
+
+test.group('std::integer::Integer.to_float') do (g) {
+  g.test('Converting an Integer to a Float') {
+    assert.equal(42.to_float, 42.0)
+  }
+}
+
+test.group('std::integer::Integer.to_string') do (g) {
+  g.test('Converting an Integer to a String') {
+    assert.equal(42.to_string, '42')
+  }
+}
+
+test.group('std::integer::Integer.+') do (g) {
+  g.test('Adding an Integer to another Integer') {
+    assert.equal(42 + 42, 84)
+  }
+}
+
+test.group('std::integer::Integer./') do (g) {
+  g.test('Dividing an Integer by another Integer') {
+    assert.equal(42 / 42, 1)
+  }
+}
+
+test.group('std::integer::Integer.*') do (g) {
+  g.test('Multiplying an Integer by another Integer') {
+    assert.equal(21 * 2, 42)
+  }
+}
+
+test.group('std::integer::Integer.-') do (g) {
+  g.test('Subtracting an Integer from another Integer') {
+    assert.equal(42 - 42, 0)
+  }
+}
+
+test.group('std::integer::Integer.%') do (g) {
+  g.test('Computing the remainder when dividing an Integer by another Integer') {
+    assert.equal(42 % 5, 2)
+  }
+}
+
+test.group('std::integer::Integer.<') do (g) {
+  g.test('Checking an Integer is smaller than another Integer') {
+    assert.true(2 < 3)
+    assert.false(3 < 2)
+  }
+}
+
+test.group('std::integer::Integer.>') do (g) {
+  g.test('Checking an Integer is greater than another Integer') {
+    assert.true(3 > 2)
+    assert.false(2 > 3)
+  }
+}
+
+test.group('std::integer::Integer.>=') do (g) {
+  g.test('Checking an Integer is greater than or equal to another Integer') {
+    assert.true(4 >= 3)
+    assert.true(3 >= 3)
+    assert.false(2 >= 3)
+  }
+}
+
+test.group('std::integer::Integer.<=') do (g) {
+  g.test('Checking an Integer is less than or equal to another Integer') {
+    assert.true(2 <= 3)
+    assert.true(3 <= 3)
+    assert.false(4 <= 3)
+  }
+}
+
+test.group('std::integer::Integer.&') do (g) {
+  g.test('Computing bitwise AND with another Integer') {
+    assert.equal(256 & 16, 0)
+    assert.equal(2010 & 5, 0)
+    assert.equal(65535 & 1, 1)
+  }
+}
+
+test.group('std::integer::Integer.|') do (g) {
+  g.test('Computing bitwise OR with another Integer') {
+    assert.equal(1 | 0, 1)
+    assert.equal(5 | 4, 5)
+    assert.equal(5 | 6, 7)
+    assert.equal(248 | 4096, 4344)
+  }
+}
+
+test.group('std::integer::Integer.^') do (g) {
+  g.test('Computing bitwise EXCLUSIVE OR with another Integer') {
+    assert.equal(3 ^ 5, 6)
+    assert.equal(-2 ^ -255, 255)
+  }
+}
+
+test.group('std::integer::Integer.<<') do (g) {
+  g.test('Shifting the bits of an Integer to the left') {
+    assert.equal(1 << 1, 2)
+    assert.equal(-1 << 1, -2)
+    assert.equal(2 << -1, 1)
+    assert.equal(-2 << -1, -1)
+    assert.equal(0 << 1, 0)
+    assert.equal(1 << 0, 1)
+    assert.equal(-1 << 0, -1)
+    assert.equal(4 << -3, 0)
+  }
+}
+
+test.group('std::integer::Integer.>>') do (g) {
+  g.test('Shifting the bits of an Integer to the right') {
+    assert.equal(2 >> 1, 1)
+    assert.equal(-2 >> 1, -1)
+    assert.equal(1 >> -1, 2)
+    assert.equal(-1 >> -1, -2)
+    assert.equal(0 >> 1, 0)
+    assert.equal(1 >> 0, 1)
+    assert.equal(-1 >> 0, -1)
+    assert.equal(4 >> 3, 0)
+  }
+}
+
+test.group('std::integer::Integer.negative?') do (g) {
+  g.test('Checking if an Integer is less than 0') {
+    assert.true(-1.negative?)
+    assert.false(0.negative?)
+    assert.false(1.negative?)
+  }
+}
+
+test.group('std::integer::Integer.positive?') do (g) {
+  g.test('Checking if an Integer is greater than 0') {
+    assert.true(1.positive?)
+    assert.false(0.positive?)
+    assert.false(-1.positive?)
+  }
+}
+
+test.group('std::integer::Integer.zero?') do (g) {
+  g.test('Checking if an Integer is 0') {
+    assert.true(0.zero?)
+    assert.false(-1.zero?)
+    assert.false(1.zero?)
+  }
+}
+
+test.group('std::integer::Integer.absolute') do (g) {
+  g.test('Computing the distance an Integer is from 0') {
+    assert.equal(0.absolute, 0)
+    assert.equal(-1.absolute, 1)
+    assert.equal(1.absolute, 1)
+  }
+}
+
+test.group('std::integer::Integer.opposite') do (g) {
+  g.test('Computing the opposite sign of an Integer') {
+    assert.equal(0.opposite, 0)
+    assert.equal(-1.opposite, 1)
+    assert.equal(1.opposite, -1)
+  }
+}
+
+test.group('std::integer::Integer.hash') do (g) {
+  g.test('Hashing an Integer') {
+    let hasher1 = DefaultHasher.new
+    let hasher2 = DefaultHasher.new
+    let int = 5
+
+    int.hash(hasher1)
+    int.hash(hasher2)
+
+    assert.equal(hasher1.finish, hasher2.finish)
+  }
+}
+
+test.group('std::integer::Integer.successor') do (g) {
+  g.test('Computes the next larger positive Integer') {
+    assert.equal(1.successor, 2)
+  }
+
+  g.test('Computes the 0 when Self is -1') {
+    assert.equal(-1.successor, 0)
+  }
+
+  g.test('Computes the next larger negative Integer') {
+    assert.equal(-2.successor, -1)
   }
 }
