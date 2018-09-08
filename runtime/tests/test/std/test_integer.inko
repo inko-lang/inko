@@ -3,7 +3,7 @@ import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
-test.group('Integer.==') do (g) {
+test.group('std::integer::Integer.==') do (g) {
   g.test('Comparing two equal Integers') {
     assert.equal(10, 10)
   }
@@ -24,55 +24,55 @@ test.group('Integer.==') do (g) {
   }
 }
 
-test.group('Integer.to_integer') do (g) {
+test.group('std::integer::Integer.to_integer') do (g) {
   g.test('Returns itself') {
     assert.equal(42.to_integer, 42)
   }
 }
 
-test.group('Integer.to_float') do (g) {
-  g.test('Returns itself as a Float') {
+test.group('std::integer::Integer.to_float') do (g) {
+  g.test('Converts an Integer to a Float') {
     assert.equal(42.to_float, 42.0)
   }
 }
 
-test.group('Integer.to_string') do (g) {
-  g.test('Returns itself as a String') {
+test.group('std::integer::Integer.to_string') do (g) {
+  g.test('Converts an Integer to a String') {
     assert.equal(42.to_string, '42')
   }
 }
 
-test.group('Integer.+') do (g) {
+test.group('std::integer::Integer.+') do (g) {
   g.test('Returns the sum') {
     assert.equal(42 + 42, 84)
   }
 }
 
-test.group('Integer./') do (g) {
+test.group('std::integer::Integer./') do (g) {
   g.test('Returns the quotient') {
     assert.equal(42 / 42, 1)
   }
 }
 
-test.group('Integer.*') do (g) {
+test.group('std::integer::Integer.*') do (g) {
   g.test('Returns the product') {
     assert.equal(21 * 2, 42)
   }
 }
 
-test.group('Integer.-') do (g) {
+test.group('std::integer::Integer.-') do (g) {
   g.test('Returns the difference') {
     assert.equal(42 - 42, 0)
   }
 }
 
-test.group('Integer.%') do (g) {
+test.group('std::integer::Integer.%') do (g) {
   g.test('Returns the modulus') {
     assert.equal(42 % 5, 2)
   }
 }
 
-test.group('Integer.<') do (g) {
+test.group('std::integer::Integer.<') do (g) {
   g.test('Returns True when Self is less than other') {
     assert.equal(2 < 3, True)
   }
@@ -82,7 +82,7 @@ test.group('Integer.<') do (g) {
   }
 }
 
-test.group('Integer.>') do (g) {
+test.group('std::integer::Integer.>') do (g) {
   g.test('Returns True when Self is greater than other') {
     assert.equal(3 > 2, True)
   }
@@ -92,7 +92,7 @@ test.group('Integer.>') do (g) {
   }
 }
 
-test.group('Integer.>=') do (g) {
+test.group('std::integer::Integer.>=') do (g) {
   g.test('Returns True when Self is greater than other') {
     assert.equal(4 >= 3, True)
   }
@@ -106,7 +106,7 @@ test.group('Integer.>=') do (g) {
   }
 }
 
-test.group('Integer.<=') do (g) {
+test.group('std::integer::Integer.<=') do (g) {
   g.test('Returns True when Self is less than other') {
     assert.equal(2 <= 3, True)
   }
@@ -120,7 +120,7 @@ test.group('Integer.<=') do (g) {
   }
 }
 
-test.group('Integer.&') do (g) {
+test.group('std::integer::Integer.&') do (g) {
   g.test('Returns Self bitwise AND other') {
     assert.equal(256 & 16, 0)
     assert.equal(2010 & 5, 0)
@@ -128,7 +128,7 @@ test.group('Integer.&') do (g) {
   }
 }
 
-test.group('Integer.|') do (g) {
+test.group('std::integer::Integer.|') do (g) {
   g.test('Returns Self bitwise OR other') {
     assert.equal(1 | 0, 1)
     assert.equal(5 | 4, 5)
@@ -137,14 +137,14 @@ test.group('Integer.|') do (g) {
   }
 }
 
-test.group('Integer.^') do (g) {
+test.group('std::integer::Integer.^') do (g) {
   g.test('Returns Self bitwise EXCLUSIVE OR other') {
     assert.equal(3 ^ 5, 6)
     assert.equal(-2 ^ -255, 255)
   }
 }
 
-test.group('Integer.<<') do (g) {
+test.group('std::integer::Integer.<<') do (g) {
   g.test('Returns n shifted left m bits when n > 0, m > 0') {
     assert.equal(1 << 1, 2)
   }
@@ -178,7 +178,7 @@ test.group('Integer.<<') do (g) {
   }
 }
 
-test.group('Integer.>>') do (g) {
+test.group('std::integer::Integer.>>') do (g) {
   g.test('Returns n shifted right m bits when n > 0, m > 0') {
     assert.equal(2 >> 1, 1)
   }
@@ -212,7 +212,7 @@ test.group('Integer.>>') do (g) {
   }
 }
 
-test.group('Integer.negative?') do (g) {
+test.group('std::integer::Integer.negative?') do (g) {
   g.test('Returns True when Self is less than 0') {
     assert.equal(-1.negative?, True)
   }
@@ -226,7 +226,7 @@ test.group('Integer.negative?') do (g) {
   }
 }
 
-test.group('Integer.positive?') do (g) {
+test.group('std::integer::Integer.positive?') do (g) {
   g.test('Returns True when Self is greater than 0') {
     assert.equal(1.positive?, True)
   }
@@ -240,7 +240,7 @@ test.group('Integer.positive?') do (g) {
   }
 }
 
-test.group('Integer.zero?') do (g) {
+test.group('std::integer::Integer.zero?') do (g) {
   g.test('Returns True when Self is 0') {
     assert.equal(0.zero?, True)
   }
@@ -254,7 +254,7 @@ test.group('Integer.zero?') do (g) {
   }
 }
 
-test.group('Integer.absolute') do (g) {
+test.group('std::integer::Integer.absolute') do (g) {
   g.test('Returns 0 when Self is 0') {
     assert.equal(0.absolute, 0)
   }
@@ -268,7 +268,7 @@ test.group('Integer.absolute') do (g) {
   }
 }
 
-test.group('Integer.opposite') do (g) {
+test.group('std::integer::Integer.opposite') do (g) {
   g.test('Returns 0 when Self is 0') {
     assert.equal(0.opposite, 0)
   }
@@ -282,7 +282,7 @@ test.group('Integer.opposite') do (g) {
   }
 }
 
-test.group('Integer.hash') do (g) {
+test.group('std::integer::Integer.hash') do (g) {
   g.test('Hashing an Integer') {
     let hasher1 = DefaultHasher.new
     let hasher2 = DefaultHasher.new
@@ -295,7 +295,7 @@ test.group('Integer.hash') do (g) {
   }
 }
 
-test.group('Integer.successor') do (g) {
+test.group('std::integer::Integer.successor') do (g) {
   g.test('Returns the next larger positive Integer') {
     assert.equal(1.successor, 2)
   }
