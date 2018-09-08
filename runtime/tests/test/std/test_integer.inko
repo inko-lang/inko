@@ -1,4 +1,5 @@
 #! Unit tests for the `std::integer` module.
+import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
@@ -20,5 +21,290 @@ test.group('Integer.==') do (g) {
       170_141_183_460_469_231_731_687_303_715_884_105_727,
       170_141_183_460_469_231_731_687_303_715_884_105_727,
     )
+  }
+}
+
+test.group('Integer.to_integer') do (g) {
+  g.test('Returns itself') {
+    assert.equal(42.to_integer, 42)
+  }
+}
+
+test.group('Integer.to_float') do (g) {
+  g.test('Returns itself as a Float') {
+    assert.equal(42.to_float, 42.0)
+  }
+}
+
+test.group('Integer.to_string') do (g) {
+  g.test('Returns itself as a String') {
+    assert.equal(42.to_string, '42')
+  }
+}
+
+test.group('Integer.+') do (g) {
+  g.test('Returns the sum') {
+    assert.equal(42 + 42, 84)
+  }
+}
+
+test.group('Integer./') do (g) {
+  g.test('Returns the quotient') {
+    assert.equal(42 / 42, 1)
+  }
+}
+
+test.group('Integer.*') do (g) {
+  g.test('Returns the product') {
+    assert.equal(21 * 2, 42)
+  }
+}
+
+test.group('Integer.-') do (g) {
+  g.test('Returns the difference') {
+    assert.equal(42 - 42, 0)
+  }
+}
+
+test.group('Integer.%') do (g) {
+  g.test('Returns the modulus') {
+    assert.equal(42 % 5, 2)
+  }
+}
+
+test.group('Integer.<') do (g) {
+  g.test('Returns True when Self is less than other') {
+    assert.equal(2 < 3, True)
+  }
+
+  g.test('Returns False when Self is greater than other') {
+    assert.equal(3 < 2, False)
+  }
+}
+
+test.group('Integer.>') do (g) {
+  g.test('Returns True when Self is greater than other') {
+    assert.equal(3 > 2, True)
+  }
+
+  g.test('Returns False when Self is less than other') {
+    assert.equal(2 > 3, False)
+  }
+}
+
+test.group('Integer.>=') do (g) {
+  g.test('Returns True when Self is greater than other') {
+    assert.equal(4 >= 3, True)
+  }
+
+  g.test('Returns True when Self is equal to other') {
+    assert.equal(3 >= 3, True)
+  }
+
+  g.test('Returns False when Self is less than other') {
+    assert.equal(2 >= 3, False)
+  }
+}
+
+test.group('Integer.<=') do (g) {
+  g.test('Returns True when Self is less than other') {
+    assert.equal(2 <= 3, True)
+  }
+
+  g.test('Returns True when Self is equal to other') {
+    assert.equal(3 <= 3, True)
+  }
+
+  g.test('Returns False when Self is greater than other') {
+    assert.equal(4 <= 3, False)
+  }
+}
+
+test.group('Integer.&') do (g) {
+  g.test('Returns Self bitwise AND other') {
+    assert.equal(256 & 16, 0)
+    assert.equal(2010 & 5, 0)
+    assert.equal(65535 & 1, 1)
+  }
+}
+
+test.group('Integer.|') do (g) {
+  g.test('Returns Self bitwise OR other') {
+    assert.equal(1 | 0, 1)
+    assert.equal(5 | 4, 5)
+    assert.equal(5 | 6, 7)
+    assert.equal(248 | 4096, 4344)
+  }
+}
+
+test.group('Integer.^') do (g) {
+  g.test('Returns Self bitwise EXCLUSIVE OR other') {
+    assert.equal(3 ^ 5, 6)
+    assert.equal(-2 ^ -255, 255)
+  }
+}
+
+test.group('Integer.<<') do (g) {
+  g.test('Returns n shifted left m bits when n > 0, m > 0') {
+    assert.equal(1 << 1, 2)
+  }
+
+  g.test('Returns n shifted left m bits when n < 0, m > 0') {
+    assert.equal(-1 << 1, -2)
+  }
+
+  g.test('Returns n shifted right m bits when n > 0, m < 0') {
+    assert.equal(2 << -1, 1)
+  }
+
+  g.test('Returns n shifted right m bits when n < 0, m < 0') {
+    assert.equal(-2 << -1, -1)
+  }
+
+  g.test('Returns 0 when n == 0') {
+    assert.equal(0 << 1, 0)
+  }
+
+  g.test('Returns n when n > 0, m == 0') {
+    assert.equal(1 << 0, 1)
+  }
+
+  g.test('Returns n when n < 0, m == 0') {
+    assert.equal(-1 << 0, -1)
+  }
+
+  g.test('Returns 0 when m < 0 and m == p where 2**p > n >= 2**(p-1)') {
+    assert.equal(4 << -3, 0)
+  }
+}
+
+test.group('Integer.>>') do (g) {
+  g.test('Returns n shifted right m bits when n > 0, m > 0') {
+    assert.equal(2 >> 1, 1)
+  }
+
+  g.test('Returns n shifted right m bits when n < 0, m > 0') {
+    assert.equal(-2 >> 1, -1)
+  }
+
+  g.test('Returns n shifted right m bits when n > 0, m < 0') {
+    assert.equal(1 >> -1, 2)
+  }
+
+  g.test('Returns n shifted right m bits when n < 0, m < 0') {
+    assert.equal(-1 >> -1, -2)
+  }
+
+  g.test('Returns 0 when n == 0') {
+    assert.equal(0 >> 1, 0)
+  }
+
+  g.test('Returns n when n > 0, m == 0') {
+    assert.equal(1 >> 0, 1)
+  }
+
+  g.test('Returns n when n < 0, m == 0') {
+    assert.equal(-1 >> 0, -1)
+  }
+
+  g.test('Returns 0 when m < 0 and m == p where 2**p > n >= 2**(p-1)') {
+    assert.equal(4 >> 3, 0)
+  }
+}
+
+test.group('Integer.negative?') do (g) {
+  g.test('Returns True when Self is less than 0') {
+    assert.equal(-1.negative?, True)
+  }
+
+  g.test('Returns False when Self is 0') {
+    assert.equal(0.negative?, False)
+  }
+
+  g.test('Returns False when Self is greater than 0') {
+    assert.equal(1.negative?, False)
+  }
+}
+
+test.group('Integer.positive?') do (g) {
+  g.test('Returns True when Self is greater than 0') {
+    assert.equal(1.positive?, True)
+  }
+
+  g.test('Returns False when Self is 0') {
+    assert.equal(0.positive?, False)
+  }
+
+  g.test('Returns False when Self is less than 0') {
+    assert.equal(-1.positive?, False)
+  }
+}
+
+test.group('Integer.zero?') do (g) {
+  g.test('Returns True when Self is 0') {
+    assert.equal(0.zero?, True)
+  }
+
+  g.test('Returns False when Self is negative') {
+    assert.equal(-1.zero?, False)
+  }
+
+  g.test('Returns False when Self is positive') {
+    assert.equal(1.zero?, False)
+  }
+}
+
+test.group('Integer.absolute') do (g) {
+  g.test('Returns 0 when Self is 0') {
+    assert.equal(0.absolute, 0)
+  }
+
+  g.test('Returns positive Self when Self is negative') {
+    assert.equal(-1.absolute, 1)
+  }
+
+  g.test('Returns Self when Self is positive') {
+    assert.equal(1.absolute, 1)
+  }
+}
+
+test.group('Integer.opposite') do (g) {
+  g.test('Returns 0 when Self is 0') {
+    assert.equal(0.opposite, 0)
+  }
+
+  g.test('Returns positive Self when Self is negative') {
+    assert.equal(-1.opposite, 1)
+  }
+
+  g.test('Returns negative Self when Self is positive') {
+    assert.equal(1.opposite, -1)
+  }
+}
+
+test.group('Integer.hash') do (g) {
+  g.test('Hashing an Integer') {
+    let hasher1 = DefaultHasher.new
+    let hasher2 = DefaultHasher.new
+    let int = 5
+
+    int.hash(hasher1)
+    int.hash(hasher2)
+
+    assert.equal(hasher1.finish, hasher2.finish)
+  }
+}
+
+test.group('Integer.successor') do (g) {
+  g.test('Returns the next larger positive Integer') {
+    assert.equal(1.successor, 2)
+  }
+
+  g.test('Returns the 0 when Self is -1') {
+    assert.equal(-1.successor, 0)
+  }
+
+  g.test('Returns the next larger negative Integer') {
+    assert.equal(-2.successor, -1)
   }
 }
