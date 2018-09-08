@@ -92,6 +92,70 @@ belongs in the issue or merge request, not the commit.
 When writing Rust code for the VM, the use of [rustfmt][rustfmt] is required.
 We also recommend installing and using [Clippy][clippy].
 
+## Writing Inko tests
+
+Tests for Inko's runtime are written in Inko itself, using the module
+`std::test`. Tests are located in `runtime/tests/test`, and mirror the structure
+of the files in `runtime/src`. Test files start with `test_`. This means that
+the tests for `std::integer` are located in
+`runtime/tests/test/std/test_integer.inko`.
+
+The basic layout of a test looks like the following:
+
+```inko
+import std::test
+import std::test::assert
+
+test.group('std::module::TypeName.method_name') do (g) {
+  g.test('The operation we are testing') {
+    # ...
+  }
+}
+```
+
+The name of the group is the fully qualified name of the method or type that is
+being tested. This means that if you are adding tests for `Integer.to_integer`,
+the group name would be `std::integer::Integer.to_integer`.
+
+The name of the test should briefly describe the operation that is being tested,
+not the result that is produced. For example, when writing a test to convert an
+`Integer` to a `Float` we would use the following test description:
+
+> Converting an Integer to a Float
+
+Instead of:
+
+> Returns a Float
+
+Other things to keep in mind when writing test descriptions:
+
+* Do not include a period at the end of a test description
+* Do not start test descriptions with "it", such as `test 'it returns 10'`
+* Keep tests as minimal as possible
+* Use single quotes for group and test descriptions, only use double quotes if
+  the description itself includes a single quote
+* Do not write a test that just asserts if type `A` implements trait `B`,
+  instead write tests for the _methods_ implemented
+
+A simple example:
+
+```inko
+import std::test
+import std::test::assert
+
+test.group('std::integer::Integer.to_integer') do (g) {
+  g.test('Converting an Integer to another Integer') {
+    assert.equal(10.to_integer, 10)
+  }
+}
+
+test.group('std::integer::Integer./') do (g) {
+  g.test('Dividing an Integer by an Integer') {
+    assert.equal(10 / 2, 5)
+  }
+}
+```
+
 [forums]: https://discourse.inko-lang.org
 [dev-category]: https://discourse.inko-lang.org/c/development
 [new-issue]: https://gitlab.com/inko-lang/inko/issues/new
