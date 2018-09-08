@@ -30,7 +30,7 @@ test.group('std::nil::Nil.if_true') do (g) {
 }
 
 test.group('std::nil::Nil.if_false') do (g) {
-  g.test('Calls the supplied block') {
+  g.test('The supplied block is called') {
     let actual = Nil.if_false {
       42
     }
@@ -40,7 +40,7 @@ test.group('std::nil::Nil.if_false') do (g) {
 }
 
 test.group('std::nil::Nil.if') do (g) {
-  g.test('Calls the false block') {
+  g.test('The False block is called') {
     let actual = Nil.if true: {
       1729
     }, false: {
@@ -61,13 +61,13 @@ test.group('std::nil::Nil.and') do (g) {
 
 test.group('std::nil::Nil.or') do (g) {
   g.test('Returns True if the other object evaluates to True') {
-    let actual = Nil.or other: { 42 == 42 }
+    let actual = Nil.or { 42 == 42 }
 
     assert.equal(actual, True)
   }
 
   g.test('Returns False if the other object evaluates anything but True') {
-    let actual = Nil.or other: { 42 != 42 }
+    let actual = Nil.or { 42 != 42 }
 
     assert.equal(actual, False)
   }
