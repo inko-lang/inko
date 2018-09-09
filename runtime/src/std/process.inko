@@ -206,9 +206,9 @@ def receive(timeout: ?Integer = Nil) {
 ##
 ##     process.send(pid: process.current, message: 10)
 ##
-##     let message = process.receive_if timeout: 10, condition: do (message) {
+##     let message = process.receive_if(timeout: 10, condition: do (message) {
 ##       message == 10
-##     }
+##     })
 ##
 ##     message # => 10
 ##
