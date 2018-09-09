@@ -85,6 +85,10 @@ module Inkoc
         end
       end
 
+      def implements_trait?(*)
+        false
+      end
+
       def guard_unknown_message?(name)
         optional? || dynamic? || lookup_method(name).nil?
       end
