@@ -38,7 +38,7 @@ impl ToString for CallFrame {
       ', line ',
       @line.to_string,
       ', in ',
-      @name.inspect
+      @name.inspect,
     ])
 
     buffer.to_string
@@ -88,8 +88,8 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
       CallFrame.new(
         file: (raw_frame[0] as String).to_path,
         name: raw_frame[1] as String,
-        line: raw_frame[2] as Integer
-      )
+        line: raw_frame[2] as Integer,
+      ),
     )
   }
 

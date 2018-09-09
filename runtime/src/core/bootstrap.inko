@@ -87,5 +87,5 @@ object Module {
 _INKOC.set_attribute(
   Modules,
   'core::bootstrap',
-  Module.new(name: 'core::bootstrap', path: _INKOC.current_file_path)
+  Module.new(name: 'core::bootstrap', path: _INKOC.current_file_path),
 )

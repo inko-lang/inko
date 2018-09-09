@@ -217,7 +217,7 @@ def receive(timeout: ?Integer = Nil) {
 def receive_if(
   condition: do (Dynamic) -> Dynamic,
   timeout: ?Integer = Nil,
-  recheck_interval = 50
+  recheck_interval = 50,
 ) {
   let first_message = receive(timeout)
   let mut message = first_message

@@ -101,6 +101,6 @@ def kind_of?(compare, compare_with) -> Boolean {
   _INKOC.prototype_chain_attribute_contains(
     compare,
     '@_implemented_traits',
-    compare_with
+    compare_with,
   )
 }

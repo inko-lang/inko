@@ -68,7 +68,7 @@ def equal!(T: Inspect + Equal)(given: T, expected: T) {
     'Expected ',
     given.inspect,
     ' to equal ',
-    expected.inspect
+    expected.inspect,
   ])
 
   vm.panic(error)
@@ -85,7 +85,7 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
     'Expected ',
     given.inspect,
     ' not to equal ',
-    expected.inspect
+    expected.inspect,
   ])
 
   vm.panic(error)
@@ -102,7 +102,7 @@ def greater!(T: Inspect + Greater)(given: T, minimum: T) {
     'Expected ',
     given.inspect,
     ' to be greater than ',
-    minimum.inspect
+    minimum.inspect,
   ])
 
   vm.panic(error)

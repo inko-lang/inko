@@ -25,7 +25,7 @@ object TestGroup {
       group_name: @name,
       runner_pid: @client.runner_pid,
       location: location,
-      body: body
+      body: body,
     )
 
     @client.add_test(test)

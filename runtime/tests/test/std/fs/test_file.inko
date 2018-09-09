@@ -29,7 +29,7 @@ def temporary_file_path -> String {
       env.temporary_directory.to_string,
       SEPARATOR,
       'inko-test-fs-file-',
-      process.current.to_string
+      process.current.to_string,
     ])
     .to_string
 }

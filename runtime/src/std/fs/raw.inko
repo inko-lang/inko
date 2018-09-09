@@ -104,7 +104,7 @@ def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
 def read_bytes(
   file,
   bytes: ByteArray,
-  size: ?Integer = Nil
+  size: ?Integer = Nil,
 ) !! IOError -> Integer {
   process.blocking {
     try {

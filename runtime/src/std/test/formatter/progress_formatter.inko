@@ -56,7 +56,7 @@ object ProgressFormatter impl Formatter {
         cyan(failure_location(failure)),
         "\n\n",
         '  ',
-        red(failure.message)
+        red(failure.message),
       ])
 
       stdout.write_string(buffer)
@@ -71,7 +71,7 @@ object ProgressFormatter impl Formatter {
       ' ',
       test_suite_duration_unit(duration),
       " \n",
-      test_suite_statistics(tests)
+      test_suite_statistics(tests),
     ])
 
     stdout.print(buffer.to_string)
@@ -124,7 +124,7 @@ object ProgressFormatter impl Formatter {
       tests.length.to_string,
       ' tests, ',
       @failed.to_string,
-      ' failures '
+      ' failures ',
     ])
 
     @failed.positive?.if true: {
