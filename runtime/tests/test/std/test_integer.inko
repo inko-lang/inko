@@ -25,103 +25,85 @@ test.group('std::integer::Integer.==') do (g) {
 }
 
 test.group('std::integer::Integer.to_integer') do (g) {
-  g.test('Returns itself') {
+  g.test('Converting an Integer to an Integer returns the same Integer') {
     assert.equal(42.to_integer, 42)
   }
 }
 
 test.group('std::integer::Integer.to_float') do (g) {
-  g.test('Converts an Integer to a Float') {
+  g.test('Converting an Integer to a Float') {
     assert.equal(42.to_float, 42.0)
   }
 }
 
 test.group('std::integer::Integer.to_string') do (g) {
-  g.test('Converts an Integer to a String') {
+  g.test('Converting an Integer to a String') {
     assert.equal(42.to_string, '42')
   }
 }
 
 test.group('std::integer::Integer.+') do (g) {
-  g.test('Returns the sum') {
+  g.test('Adding an Integer to another Integer') {
     assert.equal(42 + 42, 84)
   }
 }
 
 test.group('std::integer::Integer./') do (g) {
-  g.test('Returns the quotient') {
+  g.test('Dividing an Integer by another Integer') {
     assert.equal(42 / 42, 1)
   }
 }
 
 test.group('std::integer::Integer.*') do (g) {
-  g.test('Returns the product') {
+  g.test('Multiplying an Integer by another Integer') {
     assert.equal(21 * 2, 42)
   }
 }
 
 test.group('std::integer::Integer.-') do (g) {
-  g.test('Returns the difference') {
+  g.test('Subtracting an Integer from another Integer') {
     assert.equal(42 - 42, 0)
   }
 }
 
 test.group('std::integer::Integer.%') do (g) {
-  g.test('Returns the modulus') {
+  g.test('Computing the remainder when dividing an Integer by another Integer') {
     assert.equal(42 % 5, 2)
   }
 }
 
 test.group('std::integer::Integer.<') do (g) {
-  g.test('Returns True when Self is less than other') {
+  g.test('Checking an Integer is smaller than another Integer') {
     assert.equal(2 < 3, True)
-  }
-
-  g.test('Returns False when Self is greater than other') {
     assert.equal(3 < 2, False)
   }
 }
 
 test.group('std::integer::Integer.>') do (g) {
-  g.test('Returns True when Self is greater than other') {
+  g.test('Checking an Integer is greater than another Integer') {
     assert.equal(3 > 2, True)
-  }
-
-  g.test('Returns False when Self is less than other') {
     assert.equal(2 > 3, False)
   }
 }
 
 test.group('std::integer::Integer.>=') do (g) {
-  g.test('Returns True when Self is greater than other') {
+  g.test('Checking an Integer is greater than or equal to another Integer') {
     assert.equal(4 >= 3, True)
-  }
-
-  g.test('Returns True when Self is equal to other') {
     assert.equal(3 >= 3, True)
-  }
-
-  g.test('Returns False when Self is less than other') {
     assert.equal(2 >= 3, False)
   }
 }
 
 test.group('std::integer::Integer.<=') do (g) {
-  g.test('Returns True when Self is less than other') {
+  g.test('Checking an Integer is less than or equal to another Integer') {
     assert.equal(2 <= 3, True)
-  }
-
-  g.test('Returns True when Self is equal to other') {
     assert.equal(3 <= 3, True)
-  }
-
-  g.test('Returns False when Self is greater than other') {
     assert.equal(4 <= 3, False)
   }
 }
 
 test.group('std::integer::Integer.&') do (g) {
-  g.test('Returns Self bitwise AND other') {
+  g.test('Computing bitwise AND with another Integer') {
     assert.equal(256 & 16, 0)
     assert.equal(2010 & 5, 0)
     assert.equal(65535 & 1, 1)
@@ -129,7 +111,7 @@ test.group('std::integer::Integer.&') do (g) {
 }
 
 test.group('std::integer::Integer.|') do (g) {
-  g.test('Returns Self bitwise OR other') {
+  g.test('Computing bitwise OR with another Integer') {
     assert.equal(1 | 0, 1)
     assert.equal(5 | 4, 5)
     assert.equal(5 | 6, 7)
@@ -138,146 +120,74 @@ test.group('std::integer::Integer.|') do (g) {
 }
 
 test.group('std::integer::Integer.^') do (g) {
-  g.test('Returns Self bitwise EXCLUSIVE OR other') {
+  g.test('Computing bitwise EXCLUSIVE OR with another Integer') {
     assert.equal(3 ^ 5, 6)
     assert.equal(-2 ^ -255, 255)
   }
 }
 
 test.group('std::integer::Integer.<<') do (g) {
-  g.test('Returns n shifted left m bits when n > 0, m > 0') {
+  g.test('Shifting the bits of an Integer to the left') {
     assert.equal(1 << 1, 2)
-  }
-
-  g.test('Returns n shifted left m bits when n < 0, m > 0') {
     assert.equal(-1 << 1, -2)
-  }
-
-  g.test('Returns n shifted right m bits when n > 0, m < 0') {
     assert.equal(2 << -1, 1)
-  }
-
-  g.test('Returns n shifted right m bits when n < 0, m < 0') {
     assert.equal(-2 << -1, -1)
-  }
-
-  g.test('Returns 0 when n == 0') {
     assert.equal(0 << 1, 0)
-  }
-
-  g.test('Returns n when n > 0, m == 0') {
     assert.equal(1 << 0, 1)
-  }
-
-  g.test('Returns n when n < 0, m == 0') {
     assert.equal(-1 << 0, -1)
-  }
-
-  g.test('Returns 0 when m < 0 and m == p where 2**p > n >= 2**(p-1)') {
     assert.equal(4 << -3, 0)
   }
 }
 
 test.group('std::integer::Integer.>>') do (g) {
-  g.test('Returns n shifted right m bits when n > 0, m > 0') {
+  g.test('Shifting the bits of an Integer to the right') {
     assert.equal(2 >> 1, 1)
-  }
-
-  g.test('Returns n shifted right m bits when n < 0, m > 0') {
     assert.equal(-2 >> 1, -1)
-  }
-
-  g.test('Returns n shifted right m bits when n > 0, m < 0') {
     assert.equal(1 >> -1, 2)
-  }
-
-  g.test('Returns n shifted right m bits when n < 0, m < 0') {
     assert.equal(-1 >> -1, -2)
-  }
-
-  g.test('Returns 0 when n == 0') {
     assert.equal(0 >> 1, 0)
-  }
-
-  g.test('Returns n when n > 0, m == 0') {
     assert.equal(1 >> 0, 1)
-  }
-
-  g.test('Returns n when n < 0, m == 0') {
     assert.equal(-1 >> 0, -1)
-  }
-
-  g.test('Returns 0 when m < 0 and m == p where 2**p > n >= 2**(p-1)') {
     assert.equal(4 >> 3, 0)
   }
 }
 
 test.group('std::integer::Integer.negative?') do (g) {
-  g.test('Returns True when Self is less than 0') {
+  g.test('Checking if an Integer is less than 0') {
     assert.equal(-1.negative?, True)
-  }
-
-  g.test('Returns False when Self is 0') {
     assert.equal(0.negative?, False)
-  }
-
-  g.test('Returns False when Self is greater than 0') {
     assert.equal(1.negative?, False)
   }
 }
 
 test.group('std::integer::Integer.positive?') do (g) {
-  g.test('Returns True when Self is greater than 0') {
+  g.test('Checking if an Integer is greater than 0') {
     assert.equal(1.positive?, True)
-  }
-
-  g.test('Returns False when Self is 0') {
     assert.equal(0.positive?, False)
-  }
-
-  g.test('Returns False when Self is less than 0') {
     assert.equal(-1.positive?, False)
   }
 }
 
 test.group('std::integer::Integer.zero?') do (g) {
-  g.test('Returns True when Self is 0') {
+  g.test('Checking if an Integer is 0') {
     assert.equal(0.zero?, True)
-  }
-
-  g.test('Returns False when Self is negative') {
     assert.equal(-1.zero?, False)
-  }
-
-  g.test('Returns False when Self is positive') {
     assert.equal(1.zero?, False)
   }
 }
 
 test.group('std::integer::Integer.absolute') do (g) {
-  g.test('Returns 0 when Self is 0') {
+  g.test('Computing the distance an Integer is from 0') {
     assert.equal(0.absolute, 0)
-  }
-
-  g.test('Returns positive Self when Self is negative') {
     assert.equal(-1.absolute, 1)
-  }
-
-  g.test('Returns Self when Self is positive') {
     assert.equal(1.absolute, 1)
   }
 }
 
 test.group('std::integer::Integer.opposite') do (g) {
-  g.test('Returns 0 when Self is 0') {
+  g.test('Computing the opposite sign of an Integer') {
     assert.equal(0.opposite, 0)
-  }
-
-  g.test('Returns positive Self when Self is negative') {
     assert.equal(-1.opposite, 1)
-  }
-
-  g.test('Returns negative Self when Self is positive') {
     assert.equal(1.opposite, -1)
   }
 }
@@ -296,15 +206,15 @@ test.group('std::integer::Integer.hash') do (g) {
 }
 
 test.group('std::integer::Integer.successor') do (g) {
-  g.test('Returns the next larger positive Integer') {
+  g.test('Computes the next larger positive Integer') {
     assert.equal(1.successor, 2)
   }
 
-  g.test('Returns the 0 when Self is -1') {
+  g.test('Computes the 0 when Self is -1') {
     assert.equal(-1.successor, 0)
   }
 
-  g.test('Returns the next larger negative Integer') {
+  g.test('Computes the next larger negative Integer') {
     assert.equal(-2.successor, -1)
   }
 }
