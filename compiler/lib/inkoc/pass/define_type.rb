@@ -277,7 +277,7 @@ module Inkoc
         method = source.lookup_method(name).type_or_else do
           unknown_method = source.lookup_unknown_message(@state)
 
-          unless unknown_method
+          if unknown_method.nil?
             return diagnostics
                 .undefined_method_error(source, name, node.location)
           end
