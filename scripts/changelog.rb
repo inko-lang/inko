@@ -4,9 +4,9 @@
 require 'optparse'
 require 'time'
 
-def commits_in(directory, from, to)
+def commits_in(directories, from, to)
   command = "git log #{from}..#{to} --format='* %h: %s' " \
-    "--extended-regexp --invert-grep --grep '^Release' #{directory}"
+    "--extended-regexp --invert-grep --grep '^Release' #{directories.join(' ')}"
 
   output = `#{command}`.strip
 
@@ -50,36 +50,26 @@ parser.parse!(ARGV)
 from = options[:from]
 to = options[:to]
 
-general_commits = commits_in(
-  'Makefile compiler/Makefile runtime/Makefile vm/Makefile',
+commits = commits_in(
+  [
+    'Makefile',
+    'compiler/Makefile',
+    'runtime/Makefile',
+    'vm/Makefile',
+    'compiler/lib',
+    'runtime/src',
+    'vm/src'
+  ],
   from,
   to
 )
-
-compiler_commits = commits_in('compiler/lib', from, to)
-runtime_commits = commits_in('runtime/src', from, to)
-vm_commits = commits_in('vm/src', from, to)
 
 new_changelog = File.read(changelog).gsub('# Changelog', <<~CHANGELOG.strip)
   # Changelog
 
   ## #{options[:version]} - #{Time.now.strftime('%B %d, %Y')}
 
-  ### Compiler
-
-  #{compiler_commits}
-
-  ### Runtime
-
-  #{runtime_commits}
-
-  ### Virtual machine
-
-  #{vm_commits}
-
-  ### Other
-
-  #{general_commits}
+  #{commits}
 CHANGELOG
 
 File.open(changelog, 'w') do |handle|
