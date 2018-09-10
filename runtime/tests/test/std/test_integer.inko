@@ -19,7 +19,7 @@ test.group('std::integer::Integer.==') do (g) {
   g.test('Comparing the maximum value of a signed 128 bits integer') {
     assert.equal(
       170_141_183_460_469_231_731_687_303_715_884_105_727,
-      170_141_183_460_469_231_731_687_303_715_884_105_727,
+      170_141_183_460_469_231_731_687_303_715_884_105_727
     )
   }
 }
@@ -74,31 +74,31 @@ test.group('std::integer::Integer.%') do (g) {
 
 test.group('std::integer::Integer.<') do (g) {
   g.test('Checking an Integer is smaller than another Integer') {
-    assert.equal(2 < 3, True)
-    assert.equal(3 < 2, False)
+    assert.true(2 < 3)
+    assert.false(3 < 2)
   }
 }
 
 test.group('std::integer::Integer.>') do (g) {
   g.test('Checking an Integer is greater than another Integer') {
-    assert.equal(3 > 2, True)
-    assert.equal(2 > 3, False)
+    assert.true(3 > 2)
+    assert.false(2 > 3)
   }
 }
 
 test.group('std::integer::Integer.>=') do (g) {
   g.test('Checking an Integer is greater than or equal to another Integer') {
-    assert.equal(4 >= 3, True)
-    assert.equal(3 >= 3, True)
-    assert.equal(2 >= 3, False)
+    assert.true(4 >= 3)
+    assert.true(3 >= 3)
+    assert.false(2 >= 3)
   }
 }
 
 test.group('std::integer::Integer.<=') do (g) {
   g.test('Checking an Integer is less than or equal to another Integer') {
-    assert.equal(2 <= 3, True)
-    assert.equal(3 <= 3, True)
-    assert.equal(4 <= 3, False)
+    assert.true(2 <= 3)
+    assert.true(3 <= 3)
+    assert.false(4 <= 3)
   }
 }
 
@@ -154,25 +154,25 @@ test.group('std::integer::Integer.>>') do (g) {
 
 test.group('std::integer::Integer.negative?') do (g) {
   g.test('Checking if an Integer is less than 0') {
-    assert.equal(-1.negative?, True)
-    assert.equal(0.negative?, False)
-    assert.equal(1.negative?, False)
+    assert.true(-1.negative?)
+    assert.false(0.negative?)
+    assert.false(1.negative?)
   }
 }
 
 test.group('std::integer::Integer.positive?') do (g) {
   g.test('Checking if an Integer is greater than 0') {
-    assert.equal(1.positive?, True)
-    assert.equal(0.positive?, False)
-    assert.equal(-1.positive?, False)
+    assert.true(1.positive?)
+    assert.false(0.positive?)
+    assert.false(-1.positive?)
   }
 }
 
 test.group('std::integer::Integer.zero?') do (g) {
   g.test('Checking if an Integer is 0') {
-    assert.equal(0.zero?, True)
-    assert.equal(-1.zero?, False)
-    assert.equal(1.zero?, False)
+    assert.true(0.zero?)
+    assert.false(-1.zero?)
+    assert.false(1.zero?)
   }
 }
 
