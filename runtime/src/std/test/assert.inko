@@ -7,6 +7,7 @@
 #! Assertions will throw in the event of a failure, requiring the use of the
 #! `try` keyword. The use of `try!` is discouraged as it will result in the
 #! entire test suite terminating in the event of an assertion failing.
+import std::conditional::Conditional
 import std::format::Inspect
 import std::operators::(Equal, Greater)
 import std::process
@@ -140,4 +141,40 @@ def no_panic(block: lambda) {
   }
 
   vm.panic('The provided block panicked: ' + result.error.to_string)
+}
+
+## Asserts that the given value is something that evaluates to be truthy.
+##
+## Something is considered to be truthy when its implementation of `if_true`
+## calls the supplied block.
+def true!(T: Inspect + Conditional)(value: T) {
+  value.if_true {
+    return
+  }
+
+  let error = StringBuffer.new([
+    'Expected ',
+    value.inspect,
+    ' to be truthy',
+  ])
+
+  vm.panic(error)
+}
+
+## Asserts that the given value is something that evaluates to be falsy.
+##
+## Something is considered to be falsy when its implementation of `if_false`
+## calls the supplied block.
+def false!(T: Inspect + Conditional)(value: T) {
+  value.if_false {
+    return
+  }
+
+  let error = StringBuffer.new([
+    'Expected ',
+    value.inspect,
+    ' to be falsy',
+  ])
+
+  vm.panic(error)
 }

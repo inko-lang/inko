@@ -361,6 +361,7 @@ module Inkoc
         instances = TypeParameterInstances.new
 
         types.each do |type|
+          next unless type.generic_type?
           next if type.type_parameter_instances.empty?
 
           instances.merge!(type.type_parameter_instances)
