@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5 - September 11, 2018
+
+* 38379fc: Fixed type checking of unknown_message
+* b29fdc0: Added std::test::assert.true and false
+* ad529e5: Add base implementation of implements_trait?
+* d7df0cc: Use parentheses for process.receive_if example
+* ab8d7b3: Use trailing commas for arguments and literals
+
 ## 0.2.4 - September 08, 2018
 
 ### Compiler
