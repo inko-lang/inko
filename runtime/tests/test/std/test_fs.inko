@@ -102,54 +102,54 @@ supports_access_time?.if_true {
 
 test.group('std::fs.file?') do (g) {
   g.test('Testing an existing file') {
-    assert.equal(fs.file?(CURRENT_FILE), True)
+    assert.true(fs.file?(CURRENT_FILE))
   }
 
   g.test('Testing a non-existing file') {
-    assert.equal(fs.file?(INVALID_FILE), False)
+    assert.false(fs.file?(INVALID_FILE))
   }
 
   g.test('Testing an existing directory') {
-    assert.equal(fs.file?('.'), False)
+    assert.false(fs.file?('.'))
   }
 
   g.test('Testing a non-existing directory') {
-    assert.equal(fs.file?('does_not_exist'), False)
+    assert.false(fs.file?('does_not_exist'))
   }
 }
 
 test.group('std::fs.directory?') do (g) {
   g.test('Testing an existing directory') {
-    assert.equal(fs.directory?('.'), True)
+    assert.true(fs.directory?('.'))
   }
 
   g.test('Testing a non-existing directory') {
-    assert.equal(fs.directory?('this_does_not_exist'), False)
+    assert.false(fs.directory?('this_does_not_exist'))
   }
 
   g.test('Testing an existing file') {
-    assert.equal(fs.directory?(CURRENT_FILE), False)
+    assert.false(fs.directory?(CURRENT_FILE))
   }
 
   g.test('Testing a non-existing file') {
-    assert.equal(fs.directory?(INVALID_FILE), False)
+    assert.false(fs.directory?(INVALID_FILE))
   }
 }
 
 test.group('std::fs.exists?') do (g) {
   g.test('Testing an existing file') {
-    assert.equal(fs.exists?(CURRENT_FILE), True)
+    assert.true(fs.exists?(CURRENT_FILE))
   }
 
   g.test('Testing a non-existing file') {
-    assert.equal(fs.exists?(INVALID_FILE), False)
+    assert.false(fs.exists?(INVALID_FILE))
   }
 
   g.test('Testing an existing directory') {
-    assert.equal(fs.exists?('.'), True)
+    assert.true(fs.exists?('.'))
   }
 
   g.test('Testing a non-existing directory') {
-    assert.equal(fs.exists?('does_not_exist'), False)
+    assert.false(fs.exists?('does_not_exist'))
   }
 }

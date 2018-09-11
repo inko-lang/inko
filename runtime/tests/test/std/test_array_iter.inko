@@ -6,11 +6,11 @@ test.group('std::array_iter::Iterator.next?') do (g) {
   g.test('Testing if there are any remaining values') {
     let iter = ArrayIterator.new([10])
 
-    assert.equal(iter.next?, True)
+    assert.true(iter.next?)
 
     iter.next
 
-    assert.equal(iter.next?, False)
+    assert.false(iter.next?)
   }
 }
 

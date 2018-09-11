@@ -45,7 +45,7 @@ test.group('std::fs::dir.create') do (g) {
     with_temp_dir(['foo']) do (path) {
       try! dir.create(path)
 
-      assert.equal(fs.directory?(path), True)
+      assert.true(fs.directory?(path))
     }
   }
 
@@ -62,7 +62,7 @@ test.group('std::fs::dir.create') do (g) {
     with_temp_dir(['foo', 'bar']) do (path) {
       try! dir.create(path: path, recursive: True)
 
-      assert.equal(fs.directory?(path), True)
+      assert.true(fs.directory?(path))
     }
   }
 
@@ -82,7 +82,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path)
       try! dir.remove(path)
 
-      assert.equal(fs.directory?(path), False)
+      assert.false(fs.directory?(path))
     }
   }
 
@@ -100,7 +100,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: path, recursive: True)
 
-      assert.equal(fs.directory?(path), False)
+      assert.false(fs.directory?(path))
     }
   }
 
@@ -111,7 +111,7 @@ test.group('std::fs::dir.remove') do (g) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: root, recursive: True)
 
-      assert.equal(fs.directory?(root), False)
+      assert.false(fs.directory?(root))
     }
   }
 }

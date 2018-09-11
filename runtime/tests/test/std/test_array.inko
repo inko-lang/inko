@@ -110,8 +110,8 @@ test.group('std::array::Array.length') do (g) {
 
 test.group('std::array::Array.empty?') do (g) {
   g.test('Checking if an Array is empty or not') {
-    assert.equal([].empty?, True)
-    assert.equal([10].empty?, False)
+    assert.true([].empty?)
+    assert.false([10].empty?)
   }
 }
 

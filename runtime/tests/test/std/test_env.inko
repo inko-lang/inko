@@ -46,7 +46,7 @@ test.group('std::env.variables') do (g) {
   g.test('Obtaining all environment variables and their values') {
     let vars = env.variables
 
-    assert.equal(vars.empty?, False)
+    assert.false(vars.empty?)
     assert.equal(vars['INKO_VALID'], 'foo')
   }
 }
@@ -57,7 +57,7 @@ test.group('std::env.home_directory') do (g) {
     # home directory set.
     let home_dir = env.home_directory
 
-    assert.equal(home_dir.exists?, True)
+    assert.true(home_dir.exists?)
     assert.greater(home_dir.to_string.length, 0)
   }
 }
@@ -66,7 +66,7 @@ test.group('std::env.temporary_directory') do (g) {
   g.test('Obtaining the temporary directory') {
     let temp_dir = env.temporary_directory
 
-    assert.equal(temp_dir.exists?, True)
+    assert.true(temp_dir.exists?)
     assert.greater(temp_dir.to_string.length, 0)
   }
 }
@@ -111,7 +111,7 @@ test.group('std::env.arguments') do (g) {
     let args1 = env.arguments
     let args2 = env.arguments
 
-    assert.equal(args1.equal?(args2), False)
+    assert.false(args1.equal?(args2))
   }
 
   g.test('Modifying the arguments Array does not affect other calls') {

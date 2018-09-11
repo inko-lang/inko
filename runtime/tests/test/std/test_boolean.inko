@@ -5,7 +5,7 @@ import std::test::assert
 
 test.group('std::boolean::Boolean.not') do (g) {
   g.test('Returning the opposite of Boolean') {
-    assert.equal(Boolean.not, False)
+    assert.false(Boolean.not)
   }
 }
 
@@ -101,7 +101,7 @@ test.group('std::boolean::Boolean.format') do (g) {
 
 test.group('std::boolean::True.not') do (g) {
   g.test('Returning the opposite of True') {
-    assert.equal(True.not, False)
+    assert.false(True.not)
   }
 }
 

@@ -233,10 +233,10 @@ test.group('std::byte_array::Iterator') do (g) {
     let bytes = ByteArray.new([10])
     let iter = ByteArrayIterator.new(bytes)
 
-    assert.equal(iter.next?, True)
+    assert.true(iter.next?)
 
     iter.next
 
-    assert.equal(iter.next?, False)
+    assert.false(iter.next?)
   }
 }

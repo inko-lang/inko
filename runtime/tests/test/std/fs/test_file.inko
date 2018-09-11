@@ -328,7 +328,7 @@ test.group('std::fs::file::WriteOnlyFile.remove') do (g) {
     write_only_file do (file) {
       try! file.remove
 
-      assert.equal(fs.exists?(file.path), False)
+      assert.false(fs.exists?(file.path))
     }
   }
 
@@ -469,7 +469,7 @@ test.group('std::fs::file::ReadWriteFile.remove') do (g) {
     read_write_file do (file) {
       try! file.remove
 
-      assert.equal(fs.exists?(file.path), False)
+      assert.false(fs.exists?(file.path))
     }
   }
 
@@ -488,7 +488,7 @@ test.group('std::fs::file.remove') do (g) {
     write_only_file do (f) {
       try! file.remove(f.path)
 
-      assert.equal(fs.exists?(f.path), False)
+      assert.false(fs.exists?(f.path))
     }
   }
 
@@ -510,8 +510,8 @@ test.group('std::fs::file.copy') do (g) {
 
       try! file.copy(f.path, new_path)
 
-      assert.equal(fs.exists?(f.path), True)
-      assert.equal(fs.exists?(new_path), True)
+      assert.true(fs.exists?(f.path))
+      assert.true(fs.exists?(new_path))
     }
   }
 

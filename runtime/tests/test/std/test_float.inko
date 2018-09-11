@@ -12,13 +12,13 @@ test.group('std::float::Float.+') do (g) {
   g.test('Adding a Float and a NAN') {
     let float = 1.0 + NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Adding a NAN and a Float') {
     let float = NAN + 1.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Adding a Float and Infinity') {
@@ -46,25 +46,25 @@ test.group('std::float::Float./') do (g) {
   g.test('Dividing a Float by a NAN') {
     let float = 1.0 / NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Dividing a NAN by a Float') {
     let float = NAN / 2.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Dividing a NAN by a NAN') {
     let float = NAN / NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Dividing a NAN by Infinity') {
     let float = NAN / INFINITY
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Dividing a Float by Infinity') {
@@ -78,7 +78,7 @@ test.group('std::float::Float./') do (g) {
   g.test('Dividing Infinity by a NAN') {
     let float = INFINITY / NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 }
 
@@ -90,25 +90,25 @@ test.group('std::float::Float.*') do (g) {
   g.test('Multiplying a Float by a NAN') {
     let float = 1.0 * NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Multiplying a NAN by a Float') {
     let float = NAN * 2.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Multiplying a NAN by a NAN') {
     let float = NAN * NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Multiplying a NAN by Infinity') {
     let float = NAN * INFINITY
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Multiplying a Float by Infinity') {
@@ -122,7 +122,7 @@ test.group('std::float::Float.*') do (g) {
   g.test('Multiplying Infinity by a NAN') {
     let float = INFINITY * NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 }
 
@@ -134,25 +134,25 @@ test.group('std::float::Float.-') do (g) {
   g.test('Subtracting a Float by a NAN') {
     let float = 1.0 - NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Subtracting a NAN by a Float') {
     let float = NAN - 2.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Subtracting a NAN by a NAN') {
     let float = NAN - NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Subtracting a NAN by Infinity') {
     let float = NAN - INFINITY
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Subtracting a Float by Infinity') {
@@ -166,7 +166,7 @@ test.group('std::float::Float.-') do (g) {
   g.test('Subtracting Infinity by a NAN') {
     let float = INFINITY - NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 }
 
@@ -178,25 +178,25 @@ test.group('std::float::Float.%') do (g) {
   g.test('Returning the modulo of a Float and a NAN') {
     let float = 1.0 % NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Returning the modulo of a NAN and a Float') {
     let float = NAN % 2.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Returning the modulo of a NAN and another NAN') {
     let float = NAN % NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Returning the modulo of a NAN and Infinity') {
     let float = NAN % INFINITY
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Returning the modulo of a Float and Infinity') {
@@ -206,85 +206,85 @@ test.group('std::float::Float.%') do (g) {
   g.test('Returning the modulo of Infinity and a Float') {
     let float = INFINITY % 2.0
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 
   g.test('Returning the modulo of Infinity and a NAN') {
     let float = INFINITY % NAN
 
-    assert.equal(float.not_a_number?, True)
+    assert.true(float.not_a_number?)
   }
 }
 
 test.group('std::float::Float.<') do (g) {
   g.test('Comparing two Floats') {
-    assert.equal(1.0 < 2.0, True)
-    assert.equal(2.0 < 1.0, False)
+    assert.true(1.0 < 2.0)
+    assert.false(2.0 < 1.0)
   }
 
   g.test('Comparing a Float and a NAN') {
-    assert.equal(1.0 < NAN, False)
+    assert.false(1.0 < NAN)
   }
 
   g.test('Comparing a NAN and a Float') {
-    assert.equal(NAN < 1.0, False)
+    assert.false(NAN < 1.0)
   }
 
   g.test('Comparing a NAN and another NAN') {
-    assert.equal(NAN < NAN, False)
+    assert.false(NAN < NAN)
   }
 
   g.test('Comparing a Float and Infinity') {
-    assert.equal(1.0 < INFINITY, True)
+    assert.true(1.0 < INFINITY)
   }
 
   g.test('Comparing Infinity and a Float') {
-    assert.equal(INFINITY < 1.0, False)
-    assert.equal(NEGATIVE_INFINITY < 1.0, True)
+    assert.false(INFINITY < 1.0)
+    assert.true(NEGATIVE_INFINITY < 1.0)
   }
 
   g.test('Comparing a NAN and Infinity') {
-    assert.equal(NAN < INFINITY, False)
+    assert.false(NAN < INFINITY)
   }
 
   g.test('Comparing Infinity and a NAN') {
-    assert.equal(INFINITY < NAN, False)
+    assert.false(INFINITY < NAN)
   }
 }
 
 test.group('std::float::Float.>') do (g) {
   g.test('Comparing two Floats') {
-    assert.equal(2.0 > 1.0, True)
-    assert.equal(1.0 > 2.0, False)
+    assert.true(2.0 > 1.0)
+    assert.false(1.0 > 2.0)
   }
 
   g.test('Comparing a Float and a NAN') {
-    assert.equal(1.0 > NAN, False)
+    assert.false(1.0 > NAN)
   }
 
   g.test('Comparing a NAN and a Float') {
-    assert.equal(NAN > 1.0, False)
+    assert.false(NAN > 1.0)
   }
 
   g.test('Comparing a NAN and another NAN') {
-    assert.equal(NAN > NAN, False)
+    assert.false(NAN > NAN)
   }
 
   g.test('Comparing a Float and Infinity') {
-    assert.equal(1.0 > INFINITY, False)
+    assert.false(1.0 > INFINITY)
   }
 
   g.test('Comparing Infinity and a Float') {
-    assert.equal(INFINITY > 1.0, True)
-    assert.equal(NEGATIVE_INFINITY > 1.0, False)
+    assert.true(INFINITY > 1.0)
+    assert.false(NEGATIVE_INFINITY > 1.0)
   }
 
   g.test('Comparing a NAN and Infinity') {
-    assert.equal(NAN > INFINITY, False)
+    assert.false(NAN > INFINITY)
   }
 
   g.test('Comparing Infinity and a NAN') {
-    assert.equal(INFINITY > NAN, False)
+    assert.false(INFINITY > NAN)
   }
 }
 
@@ -324,131 +324,131 @@ test.group('std::float::Float.==') do (g) {
 
 test.group('std::float::Float.>=') do (g) {
   g.test('Comparing two Floats') {
-    assert.equal(10.0 >= 10.0, True)
-    assert.equal(10.0 >= 5.0, True)
-    assert.equal(10.0 >= 15.0, False)
+    assert.true(10.0 >= 10.0)
+    assert.true(10.0 >= 5.0)
+    assert.false(10.0 >= 15.0)
   }
 
   g.test('Comparing a Float with a NAN') {
-    assert.equal(1.0 >= NAN, False)
+    assert.false(1.0 >= NAN)
   }
 
   g.test('Comparing a NAN with a NAN') {
-    assert.equal(NAN >= NAN, False)
+    assert.false(NAN >= NAN)
   }
 
   g.test('Comparing a Float with Infinity') {
-    assert.equal(1.0 >= INFINITY, False)
+    assert.false(1.0 >= INFINITY)
   }
 
   g.test('Comparing Infinity with a Float') {
-    assert.equal(INFINITY >= 1.0, True)
+    assert.true(INFINITY >= 1.0)
   }
 
   g.test('Comparing INFINITY with another Infinity') {
-    assert.equal(INFINITY >= INFINITY, True)
+    assert.true(INFINITY >= INFINITY)
   }
 }
 
 test.group('std::float::Float.<=') do (g) {
   g.test('Comparing two Floats') {
-    assert.equal(10.0 <= 10.0, True)
-    assert.equal(10.0 <= 5.0, False)
-    assert.equal(10.0 <= 15.0, True)
+    assert.true(10.0 <= 10.0)
+    assert.false(10.0 <= 5.0)
+    assert.true(10.0 <= 15.0)
   }
 
   g.test('Comparing a Float with a NAN') {
-    assert.equal(1.0 <= NAN, False)
+    assert.false(1.0 <= NAN)
   }
 
   g.test('Comparing a NAN with a NAN') {
-    assert.equal(NAN <= NAN, False)
+    assert.false(NAN <= NAN)
   }
 
   g.test('Comparing a Float with Infinity') {
-    assert.equal(1.0 <= INFINITY, True)
+    assert.true(1.0 <= INFINITY)
   }
 
   g.test('Comparing Infinity with a Float') {
-    assert.equal(INFINITY <= 1.0, False)
+    assert.false(INFINITY <= 1.0)
   }
 
   g.test('Comparing INFINITY with another Infinity') {
-    assert.equal(INFINITY <= INFINITY, True)
+    assert.true(INFINITY <= INFINITY)
   }
 }
 
 test.group('std::float::Float.negative?') do (g) {
   g.test('Using a positive Float') {
-    assert.equal(1.0.negative?, False)
+    assert.false(1.0.negative?)
   }
 
   g.test('Using a negative Float') {
-    assert.equal(-1.0.negative?, True)
+    assert.true(-1.0.negative?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.negative?, False)
+    assert.false(NAN.negative?)
   }
 
   g.test('Using positive Infinity') {
-    assert.equal(INFINITY.negative?, False)
+    assert.false(INFINITY.negative?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.negative?, True)
+    assert.true(NEGATIVE_INFINITY.negative?)
   }
 }
 
 test.group('std::float::Float.positive?') do (g) {
   g.test('Using a positive Float') {
-    assert.equal(1.0.positive?, True)
+    assert.true(1.0.positive?)
   }
 
   g.test('Using a negative Float') {
-    assert.equal(-1.0.positive?, False)
+    assert.false(-1.0.positive?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.positive?, False)
+    assert.false(NAN.positive?)
   }
 
   g.test('Using positive Infinity') {
-    assert.equal(INFINITY.positive?, True)
+    assert.true(INFINITY.positive?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.positive?, False)
+    assert.false(NEGATIVE_INFINITY.positive?)
   }
 }
 
 test.group('std::float::Float.zero?') do (g) {
   g.test('Using a positive Float') {
-    assert.equal(1.0.zero?, False)
+    assert.false(1.0.zero?)
   }
 
   g.test('Using a negative Float') {
-    assert.equal(-1.0.zero?, False)
+    assert.false(-1.0.zero?)
   }
 
   g.test('Using positive zero') {
-    assert.equal(0.0.zero?, True)
+    assert.true(0.0.zero?)
   }
 
   g.test('Using negative zero') {
-    assert.equal(-0.0.zero?, True)
+    assert.true(-0.0.zero?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.zero?, False)
+    assert.false(NAN.zero?)
   }
 
   g.test('Using positive Infinity') {
-    assert.equal(INFINITY.zero?, False)
+    assert.false(INFINITY.zero?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.zero?, False)
+    assert.false(NEGATIVE_INFINITY.zero?)
   }
 }
 
@@ -462,7 +462,7 @@ test.group('std::float::Float.absolute') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.absolute.not_a_number?, True)
+    assert.true(NAN.absolute.not_a_number?)
   }
 
   g.test('Using positive Infinity') {
@@ -484,7 +484,7 @@ test.group('std::float::Float.opposite') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.opposite.not_a_number?, True)
+    assert.true(NAN.opposite.not_a_number?)
   }
 
   g.test('Using positive Infinity') {
@@ -498,55 +498,55 @@ test.group('std::float::Float.opposite') do (g) {
 
 test.group('std::float::Float.not_a_number?') do (g) {
   g.test('Using a Float') {
-    assert.equal(1.0.not_a_number?, False)
+    assert.false(1.0.not_a_number?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.not_a_number?, True)
+    assert.true(NAN.not_a_number?)
   }
 
   g.test('Using Infinity') {
-    assert.equal(INFINITY.not_a_number?, False)
+    assert.false(INFINITY.not_a_number?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.not_a_number?, False)
+    assert.false(NEGATIVE_INFINITY.not_a_number?)
   }
 }
 
 test.group('std::float::Float.infinite?') do (g) {
   g.test('Using a Float') {
-    assert.equal(1.0.infinite?, False)
+    assert.false(1.0.infinite?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.infinite?, False)
+    assert.false(NAN.infinite?)
   }
 
   g.test('Using Infinity') {
-    assert.equal(INFINITY.infinite?, True)
+    assert.true(INFINITY.infinite?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.infinite?, True)
+    assert.true(NEGATIVE_INFINITY.infinite?)
   }
 }
 
 test.group('std::float::Float.finite?') do (g) {
   g.test('Using a Float') {
-    assert.equal(1.0.finite?, True)
+    assert.true(1.0.finite?)
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.finite?, False)
+    assert.false(NAN.finite?)
   }
 
   g.test('Using Infinity') {
-    assert.equal(INFINITY.finite?, False)
+    assert.false(INFINITY.finite?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.finite?, False)
+    assert.false(NEGATIVE_INFINITY.finite?)
   }
 }
 
@@ -560,7 +560,7 @@ test.group('std::float::Float.floor') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.floor.not_a_number?, True)
+    assert.true(NAN.floor.not_a_number?)
   }
 
   g.test('Using Infinity') {
@@ -582,7 +582,7 @@ test.group('std::float::Float.ceil') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.ceil.not_a_number?, True)
+    assert.true(NAN.ceil.not_a_number?)
   }
 
   g.test('Using Infinity') {
@@ -632,7 +632,7 @@ test.group('std::float::Float.round') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.round.not_a_number?, True)
+    assert.true(NAN.round.not_a_number?)
   }
 
   g.test('Using Infinity') {
@@ -654,15 +654,15 @@ test.group('std::float::Float.fractional') do (g) {
   }
 
   g.test('Using a NAN') {
-    assert.equal(NAN.fractional.not_a_number?, True)
+    assert.true(NAN.fractional.not_a_number?)
   }
 
   g.test('Using Infinity') {
-    assert.equal(INFINITY.fractional.not_a_number?, True)
+    assert.true(INFINITY.fractional.not_a_number?)
   }
 
   g.test('Using negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.fractional.not_a_number?, True)
+    assert.true(NEGATIVE_INFINITY.fractional.not_a_number?)
   }
 }
 
@@ -700,7 +700,7 @@ test.group('std::float::Float.to_float') do (g) {
   }
 
   g.test('Converting a NAN to a Float') {
-    assert.equal(NAN.to_float.not_a_number?, True)
+    assert.true(NAN.to_float.not_a_number?)
   }
 
   g.test('Converting Infinity to a Float') {
