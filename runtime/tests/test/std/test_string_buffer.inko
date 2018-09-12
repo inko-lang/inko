@@ -1,0 +1,26 @@
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+
+test.group('std::string_buffer::StringBuffer.push') do (g) {
+  g.test('Pushing a String into a StringBuffer') {
+    let buffer = StringBuffer.new
+
+    let pushed = buffer.push('x')
+
+    assert.equal(pushed, 'x')
+    assert.equal(buffer.to_string, pushed)
+  }
+}
+
+test.group('std::string_buffer::StringBuffer.to_string') do (g) {
+  g.test('Concatenating Strings in a StringBuffer') {
+    let buffer = StringBuffer.new
+
+    buffer.push('foo')
+    buffer.push('bar')
+    buffer.push('baz')
+
+    assert.equal(buffer.to_string, 'foobarbaz')
+  }
+}
