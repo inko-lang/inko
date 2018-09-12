@@ -18,5 +18,6 @@ import test::std::test_format
 import test::std::test_fs
 import test::std::test_integer
 import test::std::test_nil
+import test::std::test_string
 
 test.run

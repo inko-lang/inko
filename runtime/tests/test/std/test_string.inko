@@ -1,0 +1,88 @@
+import std::test
+import std::test::assert
+
+test.group('std::string::String.to_uppercase') do (g) {
+  g.test('Converting a String to uppercase') {
+    assert.equal('hello'.to_uppercase, 'HELLO')
+    assert.equal('ä'.to_uppercase, 'Ä')
+    assert.equal('aä'.to_uppercase, 'AÄ')
+  }
+}
+
+test.group('std::string::String.to_lowercase') do (g) {
+  g.test('Converting a String to lowercase') {
+    assert.equal('HELLO'.to_lowercase, 'hello')
+    assert.equal('Ä'.to_lowercase, 'ä')
+    assert.equal('AÄ'.to_lowercase, 'aä')
+  }
+}
+
+test.group('std::string::String.bytesize') do (g) {
+  g.test('Calculating the number of bytes in a String') {
+    assert.equal('foo'.bytesize, 3)
+    assert.equal('Ä'.bytesize, 2)
+    assert.equal('AÄ'.bytesize, 3)
+  }
+}
+
+test.group('std::string::String.slice') do (g) {
+  g.test('Slicing a String') {
+    assert.equal('hello_world'.slice(0, 5), 'hello')
+    assert.equal('hello_world'.slice(0, 20), 'hello_world')
+    assert.equal('hello_world'.slice(-5, 5), 'world')
+    assert.equal('hello_world'.slice(-1, 5), 'd')
+  }
+}
+
+test.group('std::string::String.starts_with?') do (g) {
+  g.test('Checking a String starts with a specified prefix') {
+    assert.true('hello_world'.starts_with?('hello'))
+    assert.false('hello_world'.starts_with?('x'))
+  }
+}
+
+test.group('std::string::String.ends_with?') do (g) {
+  g.test('Checking a String ends with a specified suffix') {
+    assert.true('hello_world'.ends_with?('world'))
+    assert.false('hello_world'.ends_with?('x'))
+  }
+}
+
+test.group('std::string::String.to_string') do (g) {
+  g.test('Converting a String to a String') {
+    assert.equal('foo'.to_string, 'foo')
+    assert.not_equal('foo'.to_string, 'bar')
+  }
+}
+
+test.group('std::string::String.length') do (g) {
+  g.test('Calculating the number of characters in a String') {
+    assert.equal('foo'.length, 3)
+    assert.equal('Ä'.length, 1)
+    assert.equal('AÄ'.length, 2)
+    assert.equal('쿠키'.length, 2)
+  }
+}
+
+test.group('std::string::String.==') do (g) {
+  g.test('Comparing two Strings') {
+    assert.true('foo' == 'foo')
+    assert.true('Ä' == 'Ä')
+    assert.true('AÄ' == 'AÄ')
+    assert.true('쿠키' == '쿠키')
+
+    assert.false('foo' == 'bar')
+    assert.false('Ä' == '쿠')
+    assert.false('AÄ' == 'A쿠')
+    assert.false('쿠Ä' == '쿠키')
+  }
+}
+
+test.group('std::string::String.+') do (g) {
+  g.test('Concatenating two Strings') {
+    assert.equal('foo' + 'bar', 'foobar')
+    assert.equal('Ä' + 'Ä', 'ÄÄ')
+    assert.equal('A' + 'Ä', 'AÄ')
+    assert.equal('쿠' + '키', '쿠키')
+  }
+}
