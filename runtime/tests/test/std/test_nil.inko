@@ -60,16 +60,12 @@ test.group('std::nil::Nil.and') do (g) {
 }
 
 test.group('std::nil::Nil.or') do (g) {
-  g.test('Returns True if the other object evaluates to True') {
-    let actual = Nil.or { 42 == 42 }
+  g.test('Returning the Boolean evaluation of the other object') {
+    let t = Nil.or { 42 == 42 }
+    let f = Nil.or { 42 != 42 }
 
-    assert.true(actual)
-  }
-
-  g.test('Returns False if the other object evaluates anything but True') {
-    let actual = Nil.or { 42 != 42 }
-
-    assert.false(actual)
+    assert.true(t)
+    assert.false(f)
   }
 }
 
