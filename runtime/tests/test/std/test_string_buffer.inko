@@ -5,7 +5,6 @@ import std::test::assert
 test.group('std::string_buffer::StringBuffer.push') do (g) {
   g.test('Pushing a String into a StringBuffer') {
     let buffer = StringBuffer.new
-
     let pushed = buffer.push('x')
 
     assert.equal(pushed, 'x')
@@ -14,7 +13,7 @@ test.group('std::string_buffer::StringBuffer.push') do (g) {
 }
 
 test.group('std::string_buffer::StringBuffer.to_string') do (g) {
-  g.test('Concatenating Strings in a StringBuffer') {
+  g.test('Converting a StringBuffer to a String') {
     let buffer = StringBuffer.new
 
     buffer.push('foo')
