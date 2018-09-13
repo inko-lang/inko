@@ -1,4 +1,3 @@
-#! Unit tests for the `std::integer` module.
 import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
@@ -73,21 +72,21 @@ test.group('std::integer::Integer.%') do (g) {
 }
 
 test.group('std::integer::Integer.<') do (g) {
-  g.test('Checking an Integer is smaller than another Integer') {
+  g.test('Checking if an Integer is smaller than another Integer') {
     assert.true(2 < 3)
     assert.false(3 < 2)
   }
 }
 
 test.group('std::integer::Integer.>') do (g) {
-  g.test('Checking an Integer is greater than another Integer') {
+  g.test('Checking if an Integer is greater than another Integer') {
     assert.true(3 > 2)
     assert.false(2 > 3)
   }
 }
 
 test.group('std::integer::Integer.>=') do (g) {
-  g.test('Checking an Integer is greater than or equal to another Integer') {
+  g.test('Checking if an Integer is greater than or equal to another Integer') {
     assert.true(4 >= 3)
     assert.true(3 >= 3)
     assert.false(2 >= 3)
@@ -95,7 +94,7 @@ test.group('std::integer::Integer.>=') do (g) {
 }
 
 test.group('std::integer::Integer.<=') do (g) {
-  g.test('Checking an Integer is less than or equal to another Integer') {
+  g.test('Checking if an Integer is less than or equal to another Integer') {
     assert.true(2 <= 3)
     assert.true(3 <= 3)
     assert.false(4 <= 3)
@@ -103,7 +102,7 @@ test.group('std::integer::Integer.<=') do (g) {
 }
 
 test.group('std::integer::Integer.&') do (g) {
-  g.test('Computing bitwise AND with another Integer') {
+  g.test('Computing the result of a bitwise AND with another Integer') {
     assert.equal(256 & 16, 0)
     assert.equal(2010 & 5, 0)
     assert.equal(65535 & 1, 1)
@@ -111,7 +110,7 @@ test.group('std::integer::Integer.&') do (g) {
 }
 
 test.group('std::integer::Integer.|') do (g) {
-  g.test('Computing bitwise OR with another Integer') {
+  g.test('Computing the result of a bitwise OR with another Integer') {
     assert.equal(1 | 0, 1)
     assert.equal(5 | 4, 5)
     assert.equal(5 | 6, 7)
@@ -120,7 +119,7 @@ test.group('std::integer::Integer.|') do (g) {
 }
 
 test.group('std::integer::Integer.^') do (g) {
-  g.test('Computing bitwise EXCLUSIVE OR with another Integer') {
+  g.test('Computing the result of a bitwise XOR with another Integer') {
     assert.equal(3 ^ 5, 6)
     assert.equal(-2 ^ -255, 255)
   }
@@ -206,15 +205,15 @@ test.group('std::integer::Integer.hash') do (g) {
 }
 
 test.group('std::integer::Integer.successor') do (g) {
-  g.test('Computes the next larger positive Integer') {
+  g.test('Computing the next larger positive Integer') {
     assert.equal(1.successor, 2)
   }
 
-  g.test('Computes the 0 when Self is -1') {
+  g.test('Computing the 0 when Self is -1') {
     assert.equal(-1.successor, 0)
   }
 
-  g.test('Computes the next larger negative Integer') {
+  g.test('Computing the next larger negative Integer') {
     assert.equal(-2.successor, -1)
   }
 }
