@@ -35,14 +35,14 @@ test.group('std::string::String.slice') do (g) {
 }
 
 test.group('std::string::String.starts_with?') do (g) {
-  g.test('Checking a String starts with a specified prefix') {
+  g.test('Checking if a String starts with the given prefix') {
     assert.true('hello_world'.starts_with?('hello'))
     assert.false('hello_world'.starts_with?('x'))
   }
 }
 
 test.group('std::string::String.ends_with?') do (g) {
-  g.test('Checking a String ends with a specified suffix') {
+  g.test('Checking if a String ends with the given suffix') {
     assert.true('hello_world'.ends_with?('world'))
     assert.false('hello_world'.ends_with?('x'))
   }
@@ -65,7 +65,7 @@ test.group('std::string::String.length') do (g) {
 }
 
 test.group('std::string::String.==') do (g) {
-  g.test('Comparing two Strings') {
+  g.test('Checking if two Strings are equal to each other') {
     assert.true('foo' == 'foo')
     assert.true('Ä' == 'Ä')
     assert.true('AÄ' == 'AÄ')
