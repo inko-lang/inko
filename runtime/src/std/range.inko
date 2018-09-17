@@ -18,32 +18,25 @@ import std::successor::Successor
 ## 1. They are both of the same type.
 ## 2. Both implement the `Successor` and `Compare` traits.
 object Range!(T: Successor + Compare) {
-  ## Returns a new `Range` starting at `start` up to (and including) `end`.
-  def new(start: T, end: T) -> Self {
-    # A range is internally represented as just an Array. This removes the need
-    # for allocating space for attributes just to store the start and end values
-    # of the range.
-    let mut range = [start, end]
-
-    reflection.set_prototype(range, self)
-
-    range as Range!(T)
+  def init(start: T, end: T) {
+    let @start = start
+    let @end = end
   }
 
   ## Returns the start value of the range.
   def start -> T {
-    *_INKOC.array_at(self, 0)
+    @start
   }
 
   ## Returns the end value of the range.
   def end -> T {
-    *_INKOC.array_at(self, 1)
+    @end
   }
 }
 
-trait ToRange {
+trait ToRange!(T: Successor + Compare) {
   ## Returns a `Range` starting at `self` up to (and including) `other`.
-  def ..(other: Self) -> Range!(Self)
+  def ..(other: T) -> Range!(T)
 }
 
 impl Equal for Range!(T) {
@@ -73,22 +66,27 @@ impl ToArray!(T) for Range!(T) {
   ##
   ##     (1..10).to_array # => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   def to_array -> Array!(T) {
-    # The compiler is currently not smart enough to properly infer `[]` as
-    # `Array!(T)` so we need to manually cast it to this type.
-    let mut values = [] as Array!(T)
-    let mut current = start
-    let max = end
+    let mut values = []
+    let mut current = @start
+    let max = @end
 
     { current <= max }.while_true {
       values.push(current)
-      current = current.successor
+
+      # The "as T" is necessary as the compiler's type system is a bit limited.
+      # When we first define `current` it is defined as `Successor + Compare`.
+      # Sending `successor` produces a `Sucessor`, not a `Successor + Compare`.
+      #
+      # Because we know `current` implements `Compare` as well, we can safely
+      # re-cast it to `Successor + Compare`.
+      current = current.successor as T
     }
 
     values
   }
 }
 
-impl ToRange for Integer {
+impl ToRange!(Integer) for Integer {
   ## Returns a `Range` starting at `self` up to (and including) `other`.
   ##
   ## # Examples
