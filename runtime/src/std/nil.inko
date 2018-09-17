@@ -16,6 +16,19 @@ import std::hash::(Hasher, Hash)
 import std::marker::Optional
 import std::unknown_message::UnknownMessage
 
+impl Nil {
+  ## Always returns `Nil` itself.
+  ##
+  ## # Examples
+  ##
+  ## Sending `new` to a `Nil` produces a new `Nil`:
+  ##
+  ##     Nil.new # => Nil
+  def new -> Self {
+    self
+  }
+}
+
 impl ToInteger for Nil {
   ## Always return `0`.
   ##
