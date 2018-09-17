@@ -31,7 +31,7 @@ describe Inkoc::Pass::DefineType do
         param_b = type.type_parameters['B']
 
         expect(param_a.required_traits).to be_empty
-        expect(param_b.required_traits).to eq(Set.new([trait]))
+        expect(param_b.required_traits).to eq([trait])
       end
 
       it 'produces an error if a requirement is undefined' do
@@ -1944,10 +1944,10 @@ describe Inkoc::Pass::DefineType do
 
       type = expression_type('def foo(value: T) where T: Inspect {}')
 
-      expect(type.method_bounds['T']).to be_type_parameter
+      bound = type.method_bounds['T']
 
-      expect(type.method_bounds['T'].required_traits)
-        .to eq(Set.new([inspect, to_string]))
+      expect(bound).to be_type_parameter
+      expect(bound.required_traits).to include(inspect, to_string)
     end
 
     it 'errors when using a type bound with a method type parameter' do

@@ -14,9 +14,9 @@ module Inkoc
       include WithoutEmptyTypeParameters
 
       attr_reader :name, :attributes, :type_parameters, :required_traits,
-                  :required_methods, :unique_id
+                  :unique_id
 
-      attr_accessor :prototype, :type_parameter_instances
+      attr_accessor :prototype, :type_parameter_instances, :required_methods
 
       def initialize(name: Config::TRAIT_CONST, prototype: nil, unique_id: nil)
         @name = name
@@ -45,7 +45,19 @@ module Inkoc
       #
       # name - The name of a method.
       def lookup_method(name)
-        lookup_attribute(name).or_else { required_methods[name] }
+        lookup_attribute(name)
+          .or_else { required_methods[name] }
+          .or_else { lookup_method_in_required_traits(name) }
+      end
+
+      def lookup_method_in_required_traits(name)
+        required_traits.each_value do |trait|
+          if (sym = trait.lookup_method(name)) && sym.any?
+            return sym
+          end
+        end
+
+        NullSymbol.new(name)
       end
 
       # Returns `true` if `self` is type compatible with `other`.
@@ -82,7 +94,15 @@ module Inkoc
       end
 
       def implements_trait?(trait, state)
-        required_traits[trait.unique_id]&.type_compatible?(trait, state)
+        if required_traits[trait.unique_id]
+          true
+        else
+          # The trait is not directly required, but might be required indirectly
+          # via another required trait.
+          required_traits.each_value.any? do |required|
+            required.type_compatible?(trait, state)
+          end
+        end
       end
 
       def add_required_trait(trait)

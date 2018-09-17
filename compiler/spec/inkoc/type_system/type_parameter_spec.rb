@@ -16,7 +16,7 @@ describe Inkoc::TypeSystem::TypeParameter do
 
     context 'with one required trait' do
       it 'returns the type name' do
-        trait = Inkoc::TypeSystem::Trait.new(name: 'Foo')
+        trait = Inkoc::TypeSystem::Trait.new(name: 'Foo', unique_id: 1)
         param = described_class.new(name: 'T', required_traits: [trait])
 
         expect(param.type_name).to eq('Foo')
@@ -25,8 +25,8 @@ describe Inkoc::TypeSystem::TypeParameter do
 
     context 'with multiple required traits' do
       it 'returns the type name' do
-        trait1 = Inkoc::TypeSystem::Trait.new(name: 'Foo')
-        trait2 = Inkoc::TypeSystem::Trait.new(name: 'Bar')
+        trait1 = Inkoc::TypeSystem::Trait.new(name: 'Foo', unique_id: 1)
+        trait2 = Inkoc::TypeSystem::Trait.new(name: 'Bar', unique_id: 2)
         param = described_class
           .new(name: 'T', required_traits: [trait1, trait2])
 
@@ -50,11 +50,22 @@ describe Inkoc::TypeSystem::TypeParameter do
     end
 
     it 'returns true when we include all the traits of the other parameter' do
-      trait1 = Inkoc::TypeSystem::Trait.new(name: 'T1')
-      trait2 = Inkoc::TypeSystem::Trait.new(name: 'T2')
+      trait1 = Inkoc::TypeSystem::Trait.new(name: 'T1', unique_id: 1)
+      trait2 = Inkoc::TypeSystem::Trait.new(name: 'T2', unique_id: 2)
 
       ours = described_class.new(name: 'A', required_traits: [trait1, trait2])
       theirs = described_class.new(name: 'B', required_traits: [trait1])
+
+      expect(ours.type_compatible?(theirs, state)).to eq(true)
+    end
+
+    it 'returns true if a trait is a required trait of a required trait' do
+      theirs = Inkoc::TypeSystem::Trait.new(unique_id: 1)
+
+      intermediate = Inkoc::TypeSystem::Trait.new(unique_id: 2)
+      intermediate.add_required_trait(theirs)
+
+      ours = described_class.new(required_traits: [intermediate])
 
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end

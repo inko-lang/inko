@@ -12,7 +12,7 @@ describe Inkoc::TypeSystem::TypeParameterTable do
 
       expect(param).to be_an_instance_of(Inkoc::TypeSystem::TypeParameter)
       expect(param.name).to eq('T')
-      expect(param.required_traits).to eq([trait].to_set)
+      expect(param.required_traits).to eq([trait])
     end
   end
 

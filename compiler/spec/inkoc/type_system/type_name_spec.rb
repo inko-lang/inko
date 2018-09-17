@@ -18,8 +18,8 @@ describe Inkoc::TypeSystem::TypeName do
     context 'when a list of type parameters with requirements is defined' do
       it 'returns the type name' do
         object = Inkoc::TypeSystem::Object.new(name: 'Foo')
-        trait1 = Inkoc::TypeSystem::Trait.new(name: 'T1')
-        trait2 = Inkoc::TypeSystem::Trait.new(name: 'T2')
+        trait1 = Inkoc::TypeSystem::Trait.new(name: 'T1', unique_id: 1)
+        trait2 = Inkoc::TypeSystem::Trait.new(name: 'T2', unique_id: 2)
 
         object.define_type_parameter('A', [trait1])
         object.define_type_parameter('B', [trait1, trait2])

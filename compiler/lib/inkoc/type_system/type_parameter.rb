@@ -8,13 +8,20 @@ module Inkoc
       include NewInstance
       include TypeWithAttributes
 
-      attr_reader :name, :required_traits
+      attr_reader :name
 
       # name - The name of the type parameter.
       # required_traits - The traits required by the type parameter.
       def initialize(name: nil, required_traits: [])
         @name = name
-        @required_traits = required_traits.to_set
+
+        @required_traits = required_traits.each_with_object({}) do |trait, hash|
+          hash[trait.unique_id] = trait
+        end
+      end
+
+      def required_traits
+        @required_traits.values
       end
 
       def lookup_type_parameter_instance(_)
@@ -26,11 +33,11 @@ module Inkoc
       end
 
       def empty?
-        required_traits.empty?
+        @required_traits.empty?
       end
 
       def lookup_method(name)
-        required_traits.each do |trait|
+        @required_traits.each_value do |trait|
           if (symbol = trait.lookup_method(name)) && symbol.any?
             return symbol
           end
@@ -49,8 +56,8 @@ module Inkoc
       end
 
       def type_name
-        if required_traits.any?
-          required_traits.map(&:type_name).join(' + ')
+        if @required_traits.any?
+          @required_traits.each_value.map(&:type_name).join(' + ')
         else
           name
         end
@@ -62,28 +69,34 @@ module Inkoc
         if other.optional?
           type_compatible?(other.type, state)
         elsif other.type_parameter?
-          compatible_with_type_parameter?(other)
+          compatible_with_type_parameter?(other, state)
         elsif other.trait?
-          compatible_with_trait?(other)
+          compatible_with_trait?(other, state)
         else
           compatible_with_object?(other)
         end
       end
 
-      def compatible_with_type_parameter?(other)
-        other.required_traits.all? { |t| required_traits.include?(t) }
+      def compatible_with_type_parameter?(other, state)
+        other.required_traits.all? { |t| compatible_with_trait?(t, state) }
       end
 
-      def compatible_with_trait?(other)
-        check = other.base_type ? other.base_type : other
-
-        required_traits.include?(check)
+      def compatible_with_trait?(trait, state)
+        if @required_traits[trait.unique_id]
+          true
+        else
+          # The trait is not directly required, but might be required indirectly
+          # via another required trait.
+          @required_traits.each_value.any? do |required|
+            required.type_compatible?(trait, state)
+          end
+        end
       end
 
       def compatible_with_object?(other)
-        return false if required_traits.empty?
+        return false if @required_traits.empty?
 
-        required_traits.all? do |trait|
+        @required_traits.each_value.all? do |trait|
           trait.prototype_chain_compatible?(other.base_type)
         end
       end

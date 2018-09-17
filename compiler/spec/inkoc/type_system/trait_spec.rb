@@ -12,7 +12,7 @@ describe Inkoc::TypeSystem::Trait do
   end
 
   describe '#lookup_method' do
-    let(:trait) { described_class.new }
+    let(:trait) { described_class.new(unique_id: 1) }
 
     it 'supports looking up a method defined on the trait' do
       method = Inkoc::TypeSystem::Object.new
@@ -25,10 +25,24 @@ describe Inkoc::TypeSystem::Trait do
       expect(symbol.type).to eq(method)
     end
 
-    it 'supports looking up a method from the required traits' do
+    it 'supports looking up a method from the required methods' do
       method = Inkoc::TypeSystem::Object.new
 
       trait.required_methods.define('foo', method)
+
+      symbol = trait.lookup_method('foo')
+
+      expect(symbol.name).to eq('foo')
+      expect(symbol.type).to eq(method)
+    end
+
+    it 'supports looking up a method from the required traits' do
+      method = Inkoc::TypeSystem::Object.new
+
+      required_trait = described_class.new(unique_id: 2)
+      required_trait.required_methods.define('foo', method)
+
+      trait.add_required_trait(required_trait)
 
       symbol = trait.lookup_method('foo')
 
@@ -68,7 +82,7 @@ describe Inkoc::TypeSystem::Trait do
     end
 
     context 'when comparing with another trait' do
-      let(:theirs) { described_class.new }
+      let(:theirs) { described_class.new(unique_id: 2) }
 
       it 'returns true if the trait is a required trait' do
         ours.add_required_trait(theirs.new_instance)
@@ -91,6 +105,16 @@ describe Inkoc::TypeSystem::Trait do
 
         init_param = Inkoc::TypeSystem::TypeParameter.new(name: 'In')
         theirs = ours.new_instance([init_param])
+
+        expect(ours.type_compatible?(theirs, state)).to eq(true)
+      end
+
+      it 'returns true if the trait is a required trait of a required trait' do
+        intermediate = described_class.new(unique_id: 3)
+
+        intermediate.add_required_trait(theirs)
+
+        ours.add_required_trait(intermediate)
 
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
