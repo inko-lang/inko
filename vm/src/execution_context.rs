@@ -28,7 +28,7 @@ pub struct ExecutionContext {
     pub instruction_index: usize,
 
     /// The register to store this context's return value in.
-    pub return_register: Option<usize>,
+    pub return_register: Option<u16>,
 
     /// The current line that is being executed.
     pub line: u16,
@@ -60,7 +60,7 @@ impl ExecutionContext {
     #[inline(always)]
     pub fn from_block(
         block: &Block,
-        return_register: Option<usize>,
+        return_register: Option<u16>,
     ) -> ExecutionContext {
         ExecutionContext {
             register: Register::new(block.code.registers as usize),
@@ -404,7 +404,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 104);
+        assert_eq!(size, 88);
     }
 
     #[test]

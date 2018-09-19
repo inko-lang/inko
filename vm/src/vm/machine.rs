@@ -562,7 +562,8 @@ impl Machine {
 
                     if let Some(register) = context.return_register {
                         if let Some(parent_context) = context.parent_mut() {
-                            parent_context.set_register(register, object);
+                            parent_context
+                                .set_register(usize::from(register), object);
                         }
                     }
 
@@ -1239,7 +1240,7 @@ impl Machine {
                     if execute {
                         let new_context = ExecutionContext::from_block(
                             &block,
-                            Some(register),
+                            Some(register as u16),
                         );
 
                         process.push_context(new_context);
@@ -1640,8 +1641,10 @@ impl Machine {
                     let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value()?;
 
-                    let new_ctx =
-                        ExecutionContext::from_block(&block, Some(register));
+                    let new_ctx = ExecutionContext::from_block(
+                        &block,
+                        Some(register as u16),
+                    );
 
                     self.prepare_new_context(
                         process,
@@ -2516,8 +2519,10 @@ impl Machine {
                     let rec_ptr = context.get_register(instruction.arg(2));
                     let block = block_ptr.block_value()?;
 
-                    let mut new_ctx =
-                        ExecutionContext::from_block(&block, Some(register));
+                    let mut new_ctx = ExecutionContext::from_block(
+                        &block,
+                        Some(register as u16),
+                    );
 
                     new_ctx.binding.receiver = rec_ptr;
 
