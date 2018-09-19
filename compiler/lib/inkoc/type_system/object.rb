@@ -106,9 +106,7 @@ module Inkoc
       #
       # other - A trait to compare with.
       def compatible_with_trait?(other)
-        check = other.base_type ? other.base_type : other
-
-        implements_trait?(check)
+        implements_trait?(other.base_type || other)
       end
 
       # Initialises any type parameters in self as the given type.
@@ -144,7 +142,7 @@ module Inkoc
         implemented_traits[trait.unique_id] = trait
       end
 
-      def implements_trait?(trait)
+      def implements_trait?(trait, *)
         if implemented_traits.key?(trait.unique_id)
           true
         elsif prototype

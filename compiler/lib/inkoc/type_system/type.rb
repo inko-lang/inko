@@ -77,8 +77,9 @@ module Inkoc
         mod = state.modules[Config::UNKNOWN_MESSAGE_MODULE]
         method_name = Config::UNKNOWN_MESSAGE_MESSAGE
 
-        if mod &&
-           implements_trait?(mod.lookup_type(Config::UNKNOWN_MESSAGE_TRAIT))
+        trait = mod&.lookup_type(Config::UNKNOWN_MESSAGE_TRAIT)
+
+        if trait && implements_trait?(trait, state)
           lookup_method(method_name)
         else
           NullSymbol.new(method_name)
