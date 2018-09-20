@@ -1462,6 +1462,8 @@ impl Machine {
 
                     context.instruction_index = index;
 
+                    process.suspended();
+
                     self.state
                         .suspension_list
                         .suspend(process.clone(), timeout);
