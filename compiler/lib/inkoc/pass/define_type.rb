@@ -1619,6 +1619,18 @@ module Inkoc
         typedb.hasher_type.new_instance
       end
 
+      def on_raw_get_library_prototype(*)
+        typedb.library_type.new_instance
+      end
+
+      def on_raw_get_function_prototype(*)
+        typedb.function_type.new_instance
+      end
+
+      def on_raw_get_pointer_prototype(*)
+        typedb.pointer_type.new_instance
+      end
+
       def on_raw_set_object_name(*)
         typedb.string_type.new_instance
       end
@@ -1681,6 +1693,46 @@ module Inkoc
 
       def on_raw_process_unpin_thread(*)
         typedb.nil_type.new_instance
+      end
+
+      def on_raw_library_open(*)
+        typedb.library_type.new_instance
+      end
+
+      def on_raw_function_attach(*)
+        typedb.function_type.new_instance
+      end
+
+      def on_raw_function_call(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_pointer_attach(*)
+        typedb.pointer_type.new_instance
+      end
+
+      def on_raw_pointer_read(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_pointer_write(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_pointer_from_address(*)
+        typedb.pointer_type.new_instance
+      end
+
+      def on_raw_pointer_address(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_foreign_type_size(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_foreign_type_alignment(*)
+        typedb.integer_type.new_instance
       end
 
       def define_block_signature(node, scope, expected_block = nil)

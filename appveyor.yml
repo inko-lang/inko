@@ -30,6 +30,8 @@ install:
   - set PATH=C:\Ruby24-x64\bin;%PATH%
   - set PATH=C:\Python37-x64;%PATH%
   - set PATH=C:\msys64\usr\bin;%PATH%
+  # Install dependencies for FFI.
+  - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S automake autoconf texinfo clang"
   # Install the dependencies of the compiler.
   - cd compiler
   - bundle install --path vendor --retry=3

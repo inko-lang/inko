@@ -13,6 +13,7 @@ import test::std::test_boolean
 import test::std::test_byte_array
 import test::std::test_env
 import test::std::test_error
+import test::std::test_ffi
 import test::std::test_float
 import test::std::test_format
 import test::std::test_fs

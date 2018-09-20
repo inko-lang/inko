@@ -11,7 +11,7 @@ use vm::state::State;
 /// Sets up a VM with a single process.
 pub fn setup() -> (Machine, Block, RcProcess) {
     let state = State::new(Config::new(), &[]);
-    let name = state.intern(&"a".to_string());
+    let name = state.intern_string("a".to_string());
     let machine = Machine::default(state);
     let mut code = CompiledCode::new(name, name, 1, Vec::new());
 

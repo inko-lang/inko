@@ -262,6 +262,18 @@ impl Process {
         self.allocate_u64(value as u64, prototype)
     }
 
+    pub fn allocate_i64(
+        &self,
+        value: i64,
+        prototype: ObjectPointer,
+    ) -> ObjectPointer {
+        if ObjectPointer::integer_too_large(value) {
+            self.allocate(object_value::integer(value), prototype)
+        } else {
+            ObjectPointer::integer(value)
+        }
+    }
+
     pub fn allocate_u64(
         &self,
         value: u64,
@@ -301,13 +313,7 @@ impl Process {
                 prototype,
             )
         } else {
-            let value_int = value as i64;
-
-            if ObjectPointer::integer_too_large(value_int) {
-                self.allocate(object_value::integer(value_int), prototype)
-            } else {
-                ObjectPointer::integer(value_int)
-            }
+            self.allocate_i64(value as i64, prototype)
         };
 
         Ok(pointer)
@@ -645,7 +651,7 @@ mod tests {
         let input_message = process
             .allocate(object_value::integer(14), process.allocate_empty());
 
-        let attr = machine.state.intern(&"hello".to_string());
+        let attr = machine.state.intern_string("hello".to_string());
 
         input_message.add_attribute(&process, attr, attr);
 

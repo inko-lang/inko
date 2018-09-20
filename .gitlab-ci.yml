@@ -53,6 +53,8 @@ test:ivm-nightly:linux:
     - cd vm
     - rustc --version
     - cargo --version
+    - apt-get update -q
+    - apt-get install -y -q build-essential autoconf texinfo automake clang
   script:
     - make test
   cache:
@@ -63,7 +65,7 @@ test:ivm-stable:linux:
   image: alpine:edge
   stage: test
   before_script:
-    - apk add --update rust cargo build-base coreutils
+    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool
     - cd vm
     - rustc --version
     - cargo --version
@@ -108,6 +110,8 @@ lint:clippy:
   stage: test
   before_script:
     - rustup component add clippy-preview
+    - apt-get update -q
+    - apt-get install -y -q build-essential autoconf texinfo automake clang
     - cd vm
     - rustc --version
     - cargo --version
@@ -148,6 +152,8 @@ build:ivm:linux:
     - rustc --version
     - cargo --version
     - rustup target add x86_64-unknown-linux-musl
+    - apt-get update -q
+    - apt-get install -y -q build-essential autoconf texinfo automake clang musl-tools
   script:
     - make release ARCH=x86_64-linux-musl TARGET=x86_64-unknown-linux-musl
     - mv target/x86_64-unknown-linux-musl/release/ivm ../ivm
@@ -224,7 +230,7 @@ release:compiled:linux-gnu:
   stage: release
   before_script:
     - apt-get update -q
-    - apt-get install -y -q build-essential python-pip ruby-full git bash
+    - apt-get install -y -q build-essential python-pip ruby-full git bash autoconf texinfo automake clang
     - pip install awscli
     - ruby --version
     - rustc --version
@@ -243,7 +249,7 @@ release:compiled:linux-musl:
   stage: release
   before_script:
     - apt-get update -q
-    - apt-get install -y -q build-essential python-pip ruby-full git bash
+    - apt-get install -y -q build-essential python-pip ruby-full git bash autoconf texinfo automake clang musl-tools
     - pip install awscli
     - ruby --version
     - rustc --version

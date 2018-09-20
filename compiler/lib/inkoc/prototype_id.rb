@@ -14,5 +14,8 @@ module Inkoc
     READ_WRITE_FILE = 9
     BYTE_ARRAY = 10
     HASHER = 11
+    LIBRARY = 12
+    FUNCTION = 13
+    POINTER = 14
   end
 end

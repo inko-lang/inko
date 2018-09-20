@@ -296,8 +296,8 @@ fn read_compiled_code<T: Read>(
     let catch_table = read_catch_table(bytes)?;
 
     Ok(CompiledCode {
-        name: state.intern_owned(name_string),
-        file: state.intern_owned(file_string),
+        name: state.intern_string(name_string),
+        file: state.intern_string(file_string),
         line,
         arguments: args,
         required_arguments: req_args,
@@ -354,7 +354,7 @@ fn read_literal<T: Read>(
             state.allocate_permanent_bigint(bigint)
         }
         LITERAL_FLOAT => state.allocate_permanent_float(read_f64(bytes)?),
-        LITERAL_STRING => state.intern_owned(read_string(bytes)?),
+        LITERAL_STRING => state.intern_string(read_string(bytes)?),
         _ => return Err(ParserError::InvalidLiteralType(literal_type)),
     };
 
@@ -524,11 +524,8 @@ mod tests {
 
         let object = unwrap!(parse(&state, &mut buffer.bytes()));
 
-        assert_eq!(*object.name.string_value().unwrap(), "main".to_string());
-        assert_eq!(
-            *object.file.string_value().unwrap(),
-            "test.inko".to_string()
-        );
+        assert_eq!(object.name.string_value().unwrap().as_slice(), "main");
+        assert_eq!(object.file.string_value().unwrap().as_slice(), "test.inko");
         assert_eq!(object.line, 4);
     }
 
@@ -783,11 +780,8 @@ mod tests {
 
         let object = unwrap!(read_compiled_code(&state, &mut buffer.bytes()));
 
-        assert_eq!(*object.name.string_value().unwrap(), "main".to_string());
-        assert_eq!(
-            *object.file.string_value().unwrap(),
-            "test.inko".to_string()
-        );
+        assert_eq!(object.name.string_value().unwrap().as_slice(), "main");
+        assert_eq!(object.file.string_value().unwrap().as_slice(), "test.inko");
         assert_eq!(object.line, 4);
         assert_eq!(object.locals, 1);
         assert_eq!(object.registers, 2);
@@ -807,7 +801,7 @@ mod tests {
 
         assert!(object.literals[0] == ObjectPointer::integer(10));
         assert_eq!(object.literals[1].float_value().unwrap(), 1.2);
-        assert!(object.literals[2] == state.intern_owned("foo".to_string()));
+        assert!(object.literals[2] == state.intern_string("foo".to_string()));
 
         assert!(object.literals[3].is_bigint());
         assert_eq!(

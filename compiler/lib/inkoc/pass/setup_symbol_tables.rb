@@ -31,12 +31,21 @@ module Inkoc
       def on_block(node, outer)
         node.body.locals = SymbolTable.new(outer.locals)
 
+        process_nodes(node.arguments, node.body)
         process_nodes(node.body.expressions, node.body)
       end
 
       def on_lambda(node, _)
         node.body.locals = SymbolTable.new
 
+        process_nodes(node.arguments, node.body)
+        process_nodes(node.body.expressions, node.body)
+      end
+
+      def on_method(node, _)
+        node.body.locals = SymbolTable.new
+
+        process_nodes(node.arguments, node.body)
         process_nodes(node.body.expressions, node.body)
       end
 
@@ -57,7 +66,6 @@ module Inkoc
       alias on_trait on_node_with_body
       alias on_trait_implementation on_node_with_body
       alias on_reopen_object on_node_with_body
-      alias on_method on_node_with_body
       alias on_required_method on_node_with_body
 
       def on_try(node, outer)

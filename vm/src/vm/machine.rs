@@ -18,11 +18,14 @@ use byte_array;
 use compiled_code::CompiledCodePointer;
 use date_time::DateTime;
 use directories;
+use error_messages;
 use execution_context::ExecutionContext;
+use ffi;
 use filesystem;
 use gc::request::Request as GcRequest;
 use hasher::Hasher;
 use immix::copy_object::CopyObject;
+use immutable_string::ImmutableString;
 use integer_operations;
 use io::{read_from_stream, ReadResult};
 use module_registry::{ModuleRegistry, RcModuleRegistry};
@@ -98,7 +101,7 @@ macro_rules! throw_io_error {
         $context:ident,
         $index:ident
     ) => {{
-        let msg = $crate::error_messages::from_io_error(&$error);
+        let msg = error_messages::from_io_error(&$error);
 
         throw_error_message!($machine, $process, msg, $context, $index);
     }};
@@ -901,7 +904,7 @@ impl Machine {
                     let lower = source_ptr.string_value()?.to_lowercase();
 
                     let obj = process.allocate(
-                        object_value::string(lower),
+                        object_value::immutable_string(lower),
                         self.state.string_prototype,
                     );
 
@@ -913,7 +916,7 @@ impl Machine {
                     let upper = source_ptr.string_value()?.to_uppercase();
 
                     let obj = process.allocate(
-                        object_value::string(upper),
+                        object_value::immutable_string(upper),
                         self.state.string_prototype,
                     );
 
@@ -1906,7 +1909,7 @@ impl Machine {
 
                     let message_ptr = context.get_register(instruction.arg(0));
 
-                    return Err(message_ptr.string_value()?.clone());
+                    return Err(message_ptr.string_value()?.to_owned_string());
                 }
                 InstructionType::Exit => {
                     // Any pending deferred blocks should be executed first.
@@ -1927,9 +1930,9 @@ impl Machine {
                 InstructionType::Platform => {
                     let register = instruction.arg(0);
 
-                    let platform = self
-                        .state
-                        .intern(&platform::operating_system().to_string());
+                    let platform = self.state.intern_string(
+                        platform::operating_system().to_string(),
+                    );
 
                     context.set_register(register, platform);
                 }
@@ -2074,11 +2077,10 @@ impl Machine {
                     let register = instruction.arg(0);
                     let left = context.get_register(instruction.arg(1));
                     let right = context.get_register(instruction.arg(2));
-                    let result =
-                        left.string_value()?.clone() + right.string_value()?;
+                    let result = left.string_value()? + right.string_value()?;
 
                     let pointer = process.allocate(
-                        object_value::string(result),
+                        object_value::immutable_string(result),
                         self.state.string_prototype,
                     );
 
@@ -2110,15 +2112,8 @@ impl Machine {
                         context.get_register(instruction.arg(1));
 
                     let result = hasher_ptr.hasher_value_mut()?.finish();
-
-                    let pointer = if ObjectPointer::integer_too_large(result) {
-                        process.allocate(
-                            object_value::integer(result),
-                            self.state.integer_prototype,
-                        )
-                    } else {
-                        ObjectPointer::integer(result)
-                    };
+                    let pointer = process
+                        .allocate_i64(result, self.state.integer_prototype);
 
                     context.set_register(register, pointer);
                 }
@@ -2225,7 +2220,7 @@ impl Machine {
                     let mut buffer = String::new();
 
                     for str_ptr in array.iter() {
-                        buffer.push_str(str_ptr.string_value()?);
+                        buffer.push_str(str_ptr.string_value()?.as_slice());
                     }
 
                     let new_str_ptr = process.allocate(
@@ -2364,14 +2359,10 @@ impl Machine {
                             input_bytes.clone()
                         };
 
-                    let string = match String::from_utf8(string_bytes) {
-                        Ok(string) => string,
-                        Err(err) => String::from_utf8_lossy(&err.into_bytes())
-                            .into_owned(),
-                    };
+                    let string = ImmutableString::from_utf8(string_bytes);
 
                     let obj = process.allocate(
-                        object_value::string(string),
+                        object_value::immutable_string(string),
                         self.state.string_prototype,
                     );
 
@@ -2380,7 +2371,7 @@ impl Machine {
                 InstructionType::EnvGet => {
                     let reg = instruction.arg(0);
                     let var = context.get_register(instruction.arg(1));
-                    let var_name = var.string_value()?;
+                    let var_name = var.string_value()?.as_slice();
 
                     let val = if let Some(val) = env::var_os(var_name) {
                         let string = val.to_string_lossy().into_owned();
@@ -2598,6 +2589,137 @@ impl Machine {
                     worker.unpin();
 
                     context.set_register(reg, self.state.nil_object);
+                }
+                InstructionType::LibraryOpen => {
+                    let reg = instruction.arg(0);
+                    let name_ptr = context.get_register(instruction.arg(1));
+                    let names = name_ptr.array_value()?;
+                    let lib = ffi::Library::from_pointers(names)?;
+                    let ptr = process.allocate(
+                        object_value::library(lib),
+                        self.state.library_prototype,
+                    );
+
+                    context.set_register(reg, ptr);
+                }
+                InstructionType::FunctionAttach => {
+                    let reg = instruction.arg(0);
+                    let lib = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let arg_types = context.get_register(instruction.arg(3));
+                    let rtype = context.get_register(instruction.arg(4));
+                    let func = unsafe {
+                        let lib = lib.library_value()?;
+                        let name = name.string_value()?.as_slice();
+                        let args = arg_types.array_value()?;
+
+                        ffi::Function::attach(lib, name, args, rtype)?
+                    };
+
+                    let ptr = process.allocate(
+                        object_value::function(func),
+                        self.state.function_prototype,
+                    );
+
+                    context.set_register(reg, ptr);
+                }
+                InstructionType::FunctionCall => {
+                    let reg = instruction.arg(0);
+                    let func_ptr = context.get_register(instruction.arg(1));
+                    let args_ptr = context.get_register(instruction.arg(2));
+                    let func = func_ptr.function_value()?;
+                    let args = args_ptr.array_value()?;
+                    let result =
+                        unsafe { func.call(&self.state, &process, args)? };
+
+                    context.set_register(reg, result);
+                }
+                InstructionType::PointerAttach => {
+                    let reg = instruction.arg(0);
+                    let lib = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let raw_ptr = unsafe {
+                        lib.library_value()?
+                            .get(name.string_value()?.as_slice())?
+                    };
+
+                    let obj_ptr = process.allocate(
+                        object_value::pointer(raw_ptr),
+                        self.state.pointer_prototype,
+                    );
+
+                    context.set_register(reg, obj_ptr);
+                }
+                InstructionType::PointerRead => {
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let read_as = context.get_register(instruction.arg(2));
+                    let offset = context
+                        .get_register(instruction.arg(3))
+                        .usize_value()?;
+
+                    let result = unsafe {
+                        ptr.pointer_value()?.with_offset(offset).read_as(
+                            &self.state,
+                            process,
+                            read_as,
+                        )?
+                    };
+
+                    context.set_register(reg, result);
+                }
+                InstructionType::PointerWrite => {
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let write_as = context.get_register(instruction.arg(2));
+                    let value = context.get_register(instruction.arg(3));
+                    let offset = context
+                        .get_register(instruction.arg(4))
+                        .usize_value()?;
+
+                    unsafe {
+                        ptr.pointer_value()?
+                            .with_offset(offset)
+                            .write_as(write_as, value)?;
+                    }
+
+                    context.set_register(reg, value);
+                }
+                InstructionType::PointerFromAddress => {
+                    let reg = instruction.arg(0);
+                    let addr = context.get_register(instruction.arg(1));
+                    let ptr = process.allocate(
+                        object_value::pointer(unsafe {
+                            ffi::Pointer::from_address(addr)?
+                        }),
+                        self.state.pointer_prototype,
+                    );
+
+                    context.set_register(reg, ptr);
+                }
+                InstructionType::PointerAddress => {
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let addr = process.allocate_usize(
+                        ptr.pointer_value()?.address(),
+                        self.state.integer_prototype,
+                    );
+
+                    context.set_register(reg, addr);
+                }
+                InstructionType::ForeignTypeSize => {
+                    let reg = instruction.arg(0);
+                    let kind = context.get_register(instruction.arg(1));
+                    let size = ffi::type_size(kind.integer_value()?)?;
+
+                    context.set_register(reg, size);
+                }
+                InstructionType::ForeignTypeAlignment => {
+                    let reg = instruction.arg(0);
+                    let kind = context.get_register(instruction.arg(1));
+                    let align = ffi::type_alignment(kind.integer_value()?)?;
+
+                    context.set_register(reg, align);
                 }
             };
         }

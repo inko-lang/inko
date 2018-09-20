@@ -1,3 +1,4 @@
+use libinko::immutable_string::ImmutableString;
 use libinko::object_pointer::ObjectPointer;
 use libinko::pool::Worker;
 use libinko::vm::instruction::InstructionType;
@@ -108,5 +109,5 @@ test_cast_op!(
     IntegerToString,
     test_integer_to_string,
     as_string,
-    &"5".to_string()
+    &ImmutableString::from("5".to_string())
 );

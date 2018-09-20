@@ -35,7 +35,7 @@ pub trait CopyObject: Sized {
                 ObjectValue::String(string.clone())
             }
             ObjectValue::InternedString(ref string) => {
-                object_value::interned_string(*string.clone())
+                ObjectValue::InternedString(string.clone())
             }
             ObjectValue::Array(ref raw_vec) => {
                 let new_map =
@@ -68,6 +68,11 @@ pub trait CopyObject: Sized {
             ObjectValue::ByteArray(ref byte_array) => {
                 ObjectValue::ByteArray(byte_array.clone())
             }
+            ObjectValue::Library(ref val) => ObjectValue::Library(val.clone()),
+            ObjectValue::Function(ref val) => {
+                ObjectValue::Function(val.clone())
+            }
+            ObjectValue::Pointer(val) => ObjectValue::Pointer(val),
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {
@@ -271,7 +276,7 @@ mod tests {
         let copy = dummy.copy_object(pointer);
 
         assert!(copy.get().value.is_string());
-        assert_eq!(copy.string_value().unwrap(), &"a".to_string());
+        assert_eq!(copy.string_value().unwrap().as_slice(), "a");
     }
 
     #[test]
@@ -294,8 +299,8 @@ mod tests {
         let mut dummy = DummyAllocator::new();
         let state = state();
         let cc = CompiledCode::new(
-            state.intern_owned("a".to_string()),
-            state.intern_owned("a".to_string()),
+            state.intern_string("a".to_string()),
+            state.intern_string("a".to_string()),
             1,
             Vec::new(),
         );
@@ -449,7 +454,7 @@ mod tests {
         assert!(pointer.get().value.is_none());
 
         assert!(copy.get().value.is_string());
-        assert_eq!(copy.string_value().unwrap(), &"a".to_string());
+        assert_eq!(copy.string_value().unwrap().as_slice(), "a");
     }
 
     #[test]
@@ -474,8 +479,8 @@ mod tests {
         let mut dummy = DummyAllocator::new();
         let state = state();
         let cc = CompiledCode::new(
-            state.intern_owned("a".to_string()),
-            state.intern_owned("a".to_string()),
+            state.intern_string("a".to_string()),
+            state.intern_string("a".to_string()),
             1,
             Vec::new(),
         );

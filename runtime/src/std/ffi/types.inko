@@ -1,0 +1,150 @@
+#! C data types used for the Foreign Function Interface.
+import std::conversion::ToInteger
+
+## An identifier for a C type.
+##
+## A Type is just a simple wrapper around an Integer. The use of a `Type`
+## instead of a regular `Integer` makes it a little more difficult to use
+## incorrect type identifiers when attaching C functions.
+object Type impl ToInteger {
+  def init(id: Integer) {
+    ## The numeric identifier of this type.
+    let @id = id
+  }
+
+  ## Returns the numeric identifier of this type.
+  def to_integer -> Integer {
+    @id
+  }
+
+  ## Returns the size of this type in bytes.
+  def size -> Integer {
+    _INKOC.foreign_type_size(@id)
+  }
+
+  ## Returns the alignment of this type in bytes.
+  def alignment -> Integer {
+    _INKOC.foreign_type_alignment(@id)
+  }
+}
+
+## The identifier of the C `void` type.
+let VOID = Type.new(0)
+
+## The identifier of the C `void*` type.
+let POINTER = Type.new(1)
+
+## The identifier of the C `double` type.
+let F64 = Type.new(2)
+
+## The identifier of the C `float` type.
+let F32 = Type.new(3)
+
+## The identifier of the C `signed char` type.
+let I8 = Type.new(4)
+
+## The identifier of the C `short` type.
+let I16 = Type.new(5)
+
+## The identifier of the C `int` type.
+let I32 = Type.new(6)
+
+## The identifier of the C `long` type.
+let I64 = Type.new(7)
+
+## The identifier of the C `unsigned char` type.
+let U8 = Type.new(8)
+
+## The identifier of the C `unsigned short` type.
+let U16 = Type.new(9)
+
+## The identifier of the C `unsigned int` type.
+let U32 = Type.new(10)
+
+## The identifier of the C `unsigned long` type.
+let U64 = Type.new(11)
+
+## The identifier for the C `char*` type.
+let STRING = Type.new(12)
+
+## The identifier for a C `char*` type that should be read into a byte array.
+let BYTE_ARRAY = Type.new(13)
+
+## The identifier for the C `size_t` type.
+let SIZE_T = Type.new(14)
+
+## Returns a `Type` for the C type `void`.
+def void -> Type {
+  VOID
+}
+
+## Returns a `Type` for the C type `void *`.
+def pointer -> Type {
+  POINTER
+}
+
+## Returns a `Type` for the C type `double`.
+def f64 -> Type {
+  F64
+}
+
+## Returns a `Type` for the C type `float`.
+def f32 -> Type {
+  F32
+}
+
+## Returns a `Type` for the C type `char`.
+def i8 -> Type {
+  I8
+}
+
+## Returns a `Type` for the C type `short`.
+def i16 -> Type {
+  I16
+}
+
+## Returns a `Type` for the C type `int`.
+def i32 -> Type {
+  I32
+}
+
+## Returns a `Type` for the C type `long`.
+def i64 -> Type {
+  I64
+}
+
+## Returns a `Type` for the C type `unsigned char`.
+def u8 -> Type {
+  U8
+}
+
+## Returns a `Type` for the C type `unsigned short`.
+def u16 -> Type {
+  U16
+}
+
+## Returns a `Type` for the C type `unsigned int`.
+def u32 -> Type {
+  U32
+}
+
+## Returns a `Type` for the C type `unsigned long`.
+def u64 -> Type {
+  U64
+}
+
+## Returns a `Type` for the C type `size_t`.
+def size_t -> Type {
+  SIZE_T
+}
+
+## Returns a `Type` for the C type `char *`.
+def string -> Type {
+  STRING
+}
+
+## Returns a `Type` for the C type `char *`, when you need a `ByteArray` instead
+## of a `String`.
+def byte_array -> Type {
+  BYTE_ARRAY
+}

@@ -794,6 +794,25 @@ module Inkoc
         body.instruct(:Ternary, name, register, one, two, three, node.location)
       end
 
+      def raw_quaternary_instruction(name, node, body)
+        register = body.register(node.type)
+        one = process_node(node.arguments.fetch(0), body)
+        two = process_node(node.arguments.fetch(1), body)
+        three = process_node(node.arguments.fetch(2), body)
+        four = process_node(node.arguments.fetch(3), body)
+
+        body.instruct(
+          :Quaternary,
+          name,
+          register,
+          one,
+          two,
+          three,
+          four,
+          node.location
+        )
+      end
+
       def builtin_prototype_instruction(id, node, body)
         id_reg = set_integer(id, body, node.location)
         reg = body.register(node.type)
@@ -1361,6 +1380,18 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::HASHER, node, body)
       end
 
+      def on_raw_get_library_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::LIBRARY, node, body)
+      end
+
+      def on_raw_get_function_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::FUNCTION, node, body)
+      end
+
+      def on_raw_get_pointer_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::POINTER, node, body)
+      end
+
       def on_raw_set_object_name(node, body)
         loc = node.location
         obj = process_node(node.arguments.fetch(0), body)
@@ -1428,6 +1459,46 @@ module Inkoc
 
       def on_raw_process_unpin_thread(node, body)
         raw_nullary_instruction(:ProcessUnpinThread, node, body)
+      end
+
+      def on_raw_library_open(node, body)
+        raw_unary_instruction(:LibraryOpen, node, body)
+      end
+
+      def on_raw_function_attach(node, body)
+        raw_quaternary_instruction(:FunctionAttach, node, body)
+      end
+
+      def on_raw_function_call(node, body)
+        raw_binary_instruction(:FunctionCall, node, body)
+      end
+
+      def on_raw_pointer_attach(node, body)
+        raw_binary_instruction(:PointerAttach, node, body)
+      end
+
+      def on_raw_pointer_read(node, body)
+        raw_ternary_instruction(:PointerRead, node, body)
+      end
+
+      def on_raw_pointer_write(node, body)
+        raw_quaternary_instruction(:PointerWrite, node, body)
+      end
+
+      def on_raw_pointer_from_address(node, body)
+        raw_unary_instruction(:PointerFromAddress, node, body)
+      end
+
+      def on_raw_pointer_address(node, body)
+        raw_unary_instruction(:PointerAddress, node, body)
+      end
+
+      def on_raw_foreign_type_size(node, body)
+        raw_unary_instruction(:ForeignTypeSize, node, body)
+      end
+
+      def on_raw_foreign_type_alignment(node, body)
+        raw_unary_instruction(:ForeignTypeAlignment, node, body)
       end
 
       def on_return(node, body)

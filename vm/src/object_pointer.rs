@@ -4,21 +4,29 @@
 
 use num_bigint::BigInt;
 use num_traits::{ToPrimitive, Zero};
+use std::f32;
+use std::f64;
 use std::fs;
 use std::hash::{Hash, Hasher as HasherTrait};
+use std::i16;
 use std::i32;
 use std::i64;
+use std::i8;
+use std::u16;
 use std::u32;
+use std::u64;
 use std::u8;
 use std::usize;
 
 use binding::RcBinding;
 use block::Block;
+use ffi::{Pointer, RcFunction, RcLibrary};
 use hasher::Hasher;
 use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
 use immix::local_allocator::YOUNG_MAX_AGE;
+use immutable_string::ImmutableString;
 use object::{Object, ObjectStatus, FORWARDED_BIT};
 use object_value::ObjectValue;
 use process::RcProcess;
@@ -50,6 +58,24 @@ macro_rules! def_value_getter {
                             stringify!($as_type)))
             } else {
                 self.$getter().value.$as_type()
+            }
+        }
+    )
+}
+
+macro_rules! def_integer_value_getter {
+    ($name: ident, $kind: ident, $error_name: expr) => (
+        pub fn $name(&self) -> Result<$kind, String> {
+            let int_val = self.integer_value()?;
+
+            if int_val < i64::from($kind::MIN) || int_val > i64::from($kind::MAX) {
+                Err(format!(
+                    "{} can not be converted to a {}",
+                    int_val,
+                    $error_name
+                ))
+            } else {
+                Ok(int_val as $kind)
             }
         }
     )
@@ -503,30 +529,28 @@ impl ObjectPointer {
         }
     }
 
-    pub fn u8_value(&self) -> Result<u8, String> {
-        if self.is_bigint() {
-            Err(format!(
-                "{} is too big to be converted to a byte",
-                self.bigint_value()?
-            ))
-        } else {
-            let int_val = self.integer_value()?;
+    def_integer_value_getter!(i8_value, i8, "signed 8 bits integer");
+    def_integer_value_getter!(i16_value, i16, "signed 16 bits integer");
+    def_integer_value_getter!(i32_value, i32, "signed 32 bits integer");
 
-            if int_val < 0 || int_val > i64::from(u8::MAX) {
-                Err(format!("{} is too big to convert to a byte", int_val))
-            } else {
-                Ok(int_val as u8)
-            }
-        }
+    def_integer_value_getter!(u8_value, u8, "unsigned 8 bits integer");
+    def_integer_value_getter!(u16_value, u16, "unsigned 16 bits integer");
+    def_integer_value_getter!(u32_value, u32, "unsigned 32 bits integer");
+
+    pub fn u64_value(&self) -> Result<u64, String> {
+        self.usize_value().map(|num| num as u64)
     }
 
-    pub fn i32_value(&self) -> Result<i32, String> {
-        let int_val = self.integer_value()?;
+    pub fn f32_value(&self) -> Result<f32, String> {
+        let value = self.float_value()?;
 
-        if int_val < i64::from(i32::MIN) || int_val > i64::from(i32::MAX) {
-            Err(format!("{} is not a valid exit status code", int_val))
+        if value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
+            Err(format!(
+                "{} can not be converted to a 32 bits floating point",
+                value
+            ))
         } else {
-            Ok(int_val as i32)
+            Ok(value as f32)
         }
     }
 
@@ -560,7 +584,7 @@ impl ObjectPointer {
     }
 
     def_value_getter!(float_value, get, as_float, f64);
-    def_value_getter!(string_value, get, as_string, &String);
+    def_value_getter!(string_value, get, as_string, &ImmutableString);
 
     def_value_getter!(array_value, get, as_array, &Vec<ObjectPointer>);
     def_value_getter!(
@@ -585,6 +609,10 @@ impl ObjectPointer {
         as_byte_array_mut,
         &mut Vec<u8>
     );
+
+    def_value_getter!(library_value, get, as_library, &RcLibrary);
+    def_value_getter!(function_value, get, as_function, &RcFunction);
+    def_value_getter!(pointer_value, get, as_pointer, Pointer);
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {
@@ -1066,7 +1094,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_integer() {
         let state = State::new(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
-        let name = state.intern_owned("foo".to_string());
+        let name = state.intern_string("foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
         state
@@ -1083,7 +1111,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_in_self_with_integer() {
         let state = State::new(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
-        let name = state.intern_owned("foo".to_string());
+        let name = state.intern_string("foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
 
         state
@@ -1100,7 +1128,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_integer_without_attribute() {
         let state = State::new(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
-        let name = state.intern_owned("foo".to_string());
+        let name = state.intern_string("foo".to_string());
 
         assert!(ptr.lookup_attribute(&state, name).is_none());
     }
@@ -1109,7 +1137,7 @@ mod tests {
     fn test_object_pointer_lookup_attribute_with_object() {
         let state = State::new(Config::new(), &[]);
         let ptr = state.permanent_allocator.lock().allocate_empty();
-        let name = state.intern_owned("foo".to_string());
+        let name = state.intern_string("foo".to_string());
         let value = state.permanent_allocator.lock().allocate_empty();
 
         ptr.get_mut().add_attribute(name, value);
@@ -1140,7 +1168,7 @@ mod tests {
     #[test]
     fn test_is_immutable() {
         let state = State::new(Config::new(), &[]);
-        let name = state.intern_owned("foo".to_string());
+        let name = state.intern_string("foo".to_string());
 
         assert!(name.is_immutable());
         assert!(ObjectPointer::integer(5).is_immutable());
@@ -1164,23 +1192,6 @@ mod tests {
     }
 
     #[test]
-    fn test_u8_value() {
-        let mut alloc = local_allocator();
-
-        let valid = ObjectPointer::integer(5);
-        let invalid = ObjectPointer::integer(300);
-        let bigint = alloc.allocate_without_prototype(object_value::bigint(
-            BigInt::from(5000),
-        ));
-
-        assert!(valid.u8_value().is_ok());
-        assert!(invalid.u8_value().is_err());
-        assert!(bigint.u8_value().is_err());
-
-        assert_eq!(valid.u8_value().unwrap(), 5);
-    }
-
-    #[test]
     fn test_integer_to_usize() {
         assert_eq!(ObjectPointer::integer(5).integer_to_usize().unwrap(), 5);
         assert!(ObjectPointer::integer(-5).integer_to_usize().is_err());
@@ -1201,12 +1212,82 @@ mod tests {
     }
 
     #[test]
+    fn test_i8_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(i8::MAX as i64 + 1);
+
+        assert_eq!(small.i8_value().unwrap(), 5);
+        assert!(large.i8_value().is_err());
+    }
+
+    #[test]
+    fn test_i16_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(i16::MAX as i64 + 1);
+
+        assert_eq!(small.i16_value().unwrap(), 5);
+        assert!(large.i16_value().is_err());
+    }
+
+    #[test]
     fn test_i32_value() {
         let small = ObjectPointer::integer(5);
         let large = ObjectPointer::integer(i32::MAX as i64 + 1);
 
         assert_eq!(small.i32_value().unwrap(), 5);
         assert!(large.i32_value().is_err());
+    }
+
+    #[test]
+    fn test_u8_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(u8::MAX as i64 + 1);
+
+        assert_eq!(small.u8_value().unwrap(), 5);
+        assert!(large.u8_value().is_err());
+    }
+
+    #[test]
+    fn test_u16_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(u16::MAX as i64 + 1);
+
+        assert_eq!(small.u16_value().unwrap(), 5);
+        assert!(large.u16_value().is_err());
+    }
+
+    #[test]
+    fn test_u32_value() {
+        let small = ObjectPointer::integer(5);
+        let large = ObjectPointer::integer(u32::MAX as i64 + 1);
+
+        assert_eq!(small.u32_value().unwrap(), 5);
+        assert!(large.u32_value().is_err());
+    }
+
+    #[test]
+    fn test_u64_value() {
+        let mut alloc = local_allocator();
+
+        let small = ObjectPointer::integer(5);
+        let large = alloc.allocate_without_prototype(object_value::bigint(
+            BigInt::from(u64::MAX) + 1,
+        ));
+
+        assert_eq!(small.u64_value().unwrap(), 5);
+        assert!(large.u64_value().is_err());
+    }
+
+    #[test]
+    fn test_f32_value() {
+        let mut alloc = local_allocator();
+
+        let small = alloc.allocate_without_prototype(object_value::float(1.5));
+        let large =
+            alloc.allocate_without_prototype(object_value::float(f64::MAX));
+
+        assert_eq!(small.f32_value().unwrap(), 1.5);
+        assert!(large.f32_value().is_err());
     }
 
     #[test]

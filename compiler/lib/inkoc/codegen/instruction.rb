@@ -156,6 +156,16 @@ module Inkoc
         SetDefaultPanicHandler
         ProcessPinThread
         ProcessUnpinThread
+        LibraryOpen
+        FunctionAttach
+        FunctionCall
+        PointerAttach
+        PointerRead
+        PointerWrite
+        PointerFromAddress
+        PointerAddress
+        ForeignTypeSize
+        ForeignTypeAlignment
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

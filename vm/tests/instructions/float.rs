@@ -1,3 +1,4 @@
+use libinko::immutable_string::ImmutableString;
 use libinko::object_value;
 use libinko::pool::Worker;
 use libinko::vm::instruction::InstructionType;
@@ -97,7 +98,10 @@ fn test_float_to_string() {
 
     let pointer = process.get_register(1);
 
-    assert!(pointer.string_value().unwrap() == &"5.5".to_string());
+    assert!(
+        pointer.string_value().unwrap()
+            == &ImmutableString::from("5.5".to_string())
+    );
 }
 
 test_op!(FloatAdd, test_float_add, 7.0);

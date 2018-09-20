@@ -154,6 +154,16 @@ pub enum InstructionType {
     SetDefaultPanicHandler,
     ProcessPinThread,
     ProcessUnpinThread,
+    LibraryOpen,
+    FunctionAttach,
+    FunctionCall,
+    PointerAttach,
+    PointerRead,
+    PointerWrite,
+    PointerFromAddress,
+    PointerAddress,
+    ForeignTypeSize,
+    ForeignTypeAlignment,
 }
 
 /// Struct for storing information about a single instruction.

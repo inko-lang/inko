@@ -3,15 +3,15 @@
 //! A StringPool can be used to map raw strings to their corresponding VM
 //! objects. Mapping is done in such a way that the raw string only has to be
 //! stored once.
-
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
+use immutable_string::ImmutableString;
 use object_pointer::ObjectPointer;
 
 #[derive(Clone, Copy)]
 pub struct StringPointer {
-    raw: *const String,
+    raw: *const ImmutableString,
 }
 
 #[derive(Default)]
@@ -21,13 +21,13 @@ pub struct StringPool {
 
 impl StringPointer {
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn new(pointer: &String) -> Self {
+    pub fn new(pointer: &ImmutableString) -> Self {
         StringPointer {
-            raw: pointer as *const String,
+            raw: pointer as *const ImmutableString,
         }
     }
 
-    pub fn as_ref<'a>(self) -> &'a String {
+    pub fn as_ref<'a>(self) -> &'a ImmutableString {
         unsafe { &*self.raw }
     }
 }
@@ -55,7 +55,7 @@ impl StringPool {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn get(&self, string: &String) -> Option<ObjectPointer> {
+    pub fn get(&self, string: &ImmutableString) -> Option<ObjectPointer> {
         let pointer = StringPointer::new(string);
 
         self.mapping.get(&pointer).cloned()
@@ -88,7 +88,7 @@ mod tests {
 
         #[test]
         fn test_as_ref() {
-            let string = "hello".to_string();
+            let string = ImmutableString::from("hello".to_string());
             let ptr = StringPointer::new(&string);
 
             assert_eq!(ptr.as_ref(), &string);
@@ -96,8 +96,8 @@ mod tests {
 
         #[test]
         fn test_eq() {
-            let str1 = "hello".to_string();
-            let str2 = "hello".to_string();
+            let str1 = ImmutableString::from("hello".to_string());
+            let str2 = ImmutableString::from("hello".to_string());
 
             let ptr1 = StringPointer::new(&str1);
             let ptr2 = StringPointer::new(&str2);
@@ -108,7 +108,7 @@ mod tests {
         #[test]
         fn test_hash() {
             let mut map = HashMap::new();
-            let string = "hello".to_string();
+            let string = ImmutableString::from("hello".to_string());
             let ptr = StringPointer::new(&string);
 
             map.insert(ptr, 10);
@@ -155,7 +155,10 @@ mod tests {
 
             pool.add(pointer);
 
-            assert!(pool.get(&"a".to_string()).unwrap() == pointer);
+            assert!(
+                pool.get(&ImmutableString::from("a".to_string())).unwrap()
+                    == pointer
+            );
         }
     }
 }

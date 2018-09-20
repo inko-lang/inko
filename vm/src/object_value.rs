@@ -11,7 +11,9 @@ use std::mem;
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
+use ffi::{Pointer, RcFunction, RcLibrary};
 use hasher::Hasher;
+use immutable_string::ImmutableString;
 use object_pointer::ObjectPointer;
 
 /// Enum for storing different values in an Object.
@@ -22,11 +24,11 @@ pub enum ObjectValue {
 
     /// Strings use an Arc so they can be sent to other processes without
     /// requiring a full copy of the data.
-    String(ArcWithoutWeak<String>),
+    String(ArcWithoutWeak<ImmutableString>),
 
     /// An interned string is a string allocated on the permanent space. For
     /// every unique interned string there is only one object allocated.
-    InternedString(Box<String>),
+    InternedString(ArcWithoutWeak<ImmutableString>),
     Array(Box<Vec<ObjectPointer>>),
     File(Box<fs::File>),
     Block(Box<Block>),
@@ -44,6 +46,15 @@ pub enum ObjectValue {
 
     /// An Array of bytes, typically produced by reading from a stream of sorts.
     ByteArray(Box<Vec<u8>>),
+
+    /// A C library opened using the FFI.
+    Library(RcLibrary),
+
+    /// A C function to call using the FFI.
+    Function(RcFunction),
+
+    /// A raw C pointer.
+    Pointer(Pointer),
 }
 
 impl ObjectValue {
@@ -121,6 +132,13 @@ impl ObjectValue {
         }
     }
 
+    pub fn is_library(&self) -> bool {
+        match *self {
+            ObjectValue::Library(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn as_float(&self) -> Result<f64, String> {
         match *self {
             ObjectValue::Float(val) => Ok(val),
@@ -161,7 +179,7 @@ impl ObjectValue {
         }
     }
 
-    pub fn as_string(&self) -> Result<&String, String> {
+    pub fn as_string(&self) -> Result<&ImmutableString, String> {
         match *self {
             ObjectValue::String(ref val) => Ok(val),
             ObjectValue::InternedString(ref val) => Ok(val),
@@ -234,6 +252,34 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_library(&self) -> Result<&RcLibrary, String> {
+        match *self {
+            ObjectValue::Library(ref lib) => Ok(lib),
+            _ => {
+                Err("ObjectValue::as_library() called on a non library"
+                    .to_string())
+            }
+        }
+    }
+
+    pub fn as_function(&self) -> Result<&RcFunction, String> {
+        match *self {
+            ObjectValue::Function(ref fun) => Ok(fun),
+            _ => Err("ObjectValue::as_function() called on a non function"
+                .to_string()),
+        }
+    }
+
+    pub fn as_pointer(&self) -> Result<Pointer, String> {
+        match *self {
+            ObjectValue::Pointer(ptr) => Ok(ptr),
+            _ => {
+                Err("ObjectValue::as_pointer() called on a non pointer"
+                    .to_string())
+            }
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -256,6 +302,25 @@ impl ObjectValue {
             _ => false,
         }
     }
+
+    pub fn name(&self) -> &str {
+        match *self {
+            ObjectValue::None => "Object",
+            ObjectValue::Float(_) => "Float",
+            ObjectValue::String(_) | ObjectValue::InternedString(_) => "String",
+            ObjectValue::Array(_) => "Array",
+            ObjectValue::File(_) => "File",
+            ObjectValue::Block(_) => "Block",
+            ObjectValue::Binding(_) => "Binding",
+            ObjectValue::BigInt(_) => "BigInteger",
+            ObjectValue::Integer(_) => "Integer",
+            ObjectValue::Hasher(_) => "Hasher",
+            ObjectValue::ByteArray(_) => "ByteArray",
+            ObjectValue::Library(_) => "Library",
+            ObjectValue::Function(_) => "Function",
+            ObjectValue::Pointer(_) => "Pointer",
+        }
+    }
 }
 
 pub fn none() -> ObjectValue {
@@ -267,11 +332,15 @@ pub fn float(value: f64) -> ObjectValue {
 }
 
 pub fn string(value: String) -> ObjectValue {
+    immutable_string(ImmutableString::from(value))
+}
+
+pub fn immutable_string(value: ImmutableString) -> ObjectValue {
     ObjectValue::String(ArcWithoutWeak::new(value))
 }
 
-pub fn interned_string(value: String) -> ObjectValue {
-    ObjectValue::InternedString(Box::new(value))
+pub fn interned_string(value: ImmutableString) -> ObjectValue {
+    ObjectValue::InternedString(ArcWithoutWeak::new(value))
 }
 
 pub fn array(value: Vec<ObjectPointer>) -> ObjectValue {
@@ -306,6 +375,18 @@ pub fn byte_array(value: Vec<u8>) -> ObjectValue {
     ObjectValue::ByteArray(Box::new(value))
 }
 
+pub fn library(value: RcLibrary) -> ObjectValue {
+    ObjectValue::Library(value)
+}
+
+pub fn function(value: RcFunction) -> ObjectValue {
+    ObjectValue::Function(value)
+}
+
+pub fn pointer(value: Pointer) -> ObjectValue {
+    ObjectValue::Pointer(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,10 +395,20 @@ mod tests {
     use compiled_code::CompiledCode;
     use config::Config;
     use deref_pointer::DerefPointer;
+    use ffi::Library;
     use global_scope::{GlobalScope, GlobalScopePointer};
     use object_pointer::ObjectPointer;
     use std::fs::File;
     use vm::state::{RcState, State};
+
+    #[cfg(target_os = "macos")]
+    const LIBM: &'static str = "libm.dylib";
+
+    #[cfg(target_os = "linux")]
+    const LIBM: &'static str = "libm.so.6";
+
+    #[cfg(target_os = "windows")]
+    const LIBM: &'static str = "msvcrt.dll";
 
     fn null_device_path() -> &'static str {
         if cfg!(windows) {
@@ -357,32 +448,31 @@ mod tests {
 
     #[test]
     fn test_is_string() {
-        assert!(
-            ObjectValue::String(ArcWithoutWeak::new(String::new())).is_string()
-        );
+        let string = string("a".to_string());
+
+        assert!(string.is_string());
         assert_eq!(ObjectValue::None.is_string(), false);
     }
 
     #[test]
     fn test_is_string_with_interned_string() {
-        assert!(
-            ObjectValue::InternedString(Box::new(String::new())).is_string()
-        );
+        let string = interned_string(ImmutableString::from("a".to_string()));
+
+        assert!(string.is_string());
     }
 
     #[test]
     fn test_is_interned_string() {
-        assert!(ObjectValue::InternedString(Box::new(String::new()))
-            .is_interned_string());
+        let string = interned_string(ImmutableString::from("a".to_string()));
+
+        assert!(string.is_interned_string());
     }
 
     #[test]
     fn test_is_interned_string_with_regular_string() {
-        assert_eq!(
-            ObjectValue::String(ArcWithoutWeak::new(String::new()))
-                .is_interned_string(),
-            false
-        );
+        let string = immutable_string(ImmutableString::from("a".to_string()));
+
+        assert_eq!(string.is_interned_string(), false);
     }
 
     #[test]
@@ -397,8 +487,8 @@ mod tests {
     fn test_is_block() {
         let state = state();
         let code = CompiledCode::new(
-            state.intern_owned("a".to_string()),
-            state.intern_owned("a.inko".to_string()),
+            state.intern_string("a".to_string()),
+            state.intern_string("a.inko".to_string()),
             1,
             Vec::new(),
         );
@@ -473,12 +563,11 @@ mod tests {
 
     #[test]
     fn test_as_string_with_string() {
-        let string = ArcWithoutWeak::new("test".to_string());
-        let value = ObjectValue::String(string);
+        let value = string("test".to_string());
         let result = value.as_string();
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), &"test".to_string());
+        assert_eq!(result.unwrap().as_slice(), "test");
     }
 
     #[test]
@@ -518,8 +607,8 @@ mod tests {
     fn test_as_block_with_block() {
         let state = state();
         let code = CompiledCode::new(
-            state.intern_owned("a".to_string()),
-            state.intern_owned("a.inko".to_string()),
+            state.intern_string("a".to_string()),
+            state.intern_string("a.inko".to_string()),
             1,
             Vec::new(),
         );
@@ -596,8 +685,8 @@ mod tests {
     fn test_block() {
         let state = state();
         let code = CompiledCode::new(
-            state.intern_owned("a".to_string()),
-            state.intern_owned("a.inko".to_string()),
+            state.intern_string("a".to_string()),
+            state.intern_string("a.inko".to_string()),
             1,
             Vec::new(),
         );
@@ -625,7 +714,8 @@ mod tests {
     fn test_is_immutable() {
         assert!(string("a".to_string()).is_immutable());
         assert!(float(10.5).is_immutable());
-        assert!(interned_string("a".to_string()).is_immutable());
+        assert!(interned_string(ImmutableString::from("a".to_string()))
+            .is_immutable());
     }
 
     #[test]
@@ -656,5 +746,35 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 1);
+    }
+
+    #[test]
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos"
+    ))]
+    fn test_is_library() {
+        let lib = library(Library::new(&[LIBM]).unwrap());
+
+        assert!(lib.is_library());
+    }
+
+    #[test]
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos"
+    ))]
+    fn test_as_library() {
+        let lib = library(Library::new(&[LIBM]).unwrap());
+
+        assert!(lib.as_library().is_ok());
+    }
+
+    #[test]
+    fn test_name() {
+        assert_eq!(ObjectValue::None.name(), "Object");
+        assert_eq!(ObjectValue::Integer(14).name(), "Integer");
     }
 }

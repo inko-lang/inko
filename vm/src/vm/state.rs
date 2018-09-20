@@ -10,6 +10,7 @@ use immix::block::Block;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
+use immutable_string::ImmutableString;
 use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -136,6 +137,15 @@ pub struct State {
     /// The prototype for hashers.
     pub hasher_prototype: ObjectPointer,
 
+    /// The prototype to use for dynamically opened libraries.
+    pub library_prototype: ObjectPointer,
+
+    /// The prototype to use for C functions.
+    pub function_prototype: ObjectPointer,
+
+    /// The prototype to use for pointers to C variables.
+    pub pointer_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -174,6 +184,9 @@ impl State {
         let read_write_file_prototype = perm_alloc.allocate_empty();
         let byte_array_prototype = perm_alloc.allocate_empty();
         let hasher_prototype = perm_alloc.allocate_empty();
+        let library_prototype = perm_alloc.allocate_empty();
+        let function_prototype = perm_alloc.allocate_empty();
+        let pointer_prototype = perm_alloc.allocate_empty();
 
         {
             top_level.set_prototype(object_proto);
@@ -193,6 +206,9 @@ impl State {
             read_write_file_prototype.set_prototype(object_proto);
             byte_array_prototype.set_prototype(object_proto);
             hasher_prototype.set_prototype(object_proto);
+            library_prototype.set_prototype(object_proto);
+            function_prototype.set_prototype(object_proto);
+            pointer_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
@@ -233,10 +249,13 @@ impl State {
             read_write_file_prototype,
             byte_array_prototype,
             hasher_prototype,
+            library_prototype,
+            function_prototype,
+            pointer_prototype,
         };
 
         for argument in arguments {
-            let pointer = state.intern(argument);
+            let pointer = state.intern_string(argument.clone());
 
             state.arguments.push(pointer);
         }
@@ -250,7 +269,7 @@ impl State {
     pub fn intern_pointer(
         &self,
         pointer: ObjectPointer,
-    ) -> Result<ObjectPointer, String> {
+    ) -> Result<ObjectPointer, ImmutableString> {
         if pointer.is_interned_string() {
             Ok(pointer)
         } else {
@@ -262,13 +281,15 @@ impl State {
     ///
     /// If a string was not yet interned it's allocated in the permanent space.
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn intern(&self, string: &String) -> ObjectPointer {
+    pub fn intern(&self, string: &ImmutableString) -> ObjectPointer {
         intern_string!(self, string, string.clone())
     }
 
     /// Interns an owned String.
-    pub fn intern_owned(&self, string: String) -> ObjectPointer {
-        intern_string!(self, &string, string)
+    pub fn intern_string(&self, string: String) -> ObjectPointer {
+        let to_intern = ImmutableString::from(string);
+
+        intern_string!(self, &to_intern, to_intern)
     }
 
     pub fn allocate_permanent_float(&self, float: f64) -> ObjectPointer {
@@ -353,6 +374,9 @@ impl State {
             9 => self.read_write_file_prototype,
             10 => self.byte_array_prototype,
             11 => self.hasher_prototype,
+            12 => self.library_prototype,
+            13 => self.function_prototype,
+            14 => self.pointer_prototype,
             _ => return Err(format!("Invalid prototype identifier: {}", id)),
         };
 
@@ -368,7 +392,7 @@ mod tests {
     #[test]
     fn test_intern() {
         let state = State::new(Config::new(), &[]);
-        let string = "number".to_string();
+        let string = ImmutableString::from("number".to_string());
 
         let ptr1 = state.intern(&string);
         let ptr2 = state.intern(&string);
@@ -381,10 +405,12 @@ mod tests {
     #[test]
     fn test_intern_pointer_with_string() {
         let state = State::new(Config::new(), &[]);
-        let string =
-            state.permanent_allocator.lock().allocate_without_prototype(
-                object_value::interned_string("hello".to_string()),
-            );
+        let string = state
+            .permanent_allocator
+            .lock()
+            .allocate_without_prototype(object_value::interned_string(
+                ImmutableString::from("hello".to_string()),
+            ));
 
         assert!(state.intern_pointer(string).unwrap() == string);
     }

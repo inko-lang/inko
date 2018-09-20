@@ -177,8 +177,8 @@ mod tests {
         let ins = Instruction::new(InstructionType::Return, vec![0], 1);
 
         CompiledCode::new(
-            state.intern(&"foo".to_string()),
-            state.intern(&"bar.inko".to_string()),
+            state.intern_string("foo".to_string()),
+            state.intern_string("bar.inko".to_string()),
             1,
             vec![ins],
         )
@@ -188,8 +188,8 @@ mod tests {
     fn test_new() {
         let state = state();
         let code = new_compiled_code(&state);
-        let name = state.intern(&"foo".to_string());
-        let file = state.intern(&"bar.inko".to_string());
+        let name = state.intern_string("foo".to_string());
+        let file = state.intern_string("bar.inko".to_string());
 
         assert!(code.name == name);
         assert!(code.file == file);

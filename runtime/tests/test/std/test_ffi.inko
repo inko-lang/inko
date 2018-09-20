@@ -1,0 +1,601 @@
+import std::byte_array::ByteArray
+import std::ffi::(
+  self, Function, Layout, LayoutBuilder, Library, Member, Pointer, Struct
+)
+import std::ffi::types
+import std::process
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+
+let LIBC_PATHS = [
+  # Linux, sometimes a GNU ld script
+  'libc.so',
+
+  # Linux, glibc 2.x
+  'libc.so.6',
+
+  # CI uses Ubuntu, which puts libc here
+  '/lib/x86_64-linux-gnu/libc.so.6',
+
+  # Mac OS
+  'libSystem.dylib',
+
+  # Windows
+  'msvcrt.dll'
+]
+
+let LIBC = Library.new(LIBC_PATHS)
+
+let CALLOC =
+  LIBC.function('calloc', [types.size_t, types.size_t], types.pointer)
+
+let FREE = LIBC.function('free', [types.pointer], types.void)
+
+## The C `tm` structure, see `man ctime` for more information about this
+## structure.
+let TM_STRUCT = ffi.struct do (struct) {
+  struct['tm_sec'] = types.i32
+  struct['tm_min'] = types.i32
+
+  struct['tm_hour'] = types.i32
+  struct['tm_mday'] = types.i32
+
+  struct['tm_mon'] = types.i32
+  struct['tm_year'] = types.i32
+
+  struct['tm_wday'] = types.i32
+  struct['tm_yday'] = types.i32
+
+  struct['tm_isdst'] = types.i32
+
+  struct['tm_gmtoff'] = types.i64
+  struct['tm_zone'] = types.string
+}
+
+def allocate!(R)(size: Integer, block: do (Pointer) -> R) -> R {
+  let pointer = CALLOC.call(1, size) as Pointer
+
+  pointer.null?.if_true {
+    let error = StringBuffer
+      .new(['calloc() failed to allocate ', size.to_string, ' bytes of memory'])
+
+    process.panic(error)
+  }
+
+  # We defer _after_ the above check, otherwise we may try to free() a NULL
+  # pointer in the event of an allocation failure.
+  process.defer {
+    FREE.call(pointer)
+  }
+
+  block.call(pointer)
+}
+
+test.group('std::ffi::Pointer.null') do (g) {
+  g.test('Creating a NULL pointer') {
+    assert.true(Pointer.null.null?)
+  }
+}
+
+test.group('std::ffi::Pointer.null?') do (g) {
+  g.test('Checking if a Pointer is a NULL pointer') {
+    assert.true(Pointer.new(0x0).null?)
+    assert.false(Pointer.new(0x1).null?)
+  }
+}
+
+test.group('std::ffi::Pointer.address') do (g) {
+  g.test('Obtaining the address of a Pointer') {
+    assert.equal(Pointer.new(0x4).address, 0x4)
+  }
+}
+
+test.group('std::ffi::Pointer.read') do (g) {
+  g.test('Reading a Pointer from a Pointer') {
+    allocate(types.pointer.size) do (pointer) {
+      let value = pointer.read(types.pointer) as Pointer
+
+      assert.true(value.null?)
+    }
+  }
+
+  g.test('Reading a Float from a Pointer') {
+    allocate(types.f64.size) do (pointer) {
+      assert.equal(pointer.read(types.f64) as Float, 0.0)
+    }
+  }
+
+  g.test('Reading an Integer from a Pointer') {
+    allocate(types.i32.size) do (pointer) {
+      assert.equal(pointer.read(types.i32) as Integer, 0)
+    }
+  }
+}
+
+test.group('std::ffi::Pointer.write') do (g) {
+  g.test('Writing the address of a Pointer to a Pointer') {
+    allocate(types.pointer.size) do (pointer) {
+      allocate(types.i32.size) do (target) {
+        pointer.write(types.pointer, target)
+
+        assert.equal(pointer.read(types.pointer) as Pointer, target)
+      }
+    }
+  }
+
+  g.test('Writing a String to a Pointer') {
+    allocate(5) do (pointer) {
+      pointer.write(types.string, 'inko')
+
+      assert.equal(pointer.read(types.string) as String, 'inko')
+    }
+  }
+
+  g.test('Writing a ByteArray to a Pointer') {
+    allocate(5) do (pointer) {
+      let bytes = 'inko'.to_byte_array
+
+      pointer.write(types.byte_array, bytes)
+
+      assert.equal(pointer.read(types.byte_array) as ByteArray, bytes)
+    }
+  }
+
+g.test('Writing a float to a Pointer') {
+    let type = types.f32
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 1.5)
+
+      assert.equal(pointer.read(type) as Float, 1.5)
+    }
+  }
+
+  g.test('Writing a double to a Pointer') {
+    let type = types.f64
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 1.5)
+
+      assert.equal(pointer.read(type) as Float, 1.5)
+    }
+  }
+
+  g.test('Writing a char to a Pointer') {
+    let type = types.i8
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing a short to a Pointer') {
+    let type = types.i16
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing an int to a Pointer') {
+    let type = types.i32
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing a long to a Pointer') {
+    let type = types.i64
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing an unsigned char to a Pointer') {
+    let type = types.u8
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing an unsigned short to a Pointer') {
+    let type = types.i16
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing an unsigned int to a Pointer') {
+    let type = types.u32
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing an unsigned long to a Pointer') {
+    let type = types.u64
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+
+  g.test('Writing a size_t to a Pointer') {
+    let type = types.size_t
+
+    allocate(type.size) do (pointer) {
+      pointer.write(type, 42)
+
+      assert.equal(pointer.read(type) as Integer, 42)
+    }
+  }
+}
+
+test.group('std::ffi::Pointer.==') do (g) {
+  g.test('Comparing two Pointers for equality') {
+    assert.equal(Pointer.null, Pointer.null)
+    assert.not_equal(Pointer.null, Pointer.new(0x1))
+  }
+}
+
+test.group('std::ffi::Library.new') do (g) {
+  g.test('Opening a non existing library') {
+    assert.panic {
+      Library.new(['does-not-exist.so'])
+    }
+  }
+
+  g.test('Opening a non existing library, with an existing as a fallback') {
+    assert.no_panic {
+      let paths = ['does-not-exist.so'].append(LIBC_PATHS)
+
+      Library.new(paths)
+    }
+  }
+
+  g.test('Opening an existing library') {
+    assert.no_panic {
+      Library.new(LIBC_PATHS)
+    }
+  }
+}
+
+test.group('std::ffi::Library.variable') do (g) {
+  g.test('Obtaining a Pointer to an existing variable') {
+    assert.no_panic {
+      LIBC.variable('malloc')
+    }
+  }
+
+  g.test('Obtaining a Pointer using a non existing variable') {
+    assert.panic {
+      LIBC.variable('kittens')
+    }
+  }
+}
+
+test.group('std::ffi::Library.close') do (g) {
+  g.test('Closing a Library') {
+    assert.no_panic {
+      Library.new(LIBC_PATHS).close
+    }
+  }
+}
+
+test.group('std::ffi::Library.function') do (g) {
+  g.test('Obtaining a Function using an existing function name') {
+    assert.no_panic {
+      LIBC.function(
+        name: 'malloc',
+        arguments: [types.size_t],
+        returns: types.pointer
+      )
+    }
+  }
+
+  g.test('Obtaining a Function using a non existing function name') {
+    assert.panic {
+      LIBC.function(name: 'kittens', arguments: [], returns: types.pointer)
+    }
+  }
+}
+
+test.group('std::ffi::Function.new') do (g) {
+  g.test('Obtaining a Function using an existing function name') {
+    assert.no_panic {
+      Function.new(
+        library: LIBC,
+        name: 'malloc',
+        arguments: [types.size_t],
+        returns: types.pointer
+      )
+    }
+  }
+
+  g.test('Obtaining a Function using a non existing function name') {
+    assert.panic {
+      Function.new(
+        library: LIBC,
+        name: 'kittens',
+        arguments: [],
+        returns: types.pointer
+      )
+    }
+  }
+}
+
+test.group('std::ffi::Function.name') do (g) {
+  g.test('Obtaining the name of a Function') {
+    let func = Function.new(
+      library: LIBC,
+      name: 'malloc',
+      arguments: [types.size_t],
+      returns: types.pointer
+    )
+
+    assert.equal(func.name, 'malloc')
+  }
+}
+
+test.group('std::ffi::Function.arguments') do (g) {
+  g.test('Obtaining the argument types of a Function') {
+    let func = Function.new(
+      library: LIBC,
+      name: 'malloc',
+      arguments: [types.size_t],
+      returns: types.pointer
+    )
+
+    assert.equal(func.arguments, [types.size_t])
+  }
+}
+
+test.group('std::ffi::Function.returns') do (g) {
+  g.test('Obtaining the return type of a Function') {
+    let func = Function.new(
+      library: LIBC,
+      name: 'malloc',
+      arguments: [types.size_t],
+      returns: types.pointer
+    )
+
+    assert.equal(func.returns, types.pointer)
+  }
+}
+
+test.group('std::ffi::Function.call') do (g) {
+  g.test('Calling a function with a valid number of arguments') {
+    let time_func = LIBC.function('time', [types.pointer], types.i64)
+    let timestamp = time_func.call(Pointer.null) as Integer
+
+    assert.true(timestamp.positive?)
+  }
+
+  g.test('Calling a Function with an invalid number of arguments') {
+    assert.panic {
+      let time_func = LIBC.function('time', [types.pointer], types.i64)
+
+      time_func.call
+    }
+  }
+}
+
+test.group('std::ffi::Member.name') do (g) {
+  g.test('Obtaining the name of a Member') {
+    let member = Member.new(name: 'tm_sec', type: types.i32, offset: 0)
+
+    assert.equal(member.name, 'tm_sec')
+  }
+}
+
+test.group('std::ffi::Member.type') do (g) {
+  g.test('Obtaining the type of a Member') {
+    let member = Member.new(name: 'tm_sec', type: types.i32, offset: 0)
+
+    assert.equal(member.type, types.i32)
+  }
+}
+
+test.group('std::ffi::Member.offset') do (g) {
+  g.test('Obtaining the offset of a Member') {
+    let member = Member.new(name: 'tm_sec', type: types.i32, offset: 4)
+
+    assert.equal(member.offset, 4)
+  }
+}
+
+test.group('std::ffi::Layout.alignment') do (g) {
+  g.test('Obtaining the alignment of a Layout') {
+    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+
+    assert.equal(layout.alignment, 8)
+  }
+}
+
+test.group('std::ffi::Layout.size') do (g) {
+  g.test('Obtaining the size of a Layout') {
+    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+
+    assert.equal(layout.size, 4)
+  }
+}
+
+test.group('std::ffi::Layout.[]') do (g) {
+  g.test('Obtaining a Member using a valid name') {
+    let member = Member.new(name: 'tm_sec', type: types.i32, offset: 0)
+    let layout = Layout.new(members: %['tm_sec': member], alignment: 8, size: 4)
+
+    assert.equal(layout['tm_sec'], member)
+  }
+
+  g.test('Obtaining a Member using an invalid name') {
+    assert.panic {
+      let layout = Layout.new(members: %[], alignment: 8, size: 4)
+
+      layout['tm_sec']
+    }
+  }
+}
+
+test.group('std::ffi::Layout.from_pointer') do (g) {
+  g.test('Creating a Struct from a Layout using a Pointer') {
+    allocate(TM_STRUCT.size) do (pointer) {
+      let struct = TM_STRUCT.from_pointer(pointer)
+
+      assert.equal(struct.size, TM_STRUCT.size)
+      assert.equal(struct.alignment, TM_STRUCT.alignment)
+    }
+  }
+}
+
+test.group('std::ffi::Struct.size') do (g) {
+  g.test('Obtaining the size of a Struct') {
+    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let struct = Struct.new(pointer: Pointer.null, layout: layout)
+
+    assert.equal(struct.size, 4)
+  }
+}
+
+test.group('std::ffi::Struct.alignment') do (g) {
+  g.test('Obtaining the alignment of a Struct') {
+    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let struct = Struct.new(pointer: Pointer.null, layout: layout)
+
+    assert.equal(struct.alignment, 8)
+  }
+}
+
+test.group('std::ffi::Struct.pointer') do (g) {
+  g.test('Obtaining the alignment of a Struct') {
+    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let struct = Struct.new(pointer: Pointer.null, layout: layout)
+
+    assert.equal(struct.pointer, Pointer.null)
+  }
+}
+
+test.group('std::ffi::Struct.[]') do (g) {
+  g.test('Reading the value of a valid Struct member') {
+    allocate(TM_STRUCT.size) do (pointer) {
+      let struct = Struct.new(pointer: pointer, layout: TM_STRUCT)
+
+      assert.equal(struct['tm_sec'] as Integer, 0)
+    }
+  }
+
+  g.test('Reading the value of an invalid Struct member') {
+    assert.panic {
+      let struct = Struct.new(pointer: Pointer.null, layout: TM_STRUCT)
+
+      struct['kittens']
+    }
+  }
+}
+
+test.group('std::ffi::Struct.[]=') do (g) {
+  g.test('Writing a value to a valid Struct member') {
+    allocate(TM_STRUCT.size) do (pointer) {
+      let struct = Struct.new(pointer: pointer, layout: TM_STRUCT)
+
+      struct['tm_sec'] = 42
+
+      assert.equal(struct['tm_sec'] as Integer, 42)
+    }
+  }
+
+  g.test('Writing a value to an invalid Struct member') {
+    assert.panic {
+      let struct = Struct.new(pointer: Pointer.null, layout: TM_STRUCT)
+
+      struct['kittens'] = 42
+    }
+  }
+}
+
+test.group('std::ffi::LayoutBuilder.[]=') do (g) {
+  g.test('Defining a new struct member') {
+    assert.no_panic {
+      let builder = LayoutBuilder.new
+
+      builder['tm_sec'] = types.i32
+    }
+  }
+
+  g.test('Defining an existing struct member') {
+    assert.panic {
+      let builder = LayoutBuilder.new
+
+      builder['tm_sec'] = types.i32
+      builder['tm_sec'] = types.i32
+    }
+  }
+}
+
+test.group('std::ffi::LayoutBuilder.to_layout') do (g) {
+  g.test('Creating a Layout with padding') {
+    let builder = LayoutBuilder.new
+
+    builder['foo'] = types.i32
+    builder['bar'] = types.i64
+
+    let layout = builder.to_layout
+
+    assert.equal(layout.alignment, 8)
+    assert.equal(layout.size, 16)
+    assert.equal(layout['foo'].offset, 0)
+    assert.equal(layout['bar'].offset, 8)
+  }
+
+  g.test('Creating a Layout without padding') {
+    let builder = LayoutBuilder.new
+
+    builder.disable_padding
+
+    builder['foo'] = types.i32
+    builder['bar'] = types.i64
+
+    let layout = builder.to_layout
+
+    assert.equal(layout.alignment, 1)
+    assert.equal(layout.size, 12)
+    assert.equal(layout['foo'].offset, 0)
+    assert.equal(layout['bar'].offset, 4)
+  }
+}
+
+test.group('std::ffi.struct') do (g) {
+  g.test('Creating a Layout') {
+    let layout = ffi.struct do (struct) {
+      struct['foo'] = types.i32
+      struct['bar'] = types.i64
+    }
+
+    assert.equal(layout.alignment, 8)
+    assert.equal(layout.size, 16)
+    assert.equal(layout['foo'].offset, 0)
+    assert.equal(layout['bar'].offset, 8)
+  }
+}
