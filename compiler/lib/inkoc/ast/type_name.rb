@@ -8,7 +8,7 @@ module Inkoc
       include Inspect
 
       attr_reader :name, :location, :type_parameters
-      attr_accessor :optional
+      attr_accessor :optional, :late_binding
 
       # name - The name of the type.
       # location - The SourceLocation of the type.
@@ -27,6 +27,10 @@ module Inkoc
         @optional
       end
 
+      def late_binding?
+        @late_binding
+      end
+
       def qualified_name
         name.qualified_name
       end
@@ -34,7 +38,7 @@ module Inkoc
       def visitor_method
         case name.name
         when Config::SELF_TYPE
-          :on_self_type
+          late_binding? ? :on_self_type_with_late_binding : :on_self_type
         when Config::DYNAMIC_TYPE
           :on_dynamic_type
         when Config::VOID_TYPE

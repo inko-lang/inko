@@ -265,8 +265,13 @@ module Inkoc
       end
 
       # Returns the fully resolved/initialised return type of this block.
+      #
+      # If the return type is just `Self`, we support late binding of it. For
+      # any other types (e.g. `Array!(Self)`) we still use early binding.
       def resolved_return_type(self_type)
-        return_type.resolve_type_parameters(self_type, self)
+        return_type
+          .resolve_self_type(self_type)
+          .resolve_type_parameters(self_type, self)
           .without_empty_type_parameters
       end
 

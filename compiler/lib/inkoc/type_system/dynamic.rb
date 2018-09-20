@@ -10,7 +10,7 @@ module Inkoc
       include GenericType
       include NewInstance
 
-      def new_instance
+      def new_instance(*)
         self
       end
 

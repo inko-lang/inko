@@ -111,6 +111,10 @@ module Inkoc
       end
       alias on_lambda_type on_block_type
 
+      def on_self_type_with_late_binding(node, _)
+        wrap_optional_type(node, TypeSystem::SelfType.new)
+      end
+
       def on_self_type(node, scope)
         self_type = scope.self_type
 
@@ -477,11 +481,13 @@ module Inkoc
         block_type = scope.block_type
 
         block_type.return_type = type if block_type.infer_return_type
+        expected_type =
+          block_type.return_type.resolve_self_type(scope.self_type)
 
-        if !type.void? && !type.type_compatible?(block_type.return_type, @state)
+        if !type.void? && !type.type_compatible?(expected_type, @state)
           loc = node.location_of_last_expression
 
-          diagnostics.return_type_error(block_type.return_type, type, loc)
+          diagnostics.return_type_error(expected_type, type, loc)
         end
 
         type
@@ -496,7 +502,7 @@ module Inkoc
           end
 
         if (method = scope.enclosing_method)
-          expected = method.return_type
+          expected = method.return_type.resolve_self_type(scope.self_type)
 
           unless rtype.type_compatible?(expected, @state)
             diagnostics
@@ -622,8 +628,7 @@ module Inkoc
 
         define_required_traits(node, trait, scope)
 
-        body_type = TypeSystem::Block
-          .closure(typedb.block_type, return_type: trait)
+        body_type = TypeSystem::Block.closure(typedb.block_type)
 
         body_scope = TypeScope
           .new(trait, body_type, @module, locals: node.body.locals)
@@ -653,8 +658,7 @@ module Inkoc
       end
 
       def define_named_type(node, new_type, scope)
-        body_type = TypeSystem::Block
-          .closure(typedb.block_type, return_type: new_type)
+        body_type = TypeSystem::Block.closure(typedb.block_type)
 
         body_scope = TypeScope
           .new(new_type, body_type, @module, locals: node.body.locals)
@@ -708,8 +712,7 @@ module Inkoc
           )
         end
 
-        block_type = TypeSystem::Block
-          .closure(typedb.block_type, return_type: type)
+        block_type = TypeSystem::Block.closure(typedb.block_type)
 
         new_scope = TypeScope
           .new(type, block_type, @module, locals: node.body.locals)
@@ -793,8 +796,12 @@ module Inkoc
       def on_method(node, scope)
         type = TypeSystem::Block.named_method(node.name, typedb.block_type)
 
-        new_scope = TypeScope
-          .new(scope.self_type, type, @module, locals: node.body.locals)
+        new_scope = TypeScope.new(
+          scope.self_type.new_instance,
+          type,
+          @module,
+          locals: node.body.locals
+        )
 
         define_method_bounds(node, new_scope)
         define_block_signature(node, new_scope)
@@ -1738,6 +1745,8 @@ module Inkoc
         return unless node.returns
 
         scope.block_type.infer_return_type = false
+
+        node.returns.late_binding = true
 
         scope.block_type.return_type =
           define_type_instance(node.returns, scope)

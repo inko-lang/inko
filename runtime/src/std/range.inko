@@ -73,13 +73,7 @@ impl ToArray!(T) for Range!(T) {
     { current <= max }.while_true {
       values.push(current)
 
-      # The "as T" is necessary as the compiler's type system is a bit limited.
-      # When we first define `current` it is defined as `Successor + Compare`.
-      # Sending `successor` produces a `Sucessor`, not a `Successor + Compare`.
-      #
-      # Because we know `current` implements `Compare` as well, we can safely
-      # re-cast it to `Successor + Compare`.
-      current = current.successor as T
+      current = current.successor
     }
 
     values

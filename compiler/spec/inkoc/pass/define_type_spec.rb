@@ -2039,7 +2039,7 @@ describe Inkoc::Pass::DefineType do
       type = expression_type('def foo -> Self {}')
 
       expect(type).to be_method
-      expect(type.return_type).to be_type_instance_of(type_scope.self_type)
+      expect(type.return_type).to be_self_type
     end
 
     it 'supports returning ?Self in a generic object' do
@@ -2048,9 +2048,7 @@ describe Inkoc::Pass::DefineType do
       type = expression_type('def foo -> ?Self {}')
 
       expect(type.return_type).to be_optional
-
-      expect(type.return_type.type)
-        .to be_type_instance_of(type_scope.self_type)
+      expect(type.return_type.type).to be_self_type
     end
 
     it 'supports returning Void' do

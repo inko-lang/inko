@@ -65,6 +65,10 @@ module Inkoc
         false
       end
 
+      def self_type?
+        false
+      end
+
       def dereferenced_type
         self
       end
