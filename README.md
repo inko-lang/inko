@@ -1,5 +1,7 @@
 # Inko
 
+[![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
+
 Inko is a gradually-typed, safe, object-oriented programming languages for
 writing concurrent programs. By using lightweight isolated processes, data race
 conditions can not occur. The syntax is easy to learn and remember, and thanks
