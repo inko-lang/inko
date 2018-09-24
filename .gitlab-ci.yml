@@ -12,7 +12,7 @@ stages:
   - release
   - post-release
 
-test:compiler:
+test:compiler:linux:
   image: ruby:2.4-alpine
   stage: test
   before_script:
@@ -29,7 +29,24 @@ test:compiler:
     paths:
       - compiler/vendor
 
-test:ivm-nightly:
+test:compiler:macos:
+  stage: test
+  tags:
+    - macos
+  before_script:
+    - cd compiler
+    - ruby --version
+    - gem --version
+    - bundle --version
+    - bundle install --path vendor --retry=3
+  script:
+    - gmake test
+  cache:
+    key: macos
+    paths:
+      - compiler/vendor
+
+test:ivm-nightly:linux:
   image: rustlang/rust:nightly
   stage: test
   before_script:
@@ -42,7 +59,7 @@ test:ivm-nightly:
     paths:
       - .cargo
 
-test:ivm-stable:
+test:ivm-stable:linux:
   image: alpine:edge
   stage: test
   before_script:
@@ -53,6 +70,36 @@ test:ivm-stable:
   script:
     - make test
   cache:
+    paths:
+      - .cargo
+
+test:ivm-nightly:macos:
+  stage: test
+  tags:
+    - macos
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - rustup run nightly gmake test
+  cache:
+    key: macos
+    paths:
+      - .cargo
+
+test:ivm-stable:macos:
+  stage: test
+  tags:
+    - macos
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - gmake test
+  cache:
+    key: macos
     paths:
       - .cargo
 
@@ -93,7 +140,7 @@ lint:versions:
   script:
     - bash scripts/versions.sh
 
-build:ivm:
+build:ivm:linux:
   image: rust:latest
   stage: build
   before_script:
@@ -113,7 +160,28 @@ build:ivm:
     paths:
       - ivm
 
-test:runtime:
+build:ivm:macos:
+  stage: build
+  tags:
+    - macos
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - gmake release
+    - mv target/release/ivm ../ivm
+    - strip ../ivm
+  cache:
+    key: macos
+    paths:
+      - .cargo
+  artifacts:
+    expire_in: 1 hour
+    paths:
+      - ivm
+
+test:runtime:linux:
   image: ruby:2.4-slim
   stage: test-runtime
   before_script:
@@ -125,7 +193,20 @@ test:runtime:
   script:
     - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./ivm
   dependencies:
-    - build:ivm
+    - build:ivm:linux
+
+test:runtime:macos:
+  stage: test-runtime
+  tags:
+    - macos
+  before_script:
+    - ruby --version
+    - ./ivm --version
+    - ./ivm --features
+  script:
+    - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./ivm
+  dependencies:
+    - build:ivm:macos
 
 release:source:
   image: alpine:edge
@@ -138,7 +219,7 @@ release:source:
   only:
     - tags
 
-release:compiled-gnu:
+release:compiled:linux-gnu:
   image: rust:latest
   stage: release
   before_script:
@@ -157,7 +238,7 @@ release:compiled-gnu:
     paths:
       - .cargo
 
-release:compiled-musl:
+release:compiled:linux-musl:
   image: rust:latest
   stage: release
   before_script:
@@ -174,6 +255,26 @@ release:compiled-musl:
   only:
     - tags
   cache:
+    paths:
+      - .cargo
+
+release:compiled:macos:
+  stage: release
+  tags:
+    - macos
+  before_script:
+    - apt-get install -y -q build-essential python-pip ruby-full git bash
+    - pip install awscli
+    - ruby --version
+    - rustc --version
+    - cargo --version
+    - aws --version
+  script:
+    - gmake release-compiled SHA256SUM=gsha256sum
+  only:
+    - tags
+  cache:
+    key: macos
     paths:
       - .cargo
 
