@@ -1,7 +1,5 @@
 # Inko
 
-[![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
-
 Inko is a gradually-typed, safe, object-oriented programming languages for
 writing concurrent programs. By using lightweight isolated processes, data race
 conditions can not occur. The syntax is easy to learn and remember, and thanks
@@ -20,6 +18,8 @@ For more information, see the [Inko website](https://inko-lang.org).
 * Make 4.0 or newer
 
 ## Supported Platforms
+
+[![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
 
 Inko supports any Unix-like platform, such as Linux, Mac OS, or BSD. Technically
 Inko also works on Windows, but installing from source requires a Linux
