@@ -50,6 +50,9 @@ MANIFEST := ${TMP_DIR}/manifest.txt
 # The directory (relative to an install prefix) to copy the license to.
 LICENSE_DIR := share/licenses/inko
 
+# The program to use for generating SHA256 checksums.
+SHA256SUM := sha256sum
+
 ${TMP_DIR}:
 	mkdir -p "${TMP_DIR}"
 
@@ -80,7 +83,7 @@ ${SOURCE_TAR}: ${TMP_DIR} ${REPO_DIR}
 		| gzip > "${SOURCE_TAR}"
 
 ${SOURCE_TAR_CHECKSUM}: ${SOURCE_TAR}
-	sha256sum "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
+	${SHA256SUM} "${SOURCE_TAR}" | awk '{print $$1}' > "${SOURCE_TAR_CHECKSUM}"
 
 ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
 	$(MAKE) -C compiler build PREFIX="${ABS_STAGING_DIR}"
@@ -91,7 +94,7 @@ ${COMPILED_TAR}: ${TMP_DIR} ${STAGING_DIR} ${REPO_DIR}
 	tar --directory "${STAGING_DIR}" --create --gzip --file "${COMPILED_TAR}" .
 
 ${COMPILED_TAR_CHECKSUM}: ${COMPILED_TAR}
-	sha256sum "${COMPILED_TAR}" | awk '{print $$1}' > "${COMPILED_TAR_CHECKSUM}"
+	${SHA256SUM} "${COMPILED_TAR}" | awk '{print $$1}' > "${COMPILED_TAR_CHECKSUM}"
 
 clean:
 	rm -rf "${TMP_DIR}"
