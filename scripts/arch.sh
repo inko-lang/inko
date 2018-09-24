@@ -3,7 +3,15 @@
 set -e
 
 function rustc_cfg() {
-    rustc --print cfg | grep "$1" | cut -d '=' -f 2 | cut -d '"' -f 2
+    local output
+    output="$(rustc --print cfg | grep "$1" | cut -d '=' -f 2 | cut -d '"' -f 2)"
+
+    if [[ "${output}" == '' ]]
+    then
+        output='unknown'
+    fi
+
+    echo "${output}"
 }
 
 function print-arch {
