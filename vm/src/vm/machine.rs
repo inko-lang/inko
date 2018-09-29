@@ -2885,7 +2885,7 @@ impl Machine {
 
         if excessive {
             let local_index = context.code.rest_argument_index();
-            let extra = &instruction.arguments[(pos_end - 1)..key_start];
+            let extra = &instruction.arguments[pos_end..key_start];
 
             self.pack_excessive_arguments(process, context, local_index, extra);
         }

@@ -139,11 +139,13 @@ impl CompiledCode {
     pub fn number_of_arguments_to_set(&self, given: usize) -> (bool, usize) {
         let total = self.arguments_count();
 
-        if given <= total {
-            (false, given)
-        } else {
-            (self.rest_argument, total)
+        let mut to_set = if given <= total { given } else { total };
+
+        if self.rest_argument && to_set > 0 {
+            to_set -= 1;
         }
+
+        (self.rest_argument, to_set)
     }
 
     pub fn argument_position(&self, name: ObjectPointer) -> Option<usize> {
@@ -226,5 +228,51 @@ mod tests {
         code.code_objects.push(child);
 
         assert!(code.code_object(0).name == code.name);
+    }
+
+    #[test]
+    fn test_number_of_arguments_to_set_without_rest() {
+        let state = state();
+        let arg = state.intern_string("foo".to_string());
+        let mut code = new_compiled_code(&state);
+
+        code.arguments = vec![arg];
+
+        assert_eq!(code.number_of_arguments_to_set(1), (false, 1));
+    }
+
+    #[test]
+    fn test_number_of_arguments_to_set_without_rest_with_multiple_arguments() {
+        let state = state();
+        let arg = state.intern_string("foo".to_string());
+        let mut code = new_compiled_code(&state);
+
+        code.arguments = vec![arg, arg];
+
+        assert_eq!(code.number_of_arguments_to_set(2), (false, 2));
+    }
+
+    #[test]
+    fn test_number_of_arguments_to_set_with_rest() {
+        let state = state();
+        let arg = state.intern_string("foo".to_string());
+        let mut code = new_compiled_code(&state);
+
+        code.rest_argument = true;
+        code.arguments = vec![arg];
+
+        assert_eq!(code.number_of_arguments_to_set(1), (true, 0));
+    }
+
+    #[test]
+    fn test_number_of_arguments_to_set_with_rest_and_multiple_arguments() {
+        let state = state();
+        let arg = state.intern_string("foo".to_string());
+        let mut code = new_compiled_code(&state);
+
+        code.rest_argument = true;
+        code.arguments = vec![arg];
+
+        assert_eq!(code.number_of_arguments_to_set(2), (true, 0));
     }
 }
