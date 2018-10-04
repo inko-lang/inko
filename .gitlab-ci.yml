@@ -107,7 +107,7 @@ lint:clippy:
   image: rust:latest
   stage: test
   before_script:
-    - rustup component add clippy-preview --toolchain=stable
+    - rustup component add clippy-preview
     - cd vm
     - rustc --version
     - cargo --version
