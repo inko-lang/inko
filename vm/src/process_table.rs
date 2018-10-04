@@ -31,7 +31,7 @@
 //! available PIDs. This can happen when many processes are added and kept
 //! around. Callers should ensure they can handle such a scenario.
 
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use std::collections::HashMap;
 use std::usize;

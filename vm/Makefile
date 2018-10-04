@@ -31,7 +31,7 @@ test:
 
 clippy:
 	touch src/lib.rs
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} clippy -- -Dwarnings
+	${CARGO_CMD} clippy -- -Dwarnings
 
 rustfmt-check:
 	rustfmt --check src/lib.rs src/bin/ivm.rs

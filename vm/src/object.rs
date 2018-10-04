@@ -238,9 +238,11 @@ impl Object {
         }
 
         match self.value {
-            ObjectValue::Array(ref array) => for pointer in array.iter() {
-                pointers.push(pointer.pointer());
-            },
+            ObjectValue::Array(ref array) => {
+                for pointer in array.iter() {
+                    pointers.push(pointer.pointer());
+                }
+            }
             ObjectValue::Block(ref block) => {
                 if let Some(captures_from) = block.captures_from.as_ref() {
                     captures_from.push_pointers(pointers);

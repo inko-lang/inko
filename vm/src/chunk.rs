@@ -16,10 +16,7 @@ pub struct Chunk<T> {
     capacity: usize,
 }
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::len_without_is_empty)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
         let layout = unsafe {

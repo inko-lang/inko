@@ -104,10 +104,10 @@ test:ivm-stable:macos:
       - .cargo
 
 lint:clippy:
-  image: rustlang/rust:nightly
+  image: rust:latest
   stage: test
   before_script:
-    - rustup component add clippy-preview --toolchain=nightly
+    - rustup component add clippy-preview --toolchain=stable
     - cd vm
     - rustc --version
     - cargo --version

@@ -1,5 +1,5 @@
 //! Scopes for module-local global variables.
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
@@ -54,7 +54,7 @@ impl GlobalScope {
         unsafe { &*self.variables.get() }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     fn locals_mut(&self) -> &mut Vec<ObjectPointer> {
         unsafe { &mut *self.variables.get() }
     }

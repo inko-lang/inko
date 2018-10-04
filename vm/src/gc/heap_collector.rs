@@ -121,7 +121,8 @@ pub fn trace_without_moving(process: &RcProcess, mature: bool) -> TraceResult {
         .par_iter()
         .map(|context| {
             collector::trace_pointers_without_moving(context.pointers(), mature)
-        }).reduce(TraceResult::new, |acc, curr| acc + curr);
+        })
+        .reduce(TraceResult::new, |acc, curr| acc + curr);
 
     result + collector::trace_pointers_without_moving(
         process.global_pointers_to_trace(),
@@ -141,7 +142,8 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
                 context.pointers(),
                 mature,
             )
-        }).reduce(TraceResult::new, |acc, curr| acc + curr);
+        })
+        .reduce(TraceResult::new, |acc, curr| acc + curr);
 
     result + collector::trace_pointers_with_moving(
         process,

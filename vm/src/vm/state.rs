@@ -232,7 +232,7 @@ impl State {
     /// Interns a borrowed String.
     ///
     /// If a string was not yet interned it's allocated in the permanent space.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn intern(&self, string: &String) -> ObjectPointer {
         intern_string!(self, string, string.clone())
     }

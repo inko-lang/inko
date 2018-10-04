@@ -95,10 +95,7 @@ impl Binding {
     }
 
     /// Returns a mutable reference to this binding's local variables.
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(clippy::clippy::mut_from_ref)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn locals_mut(&self) -> &mut Chunk<ObjectPointer> {
         unsafe { &mut *self.locals.get() }
     }
@@ -149,7 +146,7 @@ impl Binding {
     }
 
     // Moves all pointers in this binding to the given heap.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     pub fn move_pointers_to<H: CopyObject>(&mut self, heap: &mut H) {
         if let Some(ref mut bind) = self.parent {
             bind.move_pointers_to(heap);

@@ -2,7 +2,7 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 
 use parking_lot::Mutex;
 use rayon::prelude::*;
@@ -131,10 +131,7 @@ impl Bucket {
     ///
     /// The return value is a tuple containing a boolean that indicates if a new
     /// block was requested, and the pointer to the allocated object.
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(clippy::for_loop_over_option)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
     pub fn allocate(
         &mut self,
         global_allocator: &RcGlobalAllocator,
@@ -190,10 +187,7 @@ impl Bucket {
     ///
     /// This method does not use synchronisation, so it _can not_ be safely used
     /// from a collector thread.
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(clippy::for_loop_over_option)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
     pub unsafe fn allocate_for_mutator(
         &mut self,
         global_allocator: &RcGlobalAllocator,
@@ -276,7 +270,8 @@ impl Bucket {
                 } else {
                     None
                 }
-            }).collect();
+            })
+            .collect();
 
         state.finalizer_pool.schedule_multiple(finalize);
 

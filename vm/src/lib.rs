@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
-
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 

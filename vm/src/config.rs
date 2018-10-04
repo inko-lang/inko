@@ -6,7 +6,7 @@
 //!
 //! These settings are all stored in the Config struct, allowing various parts
 //! of the VM to easily access these configuration details.
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
 use num_cpus;
 use std::env;
@@ -108,7 +108,7 @@ impl Config {
     /// Populates configuration settings based on environment variables.
     #[cfg_attr(
         feature = "cargo-clippy",
-        allow(clippy::cyclomatic_complexity)
+        allow(cyclomatic_complexity)
     )]
     pub fn populate_from_env(&mut self) {
         set_from_env!(self, primary_threads, "PRIMARY_THREADS", usize);

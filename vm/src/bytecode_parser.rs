@@ -165,7 +165,7 @@ fn read_bool<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<bool> {
     Ok(u8::from_be(value) == 1)
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     let mut buff: [u8; 2] = [0, 0];
 
@@ -178,7 +178,7 @@ fn read_u16<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u16> {
     Ok(u16::from_be(value))
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_u16_as_usize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<usize> {
     let mut buff: [u8; 2] = [0, 0];
 
@@ -191,7 +191,7 @@ fn read_u16_as_usize<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<usize> {
     Ok(u16::from_be(value) as usize)
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -208,7 +208,7 @@ fn read_u64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u64> {
     Ok(read_i64(bytes)? as u64)
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+#[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
     let mut buff: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 

@@ -7,7 +7,7 @@
 //!
 //! Values are processed in FIFO order.
 
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 
 use arc_without_weak::ArcWithoutWeak;
 use parking_lot::{Condvar, Mutex};
@@ -25,10 +25,7 @@ pub struct Queue<T> {
 
 pub type RcQueue<T> = ArcWithoutWeak<Queue<T>>;
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::len_without_is_empty)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Queue<T> {
     /// Returns a new Queue.
     pub fn new() -> Self {

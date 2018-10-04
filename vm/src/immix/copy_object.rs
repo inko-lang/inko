@@ -98,7 +98,7 @@ pub trait CopyObject: Sized {
     ///
     /// This will copy over the object to the current heap, while _moving_ all
     /// related data from the old object into the new one.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_range_loop))]
+    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     fn move_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
         if to_copy_ptr.is_permanent() {
             return to_copy_ptr;

@@ -278,7 +278,8 @@ impl Machine {
         builder
             .spawn(move || {
                 state.suspension_list.process_suspended_processes(&state)
-            }).unwrap()
+            })
+            .unwrap()
     }
 
     /// Starts the garbage collection threads.
@@ -368,7 +369,7 @@ impl Machine {
     /// Executes a single process.
     #[cfg_attr(
         feature = "cargo-clippy",
-        allow(clippy::cyclomatic_complexity)
+        allow(cyclomatic_complexity)
     )]
     pub fn run(&self, process: &RcProcess) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
@@ -2415,7 +2416,8 @@ impl Machine {
                                 ),
                                 self.state.string_prototype,
                             )
-                        }).collect();
+                        })
+                        .collect();
 
                     let array = process.allocate(
                         object_value::array(names),

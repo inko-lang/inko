@@ -20,7 +20,7 @@ pub struct StringPool {
 }
 
 impl StringPointer {
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn new(pointer: &String) -> Self {
         StringPointer {
             raw: pointer as *const String,
@@ -54,7 +54,7 @@ impl StringPool {
         Self::default()
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn get(&self, string: &String) -> Option<ObjectPointer> {
         let pointer = StringPointer::new(string);
 

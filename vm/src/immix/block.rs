@@ -105,7 +105,7 @@ impl BlockHeader {
 
     /// Returns a mutable reference to the block.
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn block_mut(&self) -> &mut Block {
         unsafe { &mut *self.block }
     }
@@ -182,7 +182,7 @@ unsafe impl Send for Block {}
 unsafe impl Sync for Block {}
 
 impl Block {
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
+    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
     pub fn new() -> Box<Block> {
         let layout = unsafe { heap_layout_for_block() };
         let lines = unsafe { alloc::alloc(layout) as RawObjectPointer };

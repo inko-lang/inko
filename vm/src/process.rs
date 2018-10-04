@@ -146,7 +146,7 @@ impl Process {
         self.local_data().pool_id
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn local_data_mut(&self) -> &mut LocalData {
         unsafe { &mut *self.local_data.get() }
     }
@@ -357,14 +357,14 @@ impl Process {
         &self.context().global_scope
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::borrowed_box))]
+    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
     pub fn context(&self) -> &Box<ExecutionContext> {
         &self.local_data().context
     }
 
     #[cfg_attr(
         feature = "cargo-clippy",
-        allow(clippy::borrowed_box, clippy::mut_from_ref)
+        allow(borrowed_box, mut_from_ref)
     )]
     pub fn context_mut(&self) -> &mut ExecutionContext {
         &mut *self.local_data_mut().context
