@@ -595,10 +595,7 @@ impl ObjectPointer {
 }
 
 impl ObjectPointerPointer {
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(trivially_copy_pass_by_ref)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
     pub fn new(pointer: &ObjectPointer) -> ObjectPointerPointer {
         ObjectPointerPointer {
             raw: pointer as *const ObjectPointer,

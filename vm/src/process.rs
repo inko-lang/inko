@@ -362,10 +362,7 @@ impl Process {
         &self.local_data().context
     }
 
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(borrowed_box, mut_from_ref)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box, mut_from_ref))]
     pub fn context_mut(&self) -> &mut ExecutionContext {
         &mut *self.local_data_mut().context
     }
