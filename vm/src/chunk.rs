@@ -8,6 +8,7 @@
 /// must take care of this itself.
 use std::alloc::{self, Layout};
 use std::mem;
+use std::ops::Drop;
 use std::ops::{Index, IndexMut};
 use std::ptr;
 
@@ -16,15 +17,17 @@ pub struct Chunk<T> {
     capacity: usize,
 }
 
+unsafe fn layout_for<T>(capacity: usize) -> Layout {
+    Layout::from_size_align_unchecked(
+        mem::size_of::<T>() * capacity,
+        mem::align_of::<T>(),
+    )
+}
+
 #[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
-        let layout = unsafe {
-            Layout::from_size_align_unchecked(
-                mem::size_of::<T>() * capacity,
-                mem::align_of::<T>(),
-            )
-        };
+        let layout = unsafe { layout_for::<T>(capacity) };
 
         let ptr = unsafe { alloc::alloc(layout) as *mut T };
 
@@ -47,6 +50,16 @@ impl<T> Chunk<T> {
             // We need to zero out the memory as otherwise we might get random
             // garbage.
             ptr::write_bytes(self.ptr, 0, self.capacity);
+        }
+    }
+}
+
+impl<T> Drop for Chunk<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let layout = layout_for::<T>(self.len());
+
+            alloc::dealloc(self.ptr as *mut u8, layout);
         }
     }
 }
