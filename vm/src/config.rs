@@ -62,22 +62,22 @@ pub struct Config {
     pub mature_threshold: usize,
 
     /// The block allocation growth factor for the heap.
-    pub heap_growth_factor: f64,
+    pub heap_growth_factor: f32,
 
     /// The percentage of memory in the heap (relative to its threshold) that
     /// should be used before increasing the heap size.
-    pub heap_growth_threshold: f64,
+    pub heap_growth_threshold: f32,
 
     /// The amount of memory that can be allocated for a mailbox before
     /// triggering a mailbox collection.
     pub mailbox_threshold: usize,
 
     /// The block allocation growth factor for the mailbox heap.
-    pub mailbox_growth_factor: f64,
+    pub mailbox_growth_factor: f32,
 
     /// The percentage of memory in the mailbox heap that should be used before
     /// increasing the size.
-    pub mailbox_growth_threshold: f64,
+    pub mailbox_growth_threshold: f32,
 }
 
 impl Config {
@@ -129,13 +129,13 @@ impl Config {
 
         set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", usize);
         set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", usize);
-        set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f64);
+        set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f32);
 
         set_from_env!(
             self,
             heap_growth_threshold,
             "HEAP_GROWTH_THRESHOLD",
-            f64
+            f32
         );
 
         set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", usize);
@@ -144,14 +144,14 @@ impl Config {
             self,
             mailbox_growth_factor,
             "MAILBOX_GROWTH_FACTOR",
-            f64
+            f32
         );
 
         set_from_env!(
             self,
             mailbox_growth_threshold,
             "MAILBOX_GROWTH_THRESHOLD",
-            f64
+            f32
         );
     }
 

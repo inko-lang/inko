@@ -11,17 +11,17 @@ pub struct GenerationConfig {
 
     /// The percentage of blocks that should be used (relative to the threshold)
     /// before incrementing the threshold.
-    pub growth_threshold: f64,
+    pub growth_threshold: f32,
 
     /// The factor to grow the allocation threshold by.
-    pub growth_factor: f64,
+    pub growth_factor: f32,
 
     /// Boolean indicating if this generation should be collected.
     pub collect: bool,
 }
 
 impl GenerationConfig {
-    pub fn new(bytes: usize, percentage: f64, growth_factor: f64) -> Self {
+    pub fn new(bytes: usize, percentage: f32, growth_factor: f32) -> Self {
         GenerationConfig {
             threshold: bytes / BLOCK_SIZE,
             block_allocations: 0,
@@ -32,7 +32,7 @@ impl GenerationConfig {
     }
 
     pub fn should_increment(&self) -> bool {
-        let percentage = self.block_allocations as f64 / self.threshold as f64;
+        let percentage = self.block_allocations as f32 / self.threshold as f32;
 
         self.allocation_threshold_exceeded()
             || percentage >= self.growth_threshold
@@ -40,7 +40,7 @@ impl GenerationConfig {
 
     pub fn increment_threshold(&mut self) {
         self.threshold =
-            (self.threshold as f64 * self.growth_factor).ceil() as usize;
+            (self.threshold as f32 * self.growth_factor).ceil() as usize;
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {
