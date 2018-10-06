@@ -5,6 +5,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 
 use parking_lot::Mutex;
+use pool::Job;
 use rayon::prelude::*;
 use std::cell::UnsafeCell;
 
@@ -266,7 +267,7 @@ impl Bucket {
                 }
 
                 if finalize {
-                    Some(block)
+                    Some(Job::normal(block))
                 } else {
                     None
                 }

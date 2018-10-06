@@ -65,20 +65,74 @@
 //!     guard.join().unwrap();
 
 use arc_without_weak::ArcWithoutWeak;
+use queue::{Queue, RcQueue};
 use std::collections::VecDeque;
 use std::thread::{self, Builder, JoinHandle};
 
-use queue::{Queue, RcQueue};
-
 pub const STACK_SIZE: usize = 1024 * 1024;
+
+pub struct Job<T: Send + 'static> {
+    /// The thread ID this job is pinned to, if any.
+    thread_id: Option<u8>,
+
+    /// The value to pass to the closure that is used for consuming jobs.
+    value: T,
+}
+
+impl<T: Send + 'static> Job<T> {
+    pub fn new(value: T, thread_id: Option<u8>) -> Self {
+        Job { thread_id, value }
+    }
+
+    /// Returns a normal job.
+    pub fn normal(value: T) -> Self {
+        Self::new(value, None)
+    }
+
+    /// Returns a pinned job.
+    pub fn pinned(value: T, thread_id: u8) -> Self {
+        Self::new(value, Some(thread_id))
+    }
+
+    /// Returns the queue index to use for this job.
+    pub fn queue_index(&self) -> Option<usize> {
+        self.thread_id.map(|id| id as usize)
+    }
+}
+
+pub struct Worker {
+    /// The unique ID of this worker in a particular pool.
+    ///
+    /// Workers across different pools may have the same ID.
+    pub thread_id: u8,
+}
+
+impl Worker {
+    pub fn new(thread_id: u8) -> Self {
+        Worker { thread_id }
+    }
+
+    pub fn queue_index(&self) -> usize {
+        self.thread_id as usize
+    }
+
+    /// Returns true if this worker should process the given job.
+    pub fn should_process<T: Send + 'static>(&self, job: &Job<T>) -> bool {
+        if let Some(job_thread_id) = job.thread_id {
+            self.thread_id == job_thread_id
+        } else {
+            true
+        }
+    }
+}
 
 /// The part of a pool that is shared between threads.
 pub struct PoolInner<T: Send + 'static> {
     /// The queues containing jobs to process, one for every thread.
-    pub queues: Vec<RcQueue<T>>,
+    pub queues: Vec<RcQueue<Job<T>>>,
 
     /// The global queue new messages are scheduled into.
-    pub global_queue: RcQueue<T>,
+    pub global_queue: RcQueue<Job<T>>,
 }
 
 /// A pool of threads, each processing jobs of a given type.
@@ -108,7 +162,7 @@ impl<T: Send + 'static> Pool<T> {
     /// job.
     pub fn run<F>(&self, closure: F) -> JoinGuard<()>
     where
-        F: Fn(T) + Sync + Send + 'static,
+        F: Fn(&Worker, T) + Sync + Send + 'static,
     {
         let arc_closure = ArcWithoutWeak::new(closure);
         let amount = self.inner.queues.len();
@@ -123,7 +177,11 @@ impl<T: Send + 'static> Pool<T> {
                 builder = builder.name(format!("{} {}", name, idx));
             }
 
-            let result = builder.spawn(move || inner.process(idx, &closure));
+            let result = builder.spawn(move || {
+                let worker = Worker::new(idx as u8);
+
+                inner.process(&worker, &closure)
+            });
 
             handles.push(result.unwrap());
         }
@@ -132,11 +190,15 @@ impl<T: Send + 'static> Pool<T> {
     }
 
     /// Schedules a new job for processing.
-    pub fn schedule(&self, value: T) {
-        self.inner.global_queue.push(value);
+    pub fn schedule(&self, job: Job<T>) {
+        if let Some(index) = job.queue_index() {
+            self.inner.queues[index].push(job);
+        } else {
+            self.inner.global_queue.push(job);
+        }
     }
 
-    pub fn schedule_multiple(&self, values: VecDeque<T>) {
+    pub fn schedule_multiple(&self, values: VecDeque<Job<T>>) {
         self.inner.global_queue.push_multiple(values);
     }
 
@@ -164,16 +226,16 @@ impl<T: Send + 'static> PoolInner<T> {
     }
 
     /// Processes jobs from a queue.
-    pub fn process<F>(&self, index: usize, closure: &ArcWithoutWeak<F>)
+    pub fn process<F>(&self, worker: &Worker, closure: &ArcWithoutWeak<F>)
     where
-        F: Fn(T) + Sync + Send + 'static,
+        F: Fn(&Worker, T) + Sync + Send + 'static,
     {
-        let queue = &self.queues[index];
+        let queue = &self.queues[worker.queue_index()];
 
         while !queue.should_terminate() {
             let job = if let Some(job) = queue.pop_nonblock() {
                 job
-            } else if let Some(job) = self.steal_excluding(index) {
+            } else if let Some(job) = self.steal_excluding(&worker) {
                 job
             } else if let Some(job) = self.steal_from_global(&queue) {
                 job
@@ -183,7 +245,15 @@ impl<T: Send + 'static> PoolInner<T> {
                 break;
             };
 
-            closure(job);
+            if worker.should_process(&job) {
+                // Only process the job if it is pinned to our thread, or if it
+                // is not pinned at all.
+                closure(&worker, job.value);
+            } else if let Some(pinned_id) = job.thread_id {
+                // Pinned jobs should be pushed back into the queue of the
+                // owning thread.
+                self.queues[pinned_id as usize].push(job);
+            }
         }
     }
 
@@ -191,13 +261,31 @@ impl<T: Send + 'static> PoolInner<T> {
     ///
     /// This method won't steal jobs from the queue at the given position. This
     /// allows a thread to steal jobs without checking its own queue.
-    pub fn steal_excluding(&self, excluding: usize) -> Option<T> {
-        let ours = &self.queues[excluding];
+    ///
+    /// This method also makes sure that any stolen pinned jobs are pushed back
+    /// into the appropriate queues.
+    pub fn steal_excluding(&self, our_worker: &Worker) -> Option<Job<T>> {
+        let ours = &self.queues[our_worker.queue_index()];
 
         for (index, queue) in self.queues.iter().enumerate() {
-            if index != excluding {
+            let their_thread_id = index as u8;
+
+            if their_thread_id != our_worker.thread_id {
                 if let Some(jobs) = queue.pop_half() {
-                    ours.push_multiple(jobs);
+                    let (our_jobs, pinned_jobs): (
+                        VecDeque<Job<T>>,
+                        VecDeque<Job<T>>,
+                    ) = jobs
+                        .into_iter()
+                        .partition(|ref job| our_worker.should_process(job));
+
+                    // Pinned jobs need to be pushed back into the appropriate
+                    // queues.
+                    for job in pinned_jobs {
+                        self.reschedule_job(job);
+                    }
+
+                    ours.push_multiple(our_jobs);
 
                     return ours.pop_nonblock();
                 }
@@ -207,11 +295,19 @@ impl<T: Send + 'static> PoolInner<T> {
         None
     }
 
-    pub fn steal_from_global(&self, ours: &RcQueue<T>) -> Option<T> {
+    pub fn steal_from_global(&self, ours: &RcQueue<Job<T>>) -> Option<Job<T>> {
         self.global_queue.pop_half().and_then(|jobs| {
             ours.push_multiple(jobs);
             ours.pop_nonblock()
         })
+    }
+
+    fn reschedule_job(&self, job: Job<T>) {
+        if let Some(thread_id) = job.thread_id {
+            self.queues[thread_id as usize].push(job);
+        } else {
+            self.global_queue.push(job);
+        }
     }
 }
 
@@ -258,10 +354,10 @@ mod tests {
         let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
 
-        pool.schedule(1);
-        pool.schedule(2);
+        pool.schedule(Job::normal(1));
+        pool.schedule(Job::normal(2));
 
-        let guard = pool.run(move |number| {
+        let guard = pool.run(move |_, number| {
             counter_clone.fetch_add(number, Ordering::Relaxed);
         });
 
@@ -279,10 +375,21 @@ mod tests {
     fn test_pool_schedule() {
         let pool = Pool::new(2, None);
 
-        pool.schedule(1);
-        pool.schedule(1);
+        pool.schedule(Job::normal(1));
+        pool.schedule(Job::normal(2));
 
         assert_eq!(pool.inner.global_queue.len(), 2);
+    }
+
+    #[test]
+    fn test_pool_schedule_pinned() {
+        let pool = Pool::new(2, None);
+
+        pool.schedule(Job::pinned(1, 0));
+        pool.schedule(Job::normal(2));
+
+        assert_eq!(pool.inner.queues[0].len(), 1);
+        assert_eq!(pool.inner.global_queue.len(), 1);
     }
 
     #[test]
@@ -318,15 +425,16 @@ mod tests {
         let t_counter = counter.clone();
         let t_started = started.clone();
 
-        let closure = ArcWithoutWeak::new(move |number| {
+        let closure = ArcWithoutWeak::new(move |_: &Worker, number| {
             t_started.store(true, Ordering::Release);
             t_counter.fetch_add(number, Ordering::Relaxed);
         });
 
-        inner.queues[0].push(1);
+        inner.queues[0].push(Job::normal(1));
 
         let t_closure = closure.clone();
-        let handle = thread::spawn(move || t_inner.process(0, &t_closure));
+        let handle =
+            thread::spawn(move || t_inner.process(&Worker::new(0), &t_closure));
 
         wait_while!(!started.load(Ordering::Acquire));
 
@@ -341,17 +449,50 @@ mod tests {
     #[test]
     fn test_pool_inner_steal_excluding() {
         let inner = PoolInner::new(2);
+        let worker = Worker::new(0);
 
-        inner.queues[1].push(10);
-        inner.queues[1].push(20);
-        inner.queues[1].push(30);
+        inner.queues[1].push(Job::normal(10));
+        inner.queues[1].push(Job::normal(20));
+        inner.queues[1].push(Job::normal(30));
 
-        let job = inner.steal_excluding(0);
+        let job = inner.steal_excluding(&worker);
 
         assert!(job.is_some());
 
-        assert_eq!(job.unwrap(), 20);
+        assert_eq!(job.unwrap().value, 20);
         assert_eq!(inner.queues[0].len(), 1);
         assert_eq!(inner.queues[1].len(), 1);
+    }
+
+    #[test]
+    fn test_pool_inner_steal_excluding_with_pinned_jobs() {
+        let inner = PoolInner::new(4);
+        let worker = Worker::new(0);
+
+        inner.queues[1].push(Job::pinned(30, 2));
+        inner.queues[1].push(Job::pinned(40, 3));
+        inner.queues[1].push(Job::normal(10));
+        inner.queues[1].push(Job::pinned(20, 0));
+
+        assert_eq!(inner.steal_excluding(&worker).unwrap().value, 10);
+
+        // The pinned job 20 is now in queue 0.
+        assert_eq!(inner.queues[0].len(), 1);
+        assert_eq!(inner.queues[0].pop().unwrap().value, 20);
+
+        // The remaining two jobs are left as-is, because we only steal half the
+        // jobs.
+        assert_eq!(inner.queues[1].len(), 2);
+    }
+
+    #[test]
+    fn test_pool_inner_reschedule_job() {
+        let inner = PoolInner::new(2);
+
+        inner.reschedule_job(Job::normal(10));
+        inner.reschedule_job(Job::pinned(20, 1));
+
+        assert_eq!(inner.global_queue.pop().unwrap().value, 10);
+        assert_eq!(inner.queues[1].pop().unwrap().value, 20);
     }
 }

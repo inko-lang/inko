@@ -1390,6 +1390,14 @@ module Inkoc
         raw_unary_instruction(:SetDefaultPanicHandler, node, body)
       end
 
+      def on_raw_process_pin_thread(node, body)
+        raw_nullary_instruction(:ProcessPinThread, node, body)
+      end
+
+      def on_raw_process_unpin_thread(node, body)
+        raw_nullary_instruction(:ProcessUnpinThread, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

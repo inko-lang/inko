@@ -30,7 +30,7 @@ use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use numeric::modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
-use pool::{JoinGuard as PoolJoinGuard, STACK_SIZE};
+use pool::{Job, JoinGuard as PoolJoinGuard, Worker, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
 use runtime_panic;
@@ -131,7 +131,7 @@ macro_rules! safepoint_and_reduce {
         if $reductions > 0 {
             $reductions -= 1;
         } else {
-            $vm.reschedule($process.clone());
+            $vm.state.process_pools.schedule($process.clone());
             return Ok(());
         }
     }};
@@ -258,14 +258,18 @@ impl Machine {
         let machine = self.clone();
         let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run_with_error_handling(&process))
+        pool.run(move |worker, process| {
+            machine.run_with_error_handling(worker, &process)
+        })
     }
 
     fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
         let machine = self.clone();
         let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
 
-        pool.run(move |process| machine.run_with_error_handling(&process))
+        pool.run(move |worker, process| {
+            machine.run_with_error_handling(worker, &process)
+        })
     }
 
     fn start_suspension_worker(&self) -> thread::JoinHandle<()> {
@@ -284,13 +288,15 @@ impl Machine {
 
     /// Starts the garbage collection threads.
     fn start_gc_threads(&self) -> PoolJoinGuard<()> {
-        self.state.gc_pool.run(move |mut request| request.perform())
+        self.state
+            .gc_pool
+            .run(move |_, mut request| request.perform())
     }
 
     pub fn start_finalizer_threads(&self) -> PoolJoinGuard<()> {
         self.state
             .finalizer_pool
-            .run(move |mut block| block.finalize_pending())
+            .run(move |_, mut block| block.finalize_pending())
     }
 
     fn terminate(&self) {
@@ -350,25 +356,37 @@ impl Machine {
     }
 
     /// Executes a single process, terminating in the event of an error.
-    pub fn run_with_error_handling(&self, process: &RcProcess) {
+    pub fn run_with_error_handling(
+        &self,
+        worker: &Worker,
+        process: &RcProcess,
+    ) {
         let result = panic::catch_unwind(|| {
-            if let Err(message) = self.run(process) {
-                self.panic(process, &message);
+            if let Err(message) = self.run(worker, process) {
+                self.panic(worker, process, &message);
             }
         });
 
         if let Err(error) = result {
             if let Ok(message) = error.downcast::<String>() {
-                self.panic(process, &message);
+                self.panic(worker, process, &message);
             } else {
-                self.panic(process, &"The VM panicked with an unknown error");
+                self.panic(
+                    worker,
+                    process,
+                    &"The VM panicked with an unknown error",
+                );
             };
         }
     }
 
     /// Executes a single process.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-    pub fn run(&self, process: &RcProcess) -> Result<(), String> {
+    pub fn run(
+        &self,
+        worker: &Worker,
+        process: &RcProcess,
+    ) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
         process.running();
@@ -1861,6 +1879,17 @@ impl Machine {
                         ));
                     }
 
+                    if process.thread_id().is_some() {
+                        // If a process is pinned we can't move it to another
+                        // pool. We can't panic in this case, since it would
+                        // prevent code from using certain IO operations that
+                        // may try to move the process to another pool.
+                        //
+                        // Instead, we simply ignore the request and continue
+                        // running on the current thread.
+                        continue;
+                    }
+
                     if pool_id != process.pool_id() {
                         process.set_pool_id(pool_id);
 
@@ -2574,6 +2603,20 @@ impl Machine {
 
                     context.set_register(reg, handler);
                 }
+                InstructionType::ProcessPinThread => {
+                    let reg = instruction.arg(0);
+
+                    process.set_thread_id(worker.thread_id);
+
+                    context.set_register(reg, self.state.nil_object);
+                }
+                InstructionType::ProcessUnpinThread => {
+                    let reg = instruction.arg(0);
+
+                    process.unset_thread_id();
+
+                    context.set_register(reg, self.state.nil_object);
+                }
             };
         }
 
@@ -2637,19 +2680,14 @@ impl Machine {
         }
     }
 
-    /// Reschedules a process.
-    fn reschedule(&self, process: RcProcess) {
-        self.state.process_pools.schedule(process);
-    }
-
     fn schedule_gc_request(&self, request: GcRequest) {
         request.process.suspend_for_gc();
-        self.state.gc_pool.schedule(request);
+        self.state.gc_pool.schedule(Job::normal(request));
     }
 
     fn schedule_gc_for_finished_process(&self, process: &RcProcess) {
         let request = GcRequest::finished(self.state.clone(), process.clone());
-        self.state.gc_pool.schedule(request);
+        self.state.gc_pool.schedule(Job::normal(request));
     }
 
     #[inline(always)]
@@ -2817,7 +2855,7 @@ impl Machine {
         }
     }
 
-    fn panic(&self, process: &RcProcess, message: &str) {
+    fn panic(&self, worker: &Worker, process: &RcProcess, message: &str) {
         let handler_opt = process
             .panic_handler()
             .cloned()
@@ -2825,7 +2863,7 @@ impl Machine {
 
         if let Some(handler) = handler_opt {
             if let Err(message) =
-                self.run_custom_panic_handler(process, message, handler)
+                self.run_custom_panic_handler(worker, process, message, handler)
             {
                 self.run_default_panic_handler(process, &message);
             }
@@ -2840,6 +2878,7 @@ impl Machine {
     /// panic handler.
     fn run_custom_panic_handler(
         &self,
+        worker: &Worker,
         process: &RcProcess,
         message: &str,
         handler: ObjectPointer,
@@ -2867,7 +2906,7 @@ impl Machine {
             .context_mut()
             .schedule_deferred_blocks_of_all_parents(process)?;
 
-        self.run_with_error_handling(&process);
+        self.run_with_error_handling(worker, &process);
 
         Ok(())
     }

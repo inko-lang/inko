@@ -1,4 +1,5 @@
 use libinko::object_pointer::ObjectPointer;
+use libinko::pool::Worker;
 use libinko::vm::instruction::InstructionType;
 use libinko::vm::test::*;
 
@@ -18,7 +19,7 @@ macro_rules! test_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process).unwrap();
+            machine.run(&Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -43,7 +44,7 @@ macro_rules! test_bool_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&process).unwrap();
+            machine.run(&Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(2);
 
@@ -66,7 +67,7 @@ macro_rules! test_cast_op {
 
             process.set_register(0, original);
 
-            machine.run(&process).unwrap();
+            machine.run(&Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(1);
             let object = pointer.get();

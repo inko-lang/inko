@@ -23,6 +23,7 @@ use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
 use object_pointer::ObjectPointer;
 use object_value;
+use pool::Job;
 use process_table::PID;
 use vm::state::RcState;
 
@@ -79,6 +80,9 @@ pub struct LocalData {
 
     /// The ID of the pool that this process belongs to.
     pub pool_id: u8,
+
+    /// The ID of the thread this process is pinned to.
+    pub thread_id: Option<u8>,
 }
 
 pub struct Process {
@@ -115,6 +119,7 @@ impl Process {
             mailbox_collections: 0,
             panic_handler: ObjectPointer::null(),
             pool_id,
+            thread_id: None,
         };
 
         let process = Process {
@@ -144,6 +149,18 @@ impl Process {
 
     pub fn pool_id(&self) -> u8 {
         self.local_data().pool_id
+    }
+
+    pub fn thread_id(&self) -> Option<u8> {
+        self.local_data().thread_id
+    }
+
+    pub fn set_thread_id(&self, id: u8) {
+        self.local_data_mut().thread_id = Some(id);
+    }
+
+    pub fn unset_thread_id(&self) {
+        self.local_data_mut().thread_id = None;
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
@@ -494,7 +511,9 @@ impl Process {
             block.prepare_finalization();
             block.reset();
 
-            state.finalizer_pool.schedule(DerefPointer::new(block));
+            state
+                .finalizer_pool
+                .schedule(Job::normal(DerefPointer::new(block)));
         }
 
         state.global_allocator.add_blocks(&mut blocks);
@@ -714,6 +733,21 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 688);
+        assert_eq!(size, 696);
+    }
+
+    #[test]
+    fn test_process_set_thread_id() {
+        let (_machine, _block, process) = setup();
+
+        assert!(process.thread_id().is_none());
+
+        process.set_thread_id(4);
+
+        assert_eq!(process.thread_id(), Some(4));
+
+        process.unset_thread_id();
+
+        assert!(process.thread_id().is_none());
     }
 }

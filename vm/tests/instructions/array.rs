@@ -1,5 +1,6 @@
 use libinko::object_pointer::ObjectPointer;
 use libinko::object_value;
+use libinko::pool::Worker;
 use libinko::vm::instruction::InstructionType;
 use libinko::vm::test::*;
 
@@ -7,11 +8,10 @@ use libinko::vm::test::*;
 fn test_set_array() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::SetArray, vec![2, 0, 1]),
-            new_instruction(InstructionType::Return, vec![2]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::SetArray, vec![2, 0, 1]),
+        new_instruction(InstructionType::Return, vec![2]),
+    ];
 
     let value1 = process.allocate_empty();
     let value2 = process.allocate_empty();
@@ -19,7 +19,7 @@ fn test_set_array() {
     process.set_register(0, value1);
     process.set_register(1, value2);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(2);
     let object = pointer.get();
@@ -38,11 +38,10 @@ fn test_set_array() {
 fn test_array_set() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::ArraySet, vec![3, 0, 1, 2]),
-            new_instruction(InstructionType::Return, vec![3]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::ArraySet, vec![3, 0, 1, 2]),
+        new_instruction(InstructionType::Return, vec![3]),
+    ];
 
     let array =
         process.allocate_without_prototype(object_value::array(Vec::new()));
@@ -54,7 +53,7 @@ fn test_array_set() {
     process.set_register(1, index);
     process.set_register(2, value);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(3);
 
@@ -65,11 +64,10 @@ fn test_array_set() {
 fn test_array_at() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]),
-            new_instruction(InstructionType::Return, vec![2]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::ArrayAt, vec![2, 0, 1]),
+        new_instruction(InstructionType::Return, vec![2]),
+    ];
 
     let value = ObjectPointer::integer(5);
 
@@ -81,7 +79,7 @@ fn test_array_at() {
     process.set_register(0, array);
     process.set_register(1, index);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(2);
 
@@ -92,11 +90,10 @@ fn test_array_at() {
 fn test_array_remove() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::ArrayRemove, vec![2, 0, 1]),
-            new_instruction(InstructionType::Return, vec![2]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::ArrayRemove, vec![2, 0, 1]),
+        new_instruction(InstructionType::Return, vec![2]),
+    ];
 
     let value = ObjectPointer::integer(5);
 
@@ -108,7 +105,7 @@ fn test_array_remove() {
     process.set_register(0, array);
     process.set_register(1, index);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let removed_pointer = process.get_register(2);
 
@@ -121,11 +118,10 @@ fn test_array_remove() {
 fn test_array_length() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::ArrayLength, vec![1, 0]),
-            new_instruction(InstructionType::Return, vec![1]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::ArrayLength, vec![1, 0]),
+        new_instruction(InstructionType::Return, vec![1]),
+    ];
 
     let value = process.allocate_empty();
     let array =
@@ -133,7 +129,7 @@ fn test_array_length() {
 
     process.set_register(0, array);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(1);
 
@@ -144,11 +140,10 @@ fn test_array_length() {
 fn test_array_clear() {
     let (machine, mut block, process) = setup();
 
-    block.code.instructions =
-        vec![
-            new_instruction(InstructionType::ArrayClear, vec![0]),
-            new_instruction(InstructionType::Return, vec![0]),
-        ];
+    block.code.instructions = vec![
+        new_instruction(InstructionType::ArrayClear, vec![0]),
+        new_instruction(InstructionType::Return, vec![0]),
+    ];
 
     let value = process.allocate_empty();
 
@@ -157,7 +152,7 @@ fn test_array_clear() {
 
     process.set_register(0, array);
 
-    machine.run(&process).unwrap();
+    machine.run(&Worker::new(0), &process).unwrap();
 
     let object = array.get();
 

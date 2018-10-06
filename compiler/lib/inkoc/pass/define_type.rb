@@ -1651,6 +1651,14 @@ module Inkoc
         TypeSystem::Block.lambda(typedb.block_type)
       end
 
+      def on_raw_process_pin_thread(*)
+        typedb.nil_type.new_instance
+      end
+
+      def on_raw_process_unpin_thread(*)
+        typedb.nil_type.new_instance
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)

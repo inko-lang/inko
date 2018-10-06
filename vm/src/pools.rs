@@ -1,5 +1,5 @@
 //! Collections of multiple process pools.
-use pool::Pool;
+use pool::{Job, Pool};
 use process::RcProcess;
 
 /// The number of process pools to create.
@@ -34,7 +34,14 @@ impl Pools {
 
         if let Some(pool) = self.get(pool_id) {
             process.scheduled();
-            pool.schedule(process);
+
+            let job = if let Some(thread_id) = process.thread_id() {
+                Job::pinned(process, thread_id)
+            } else {
+                Job::normal(process)
+            };
+
+            pool.schedule(job);
         } else {
             panic!(
                 "The pool ID ({}) for process {} is invalid",
@@ -91,6 +98,18 @@ mod tests {
 
         assert_eq!(pools.pools[0].inner.queues.len(), 1);
         assert_eq!(process.available_for_execution(), true);
+    }
+
+    #[test]
+    fn test_schedule_pinned() {
+        let pools = Pools::new(2, 1);
+        let (_machine, _block, process) = setup();
+
+        process.set_thread_id(1);
+        pools.schedule(process);
+
+        assert_eq!(pools.pools[0].inner.global_queue.len(), 0);
+        assert_eq!(pools.pools[0].inner.queues[1].len(), 1);
     }
 
     #[test]

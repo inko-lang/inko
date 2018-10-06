@@ -160,6 +160,8 @@ module Inkoc
         ProcessSetPanicHandler
         ProcessAddDeferToCaller
         SetDefaultPanicHandler
+        ProcessPinThread
+        ProcessUnpinThread
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

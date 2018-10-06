@@ -158,6 +158,8 @@ pub enum InstructionType {
     ProcessSetPanicHandler,
     ProcessAddDeferToCaller,
     SetDefaultPanicHandler,
+    ProcessPinThread,
+    ProcessUnpinThread,
 }
 
 /// Struct for storing information about a single instruction.
