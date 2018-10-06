@@ -248,7 +248,7 @@ impl Machine {
     fn configure_rayon(&self) {
         ThreadPoolBuilder::new()
             .thread_name(|idx| format!("rayon {}", idx))
-            .num_threads(self.state.config.generic_parallel_threads)
+            .num_threads(self.state.config.generic_parallel_threads as usize)
             .stack_size(STACK_SIZE)
             .build_global()
             .unwrap();

@@ -29,21 +29,21 @@ pub struct Config {
     pub directories: Vec<PathBuf>,
 
     /// The number of primary process threads to run.
-    pub primary_threads: usize,
+    pub primary_threads: u8,
 
     /// The number of secondary process threads to run.
-    pub secondary_threads: usize,
+    pub secondary_threads: u8,
 
     /// The number of garbage collector threads to run. Defaults to 2 threads.
-    pub gc_threads: usize,
+    pub gc_threads: u8,
 
     /// The number of finalizer threads to run. Defaults to 2 threads.
-    pub finalizer_threads: usize,
+    pub finalizer_threads: u8,
 
     /// The number of threads to use for various generic parallel tasks such as
     /// scanning stack frames during garbage collection. Defaults to the number
     /// of physical CPU cores.
-    pub generic_parallel_threads: usize,
+    pub generic_parallel_threads: u8,
 
     /// The number of reductions a process can perform before being suspended.
     /// Defaults to 1000.
@@ -82,7 +82,7 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Config {
-        let cpu_count = num_cpus::get();
+        let cpu_count = num_cpus::get() as u8;
 
         Config {
             directories: Vec::new(),
@@ -92,7 +92,7 @@ impl Config {
             secondary_threads: cpu_count,
             // Using the number of physical (and not physical + hyper-threaded)
             // cores appears to improve rayon's performance.
-            generic_parallel_threads: num_cpus::get_physical(),
+            generic_parallel_threads: num_cpus::get_physical() as u8,
             reductions: 1000,
             suspension_check_interval: 100,
             young_threshold: 8 * 1024 * 1024,
@@ -108,15 +108,15 @@ impl Config {
     /// Populates configuration settings based on environment variables.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn populate_from_env(&mut self) {
-        set_from_env!(self, primary_threads, "PRIMARY_THREADS", usize);
-        set_from_env!(self, secondary_threads, "SECONDARY_THREADS", usize);
-        set_from_env!(self, gc_threads, "GC_THREADS", usize);
-        set_from_env!(self, finalizer_threads, "FINALIZER_THREADS", usize);
+        set_from_env!(self, primary_threads, "PRIMARY_THREADS", u8);
+        set_from_env!(self, secondary_threads, "SECONDARY_THREADS", u8);
+        set_from_env!(self, gc_threads, "GC_THREADS", u8);
+        set_from_env!(self, finalizer_threads, "FINALIZER_THREADS", u8);
         set_from_env!(
             self,
             generic_parallel_threads,
             "GENERIC_PARALLEL_THREADS",
-            usize
+            u8
         );
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
@@ -159,7 +159,7 @@ impl Config {
         self.directories.push(PathBuf::from(path));
     }
 
-    pub fn set_primary_threads(&mut self, threads: usize) {
+    pub fn set_primary_threads(&mut self, threads: u8) {
         if threads == 0 {
             self.primary_threads = 1;
         } else {
@@ -167,7 +167,7 @@ impl Config {
         }
     }
 
-    pub fn set_secondary_threads(&mut self, threads: usize) {
+    pub fn set_secondary_threads(&mut self, threads: u8) {
         if threads == 0 {
             self.secondary_threads = 1;
         } else {
@@ -175,7 +175,7 @@ impl Config {
         }
     }
 
-    pub fn set_gc_threads(&mut self, threads: usize) {
+    pub fn set_gc_threads(&mut self, threads: u8) {
         if threads == 0 {
             self.gc_threads = 1;
         } else {

@@ -16,7 +16,7 @@ pub struct Pools {
 }
 
 impl Pools {
-    pub fn new(primary: usize, secondary: usize) -> Self {
+    pub fn new(primary: u8, secondary: u8) -> Self {
         Pools {
             pools: [
                 Pool::new(primary, Some("primary".to_string())),

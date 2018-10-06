@@ -97,7 +97,7 @@ pub struct JoinGuard<T> {
 
 impl<T: Send + 'static> Pool<T> {
     /// Returns a new Pool with the given amount of queues.
-    pub fn new(amount: usize, name: Option<String>) -> Self {
+    pub fn new(amount: u8, name: Option<String>) -> Self {
         Pool {
             inner: ArcWithoutWeak::new(PoolInner::new(amount)),
             name,
@@ -154,7 +154,7 @@ impl<T: Send + 'static> PoolInner<T> {
     /// Returns a new PoolInner with the given amount of queues.
     ///
     /// This method will panic if `amount` is 0.
-    pub fn new(amount: usize) -> Self {
+    pub fn new(amount: u8) -> Self {
         assert!(amount > 0);
 
         PoolInner {
