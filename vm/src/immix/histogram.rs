@@ -143,4 +143,14 @@ mod tests {
         assert_eq!(iter.next().unwrap(), 0);
         assert!(iter.next().is_none());
     }
+
+    #[test]
+    fn test_reset() {
+        let mut histo = Histogram::new(1);
+
+        histo.increment(0, 10);
+        histo.reset();
+
+        assert_eq!(histo.get(0), 0);
+    }
 }
