@@ -2606,9 +2606,15 @@ impl Machine {
                 InstructionType::ProcessPinThread => {
                     let reg = instruction.arg(0);
 
-                    process.set_thread_id(worker.thread_id);
+                    let result = if process.thread_id().is_some() {
+                        self.state.false_object
+                    } else {
+                        process.set_thread_id(worker.thread_id);
 
-                    context.set_register(reg, self.state.nil_object);
+                        self.state.true_object
+                    };
+
+                    context.set_register(reg, result);
                 }
                 InstructionType::ProcessUnpinThread => {
                     let reg = instruction.arg(0);

@@ -1652,7 +1652,7 @@ module Inkoc
       end
 
       def on_raw_process_pin_thread(*)
-        typedb.nil_type.new_instance
+        typedb.boolean_type.new_instance
       end
 
       def on_raw_process_unpin_thread(*)

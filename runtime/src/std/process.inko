@@ -525,3 +525,46 @@ def defer(block: do) -> Nil {
   _INKOC.process_add_defer_to_caller(block)
   Nil
 }
+
+## Pins the current process to the current OS thread, then runs the supplied
+## `Block`.
+##
+## Once the `Block` returns, the process is unpinned.
+##
+## # Examples
+##
+## Running a block while the process is pinned to a thread:
+##
+##     import std::process
+##
+##     process.pinned {
+##       10
+##     } # => 10
+def pinned!(T)(block: do -> T) -> T {
+  let pinned = _INKOC.process_pin_thread
+
+  # We use `process.defer` to ensure a process is unpinned even in the event of
+  # a throw or a panic.
+  defer {
+    # "pinned" will be set to true the first time we pin a process, and false
+    # if the process was already pinned. For example:
+    #
+    #     import std::process
+    #
+    #     process.pinned {      # pinned = true
+    #       process.pinned {    # pinned = false
+    #         process.pinned {  # pinned = false
+    #           # ...
+    #         }                 # still pinned
+    #       }                   # still pinned
+    #     }                     # unpinned
+    #
+    # Using the `if_true` below, we ensure that we only unpin the process once
+    # we return from the outer most call to this method.
+    pinned.if_true {
+      _INKOC.process_unpin_thread
+    }
+  }
+
+  block.call
+}
