@@ -1251,9 +1251,7 @@ module Inkoc
       end
 
       def on_raw_move_to_pool(node, body)
-        id = process_node(node.arguments.fetch(0), body)
-
-        body.instruct(:MoveToPool, id, node.location)
+        raw_unary_instruction(:MoveToPool, node, body)
       end
 
       def on_raw_panic(node, body)

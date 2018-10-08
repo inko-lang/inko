@@ -1518,7 +1518,7 @@ module Inkoc
       end
 
       def on_raw_move_to_pool(*)
-        typedb.integer_type.new_instance
+        typedb.boolean_type.new_instance
       end
 
       def on_raw_panic(*)

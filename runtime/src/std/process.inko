@@ -329,7 +329,7 @@ def channel!(T)(receiver: lambda (Receiver!(T))) -> Sender!(T) {
   Sender.new(pid)
 }
 
-## Executes the supplied closure in a separate thread pool, returning its
+## Executes the supplied closure in a separate OS thread pool, returning its
 ## result once it finishes executing.
 ##
 ## Using this method you can move (potentially) blocking (or otherwise slow)
@@ -348,13 +348,30 @@ def channel!(T)(receiver: lambda (Receiver!(T))) -> Sender!(T) {
 ##
 ##     result # => 12
 def blocking!(R)(block: do -> R) -> R {
-  _INKOC.move_to_pool(SECONDARY_POOL)
+  let moved = _INKOC.move_to_pool(SECONDARY_POOL)
 
-  let result = block.call
+  defer {
+    # "moved" will be set to true the first time we try to move a process, and
+    # false if it has already been moved to the target pool. For example:
+    #
+    #     import std::process
+    #
+    #     process.blocking {      # moved = true
+    #       process.blocking {    # moved = false
+    #         process.blocking {  # moved = false
+    #           # ...
+    #         }                   # still on the secondary pool
+    #       }                     # still on the secondary pool
+    #     }                       # now we can move back to the primary pool
+    #
+    # Using the `if_true` below, we ensure that we only move the process back
+    # once we return from the outer most call to this method.
+    moved.if_true {
+      _INKOC.move_to_pool(PRIMARY_POOL)
+    }
+  }
 
-  _INKOC.move_to_pool(PRIMARY_POOL)
-
-  result
+  block.call
 }
 
 ## Returns the status of a process as an `Integer`.

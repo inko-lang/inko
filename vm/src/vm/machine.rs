@@ -1869,7 +1869,8 @@ impl Machine {
                     }
                 }
                 InstructionType::MoveToPool => {
-                    let pool_ptr = context.get_register(instruction.arg(0));
+                    let reg = instruction.arg(0);
+                    let pool_ptr = context.get_register(instruction.arg(1));
                     let pool_id = pool_ptr.u8_value()?;
 
                     if !self.state.process_pools.pool_id_is_valid(pool_id) {
@@ -1887,12 +1888,17 @@ impl Machine {
                         //
                         // Instead, we simply ignore the request and continue
                         // running on the current thread.
+                        context.set_register(reg, self.state.false_object);
+
                         continue;
                     }
 
-                    if pool_id != process.pool_id() {
+                    if pool_id == process.pool_id() {
+                        context.set_register(reg, self.state.false_object);
+                    } else {
                         process.set_pool_id(pool_id);
 
+                        context.set_register(reg, self.state.true_object);
                         context.instruction_index = index;
 
                         // After this we can _not_ perform any operations on the
