@@ -6,9 +6,9 @@
 #! change individual settings without having to maintain their own instances of
 #! the `Configuration` object.
 import std::index::SetIndex
+import std::process
 import std::test::formatter::Formatter
 import std::test::formatter::progress_formatter::ProgressFormatter
-import std::vm
 
 ## The default number of tests to run concurrently.
 let DEFAULT_CONCURRENCY = 32
@@ -84,6 +84,6 @@ object Configuration impl SetIndex!(String, Dynamic) {
         return
       }
 
-    vm.panic(key.inspect + ' is not a valid configuration option')
+    process.panic(key.inspect + ' is not a valid configuration option')
   }
 }

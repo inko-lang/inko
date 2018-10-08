@@ -57,8 +57,7 @@
 ## suspended. These units of work are called reductions. Each process starts
 ## with a given number of reductions, and will be suspended once this value
 ## reaches zero.
-
-import std::conversion::ToInteger
+import std::conversion::(ToInteger, ToString)
 
 ## The ID of the pool to schedule regular processes on.
 let PRIMARY_POOL = 0
@@ -462,13 +461,12 @@ def terminate -> Nil {
 ##
 ##     import std::process
 ##     import std::stdio::stderr
-##     import std::vm
 ##
 ##     process.panicking do (error) {
 ##       stderr.print(error)
 ##     }
 ##
-##     vm.panic('This will run the above panick handler')
+##     process.panic('This will run the above panick handler')
 def panicking(block: do (String)) -> Nil {
   _INKOC.process_set_panic_handler(block)
   Nil
@@ -584,4 +582,29 @@ def pinned!(T)(block: do -> T) -> T {
   }
 
   block.call
+}
+
+
+## Triggers a panic, terminating the current process.
+##
+## A panic will result in a stack trace being displayed followed by a custom
+## message. Once printed the process will terminate, executing any registered
+## panic handlers. If no process specific panic handler is installed, the global
+## panic handler (as registered using `std::vm.panicking`) will be executed.
+##
+## A panic should only be triggered as a last resort when no better alternative
+## is available. For errors that may happen regularly (e.g. network timeouts)
+## it's better to throw an error using the `throw` keyword.
+##
+## This method will never return.
+##
+## # Examples
+##
+## Triggering a panic:
+##
+##     import std::process
+##
+##     process.panic('Uh-oh, something bad happened!')
+def panic(message: ToString) -> Void {
+  _INKOC.panic(message.to_string)
 }
