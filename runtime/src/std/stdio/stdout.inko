@@ -59,11 +59,15 @@ impl Write for ThisModule {
   ##
   ##     stdout.print # => Nil
   def print(data: ?ToString = Nil) -> Integer {
-    write_string(data.to_string) +
-      write_string(NEWLINE)
+    process.blocking {
+      write_string(data.to_string) +
+        write_string(NEWLINE)
+    }
   }
 
   def flush -> Nil {
-    try _INKOC.stdout_flush else Nil
+    process.blocking {
+      try _INKOC.stdout_flush else Nil
+    }
   }
 }
