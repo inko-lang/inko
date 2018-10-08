@@ -87,12 +87,10 @@ impl Config {
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
-            gc_threads: 2,
-            finalizer_threads: 2,
+            gc_threads: cpu_count,
+            finalizer_threads: cpu_count,
             secondary_threads: cpu_count,
-            // Using the number of physical (and not physical + hyper-threaded)
-            // cores appears to improve rayon's performance.
-            generic_parallel_threads: num_cpus::get_physical() as u8,
+            generic_parallel_threads: cpu_count,
             reductions: 1000,
             suspension_check_interval: 100,
             young_threshold: 8 * 1024 * 1024,
