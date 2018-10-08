@@ -1,11 +1,24 @@
 #! Module for retrieving operating system related information.
 
-## The known OS platforms.
-let PLATFORMS = ['windows', 'unix', 'other']
-
 ## Returns a `String` describing the current platform.
 ##
-## The possible values are defined in the `PLATFORMS` constant.
+## The following values may currently be returned:
+##
+## * `'android'`
+## * `'bitrig'`
+## * `'dragonfly'`
+## * `'freebsd'`
+## * `'ios'`
+## * `'linux'`
+## * `'macos'`
+## * `'netbsd'`
+## * `'openbsd'`
+## * `'unix'`
+## * `'unknown'`
+## * `'windows'`
+##
+## The value `'unknown'` will be returned if the platform is not recognised.
+## `'unix'` might be returned for an unrecognised Unix (like) platform.
 ##
 ## # Examples
 ##
@@ -13,9 +26,9 @@ let PLATFORMS = ['windows', 'unix', 'other']
 ##
 ##     import std::os
 ##
-##     os.platform # => 'unix'
+##     os.platform # => 'linux'
 def platform -> String {
-  *PLATFORMS[_INKOC.platform]
+  _INKOC.platform
 }
 
 ## Returns `True` if the program is currently running on Windows.

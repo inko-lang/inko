@@ -42,6 +42,7 @@ pub mod numeric;
 pub mod object;
 pub mod object_pointer;
 pub mod object_value;
+pub mod platform;
 pub mod pool;
 pub mod pools;
 pub mod prefetch;

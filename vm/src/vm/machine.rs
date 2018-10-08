@@ -30,6 +30,7 @@ use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use numeric::modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
+use platform;
 use pool::{Job, JoinGuard as PoolJoinGuard, Worker, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::{Process, ProcessStatus, RcProcess};
@@ -1948,18 +1949,11 @@ impl Machine {
                 InstructionType::Platform => {
                     let register = instruction.arg(0);
 
-                    let platform = if cfg!(windows) {
-                        0
-                    } else if cfg!(unix) {
-                        1
-                    } else {
-                        2
-                    };
+                    let platform = self
+                        .state
+                        .intern(&platform::operating_system().to_string());
 
-                    context.set_register(
-                        register,
-                        ObjectPointer::integer(platform),
-                    );
+                    context.set_register(register, platform);
                 }
                 InstructionType::FileCopy => {
                     let register = instruction.arg(0);

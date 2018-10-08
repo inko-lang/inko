@@ -1530,7 +1530,7 @@ module Inkoc
       end
 
       def on_raw_platform(*)
-        typedb.integer_type.new_instance
+        typedb.string_type.new_instance
       end
 
       def on_raw_hasher_new(*)
