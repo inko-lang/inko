@@ -8,14 +8,25 @@
 #! file is opened in. For example, when opening a file in read-only mode you
 #! will be given a `ReadOnlyFile` object while opening a file in write-only mode
 #! produces a `WriteOnlyFile` object.
-
 import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
-import std::reflection
+
+## A file that can only be used for read operations.
+let ReadOnlyFile = _INKOC.get_read_only_file_prototype
+
+## A file that can only be used for write (or append) operations.
+let WriteOnlyFile = _INKOC.get_write_only_file_prototype
+
+## A file that can be used for both read and write operations.
+let ReadWriteFile = _INKOC.get_read_write_file_prototype
+
+_INKOC.set_object_name(ReadOnlyFile, 'ReadOnlyFile')
+_INKOC.set_object_name(WriteOnlyFile, 'WriteOnlyFile')
+_INKOC.set_object_name(ReadWriteFile, 'ReadWriteFile')
 
 ## Trait for returning the file path of a file object.
 trait FilePath {
@@ -29,8 +40,7 @@ trait Remove {
   def remove !! IOError -> Nil
 }
 
-## A file that can only be used for read operations.
-object ReadOnlyFile impl Read, Seek, Size, FilePath, Close {
+impl ReadOnlyFile {
   ## Returns a new `ReadOnlyFile`.
   ##
   ## # Examples
@@ -46,8 +56,6 @@ object ReadOnlyFile impl Read, Seek, Size, FilePath, Close {
       raw.open(path: conv_path.to_string, mode: READ_ONLY)
     } as ReadOnlyFile
 
-    reflection.set_prototype(file, self)
-
     file.init(conv_path)
     file
   }
@@ -55,30 +63,39 @@ object ReadOnlyFile impl Read, Seek, Size, FilePath, Close {
   def init(path: Path) {
     let @path = path
   }
+}
 
+impl Read for ReadOnlyFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
     try raw.read_bytes(file: self, bytes: bytes, size: size)
   }
+}
 
+impl Seek for ReadOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
     try raw.seek(self, position)
   }
+}
 
+impl Size for ReadOnlyFile {
   def size !! IOError -> Integer {
     try raw.size(@path.to_string)
   }
+}
 
+impl FilePath for ReadOnlyFile {
   def path -> Path {
     @path
   }
+}
 
+impl Close for ReadOnlyFile {
   def close -> Nil {
     _INKOC.drop(self)
   }
 }
 
-## A file that can only be used for write (or append) operations.
-object WriteOnlyFile impl Write, Seek, Size, FilePath, Close, Remove {
+impl WriteOnlyFile {
   ## Returns a new `WriteOnlyFile`.
   ##
   ## # Examples
@@ -95,8 +112,6 @@ object WriteOnlyFile impl Write, Seek, Size, FilePath, Close, Remove {
       raw.open(path: conv_path.to_string, mode: mode)
     } as WriteOnlyFile
 
-    reflection.set_prototype(file, self)
-
     file.init(conv_path)
     file
   }
@@ -104,7 +119,9 @@ object WriteOnlyFile impl Write, Seek, Size, FilePath, Close, Remove {
   def init(path: Path) {
     let @path = path
   }
+}
 
+impl Write for WriteOnlyFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
     try raw.write_bytes(file: self, bytes: bytes)
   }
@@ -116,30 +133,39 @@ object WriteOnlyFile impl Write, Seek, Size, FilePath, Close, Remove {
   def flush !! IOError -> Nil {
     try raw.flush(self)
   }
+}
 
+impl Seek for WriteOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
     try raw.seek(self, position)
   }
+}
 
+impl Size for WriteOnlyFile {
   def size !! IOError -> Integer {
     try raw.size(@path.to_string)
   }
+}
 
+impl FilePath for WriteOnlyFile {
   def path -> Path {
     @path
   }
+}
 
+impl Close for WriteOnlyFile {
   def close -> Nil {
     _INKOC.drop(self)
   }
+}
 
+impl Remove for WriteOnlyFile {
   def remove !! IOError -> Nil {
     try ThisModule.remove(@path)
   }
 }
 
-## A file that can be used for both read and write operations.
-object ReadWriteFile impl Read, Write, Seek, Size, FilePath, Close, Remove {
+impl ReadWriteFile {
   ## Returns a new `ReadWriteFile`.
   ##
   ## # Examples
@@ -156,8 +182,6 @@ object ReadWriteFile impl Read, Write, Seek, Size, FilePath, Close, Remove {
       raw.open(path: conv_path.to_string, mode: mode)
     } as ReadWriteFile
 
-    reflection.set_prototype(file, self)
-
     file.init(conv_path)
     file
   }
@@ -165,11 +189,15 @@ object ReadWriteFile impl Read, Write, Seek, Size, FilePath, Close, Remove {
   def init(path: Path) {
     let @path = path
   }
+}
 
+impl Read for ReadWriteFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
     try raw.read_bytes(file: self, bytes: bytes, size: size)
   }
+}
 
+impl Write for ReadWriteFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
     try raw.write_bytes(file: self, bytes: bytes)
   }
@@ -181,23 +209,33 @@ object ReadWriteFile impl Read, Write, Seek, Size, FilePath, Close, Remove {
   def flush !! IOError -> Nil {
     try raw.flush(self)
   }
+}
 
+impl Seek for ReadWriteFile {
   def seek(position: Integer) !! IOError -> Integer {
     try raw.seek(self, position)
   }
+}
 
+impl Size for ReadWriteFile {
   def size !! IOError -> Integer {
     try raw.size(@path.to_string)
   }
+}
 
+impl FilePath for ReadWriteFile {
   def path -> Path {
     @path
   }
+}
 
+impl Close for ReadWriteFile {
   def close -> Nil {
     _INKOC.drop(self)
   }
+}
 
+impl Remove for ReadWriteFile {
   def remove !! IOError -> Nil {
     try ThisModule.remove(@path)
   }

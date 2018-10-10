@@ -3,30 +3,28 @@
 //! Each virtual machine has its own state. This state includes any scheduled
 //! garbage collections, the configuration, the files that have been parsed,
 //! etc.
-
-use num_bigint::BigInt;
-use parking_lot::Mutex;
-use std::panic::RefUnwindSafe;
-use std::sync::{Arc, RwLock};
-use std::time;
-
-use gc::request::Request;
-
 use config::Config;
 use deref_pointer::DerefPointer;
+use gc::request::Request;
 use immix::block::Block;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use immix::permanent_allocator::PermanentAllocator;
+use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
 use object_value;
+use parking_lot::Mutex;
 use pool::Pool;
 use pools::Pools;
 use process::RcProcess;
 use process_table::ProcessTable;
+use std::panic::RefUnwindSafe;
+use std::sync::{Arc, RwLock};
+use std::time;
 use string_pool::StringPool;
 use suspension_list::SuspensionList;
 
+/// A reference counted State.
 pub type RcState = Arc<State>;
 
 macro_rules! intern_string {
@@ -123,6 +121,21 @@ pub struct State {
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
 
+    /// The prototype for read-only files.
+    pub read_only_file_prototype: ObjectPointer,
+
+    /// The prototype for write-only files.
+    pub write_only_file_prototype: ObjectPointer,
+
+    /// The prototype for read-write files.
+    pub read_write_file_prototype: ObjectPointer,
+
+    /// The prototype for byte arrays.
+    pub byte_array_prototype: ObjectPointer,
+
+    /// The prototype for hashers.
+    pub hasher_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -156,6 +169,11 @@ impl State {
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
+        let read_only_file_prototype = perm_alloc.allocate_empty();
+        let write_only_file_prototype = perm_alloc.allocate_empty();
+        let read_write_file_prototype = perm_alloc.allocate_empty();
+        let byte_array_prototype = perm_alloc.allocate_empty();
+        let hasher_prototype = perm_alloc.allocate_empty();
 
         {
             top_level.set_prototype(object_proto);
@@ -169,6 +187,12 @@ impl State {
             nil_obj.set_prototype(object_proto);
             true_obj.set_prototype(boolean_proto);
             false_obj.set_prototype(boolean_proto);
+
+            read_only_file_prototype.set_prototype(object_proto);
+            write_only_file_prototype.set_prototype(object_proto);
+            read_write_file_prototype.set_prototype(object_proto);
+            byte_array_prototype.set_prototype(object_proto);
+            hasher_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
@@ -204,6 +228,11 @@ impl State {
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
             default_panic_handler: ObjectPointer::null(),
+            read_only_file_prototype,
+            write_only_file_prototype,
+            read_write_file_prototype,
+            byte_array_prototype,
+            hasher_prototype,
         };
 
         for argument in arguments {
@@ -302,6 +331,33 @@ impl State {
             Some(handler)
         }
     }
+
+    /// Returns a prototype for the given numeric ID.
+    ///
+    /// This method operates on an i64 instead of some sort of enum, as enums
+    /// can not be represented in Inko code.
+    pub fn prototype_for_identifier(
+        &self,
+        id: i64,
+    ) -> Result<ObjectPointer, String> {
+        let proto = match id {
+            0 => self.object_prototype,
+            1 => self.integer_prototype,
+            2 => self.float_prototype,
+            3 => self.string_prototype,
+            4 => self.array_prototype,
+            5 => self.block_prototype,
+            6 => self.boolean_prototype,
+            7 => self.read_only_file_prototype,
+            8 => self.write_only_file_prototype,
+            9 => self.read_write_file_prototype,
+            10 => self.byte_array_prototype,
+            11 => self.hasher_prototype,
+            _ => return Err(format!("Invalid prototype identifier: {}", id)),
+        };
+
+        Ok(proto)
+    }
 }
 
 #[cfg(test)]
@@ -347,5 +403,20 @@ mod tests {
         let float = state.allocate_permanent_float(10.5);
 
         assert_eq!(float.float_value().unwrap(), 10.5);
+    }
+
+    #[test]
+    fn test_prototype_for_identifier() {
+        let state = State::new(Config::new(), &[]);
+
+        assert!(
+            state.prototype_for_identifier(2).unwrap() == state.float_prototype
+        );
+
+        assert!(
+            state.prototype_for_identifier(5).unwrap() == state.block_prototype
+        );
+
+        assert!(state.prototype_for_identifier(-1).is_err());
     }
 }

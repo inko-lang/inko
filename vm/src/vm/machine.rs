@@ -458,41 +458,14 @@ impl Machine {
 
                     context.set_register(register, obj);
                 }
-                InstructionType::GetIntegerPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.integer_prototype,
-                    );
-                }
-                InstructionType::GetFloatPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.float_prototype,
-                    );
-                }
-                InstructionType::GetStringPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.string_prototype,
-                    );
-                }
-                InstructionType::GetArrayPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.array_prototype,
-                    );
-                }
-                InstructionType::GetBlockPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.block_prototype,
-                    );
-                }
-                InstructionType::GetObjectPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.object_prototype,
-                    );
+                InstructionType::GetBuiltinPrototype => {
+                    let reg = instruction.arg(0);
+                    let id = context.get_register(instruction.arg(1));
+                    let proto = self
+                        .state
+                        .prototype_for_identifier(id.integer_value()?)?;
+
+                    context.set_register(reg, proto);
                 }
                 InstructionType::GetTrue => {
                     context.set_register(
@@ -973,7 +946,7 @@ impl Machine {
 
                     let obj = process.allocate(
                         object_value::byte_array(bytes),
-                        self.state.object_prototype,
+                        self.state.byte_array_prototype,
                     );
 
                     context.set_register(register, obj);
@@ -1099,13 +1072,15 @@ impl Machine {
                     let path = path_ptr.string_value()?;
                     let mode = mode_ptr.integer_value()?;
                     let open_opts = file_open_mode::options_for_integer(mode)?;
+                    let prototype = file_open_mode::prototype_for_open_mode(
+                        &self.state,
+                        mode,
+                    )?;
 
                     match open_opts.open(path) {
                         Ok(file) => {
-                            let obj = process.allocate(
-                                object_value::file(file),
-                                self.state.object_prototype,
-                            );
+                            let obj = process
+                                .allocate(object_value::file(file), prototype);
 
                             context.set_register(register, obj);
                         }
@@ -2110,7 +2085,7 @@ impl Machine {
                     let register = instruction.arg(0);
                     let pointer = process.allocate(
                         object_value::hasher(Hasher::new()),
-                        self.state.object_prototype,
+                        self.state.hasher_prototype,
                     );
 
                     context.set_register(register, pointer);
@@ -2270,7 +2245,7 @@ impl Machine {
 
                     let pointer = process.allocate(
                         object_value::byte_array(bytes),
-                        self.state.object_prototype,
+                        self.state.byte_array_prototype,
                     );
 
                     context.set_register(register, pointer);
@@ -2398,12 +2373,6 @@ impl Machine {
                     );
 
                     context.set_register(register, obj);
-                }
-                InstructionType::GetBooleanPrototype => {
-                    context.set_register(
-                        instruction.arg(0),
-                        self.state.boolean_prototype,
-                    );
                 }
                 InstructionType::EnvGet => {
                     let reg = instruction.arg(0);

@@ -191,9 +191,7 @@ module Inkoc
       end
 
       def on_integer(node, body)
-        register = body.register(typedb.integer_type)
-
-        body.instruct(:SetLiteral, register, node.value, node.location)
+        set_integer(node.value, body, node.location)
       end
 
       def on_float(node, body)
@@ -796,6 +794,13 @@ module Inkoc
         body.instruct(:Ternary, name, register, one, two, three, node.location)
       end
 
+      def builtin_prototype_instruction(id, node, body)
+        id_reg = set_integer(id, body, node.location)
+        reg = body.register(node.type)
+
+        body.instruct(:Unary, :GetBuiltinPrototype, reg, id_reg, node.location)
+      end
+
       def on_raw_get_toplevel(node, body)
         get_toplevel(body, node.location)
       end
@@ -1033,27 +1038,27 @@ module Inkoc
       end
 
       def on_raw_get_string_prototype(node, body)
-        raw_nullary_instruction(:GetStringPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::STRING, node, body)
       end
 
       def on_raw_get_integer_prototype(node, body)
-        raw_nullary_instruction(:GetIntegerPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::INTEGER, node, body)
       end
 
       def on_raw_get_float_prototype(node, body)
-        raw_nullary_instruction(:GetFloatPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::FLOAT, node, body)
       end
 
       def on_raw_get_object_prototype(node, body)
-        raw_nullary_instruction(:GetObjectPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::OBJECT, node, body)
       end
 
       def on_raw_get_array_prototype(node, body)
-        raw_nullary_instruction(:GetArrayPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::ARRAY, node, body)
       end
 
       def on_raw_get_block_prototype(node, body)
-        raw_nullary_instruction(:GetBlockPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::BLOCK, node, body)
       end
 
       def on_raw_array_length(node, body)
@@ -1333,7 +1338,36 @@ module Inkoc
       end
 
       def on_raw_get_boolean_prototype(node, body)
-        raw_nullary_instruction(:GetBooleanPrototype, node, body)
+        builtin_prototype_instruction(PrototypeID::BOOLEAN, node, body)
+      end
+
+      def on_raw_get_read_only_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::READ_ONLY_FILE, node, body)
+      end
+
+      def on_raw_get_write_only_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::WRITE_ONLY_FILE, node, body)
+      end
+
+      def on_raw_get_read_write_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::READ_WRITE_FILE, node, body)
+      end
+
+      def on_raw_get_byte_array_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
+      end
+
+      def on_raw_get_hasher_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::HASHER, node, body)
+      end
+
+      def on_raw_set_object_name(node, body)
+        loc = node.location
+        obj = process_node(node.arguments.fetch(0), body)
+        val = process_node(node.arguments.fetch(1), body)
+        name = set_string(Config::OBJECT_NAME_INSTANCE_ATTRIBUTE, body, loc)
+
+        set_attribute(obj, name, val, body, loc)
       end
 
       def on_raw_current_file_path(node, body)
@@ -1655,6 +1689,12 @@ module Inkoc
 
       def set_string(value, body, location)
         register = body.register(typedb.string_type)
+
+        body.instruct(:SetLiteral, register, value, location)
+      end
+
+      def set_integer(value, body, location)
+        register = body.register(typedb.integer_type)
 
         body.instruct(:SetLiteral, register, value, location)
       end

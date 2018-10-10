@@ -1466,7 +1466,7 @@ module Inkoc
       end
 
       def on_raw_file_open(*)
-        typedb.file_type.new_instance
+        TypeSystem::Dynamic.new
       end
 
       def on_raw_file_read(*)
@@ -1597,6 +1597,30 @@ module Inkoc
 
       def on_raw_get_boolean_prototype(*)
         typedb.boolean_type.new_instance
+      end
+
+      def on_raw_get_read_only_file_prototype(*)
+        typedb.read_only_file_type.new_instance
+      end
+
+      def on_raw_get_write_only_file_prototype(*)
+        typedb.write_only_file_type.new_instance
+      end
+
+      def on_raw_get_read_write_file_prototype(*)
+        typedb.read_write_file_type.new_instance
+      end
+
+      def on_raw_get_byte_array_prototype(*)
+        typedb.byte_array_type.new_instance
+      end
+
+      def on_raw_get_hasher_prototype(*)
+        typedb.hasher_type.new_instance
+      end
+
+      def on_raw_set_object_name(*)
+        typedb.string_type.new_instance
       end
 
       def on_raw_current_file_path(*)

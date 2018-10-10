@@ -9,11 +9,7 @@ module Inkoc
         SetLiteral
         SetObject
         SetArray
-        GetIntegerPrototype
-        GetFloatPrototype
-        GetStringPrototype
-        GetArrayPrototype
-        GetBlockPrototype
+        GetBuiltinPrototype
         GetTrue
         GetFalse
         SetLocal
@@ -101,7 +97,6 @@ module Inkoc
         FloatSmallerOrEqual
         ObjectIsKindOf
         CopyBlocks
-        GetObjectPrototype
         SetAttributeToObject
         PrototypeChainAttributeContains
         FloatIsNan
@@ -144,7 +139,6 @@ module Inkoc
         ByteArrayClear
         ByteArrayEquals
         ByteArrayToString
-        GetBooleanPrototype
         EnvGet
         EnvSet
         EnvVariables

@@ -1,6 +1,6 @@
 import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
 import std::format::DefaultFormatter
-import std::hash_map::DefaultHasher
+import std::hasher::DefaultHasher
 import std::test
 import std::test::assert
 

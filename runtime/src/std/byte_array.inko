@@ -17,14 +17,12 @@ import std::length::Length
 import std::operators::Equal
 import std::reflection
 
-object ByteArray
-  impl ToArray!(Integer),
-       ToString,
-       Equal,
-       Length,
-       Index!(Integer, Integer),
-       SetIndex!(Integer, Integer),
-       Inspect {
+## A mutable sequence of bytes, similar to an `Array`.
+let ByteArray = _INKOC.get_byte_array_prototype
+
+_INKOC.set_object_name(ByteArray, 'ByteArray')
+
+impl ByteArray {
   ## Creates a new `ByteArray` from the given `Array` of `Integer` values.
   ##
   ## This method will panic if any of the integers in the `bytes` array are not
@@ -193,6 +191,29 @@ object ByteArray
     }
   }
 
+  ## Returns a new `String` using the bytes in this `ByteArray`, draining it in
+  ## the process.
+  ##
+  ## After this method is finished, `self` is left empty. This allows one to
+  ## convert a temporary `ByteArray` into a `String`, without requiring the list
+  ## of bytes to be allocated twice.
+  ##
+  ## # Examples
+  ##
+  ## Draining a `ByteArray` into a `String`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##
+  ##     bytes.drain_to_string # => 'inko'
+  ##     bytes.empty?          # => True
+  def drain_to_string -> String {
+    _INKOC.byte_array_to_string(self, True)
+  }
+}
+
+impl Index!(Integer, Integer) for ByteArray {
   ## Returns the byte at the given index, or Nil if no value was found.
   ##
   ## # Examples
@@ -220,7 +241,9 @@ object ByteArray
         _INKOC.byte_array_at(self, index)
       }
   }
+}
 
+impl SetIndex!(Integer, Integer) for ByteArray {
   ## Stores a byte at the given index, then returns it.
   ##
   ## Because there are no sensible values that can be used for padding a
@@ -240,7 +263,9 @@ object ByteArray
   def []=(index: Integer, value: Integer) -> Integer {
     _INKOC.byte_array_set(self, index, value)
   }
+}
 
+impl ToString for ByteArray {
   ## Returns a new `String` using the bytes in this `ByteArray`.
   ##
   ## Any invalid UTF-8 sequences will be replaced with `U+FFFD REPLACEMENT
@@ -258,28 +283,9 @@ object ByteArray
   def to_string -> String {
     _INKOC.byte_array_to_string(self, False)
   }
+}
 
-  ## Returns a new `String` using the bytes in this `ByteArray`, draining it in
-  ## the process.
-  ##
-  ## After this method is finished, `self` is left empty. This allows one to
-  ## convert a temporary `ByteArray` into a `String`, without requiring the list
-  ## of bytes to be allocated twice.
-  ##
-  ## # Examples
-  ##
-  ## Draining a `ByteArray` into a `String`:
-  ##
-  ##     import std::byte_array::ByteArray
-  ##
-  ##     let bytes = ByteArray.new([105, 110, 107, 111])
-  ##
-  ##     bytes.drain_to_string # => 'inko'
-  ##     bytes.empty?          # => True
-  def drain_to_string -> String {
-    _INKOC.byte_array_to_string(self, True)
-  }
-
+impl ToArray!(Integer) for ByteArray {
   ## Converts the `ByteArray` to an `Array!(Integer)`.
   ##
   ## It is recommended to not use this method for very large byte arrays, as
@@ -310,7 +316,9 @@ object ByteArray
 
     integers
   }
+}
 
+impl Equal for ByteArray {
   ## Returns `True` if two `ByteArray` objects are equal to each other.
   ##
   ## Two `ByteArray` objects are considered equal if they have the exact same
@@ -327,7 +335,9 @@ object ByteArray
   def ==(other: ByteArray) -> Boolean {
     _INKOC.byte_array_equals(self, other)
   }
+}
 
+impl Length for ByteArray {
   ## Returns the number of bytes in this `ByteArray`.
   ##
   ## # Examples
@@ -341,7 +351,9 @@ object ByteArray
   def length -> Integer {
     _INKOC.byte_array_length(self)
   }
+}
 
+impl Inspect for ByteArray {
   ## Formats this `ByteArray` into a human-readable representation.
   def format_for_inspect(formatter: Formatter) {
     formatter.push('ByteArray { ')

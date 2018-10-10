@@ -1,49 +1,13 @@
 #! A hash map using linear probing and Robin Hood bucket stealing.
-
 import std::hash::(Hash, Hasher)
+import std::hasher::DefaultHasher
 import std::index::(Index, SetIndex)
 import std::iterator::(Iterator as IteratorTrait)
 import std::length::Length
 import std::operators::Equal
-import std::reflection
 
 # The load factor of a Table before it should be resized.
 let LOAD_FACTOR = 0.75
-
-## The default `Hasher` for a `HashMap`.
-##
-## Different instances of a `DefaultHasher` may produce different hash values
-## for the same object. The internal hashing algorithm may also change, and so
-## the exact hash values should not be relied upon.
-##
-## Internally this hasher uses the hashing instructions provided by IVM, which
-## currently uses SipHash 1-3.
-object DefaultHasher {
-  def new -> Self {
-    let hasher = _INKOC.hasher_new
-
-    reflection.set_prototype(hasher, self)
-
-    # The compiler is not aware that at this point "hasher" is compatible with
-    # DefaultHasher, so a regular cast will not work. We can work around this by
-    # first cashing the hasher to Dynamic, then cast it to our desired type.
-    hasher as Dynamic as DefaultHasher
-  }
-}
-
-impl Hasher for DefaultHasher {
-  def write_integer(value: Integer) {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def write_float(value: Float) {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def finish -> Integer {
-    _INKOC.hasher_finish(self)
-  }
-}
 
 ## A single key-value pair
 object Pair!(K: Hash + Equal, V) {
