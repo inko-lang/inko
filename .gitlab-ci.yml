@@ -145,18 +145,16 @@ lint:versions:
     - bash scripts/versions.sh
 
 build:ivm:linux:
-  image: rust:latest
+  image: alpine:edge
   stage: build
   before_script:
     - cd vm
+    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool
     - rustc --version
     - cargo --version
-    - rustup target add x86_64-unknown-linux-musl
-    - apt-get update -q
-    - apt-get install -y -q build-essential autoconf texinfo automake clang musl-tools
   script:
-    - make release ARCH=x86_64-linux-musl TARGET=x86_64-unknown-linux-musl
-    - mv target/x86_64-unknown-linux-musl/release/ivm ../ivm
+    - make release
+    - mv target/release/ivm ../ivm
     - strip ../ivm
   cache:
     paths:
@@ -188,11 +186,10 @@ build:ivm:macos:
       - ivm
 
 test:runtime:linux:
-  image: ruby:2.4-slim
+  image: alpine:edge
   stage: test-runtime
   before_script:
-    - apt-get update -q
-    - apt-get install -y -q build-essential
+    - apk add --update build-base ruby
     - ruby --version
     - ./ivm --version
     - ./ivm --features
@@ -245,17 +242,14 @@ release:compiled:linux-gnu:
       - .cargo
 
 release:compiled:linux-musl:
-  image: rust:latest
+  image: alpine:edge
   stage: release
   before_script:
-    - apt-get update -q
-    - apt-get install -y -q build-essential python-pip ruby-full git bash autoconf texinfo automake clang musl-tools
-    - pip install awscli
+    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool aws-cli git bash ruby grep
     - ruby --version
     - rustc --version
     - cargo --version
     - aws --version
-    - rustup target add x86_64-unknown-linux-musl
   script:
     - make release-compiled
   only:
@@ -269,8 +263,6 @@ release:compiled:macos:
   tags:
     - macos
   before_script:
-    - apt-get install -y -q build-essential python-pip ruby-full git bash
-    - pip install awscli
     - ruby --version
     - rustc --version
     - cargo --version
