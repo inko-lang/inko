@@ -163,6 +163,10 @@ impl Process {
         self.local_data_mut().thread_id = None;
     }
 
+    pub fn is_pinned(&self) -> bool {
+        self.thread_id().is_some()
+    }
+
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn local_data_mut(&self) -> &mut LocalData {
         unsafe { &mut *self.local_data.get() }

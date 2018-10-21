@@ -19,7 +19,7 @@ fn test_set_array() {
     process.set_register(0, value1);
     process.set_register(1, value2);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(2);
     let object = pointer.get();
@@ -53,7 +53,7 @@ fn test_array_set() {
     process.set_register(1, index);
     process.set_register(2, value);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(3);
 
@@ -79,7 +79,7 @@ fn test_array_at() {
     process.set_register(0, array);
     process.set_register(1, index);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(2);
 
@@ -105,7 +105,7 @@ fn test_array_remove() {
     process.set_register(0, array);
     process.set_register(1, index);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let removed_pointer = process.get_register(2);
 
@@ -129,7 +129,7 @@ fn test_array_length() {
 
     process.set_register(0, array);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(1);
 
@@ -152,7 +152,7 @@ fn test_array_clear() {
 
     process.set_register(0, array);
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let object = array.get();
 

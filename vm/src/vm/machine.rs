@@ -359,14 +359,17 @@ impl Machine {
     /// Executes a single process, terminating in the event of an error.
     pub fn run_with_error_handling(
         &self,
-        worker: &Worker,
+        worker: &mut Worker,
         process: &RcProcess,
     ) {
-        let result = panic::catch_unwind(|| {
+        // We are using AssertUnwindSafe here so we can pass a &mut Worker to
+        // run()/panic(). This might be risky if values captured are not unwind
+        // safe, so take care when capturing new variables.
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
             if let Err(message) = self.run(worker, process) {
                 self.panic(worker, process, &message);
             }
-        });
+        }));
 
         if let Err(error) = result {
             if let Ok(message) = error.downcast::<String>() {
@@ -385,7 +388,7 @@ impl Machine {
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn run(
         &self,
-        worker: &Worker,
+        worker: &mut Worker,
         process: &RcProcess,
     ) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
@@ -2583,6 +2586,8 @@ impl Machine {
                         self.state.true_object
                     };
 
+                    worker.pin();
+
                     context.set_register(reg, result);
                 }
                 InstructionType::ProcessUnpinThread => {
@@ -2590,12 +2595,22 @@ impl Machine {
 
                     process.unset_thread_id();
 
+                    worker.unpin();
+
                     context.set_register(reg, self.state.nil_object);
                 }
             };
         }
 
         process.finished();
+
+        if process.is_pinned() {
+            // A pinned process can only run on the corresponding worker.
+            // Because pinned workers won't run already unpinned processes, and
+            // because processes can't be pinned until they run, this means
+            // there will only ever be one process that triggers this code.
+            worker.unpin();
+        }
 
         write_lock!(self.state.process_table).release(process.pid);
 
@@ -2830,7 +2845,7 @@ impl Machine {
         }
     }
 
-    fn panic(&self, worker: &Worker, process: &RcProcess, message: &str) {
+    fn panic(&self, worker: &mut Worker, process: &RcProcess, message: &str) {
         let handler_opt = process
             .panic_handler()
             .cloned()
@@ -2853,7 +2868,7 @@ impl Machine {
     /// panic handler.
     fn run_custom_panic_handler(
         &self,
-        worker: &Worker,
+        worker: &mut Worker,
         process: &RcProcess,
         message: &str,
         handler: ObjectPointer,

@@ -105,11 +105,18 @@ pub struct Worker {
     ///
     /// Workers across different pools may have the same ID.
     pub thread_id: u8,
+
+    /// A boolean indicating if this worker should only process jobs pinned to
+    /// this worker.
+    pub only_pinned: bool,
 }
 
 impl Worker {
     pub fn new(thread_id: u8) -> Self {
-        Worker { thread_id }
+        Worker {
+            thread_id,
+            only_pinned: false,
+        }
     }
 
     pub fn queue_index(&self) -> usize {
@@ -121,8 +128,16 @@ impl Worker {
         if let Some(job_thread_id) = job.thread_id {
             self.thread_id == job_thread_id
         } else {
-            true
+            !self.only_pinned
         }
+    }
+
+    pub fn pin(&mut self) {
+        self.only_pinned = true;
+    }
+
+    pub fn unpin(&mut self) {
+        self.only_pinned = false;
     }
 }
 
@@ -162,7 +177,7 @@ impl<T: Send + 'static> Pool<T> {
     /// job.
     pub fn run<F>(&self, closure: F) -> JoinGuard<()>
     where
-        F: Fn(&Worker, T) + Sync + Send + 'static,
+        F: Fn(&mut Worker, T) + Sync + Send + 'static,
     {
         let arc_closure = ArcWithoutWeak::new(closure);
         let amount = self.inner.queues.len();
@@ -178,9 +193,9 @@ impl<T: Send + 'static> Pool<T> {
             }
 
             let result = builder.spawn(move || {
-                let worker = Worker::new(idx as u8);
+                let mut worker = Worker::new(idx as u8);
 
-                inner.process(&worker, &closure)
+                inner.process(&mut worker, &closure)
             });
 
             handles.push(result.unwrap());
@@ -226,14 +241,22 @@ impl<T: Send + 'static> PoolInner<T> {
     }
 
     /// Processes jobs from a queue.
-    pub fn process<F>(&self, worker: &Worker, closure: &ArcWithoutWeak<F>)
+    pub fn process<F>(&self, worker: &mut Worker, closure: &ArcWithoutWeak<F>)
     where
-        F: Fn(&Worker, T) + Sync + Send + 'static,
+        F: Fn(&mut Worker, T) + Sync + Send + 'static,
     {
         let queue = &self.queues[worker.queue_index()];
 
         while !queue.should_terminate() {
-            let job = if let Some(job) = queue.pop_nonblock() {
+            let job = if worker.only_pinned {
+                // Pinned jobs are scheduled directly onto our queue, so we
+                // don't need nor want to pop jobs from other queues.
+                if let Ok(job) = queue.pop() {
+                    job
+                } else {
+                    break;
+                }
+            } else if let Some(job) = queue.pop_nonblock() {
                 job
             } else if let Some(job) = self.steal_excluding(&worker) {
                 job
@@ -248,11 +271,15 @@ impl<T: Send + 'static> PoolInner<T> {
             if worker.should_process(&job) {
                 // Only process the job if it is pinned to our thread, or if it
                 // is not pinned at all.
-                closure(&worker, job.value);
+                closure(worker, job.value);
             } else if let Some(pinned_id) = job.thread_id {
                 // Pinned jobs should be pushed back into the queue of the
                 // owning thread.
                 self.queues[pinned_id as usize].push(job);
+            } else {
+                // It's possible a job pinned this worker, but there are still
+                // unpinned jobs. We do not want to process those jobs.
+                self.global_queue.push(job);
             }
         }
     }
@@ -425,7 +452,7 @@ mod tests {
         let t_counter = counter.clone();
         let t_started = started.clone();
 
-        let closure = ArcWithoutWeak::new(move |_: &Worker, number| {
+        let closure = ArcWithoutWeak::new(move |_: &mut Worker, number| {
             t_started.store(true, Ordering::Release);
             t_counter.fetch_add(number, Ordering::Relaxed);
         });
@@ -433,8 +460,9 @@ mod tests {
         inner.queues[0].push(Job::normal(1));
 
         let t_closure = closure.clone();
-        let handle =
-            thread::spawn(move || t_inner.process(&Worker::new(0), &t_closure));
+        let handle = thread::spawn(move || {
+            t_inner.process(&mut Worker::new(0), &t_closure)
+        });
 
         wait_while!(!started.load(Ordering::Acquire));
 
@@ -444,6 +472,78 @@ mod tests {
         handle.join().unwrap();
 
         assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_pool_inner_process_pinned_worker_with_pinned_job() {
+        let inner = ArcWithoutWeak::new(PoolInner::new(1));
+        let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
+        let started = ArcWithoutWeak::new(AtomicBool::new(false));
+
+        let t_inner = inner.clone();
+        let t_counter = counter.clone();
+        let t_started = started.clone();
+
+        let closure = ArcWithoutWeak::new(move |_: &mut Worker, number| {
+            t_started.store(true, Ordering::Release);
+            t_counter.fetch_add(number, Ordering::Relaxed);
+        });
+
+        inner.queues[0].push(Job::pinned(1, 0));
+
+        let t_closure = closure.clone();
+        let mut worker = Worker::new(0);
+
+        worker.pin();
+
+        let handle =
+            thread::spawn(move || t_inner.process(&mut worker, &t_closure));
+
+        wait_while!(!started.load(Ordering::Acquire));
+
+        inner.global_queue.terminate_queue();
+        inner.queues[0].terminate_queue();
+
+        handle.join().unwrap();
+
+        assert_eq!(counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_pool_inner_process_pinned_worker_with_regular_job() {
+        let inner = ArcWithoutWeak::new(PoolInner::new(1));
+        let counter = ArcWithoutWeak::new(AtomicUsize::new(0));
+        let started = ArcWithoutWeak::new(AtomicBool::new(false));
+
+        let t_inner = inner.clone();
+        let t_counter = counter.clone();
+        let t_started = started.clone();
+
+        let closure = ArcWithoutWeak::new(move |_: &mut Worker, number| {
+            t_counter.fetch_add(number, Ordering::Relaxed);
+        });
+
+        inner.queues[0].push(Job::normal(1));
+
+        let t_closure = closure.clone();
+        let mut worker = Worker::new(0);
+
+        worker.pin();
+
+        let handle = thread::spawn(move || {
+            t_started.store(true, Ordering::Release);
+            t_inner.process(&mut worker, &t_closure)
+        });
+
+        wait_while!(!started.load(Ordering::Acquire));
+
+        inner.global_queue.terminate_queue();
+        inner.queues[0].terminate_queue();
+
+        handle.join().unwrap();
+
+        assert_eq!(counter.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.global_queue.len(), 1);
     }
 
     #[test]
@@ -494,5 +594,58 @@ mod tests {
 
         assert_eq!(inner.global_queue.pop().unwrap().value, 10);
         assert_eq!(inner.queues[1].pop().unwrap().value, 20);
+    }
+
+    #[test]
+    fn test_worker_queue_index() {
+        let worker = Worker::new(4);
+
+        assert_eq!(worker.queue_index(), 4);
+    }
+
+    #[test]
+    fn test_worker_should_process_regular_job() {
+        let worker = Worker::new(0);
+        let job = Job::normal(10);
+
+        assert!(worker.should_process(&job));
+    }
+
+    #[test]
+    fn test_worker_should_process_pinned_job() {
+        let worker0 = Worker::new(0);
+        let worker1 = Worker::new(1);
+        let job = Job::pinned(10, 1);
+
+        assert_eq!(worker0.should_process(&job), false);
+        assert!(worker1.should_process(&job));
+    }
+
+    #[test]
+    fn test_worker_should_process_pinned_worker() {
+        let mut worker = Worker::new(0);
+
+        worker.pin();
+
+        let job0 = Job::pinned(10, 0);
+        let job1 = Job::normal(10);
+
+        assert!(worker.should_process(&job0));
+        assert_eq!(worker.should_process(&job1), false);
+    }
+
+    #[test]
+    fn test_worker_pinning() {
+        let mut worker = Worker::new(0);
+
+        assert_eq!(worker.only_pinned, false);
+
+        worker.pin();
+
+        assert!(worker.only_pinned);
+
+        worker.unpin();
+
+        assert_eq!(worker.only_pinned, false);
     }
 }

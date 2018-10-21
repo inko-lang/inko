@@ -14,7 +14,7 @@ fn test_set_literal() {
 
     block.code.literals.push(ObjectPointer::integer(10));
 
-    machine.run(&Worker::new(0), &process).unwrap();
+    machine.run(&mut Worker::new(0), &process).unwrap();
 
     let pointer = process.get_register(0);
 

@@ -544,7 +544,13 @@ def defer(block: do) -> Nil {
 ## Pins the current process to the current OS thread, then runs the supplied
 ## `Block`.
 ##
-## Once the `Block` returns, the process is unpinned.
+## Once the `Block` returns, the process is unpinned. As long as a process is
+## pinned, it will run on the same OS thread. Until a process unpins itself or
+## terminates, the thread will not run any other processes.
+##
+## Use of this method is best avoided, unless you are interacting with foreign
+## code (e.g. C code) that requires consecutive operations to be performed on
+## the same OS thread.
 ##
 ## # Examples
 ##

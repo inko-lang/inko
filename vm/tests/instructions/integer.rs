@@ -4,14 +4,15 @@ use libinko::vm::instruction::InstructionType;
 use libinko::vm::test::*;
 
 macro_rules! test_op {
-    ($ins_type: ident, $test_func: ident, $expected: expr) => (
+    ($ins_type: ident, $test_func: ident, $expected: expr) => {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
 
-            block.code.instructions =
-                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
-                     new_instruction(InstructionType::Return, vec![2])];
+            block.code.instructions = vec![
+                new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                new_instruction(InstructionType::Return, vec![2]),
+            ];
 
             let left = ObjectPointer::integer(5);
             let right = ObjectPointer::integer(2);
@@ -19,24 +20,25 @@ macro_rules! test_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&Worker::new(0), &process).unwrap();
+            machine.run(&mut Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(2);
 
             assert_eq!(pointer.integer_value().unwrap(), $expected);
         }
-    );
+    };
 }
 
 macro_rules! test_bool_op {
-    ($ins_type: ident, $test_func: ident, $expected: ident) => (
+    ($ins_type: ident, $test_func: ident, $expected: ident) => {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
 
-            block.code.instructions =
-                vec![new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
-                     new_instruction(InstructionType::Return, vec![2])];
+            block.code.instructions = vec![
+                new_instruction(InstructionType::$ins_type, vec![2, 0, 1]),
+                new_instruction(InstructionType::Return, vec![2]),
+            ];
 
             let left = ObjectPointer::integer(5);
             let right = ObjectPointer::integer(2);
@@ -44,37 +46,38 @@ macro_rules! test_bool_op {
             process.set_register(0, left);
             process.set_register(1, right);
 
-            machine.run(&Worker::new(0), &process).unwrap();
+            machine.run(&mut Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(2);
 
             assert!(pointer == machine.state.$expected);
         }
-    );
+    };
 }
 
 macro_rules! test_cast_op {
-    ($ins_type: ident, $test_func:ident, $target_type: ident, $target_val: expr) => (
+    ($ins_type: ident, $test_func:ident, $target_type: ident, $target_val: expr) => {
         #[test]
         fn $test_func() {
             let (machine, mut block, process) = setup();
 
-            block.code.instructions =
-                vec![new_instruction(InstructionType::$ins_type, vec![1, 0]),
-                     new_instruction(InstructionType::Return, vec![1])];
+            block.code.instructions = vec![
+                new_instruction(InstructionType::$ins_type, vec![1, 0]),
+                new_instruction(InstructionType::Return, vec![1]),
+            ];
 
             let original = ObjectPointer::integer(5);
 
             process.set_register(0, original);
 
-            machine.run(&Worker::new(0), &process).unwrap();
+            machine.run(&mut Worker::new(0), &process).unwrap();
 
             let pointer = process.get_register(1);
             let object = pointer.get();
 
             assert!(object.value.$target_type().unwrap() == $target_val);
         }
-    );
+    };
 }
 
 test_op!(IntegerAdd, test_integer_add, 7);
