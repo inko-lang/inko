@@ -1,48 +1,40 @@
 //! Virtual Machine for running instructions
-use float_cmp::ApproxEqUlps;
 use num_bigint::BigInt;
-use num_traits::ToPrimitive;
 use rayon::ThreadPoolBuilder;
-use std::env;
-use std::f64;
-use std::fs;
 use std::i32;
-use std::i64;
-use std::io::{self, Seek, SeekFrom, Write};
 use std::ops::{Add, Mul, Sub};
 use std::panic;
 use std::thread;
 
-use block::Block;
-use byte_array;
 use compiled_code::CompiledCodePointer;
-use date_time::DateTime;
-use directories;
-use error_messages;
 use execution_context::ExecutionContext;
-use ffi;
-use filesystem;
 use gc::request::Request as GcRequest;
-use hasher::Hasher;
-use immix::copy_object::CopyObject;
-use immutable_string::ImmutableString;
 use integer_operations;
-use io::{read_from_stream, ReadResult};
 use module_registry::{ModuleRegistry, RcModuleRegistry};
 use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use numeric::modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
-use platform;
 use pool::{Job, JoinGuard as PoolJoinGuard, Worker, STACK_SIZE};
 use pools::{PRIMARY_POOL, SECONDARY_POOL};
-use process::{Process, ProcessStatus, RcProcess};
+use process::RcProcess;
 use runtime_panic;
-use slicing;
-use stacktrace;
-use vm::file_open_mode;
+use vm::array;
+use vm::block;
+use vm::byte_array;
+use vm::env;
+use vm::ffi;
+use vm::float;
+use vm::hasher;
 use vm::instruction::{Instruction, InstructionType};
+use vm::integer;
+use vm::io;
+use vm::module;
+use vm::object;
+use vm::process;
 use vm::state::RcState;
+use vm::string;
+use vm::time;
 
 macro_rules! reset_context {
     ($process:expr, $context:ident, $index:ident) => {{
@@ -101,7 +93,7 @@ macro_rules! throw_io_error {
         $context:ident,
         $index:ident
     ) => {{
-        let msg = error_messages::from_io_error(&$error);
+        let msg = $crate::error_messages::from_io_error(&$error);
 
         throw_error_message!($machine, $process, msg, $context, $index);
     }};
@@ -112,15 +104,6 @@ macro_rules! enter_context {
         $context.instruction_index = $index;
 
         reset_context!($process, $context, $index);
-    }};
-}
-
-macro_rules! set_nil_if_immutable {
-    ($vm:expr, $context:expr, $pointer:expr, $register:expr) => {{
-        if $pointer.is_immutable() {
-            $context.set_register($register, $vm.state.nil_object);
-            continue;
-        }
     }};
 }
 
@@ -139,64 +122,6 @@ macro_rules! safepoint_and_reduce {
             return Ok(());
         }
     }};
-}
-
-macro_rules! optional_timeout {
-    ($pointer:expr) => {{
-        if let Ok(time) = $pointer.integer_value() {
-            if time > 0 {
-                Some(time as u64)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }};
-}
-
-macro_rules! create_or_remove_path {
-    (
-        $vm:expr,
-        $instruction:expr,
-        $context:expr,
-        $op:ident,
-        $recursive_op:ident
-    ) => {{
-        let path_ptr = $context.get_register($instruction.arg(1));
-        let rec_ptr = $context.get_register($instruction.arg(2));
-        let path = path_ptr.string_value()?;
-
-        if is_false!($vm, rec_ptr) {
-            fs::$op(path)
-        } else {
-            fs::$recursive_op(path)
-        }
-    }};
-}
-
-macro_rules! boolean_to_pointer {
-    ($vm:expr, $expr:expr) => {
-        if $expr {
-            $vm.state.true_object
-        } else {
-            $vm.state.false_object
-        }
-    };
-}
-
-macro_rules! write_bytes_or_string {
-    ($stream:expr, $pointer:expr) => {
-        if $pointer.is_string() {
-            let buffer = $pointer.string_value()?.as_bytes();
-
-            $stream.write(buffer)
-        } else {
-            let bytes = $pointer.byte_array_value()?;
-
-            $stream.write(&bytes)
-        }
-    };
 }
 
 #[derive(Clone)]
@@ -313,50 +238,14 @@ impl Machine {
     /// Starts the main process
     pub fn start_main_process(&self, file: &str) {
         let process = {
-            let mut registry = write_lock!(self.module_registry);
+            let (block, _) =
+                module::load_string(&self.state, &self.module_registry, file)
+                    .unwrap();
 
-            let module = registry
-                .parse_module(file)
-                .map_err(|err| err.message())
-                .unwrap();
-
-            let code = module.code();
-            let block = Block::new(
-                code,
-                None,
-                self.state.top_level,
-                module.global_scope_ref(),
-            );
-
-            self.allocate_process(PRIMARY_POOL, &block).unwrap()
+            process::allocate(&self.state, PRIMARY_POOL, &block).unwrap()
         };
 
         self.state.process_pools.schedule(process);
-    }
-
-    /// Allocates a new process and returns the PID and Process structure.
-    pub fn allocate_process(
-        &self,
-        pool_id: u8,
-        block: &Block,
-    ) -> Result<RcProcess, String> {
-        let mut process_table = write_lock!(self.state.process_table);
-
-        let pid = process_table
-            .reserve()
-            .ok_or_else(|| "No PID could be reserved".to_string())?;
-
-        let process = Process::from_block(
-            pid,
-            pool_id,
-            block,
-            self.state.global_allocator.clone(),
-            &self.state.config,
-        );
-
-        process_table.map(pid, process.clone());
-
-        Ok(process)
     }
 
     /// Executes a single process, terminating in the event of an error.
@@ -410,56 +299,29 @@ impl Machine {
 
             match instruction.instruction_type {
                 InstructionType::SetLiteral => {
-                    let register = instruction.arg(0);
+                    let reg = instruction.arg(0);
                     let index = instruction.arg(1);
                     let literal = unsafe { context.code.literal(index) };
 
-                    context.set_register(register, literal);
+                    context.set_register(reg, literal);
                 }
                 InstructionType::SetObject => {
                     let register = instruction.arg(0);
-                    let is_permanent_ptr =
-                        context.get_register(instruction.arg(1));
+                    let perm = context.get_register(instruction.arg(1));
+                    let proto =
+                        instruction.arg_opt(2).map(|r| context.get_register(r));
 
-                    let is_permanent =
-                        is_permanent_ptr != self.state.false_object;
-
-                    let obj = if is_permanent {
-                        self.state.permanent_allocator.lock().allocate_empty()
-                    } else {
-                        process.allocate_empty()
-                    };
-
-                    if let Some(proto_index) = instruction.arg_opt(2) {
-                        let mut proto = context.get_register(proto_index);
-
-                        if is_permanent && !proto.is_permanent() {
-                            proto = self
-                                .state
-                                .permanent_allocator
-                                .lock()
-                                .copy_object(proto);
-                        }
-
-                        obj.get_mut().set_prototype(proto);
-                    }
+                    let obj = object::create(&self.state, process, perm, proto);
 
                     context.set_register(register, obj);
                 }
                 InstructionType::SetArray => {
                     let register = instruction.arg(0);
                     let val_count = instruction.arguments.len() - 1;
-
-                    let values = self.collect_arguments(
-                        &process,
-                        &instruction,
-                        1,
-                        val_count,
-                    );
-
-                    let obj = process.allocate(
-                        object_value::array(values),
-                        self.state.array_prototype,
+                    let obj = array::create(
+                        &self.state,
+                        process,
+                        &instruction.arguments[1..=val_count],
                     );
 
                     context.set_register(register, obj);
@@ -467,9 +329,8 @@ impl Machine {
                 InstructionType::GetBuiltinPrototype => {
                     let reg = instruction.arg(0);
                     let id = context.get_register(instruction.arg(1));
-                    let proto = self
-                        .state
-                        .prototype_for_identifier(id.integer_value()?)?;
+                    let proto =
+                        object::prototype_for_identifier(&self.state, id)?;
 
                     context.set_register(reg, proto);
                 }
@@ -502,30 +363,11 @@ impl Machine {
                     let register = instruction.arg(0);
                     let cc_index = instruction.arg(1);
                     let cc = context.code.code_object(cc_index);
-
-                    let captures_from = if cc.captures {
-                        Some(context.binding.clone())
-                    } else {
-                        None
-                    };
-
-                    let receiver = if let Some(rec_reg) = instruction.arg_opt(2)
-                    {
-                        context.get_register(rec_reg)
-                    } else {
-                        context.binding.receiver
-                    };
-
-                    let block = Block::new(
+                    let obj = block::create(
+                        &self.state,
+                        process,
                         cc,
-                        captures_from,
-                        receiver,
-                        *process.global_scope(),
-                    );
-
-                    let obj = process.allocate(
-                        object_value::block(block),
-                        self.state.block_prototype,
+                        instruction.arg_opt(2).map(|r| context.get_register(r)),
                     );
 
                     context.set_register(register, obj);
@@ -543,15 +385,13 @@ impl Machine {
 
                     let block_return = instruction.arg(0) == 1;
 
-                    let object = if let Some(register) = instruction.arg_opt(1)
-                    {
-                        context.get_register(register)
-                    } else {
-                        self.state.nil_object
-                    };
+                    let object = instruction
+                        .arg_opt(1)
+                        .map(|r| context.get_register(r))
+                        .unwrap_or(self.state.nil_object);
 
                     if block_return {
-                        self.unwind_until_defining_scope(process);
+                        process::unwind_until_defining_scope(process);
 
                         context = process.context_mut();
                     }
@@ -577,14 +417,14 @@ impl Machine {
                 InstructionType::GotoIfFalse => {
                     let value_reg = instruction.arg(1);
 
-                    if is_false!(self, context.get_register(value_reg)) {
+                    if is_false!(self.state, context.get_register(value_reg)) {
                         index = instruction.arg(0);
                     }
                 }
                 InstructionType::GotoIfTrue => {
                     let value_reg = instruction.arg(1);
 
-                    if !is_false!(self, context.get_register(value_reg)) {
+                    if !is_false!(self.state, context.get_register(value_reg)) {
                         index = instruction.arg(0);
                     }
                 }
@@ -649,40 +489,16 @@ impl Machine {
                 }
                 InstructionType::IntegerToFloat => {
                     let register = instruction.arg(0);
-                    let integer_ptr = context.get_register(instruction.arg(1));
-
-                    let result = if integer_ptr.is_bigint() {
-                        integer_ptr.bigint_value().unwrap().to_f64().unwrap()
-                    } else {
-                        integer_ptr.integer_value()? as f64
-                    };
-
-                    let obj = process.allocate(
-                        object_value::float(result),
-                        self.state.float_prototype,
-                    );
+                    let integer = context.get_register(instruction.arg(1));
+                    let obj = integer::to_float(&self.state, process, integer)?;
 
                     context.set_register(register, obj);
                 }
                 InstructionType::IntegerToString => {
                     let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-
-                    let result = if rec_ptr.is_integer() {
-                        rec_ptr.integer_value()?.to_string()
-                    } else if rec_ptr.is_bigint() {
-                        rec_ptr.bigint_value()?.to_string()
-                    } else {
-                        return Err(
-                            "IntegerToString can only be used with integers"
-                                .to_string(),
-                        );
-                    };
-
-                    let obj = process.allocate(
-                        object_value::string(result),
-                        self.state.string_prototype,
-                    );
+                    let integer = context.get_register(instruction.arg(1));
+                    let obj =
+                        integer::to_string(&self.state, process, integer)?;
 
                     context.set_register(register, obj);
                 }
@@ -764,28 +580,18 @@ impl Machine {
                     float_op!(self.state, process, instruction, %);
                 }
                 InstructionType::FloatToInteger => {
-                    let register = instruction.arg(0);
-                    let float_ptr = context.get_register(instruction.arg(1));
-                    let float_val = float_ptr.float_value()?;
+                    let reg = instruction.arg(0);
+                    let float = context.get_register(instruction.arg(1));
+                    let obj = float::to_integer(&self.state, process, float)?;
 
-                    let result = process.allocate_f64_as_i64(
-                        float_val,
-                        self.state.integer_prototype,
-                    )?;
-
-                    context.set_register(register, result);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FloatToString => {
-                    let register = instruction.arg(0);
-                    let float_ptr = context.get_register(instruction.arg(1));
-                    let result = float_ptr.float_value()?.to_string();
+                    let reg = instruction.arg(0);
+                    let float = context.get_register(instruction.arg(1));
+                    let obj = float::to_string(&self.state, process, float)?;
 
-                    let obj = process.allocate(
-                        object_value::string(result),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FloatSmaller => {
                     float_bool_op!(self.state, context, instruction, <);
@@ -794,22 +600,12 @@ impl Machine {
                     float_bool_op!(self.state, context, instruction, >);
                 }
                 InstructionType::FloatEquals => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let arg_ptr = context.get_register(instruction.arg(2));
-                    let rec = rec_ptr.float_value()?;
-                    let arg = arg_ptr.float_value()?;
+                    let reg = instruction.arg(0);
+                    let compare = context.get_register(instruction.arg(1));
+                    let compare_with = context.get_register(instruction.arg(2));
+                    let obj = float::equal(&self.state, compare, compare_with)?;
 
-                    let boolean = if !rec.is_nan()
-                        && !arg.is_nan()
-                        && rec.approx_eq_ulps(&arg, 2)
-                    {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, boolean);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FloatGreaterOrEqual => {
                     float_bool_op!(self.state, context, instruction, >=);
@@ -818,597 +614,320 @@ impl Machine {
                     float_bool_op!(self.state, context, instruction, <=);
                 }
                 InstructionType::ArraySet => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
-                    let value_ptr = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let in_value = context.get_register(instruction.arg(3));
+                    let out_value = array::set(
+                        &self.state,
+                        process,
+                        array,
+                        index,
+                        in_value,
+                    )?;
 
-                    let vector = array_ptr.array_value_mut()?;
-                    let index = slicing::index_for_slice(
-                        vector.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = copy_if_permanent!(
-                        self.state.permanent_allocator,
-                        value_ptr,
-                        array_ptr
-                    );
-
-                    if index >= vector.len() {
-                        vector.resize(index + 1, self.state.nil_object);
-                    }
-
-                    vector[index] = value;
-
-                    process.write_barrier(array_ptr, value);
-
-                    context.set_register(register, value);
+                    context.set_register(reg, out_value);
                 }
                 InstructionType::ArrayAt => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
-                    let vector = array_ptr.array_value()?;
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let value = array::get(&self.state, array, index)?;
 
-                    let index = slicing::index_for_slice(
-                        vector.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = vector
-                        .get(index)
-                        .cloned()
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, value);
+                    context.set_register(reg, value);
                 }
                 InstructionType::ArrayRemove => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let value = array::remove(&self.state, array, index)?;
 
-                    let vector = array_ptr.array_value_mut()?;
-                    let index = slicing::index_for_slice(
-                        vector.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = if index >= vector.len() {
-                        self.state.nil_object
-                    } else {
-                        vector.remove(index)
-                    };
-
-                    context.set_register(register, value);
+                    context.set_register(reg, value);
                 }
                 InstructionType::ArrayLength => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let vector = array_ptr.array_value()?;
-                    let length = process.allocate_usize(
-                        vector.len(),
-                        self.state.integer_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let length = array::length(&self.state, process, array)?;
 
-                    context.set_register(register, length);
+                    context.set_register(reg, length);
                 }
                 InstructionType::ArrayClear => {
-                    let array_ptr = context.get_register(instruction.arg(0));
+                    let array = context.get_register(instruction.arg(0));
 
-                    array_ptr.array_value_mut()?.clear();
+                    array::clear(array)?;
                 }
                 InstructionType::StringToLower => {
-                    let register = instruction.arg(0);
-                    let source_ptr = context.get_register(instruction.arg(1));
-                    let lower = source_ptr.string_value()?.to_lowercase();
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let obj = string::to_lower(&self.state, process, string)?;
 
-                    let obj = process.allocate(
-                        object_value::immutable_string(lower),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StringToUpper => {
-                    let register = instruction.arg(0);
-                    let source_ptr = context.get_register(instruction.arg(1));
-                    let upper = source_ptr.string_value()?.to_uppercase();
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let obj = string::to_upper(&self.state, process, string)?;
 
-                    let obj = process.allocate(
-                        object_value::immutable_string(upper),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StringEquals => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let arg_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let comp = context.get_register(instruction.arg(1));
+                    let comp_with = context.get_register(instruction.arg(2));
+                    let obj = string::equal(&self.state, comp, comp_with)?;
 
-                    let boolean = if rec_ptr.is_interned_string()
-                        && arg_ptr.is_interned_string()
-                    {
-                        if rec_ptr == arg_ptr {
-                            self.state.true_object
-                        } else {
-                            self.state.false_object
-                        }
-                    } else if rec_ptr.string_value()?
-                        == arg_ptr.string_value()?
-                    {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, boolean);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StringToByteArray => {
-                    let register = instruction.arg(0);
-                    let string_ptr = context.get_register(instruction.arg(1));
-                    let bytes = string_ptr.string_value()?.as_bytes().to_vec();
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let obj =
+                        string::to_byte_array(&self.state, process, string)?;
 
-                    let obj = process.allocate(
-                        object_value::byte_array(bytes),
-                        self.state.byte_array_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StringLength => {
-                    let register = instruction.arg(0);
-                    let arg_ptr = context.get_register(instruction.arg(1));
-                    let length = process.allocate_usize(
-                        arg_ptr.string_value()?.chars().count(),
-                        self.state.integer_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let length = string::length(&self.state, process, string)?;
 
-                    context.set_register(register, length);
+                    context.set_register(reg, length);
                 }
                 InstructionType::StringSize => {
-                    let register = instruction.arg(0);
-                    let arg_ptr = context.get_register(instruction.arg(1));
-                    let size = process.allocate_usize(
-                        arg_ptr.string_value()?.len(),
-                        self.state.integer_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let size = string::byte_size(&self.state, process, string)?;
 
-                    context.set_register(register, size);
+                    context.set_register(reg, size);
                 }
                 InstructionType::StdoutWrite => {
-                    let register = instruction.arg(0);
-                    let string_ptr = context.get_register(instruction.arg(1));
-                    let mut stdout = io::stdout();
+                    let reg = instruction.arg(0);
+                    let input = context.get_register(instruction.arg(1));
 
-                    let result = write_bytes_or_string!(stdout, string_ptr)
-                        .and_then(|size| stdout.flush().and_then(|_| Ok(size)));
-
-                    match result {
-                        Ok(size) => {
-                            let obj = process.allocate_usize(
-                                size,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, obj);
-                        }
-                        Err(error) => {
-                            throw_io_error!(
-                                self, process, error, context, index
-                            );
-                        }
-                    }
-                }
-                InstructionType::StdoutFlush => {
-                    let register = instruction.arg(0);
-
-                    match io::stdout().flush() {
-                        Ok(_) => context
-                            .set_register(register, self.state.nil_object),
+                    match io::stdout_write(&self.state, process, input)? {
+                        Ok(size) => context.set_register(reg, size),
                         Err(err) => {
                             throw_io_error!(self, process, err, context, index)
                         }
                     };
                 }
                 InstructionType::StderrWrite => {
-                    let register = instruction.arg(0);
-                    let string_ptr = context.get_register(instruction.arg(1));
-                    let mut stderr = io::stderr();
+                    let reg = instruction.arg(0);
+                    let input = context.get_register(instruction.arg(1));
 
-                    let result = write_bytes_or_string!(stderr, string_ptr)
-                        .and_then(|size| stderr.flush().and_then(|_| Ok(size)));
-
-                    match result {
-                        Ok(size) => {
-                            let obj = process.allocate_usize(
-                                size,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, obj);
+                    match io::stderr_write(&self.state, process, input)? {
+                        Ok(size) => context.set_register(reg, size),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                        Err(error) => {
-                            throw_io_error!(
-                                self, process, error, context, index
-                            );
+                    };
+                }
+                InstructionType::StdoutFlush => {
+                    let reg = instruction.arg(0);
+
+                    match io::stdout_flush(&self.state) {
+                        Ok(obj) => context.set_register(reg, obj),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                    }
+                    };
                 }
                 InstructionType::StderrFlush => {
-                    let register = instruction.arg(0);
+                    let reg = instruction.arg(0);
 
-                    match io::stderr().flush() {
-                        Ok(_) => context
-                            .set_register(register, self.state.nil_object),
+                    match io::stderr_flush(&self.state) {
+                        Ok(obj) => context.set_register(reg, obj),
                         Err(err) => {
                             throw_io_error!(self, process, err, context, index)
                         }
                     };
                 }
                 InstructionType::StdinRead => {
-                    let register = instruction.arg(0);
-                    let buff_ptr = context.get_register(instruction.arg(1));
-                    let max_bytes = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let buff = context.get_register(instruction.arg(1));
+                    let max = context.get_register(instruction.arg(2));
 
-                    let mut stdin = io::stdin();
-                    let mut buffer = buff_ptr.byte_array_value_mut()?;
-
-                    match read_from_stream(&mut stdin, &mut buffer, max_bytes) {
-                        ReadResult::Ok(amount) => {
-                            let size_ptr = process.allocate_usize(
-                                amount,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, size_ptr);
+                    match io::stdin_read(&self.state, process, buff, max)? {
+                        Ok(obj) => context.set_register(reg, obj),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                        ReadResult::Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
-                        }
-                        ReadResult::Panic(message) => return Err(message),
-                    }
+                    };
                 }
                 InstructionType::FileOpen => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let mode_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
+                    let mode = context.get_register(instruction.arg(2));
 
-                    let path = path_ptr.string_value()?;
-                    let mode = mode_ptr.integer_value()?;
-                    let open_opts = file_open_mode::options_for_integer(mode)?;
-                    let prototype = file_open_mode::prototype_for_open_mode(
-                        &self.state,
-                        mode,
-                    )?;
-
-                    match open_opts.open(path) {
-                        Ok(file) => {
-                            let obj = process
-                                .allocate(object_value::file(file), prototype);
-
-                            context.set_register(register, obj);
-                        }
+                    match io::open_file(&self.state, process, path, mode)? {
+                        Ok(file) => context.set_register(reg, file),
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
+                            throw_io_error!(self, process, err, context, index)
                         }
-                    }
+                    };
                 }
                 InstructionType::FileWrite => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let value_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let file = context.get_register(instruction.arg(1));
+                    let input = context.get_register(instruction.arg(2));
 
-                    let file = file_ptr.file_value_mut()?;
-
-                    match write_bytes_or_string!(file, value_ptr) {
-                        Ok(num_bytes) => {
-                            let obj = process.allocate_usize(
-                                num_bytes,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, obj);
-                        }
+                    match io::write_file(&self.state, process, file, input)? {
+                        Ok(size) => context.set_register(reg, size),
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
+                            throw_io_error!(self, process, err, context, index)
                         }
                     }
                 }
                 InstructionType::FileRead => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let buff_ptr = context.get_register(instruction.arg(2));
-                    let max_bytes = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let file = context.get_register(instruction.arg(1));
+                    let buff = context.get_register(instruction.arg(2));
+                    let max = context.get_register(instruction.arg(3));
 
-                    let mut file = file_ptr.file_value_mut()?;
-                    let mut buffer = buff_ptr.byte_array_value_mut()?;
-
-                    match read_from_stream(&mut file, &mut buffer, max_bytes) {
-                        ReadResult::Ok(amount) => {
-                            let size_ptr = process.allocate_usize(
-                                amount,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, size_ptr);
+                    match io::read_file(&self.state, process, file, buff, max)?
+                    {
+                        Ok(obj) => context.set_register(reg, obj),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                        ReadResult::Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
-                        }
-                        ReadResult::Panic(message) => return Err(message),
-                    }
+                    };
                 }
                 InstructionType::FileFlush => {
-                    let file_ptr = context.get_register(instruction.arg(0));
-                    let file = file_ptr.file_value_mut()?;
+                    let file = context.get_register(instruction.arg(0));
 
-                    if let Err(err) = file.flush() {
+                    if let Err(err) = io::flush_file(&self.state, file)? {
                         throw_io_error!(self, process, err, context, index);
                     }
                 }
                 InstructionType::FileSize => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path = path_ptr.string_value()?;
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
 
-                    match fs::metadata(path) {
-                        Ok(meta) => {
-                            let obj = process.allocate_u64(
-                                meta.len(),
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, obj);
-                        }
+                    match io::file_size(&self.state, process, path)? {
+                        Ok(size) => context.set_register(reg, size),
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
+                            throw_io_error!(self, process, err, context, index)
                         }
-                    }
+                    };
                 }
                 InstructionType::FileSeek => {
-                    let register = instruction.arg(0);
-                    let file_ptr = context.get_register(instruction.arg(1));
-                    let offset_ptr = context.get_register(instruction.arg(2));
-                    let file = file_ptr.file_value_mut()?;
+                    let reg = instruction.arg(0);
+                    let file = context.get_register(instruction.arg(1));
+                    let offset = context.get_register(instruction.arg(2));
 
-                    let offset = if offset_ptr.is_bigint() {
-                        let big_offset = offset_ptr.bigint_value()?;
-
-                        if let Some(offset) = big_offset.to_u64() {
-                            offset
-                        } else {
-                            return Err(format!(
-                                "{} is too big for a seek offset",
-                                big_offset
-                            ));
-                        }
-                    } else {
-                        let offset = offset_ptr.integer_value()?;
-
-                        if offset < 0 {
-                            return Err(format!(
-                                "{} is not a valid seek offset",
-                                offset
-                            ));
-                        }
-
-                        offset as u64
-                    };
-
-                    match file.seek(SeekFrom::Start(offset)) {
-                        Ok(cursor) => {
-                            let obj = process.allocate_u64(
-                                cursor,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, obj);
-                        }
+                    match io::seek_file(&self.state, process, file, offset)? {
+                        Ok(cursor) => context.set_register(reg, cursor),
                         Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
+                            throw_io_error!(self, process, err, context, index)
                         }
                     }
                 }
                 InstructionType::LoadModule => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path_str = path_ptr.string_value()?;
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
 
                     let (block, execute) = {
-                        let mut registry = write_lock!(self.module_registry);
-
-                        let lookup = registry
-                            .get_or_set(path_str)
-                            .map_err(|err| err.message())?;
-
-                        let module = lookup.module;
-
-                        let block = Block::new(
-                            module.code(),
-                            None,
-                            self.state.top_level,
-                            module.global_scope_ref(),
-                        );
-
-                        (block, lookup.parsed)
+                        module::load(&self.state, &self.module_registry, path)?
                     };
 
                     if execute {
                         let new_context = ExecutionContext::from_block(
                             &block,
-                            Some(register as u16),
+                            Some(reg as u16),
                         );
 
                         process.push_context(new_context);
 
                         enter_context!(process, context, index);
                     } else {
-                        context.set_register(register, self.state.nil_object);
+                        context.set_register(reg, self.state.nil_object);
                     }
                 }
                 InstructionType::SetAttribute => {
-                    let register = instruction.arg(0);
-                    let target_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let value_ptr = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let target = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let value = context.get_register(instruction.arg(3));
 
-                    set_nil_if_immutable!(self, context, target_ptr, register);
-
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| {
-                            copy_if_permanent!(
-                                self.state.permanent_allocator,
-                                name_ptr,
-                                target_ptr
-                            )
-                        });
-
-                    let value = copy_if_permanent!(
-                        self.state.permanent_allocator,
-                        value_ptr,
-                        target_ptr
+                    let obj = object::set_attribute(
+                        &self.state,
+                        process,
+                        target,
+                        name,
+                        value,
                     );
 
-                    target_ptr.add_attribute(&process, name, value);
-
-                    context.set_register(register, value);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::SetAttributeToObject => {
-                    let register = instruction.arg(0);
-                    let obj_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let obj = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
 
-                    set_nil_if_immutable!(self, context, obj_ptr, register);
+                    let attr = object::set_attribute_to_object(
+                        &self.state,
+                        process,
+                        obj,
+                        name,
+                    );
 
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| {
-                            copy_if_permanent!(
-                                self.state.permanent_allocator,
-                                name_ptr,
-                                obj_ptr
-                            )
-                        });
-
-                    let attribute = if let Some(ptr) =
-                        obj_ptr.get().lookup_attribute_in_self(name)
-                    {
-                        ptr
-                    } else {
-                        let value = object_value::none();
-                        let proto = self.state.object_prototype;
-
-                        let ptr = if obj_ptr.is_permanent() {
-                            self.state
-                                .permanent_allocator
-                                .lock()
-                                .allocate_with_prototype(value, proto)
-                        } else {
-                            process.allocate(value, proto)
-                        };
-
-                        obj_ptr.add_attribute(&process, name, ptr);
-
-                        ptr
-                    };
-
-                    context.set_register(register, attribute);
+                    context.set_register(reg, attr);
                 }
                 InstructionType::GetAttribute => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let rec = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let attr = object::get_attribute(&self.state, rec, name);
 
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| name_ptr);
-
-                    let method = rec_ptr
-                        .lookup_attribute(&self.state, name)
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, method);
+                    context.set_register(reg, attr);
                 }
                 InstructionType::SetPrototype => {
-                    let source = context.get_register(instruction.arg(0));
-                    let proto = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let src = context.get_register(instruction.arg(1));
+                    let proto = context.get_register(instruction.arg(2));
+                    let obj =
+                        object::set_prototype(&self.state, process, src, proto);
 
-                    source.get_mut().set_prototype(proto);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::GetPrototype => {
-                    let register = instruction.arg(0);
-                    let source = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let src = context.get_register(instruction.arg(1));
+                    let proto = object::get_prototype(&self.state, src);
 
-                    let proto = source
-                        .prototype(&self.state)
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, proto);
+                    context.set_register(reg, proto);
                 }
                 InstructionType::LocalExists => {
-                    let register = instruction.arg(0);
-                    let local_index = instruction.arg(1);
+                    let reg = instruction.arg(0);
+                    let idx = instruction.arg(1);
+                    let res = process::local_exists(&self.state, process, idx);
 
-                    let value = if process.local_exists(local_index) {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, value);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessSpawn => {
-                    let register = instruction.arg(0);
-                    let block_ptr = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+                    let pool_id = context.get_register(instruction.arg(2));
+                    let pid = process::spawn(&self.state, pool_id, block)?;
 
-                    let pool_id = if let Some(reg) = instruction.arg_opt(2) {
-                        context.get_register(reg).u8_value()?
-                    } else {
-                        PRIMARY_POOL
-                    };
-
-                    let block_obj = block_ptr.block_value()?;
-                    let new_proc = self.allocate_process(pool_id, block_obj)?;
-                    let new_pid = new_proc.pid;
-                    let pid_ptr = new_proc
-                        .allocate_usize(new_pid, self.state.integer_prototype);
-
-                    self.state.process_pools.schedule(new_proc);
-
-                    context.set_register(register, pid_ptr);
+                    context.set_register(reg, pid);
                 }
                 InstructionType::ProcessSendMessage => {
-                    let register = instruction.arg(0);
-                    let pid_ptr = context.get_register(instruction.arg(1));
-                    let msg_ptr = context.get_register(instruction.arg(2));
-                    let pid = pid_ptr.usize_value()?;
+                    let reg = instruction.arg(0);
+                    let pid = context.get_register(instruction.arg(1));
+                    let msg = context.get_register(instruction.arg(2));
+                    let res =
+                        process::send_message(&self.state, process, pid, msg)?;
 
-                    if let Some(receiver) =
-                        read_lock!(self.state.process_table).get(pid)
-                    {
-                        receiver.send_message(&process, msg_ptr);
-
-                        if receiver.is_waiting_for_message() {
-                            self.state.suspension_list.wake_up();
-                        }
-                    }
-
-                    context.set_register(register, msg_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessReceiveMessage => {
-                    let register = instruction.arg(0);
+                    let reg = instruction.arg(0);
 
-                    if let Some(msg_ptr) = process.receive_message() {
-                        context.set_register(register, msg_ptr);
+                    if let Some(msg) = process.receive_message() {
+                        context.set_register(reg, msg);
                     } else {
                         let time_ptr = context.get_register(instruction.arg(1));
-                        let timeout = optional_timeout!(time_ptr);
 
                         // When resuming (except when the timeout expires) we
                         // want to retry this instruction so we can store the
@@ -1418,143 +937,84 @@ impl Machine {
                         // If the timeout expires we won't retry this
                         // instruction so we need to ensure the register is
                         // already set.
-                        context.set_register(register, self.state.nil_object);
+                        context.set_register(reg, self.state.nil_object);
 
-                        process.waiting_for_message();
-
-                        self.state
-                            .suspension_list
-                            .suspend(process.clone(), timeout);
+                        process::wait_for_message(
+                            &self.state,
+                            process,
+                            process::optional_timeout(time_ptr),
+                        );
 
                         return Ok(());
                     }
                 }
                 InstructionType::ProcessCurrentPid => {
-                    let register = instruction.arg(0);
-                    let pid = process.allocate_usize(
-                        process.pid,
-                        self.state.integer_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let pid = process::current_pid(&self.state, process);
 
-                    context.set_register(register, pid);
+                    context.set_register(reg, pid);
                 }
                 InstructionType::ProcessStatus => {
-                    let register = instruction.arg(0);
-                    let pid_ptr = process.get_register(instruction.arg(1));
-                    let pid = pid_ptr.usize_value()?;
-                    let table = read_lock!(self.state.process_table);
+                    let reg = instruction.arg(0);
+                    let pid = process.get_register(instruction.arg(1));
+                    let res = process::status(&self.state, pid)?;
 
-                    let status = if let Some(receiver) = table.get(pid) {
-                        receiver.status_integer()
-                    } else {
-                        ProcessStatus::Finished as u8
-                    };
-
-                    let status_ptr = ObjectPointer::integer(i64::from(status));
-
-                    context.set_register(register, status_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessSuspendCurrent => {
                     let time_ptr = context.get_register(instruction.arg(0));
-                    let timeout = optional_timeout!(time_ptr);
+                    let timeout = process::optional_timeout(time_ptr);
 
                     context.instruction_index = index;
 
-                    process.suspended();
-
-                    self.state
-                        .suspension_list
-                        .suspend(process.clone(), timeout);
+                    process::suspend(&self.state, process, timeout);
 
                     return Ok(());
                 }
                 InstructionType::SetParentLocal => {
-                    let index = instruction.arg(0);
+                    let local = instruction.arg(0);
                     let depth = instruction.arg(1);
                     let value = context.get_register(instruction.arg(2));
 
-                    if let Some(binding) = context.binding.find_parent(depth) {
-                        binding.set_local(index, value);
-                    } else {
-                        return Err(format!("No binding for depth {}", depth));
-                    }
+                    process::set_parent_local(process, local, depth, value)?;
                 }
                 InstructionType::GetParentLocal => {
                     let reg = instruction.arg(0);
                     let depth = instruction.arg(1);
-                    let index = instruction.arg(2);
+                    let local = instruction.arg(2);
+                    let val = process::get_parent_local(process, local, depth)?;
 
-                    if let Some(binding) = context.binding.find_parent(depth) {
-                        context.set_register(reg, binding.get_local(index));
-                    } else {
-                        return Err(format!("No binding for depth {}", depth));
-                    }
+                    context.set_register(reg, val)
                 }
                 InstructionType::ObjectEquals => {
-                    let register = instruction.arg(0);
-                    let compare = context.get_register(instruction.arg(1));
-                    let compare_with = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let comp = context.get_register(instruction.arg(1));
+                    let comp_with = context.get_register(instruction.arg(2));
+                    let res = object::equal(&self.state, comp, comp_with);
 
-                    let obj = if compare == compare_with {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ObjectIsKindOf => {
-                    let register = instruction.arg(0);
-                    let compare = context.get_register(instruction.arg(1));
-                    let compare_with = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let comp = context.get_register(instruction.arg(1));
+                    let comp_with = context.get_register(instruction.arg(2));
+                    let res = object::kind_of(&self.state, comp, comp_with);
 
-                    let result =
-                        if compare.is_kind_of(&self.state, compare_with) {
-                            self.state.true_object
-                        } else {
-                            self.state.false_object
-                        };
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PrototypeChainAttributeContains => {
-                    let register = instruction.arg(0);
-                    let obj_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let val_ptr = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let obj = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let val = context.get_register(instruction.arg(3));
+                    let res = object::prototype_chain_attribute_contains(
+                        &self.state,
+                        obj,
+                        name,
+                        val,
+                    );
 
-                    let mut source = obj_ptr;
-                    let mut result = self.state.false_object;
-
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| name_ptr);
-
-                    // For every object in the prototype chain (including self)
-                    // we look up the target object, then we check if the value
-                    // is in said object.
-                    loop {
-                        if let Some(obj) =
-                            source.lookup_attribute_in_self(&self.state, name)
-                        {
-                            if obj
-                                .lookup_attribute(&self.state, val_ptr)
-                                .is_some()
-                            {
-                                result = self.state.true_object;
-                                break;
-                            }
-                        }
-
-                        if let Some(proto) = source.prototype(&self.state) {
-                            source = proto;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::GetToplevel => {
                     context
@@ -1567,72 +1027,34 @@ impl Machine {
                     );
                 }
                 InstructionType::AttributeExists => {
-                    let register = instruction.arg(0);
-                    let source_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let src = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let res = object::attribute_exists(&self.state, src, name);
 
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| name_ptr);
-
-                    let obj = if source_ptr
-                        .lookup_attribute(&self.state, name)
-                        .is_some()
-                    {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, res);
                 }
                 InstructionType::RemoveAttribute => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let name_ptr = context.get_register(instruction.arg(2));
-                    let name = self
-                        .state
-                        .intern_pointer(name_ptr)
-                        .unwrap_or_else(|_| name_ptr);
+                    let reg = instruction.arg(0);
+                    let rec = context.get_register(instruction.arg(1));
+                    let name = context.get_register(instruction.arg(2));
+                    let res = object::remove_attribute(&self.state, rec, name);
 
-                    set_nil_if_immutable!(self, context, rec_ptr, register);
-
-                    let obj = if let Some(attribute) =
-                        rec_ptr.get_mut().remove_attribute(name)
-                    {
-                        attribute
-                    } else {
-                        self.state.nil_object
-                    };
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, res);
                 }
                 InstructionType::GetAttributeNames => {
-                    let register = instruction.arg(0);
-                    let rec_ptr = context.get_register(instruction.arg(1));
-                    let attributes = rec_ptr.attribute_names();
+                    let reg = instruction.arg(0);
+                    let rec = context.get_register(instruction.arg(1));
+                    let res =
+                        object::attribute_names(&self.state, process, rec);
 
-                    let obj = process.allocate(
-                        object_value::array(attributes),
-                        self.state.array_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, res);
                 }
                 InstructionType::TimeMonotonic => {
-                    let register = instruction.arg(0);
-                    let duration = self.state.start_time.elapsed();
-                    let seconds = duration.as_secs() as f64
-                        + (f64::from(duration.subsec_nanos())
-                            / 1_000_000_000.0);
+                    let reg = instruction.arg(0);
+                    let res = time::monotonic(&self.state, process);
 
-                    let pointer = process.allocate(
-                        object_value::float(seconds),
-                        self.state.float_prototype,
-                    );
-
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::RunBlock => {
                     context.line = instruction.line;
@@ -1660,28 +1082,20 @@ impl Machine {
                     enter_context!(process, context, index);
                 }
                 InstructionType::SetGlobal => {
-                    let register = instruction.arg(0);
-                    let index = instruction.arg(1);
-                    let object = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let idx = instruction.arg(1);
+                    let val = context.get_register(instruction.arg(2));
+                    let res =
+                        process::set_global(&self.state, process, idx, val);
 
-                    let value = if object.is_permanent() {
-                        object
-                    } else {
-                        self.state
-                            .permanent_allocator
-                            .lock()
-                            .copy_object(object)
-                    };
-
-                    process.set_global(index, value);
-                    context.set_register(register, value);
+                    context.set_register(reg, res);
                 }
                 InstructionType::GetGlobal => {
-                    let register = instruction.arg(0);
-                    let index = instruction.arg(1);
-                    let object = process.get_global(index);
+                    let reg = instruction.arg(0);
+                    let idx = instruction.arg(1);
+                    let val = process.get_global(idx);
 
-                    context.set_register(register, object);
+                    context.set_register(reg, val);
                 }
                 InstructionType::Throw => {
                     let value = context.get_register(instruction.arg(0));
@@ -1714,141 +1128,51 @@ impl Machine {
                     safepoint_and_reduce!(self, process, reductions);
                 }
                 InstructionType::CopyBlocks => {
-                    let obj_ptr = context.get_register(instruction.arg(0));
-                    let to_impl_ptr = context.get_register(instruction.arg(1));
+                    let target = context.get_register(instruction.arg(0));
+                    let source = context.get_register(instruction.arg(1));
 
-                    if obj_ptr.is_immutable() || to_impl_ptr.is_immutable() {
-                        // When using immutable objects there's nothing to copy
-                        // over so we'll just skip over the work.
-                        continue;
-                    }
-
-                    let mut object = obj_ptr.get_mut();
-                    let to_impl = to_impl_ptr.get();
-
-                    if let Some(map) = to_impl.attributes_map() {
-                        for (key, val) in map.iter() {
-                            if val.block_value().is_err() {
-                                continue;
-                            }
-
-                            let block = copy_if_permanent!(
-                                self.state.permanent_allocator,
-                                *val,
-                                obj_ptr
-                            );
-
-                            object.add_attribute(*key, block);
-                        }
-                    }
+                    object::copy_blocks(&self.state, target, source);
                 }
                 InstructionType::FloatIsNan => {
-                    let register = instruction.arg(0);
-                    let pointer = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let res = float::is_nan(&self.state, ptr);
 
-                    let is_nan = match pointer.float_value() {
-                        Ok(float) => float.is_nan(),
-                        Err(_) => false,
-                    };
-
-                    let result = if is_nan {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::FloatIsInfinite => {
-                    let register = instruction.arg(0);
-                    let pointer = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let res = float::is_infinite(&self.state, ptr);
 
-                    let is_inf = match pointer.float_value() {
-                        Ok(float) => float.is_infinite(),
-                        Err(_) => false,
-                    };
-
-                    let result = if is_inf {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::FloatFloor => {
-                    let register = instruction.arg(0);
-                    let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value()?.floor();
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let res = float::floor(&self.state, process, ptr)?;
 
-                    context.set_register(
-                        register,
-                        process.allocate(
-                            object_value::float(float),
-                            self.state.float_prototype,
-                        ),
-                    );
+                    context.set_register(reg, res);
                 }
                 InstructionType::FloatCeil => {
-                    let register = instruction.arg(0);
-                    let pointer = context.get_register(instruction.arg(1));
-                    let float = pointer.float_value()?.ceil();
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let res = float::ceil(&self.state, process, ptr)?;
 
-                    context.set_register(
-                        register,
-                        process.allocate(
-                            object_value::float(float),
-                            self.state.float_prototype,
-                        ),
-                    );
+                    context.set_register(reg, res);
                 }
                 InstructionType::FloatRound => {
-                    let register = instruction.arg(0);
-                    let pointer = context.get_register(instruction.arg(1));
-                    let prec_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let ptr = context.get_register(instruction.arg(1));
+                    let prec = context.get_register(instruction.arg(2));
+                    let res = float::round(&self.state, process, ptr, prec)?;
 
-                    let precision = prec_ptr.integer_value()?;
-                    let float = pointer.float_value()?;
-
-                    let result = if precision == 0 {
-                        float.round()
-                    } else if precision >= i64::from(i32::MIN)
-                        && precision <= i64::from(i32::MAX)
-                    {
-                        let power = 10.0_f64.powi(precision as i32);
-                        let multiplied = float * power;
-
-                        // Certain very large numbers (e.g. f64::MAX) would
-                        // produce Infinity when multiplied with the power. In
-                        // this case we just return the input float directly.
-                        if multiplied.is_finite() {
-                            multiplied.round() / power
-                        } else {
-                            float
-                        }
-                    } else {
-                        float
-                    };
-
-                    context.set_register(
-                        register,
-                        process.allocate(
-                            object_value::float(result),
-                            self.state.float_prototype,
-                        ),
-                    );
+                    context.set_register(reg, res);
                 }
                 InstructionType::Drop => {
-                    let pointer = context.get_register(instruction.arg(0));
-                    let object = pointer.get_mut();
+                    let ptr = context.get_register(instruction.arg(0));
 
-                    if object.value.is_some() {
-                        drop(object.value.take());
-
-                        if !object.has_attributes() {
-                            pointer.unmark_for_finalization();
-                        }
-                    }
+                    object::drop_value(ptr);
                 }
                 InstructionType::MoveToPool => {
                     let reg = instruction.arg(0);
@@ -1892,24 +1216,22 @@ impl Machine {
                     }
                 }
                 InstructionType::FileRemove => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path_str = path_ptr.string_value()?;
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
 
-                    match fs::remove_file(path_str) {
-                        Ok(_) => context
-                            .set_register(register, self.state.nil_object),
+                    match io::remove_file(&self.state, path)? {
+                        Ok(obj) => context.set_register(reg, obj),
                         Err(err) => {
                             throw_io_error!(self, process, err, context, index)
                         }
                     };
                 }
                 InstructionType::Panic => {
+                    let msg = context.get_register(instruction.arg(0));
+
                     context.line = instruction.line;
 
-                    let message_ptr = context.get_register(instruction.arg(0));
-
-                    return Err(message_ptr.string_value()?.to_owned_string());
+                    return Err(msg.string_value()?.to_owned_string());
                 }
                 InstructionType::Exit => {
                     // Any pending deferred blocks should be executed first.
@@ -1928,461 +1250,247 @@ impl Machine {
                     return Ok(());
                 }
                 InstructionType::Platform => {
-                    let register = instruction.arg(0);
+                    let reg = instruction.arg(0);
+                    let res = env::operating_system(&self.state);
 
-                    let platform = self.state.intern_string(
-                        platform::operating_system().to_string(),
-                    );
-
-                    context.set_register(register, platform);
+                    context.set_register(reg, res);
                 }
                 InstructionType::FileCopy => {
-                    let register = instruction.arg(0);
-                    let src_ptr = context.get_register(instruction.arg(1));
-                    let dst_ptr = context.get_register(instruction.arg(2));
-                    let src = src_ptr.string_value()?;
-                    let dst = dst_ptr.string_value()?;
+                    let reg = instruction.arg(0);
+                    let src = context.get_register(instruction.arg(1));
+                    let dst = context.get_register(instruction.arg(2));
 
-                    match fs::copy(src, dst) {
-                        Ok(bytes) => {
-                            let pointer = process.allocate_u64(
-                                bytes,
-                                self.state.integer_prototype,
-                            );
-
-                            context.set_register(register, pointer);
+                    match io::copy_file(&self.state, process, src, dst)? {
+                        Ok(obj) => context.set_register(reg, obj),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                        Err(error) => {
-                            throw_io_error!(
-                                self, process, error, context, index
-                            );
-                        }
-                    };
+                    }
                 }
                 InstructionType::FileType => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path = path_ptr.string_value()?;
-                    let file_type = filesystem::type_of_path(path);
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
+                    let res = io::file_type(path)?;
 
-                    context.set_register(
-                        register,
-                        ObjectPointer::integer(file_type),
-                    );
+                    context.set_register(reg, res);
                 }
                 InstructionType::FileTime => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let kind_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
+                    let kind = context.get_register(instruction.arg(2));
 
-                    let path = path_ptr.string_value()?;
-                    let kind = kind_ptr.integer_value()?;
-
-                    match filesystem::date_time_for_path(path, kind) {
-                        Ok(dt) => {
-                            let ptr = process.allocate(
-                                object_value::float(dt.timestamp()),
-                                self.state.float_prototype,
-                            );
-
-                            context.set_register(register, ptr);
-                        }
-                        Err(error) => {
-                            throw_error_message!(
-                                self, process, error, context, index
-                            );
-                        }
-                    }
+                    match io::file_time(&self.state, process, path, kind) {
+                        Ok(time) => context.set_register(reg, time),
+                        Err(err) => throw_error_message!(
+                            self, process, err, context, index
+                        ),
+                    };
                 }
                 InstructionType::TimeSystem => {
-                    let register = instruction.arg(0);
-                    let timestamp = DateTime::now().timestamp();
-                    let pointer = process.allocate(
-                        object_value::float(timestamp),
-                        self.state.float_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let res = time::system(&self.state, process);
 
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::TimeSystemOffset => {
-                    let register = instruction.arg(0);
-                    let offset =
-                        ObjectPointer::integer(DateTime::now().utc_offset());
+                    let reg = instruction.arg(0);
+                    let res = time::system_offset();
 
-                    context.set_register(register, offset);
+                    context.set_register(reg, res);
                 }
                 InstructionType::TimeSystemDst => {
-                    let register = instruction.arg(0);
-                    let result = if DateTime::now().dst_active() {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
+                    let reg = instruction.arg(0);
+                    let res = time::system_dst(&self.state);
 
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::DirectoryCreate => {
-                    let register = instruction.arg(0);
-                    let result = create_or_remove_path!(
-                        self,
-                        instruction,
-                        context,
-                        create_dir,
-                        create_dir_all
-                    );
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
+                    let recursive = context.get_register(instruction.arg(2));
 
-                    if let Err(error) = result {
-                        throw_io_error!(self, process, error, context, index);
-                    } else {
-                        context.set_register(register, self.state.nil_object);
-                    }
+                    match io::create_directory(&self.state, path, recursive)? {
+                        Ok(res) => context.set_register(reg, res),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
+                        }
+                    };
                 }
                 InstructionType::DirectoryRemove => {
-                    let register = instruction.arg(0);
-                    let result = create_or_remove_path!(
-                        self,
-                        instruction,
-                        context,
-                        remove_dir,
-                        remove_dir_all
-                    );
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
+                    let recursive = context.get_register(instruction.arg(2));
 
-                    if let Err(error) = result {
-                        throw_io_error!(self, process, error, context, index);
-                    } else {
-                        context.set_register(register, self.state.nil_object);
-                    }
+                    match io::remove_directory(&self.state, path, recursive)? {
+                        Ok(res) => context.set_register(reg, res),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
+                        }
+                    };
                 }
                 InstructionType::DirectoryList => {
-                    let register = instruction.arg(0);
-                    let path_ptr = context.get_register(instruction.arg(1));
-                    let path = path_ptr.string_value()?;
+                    let reg = instruction.arg(0);
+                    let path = context.get_register(instruction.arg(1));
 
-                    match filesystem::list_directory_as_pointers(
-                        &self.state,
-                        process,
-                        path,
-                    ) {
-                        Ok(array) => {
-                            context.set_register(register, array);
-                        }
-                        Err(error) => {
-                            throw_error_message!(
-                                self, process, error, context, index
-                            );
-                        }
-                    }
+                    match io::list_directory(&self.state, process, path) {
+                        Ok(array) => context.set_register(reg, array),
+                        Err(err) => throw_error_message!(
+                            self, process, err, context, index
+                        ),
+                    };
                 }
                 InstructionType::StringConcat => {
-                    let register = instruction.arg(0);
+                    let reg = instruction.arg(0);
                     let left = context.get_register(instruction.arg(1));
                     let right = context.get_register(instruction.arg(2));
-                    let result = left.string_value()? + right.string_value()?;
+                    let res =
+                        string::concat(&self.state, process, left, right)?;
 
-                    let pointer = process.allocate(
-                        object_value::immutable_string(result),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::HasherNew => {
-                    let register = instruction.arg(0);
-                    let pointer = process.allocate(
-                        object_value::hasher(Hasher::new()),
-                        self.state.hasher_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let res = hasher::create(&self.state, process);
 
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::HasherWrite => {
-                    let register = instruction.arg(0);
-                    let mut hasher_ptr =
-                        context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let hasher = context.get_register(instruction.arg(1));
+                    let value = context.get_register(instruction.arg(2));
+                    let res = hasher::write(&self.state, hasher, value)?;
 
-                    let val_ptr = context.get_register(instruction.arg(2));
-
-                    val_ptr.hash_object(hasher_ptr.hasher_value_mut()?)?;
-
-                    context.set_register(register, self.state.nil_object);
+                    context.set_register(reg, res);
                 }
                 InstructionType::HasherFinish => {
-                    let register = instruction.arg(0);
-                    let mut hasher_ptr =
-                        context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let hasher = context.get_register(instruction.arg(1));
+                    let res = hasher::finish(&self.state, process, hasher)?;
 
-                    let result = hasher_ptr.hasher_value_mut()?.finish();
-                    let pointer = process
-                        .allocate_i64(result, self.state.integer_prototype);
-
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::Stacktrace => {
-                    let register = instruction.arg(0);
-                    let limit_ptr = context.get_register(instruction.arg(1));
-                    let skip_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let limit = context.get_register(instruction.arg(1));
+                    let skip = context.get_register(instruction.arg(2));
+                    let res =
+                        process::stacktrace(&self.state, process, limit, skip)?;
 
-                    let limit = if limit_ptr == self.state.nil_object {
-                        None
-                    } else {
-                        Some(limit_ptr.usize_value()?)
-                    };
-
-                    let skip = skip_ptr.usize_value()?;
-
-                    let array = stacktrace::allocate_stacktrace(
-                        process,
-                        &self.state,
-                        limit,
-                        skip,
-                    );
-
-                    context.set_register(register, array);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessTerminateCurrent => {
                     break 'exec_loop;
                 }
                 InstructionType::StringSlice => {
-                    let register = instruction.arg(0);
-                    let str_ptr = context.get_register(instruction.arg(1));
-                    let start_ptr = context.get_register(instruction.arg(2));
-                    let amount_ptr = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let start = context.get_register(instruction.arg(2));
+                    let amount = context.get_register(instruction.arg(3));
+                    let res = string::slice(
+                        &self.state,
+                        process,
+                        string,
+                        start,
+                        amount,
+                    )?;
 
-                    let string = str_ptr.string_value()?;
-                    let amount = amount_ptr.usize_value()?;
-
-                    let start = slicing::index_for_slice(
-                        string.chars().count(),
-                        start_ptr.integer_value()?,
-                    );
-
-                    let new_string = string
-                        .chars()
-                        .skip(start)
-                        .take(amount)
-                        .collect::<String>();
-
-                    let new_string_ptr = process.allocate(
-                        object_value::string(new_string),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, new_string_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::BlockMetadata => {
-                    let register = instruction.arg(0);
-                    let block_ptr = context.get_register(instruction.arg(1));
-                    let field_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let block = context.get_register(instruction.arg(1));
+                    let field = context.get_register(instruction.arg(2));
+                    let res =
+                        block::metadata(&self.state, process, block, field)?;
 
-                    let block = block_ptr.block_value()?;
-                    let kind = field_ptr.integer_value()?;
-
-                    let result = match kind {
-                        0 => block.code.name,
-                        1 => block.code.file,
-                        2 => ObjectPointer::integer(i64::from(block.code.line)),
-                        3 => process.allocate(
-                            object_value::array(block.code.arguments.clone()),
-                            self.state.array_prototype,
-                        ),
-                        4 => ObjectPointer::integer(i64::from(
-                            block.code.required_arguments,
-                        )),
-                        5 => {
-                            boolean_to_pointer!(self, block.code.rest_argument)
-                        }
-                        _ => {
-                            return Err(format!(
-                                "{} is not a valid block metadata type",
-                                kind
-                            ));
-                        }
-                    };
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::StringFormatDebug => {
-                    let register = instruction.arg(0);
-                    let str_ptr = context.get_register(instruction.arg(1));
-                    let new_str = format!("{:?}", str_ptr.string_value()?);
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let res =
+                        string::format_debug(&self.state, process, string)?;
 
-                    let new_str_ptr = process.allocate(
-                        object_value::string(new_str),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, new_str_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::StringConcatMultiple => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let array = array_ptr.array_value()?;
-                    let mut buffer = String::new();
+                    let reg = instruction.arg(0);
+                    let strings = context.get_register(instruction.arg(1));
+                    let res =
+                        string::concat_multiple(&self.state, process, strings)?;
 
-                    for str_ptr in array.iter() {
-                        buffer.push_str(str_ptr.string_value()?.as_slice());
-                    }
-
-                    let new_str_ptr = process.allocate(
-                        object_value::string(buffer),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, new_str_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayFromArray => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let res = byte_array::create(&self.state, process, array)?;
 
-                    let integers = array_ptr.array_value()?;
-                    let mut bytes = Vec::with_capacity(integers.len());
-
-                    for value in integers.iter() {
-                        bytes.push(byte_array::integer_to_byte(*value)?);
-                    }
-
-                    let pointer = process.allocate(
-                        object_value::byte_array(bytes),
-                        self.state.byte_array_prototype,
-                    );
-
-                    context.set_register(register, pointer);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArraySet => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
-                    let value_ptr = context.get_register(instruction.arg(3));
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let val = context.get_register(instruction.arg(3));
+                    let res = byte_array::set(array, index, val)?;
 
-                    let bytes = array_ptr.byte_array_value_mut()?;
-                    let index = slicing::index_for_slice(
-                        bytes.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = byte_array::integer_to_byte(value_ptr)?;
-
-                    if index > bytes.len() {
-                        return Err(format!(
-                            "Byte array index {} is out of bounds",
-                            index
-                        ));
-                    }
-
-                    if index == bytes.len() {
-                        bytes.push(value);
-                    } else {
-                        bytes[index] = value;
-                    }
-
-                    context.set_register(register, value_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayAt => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
-                    let bytes = array_ptr.byte_array_value()?;
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let res = byte_array::get(&self.state, array, index)?;
 
-                    let index = slicing::index_for_slice(
-                        bytes.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = bytes
-                        .get(index)
-                        .map(|byte| ObjectPointer::byte(*byte))
-                        .unwrap_or_else(|| self.state.nil_object);
-
-                    context.set_register(register, value);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayRemove => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let index_ptr = context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let res = byte_array::remove(&self.state, array, index)?;
 
-                    let bytes = array_ptr.byte_array_value_mut()?;
-                    let index = slicing::index_for_slice(
-                        bytes.len(),
-                        index_ptr.integer_value()?,
-                    );
-
-                    let value = if index >= bytes.len() {
-                        self.state.nil_object
-                    } else {
-                        ObjectPointer::byte(bytes.remove(index))
-                    };
-
-                    context.set_register(register, value);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayLength => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let bytes = array_ptr.byte_array_value()?;
-                    let length = process.allocate_usize(
-                        bytes.len(),
-                        self.state.integer_prototype,
-                    );
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let res = byte_array::length(&self.state, process, array)?;
 
-                    context.set_register(register, length);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayClear => {
-                    let array_ptr = context.get_register(instruction.arg(0));
+                    let array = context.get_register(instruction.arg(0));
 
-                    array_ptr.byte_array_value_mut()?.clear();
+                    byte_array::clear(array)?;
                 }
                 InstructionType::ByteArrayEquals => {
-                    let register = instruction.arg(0);
-                    let compare_ptr = context.get_register(instruction.arg(1));
-                    let compare_with_ptr =
-                        context.get_register(instruction.arg(2));
+                    let reg = instruction.arg(0);
+                    let compare = context.get_register(instruction.arg(1));
+                    let compare_with = context.get_register(instruction.arg(2));
+                    let res =
+                        byte_array::equals(&self.state, compare, compare_with)?;
 
-                    let result = if compare_ptr.byte_array_value()?
-                        == compare_with_ptr.byte_array_value()?
-                    {
-                        self.state.true_object
-                    } else {
-                        self.state.false_object
-                    };
-
-                    context.set_register(register, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ByteArrayToString => {
-                    let register = instruction.arg(0);
-                    let array_ptr = context.get_register(instruction.arg(1));
-                    let drain_ptr = context.get_register(instruction.arg(2));
-                    let mut input_bytes = array_ptr.byte_array_value_mut()?;
+                    let reg = instruction.arg(0);
+                    let array = context.get_register(instruction.arg(1));
+                    let drain = context.get_register(instruction.arg(2));
+                    let res = byte_array::to_string(
+                        &self.state,
+                        process,
+                        array,
+                        drain,
+                    )?;
 
-                    let mut string_bytes =
-                        if drain_ptr == self.state.true_object {
-                            input_bytes.drain(0..).collect()
-                        } else {
-                            input_bytes.clone()
-                        };
-
-                    let string = ImmutableString::from_utf8(string_bytes);
-
-                    let obj = process.allocate(
-                        object_value::immutable_string(string),
-                        self.state.string_prototype,
-                    );
-
-                    context.set_register(register, obj);
+                    context.set_register(reg, res);
                 }
                 InstructionType::EnvGet => {
                     let reg = instruction.arg(0);
                     let var = context.get_register(instruction.arg(1));
-                    let var_name = var.string_value()?.as_slice();
-
-                    let val = if let Some(val) = env::var_os(var_name) {
-                        let string = val.to_string_lossy().into_owned();
-
-                        process.allocate(
-                            object_value::string(string),
-                            self.state.string_prototype,
-                        )
-                    } else {
-                        self.state.nil_object
-                    };
+                    let val = env::get(&self.state, process, var)?;
 
                     context.set_register(reg, val);
                 }
@@ -2391,105 +1499,59 @@ impl Machine {
                     let var = context.get_register(instruction.arg(1));
                     let val = context.get_register(instruction.arg(2));
 
-                    env::set_var(var.string_value()?, val.string_value()?);
-
-                    context.set_register(reg, val);
+                    context.set_register(reg, env::set(var, val)?);
                 }
                 InstructionType::EnvVariables => {
                     let reg = instruction.arg(0);
-                    let names = env::vars_os()
-                        .map(|(key, _)| {
-                            process.allocate(
-                                object_value::string(
-                                    key.to_string_lossy().into_owned(),
-                                ),
-                                self.state.string_prototype,
-                            )
-                        })
-                        .collect();
+                    let names = env::names(&self.state, process)?;
 
-                    let array = process.allocate(
-                        object_value::array(names),
-                        self.state.array_prototype,
-                    );
-
-                    context.set_register(reg, array);
+                    context.set_register(reg, names);
                 }
                 InstructionType::EnvHomeDirectory => {
                     let reg = instruction.arg(0);
-
-                    let path = if let Some(path) = directories::home() {
-                        process.allocate(
-                            object_value::string(path),
-                            self.state.string_prototype,
-                        )
-                    } else {
-                        self.state.nil_object
-                    };
+                    let path = env::home_directory(&self.state, process)?;
 
                     context.set_register(reg, path);
                 }
                 InstructionType::EnvTempDirectory => {
                     let reg = instruction.arg(0);
-
-                    let path = process.allocate(
-                        object_value::string(directories::temp()),
-                        self.state.string_prototype,
-                    );
+                    let path = env::tmp_directory(&self.state, process);
 
                     context.set_register(reg, path);
                 }
                 InstructionType::EnvGetWorkingDirectory => {
                     let reg = instruction.arg(0);
 
-                    match directories::working_directory() {
-                        Ok(path_string) => {
-                            let path = process.allocate(
-                                object_value::string(path_string),
-                                self.state.string_prototype,
-                            );
-
-                            context.set_register(reg, path);
+                    match env::working_directory(&self.state, process) {
+                        Ok(path) => context.set_register(reg, path),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index);
                         }
-                        Err(error) => {
-                            throw_io_error!(
-                                self, process, error, context, index
-                            );
-                        }
-                    }
+                    };
                 }
                 InstructionType::EnvSetWorkingDirectory => {
                     let reg = instruction.arg(0);
-                    let dir_ptr = context.get_register(instruction.arg(1));
-                    let dir = dir_ptr.string_value()?;
+                    let dir = context.get_register(instruction.arg(1));
 
-                    match directories::set_working_directory(dir) {
-                        Ok(_) => {
-                            context.set_register(reg, dir_ptr);
+                    match env::set_working_directory(dir)? {
+                        Ok(dir) => context.set_register(reg, dir),
+                        Err(err) => {
+                            throw_io_error!(self, process, err, context, index)
                         }
-                        Err(error) => {
-                            throw_io_error!(
-                                self, process, error, context, index
-                            );
-                        }
-                    }
+                    };
                 }
                 InstructionType::EnvArguments => {
                     let reg = instruction.arg(0);
-                    let args = process.allocate(
-                        object_value::array(self.state.arguments.clone()),
-                        self.state.array_prototype,
-                    );
+                    let args = env::arguments(&self.state, process);
 
                     context.set_register(reg, args);
                 }
                 InstructionType::EnvRemove => {
                     let reg = instruction.arg(0);
                     let var = context.get_register(instruction.arg(1));
+                    let val = env::remove(&self.state, var)?;
 
-                    env::remove_var(var.string_value()?);
-
-                    context.set_register(reg, self.state.nil_object);
+                    context.set_register(reg, val);
                 }
                 InstructionType::BlockGetReceiver => {
                     let reg = instruction.arg(0);
@@ -2542,21 +1604,9 @@ impl Machine {
                 InstructionType::ProcessAddDeferToCaller => {
                     let reg = instruction.arg(0);
                     let block = context.get_register(instruction.arg(1));
+                    let res = process::add_defer_to_caller(process, block)?;
 
-                    if block.block_value().is_err() {
-                        return Err("only Blocks can be deferred".to_string());
-                    }
-
-                    // We can not use `if let Some(...) = ...` here as the
-                    // mutable borrow of "context" prevents the 2nd mutable
-                    // borrow inside the "else".
-                    if context.parent().is_some() {
-                        context.parent_mut().unwrap().add_defer(block);
-                    } else {
-                        context.add_defer(block);
-                    }
-
-                    context.set_register(reg, block);
+                    context.set_register(reg, res);
                 }
                 InstructionType::SetDefaultPanicHandler => {
                     let reg = instruction.arg(0);
@@ -2568,39 +1618,23 @@ impl Machine {
                 }
                 InstructionType::ProcessPinThread => {
                     let reg = instruction.arg(0);
+                    let res = process::pin_thread(&self.state, process, worker);
 
-                    let result = if process.thread_id().is_some() {
-                        self.state.false_object
-                    } else {
-                        process.set_thread_id(worker.thread_id);
-
-                        self.state.true_object
-                    };
-
-                    worker.pin();
-
-                    context.set_register(reg, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessUnpinThread => {
                     let reg = instruction.arg(0);
+                    let res =
+                        process::unpin_thread(&self.state, process, worker);
 
-                    process.unset_thread_id();
-
-                    worker.unpin();
-
-                    context.set_register(reg, self.state.nil_object);
+                    context.set_register(reg, res);
                 }
                 InstructionType::LibraryOpen => {
                     let reg = instruction.arg(0);
-                    let name_ptr = context.get_register(instruction.arg(1));
-                    let names = name_ptr.array_value()?;
-                    let lib = ffi::Library::from_pointers(names)?;
-                    let ptr = process.allocate(
-                        object_value::library(lib),
-                        self.state.library_prototype,
-                    );
+                    let names = context.get_register(instruction.arg(1));
+                    let res = ffi::open_library(&self.state, process, names)?;
 
-                    context.set_register(reg, ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::FunctionAttach => {
                     let reg = instruction.arg(0);
@@ -2608,118 +1642,88 @@ impl Machine {
                     let name = context.get_register(instruction.arg(2));
                     let arg_types = context.get_register(instruction.arg(3));
                     let rtype = context.get_register(instruction.arg(4));
-                    let func = unsafe {
-                        let lib = lib.library_value()?;
-                        let name = name.string_value()?.as_slice();
-                        let args = arg_types.array_value()?;
+                    let res = ffi::attach_function(
+                        &self.state,
+                        process,
+                        lib,
+                        name,
+                        arg_types,
+                        rtype,
+                    )?;
 
-                        ffi::Function::attach(lib, name, args, rtype)?
-                    };
-
-                    let ptr = process.allocate(
-                        object_value::function(func),
-                        self.state.function_prototype,
-                    );
-
-                    context.set_register(reg, ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::FunctionCall => {
                     let reg = instruction.arg(0);
-                    let func_ptr = context.get_register(instruction.arg(1));
-                    let args_ptr = context.get_register(instruction.arg(2));
-                    let func = func_ptr.function_value()?;
-                    let args = args_ptr.array_value()?;
-                    let result =
-                        unsafe { func.call(&self.state, &process, args)? };
+                    let func = context.get_register(instruction.arg(1));
+                    let args = context.get_register(instruction.arg(2));
+                    let res =
+                        ffi::call_function(&self.state, process, func, args)?;
 
-                    context.set_register(reg, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PointerAttach => {
                     let reg = instruction.arg(0);
                     let lib = context.get_register(instruction.arg(1));
                     let name = context.get_register(instruction.arg(2));
-                    let raw_ptr = unsafe {
-                        lib.library_value()?
-                            .get(name.string_value()?.as_slice())?
-                    };
+                    let res =
+                        ffi::attach_pointer(&self.state, process, lib, name)?;
 
-                    let obj_ptr = process.allocate(
-                        object_value::pointer(raw_ptr),
-                        self.state.pointer_prototype,
-                    );
-
-                    context.set_register(reg, obj_ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PointerRead => {
                     let reg = instruction.arg(0);
                     let ptr = context.get_register(instruction.arg(1));
                     let read_as = context.get_register(instruction.arg(2));
-                    let offset = context
-                        .get_register(instruction.arg(3))
-                        .usize_value()?;
+                    let offset = context.get_register(instruction.arg(3));
+                    let res = ffi::read_pointer(
+                        &self.state,
+                        process,
+                        ptr,
+                        read_as,
+                        offset,
+                    )?;
 
-                    let result = unsafe {
-                        ptr.pointer_value()?.with_offset(offset).read_as(
-                            &self.state,
-                            process,
-                            read_as,
-                        )?
-                    };
-
-                    context.set_register(reg, result);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PointerWrite => {
                     let reg = instruction.arg(0);
                     let ptr = context.get_register(instruction.arg(1));
                     let write_as = context.get_register(instruction.arg(2));
                     let value = context.get_register(instruction.arg(3));
-                    let offset = context
-                        .get_register(instruction.arg(4))
-                        .usize_value()?;
+                    let offset = context.get_register(instruction.arg(4));
+                    let res = ffi::write_pointer(ptr, write_as, value, offset)?;
 
-                    unsafe {
-                        ptr.pointer_value()?
-                            .with_offset(offset)
-                            .write_as(write_as, value)?;
-                    }
-
-                    context.set_register(reg, value);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PointerFromAddress => {
                     let reg = instruction.arg(0);
                     let addr = context.get_register(instruction.arg(1));
-                    let ptr = process.allocate(
-                        object_value::pointer(unsafe {
-                            ffi::Pointer::from_address(addr)?
-                        }),
-                        self.state.pointer_prototype,
-                    );
+                    let res =
+                        ffi::pointer_from_address(&self.state, process, addr)?;
 
-                    context.set_register(reg, ptr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::PointerAddress => {
                     let reg = instruction.arg(0);
                     let ptr = context.get_register(instruction.arg(1));
-                    let addr = process.allocate_usize(
-                        ptr.pointer_value()?.address(),
-                        self.state.integer_prototype,
-                    );
+                    let res = ffi::pointer_address(&self.state, process, ptr)?;
 
-                    context.set_register(reg, addr);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ForeignTypeSize => {
                     let reg = instruction.arg(0);
                     let kind = context.get_register(instruction.arg(1));
-                    let size = ffi::type_size(kind.integer_value()?)?;
+                    let res = ffi::type_size(kind)?;
 
-                    context.set_register(reg, size);
+                    context.set_register(reg, res);
                 }
                 InstructionType::ForeignTypeAlignment => {
                     let reg = instruction.arg(0);
                     let kind = context.get_register(instruction.arg(1));
-                    let align = ffi::type_alignment(kind.integer_value()?)?;
+                    let res = ffi::type_alignment(kind)?;
 
-                    context.set_register(reg, align);
+                    context.set_register(reg, res);
                 }
             };
         }
@@ -2747,25 +1751,6 @@ impl Machine {
         }
 
         Ok(())
-    }
-
-    /// Collects a set of arguments from an instruction.
-    pub fn collect_arguments(
-        &self,
-        process: &RcProcess,
-        instruction: &Instruction,
-        offset: usize,
-        amount: usize,
-    ) -> Vec<ObjectPointer> {
-        let mut args: Vec<ObjectPointer> = Vec::with_capacity(amount);
-
-        for index in offset..(offset + amount) {
-            let arg_index = instruction.arg(index);
-
-            args.push(process.get_register(arg_index));
-        }
-
-        args
     }
 
     /// Checks if a garbage collection run should be scheduled for the given
@@ -3035,19 +2020,5 @@ impl Machine {
     fn terminate_for_panic(&self) {
         self.state.set_exit_status(1);
         self.terminate();
-    }
-
-    fn unwind_until_defining_scope(&self, process: &RcProcess) {
-        let top_binding = process.context().top_binding_pointer();
-
-        loop {
-            let context = process.context();
-
-            if context.binding_pointer() == top_binding {
-                return;
-            } else {
-                process.pop_context();
-            }
-        }
     }
 }

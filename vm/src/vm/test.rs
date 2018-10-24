@@ -6,6 +6,7 @@ use module::Module;
 use process::RcProcess;
 use vm::instruction::{Instruction, InstructionType};
 use vm::machine::Machine;
+use vm::process;
 use vm::state::State;
 
 /// Sets up a VM with a single process.
@@ -36,7 +37,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let scope = module.global_scope_ref();
         let block =
             Block::new(module.code(), None, machine.state.top_level, scope);
-        let process = machine.allocate_process(0, &block);
+        let process = process::allocate(&machine.state, 0, &block);
 
         (block, process.unwrap())
     };

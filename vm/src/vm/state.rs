@@ -352,36 +352,6 @@ impl State {
             Some(handler)
         }
     }
-
-    /// Returns a prototype for the given numeric ID.
-    ///
-    /// This method operates on an i64 instead of some sort of enum, as enums
-    /// can not be represented in Inko code.
-    pub fn prototype_for_identifier(
-        &self,
-        id: i64,
-    ) -> Result<ObjectPointer, String> {
-        let proto = match id {
-            0 => self.object_prototype,
-            1 => self.integer_prototype,
-            2 => self.float_prototype,
-            3 => self.string_prototype,
-            4 => self.array_prototype,
-            5 => self.block_prototype,
-            6 => self.boolean_prototype,
-            7 => self.read_only_file_prototype,
-            8 => self.write_only_file_prototype,
-            9 => self.read_write_file_prototype,
-            10 => self.byte_array_prototype,
-            11 => self.hasher_prototype,
-            12 => self.library_prototype,
-            13 => self.function_prototype,
-            14 => self.pointer_prototype,
-            _ => return Err(format!("Invalid prototype identifier: {}", id)),
-        };
-
-        Ok(proto)
-    }
 }
 
 #[cfg(test)]
@@ -429,20 +399,5 @@ mod tests {
         let float = state.allocate_permanent_float(10.5);
 
         assert_eq!(float.float_value().unwrap(), 10.5);
-    }
-
-    #[test]
-    fn test_prototype_for_identifier() {
-        let state = State::new(Config::new(), &[]);
-
-        assert!(
-            state.prototype_for_identifier(2).unwrap() == state.float_prototype
-        );
-
-        assert!(
-            state.prototype_for_identifier(5).unwrap() == state.block_prototype
-        );
-
-        assert!(state.prototype_for_identifier(-1).is_err());
     }
 }

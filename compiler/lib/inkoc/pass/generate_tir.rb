@@ -825,10 +825,7 @@ module Inkoc
       end
 
       def on_raw_set_prototype(node, body)
-        object = process_node(node.arguments.fetch(0), body)
-        proto = process_node(node.arguments.fetch(1), body)
-
-        body.instruct(:SetPrototype, object, proto, node.location)
+        raw_binary_instruction(:SetPrototype, node, body)
       end
 
       def on_raw_set_attribute(node, body)
