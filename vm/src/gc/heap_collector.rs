@@ -124,10 +124,11 @@ pub fn trace_without_moving(process: &RcProcess, mature: bool) -> TraceResult {
         })
         .reduce(TraceResult::new, |acc, curr| acc + curr);
 
-    result + collector::trace_pointers_without_moving(
-        process.global_pointers_to_trace(),
-        mature,
-    )
+    result
+        + collector::trace_pointers_without_moving(
+            process.global_pointers_to_trace(),
+            mature,
+        )
 }
 
 /// Traces through the roots and all their child pointers, potentially
@@ -145,11 +146,12 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
         })
         .reduce(TraceResult::new, |acc, curr| acc + curr);
 
-    result + collector::trace_pointers_with_moving(
-        process,
-        process.global_pointers_to_trace(),
-        mature,
-    )
+    result
+        + collector::trace_pointers_with_moving(
+            process,
+            process.global_pointers_to_trace(),
+            mature,
+        )
 }
 
 #[cfg(test)]
@@ -553,14 +555,12 @@ mod tests {
 
             assert!(block.receiver.is_marked());
 
-            assert!(
-                block
-                    .captures_from
-                    .as_ref()
-                    .unwrap()
-                    .get_local(0)
-                    .is_marked()
-            );
+            assert!(block
+                .captures_from
+                .as_ref()
+                .unwrap()
+                .get_local(0)
+                .is_marked());
         }
     }
 

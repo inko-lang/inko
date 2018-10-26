@@ -73,15 +73,13 @@ mod tests {
 
         collect(&state, &process, &mut profile);
 
-        assert!(
-            local_data
-                .mailbox
-                .external
-                .iter()
-                .next()
-                .unwrap()
-                .is_marked()
-        );
+        assert!(local_data
+            .mailbox
+            .external
+            .iter()
+            .next()
+            .unwrap()
+            .is_marked());
 
         assert_eq!(profile.marked, 1);
         assert_eq!(profile.evacuated, 0);

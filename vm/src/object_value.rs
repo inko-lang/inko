@@ -372,10 +372,8 @@ mod tests {
 
     #[test]
     fn test_is_interned_string() {
-        assert!(
-            ObjectValue::InternedString(Box::new(String::new()))
-                .is_interned_string()
-        );
+        assert!(ObjectValue::InternedString(Box::new(String::new()))
+            .is_interned_string());
     }
 
     #[test]
