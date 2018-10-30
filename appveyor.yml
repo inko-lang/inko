@@ -16,11 +16,7 @@ environment:
   matrix:
     - TARGET: x86_64-pc-windows-gnu
       CHANNEL: nightly
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: nightly
     - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: stable
-    - TARGET: x86_64-pc-windows-msvc
       CHANNEL: stable
 
 install:
@@ -47,19 +43,4 @@ before_test:
   - ruby --version
 
 test_script:
-  # Test the compiler
-  - cd compiler
-  - make test
-  - cd ..
-  # Test the VM
-  - cd vm
-  - make test
-  - cd ..
-  # Build the VM for the runtime
-  - cd vm
-  - make release
-  - cd ..
-  # Run the runtime tests
-  - cd compiler
-  - bundle exec ruby -I lib ./bin/inko-test -d ../runtime --vm ../vm/target/release/ivm
-  - cd ..
+  - C:\msys64\usr\bin\env MSYSTEM=MINGW64 C:\msys64\usr\bin\bash -l %APPVEYOR_BUILD_FOLDER%\scripts\appveyor.sh
