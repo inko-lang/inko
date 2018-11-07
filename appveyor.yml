@@ -36,6 +36,7 @@ install:
 cache:
   - C:\Users\appveyor\.cargo
   - compiler\vendor
+  - vm\target
 
 before_test:
   - rustc --version

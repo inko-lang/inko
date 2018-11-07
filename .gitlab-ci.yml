@@ -60,6 +60,7 @@ test:ivm-nightly:linux:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 test:ivm-stable:linux:
   image: alpine:edge
@@ -74,6 +75,7 @@ test:ivm-stable:linux:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 test:ivm-nightly:macos:
   stage: test
@@ -89,6 +91,7 @@ test:ivm-nightly:macos:
     key: macos
     paths:
       - .cargo
+      - vm/target
 
 test:ivm-stable:macos:
   stage: test
@@ -104,6 +107,7 @@ test:ivm-stable:macos:
     key: macos
     paths:
       - .cargo
+      - vm/target
 
 lint:clippy:
   image: rust:latest
@@ -120,6 +124,7 @@ lint:clippy:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 lint:rustfmt:
   image: rustlang/rust:nightly
@@ -135,6 +140,7 @@ lint:rustfmt:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 lint:versions:
   image: alpine:latest
@@ -159,6 +165,7 @@ build:ivm:linux:
   cache:
     paths:
       - .cargo
+      - vm/target
   artifacts:
     expire_in: 1 hour
     paths:
@@ -180,6 +187,7 @@ build:ivm:macos:
     key: macos
     paths:
       - .cargo
+      - vm/target
   artifacts:
     expire_in: 1 hour
     paths:
@@ -240,6 +248,7 @@ release:compiled:linux-gnu:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 release:compiled:linux-musl:
   image: alpine:edge
@@ -257,6 +266,7 @@ release:compiled:linux-musl:
   cache:
     paths:
       - .cargo
+      - vm/target
 
 release:compiled:macos:
   stage: release
@@ -275,6 +285,7 @@ release:compiled:macos:
     key: macos
     paths:
       - .cargo
+      - vm/target
 
 post-release:manifest:
   image: alpine:latest
