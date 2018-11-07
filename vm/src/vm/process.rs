@@ -81,7 +81,7 @@ pub fn send_message(
 pub fn wait_for_message(
     state: &RcState,
     process: &RcProcess,
-    timeout: Option<u64>,
+    timeout: Option<f64>,
 ) {
     process.waiting_for_message();
 
@@ -108,7 +108,7 @@ pub fn status(
     Ok(ObjectPointer::integer(i64::from(status)))
 }
 
-pub fn suspend(state: &RcState, process: &RcProcess, timeout: Option<u64>) {
+pub fn suspend(state: &RcState, process: &RcProcess, timeout: Option<f64>) {
     process.suspended();
 
     state.suspension_list.suspend(process.clone(), timeout);
@@ -241,14 +241,12 @@ pub fn unwind_until_defining_scope(process: &RcProcess) {
     }
 }
 
-pub fn optional_timeout(pointer: ObjectPointer) -> Option<u64> {
-    if let Ok(time) = pointer.integer_value() {
-        if time > 0 {
-            Some(time as u64)
-        } else {
-            None
-        }
-    } else {
-        None
+pub fn optional_timeout(pointer: ObjectPointer) -> Result<Option<f64>, String> {
+    let time = pointer.float_value()?;
+
+    if time < 0.0 {
+        return Err(format!("{} is an invalid timeout value", time));
     }
+
+    Ok(if time == 0.0 { None } else { Some(time) })
 }

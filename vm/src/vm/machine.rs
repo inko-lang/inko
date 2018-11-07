@@ -942,7 +942,7 @@ impl Machine {
                         process::wait_for_message(
                             &self.state,
                             process,
-                            process::optional_timeout(time_ptr),
+                            process::optional_timeout(time_ptr)?,
                         );
 
                         return Ok(());
@@ -963,7 +963,7 @@ impl Machine {
                 }
                 InstructionType::ProcessSuspendCurrent => {
                     let time_ptr = context.get_register(instruction.arg(0));
-                    let timeout = process::optional_timeout(time_ptr);
+                    let timeout = process::optional_timeout(time_ptr)?;
 
                     context.instruction_index = index;
 

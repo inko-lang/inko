@@ -49,9 +49,8 @@ pub struct Config {
     /// Defaults to 1000.
     pub reductions: usize,
 
-    /// The number of milliseconds to wait between checking for suspended
-    /// processes.
-    pub suspension_check_interval: u64,
+    /// The number of seconds to wait between checking for suspended processes.
+    pub suspension_check_interval: f64,
 
     /// The amount of memory that can be allocated in the young generation
     /// before triggering a young collection.
@@ -92,7 +91,7 @@ impl Config {
             secondary_threads: cpu_count,
             generic_parallel_threads: cpu_count,
             reductions: 1000,
-            suspension_check_interval: 100,
+            suspension_check_interval: 0.1,
             young_threshold: 8 * 1024 * 1024,
             mature_threshold: 16 * 1024 * 1024,
             heap_growth_factor: 1.5,
@@ -122,7 +121,7 @@ impl Config {
             self,
             suspension_check_interval,
             "SUSPENSION_CHECK_INTERVAL",
-            u64
+            f64
         );
 
         set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", usize);
@@ -187,8 +186,8 @@ impl Config {
         }
     }
 
-    pub fn set_suspension_check_interval(&mut self, interval: u64) {
-        if interval > 0 {
+    pub fn set_suspension_check_interval(&mut self, interval: f64) {
+        if interval > 0.0 {
             self.suspension_check_interval = interval;
         }
     }

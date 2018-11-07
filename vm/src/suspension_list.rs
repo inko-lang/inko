@@ -15,6 +15,13 @@ use std::time::{Duration, Instant};
 use process::RcProcess;
 use vm::state::RcState;
 
+fn duration_from_f64(value: f64) -> Duration {
+    let secs = value.trunc() as u64;
+    let nanos = (value.fract() * 1_000_000_000.0) as u32;
+
+    Duration::new(secs, nanos)
+}
+
 pub struct SuspendedProcess {
     /// The process that is suspended.
     pub process: RcProcess,
@@ -106,10 +113,10 @@ impl SuspensionList {
         }
     }
 
-    /// Suspends the given process, optionally with a timeout in milliseconds.
-    pub fn suspend(&self, process: RcProcess, timeout: Option<u64>) {
+    /// Suspends the given process, optionally with a timeout in seconds.
+    pub fn suspend(&self, process: RcProcess, timeout: Option<f64>) {
         let entry =
-            SuspendedProcess::new(process, timeout.map(Duration::from_millis));
+            SuspendedProcess::new(process, timeout.map(duration_from_f64));
 
         lock!(self.outer).insert(entry);
 
@@ -225,7 +232,20 @@ impl SuspensionList {
         if let Some(duration) = time {
             duration
         } else {
-            Duration::from_millis(state.config.suspension_check_interval)
+            duration_from_f64(state.config.suspension_check_interval)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_duration_from_f64() {
+        let duration = duration_from_f64(1.123);
+
+        assert_eq!(duration.as_secs(), 1);
+        assert_eq!(duration.subsec_nanos(), 123_000_000);
     }
 }

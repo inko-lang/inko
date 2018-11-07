@@ -57,7 +57,7 @@
 ## suspended. These units of work are called reductions. Each process starts
 ## with a given number of reductions, and will be suspended once this value
 ## reaches zero.
-import std::conversion::(ToInteger, ToString)
+import std::conversion::(ToFloat, ToInteger, ToString)
 
 ## The ID of the pool to schedule regular processes on.
 let PRIMARY_POOL = 0
@@ -107,8 +107,8 @@ object Receiver!(T) {
   ##
   ##     sender.send(10)
   ##     receiver.receive # => 10
-  def receive(timeout: ?Integer = Nil) -> T {
-    ThisModule.receive(timeout) as T
+  def receive(timeout: ToFloat = 0.0) -> T {
+    ThisModule.receive(timeout.to_float) as T
   }
 }
 
@@ -147,9 +147,8 @@ def send!(T)(pid: ToInteger, message: T) -> T {
 ## Calling this method will block the current process until a message is
 ## received.
 ##
-## The argument of this method can be used to set a timeout (in milliseconds).
-## If no message is received and the timeout expires this method will return
-## `Nil`.
+## The argument of this method can be used to set a timeout (in seconds).  If no
+## message is received and the timeout expires this method will return `Nil`.
 ##
 ## Messages are received in the same order in which they are sent.
 ##
@@ -168,8 +167,8 @@ def send!(T)(pid: ToInteger, message: T) -> T {
 ##     import std::process
 ##
 ##     process.receive(5) # => Nil
-def receive(timeout: ?Integer = Nil) {
-  _INKOC.process_receive_message(timeout)
+def receive(timeout: ToFloat = 0.0) {
+  _INKOC.process_receive_message(timeout.to_float)
 }
 
 ## Receives a message that matches a condition.
@@ -182,7 +181,7 @@ def receive(timeout: ?Integer = Nil) {
 ## If no messages match the condition, this method will suspend the current
 ## process for a brief period of time. The time the process will be suspended
 ## for can be controlled using the `recheck_interval` argument. This argument
-## specifies the minimum suspension time in milliseconds.
+## specifies the minimum suspension time in seconds.
 ##
 ## # Examples
 ##
@@ -215,7 +214,7 @@ def receive(timeout: ?Integer = Nil) {
 ## to specify the `timeout` argument first.
 def receive_if(
   condition: do (Dynamic) -> Dynamic,
-  timeout: ?Integer = Nil,
+  timeout: ToFloat = 0.0,
   recheck_interval = 50,
 ) {
   let first_message = receive(timeout)
@@ -400,7 +399,7 @@ def status(pid: ToInteger) -> Integer {
 ## Suspends the current process until it is rescheduled.
 ##
 ## The argument of this method can be used to set a minimum suspension time (in
-## milliseconds). If no timeout is specified the process may be rescheduled at
+## seconds). If no timeout is specified the process may be rescheduled at
 ## any time.
 ##
 ## # Examples
@@ -416,8 +415,8 @@ def status(pid: ToInteger) -> Integer {
 ##     import std::process
 ##
 ##     process.suspend(5) # => Nil
-def suspend(timeout: ?Integer = Nil) -> Nil {
-  _INKOC.process_suspend_current(timeout)
+def suspend(timeout: ToFloat = 0.0) -> Nil {
+  _INKOC.process_suspend_current(timeout.to_float)
   Nil
 }
 
