@@ -650,11 +650,40 @@ mod tests {
     #[test]
     fn test_object_mark_for_forward() {
         let mut block = Block::new();
-        let pointer = ObjectPointer::new(block.request_pointer().unwrap());
+        let object = Object::new(ObjectValue::None);
+
+        // We have to explicitly write the object to the pointer, otherwise our
+        // pointer might point to random chunk, which could result in it
+        // thinking the pending forward bit is already set.
+        let pointer = object.write_to(block.request_pointer().unwrap());
 
         assert!(pointer.get_mut().mark_for_forward());
         assert!(pointer.get().attributes.bit_is_set(PENDING_FORWARD_BIT));
 
         assert_eq!(pointer.get_mut().mark_for_forward(), false);
+    }
+
+    #[test]
+    fn test_object_mark_for_forward_with_previously_forwarded_pointer() {
+        let mut block = Block::new();
+        let raw_pointer = block.request_pointer().unwrap();
+
+        {
+            let pointer = Object::new(ObjectValue::None).write_to(raw_pointer);
+
+            pointer.get_mut().mark_for_forward();
+        }
+
+        // This test ensures that `mark_for_forward` doesn't get messed up when
+        // used on a slot that was previously forwarded (but first allocated
+        // into again).
+        let pointer = Object::new(ObjectValue::None).write_to(raw_pointer);
+
+        assert_eq!(
+            pointer.get().attributes.bit_is_set(PENDING_FORWARD_BIT),
+            false
+        );
+
+        assert_eq!(pointer.get_mut().mark_for_forward(), true);
     }
 }
