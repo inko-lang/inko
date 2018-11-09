@@ -37,6 +37,9 @@ pub enum ObjectStatus {
 
     /// This object should be evacuated from its block.
     Evacuate,
+
+    /// This object is in the process of being moved.
+    PendingMove,
 }
 
 pub type AttributesMap = FnvHashMap<ObjectPointer, ObjectPointer>;

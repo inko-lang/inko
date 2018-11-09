@@ -80,6 +80,10 @@ pub fn trace_pointers_with_moving(
                 evacuate(process, pointer);
                 evacuated += 1;
             }
+            ObjectStatus::PendingMove => {
+                objects.push(pointer_pointer.clone());
+                continue;
+            }
             _ => {}
         }
 

@@ -106,6 +106,7 @@ unsafe impl Sync for ObjectPointer {}
 
 /// A pointer to a object pointer. This wrapper is necessary to allow sharing
 /// *const ObjectPointer pointers between threads.
+#[derive(Clone)]
 pub struct ObjectPointerPointer {
     pub raw: *const ObjectPointer,
 }
@@ -187,16 +188,21 @@ impl ObjectPointer {
 
         let block = self.block();
 
-        if block.is_fragmented() && self.get_mut().mark_for_forward() {
-            return ObjectStatus::Evacuate;
+        if block.is_fragmented() {
+            if self.get_mut().mark_for_forward() {
+                ObjectStatus::Evacuate
+            } else {
+                ObjectStatus::PendingMove
+            }
+        } else if block.bucket().unwrap().promote {
+            if self.get_mut().mark_for_forward() {
+                ObjectStatus::Promote
+            } else {
+                ObjectStatus::PendingMove
+            }
+        } else {
+            ObjectStatus::OK
         }
-
-        if block.bucket().unwrap().promote && self.get_mut().mark_for_forward()
-        {
-            return ObjectStatus::Promote;
-        }
-
-        ObjectStatus::OK
     }
 
     /// Replaces the current pointer with a pointer to the forwarded object.
@@ -770,10 +776,7 @@ mod tests {
         pointer.block_mut().bucket_mut().unwrap().promote = true;
 
         assert_eq!(pointer.status(), ObjectStatus::Promote);
-
-        // The first status check will acquire the "right" to promote the
-        // object. All other status checks will simply return OK.
-        assert_eq!(pointer.status(), ObjectStatus::OK);
+        assert_eq!(pointer.status(), ObjectStatus::PendingMove);
     }
 
     #[test]
@@ -785,10 +788,7 @@ mod tests {
         pointer.block_mut().set_fragmented();
 
         assert_eq!(pointer.status(), ObjectStatus::Evacuate);
-
-        // The first status check will acquire the "right" to promote the
-        // object. All other status checks will simply return OK.
-        assert_eq!(pointer.status(), ObjectStatus::OK);
+        assert_eq!(pointer.status(), ObjectStatus::PendingMove);
 
         pointer.get_mut().forward_to(pointer2);
 
