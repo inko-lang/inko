@@ -1,3 +1,4 @@
+import std::fs::path::Path
 import std::test
 import std::test::assert
 
@@ -84,5 +85,11 @@ test.group('std::string::String.+') do (g) {
     assert.equal('Ä' + 'Ä', 'ÄÄ')
     assert.equal('A' + 'Ä', 'AÄ')
     assert.equal('쿠' + '키', '쿠키')
+  }
+}
+
+test.group('std::string::String.to_path') do (g) {
+  g.test('Converting a String to a Path') {
+    assert.equal('foo.inko'.to_path, Path.new('foo.inko'))
   }
 }

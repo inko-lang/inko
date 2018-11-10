@@ -20,17 +20,17 @@ def size(path: ToPath) !! IOError -> Integer {
 
 ## Returns the creation time of a path.
 def created_at(path: ToPath) !! IOError -> SystemTime {
-  try raw.file_time(path.to_path.to_string, CREATED_AT)
+  try raw.created_at(path.to_path.to_string)
 }
 
 ## Returns the modification time of a path.
 def modified_at(path: ToPath) !! IOError -> SystemTime {
-  try raw.file_time(path.to_path.to_string, MODIFIED_AT)
+  try raw.modified_at(path.to_path.to_string)
 }
 
 ## Returns the access time of a path.
 def accessed_at(path: ToPath) !! IOError -> SystemTime {
-  try raw.file_time(path.to_path.to_string, ACCESSED_AT)
+  try raw.accessed_at(path.to_path.to_string)
 }
 
 ## Returns `True` if the path points to a file.

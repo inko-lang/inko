@@ -43,6 +43,7 @@ import std::fs::raw
 import std::io::(Error as IOError, Size)
 import std::operators::Equal
 import std::os
+import std::time::SystemTime
 
 ## The primary separator of path components.
 let SEPARATOR = os.windows?.if true: {
@@ -134,6 +135,51 @@ object Path impl Equal, ToString, Size {
   ##     path1 == path2 # => True
   def ==(other: Self) -> Boolean {
     to_string == other.to_string
+  }
+
+  ## Returns the creation time of `self`.
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the creation time of a `Path`:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('README.md')
+  ##
+  ##     try! path.created_at # => SystemTime { ... }
+  def created_at !! IOError -> SystemTime {
+    try raw.created_at(@path)
+  }
+
+  ## Returns the modification time of `self`.
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the modification time of a `Path`:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('README.md')
+  ##
+  ##     try! path.modified_at # => SystemTime { ... }
+  def modified_at !! IOError -> SystemTime {
+    try raw.modified_at(@path)
+  }
+
+  ## Returns the access time of `self`.
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the access time of a `Path`:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('README.md')
+  ##
+  ##     try! path.accessed_at # => SystemTime { ... }
+  def accessed_at !! IOError -> SystemTime {
+    try raw.accessed_at(@path)
   }
 }
 

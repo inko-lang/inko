@@ -3,6 +3,7 @@ import std::mirror
 import std::test
 import std::test::assert
 import std::time::SystemTime
+import test::features
 
 ## The path to the file this test is defined in.
 let CURRENT_FILE = mirror.reflect_module(ThisModule).path
@@ -13,30 +14,6 @@ let INVALID_TIME = SystemTime.new
 
 ## The path of a file that definitely does not exist.
 let INVALID_FILE = 'does_not_exist.inko'
-
-## Returns `True` if the current platform supports obtaining creation/birth
-## timings of files.
-def supports_creation_time? -> Boolean {
-  try fs.created_at(CURRENT_FILE) else return False
-
-  True
-}
-
-## Returns `True` if the current platform supports obtaining the modification
-## time of a file.
-def supports_modification_time? -> Boolean {
-  try fs.modified_at(CURRENT_FILE) else return False
-
-  True
-}
-
-## Returns `True` if the current platform supports obtaining the access time of
-## a file.
-def supports_access_time? -> Boolean {
-  try fs.accessed_at(CURRENT_FILE) else return False
-
-  True
-}
 
 test.group('std::fs.size') do (g) {
   g.test('Obtaining the size of an existing file') {
@@ -52,7 +29,7 @@ test.group('std::fs.size') do (g) {
   }
 }
 
-supports_creation_time?.if_true {
+features.creation_time?.if_true {
   test.group('std::fs.created_at') do (g) {
     g.test('Obtaining the creation time of an existing file') {
       let time = try fs.created_at(CURRENT_FILE) else INVALID_TIME
@@ -68,7 +45,7 @@ supports_creation_time?.if_true {
   }
 }
 
-supports_modification_time?.if_true {
+features.modification_time?.if_true {
   test.group('std::fs.modified_at') do (g) {
     g.test('Obtaining the modification time of an existing file') {
       let time = try fs.modified_at(CURRENT_FILE) else INVALID_TIME
@@ -84,7 +61,7 @@ supports_modification_time?.if_true {
   }
 }
 
-supports_access_time?.if_true {
+features.access_time?.if_true {
   test.group('std::fs.accessed_at') do (g) {
     g.test('Obtaining the access time of an existing file') {
       let time = try fs.accessed_at(CURRENT_FILE) else INVALID_TIME

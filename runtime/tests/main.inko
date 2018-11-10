@@ -5,6 +5,7 @@ import std::test
 # time being you'll have to manually import any test modules here.
 import test::std::fs::test_dir
 import test::std::fs::test_file
+import test::std::fs::test_path
 import test::std::test_ansi
 import test::std::test_array
 import test::std::test_array_iter

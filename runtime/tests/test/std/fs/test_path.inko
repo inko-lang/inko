@@ -1,0 +1,88 @@
+import std::env
+import std::fs::path::Path
+import std::mirror
+import std::test
+import std::test::assert
+import std::time::SystemTime
+import test::features
+
+let FILE = mirror.reflect_module(ThisModule).path
+let DIRECTORY = env.temporary_directory
+let INVALID_TIME = SystemTime.new
+
+test.group('std::fs::Path.file?') do (g) {
+  g.test('Checking if a Path points to a file') {
+    assert.true(FILE.file?)
+    assert.false(DIRECTORY.file?)
+  }
+}
+
+test.group('std::fs::Path.directory?') do (g) {
+  g.test('Checking if a Path points to a directory') {
+    assert.true(DIRECTORY.directory?)
+    assert.false(FILE.directory?)
+  }
+}
+
+test.group('std::fs::Path.exists?') do (g) {
+  g.test('Checking if a file exists') {
+    assert.true(FILE.exists?)
+    assert.false(Path.new('does-not-exist.inko').exists?)
+  }
+}
+
+test.group('std::fs::Path.to_string') do (g) {
+  g.test('Converting a Path to a String') {
+    assert.equal(Path.new('foo.inko').to_string, 'foo.inko')
+  }
+}
+
+test.group('std::fs::Path.size') do (g) {
+  g.test('Obtaining the size of an existing file') {
+    assert.greater(try! FILE.size, 0)
+  }
+
+  g.test('Obtaining the size of a non existing file') {
+    let path = Path.new('does-not-exist.inko')
+    let size = try path.size else -1
+
+    assert.equal(size, -1)
+  }
+}
+
+test.group('std::fs::Path.==') do (g) {
+  g.test('Comparing a Path with another Path') {
+    assert.equal(Path.new('foo.inko'), Path.new('foo.inko'))
+    assert.not_equal(Path.new('foo.inko'), Path.new('bar.inko'))
+  }
+}
+
+test.group('std::fs::Path.to_path') do (g) {
+  g.test('Converting a Path to another Path') {
+    assert.equal(FILE.to_path, FILE)
+  }
+}
+
+features.creation_time?.if_true {
+  test.group('std::fs::Path.created_at') do (g) {
+    g.test('Obtaining the creation time of a Path') {
+      assert.not_equal(try FILE.created_at else INVALID_TIME, INVALID_TIME)
+    }
+  }
+}
+
+features.modification_time?.if_true {
+  test.group('std::fs::Path.modified_at') do (g) {
+    g.test('Obtaining the modification time of a Path') {
+      assert.not_equal(try FILE.modified_at else INVALID_TIME, INVALID_TIME)
+    }
+  }
+}
+
+features.access_time?.if_true {
+  test.group('std::fs::Path.accessed_at') do (g) {
+    g.test('Obtaining the access time of a Path') {
+      assert.not_equal(try FILE.accessed_at else INVALID_TIME, INVALID_TIME)
+    }
+  }
+}

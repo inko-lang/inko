@@ -1,0 +1,29 @@
+import std::fs
+import std::mirror
+
+## The path to the file this test is defined in.
+let CURRENT_FILE = mirror.reflect_module(ThisModule).path
+
+## Returns `True` if the current platform supports obtaining creation/birth
+## timings of files.
+def creation_time? -> Boolean {
+  try fs.created_at(CURRENT_FILE) else return False
+
+  True
+}
+
+## Returns `True` if the current platform supports obtaining the modification
+## time of a file.
+def modification_time? -> Boolean {
+  try fs.modified_at(CURRENT_FILE) else return False
+
+  True
+}
+
+## Returns `True` if the current platform supports obtaining the access time of
+## a file.
+def access_time? -> Boolean {
+  try fs.accessed_at(CURRENT_FILE) else return False
+
+  True
+}

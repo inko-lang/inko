@@ -100,6 +100,21 @@ def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   }
 }
 
+## Returns the creation time of a path.
+def created_at(path: String) !! IOError -> SystemTime {
+  try file_time(path, CREATED_AT)
+}
+
+## Returns the modification time of a path.
+def modified_at(path: String) !! IOError -> SystemTime {
+  try file_time(path, MODIFIED_AT)
+}
+
+## Returns the access time of a path.
+def accessed_at(path: String) !! IOError -> SystemTime {
+  try file_time(path, ACCESSED_AT)
+}
+
 ## Reads a number of bytes from a file into the buffer.
 def read_bytes(
   file,
