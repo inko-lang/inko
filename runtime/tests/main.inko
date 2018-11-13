@@ -6,6 +6,7 @@ import std::test
 import test::std::fs::test_dir
 import test::std::fs::test_file
 import test::std::fs::test_path
+import test::std::fs::test_raw
 import test::std::test_ansi
 import test::std::test_array
 import test::std::test_array_iter
