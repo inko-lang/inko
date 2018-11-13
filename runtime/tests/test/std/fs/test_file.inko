@@ -9,9 +9,7 @@ import std::process
 import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
-
-## The path to the file this test is defined in.
-let CURRENT_FILE = mirror.reflect_module(ThisModule).path
+import test::fixtures::(self, VALID_FILE)
 
 def read_string(path: ToPath) -> String {
   let file = try! ReadOnlyFile.new(path)
@@ -23,17 +21,6 @@ def read_string(path: ToPath) -> String {
   try! file.read_string
 }
 
-def temporary_file_path -> String {
-  StringBuffer
-    .new([
-      env.temporary_directory.to_string,
-      SEPARATOR,
-      'inko-test-fs-file-',
-      process.current.to_string,
-    ])
-    .to_string
-}
-
 def close_and_remove_file!(T: Close + Remove)(file: T) {
   file.close
 
@@ -42,7 +29,7 @@ def close_and_remove_file!(T: Close + Remove)(file: T) {
   try file.remove else Nil
 }
 
-def read_only_file(block: do (ReadOnlyFile), path: ToPath = CURRENT_FILE) {
+def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) {
   let file = try! ::file.read_only(path)
 
   process.defer {
@@ -53,7 +40,7 @@ def read_only_file(block: do (ReadOnlyFile), path: ToPath = CURRENT_FILE) {
 }
 
 def write_only_file(block: do (WriteOnlyFile)) {
-  let file = try! ::file.write_only(temporary_file_path)
+  let file = try! ::file.write_only(fixtures.temporary_file_path)
 
   process.defer {
     close_and_remove_file(file)
@@ -63,7 +50,7 @@ def write_only_file(block: do (WriteOnlyFile)) {
 }
 
 def read_write_file(block: do (ReadWriteFile)) {
-  let file = try! ::file.read_write(temporary_file_path)
+  let file = try! ::file.read_write(fixtures.temporary_file_path)
 
   process.defer {
     close_and_remove_file(file)
@@ -173,7 +160,7 @@ test.group('std::fs::file::ReadOnlyFile.size') do (g) {
 test.group('std::fs::file::ReadOnlyFile.path') do (g) {
   g.test('Obtaining the path of a file') {
     read_only_file do (file) {
-      assert.equal(file.path, CURRENT_FILE)
+      assert.equal(file.path, VALID_FILE)
     }
   }
 }
@@ -225,7 +212,7 @@ test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
       try! file.write_bytes(ByteArray.new([105, 110]))
 
       let append = try! WriteOnlyFile
-        .new(path: temporary_file_path, append: True)
+        .new(path: fixtures.temporary_file_path, append: True)
 
       process.defer {
         close_and_remove_file(append)
@@ -303,7 +290,7 @@ test.group('std::fs::file::WriteOnlyFile.size') do (g) {
 test.group('std::fs::file::WriteOnlyFile.path') do (g) {
   g.test('Obtaining the path of a file') {
     write_only_file do (file) {
-      assert.equal(file.path.to_string, temporary_file_path)
+      assert.equal(file.path, fixtures.temporary_file_path)
     }
   }
 }
@@ -444,7 +431,7 @@ test.group('std::fs::file::ReadWriteFile.size') do (g) {
 test.group('std::fs::file::ReadWriteFile.path') do (g) {
   g.test('Obtaining the path of a file') {
     read_write_file do (file) {
-      assert.equal(file.path.to_string, temporary_file_path)
+      assert.equal(file.path, fixtures.temporary_file_path)
     }
   }
 }
@@ -494,7 +481,7 @@ test.group('std::fs::file.remove') do (g) {
 
   g.test('Removing a non-existing file') {
     assert.panic {
-      try! file.remove(temporary_file_path)
+      try! file.remove(fixtures.temporary_file_path)
     }
   }
 }
