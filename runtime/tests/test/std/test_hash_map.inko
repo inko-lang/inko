@@ -1,0 +1,687 @@
+import std::hash_map::(Iterator, Keys, Pair, Table, Values)
+import std::hasher::DefaultHasher
+import std::test
+import std::test::assert
+
+test.group('std::hash_map::Pair.distance') do (g) {
+  g.test('Obtaining the distance of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    assert.equal(pair.distance, 0)
+  }
+}
+
+test.group('std::hash_map::Pair.prepare_for_rehash') do (g) {
+  g.test('Preparing a Pair for a rehash') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    pair.prepare_for_rehash
+
+    assert.equal(pair.distance, -1)
+  }
+}
+
+test.group('std::hash_map::Pair.reset_distance') do (g) {
+  g.test('Resetting the distance of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    pair.prepare_for_rehash
+    pair.reset_distance
+
+    assert.equal(pair.distance, 0)
+  }
+}
+
+test.group('std::hash_map::Pair.increase_distance') do (g) {
+  g.test('Increasing the distance of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    pair.increase_distance
+
+    assert.equal(pair.distance, 1)
+  }
+}
+
+test.group('std::hash_map::Pair.reduce_distance') do (g) {
+  g.test('Reducing the distance of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    pair.increase_distance
+    pair.reduce_distance
+
+    assert.equal(pair.distance, 0)
+  }
+}
+
+test.group('std::hash_map::Pair.key') do (g) {
+  g.test('Obtaining the key of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    assert.equal(pair.key, 'key')
+  }
+}
+
+test.group('std::hash_map::Pair.value') do (g) {
+  g.test('Obtaining the value of a Pair') {
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    assert.equal(pair.value, 'value')
+  }
+}
+
+test.group('std::hash_map::Pair.hash') do (g) {
+  g.test('Obtaining the hash of a Pair') {
+    let pair = Pair.new('key', 'value', 123)
+
+    assert.equal(pair.hash, 123)
+  }
+}
+
+test.group('std::hash_map::Table.buckets') do (g) {
+  g.test('Obtaining the buckets in a Table') {
+    let table = Table.new(DefaultHasher.new)
+
+    assert.equal(table.buckets, [])
+  }
+}
+
+test.group('std::hash_map::Table.length') do (g) {
+  g.test('Obtaining the number of pairs in a Table') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    table.insert_pair(pair)
+
+    assert.equal(table.length, 1)
+  }
+}
+
+test.group('std::hash_map::Table.resize') do (g) {
+  g.test('Resizing a Table') {
+    let table = Table.new(DefaultHasher.new)
+
+    assert.equal(table.buckets, [])
+
+    table.resize
+
+    assert.equal(table.buckets, [Nil, Nil])
+  }
+}
+
+test.group('std::hash_map::Table.rehash') do (g) {
+  g.test('Rehashing a Table') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'value', hash: 1)
+
+    table.resize
+    table.insert_pair(pair: pair1)
+    table.insert_pair(pair: pair2)
+
+    # Moving the pair to a bucket it shouldn't be in allows us to test if
+    # `resize` ends up moving pairs or not.
+    pair2.increase_distance
+
+    table.buckets[1] = Nil
+    table.buckets[2] = pair2
+
+    table.rehash
+
+    assert.equal(pair1.distance, 0)
+    assert.equal(pair2.distance, 0)
+
+    assert.equal(table.buckets[0], pair1)
+    assert.equal(table.buckets[1], pair2)
+    assert.equal(table.buckets[2], Nil)
+  }
+}
+
+test.group('std::hash_map::Table.resize?') do (g) {
+  g.test('Checking if a table needs to be resized') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'a', value: 'value', hash: 0)
+
+    assert.false(table.resize?)
+
+    table.insert_pair(pair)
+
+    assert.true(table.resize?)
+  }
+}
+
+test.group('std::hash_map::Table.hash_key') do (g) {
+  g.test("Hashing a key using the Table's hasher") {
+    let table = Table.new(DefaultHasher.new)
+
+    # We can't really maky any guarantees about the exact value returned, all we
+    # can guarantee is that the same key should produce the same hash.
+    let hash1 = table.hash_key('foo')
+    let hash2 = table.hash_key('foo')
+    let hash3 = table.hash_key('bar')
+
+    assert.equal(hash1, hash2)
+    assert.not_equal(hash1, hash3)
+  }
+}
+
+test.group('std::hash_map::Table.desired_bucket') do (g) {
+  g.test('Obtaining the desired bucket index of a hash') {
+    let table = Table.new(DefaultHasher.new)
+
+    table.resize
+
+    assert.equal(table.desired_bucket(0), 0)
+    assert.equal(table.desired_bucket(1), 1)
+    assert.equal(table.desired_bucket(5), 1)
+  }
+}
+
+test.group('std::hash_map::Table.insert_pair') do (g) {
+  g.test('Inserting a Pair into a Table') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    table.insert_pair(pair)
+
+    assert.equal(table.length, 1)
+    assert.equal(table.buckets[0], pair)
+  }
+
+  g.test('Inserting a Pair into a Table without incrementing its length') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    table.insert_pair(pair: pair, increment_length: False)
+
+    assert.equal(table.length, 0)
+    assert.equal(table.buckets[0], pair)
+  }
+
+  g.test('Inserting a Pair into an existing bucket in a Table') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
+
+    table.resize
+    table.insert_pair(pair1)
+    table.insert_pair(pair2)
+
+    assert.equal(table.buckets[0], pair1)
+    assert.equal(table.buckets[1], pair2)
+
+    assert.equal(pair1.distance, 0)
+    assert.equal(pair2.distance, 1)
+  }
+
+  g.test('Inserting a Pair using an already used key') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'a', value: 'b', hash: 0)
+
+    table.resize
+    table.insert_pair(pair1)
+    table.insert_pair(pair2)
+
+    assert.equal(table.buckets[0], pair2)
+  }
+}
+
+test.group('std::hash_map::Table.bucket_index') do (g) {
+  g.test('Obtaining the bucket index of an existing key') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'a', value: 'a', hash: 0)
+
+    table.insert_pair(pair)
+
+    assert.equal(table.bucket_index('a'), 0)
+  }
+
+  g.test('Obtaining the bucket index of a non existing key') {
+    let table = Table.new(DefaultHasher.new)
+
+    assert.equal(table.bucket_index('a'), Nil)
+  }
+}
+
+test.group('std::hash_map::Table.remove') do (g) {
+  g.test('Removing an existing key from a Table') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'a', value: 'a', hash: 0)
+
+    table.insert_pair(pair)
+
+    assert.equal(table.remove(pair.key), 'a')
+    assert.equal(table.buckets[0], Nil)
+  }
+
+  g.test('Removing a non-existing key from a Table') {
+    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+
+    assert.equal(table.remove('a'), Nil)
+  }
+
+  g.test('Backwards shifting Pairs that follow the removed Pair') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
+
+    table.resize
+    table.insert_pair(pair1)
+    table.insert_pair(pair2)
+    table.remove(pair1.key)
+
+    assert.equal(table.buckets[0], pair2)
+    assert.equal(pair2.distance, 0)
+  }
+}
+
+test.group('std::hash_map::Table.backwards_shift') do (g) {
+  g.test('Performing a backwards shift starting at a particular bucket') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
+    let pair3 = Pair.new(key: 'c', value: 'c', hash: 0)
+
+    table.resize
+    table.resize
+
+    table.insert_pair(pair1)
+    table.insert_pair(pair2)
+    table.insert_pair(pair3)
+
+    table.backwards_shift(index: 1)
+
+    assert.equal(table.buckets[0], pair2)
+    assert.equal(table.buckets[1], pair3)
+    assert.equal(table.buckets[2], Nil)
+
+    assert.equal(pair2.distance, 0)
+    assert.equal(pair3.distance, 1)
+  }
+}
+
+test.group('std::hash_map::Table.[]') do (g) {
+  g.test('Obtaining the value of a Pair by its key') {
+    let table = Table.new(DefaultHasher.new)
+    let pair = Pair.new(key: 'a', value: 'b', hash: 0)
+
+    table.insert_pair(pair)
+
+    assert.equal(table['a'], 'b')
+  }
+
+  g.test('Obtaining the value of a Pair using a non-existing key') {
+    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+
+    assert.equal(table['a'], Nil)
+  }
+}
+
+test.group('std::hash_map::Table.[]=') do (g) {
+  g.test('Creating an inserting a Pair') {
+    let table = Table.new(DefaultHasher.new)
+
+    let val1 = table['a'] = 'foo'
+    let val2 = table['b'] = 'bar'
+
+    assert.equal(val1, 'foo')
+    assert.equal(val2, 'bar')
+
+    assert.equal(table['a'], 'foo')
+    assert.equal(table['b'], 'bar')
+    assert.equal(table.length, 2)
+  }
+
+  g.test('Overwriting an existing Pair') {
+    let table = Table.new(DefaultHasher.new)
+
+    let val1 = table['a'] = 'foo'
+    let val2 = table['a'] = 'bar'
+
+    assert.equal(val1, 'foo')
+    assert.equal(val2, 'bar')
+
+    assert.equal(table['a'], 'bar')
+    assert.equal(table.length, 1)
+  }
+}
+
+test.group('std::hash_map::Iterator.next?') do (g) {
+  g.test('Checking if there are remaining values in an empty Iterator') {
+    let table = Table.new(DefaultHasher.new)
+    let iter = Iterator.new(table)
+
+    assert.false(iter.next?)
+  }
+
+  g.test('Checking if there are remaining Pairs in an Iterator') {
+    let table = Table.new(DefaultHasher.new)
+
+    table['a'] = '1'
+
+    let iter = Iterator.new(table)
+
+    assert.true(iter.next?)
+  }
+}
+
+test.group('std::hash_map::Iterator.next') do (g) {
+  g.test('Advancing an empty Iterator') {
+    let table = Table.new(DefaultHasher.new)
+    let iter = Iterator.new(table)
+
+    assert.equal(iter.next, Nil)
+    assert.equal(iter.next, Nil)
+  }
+
+  g.test('Advancing an Iterator with values') {
+    let table = Table.new(DefaultHasher.new)
+    let pair1 = Pair.new(key: 'a', value: '1', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: '2', hash: 1)
+
+    table.resize
+    table.insert_pair(pair1)
+    table.insert_pair(pair2)
+
+    let iter = Iterator.new(table)
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, pair1)
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, pair2)
+
+    assert.false(iter.next?)
+    assert.equal(iter.next, Nil)
+  }
+}
+
+test.group('std::hash_map::Keys.next?') do (g) {
+  g.test('Checking if there are remaining keys in an empty Keys Iterator') {
+    let table = Table.new(DefaultHasher.new)
+    let keys = Keys.new(Iterator.new(table))
+
+    assert.false(keys.next?)
+  }
+
+  g.test('Checking if there are remaining keys in a Keys Iterator') {
+    let table = Table.new(DefaultHasher.new)
+
+    table['a'] = '1'
+
+    let keys = Keys.new(Iterator.new(table))
+
+    assert.true(keys.next?)
+  }
+}
+
+test.group('std::hash_map::Keys.next') do (g) {
+  g.test('Advancing an empty Keys Iterator') {
+    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+    let keys = Keys.new(Iterator.new(table))
+
+    assert.equal(keys.next, Nil)
+    assert.false(keys.next?)
+  }
+
+  g.test('Advancing a Keys Iterator') {
+    let table = Table.new(DefaultHasher.new)
+
+    table['a'] = '1'
+    table['b'] = '2'
+
+    let keys = Keys.new(Iterator.new(table))
+
+    assert.true(keys.next?)
+    assert.equal(keys.next, 'a')
+
+    assert.true(keys.next?)
+    assert.equal(keys.next, 'b')
+
+    assert.false(keys.next?)
+    assert.equal(keys.next, Nil)
+  }
+}
+
+test.group('std::hash_map::Values.next?') do (g) {
+  g.test('Checking if there are remaining values in an empty Values Iterator') {
+    let table = Table.new(DefaultHasher.new)
+    let values = Values.new(Iterator.new(table))
+
+    assert.false(values.next?)
+  }
+
+  g.test('Checking if there are remaining values in a Values Iterator') {
+    let table = Table.new(DefaultHasher.new)
+
+    table['a'] = '1'
+
+    let values = Values.new(Iterator.new(table))
+
+    assert.true(values.next?)
+  }
+}
+
+test.group('std::hash_map::Values.next') do (g) {
+  g.test('Advancing an empty Values Iterator') {
+    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+    let values = Values.new(Iterator.new(table))
+
+    assert.equal(values.next, Nil)
+    assert.false(values.next?)
+  }
+
+  g.test('Advancing a Values Iterator') {
+    let table = Table.new(DefaultHasher.new)
+
+    table['a'] = '1'
+    table['b'] = '2'
+
+    let values = Values.new(Iterator.new(table))
+
+    assert.true(values.next?)
+    assert.equal(values.next, '1')
+
+    assert.true(values.next?)
+    assert.equal(values.next, '2')
+
+    assert.false(values.next?)
+    assert.equal(values.next, Nil)
+  }
+}
+
+test.group('std::hash_map::HashMap.from_array') do (g) {
+  # HashMap.from_array might be optimised away by the compiler. As such, we use
+  # an extra layer of indirection to prevent the optimisation from happening.
+
+  g.test('Creating a HashMap without any keys and values') {
+    let rec = HashMap
+    let map = rec.from_array([], [])
+
+    assert.equal(map, %[])
+  }
+
+  g.test('Creating a HashMap with keys but without values') {
+    assert.panic {
+      let rec = HashMap
+
+      rec.from_array(['name'], [])
+    }
+  }
+
+  g.test('Creating a HashMap with an equal number of keys and values') {
+    let rec = HashMap
+    let map = rec.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
+
+    assert.equal(map['name'], 'Alice')
+    assert.equal(map['city'], 'Amsterdam')
+  }
+}
+
+test.group('HashMap literals') do (g) {
+  g.test('Creating an empty HashMap') {
+    assert.equal(%[], HashMap.new)
+  }
+
+  g.test('Creating a HashMap with keys and values') {
+    let expected = HashMap.new
+
+    expected['name'] = 'Alice'
+    expected['city'] = 'Amsterdam'
+
+    assert.equal(%['name': 'Alice', 'city': 'Amsterdam'], expected)
+  }
+}
+
+test.group('std::hash_map::HashMap.empty?') do (g) {
+  g.test('Checking if a HashMap is empty') {
+    assert.true(%[].empty?)
+    assert.false(%['a': 'b'].empty?)
+  }
+}
+
+test.group('std::hash_map::HashMap.each') do (g) {
+  g.test('Iterating over the key-value pairs of an empty HashMap') {
+    let mut iters = 0
+
+    %[].each do (_, _) {
+      iters += 1
+    }
+
+    assert.equal(iters, 0)
+  }
+
+  g.test('Iterating over the key-value pairs of a non-empty HashMap') {
+    let mut key_total = 0
+    let mut val_total = 0
+
+    %[1: 10, 2: 20].each do (key, val) {
+      key_total += key
+      val_total += val
+    }
+
+    assert.equal(key_total, 3)
+    assert.equal(val_total, 30)
+  }
+}
+
+test.group('std::hash_map::HashMap.iter') do (g) {
+  g.test('Creating an Iterator for an empty HashMap') {
+    let map = %[]
+    let iter = map.iter
+
+    assert.false(iter.next?)
+    assert.equal(iter.next, Nil)
+  }
+
+  g.test('Creating an Iterator for a HashMap with key-value pairs') {
+    let map = %['name': 'Alice']
+    let iter = map.iter
+
+    assert.true(iter.next?)
+
+    let pair = iter.next
+
+    assert.equal(pair.key, 'name')
+    assert.equal(pair.value, 'Alice')
+  }
+}
+
+test.group('std::hash_map::HashMap.keys') do (g) {
+  g.test('Creating a Keys Iterator for an empty HashMap') {
+    let map: HashMap!(String, String) = %[]
+    let iter = map.keys
+
+    assert.false(iter.next?)
+    assert.equal(iter.next, Nil)
+  }
+
+  g.test('Creating a Keys Iterator for a HashMap with key-value pairs') {
+    let map = %['name': 'Alice']
+    let iter = map.keys
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, 'name')
+    assert.false(iter.next?)
+  }
+}
+
+test.group('std::hash_map::HashMap.values') do (g) {
+  g.test('Creating a Values Iterator for an empty HashMap') {
+    let map: HashMap!(String, String) = %[]
+    let iter = map.values
+
+    assert.false(iter.next?)
+    assert.equal(iter.next, Nil)
+  }
+
+  g.test('Creating a Values Iterator for a HashMap with key-value pairs') {
+    let map = %['name': 'Alice']
+    let iter = map.values
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, 'Alice')
+    assert.false(iter.next?)
+  }
+}
+
+test.group('std::hash_map::HashMap.==') do (g) {
+  g.test('Comparing two identical HashMap instances') {
+    assert.equal(%['name': 'Alice'], %['name': 'Alice'])
+  }
+
+  g.test('Comparing two different HashMap instances') {
+    assert.not_equal(%[], %['name': 'Alice'])
+    assert.not_equal(%['foo': 'bar'], %['name': 'Alice'])
+  }
+}
+
+test.group('std::hash_map::HashMap.key?') do (g) {
+  g.test('Checking if a HashMap defines a key') {
+    let map = %['name': 'Alice']
+
+    assert.true(map.key?('name'))
+    assert.false(map.key?('city'))
+  }
+}
+
+test.group('std::hash_map::HashMap.[]') do (g) {
+  g.test('Obtaining the value of a non-existing key') {
+    let map = %['name': 'Alice']
+
+    assert.equal(map['city'], Nil)
+  }
+
+  g.test('Obtaining the value of an existing key') {
+    let map = %['name': 'Alice']
+
+    assert.equal(map['name'], 'Alice')
+  }
+}
+
+test.group('std::hash_map::HashMap.[]=') do (g) {
+  g.test('Setting the value of a non-existing key') {
+    let map = %['name': 'Alice']
+
+    assert.equal(map['city'] = 'Amsterdam', 'Amsterdam')
+    assert.equal(map['city'], 'Amsterdam')
+  }
+
+  g.test('Setting the value of an existing key') {
+    let map = %['name': 'Alice']
+
+    assert.equal(map['name'] = 'Bob', 'Bob')
+    assert.equal(map['name'], 'Bob')
+  }
+}
+
+test.group('std::hash_map::HashMap.length') do (g) {
+  g.test('Obtaining the length of an empty HashMap') {
+    assert.equal(%[].length, 0)
+  }
+
+  g.test('Obtaining the length of a HashMap with key-value pairs') {
+    assert.equal(%['name': 'Alice'].length, 1)
+    assert.equal(%['name': 'Alice', 'city': 'Amsterdam'].length, 2)
+  }
+}

@@ -5,6 +5,7 @@ import std::index::(Index, SetIndex)
 import std::iterator::(Iterator as IteratorTrait)
 import std::length::Length
 import std::operators::Equal
+import std::process
 
 # The load factor of a Table before it should be resized.
 let LOAD_FACTOR = 0.75
@@ -39,6 +40,10 @@ object Pair!(K: Hash + Equal, V) {
 
   def increase_distance -> Integer {
     @distance += 1
+  }
+
+  def reduce_distance -> Integer {
+    @distance -= 1
   }
 
   def key -> K {
@@ -84,7 +89,7 @@ object Table!(K: Hash + Equal, V) {
     ## The number of values to store before a resize is necessary.
     ## We store this value explicitly so we don't have to allocate floats every
     ## time we want to check if we need to resize.
-    let mut @resize_threshold = 0
+    let mut @resize_threshold = 1
   }
 
   ## Returns the buckets in this table.
@@ -119,8 +124,6 @@ object Table!(K: Hash + Equal, V) {
   ## This approach removes the need for allocating a new `Array` to copy all the
   ## pairs to, at the cost of requiring slightly more CPU time.
   def rehash {
-    let mut rehash_index = 0
-
     @buckets.each do (pair) {
       pair.prepare_for_rehash
     }
@@ -236,6 +239,8 @@ object Table!(K: Hash + Equal, V) {
       @buckets[index - 1] = pair
       @buckets[index] = Nil
 
+      pair.reduce_distance
+
       index += 1
       pair = @buckets[index]
     }
@@ -345,7 +350,11 @@ impl IteratorTrait!(V) for Values!(K, V) {
 ## By default a `HashMap` uses `DefaultHasher` for hashing objects. You can
 ## provide a custom hasher using `HashMap.new(hasher: YourCustomerHasher.new)`,
 ## as long as the custom hasher implements the `Hasher` trait.
-object HashMap!(K: Hash + Equal, V) {
+object HashMap!(K: Hash + Equal, V) impl
+  Equal,
+  Index!(K, V),
+  SetIndex!(K, V),
+  Length {
   ## Returns a `HashMap` using two arrays: one containing the keys and one
   ## containing the values.
   ##
@@ -372,9 +381,14 @@ object HashMap!(K: Hash + Equal, V) {
   ## Creating a `HashMap` from two arrays:
   ##
   ##     HashMap.from_array(['name'], ['Alice']) # => %['name': 'Alice']
-  def from_array(keys: Array!(K), values: Array!(V)) -> HashMap!(K, V) {
+  def from_array!(K: Hash + Equal, V)(keys: Array!(K), values: Array!(V)) -> HashMap!(K, V) {
     let mut map = new
     let max_index = values.length - 1
+
+    keys.length == values.length
+      .if_false {
+        process.panic('An equal number of keys and values must be specified')
+      }
 
     keys.each_with_index do (key: K, index: Integer) {
       index > max_index
@@ -516,9 +530,55 @@ object HashMap!(K: Hash + Equal, V) {
   def values -> Values!(K, V) {
     Values.new(iter)
   }
-}
 
-impl Index!(K, V) for HashMap!(K, V) {
+  ## Returns `True` if `self` and the given `HashMap` are identical to each
+  ## other.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `HashMap` instances:
+  ##
+  ##     %w['name': 'Alice'] == %w['name': 'Alice'] # => True
+  def ==(other: Self) -> Boolean where V: Equal {
+    length == other.length
+      .if_false {
+        return False
+      }
+
+    each do (key, value) {
+      other.key?(key).if_false {
+        return False
+      }
+
+      # We use `(*...)` here as otherwise the parser won't parse this code
+      # properly.
+      value == (*other[key])
+        .if_false {
+          return False
+        }
+    }
+
+    True
+  }
+
+  ## Returns `True` if `self` contains the key `key`.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a `HashMap` defines a key:
+  ##
+  ##     let map = %['name': 'Alice']
+  ##
+  ##     map.key?('name') # => True
+  ##     map.key?('city') # => False
+  def key?(key: K) -> Boolean {
+    @table.bucket_index(key).if true: {
+      True
+    }, false: {
+      False
+    }
+  }
+
   ## Returns the value for the given key, if any.
   ##
   ## # Examples
@@ -539,9 +599,7 @@ impl Index!(K, V) for HashMap!(K, V) {
   def [](key: K) -> ?V {
     @table[key]
   }
-}
 
-impl SetIndex!(K, V) for HashMap!(K, V) {
   ## Inserts the given key and value into this map, returning the inserted
   ## value.
   ##
@@ -555,9 +613,7 @@ impl SetIndex!(K, V) for HashMap!(K, V) {
   def []=(key: K, value: V) -> V {
     @table[key] = value
   }
-}
 
-impl Length for HashMap!(K, V) {
   ## Returns the number of key-value pairs in this map.
   ##
   ## # Examples
