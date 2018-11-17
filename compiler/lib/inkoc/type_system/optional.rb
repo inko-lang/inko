@@ -77,6 +77,10 @@ module Inkoc
           type.resolve_type_parameter_with_self(self_type, method_type)
         )
       end
+
+      def remap_using_method_bounds(block_type)
+        self.class.wrap(type.remap_using_method_bounds(block_type))
+      end
     end
   end
 end
