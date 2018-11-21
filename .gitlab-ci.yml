@@ -13,12 +13,10 @@ stages:
   - post-release
 
 test:compiler:linux:
-  image: ruby:2.4-alpine
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
     - cd compiler
-    - apk add --update build-base
-    - gem install bundler --no-ri --no-rdoc
     - ruby --version
     - gem --version
     - bundle --version
@@ -47,14 +45,12 @@ test:compiler:macos:
       - compiler/vendor
 
 test:ivm-nightly:linux:
-  image: rustlang/rust:nightly
+  image: registry.gitlab.com/inko-lang/development-docker-images:rust-nightly
   stage: test
   before_script:
     - cd vm
     - rustc --version
     - cargo --version
-    - apt-get update -q
-    - apt-get install -y -q build-essential autoconf texinfo automake clang
   script:
     - make test
   cache:
@@ -63,10 +59,9 @@ test:ivm-nightly:linux:
       - vm/target
 
 test:ivm-stable:linux:
-  image: alpine:edge
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
   before_script:
-    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool
     - cd vm
     - rustc --version
     - cargo --version
@@ -110,12 +105,9 @@ test:ivm-stable:macos:
       - vm/target
 
 lint:clippy:
-  image: rust:latest
+  image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
-    - rustup component add clippy-preview
-    - apt-get update -q
-    - apt-get install -y -q build-essential autoconf texinfo automake clang
     - cd vm
     - rustc --version
     - cargo --version
@@ -127,10 +119,9 @@ lint:clippy:
       - vm/target
 
 lint:rustfmt:
-  image: rustlang/rust:nightly
+  image: registry.gitlab.com/inko-lang/development-docker-images:rust-nightly
   stage: test
   before_script:
-    - rustup component add rustfmt-preview --toolchain=nightly
     - cd vm
     - rustc --version
     - cargo --version
@@ -143,19 +134,16 @@ lint:rustfmt:
       - vm/target
 
 lint:versions:
-  image: alpine:latest
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
-  before_script:
-    - apk add --update coreutils bash grep
   script:
     - bash scripts/versions.sh
 
 build:ivm:linux:
-  image: alpine:edge
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: build
   before_script:
     - cd vm
-    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool
     - rustc --version
     - cargo --version
   script:
@@ -194,10 +182,9 @@ build:ivm:macos:
       - ivm
 
 test:runtime:linux:
-  image: alpine:edge
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test-runtime
   before_script:
-    - apk add --update build-base ruby
     - ruby --version
     - ./ivm --version
     - ./ivm --features
@@ -220,23 +207,17 @@ test:runtime:macos:
     - build:ivm:macos
 
 release:source:
-  image: alpine:edge
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: release
-  before_script:
-    - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
-    - apk add --update coreutils build-base aws-cli git bash
   script:
     - make release-source
   only:
     - tags
 
 release:compiled:linux-gnu:
-  image: rust:latest
+  image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: release
   before_script:
-    - apt-get update -q
-    - apt-get install -y -q build-essential python-pip ruby-full git bash autoconf texinfo automake clang
-    - pip install awscli
     - ruby --version
     - rustc --version
     - cargo --version
@@ -251,10 +232,9 @@ release:compiled:linux-gnu:
       - vm/target
 
 release:compiled:linux-musl:
-  image: alpine:edge
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: release
   before_script:
-    - apk add --update rust cargo build-base coreutils autoconf automake texinfo clang libtool aws-cli git bash ruby grep
     - ruby --version
     - rustc --version
     - cargo --version
@@ -288,11 +268,8 @@ release:compiled:macos:
       - vm/target
 
 post-release:manifest:
-  image: alpine:latest
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: post-release
-  before_script:
-    - echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories
-    - apk add --update coreutils build-base aws-cli grep
   script:
     - make rebuild-manifest
   only:
