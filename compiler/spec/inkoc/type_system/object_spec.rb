@@ -655,15 +655,19 @@ describe Inkoc::TypeSystem::Object do
       state.typedb.new_array_of_type(param)
     end
 
+    let(:self_type) { described_class.new(name: 'Thing') }
+    let(:block_type) { Inkoc::TypeSystem::Block.new(name: 'thing') }
+
     it 'removes all empty type parameter instances' do
-      copied = array.without_empty_type_parameters
+      copied = array.without_empty_type_parameters(self_type, block_type)
 
       expect(copied.type_parameter_instances).to be_empty
     end
 
     it 'removes empty type parameter instances in nested types' do
       outer_array = state.typedb.new_array_of_type(array)
-      new_outer = outer_array.without_empty_type_parameters
+      new_outer = outer_array
+        .without_empty_type_parameters(self_type, block_type)
 
       expect(new_outer.type_parameter_instances).not_to be_empty
 
@@ -674,6 +678,31 @@ describe Inkoc::TypeSystem::Object do
 
       expect(instance.type_parameter_instances).to be_empty
     end
+
+    it 'removes instances when they are uninitialised self type parameters' do
+      rtype = described_class.new(name: 'AnotherThing')
+      rparam = rtype.define_type_parameter('AnotherParam')
+      sparam = self_type.define_type_parameter('T')
+
+      rtype.initialize_type_parameter(rparam, sparam)
+
+      type = rtype.without_empty_type_parameters(self_type, block_type)
+
+      expect(type.type_parameter_instances).to be_empty
+    end
+
+    it 'removes instances when they are uninitialised block type parameters' do
+      rtype = described_class.new(name: 'AnotherThing')
+      rparam = rtype.define_type_parameter('AnotherParam')
+      bparam = block_type.define_type_parameter('T')
+
+      rtype.initialize_type_parameter(rparam, bparam)
+
+      type = rtype.without_empty_type_parameters(self_type, block_type)
+
+      expect(type.type_parameter_instances).to be_empty
+    end
+
   end
 
   describe '#guard_unknown_message?' do

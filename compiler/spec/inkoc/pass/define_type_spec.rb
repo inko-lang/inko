@@ -889,6 +889,32 @@ describe Inkoc::Pass::DefineType do
         expect(self_type.lookup_type_parameter_instance(param))
           .to be_type_instance_of(int_type)
       end
+
+      it 'does not initialize type parameters using uninitialized generics' do
+        foo_method = Inkoc::TypeSystem::Block.new(name: 'foo')
+        trait = state.typedb.new_trait_type('Equal')
+        method_param = foo_method.define_type_parameter('MethodParam', [trait])
+
+        foo_method.define_required_argument(
+          'values',
+          state.typedb.new_array_of_type(method_param)
+        )
+
+        foo_method.return_type = state.typedb.new_array_of_type(method_param)
+
+        type_scope.self_type.define_attribute(foo_method.name, foo_method)
+        type_scope.locals.define('list', state.typedb.array_type.new_instance)
+
+        type = expression_type('foo(list)')
+
+        expect(type).to be_type_instance_of(state.typedb.array_type)
+
+        param = type.lookup_type_parameter(Inkoc::Config::ARRAY_TYPE_PARAMETER)
+
+        # T should not be initialised because the input `list` type does not
+        # contain any initialised parameters that can be used to initialise T.
+        expect(type.lookup_type_parameter_instance(param)).to be_nil
+      end
     end
 
     context 'when the method defines a rest argument' do

@@ -133,7 +133,7 @@ module Inkoc
         self
       end
 
-      def without_empty_type_parameters
+      def without_empty_type_parameters(_self_type, _block_type)
         self
       end
 

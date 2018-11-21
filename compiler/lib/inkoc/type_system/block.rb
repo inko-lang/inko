@@ -272,7 +272,7 @@ module Inkoc
         return_type
           .resolve_self_type(self_type)
           .resolve_type_parameters(self_type, self)
-          .without_empty_type_parameters
+          .without_empty_type_parameters(self_type, self)
       end
 
       def argument_count_range
