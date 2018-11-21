@@ -25,7 +25,7 @@ test:compiler:linux:
     - make test
   cache:
     paths:
-      - compiler/vendor
+      - compiler/vendor/ruby
 
 test:compiler:macos:
   stage: test
@@ -42,7 +42,7 @@ test:compiler:macos:
   cache:
     key: macos
     paths:
-      - compiler/vendor
+      - compiler/vendor/ruby
 
 test:ivm-nightly:linux:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-nightly
