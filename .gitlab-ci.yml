@@ -128,10 +128,6 @@ lint:rustfmt:
     - rustfmt --version
   script:
     - make rustfmt-check
-  cache:
-    paths:
-      - .cargo
-      - vm/target
 
 lint:versions:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
