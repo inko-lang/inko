@@ -330,7 +330,7 @@ module Inkoc
 
         raise(
           ParseError,
-          "Expected a closing bracket, got #{peeked.type.inspect} instead"
+          "Expected a closing bracket, got #{@lexer.peek.type.inspect} instead"
         )
       end
 
