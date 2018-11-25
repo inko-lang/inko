@@ -227,23 +227,6 @@ release:compiled:linux-gnu:
       - .cargo
       - vm/target
 
-release:compiled:linux-musl:
-  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
-  stage: release
-  before_script:
-    - ruby --version
-    - rustc --version
-    - cargo --version
-    - aws --version
-  script:
-    - make release-compiled
-  only:
-    - tags
-  cache:
-    paths:
-      - .cargo
-      - vm/target
-
 release:compiled:macos:
   stage: release
   tags:
