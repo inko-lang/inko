@@ -1,0 +1,70 @@
+import std::byte_array::ByteArray
+import std::io::(Read, Write)
+import std::test
+import std::test::assert
+
+object Reader impl Read {
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) -> Integer {
+    let input = [105, 110, 107, 111]
+    let max = size.if true: { *size }, false: { input.length }
+    let mut index = 0
+
+    { index < max }.while_true {
+      bytes.push(*input[index])
+
+      index += 1
+    }
+
+    max
+  }
+}
+
+object Writer impl Write {
+  def init {
+    let @buffer: Array!(String) = []
+  }
+
+  def buffer -> Array!(String) {
+    @buffer
+  }
+
+  def write_bytes(bytes: ByteArray) -> Integer {
+    0
+  }
+
+  def flush -> Nil {
+    Nil
+  }
+
+  def write_string(string: String) -> Integer {
+    @buffer.push(string)
+
+    string.length
+  }
+}
+
+test.group('std::io::Read.read_string') do (g) {
+  g.test('Reading all bytes into a String') {
+    let reader = Reader.new
+    let string = try! reader.read_string
+
+    assert.equal(string, 'inko')
+  }
+
+  g.test('Reading a limited number of bytes into a String') {
+    let reader = Reader.new
+    let string = try! reader.read_string(size: 2)
+
+    assert.equal(string, 'in')
+  }
+}
+
+test.group('std::io::Write.print') do (g) {
+  g.test('Printing a String') {
+    let writer = Writer.new
+    let written = try! writer.print('inko')
+
+    assert.equal(written, 5)
+    assert.equal(writer.buffer, ['inko', "\n"])
+  }
+}
