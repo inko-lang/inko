@@ -22,7 +22,7 @@ pub fn to_string(
     process: &RcProcess,
     float: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    let result = float.float_value()?.to_string();
+    let result = format!("{:?}", float.float_value()?);
 
     Ok(process.allocate(object_value::string(result), state.string_prototype))
 }
