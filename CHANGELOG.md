@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.3.0 - November 25, 2018
+
+* 1411241: Use Rust's Debug to format Float
+* 7ac65aa: Added Array.contains?
+* 6d1d704: Removed left-over traces of the Compatible marker
+* 7dc4d1c: Added tests for std::hash_map
+* b750f17: Fixed error generation when parsing brackets
+* d95a357: Remove uninitialised params from return types
+* 8cd6b79: Handle remapping of parameters for optional types
+* 739a274: Added tests for std::fs::path::Path
+* 93bbd5e: Fix race condition in ObjectPointer::status()
+* a8df710: Fix tests for Object::mark_for_forward()
+* 21b0ab0: Use seconds instead of milliseconds for timeouts
+* e2b5bff: Move interpreter code out of the main loop
+* 2f57fa4: Fixed passing of excessive arguments
+* 26f535f: Add a Foreign Function Interface for C code
+* 9e33e40: Reformat some VM code using rustfmt
+* 850824b: Improve support for pinning processes
+* f39ce80: Rework handling of prototypes of built-in types
+* c1c8f5d: The Platform instruction now returns a string
+* 77fbe37: Move std::vm.panic to std::process
+* 96c362b: Reduce moving of threads in std::stdio
+* 1a6e4b4: Simplify setting the default thread counts
+* 3d15c20: Supported nested calls to process.blocking
+* b79e9e8: Expose thread pinning to the runtime
+* faf02ea: Pinning of processes to threads
+* 6d37d40: Fixed Clippy warning for Histogram::new
+* 86e740f: Add tests for Histogram::reset()
+* 8be5d5b: Use Chunk instead of Vec in Histogram
+* 8f7c240: Implement Drop for Chunk
+* 0e0b775: Use an f32 for heap growth factors
+* 3e1c4c0: Use a u8 for configuring the number of threads
+* bc674fa: Fixed formatting of Clippy attributes
+* c5519cb: Run Clippy on Rust stable
+* 709d928: Add support for custom sha256sum programs
+* 72e16d4: Basic support for late binding of Self
+* b0bc5e4: Fix process status in ProcessSuspendCurrent
+* c983568: Fixed arity of implements_trait?
+* bac0fe8: Use u16 for ExecutionContext.return_register
+* 64e8a9c: Refactor std::range so it compiles again
+* b1cb8a3: Support for type checking nested required traits
+* ca7a359: Manually define Nil.new
+
 ## 0.2.5 - September 11, 2018
 
 * 38379fc: Fixed type checking of unknown_message
