@@ -196,6 +196,24 @@ impl Array!(T) {
 
     self
   }
+
+  ## Returns `True` if `self` contains the given value.
+  ##
+  ## # Examples
+  ##
+  ## Checking if an `Array` contains a value:
+  ##
+  ##     [10, 20, 30].contains?(10) # => True
+  def contains?(value: T) -> Boolean where T: Equal {
+    each do (val) {
+      val == value
+        .if_true {
+          return True
+        }
+    }
+
+    False
+  }
 }
 
 impl Length for Array!(T) {

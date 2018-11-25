@@ -228,3 +228,11 @@ test.group('std::array::Array.format') do (g) {
     assert.equal(formatter.to_string, '[10, 20]')
   }
 }
+
+test.group('std::array::Array.contains?') do (g) {
+  g.test('Checking if an Array contains a given value') {
+    assert.false([].contains?(10))
+    assert.false([10].contains?(20))
+    assert.true([10, 20].contains?(10))
+  }
+}
