@@ -5,6 +5,3 @@ import std::unknown_message::UnknownMessage
 ## itself is not type compatible. This allows one to pass type `A` to `?B` as
 ## long as `A` implements `Optional`.
 trait Optional: UnknownMessage {}
-
-## A type that is compatible with any other type that implements this trait.
-trait Compatible {}

@@ -76,21 +76,6 @@ describe Inkoc::TypeSystem::Object do
         expect(ours.type_compatible?(theirs, state)).to eq(true)
       end
 
-      it 'returns true when both objects implement the Compatible trait' do
-        theirs = described_class.new
-        ours = described_class.new
-
-        allow(ours)
-          .to receive(:implements_compatible_marker?)
-          .and_return(true)
-
-        allow(theirs)
-          .to receive(:implements_compatible_marker?)
-          .and_return(true)
-
-        expect(ours.type_compatible?(theirs, state)).to eq(true)
-      end
-
       it 'returns false when the object is not in the prototype chain' do
         theirs = described_class.new
         ours = described_class.new
@@ -174,25 +159,6 @@ describe Inkoc::TypeSystem::Object do
 
         expect(ours.type_compatible?(theirs, state)).to eq(false)
       end
-    end
-  end
-
-  describe '#implements_compatible_marker?' do
-    it 'returns true when the Compatible marker is implemented' do
-      object = described_class.new
-
-      allow(object)
-        .to receive(:marker_implemented?)
-        .with(Inkoc::Config::COMPATIBLE_CONST, state)
-        .and_return(true)
-
-      expect(object.implements_compatible_marker?(state)).to eq(true)
-    end
-
-    it 'returns false when the Compatible marker is not implemented' do
-      object = described_class.new
-
-      expect(object.implements_compatible_marker?(state)).to eq(false)
     end
   end
 

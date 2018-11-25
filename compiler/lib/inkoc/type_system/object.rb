@@ -52,11 +52,6 @@ module Inkoc
           return compatible_with_type_parameter?(other, state)
         end
 
-        if implements_compatible_marker?(state) &&
-           other.implements_compatible_marker?(state)
-          return true
-        end
-
         if other.generic_object?
           compatible_with_generic_type?(other, state)
         else
@@ -65,13 +60,6 @@ module Inkoc
       end
       # rubocop: enable Metrics/CyclomaticComplexity
       # rubocop: enable Metrics/PerceivedComplexity
-
-      # Returns `true` if `self` implements `std::marker::Compatible`.
-      #
-      # state - An instance of `Inkoc::State`.
-      def implements_compatible_marker?(state)
-        marker_implemented?(Config::COMPATIBLE_CONST, state)
-      end
 
       # Returns `true` if we are compatible with the given optional type.
       #

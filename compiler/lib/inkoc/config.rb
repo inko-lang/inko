@@ -52,7 +52,6 @@ module Inkoc
     POINTER_CONST = 'Pointer'
     ARRAY_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
-    COMPATIBLE_CONST = 'Compatible'
 
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
