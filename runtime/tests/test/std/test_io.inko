@@ -1,5 +1,6 @@
 import std::byte_array::ByteArray
 import std::io::(Read, Write)
+import std::os::NEWLINE
 import std::test
 import std::test::assert
 
@@ -64,7 +65,7 @@ test.group('std::io::Write.print') do (g) {
     let writer = Writer.new
     let written = try! writer.print('inko')
 
-    assert.equal(written, 5)
-    assert.equal(writer.buffer, ['inko', "\n"])
+    assert.equal(written, NEWLINE.length + 4)
+    assert.equal(writer.buffer, ['inko', NEWLINE])
   }
 }
