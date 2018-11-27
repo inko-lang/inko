@@ -668,7 +668,6 @@ describe Inkoc::TypeSystem::Object do
 
       expect(type.type_parameter_instances).to be_empty
     end
-
   end
 
   describe '#guard_unknown_message?' do
@@ -720,6 +719,48 @@ describe Inkoc::TypeSystem::Object do
       object.initialize_type_parameter(param, param)
 
       expect(object.initialize_type_parameter?(param)).to eq(true)
+    end
+  end
+
+  describe '#lookup_type_parameter_instance' do
+    it 'returns an instance from the object itself' do
+      object1 = described_class.new
+      object2 = described_class.new
+      param = object1.define_type_parameter('T')
+
+      object1.initialize_type_parameter(param, object2)
+
+      expect(object1.lookup_type_parameter_instance(param)).to eq(object2)
+    end
+
+    it 'returns an instance from an implemented trait' do
+      trait = state.typedb.new_trait_type('Thing')
+      param = trait.define_type_parameter('T')
+      object1 = described_class.new
+      object2 = described_class.new
+
+      trait.initialize_type_parameter(param, object2)
+
+      object1.implement_trait(trait)
+
+      expect(object1.lookup_type_parameter_instance(param)).to eq(object2)
+    end
+
+    it 'remaps parameters from traits to the appropriate instances' do
+      trait = state.typedb.new_trait_type('Thing')
+      trait_param = trait.define_type_parameter('A')
+
+      object1 = described_class.new
+      object_param = object1.define_type_parameter('B')
+
+      object2 = described_class.new
+
+      trait.initialize_type_parameter(trait_param, object_param)
+      object1.initialize_type_parameter(object_param, object2)
+
+      object1.implement_trait(trait)
+
+      expect(object1.lookup_type_parameter_instance(trait_param)).to eq(object2)
     end
   end
 end

@@ -367,9 +367,14 @@ module Inkoc
 
         types.each do |type|
           next unless type.generic_type?
-          next if type.type_parameter_instances.empty?
 
           instances.merge!(type.type_parameter_instances)
+
+          next unless type.object?
+
+          type.implemented_traits.each do |_, trait|
+            instances.merge!(trait.type_parameter_instances)
+          end
         end
 
         if instances.empty?
@@ -378,6 +383,16 @@ module Inkoc
           dup.tap do |copy|
             copy.type_parameter_instances = instances
           end
+        end
+      end
+
+      def lookup_type_parameter_instance(param)
+        instance = super
+
+        if instance&.type_parameter? && param != instance
+          lookup_type_parameter_instance(instance)
+        else
+          instance
         end
       end
     end

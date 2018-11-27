@@ -896,6 +896,44 @@ describe Inkoc::TypeSystem::Block do
         expect(new_block.lookup_type_parameter_instance(param)).to eq(int_type)
         expect(block.lookup_type_parameter_instance(param)).to be_nil
       end
+
+      it 'includes the type parameter instances of any implemented traits' do
+        block = described_class.new
+        object = Inkoc::TypeSystem::Object.new
+
+        trait = state.typedb.new_trait_type('Thing')
+        param = trait.define_type_parameter('T')
+        instance = state.typedb.integer_type.new_instance
+
+        trait.initialize_type_parameter(param, instance)
+
+        object.implement_trait(trait)
+
+        new_block = block.with_type_parameter_instances_from([object])
+
+        expect(new_block.lookup_type_parameter_instance(param)).to eq(instance)
+      end
+
+      it 'does not overwrite type parameter instances using trait instances' do
+        block = described_class.new
+        object = Inkoc::TypeSystem::Object.new
+
+        trait = state.typedb.new_trait_type('Thing')
+        param = trait.define_type_parameter('T')
+
+        trait_instance = state.typedb.integer_type.new_instance
+        object_instance = state.typedb.float_type.new_instance
+
+        trait.initialize_type_parameter(param, trait_instance)
+        object.initialize_type_parameter(param, object_instance)
+
+        object.implement_trait(trait)
+
+        new_block = block.with_type_parameter_instances_from([object])
+
+        expect(new_block.lookup_type_parameter_instance(param))
+          .to eq(object_instance)
+      end
     end
   end
 end

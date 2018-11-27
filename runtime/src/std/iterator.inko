@@ -235,7 +235,7 @@ trait Iterator!(T) {
   }
 }
 
-impl Iterator!(In) for Map!(In, Out) {
+impl Iterator!(Out) for Map!(In, Out) {
   def next? -> Boolean {
     @iterator.next?
   }

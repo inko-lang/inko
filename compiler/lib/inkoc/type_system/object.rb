@@ -143,6 +143,29 @@ module Inkoc
       def remove_trait_implementation(trait)
         implemented_traits.delete(trait.unique_id)
       end
+
+      def lookup_type_parameter_instance(param)
+        if (instance = super)
+          return instance
+        end
+
+        implemented_traits.each do |_, trait|
+          instance = trait.lookup_type_parameter_instance(param)
+
+          next unless instance
+
+          if instance.type_parameter?
+            # Sometimes a trait's parameter A points to type parameter B defined
+            # in `self`. In this case we want the instance that is mapped to B,
+            # not B itself.
+            return lookup_type_parameter_instance(instance)
+          end
+
+          return instance
+        end
+
+        nil
+      end
     end
   end
 end
