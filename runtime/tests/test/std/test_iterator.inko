@@ -1,0 +1,94 @@
+import std::iterator::Iterator
+import std::test
+import std::test::assert
+
+object EmptyIterator impl Iterator!(Integer) {
+  def next? -> Boolean {
+    False
+  }
+
+  def next -> ?Integer {
+    Nil
+  }
+}
+
+object SimpleIterator impl Iterator!(Integer) {
+  def init {
+    let @values = [10, 20, 30]
+    let mut @index = 0
+  }
+
+  def next -> ?Integer {
+    let value = @values[@index]
+
+    @index += 1
+
+    value
+  }
+
+  def next? -> Boolean {
+    @index < @values.length
+  }
+}
+
+test.group('std::iterator::Iterator.each') do (g) {
+  g.test('Iterating over the values in an Iterator') {
+    let iter = SimpleIterator.new
+    let values = []
+
+    iter.each do (value) {
+      values.push(value)
+    }
+
+    assert.equal(values, [10, 20, 30])
+  }
+
+  g.test('Iterating over the values in an empty Iterator') {
+    let iter = EmptyIterator.new
+    let values = []
+
+    iter.each do (value) {
+      values.push(value)
+    }
+
+    assert.equal(values, [])
+  }
+}
+
+test.group('std::iterator::Iterator.find') do (g) {
+  g.test('Finding the first occurrence of a value in an Iterator') {
+    let iter = SimpleIterator.new
+    let val = iter.find do (value) { value == 20 }
+
+    assert.equal(val, 20)
+  }
+
+  g.test('Finding the first occurrence of a value in an empty Iterator') {
+    let iter = EmptyIterator.new
+    let val = iter.find do (value) { value == 20 }
+
+    assert.equal(val, Nil)
+  }
+}
+
+test.group('std::iterator::Iterator.map') do (g) {
+  g.test('Mapping the values of an Iterator to a different value') {
+    let iter = SimpleIterator.new.map do (val) { val * 2 }
+    let values = []
+
+    iter.each do (value) {
+      values.push(value)
+    }
+
+    assert.equal(values, [20, 40, 60])
+  }
+}
+
+test.group('std::iterator::Iterator.to_array') do (g) {
+  g.test('Converting an Iterator to an Array') {
+    let iter = SimpleIterator.new
+    let vals = iter.to_array
+
+    assert.equal(vals, [10, 20, 30])
+  }
+}
