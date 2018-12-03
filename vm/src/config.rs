@@ -105,16 +105,11 @@ impl Config {
     /// Populates configuration settings based on environment variables.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn populate_from_env(&mut self) {
-        set_from_env!(self, primary_threads, "PRIMARY_THREADS", u8);
-        set_from_env!(self, secondary_threads, "SECONDARY_THREADS", u8);
-        set_from_env!(self, gc_threads, "GC_THREADS", u8);
-        set_from_env!(self, finalizer_threads, "FINALIZER_THREADS", u8);
-        set_from_env!(
-            self,
-            generic_parallel_threads,
-            "GENERIC_PARALLEL_THREADS",
-            u8
-        );
+        set_from_env!(self, primary_threads, "CONCURRENCY", u8);
+        set_from_env!(self, secondary_threads, "CONCURRENCY", u8);
+        set_from_env!(self, gc_threads, "CONCURRENCY", u8);
+        set_from_env!(self, finalizer_threads, "CONCURRENCY", u8);
+        set_from_env!(self, generic_parallel_threads, "CONCURRENCY", u8);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
         set_from_env!(
@@ -210,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_populate_from_env() {
-        env::set_var("INKO_PRIMARY_THREADS", "42");
+        env::set_var("INKO_CONCURRENCY", "42");
         env::set_var("INKO_HEAP_GROWTH_FACTOR", "4.2");
 
         let mut config = Config::new();
@@ -218,7 +213,7 @@ mod tests {
         config.populate_from_env();
 
         // Unset before any assertions may fail.
-        env::remove_var("INKO_PROCESS_THREADS");
+        env::remove_var("INKO_CONCURRENCY");
         env::remove_var("INKO_HEAP_GROWTH_FACTOR");
 
         assert_eq!(config.primary_threads, 42);
