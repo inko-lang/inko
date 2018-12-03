@@ -21,7 +21,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
     code.registers = 1024;
 
     let (block, process) = {
-        let mut registry = write_lock!(machine.module_registry);
+        let mut registry = machine.module_registry.lock();
         let module_name = if cfg!(windows) { "C:\\test" } else { "/test" };
 
         // To ensure the module sticks around long enough we'll manually store in

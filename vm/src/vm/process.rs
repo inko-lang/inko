@@ -24,7 +24,7 @@ pub fn allocate(
     pool_id: u8,
     block: &Block,
 ) -> Result<RcProcess, String> {
-    let mut process_table = write_lock!(state.process_table);
+    let mut process_table = state.process_table.lock();
 
     let pid = process_table
         .reserve()
@@ -67,7 +67,7 @@ pub fn send_message(
 ) -> Result<ObjectPointer, String> {
     let pid = pid_ptr.usize_value()?;
 
-    if let Some(receiver) = read_lock!(state.process_table).get(pid) {
+    if let Some(receiver) = state.process_table.lock().get(pid) {
         receiver.send_message(&process, msg_ptr);
 
         if receiver.is_waiting_for_message() {
@@ -97,7 +97,7 @@ pub fn status(
     pid_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let pid = pid_ptr.usize_value()?;
-    let table = read_lock!(state.process_table);
+    let table = state.process_table.lock();
 
     let status = if let Some(receiver) = table.get(pid) {
         receiver.status_integer()

@@ -20,7 +20,7 @@ use pools::Pools;
 use process::RcProcess;
 use process_table::ProcessTable;
 use std::panic::RefUnwindSafe;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time;
 use string_pool::StringPool;
 use suspension_list::SuspensionList;
@@ -59,7 +59,7 @@ pub struct State {
     pub config: Config,
 
     /// Table containing all processes.
-    pub process_table: RwLock<ProcessTable<RcProcess>>,
+    pub process_table: Mutex<ProcessTable<RcProcess>>,
 
     /// The pool to use for garbage collection.
     pub gc_pool: Pool<Request>,
@@ -221,7 +221,7 @@ impl State {
 
         let mut state = State {
             config,
-            process_table: RwLock::new(ProcessTable::new()),
+            process_table: Mutex::new(ProcessTable::new()),
             process_pools,
             gc_pool,
             finalizer_pool,

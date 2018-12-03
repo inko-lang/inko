@@ -1738,7 +1738,7 @@ impl Machine {
             worker.unpin();
         }
 
-        write_lock!(self.state.process_table).release(process.pid);
+        self.state.process_table.lock().release(process.pid);
 
         // We must clean up _after_ removing the process from the process table
         // to prevent a cleanup from happening while the process is still

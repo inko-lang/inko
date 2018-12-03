@@ -1,13 +1,14 @@
 //! Parsing and caching of bytecode modules.
+use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use bytecode_parser;
 use module::Module;
 use vm::state::RcState;
 
-pub type RcModuleRegistry = Arc<RwLock<ModuleRegistry>>;
+pub type RcModuleRegistry = Arc<Mutex<ModuleRegistry>>;
 
 pub enum ModuleError {
     /// The module did exist but could not be parsed.
@@ -51,7 +52,7 @@ impl<'a> LookupResult<'a> {
 
 impl ModuleRegistry {
     pub fn with_rc(state: RcState) -> RcModuleRegistry {
-        Arc::new(RwLock::new(ModuleRegistry::new(state)))
+        Arc::new(Mutex::new(ModuleRegistry::new(state)))
     }
 
     pub fn new(state: RcState) -> Self {

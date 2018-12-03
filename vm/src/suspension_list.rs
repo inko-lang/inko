@@ -5,11 +5,11 @@
 
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
+use parking_lot::{Condvar, Mutex};
 use std::cell::UnsafeCell;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use process::RcProcess;
@@ -118,7 +118,7 @@ impl SuspensionList {
         let entry =
             SuspendedProcess::new(process, timeout.map(duration_from_f64));
 
-        lock!(self.outer).insert(entry);
+        self.outer.lock().insert(entry);
 
         self.condvar.notify_all();
     }
@@ -165,7 +165,7 @@ impl SuspensionList {
 
     fn copy_outer(&self) {
         let inner = self.inner_mut();
-        let mut outer = lock!(self.outer);
+        let mut outer = self.outer.lock();
 
         for entry in outer.drain() {
             inner.insert(entry);
@@ -191,18 +191,16 @@ impl SuspensionList {
     /// processes are scheduled for suspension.
     fn wait_for_work(&self, state: &RcState) {
         let sleep_for = self.time_to_sleep(state);
-        let mut outer = lock!(self.outer);
+        let mut outer = self.outer.lock();
 
         while outer.is_empty() {
-            let result = self.condvar.wait_timeout(outer, sleep_for).unwrap();
+            let result = self.condvar.wait_for(&mut outer, sleep_for);
 
-            if result.1.timed_out() {
+            if result.timed_out() {
                 return;
             } else if self.should_wake_up() {
                 self.reset_wake_up();
                 return;
-            } else {
-                outer = result.0;
             }
         }
     }

@@ -17,7 +17,7 @@ pub fn load_string(
     registry: &RcModuleRegistry,
     path: &str,
 ) -> Result<(Block, bool), String> {
-    let mut registry = write_lock!(registry);
+    let mut registry = registry.lock();
     let lookup = registry.get_or_set(path).map_err(|err| err.message())?;
     let module = lookup.module;
 
