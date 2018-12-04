@@ -24,13 +24,9 @@ pub struct HistogramIterator<'a> {
 impl Histogram {
     #![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     pub fn new(capacity: usize) -> Self {
-        let mut chunk = Chunk::new(capacity);
+        let values = Chunk::new(capacity);
 
-        for index in 0..capacity {
-            chunk[index] = AtomicUsize::new(DEFAULT_VALUE);
-        }
-
-        Histogram { values: chunk }
+        Histogram { values }
     }
 
     /// Increments a bin by the given value.
@@ -99,6 +95,13 @@ impl<'a> Iterator for HistogramIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_new() {
+        let histo = Histogram::new(1);
+
+        assert_eq!(histo.get(0), 0);
+    }
 
     #[test]
     fn test_increment() {
