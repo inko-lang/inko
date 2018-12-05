@@ -51,18 +51,6 @@ impl LocalAllocator {
         global_allocator: RcGlobalAllocator,
         config: &Config,
     ) -> LocalAllocator {
-        let young_config = GenerationConfig::new(
-            config.young_threshold,
-            config.heap_growth_threshold,
-            config.heap_growth_factor,
-        );
-
-        let mature_config = GenerationConfig::new(
-            config.mature_threshold,
-            config.heap_growth_threshold,
-            config.heap_growth_factor,
-        );
-
         LocalAllocator {
             global_allocator,
             young_generation: [
@@ -73,8 +61,8 @@ impl LocalAllocator {
             ],
             eden_index: 0,
             mature_generation: Bucket::with_age(MATURE),
-            young_config,
-            mature_config,
+            young_config: GenerationConfig::new(config.young_threshold),
+            mature_config: GenerationConfig::new(config.mature_threshold),
             remembered_set: HashSet::new(),
         }
     }
@@ -92,11 +80,11 @@ impl LocalAllocator {
     }
 
     pub fn should_collect_young(&self) -> bool {
-        self.young_config.collect
+        self.young_config.allocation_threshold_exceeded()
     }
 
     pub fn should_collect_mature(&self) -> bool {
-        self.mature_config.collect
+        self.mature_config.allocation_threshold_exceeded()
     }
 
     /// Prepares for a garbage collection.
@@ -201,33 +189,40 @@ impl LocalAllocator {
         }
     }
 
-    pub fn update_block_allocations(&mut self) {
-        self.young_config.block_allocations = self
-            .young_generation
-            .iter()
-            .map(|bucket| bucket.number_of_blocks())
-            .sum();
-
-        self.mature_config.block_allocations =
-            self.mature_generation.number_of_blocks();
-    }
-
-    pub fn update_collection_statistics(&mut self) {
-        self.young_config.collect = false;
-        self.mature_config.collect = false;
-
+    pub fn update_collection_statistics(&mut self, config: &Config) {
         self.increment_young_ages();
-        self.update_block_allocations();
 
-        if self.mature_config.should_increment() {
+        self.young_config.block_allocations = 0;
+        self.mature_config.block_allocations = 0;
+
+        let young_blocks = self.number_of_young_blocks();
+        let mature_blocks = self.mature_generation.number_of_blocks();
+
+        let threshold = config.heap_growth_threshold;
+        let factor = config.heap_growth_factor;
+
+        if self
+            .mature_config
+            .should_increase_threshold(mature_blocks, threshold)
+        {
             // If the mature generation is running full we also want
             // to increase the young generation to reduce the number of
             // objects that are promoted prematurely.
-            self.young_config.increment_threshold();
-            self.mature_config.increment_threshold();
-        } else if self.young_config.should_increment() {
-            self.young_config.increment_threshold();
+            self.young_config.increment_threshold(factor);
+            self.mature_config.increment_threshold(factor);
+        } else if self
+            .young_config
+            .should_increase_threshold(young_blocks, threshold)
+        {
+            self.young_config.increment_threshold(factor);
         }
+    }
+
+    pub fn number_of_young_blocks(&self) -> usize {
+        self.young_generation
+            .iter()
+            .map(|bucket| bucket.number_of_blocks())
+            .sum()
     }
 
     pub fn has_remembered_objects(&self) -> bool {

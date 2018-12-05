@@ -1,46 +1,39 @@
 //! Configuration for heap generations.
-use immix::block::BLOCK_SIZE;
 
 pub struct GenerationConfig {
     /// The maximum number of blocks that can be allocated before triggering a
     /// garbage collection.
     pub threshold: usize,
 
-    /// The number of blocks that have been allocated.
+    /// The number of blocks that have been allocated since the last garbage
+    /// collection.
     pub block_allocations: usize,
-
-    /// The percentage of blocks that should be used (relative to the threshold)
-    /// before incrementing the threshold.
-    pub growth_threshold: f32,
-
-    /// The factor to grow the allocation threshold by.
-    pub growth_factor: f32,
-
-    /// Boolean indicating if this generation should be collected.
-    pub collect: bool,
 }
 
 impl GenerationConfig {
-    pub fn new(bytes: usize, percentage: f32, growth_factor: f32) -> Self {
+    pub fn new(threshold: usize) -> Self {
         GenerationConfig {
-            threshold: bytes / BLOCK_SIZE,
+            threshold,
             block_allocations: 0,
-            collect: false,
-            growth_threshold: percentage,
-            growth_factor,
         }
     }
 
-    pub fn should_increment(&self) -> bool {
-        let percentage = self.block_allocations as f32 / self.threshold as f32;
+    /// Returns true if the allocation threshold should be increased.
+    ///
+    /// The `blocks` argument should specify the current number of live blocks.
+    pub fn should_increase_threshold(
+        &self,
+        blocks: usize,
+        growth_threshold: f64,
+    ) -> bool {
+        let percentage = blocks as f64 / self.threshold as f64;
 
-        self.allocation_threshold_exceeded()
-            || percentage >= self.growth_threshold
+        percentage >= growth_threshold
     }
 
-    pub fn increment_threshold(&mut self) {
+    pub fn increment_threshold(&mut self, growth_factor: f64) {
         self.threshold =
-            (self.threshold as f32 * self.growth_factor).ceil() as usize;
+            (self.threshold as f64 * growth_factor).ceil() as usize;
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {
@@ -49,10 +42,6 @@ impl GenerationConfig {
 
     pub fn increment_allocations(&mut self) {
         self.block_allocations += 1;
-
-        if self.allocation_threshold_exceeded() && !self.collect {
-            self.collect = true;
-        }
     }
 }
 
@@ -61,41 +50,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_should_increment_with_too_many_blocks() {
-        let mut config = GenerationConfig::new(BLOCK_SIZE, 0.9, 2.0);
+    fn test_should_increase_threshold_with_too_many_blocks() {
+        let config = GenerationConfig::new(1);
 
-        assert_eq!(config.should_increment(), false);
+        assert_eq!(config.should_increase_threshold(0, 0.9), false);
 
-        config.block_allocations = 10;
-
-        assert!(config.should_increment());
+        assert!(config.should_increase_threshold(10, 0.9));
     }
 
     #[test]
-    fn test_should_increment_with_large_usage_percentage() {
-        let mut config = GenerationConfig::new(BLOCK_SIZE * 10, 0.9, 2.0);
+    fn test_should_increase_threshold_with_large_usage_percentage() {
+        let config = GenerationConfig::new(10);
 
-        assert_eq!(config.should_increment(), false);
+        assert_eq!(config.should_increase_threshold(1, 0.9), false);
 
-        config.block_allocations = 9;
-
-        assert!(config.should_increment());
+        assert!(config.should_increase_threshold(9, 0.9));
     }
 
     #[test]
     fn test_increment_threshold() {
-        let mut config = GenerationConfig::new(BLOCK_SIZE, 0.9, 2.0);
+        let mut config = GenerationConfig::new(1);
 
         assert_eq!(config.threshold, 1);
 
-        config.increment_threshold();
+        config.increment_threshold(2.0);
 
         assert_eq!(config.threshold, 2);
     }
 
     #[test]
     fn test_allocation_threshold_exceeded() {
-        let mut config = GenerationConfig::new(BLOCK_SIZE, 0.9, 2.0);
+        let mut config = GenerationConfig::new(1);
 
         assert_eq!(config.allocation_threshold_exceeded(), false);
 
@@ -106,11 +91,11 @@ mod tests {
 
     #[test]
     fn test_increment_allocations() {
-        let mut config = GenerationConfig::new(BLOCK_SIZE, 0.9, 2.0);
+        let mut config = GenerationConfig::new(1);
 
         config.increment_allocations();
 
         assert_eq!(config.block_allocations, 1);
-        assert!(config.collect);
+        assert!(config.allocation_threshold_exceeded());
     }
 }

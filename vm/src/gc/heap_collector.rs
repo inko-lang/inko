@@ -24,7 +24,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     profile.reclaim.start();
 
     process.reclaim_blocks(vm_state, collect_mature);
-    process.update_collection_statistics(collect_mature);
+    process.update_collection_statistics(&vm_state.config, collect_mature);
 
     profile.reclaim.stop();
 

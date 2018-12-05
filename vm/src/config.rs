@@ -8,6 +8,7 @@
 //! of the VM to easily access these configuration details.
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 
+use immix::block::BLOCK_SIZE;
 use num_cpus;
 use std::env;
 use std::path::PathBuf;
@@ -22,6 +23,14 @@ macro_rules! set_from_env {
         };
     }};
 }
+
+const DEFAULT_YOUNG_THRESHOLD: usize = (8 * 1024 * 1024) / BLOCK_SIZE;
+const DEFAULT_MATURE_THRESHOLD: usize = (16 * 1024 * 1024) / BLOCK_SIZE;
+const DEFAULT_MAILBOX_THRESHOLD: usize = 1;
+const DEFAULT_GROWTH_FACTOR: f64 = 1.5;
+const DEFAULT_GROWTH_THRESHOLD: f64 = 0.9;
+const DEFAULT_SUSPENSION_CHECK_INTERVAL: f64 = 0.1;
+const DEFAULT_REDUCTIONS: usize = 1000;
 
 /// Structure containing the configuration settings for the virtual machine.
 pub struct Config {
@@ -52,31 +61,31 @@ pub struct Config {
     /// The number of seconds to wait between checking for suspended processes.
     pub suspension_check_interval: f64,
 
-    /// The amount of memory that can be allocated in the young generation
-    /// before triggering a young collection.
+    /// The number of memory blocks that can be allocated before triggering a
+    /// young collection.
     pub young_threshold: usize,
 
-    /// The amount of memory that can be allocated in the mature generation
-    /// before triggering a full collection.
+    /// The number of memory blocks that can be allocated before triggering a
+    /// mature collection.
     pub mature_threshold: usize,
 
     /// The block allocation growth factor for the heap.
-    pub heap_growth_factor: f32,
+    pub heap_growth_factor: f64,
 
     /// The percentage of memory in the heap (relative to its threshold) that
     /// should be used before increasing the heap size.
-    pub heap_growth_threshold: f32,
+    pub heap_growth_threshold: f64,
 
-    /// The amount of memory that can be allocated for a mailbox before
-    /// triggering a mailbox collection.
+    /// The number of memory blocks that can be allocated before triggering a
+    /// mailbox collection.
     pub mailbox_threshold: usize,
 
     /// The block allocation growth factor for the mailbox heap.
-    pub mailbox_growth_factor: f32,
+    pub mailbox_growth_factor: f64,
 
     /// The percentage of memory in the mailbox heap that should be used before
     /// increasing the size.
-    pub mailbox_growth_threshold: f32,
+    pub mailbox_growth_threshold: f64,
 }
 
 impl Config {
@@ -90,15 +99,15 @@ impl Config {
             finalizer_threads: cpu_count,
             secondary_threads: cpu_count,
             generic_parallel_threads: cpu_count,
-            reductions: 1000,
-            suspension_check_interval: 0.1,
-            young_threshold: 8 * 1024 * 1024,
-            mature_threshold: 16 * 1024 * 1024,
-            heap_growth_factor: 1.5,
-            heap_growth_threshold: 0.9,
-            mailbox_threshold: 32 * 1024,
-            mailbox_growth_factor: 1.5,
-            mailbox_growth_threshold: 0.9,
+            reductions: DEFAULT_REDUCTIONS,
+            suspension_check_interval: DEFAULT_SUSPENSION_CHECK_INTERVAL,
+            young_threshold: DEFAULT_YOUNG_THRESHOLD,
+            mature_threshold: DEFAULT_MATURE_THRESHOLD,
+            heap_growth_factor: DEFAULT_GROWTH_FACTOR,
+            heap_growth_threshold: DEFAULT_GROWTH_THRESHOLD,
+            mailbox_threshold: DEFAULT_MAILBOX_THRESHOLD,
+            mailbox_growth_factor: DEFAULT_GROWTH_FACTOR,
+            mailbox_growth_threshold: DEFAULT_GROWTH_THRESHOLD,
         }
     }
 
@@ -121,13 +130,13 @@ impl Config {
 
         set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", usize);
         set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", usize);
-        set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f32);
+        set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f64);
 
         set_from_env!(
             self,
             heap_growth_threshold,
             "HEAP_GROWTH_THRESHOLD",
-            f32
+            f64
         );
 
         set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", usize);
@@ -136,14 +145,14 @@ impl Config {
             self,
             mailbox_growth_factor,
             "MAILBOX_GROWTH_FACTOR",
-            f32
+            f64
         );
 
         set_from_env!(
             self,
             mailbox_growth_threshold,
             "MAILBOX_GROWTH_THRESHOLD",
-            f32
+            f64
         );
     }
 

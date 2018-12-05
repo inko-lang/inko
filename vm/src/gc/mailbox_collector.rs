@@ -24,7 +24,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     profile.reclaim.start();
 
     mailbox.allocator.reclaim_blocks(vm_state);
-    process.update_mailbox_collection_statistics();
+    process.update_mailbox_collection_statistics(&vm_state.config);
 
     drop(lock); // unlock as soon as possible
 

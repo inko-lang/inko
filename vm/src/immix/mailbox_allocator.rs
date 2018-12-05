@@ -25,16 +25,10 @@ pub struct MailboxAllocator {
 
 impl MailboxAllocator {
     pub fn new(global_allocator: RcGlobalAllocator, config: &Config) -> Self {
-        let config = GenerationConfig::new(
-            config.mailbox_threshold,
-            config.mailbox_growth_threshold,
-            config.mailbox_growth_factor,
-        );
-
         MailboxAllocator {
             global_allocator,
             bucket: Bucket::with_age(MAILBOX),
-            config,
+            config: GenerationConfig::new(config.mailbox_threshold),
         }
     }
 
@@ -63,19 +57,19 @@ impl MailboxAllocator {
     }
 
     pub fn should_collect(&self) -> bool {
-        self.config.collect
+        self.config.allocation_threshold_exceeded()
     }
 
-    pub fn update_block_allocations(&mut self) {
-        self.config.block_allocations = self.bucket.number_of_blocks();
-    }
+    pub fn update_collection_statistics(&mut self, config: &Config) {
+        self.config.block_allocations = 0;
 
-    pub fn update_collection_statistics(&mut self) {
-        self.config.collect = false;
-        self.update_block_allocations();
+        let blocks = self.bucket.number_of_blocks();
 
-        if self.config.should_increment() {
-            self.config.increment_threshold();
+        if self
+            .config
+            .should_increase_threshold(blocks, config.heap_growth_threshold)
+        {
+            self.config.increment_threshold(config.heap_growth_factor);
         }
     }
 }

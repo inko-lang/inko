@@ -529,10 +529,10 @@ impl Process {
         state.global_allocator.add_blocks(&mut blocks);
     }
 
-    pub fn update_collection_statistics(&self, mature: bool) {
+    pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
         let local_data = self.local_data_mut();
 
-        local_data.allocator.update_collection_statistics();
+        local_data.allocator.update_collection_statistics(config);
 
         if mature {
             local_data.mature_collections += 1;
@@ -541,11 +541,14 @@ impl Process {
         }
     }
 
-    pub fn update_mailbox_collection_statistics(&self) {
+    pub fn update_mailbox_collection_statistics(&self, config: &Config) {
         let local_data = self.local_data_mut();
 
         local_data.mailbox_collections += 1;
-        local_data.mailbox.allocator.update_collection_statistics();
+        local_data
+            .mailbox
+            .allocator
+            .update_collection_statistics(config);
     }
 
     pub fn is_main(&self) -> bool {
@@ -611,9 +614,9 @@ mod tests {
 
     #[test]
     fn test_update_collection_statistics_without_mature() {
-        let (_machine, _block, process) = setup();
+        let (machine, _block, process) = setup();
 
-        process.update_collection_statistics(false);
+        process.update_collection_statistics(&machine.state.config, false);
 
         let local_data = process.local_data();
 
@@ -622,9 +625,9 @@ mod tests {
 
     #[test]
     fn test_update_collection_statistics_with_mature() {
-        let (_machine, _block, process) = setup();
+        let (machine, _block, process) = setup();
 
-        process.update_collection_statistics(true);
+        process.update_collection_statistics(&machine.state.config, true);
 
         let local_data = process.local_data();
 
@@ -634,9 +637,9 @@ mod tests {
 
     #[test]
     fn test_update_mailbox_collection_statistics() {
-        let (_machine, _block, process) = setup();
+        let (machine, _block, process) = setup();
 
-        process.update_mailbox_collection_statistics();
+        process.update_mailbox_collection_statistics(&machine.state.config);
 
         let local_data = process.local_data();
 
@@ -743,7 +746,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 696);
+        assert_eq!(size, 648);
     }
 
     #[test]
