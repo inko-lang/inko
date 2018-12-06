@@ -3,15 +3,15 @@
 pub struct GenerationConfig {
     /// The maximum number of blocks that can be allocated before triggering a
     /// garbage collection.
-    pub threshold: usize,
+    pub threshold: u32,
 
     /// The number of blocks that have been allocated since the last garbage
     /// collection.
-    pub block_allocations: usize,
+    pub block_allocations: u32,
 }
 
 impl GenerationConfig {
-    pub fn new(threshold: usize) -> Self {
+    pub fn new(threshold: u32) -> Self {
         GenerationConfig {
             threshold,
             block_allocations: 0,
@@ -23,17 +23,17 @@ impl GenerationConfig {
     /// The `blocks` argument should specify the current number of live blocks.
     pub fn should_increase_threshold(
         &self,
-        blocks: usize,
+        blocks: u32,
         growth_threshold: f64,
     ) -> bool {
-        let percentage = blocks as f64 / self.threshold as f64;
+        let percentage = f64::from(blocks) / f64::from(self.threshold);
 
         percentage >= growth_threshold
     }
 
     pub fn increment_threshold(&mut self, growth_factor: f64) {
         self.threshold =
-            (self.threshold as f64 * growth_factor).ceil() as usize;
+            (f64::from(self.threshold) * growth_factor).ceil() as u32;
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {

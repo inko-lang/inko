@@ -89,8 +89,12 @@ impl Bucket {
         self.age += 1;
     }
 
-    pub fn number_of_blocks(&self) -> usize {
-        self.blocks.len()
+    pub fn number_of_blocks(&self) -> u32 {
+        // The maximum value of u32 is 4 294 967 295. With every block being 32
+        // KB in size, this means we have an upper limit of 128 TB per process.
+        // That seems more than enough, and allows us to more efficiently store
+        // this number compared to using an u64/usize.
+        self.blocks.len() as u32
     }
 
     pub fn current_block(&self) -> Option<DerefPointer<Block>> {

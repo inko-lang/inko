@@ -24,9 +24,9 @@ macro_rules! set_from_env {
     }};
 }
 
-const DEFAULT_YOUNG_THRESHOLD: usize = (8 * 1024 * 1024) / BLOCK_SIZE;
-const DEFAULT_MATURE_THRESHOLD: usize = (16 * 1024 * 1024) / BLOCK_SIZE;
-const DEFAULT_MAILBOX_THRESHOLD: usize = 1;
+const DEFAULT_YOUNG_THRESHOLD: u32 = (8 * 1024 * 1024) / (BLOCK_SIZE as u32);
+const DEFAULT_MATURE_THRESHOLD: u32 = (16 * 1024 * 1024) / (BLOCK_SIZE as u32);
+const DEFAULT_MAILBOX_THRESHOLD: u32 = 1;
 const DEFAULT_GROWTH_FACTOR: f64 = 1.5;
 const DEFAULT_GROWTH_THRESHOLD: f64 = 0.9;
 const DEFAULT_SUSPENSION_CHECK_INTERVAL: f64 = 0.1;
@@ -63,11 +63,11 @@ pub struct Config {
 
     /// The number of memory blocks that can be allocated before triggering a
     /// young collection.
-    pub young_threshold: usize,
+    pub young_threshold: u32,
 
     /// The number of memory blocks that can be allocated before triggering a
     /// mature collection.
-    pub mature_threshold: usize,
+    pub mature_threshold: u32,
 
     /// The block allocation growth factor for the heap.
     pub heap_growth_factor: f64,
@@ -78,7 +78,7 @@ pub struct Config {
 
     /// The number of memory blocks that can be allocated before triggering a
     /// mailbox collection.
-    pub mailbox_threshold: usize,
+    pub mailbox_threshold: u32,
 
     /// The block allocation growth factor for the mailbox heap.
     pub mailbox_growth_factor: f64,
@@ -128,8 +128,8 @@ impl Config {
             f64
         );
 
-        set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", usize);
-        set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", usize);
+        set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", u32);
+        set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", u32);
         set_from_env!(self, heap_growth_factor, "HEAP_GROWTH_FACTOR", f64);
 
         set_from_env!(
@@ -139,7 +139,7 @@ impl Config {
             f64
         );
 
-        set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", usize);
+        set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", u32);
 
         set_from_env!(
             self,

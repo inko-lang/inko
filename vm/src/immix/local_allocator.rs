@@ -218,7 +218,7 @@ impl LocalAllocator {
         }
     }
 
-    pub fn number_of_young_blocks(&self) -> usize {
+    pub fn number_of_young_blocks(&self) -> u32 {
         self.young_generation
             .iter()
             .map(|bucket| bucket.number_of_blocks())
