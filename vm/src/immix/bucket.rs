@@ -25,13 +25,13 @@ macro_rules! lock_bucket {
 }
 
 /// The age of a bucket containing mature objects.
-pub const MATURE: i16 = 100;
+pub const MATURE: i8 = 125;
 
 /// The age of a bucket containing mailbox objects.
-pub const MAILBOX: i16 = 200;
+pub const MAILBOX: i8 = 126;
 
 /// The age of a bucket containing permanent objects.
-pub const PERMANENT: i16 = 300;
+pub const PERMANENT: i8 = 127;
 
 /// Structure storing data of a single bucket.
 pub struct Bucket {
@@ -54,7 +54,7 @@ pub struct Bucket {
     pub current_block: DerefPointer<Block>,
 
     /// The age of the objects in the current bucket.
-    pub age: i16,
+    pub age: i8,
 
     /// The objects in this bucket should be promoted to the mature generation.
     pub promote: bool,
@@ -68,7 +68,7 @@ impl Bucket {
         Self::with_age(0)
     }
 
-    pub fn with_age(age: i16) -> Self {
+    pub fn with_age(age: i8) -> Self {
         Bucket {
             blocks: BlockList::new(),
             current_block: DerefPointer::null(),
