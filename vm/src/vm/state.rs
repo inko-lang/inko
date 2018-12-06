@@ -159,8 +159,8 @@ pub struct State {
 impl RefUnwindSafe for State {}
 
 impl State {
-    pub fn new(config: Config, arguments: &[String]) -> RcState {
-        let global_alloc = GlobalAllocator::new();
+    pub fn with_rc(config: Config, arguments: &[String]) -> RcState {
+        let global_alloc = GlobalAllocator::with_rc();
 
         // Boxed since moving around the allocator can break pointers from the
         // blocks back to the allocator's bucket.
@@ -280,7 +280,6 @@ impl State {
     /// Interns a borrowed String.
     ///
     /// If a string was not yet interned it's allocated in the permanent space.
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn intern(&self, string: &ImmutableString) -> ObjectPointer {
         intern_string!(self, string, string.clone())
     }
@@ -361,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_intern() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let string = ImmutableString::from("number".to_string());
 
         let ptr1 = state.intern(&string);
@@ -374,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_intern_pointer_with_string() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let string = state
             .permanent_allocator
             .lock()
@@ -387,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_intern_pointer_without_string() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let string = state.permanent_allocator.lock().allocate_empty();
 
         assert!(state.intern_pointer(string).is_err());
@@ -395,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_allocate_permanent_float() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let float = state.allocate_permanent_float(10.5);
 
         assert_eq!(float.float_value().unwrap(), 10.5);

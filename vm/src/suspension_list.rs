@@ -2,9 +2,6 @@
 //!
 //! A SuspensionList can be used to track processes that are suspended for a
 //! variety of reasons (e.g. because they're waiting for a message to arrive).
-
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use parking_lot::{Condvar, Mutex};
 use std::cell::UnsafeCell;
 use std::collections::HashSet;

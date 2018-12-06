@@ -641,7 +641,7 @@ mod tests {
 
     #[test]
     fn test_object_write_to() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let raw_pointer = block.request_pointer().unwrap();
         let pointer = ObjectPointer::new(raw_pointer);
 
@@ -652,7 +652,7 @@ mod tests {
 
     #[test]
     fn test_object_mark_for_forward() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let object = Object::new(ObjectValue::None);
 
         // We have to explicitly write the object to the pointer, otherwise our
@@ -668,7 +668,7 @@ mod tests {
 
     #[test]
     fn test_object_mark_for_forward_with_previously_forwarded_pointer() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let raw_pointer = block.request_pointer().unwrap();
 
         {

@@ -118,13 +118,15 @@ unsafe impl Sync for ObjectPointerPointer {}
 pub const INTEGER_BIT: usize = 0;
 
 /// Returns the BlockHeader of the given pointer.
-fn block_header_of<'a>(pointer: RawObjectPointer) -> &'a block::BlockHeader {
+fn block_header_of<'a>(
+    pointer: RawObjectPointer,
+) -> &'a mut block::BlockHeader {
     let addr = (pointer as isize & block::OBJECT_BITMAP_MASK) as usize;
 
     unsafe {
         let ptr = addr as *mut block::BlockHeader;
 
-        &*ptr
+        &mut *ptr
     }
 }
 
@@ -322,20 +324,13 @@ impl ObjectPointer {
     #[inline(always)]
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn block_mut(&self) -> &mut block::Block {
-        self.block_header().block_mut()
+        block_header_of(self.raw.untagged()).block_mut()
     }
 
     /// Returns an immutable reference to the block this pointer belongs to.
     #[inline(always)]
     pub fn block(&self) -> &block::Block {
-        self.block_header().block()
-    }
-
-    /// Returns an immutable reference to the header of the block this pointer
-    /// belongs to.
-    #[inline(always)]
-    pub fn block_header(&self) -> &block::BlockHeader {
-        block_header_of(self.raw.untagged())
+        block_header_of(self.raw.untagged()).block()
     }
 
     /// Returns true if the object should be finalized.
@@ -603,7 +598,7 @@ impl ObjectPointer {
     def_value_getter!(file_value, get, as_file, &fs::File);
     def_value_getter!(file_value_mut, get_mut, as_file_mut, &mut fs::File);
 
-    def_value_getter!(block_value, get, as_block, &Box<Block>);
+    def_value_getter!(block_value, get, as_block, &Block);
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &BigInt);
     def_value_getter!(hasher_value_mut, get_mut, as_hasher_mut, &mut Hasher);
@@ -695,7 +690,7 @@ mod tests {
     }
 
     fn local_allocator() -> LocalAllocator {
-        LocalAllocator::new(GlobalAllocator::new(), &Config::new())
+        LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new())
     }
 
     fn buckets_for_all_ages() -> (Bucket, Bucket, Bucket, Bucket) {
@@ -709,7 +704,7 @@ mod tests {
 
     fn allocate_in_bucket(bucket: &mut Bucket) -> ObjectPointer {
         if bucket.blocks.is_empty() {
-            bucket.add_block(Block::new());
+            bucket.add_block(Block::boxed());
         }
 
         let raw_pointer =
@@ -1012,14 +1007,6 @@ mod tests {
     }
 
     #[test]
-    fn test_object_pointer_block_header() {
-        let mut allocator = local_allocator();
-        let pointer = allocator.allocate_empty();
-
-        pointer.block_header();
-    }
-
-    #[test]
     fn test_object_pointer_pointer() {
         let mut allocator = local_allocator();
         let pointer = allocator.allocate_empty();
@@ -1092,7 +1079,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_lookup_attribute_with_integer() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
         let name = state.intern_string("foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
@@ -1109,7 +1096,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_lookup_attribute_in_self_with_integer() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
         let name = state.intern_string("foo".to_string());
         let method = state.permanent_allocator.lock().allocate_empty();
@@ -1126,7 +1113,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_lookup_attribute_with_integer_without_attribute() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let ptr = ObjectPointer::integer(5);
         let name = state.intern_string("foo".to_string());
 
@@ -1135,7 +1122,7 @@ mod tests {
 
     #[test]
     fn test_object_pointer_lookup_attribute_with_object() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let ptr = state.permanent_allocator.lock().allocate_empty();
         let name = state.intern_string("foo".to_string());
         let value = state.permanent_allocator.lock().allocate_empty();
@@ -1167,7 +1154,7 @@ mod tests {
 
     #[test]
     fn test_is_immutable() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let name = state.intern_string("foo".to_string());
 
         assert!(name.is_immutable());

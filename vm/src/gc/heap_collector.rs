@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn test_collect() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let pointer = process.allocate_empty();
         let mut profile = Profile::young();
 
@@ -495,7 +495,7 @@ mod tests {
         let receiver = process.allocate_empty();
 
         let code = process.context().code.clone();
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, local);
 
@@ -526,7 +526,7 @@ mod tests {
         let receiver = process.allocate_empty();
 
         let code = process.context().code.clone();
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, local);
 

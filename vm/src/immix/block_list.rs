@@ -3,8 +3,6 @@
 //! A BlockList is used to construct a linked list of (owned) Immix blocks. To
 //! conserve space the pointer to the next block is stored in each block's
 //! header.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
-
 use deref_pointer::DerefPointer;
 use immix::block::Block;
 use std::ops::Drop;
@@ -240,7 +238,7 @@ mod tests {
 
         #[test]
         fn test_push_back_with_empty_list() {
-            let block = Block::new();
+            let block = Block::boxed();
             let mut list = BlockList::new();
 
             list.push_back(block);
@@ -251,8 +249,8 @@ mod tests {
 
         #[test]
         fn test_push_back_with_existing_items() {
-            let block1 = Block::new();
-            let block2 = Block::new();
+            let block1 = Block::boxed();
+            let block2 = Block::boxed();
             let mut list = BlockList::new();
 
             list.push_back(block1);
@@ -278,7 +276,7 @@ mod tests {
         fn test_pop_front_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             let block = list.pop_front();
 
@@ -302,8 +300,8 @@ mod tests {
             let mut list1 = BlockList::new();
             let mut list2 = BlockList::new();
 
-            list1.push_back(Block::new());
-            list2.push_back(Block::new());
+            list1.push_back(Block::boxed());
+            list2.push_back(Block::boxed());
             list1.append(&mut list2);
 
             assert!(list1.head.is_some());
@@ -325,7 +323,7 @@ mod tests {
         fn test_len_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert_eq!(list.len(), 1);
         }
@@ -339,7 +337,7 @@ mod tests {
         fn test_is_empty_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert_eq!(list.is_empty(), false);
         }
@@ -353,7 +351,7 @@ mod tests {
         fn test_head_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert!(list.head_mut().is_some());
         }
@@ -367,7 +365,7 @@ mod tests {
         fn test_head_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert!(list.head().is_some());
         }
@@ -381,7 +379,7 @@ mod tests {
         fn test_tail_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert!(list.tail_mut().is_some());
         }
@@ -398,7 +396,7 @@ mod tests {
         fn test_iter_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             let mut iter = list.iter();
 
@@ -418,7 +416,7 @@ mod tests {
         fn test_iter_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             let mut iter = list.iter_mut();
 
@@ -438,8 +436,8 @@ mod tests {
         fn test_drain_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
+            list.push_back(Block::boxed());
 
             let mut drain = list.drain();
 
@@ -454,7 +452,7 @@ mod tests {
         fn test_pointers() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::new());
+            list.push_back(Block::boxed());
 
             assert_eq!(list.pointers().len(), 1);
         }

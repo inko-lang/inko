@@ -88,7 +88,7 @@ mod tests {
     use object_value;
 
     fn permanent_allocator() -> PermanentAllocator {
-        PermanentAllocator::new(GlobalAllocator::new())
+        PermanentAllocator::new(GlobalAllocator::with_rc())
     }
 
     #[test]

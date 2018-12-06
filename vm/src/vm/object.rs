@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_prototype_for_identifier() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
 
         assert!(
             prototype_for_identifier(&state, ObjectPointer::integer(2))

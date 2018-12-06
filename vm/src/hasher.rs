@@ -1,6 +1,4 @@
 //! Types and methods for hashing objects.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use num_bigint::BigInt;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as HasherTrait};

@@ -34,7 +34,7 @@ pub type RcBinding = ArcWithoutWeak<Binding>;
 
 impl Binding {
     /// Returns a new binding.
-    pub fn new(locals: usize, receiver: ObjectPointer) -> RcBinding {
+    pub fn with_rc(locals: usize, receiver: ObjectPointer) -> RcBinding {
         let bind = Binding {
             locals: UnsafeCell::new(Chunk::new(locals)),
             receiver,
@@ -59,7 +59,7 @@ impl Binding {
     }
 
     /// Sets a local variable.
-    pub fn set_local(&self, index: usize, value: ObjectPointer) {
+    pub fn set_local(&mut self, index: usize, value: ObjectPointer) {
         self.locals_mut()[index] = value;
     }
 
@@ -95,8 +95,7 @@ impl Binding {
     }
 
     /// Returns a mutable reference to this binding's local variables.
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    pub fn locals_mut(&self) -> &mut Chunk<ObjectPointer> {
+    pub fn locals_mut(&mut self) -> &mut Chunk<ObjectPointer> {
         unsafe { &mut *self.locals.get() }
     }
 
@@ -146,7 +145,6 @@ impl Binding {
     }
 
     // Moves all pointers in this binding to the given heap.
-    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     pub fn move_pointers_to<H: CopyObject>(&mut self, heap: &mut H) {
         if let Some(ref mut bind) = self.parent {
             bind.move_pointers_to(heap);
@@ -212,7 +210,7 @@ mod tests {
     use object_value;
 
     fn binding_with_parent(parent: RcBinding, locals: usize) -> RcBinding {
-        let mut binding = Binding::new(locals, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(locals, ObjectPointer::integer(1));
 
         binding.parent = Some(parent.clone());
 
@@ -221,14 +219,14 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let binding = Binding::new(2, ObjectPointer::integer(1));
+        let binding = Binding::with_rc(2, ObjectPointer::integer(1));
 
         assert_eq!(binding.locals().len(), 2);
     }
 
     #[test]
     fn test_with_parent() {
-        let binding1 = Binding::new(0, ObjectPointer::integer(1));
+        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
         let binding2 = binding_with_parent(binding1.clone(), 1);
 
         assert!(binding2.parent.is_some());
@@ -238,7 +236,7 @@ mod tests {
     #[test]
     fn test_get_local_valid() {
         let ptr = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, ptr);
 
@@ -248,7 +246,7 @@ mod tests {
     #[test]
     fn test_set_local() {
         let ptr = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, ptr);
 
@@ -257,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_local_exists_non_existing_local() {
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         assert_eq!(binding.local_exists(0), false);
     }
@@ -265,7 +263,7 @@ mod tests {
     #[test]
     fn test_local_exists_existing_local() {
         let ptr = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, ptr);
 
@@ -274,14 +272,14 @@ mod tests {
 
     #[test]
     fn test_parent_without_parent() {
-        let binding = Binding::new(0, ObjectPointer::integer(1));
+        let binding = Binding::with_rc(0, ObjectPointer::integer(1));
 
         assert!(binding.parent().is_none());
     }
 
     #[test]
     fn test_parent_with_parent() {
-        let binding1 = Binding::new(0, ObjectPointer::integer(1));
+        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
         let binding2 = binding_with_parent(binding1, 0);
 
         assert!(binding2.parent().is_some());
@@ -289,14 +287,14 @@ mod tests {
 
     #[test]
     fn test_find_parent_without_parent() {
-        let binding = Binding::new(0, ObjectPointer::integer(1));
+        let binding = Binding::with_rc(0, ObjectPointer::integer(1));
 
         assert!(binding.find_parent(0).is_none());
     }
 
     #[test]
     fn test_find_parent_with_parent() {
-        let binding1 = Binding::new(0, ObjectPointer::integer(1));
+        let binding1 = Binding::with_rc(0, ObjectPointer::integer(1));
         let binding2 = binding_with_parent(binding1, 0);
         let binding3 = binding_with_parent(binding2, 0);
         let binding4 = binding_with_parent(binding3, 0);
@@ -316,7 +314,7 @@ mod tests {
     #[test]
     fn test_locals() {
         let ptr = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, ptr);
 
@@ -326,7 +324,7 @@ mod tests {
     #[test]
     fn test_locals_mut() {
         let ptr = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(1));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(1));
 
         binding.set_local(0, ptr);
 
@@ -336,16 +334,16 @@ mod tests {
     #[test]
     fn test_push_pointers() {
         let mut alloc =
-            LocalAllocator::new(GlobalAllocator::new(), &Config::new());
+            LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
 
         let local1 = alloc.allocate_empty();
         let receiver = alloc.allocate_empty();
-        let binding1 = Binding::new(1, receiver);
+        let mut binding1 = Binding::with_rc(1, receiver);
 
         binding1.set_local(0, local1);
 
         let local2 = alloc.allocate_empty();
-        let mut binding2 = Binding::new(1, receiver);
+        let mut binding2 = Binding::with_rc(1, receiver);
 
         binding2.parent = Some(binding1.clone());
         binding2.set_local(0, local2);
@@ -364,19 +362,19 @@ mod tests {
     #[test]
     fn test_pointers() {
         let mut alloc =
-            LocalAllocator::new(GlobalAllocator::new(), &Config::new());
+            LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
 
         let b1_local1 = alloc.allocate_empty();
         let b1_local2 = alloc.allocate_empty();
         let receiver = alloc.allocate_empty();
-        let b1 = Binding::new(2, receiver);
+        let mut b1 = Binding::with_rc(2, receiver);
 
         b1.set_local(0, b1_local1);
         b1.set_local(1, b1_local2);
 
         let b2_local1 = alloc.allocate_empty();
         let b2_local2 = alloc.allocate_empty();
-        let mut b2 = Binding::new(2, receiver);
+        let mut b2 = Binding::with_rc(2, receiver);
 
         b2.parent = Some(b1.clone());
         b2.set_local(0, b2_local1);
@@ -397,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_clone_to() {
-        let global_alloc = GlobalAllocator::new();
+        let global_alloc = GlobalAllocator::with_rc();
         let mut alloc1 =
             LocalAllocator::new(global_alloc.clone(), &Config::new());
         let mut alloc2 = LocalAllocator::new(global_alloc, &Config::new());
@@ -406,8 +404,8 @@ mod tests {
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
         let ptr3 = alloc1.allocate_without_prototype(object_value::float(8.0));
 
-        let src_bind1 = Binding::new(1, ptr3);
-        let mut src_bind2 = Binding::new(1, ptr3);
+        let mut src_bind1 = Binding::with_rc(1, ptr3);
+        let mut src_bind2 = Binding::with_rc(1, ptr3);
 
         src_bind2.parent = Some(src_bind1.clone());
         src_bind1.set_local(0, ptr1);
@@ -431,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_move_pointers_to() {
-        let galloc = GlobalAllocator::new();
+        let galloc = GlobalAllocator::with_rc();
         let mut alloc1 = LocalAllocator::new(galloc.clone(), &Config::new());
         let mut alloc2 = LocalAllocator::new(galloc, &Config::new());
 
@@ -439,8 +437,8 @@ mod tests {
         let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
         let ptr3 = alloc1.allocate_without_prototype(object_value::float(8.0));
 
-        let src_bind1 = Binding::new(1, ptr3);
-        let mut src_bind2 = Binding::new(1, ptr3);
+        let mut src_bind1 = Binding::with_rc(1, ptr3);
+        let mut src_bind2 = Binding::with_rc(1, ptr3);
 
         src_bind2.parent = Some(src_bind1.clone());
         src_bind1.set_local(0, ptr1);
@@ -460,7 +458,7 @@ mod tests {
     #[test]
     fn test_receiver_with_receiver() {
         let pointer = ObjectPointer::integer(5);
-        let binding = Binding::new(1, pointer);
+        let binding = Binding::with_rc(1, pointer);
 
         assert!(binding.receiver == pointer);
     }

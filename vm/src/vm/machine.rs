@@ -1063,7 +1063,7 @@ impl Machine {
                     let block_ptr = context.get_register(instruction.arg(1));
                     let block = block_ptr.block_value()?;
 
-                    let new_ctx = ExecutionContext::from_block(
+                    let mut new_ctx = ExecutionContext::from_block(
                         &block,
                         Some(register as u16),
                     );
@@ -1071,7 +1071,7 @@ impl Machine {
                     self.prepare_new_context(
                         process,
                         &instruction,
-                        &new_ctx,
+                        &mut new_ctx,
                         instruction.arg(2),
                         instruction.arg(3),
                         4,
@@ -1584,7 +1584,7 @@ impl Machine {
                     self.prepare_new_context(
                         process,
                         &instruction,
-                        &new_ctx,
+                        &mut new_ctx,
                         instruction.arg(3),
                         instruction.arg(4),
                         5,
@@ -1811,7 +1811,7 @@ impl Machine {
     fn set_positional_arguments(
         &self,
         process: &RcProcess,
-        context: &ExecutionContext,
+        context: &mut ExecutionContext,
         registers: &[u16],
     ) {
         let locals = context.binding.locals_mut();
@@ -1824,7 +1824,7 @@ impl Machine {
     fn pack_excessive_arguments(
         &self,
         process: &RcProcess,
-        context: &ExecutionContext,
+        context: &mut ExecutionContext,
         pack_local: usize,
         registers: &[u16],
     ) {
@@ -1845,7 +1845,7 @@ impl Machine {
         &self,
         process: &RcProcess,
         instruction: &Instruction,
-        context: &ExecutionContext,
+        context: &mut ExecutionContext,
         given_positional: usize,
         given_keyword: usize,
         pos_start: usize,
@@ -1891,7 +1891,7 @@ impl Machine {
         &self,
         process: &RcProcess,
         instruction: &Instruction,
-        context: &ExecutionContext,
+        context: &mut ExecutionContext,
         keyword_start: usize,
     ) {
         let keyword_args = &instruction.arguments[keyword_start..];

@@ -30,9 +30,6 @@
 //! It's possible (though very unlikely) for a ProcessTable to run out of
 //! available PIDs. This can happen when many processes are added and kept
 //! around. Callers should ensure they can handle such a scenario.
-
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use std::collections::HashMap;
 use std::usize;
 

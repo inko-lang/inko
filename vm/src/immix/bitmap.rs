@@ -4,7 +4,6 @@
 //! in use. An ObjectMap is used for marking objects and can hold at most 1024
 //! entries while a LineMap is used for marking lines and can hold at most 256
 //! entries.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 
 /// The number of entries in an object map.
 const OBJECT_ENTRIES: usize = 1024;

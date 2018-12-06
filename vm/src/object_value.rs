@@ -207,8 +207,7 @@ impl ObjectValue {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
-    pub fn as_block(&self) -> Result<&Box<Block>, String> {
+    pub fn as_block(&self) -> Result<&Block, String> {
         match *self {
             ObjectValue::Block(ref val) => Ok(val),
             _ => Err("ObjectValue::as_block() called on a non block object"
@@ -419,7 +418,7 @@ mod tests {
     }
 
     fn state() -> RcState {
-        State::new(Config::new(), &[])
+        State::with_rc(Config::new(), &[])
     }
 
     #[test]
@@ -507,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_is_binding() {
-        let binding = Binding::new(0, ObjectPointer::integer(10));
+        let binding = Binding::with_rc(0, ObjectPointer::integer(10));
 
         assert!(ObjectValue::Binding(binding).is_binding());
         assert_eq!(ObjectValue::None.is_binding(), false);
@@ -634,7 +633,7 @@ mod tests {
     #[test]
     fn test_as_binding_with_binding() {
         let pointer = ObjectPointer::integer(5);
-        let binding = Binding::new(1, ObjectPointer::integer(10));
+        let mut binding = Binding::with_rc(1, ObjectPointer::integer(10));
 
         binding.set_local(0, pointer);
 
@@ -705,7 +704,7 @@ mod tests {
 
     #[test]
     fn test_binding() {
-        let b = Binding::new(0, ObjectPointer::integer(10));
+        let b = Binding::with_rc(0, ObjectPointer::integer(10));
 
         assert!(binding(b).is_binding());
     }
@@ -755,7 +754,7 @@ mod tests {
         target_os = "macos"
     ))]
     fn test_is_library() {
-        let lib = library(Library::new(&[LIBM]).unwrap());
+        let lib = library(Library::open(&[LIBM]).unwrap());
 
         assert!(lib.is_library());
     }
@@ -767,7 +766,7 @@ mod tests {
         target_os = "macos"
     ))]
     fn test_as_library() {
-        let lib = library(Library::new(&[LIBM]).unwrap());
+        let lib = library(Library::open(&[LIBM]).unwrap());
 
         assert!(lib.as_library().is_ok());
     }

@@ -103,7 +103,7 @@ unsafe impl Sync for Process {}
 impl RefUnwindSafe for Process {}
 
 impl Process {
-    pub fn new(
+    pub fn with_rc(
         pid: PID,
         pool_id: u8,
         context: ExecutionContext,
@@ -140,7 +140,7 @@ impl Process {
     ) -> RcProcess {
         let context = ExecutionContext::from_isolated_block(block);
 
-        Process::new(pid, pool_id, context, global_allocator, config)
+        Process::with_rc(pid, pool_id, context, global_allocator, config)
     }
 
     pub fn set_pool_id(&self, id: u8) {
@@ -384,12 +384,11 @@ impl Process {
         &self.context().global_scope
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box))]
-    pub fn context(&self) -> &Box<ExecutionContext> {
+    pub fn context(&self) -> &ExecutionContext {
         &self.local_data().context
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(borrowed_box, mut_from_ref))]
+    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
     pub fn context_mut(&self) -> &mut ExecutionContext {
         &mut *self.local_data_mut().context
     }

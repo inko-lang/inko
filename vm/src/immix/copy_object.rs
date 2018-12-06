@@ -103,7 +103,6 @@ pub trait CopyObject: Sized {
     ///
     /// This will copy over the object to the current heap, while _moving_ all
     /// related data from the old object into the new one.
-    #[cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     fn move_object(&mut self, to_copy_ptr: ObjectPointer) -> ObjectPointer {
         if to_copy_ptr.is_permanent() {
             return to_copy_ptr;
@@ -185,7 +184,7 @@ mod tests {
 
     impl DummyAllocator {
         pub fn new() -> DummyAllocator {
-            let global_alloc = GlobalAllocator::new();
+            let global_alloc = GlobalAllocator::with_rc();
 
             DummyAllocator {
                 allocator: LocalAllocator::new(global_alloc, &Config::new()),
@@ -200,7 +199,7 @@ mod tests {
     }
 
     fn state() -> RcState {
-        State::new(Config::new(), &[])
+        State::with_rc(Config::new(), &[])
     }
 
     #[test]
@@ -339,8 +338,8 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::float(12.0));
 
-        let binding1 = Binding::new(1, ObjectPointer::integer(1));
-        let mut binding2 = Binding::new(1, receiver);
+        let mut binding1 = Binding::with_rc(1, ObjectPointer::integer(1));
+        let mut binding2 = Binding::with_rc(1, receiver);
 
         binding2.parent = Some(binding1.clone());
 
@@ -520,8 +519,8 @@ mod tests {
             .allocator
             .allocate_without_prototype(object_value::float(12.0));
 
-        let binding1 = Binding::new(1, ObjectPointer::integer(1));
-        let binding2 = Binding::new(1, receiver);
+        let mut binding1 = Binding::with_rc(1, ObjectPointer::integer(1));
+        let mut binding2 = Binding::with_rc(1, receiver);
 
         binding1.set_local(0, local1);
         binding2.set_local(0, local2);

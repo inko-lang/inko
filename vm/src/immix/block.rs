@@ -105,8 +105,7 @@ impl BlockHeader {
 
     /// Returns a mutable reference to the block.
     #[inline(always)]
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    pub fn block_mut(&self) -> &mut Block {
+    pub fn block_mut(&mut self) -> &mut Block {
         unsafe { &mut *self.block }
     }
 
@@ -183,7 +182,7 @@ unsafe impl Sync for Block {}
 
 impl Block {
     #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-    pub fn new() -> Box<Block> {
+    pub fn boxed() -> Box<Block> {
         let layout = unsafe { heap_layout_for_block() };
         let lines = unsafe { alloc::alloc(layout) as RawObjectPointer };
 
@@ -659,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_block_header_new() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
         assert_eq!(header.block.is_null(), false);
@@ -667,7 +666,7 @@ mod tests {
 
     #[test]
     fn test_block_header_block() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let header = BlockHeader::new(&mut *block as *mut Block);
 
         assert_eq!(header.block().holes(), 1);
@@ -675,15 +674,15 @@ mod tests {
 
     #[test]
     fn test_block_header_block_mut() {
-        let mut block = Block::new();
-        let header = BlockHeader::new(&mut *block as *mut Block);
+        let mut block = Block::boxed();
+        let mut header = BlockHeader::new(&mut *block as *mut Block);
 
         assert_eq!(header.block_mut().holes(), 1);
     }
 
     #[test]
     fn test_block_new() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         assert_eq!(block.lines.is_null(), false);
         assert_eq!(block.free_pointer().is_null(), false);
@@ -693,7 +692,7 @@ mod tests {
 
     #[test]
     fn test_block_prepare_for_collection() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.used_lines_bitmap.set(1);
         block.marked_objects_bitmap.set(1);
@@ -705,7 +704,7 @@ mod tests {
 
     #[test]
     fn test_block_update_line_map() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.used_lines_bitmap.set(1);
         block.prepare_for_collection();
@@ -716,14 +715,14 @@ mod tests {
 
     #[test]
     fn test_block_bucket_without_bucket() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         assert!(block.bucket().is_none());
     }
 
     #[test]
     fn test_block_bucket_with_bucket() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let mut bucket = Bucket::new();
 
         block.set_bucket(&mut bucket as *mut Bucket);
@@ -733,7 +732,7 @@ mod tests {
 
     #[test]
     fn test_block_set_fragmented() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert_eq!(block.is_fragmented(), false);
 
@@ -744,7 +743,7 @@ mod tests {
 
     #[test]
     fn test_block_is_empty() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert!(block.is_empty());
 
@@ -755,21 +754,21 @@ mod tests {
 
     #[test]
     fn test_block_start_address() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         assert_eq!(block.start_address().is_null(), false);
     }
 
     #[test]
     fn test_block_end_address() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         assert_eq!(block.end_address().is_null(), false);
     }
 
     #[test]
     fn test_block_request_pointer() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert!(block.request_pointer().is_some());
 
@@ -780,7 +779,7 @@ mod tests {
 
     #[test]
     fn test_block_request_pointer_for_mutator() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert!(unsafe { block.request_pointer_for_mutator().is_some() });
 
@@ -791,7 +790,7 @@ mod tests {
 
     #[test]
     fn test_block_request_pointer_advances_hole() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let start = block.start_address();
 
         block.used_lines_bitmap.set(2);
@@ -809,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_block_request_pointer_for_mutator_advances_hole() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let start = block.start_address();
 
         block.used_lines_bitmap.set(2);
@@ -829,7 +828,7 @@ mod tests {
 
     #[test]
     fn test_block_request_all_pointers() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let mut offset = 0;
 
         while let Some(pointer) = block.request_pointer() {
@@ -846,14 +845,14 @@ mod tests {
 
     #[test]
     fn test_block_line_index_of_pointer() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         assert_eq!(block.line_index_of_pointer(block.free_pointer()), 1);
     }
 
     #[test]
     fn test_block_object_index_of_pointer() {
-        let block = Block::new();
+        let block = Block::boxed();
 
         let ptr1 = block.free_pointer();
         let ptr2 = unsafe { block.free_pointer().offset(1) };
@@ -864,7 +863,7 @@ mod tests {
 
     #[test]
     fn test_block_recycle() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         // First line is used
         block.used_lines_bitmap.set(1);
@@ -890,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole_lines_of_pointers() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         let pointer1 = Object::new(ObjectValue::None)
             .write_to(block.request_pointer().unwrap());
@@ -917,7 +916,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let start = block.start_address();
 
         block.used_lines_bitmap.set(1);
@@ -930,7 +929,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole_with_empty_line_between_used_ones() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let start = block.start_address();
 
         block.used_lines_bitmap.set(1);
@@ -944,7 +943,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole_full_block() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         for index in 1..LINES_PER_BLOCK {
             block.used_lines_bitmap.set(index);
@@ -958,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole_recycle() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.used_lines_bitmap.set(1);
         block.used_lines_bitmap.set(2);
@@ -973,7 +972,7 @@ mod tests {
 
     #[test]
     fn test_block_find_available_hole_pointer_range() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.used_lines_bitmap.set(1);
         block.used_lines_bitmap.set(2);
@@ -994,7 +993,7 @@ mod tests {
 
     #[test]
     fn test_block_reset() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let mut bucket = Bucket::new();
 
         block.set_fragmented();
@@ -1024,7 +1023,7 @@ mod tests {
 
     #[test]
     fn test_block_finalize() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         Object::new(ObjectValue::Float(10.0))
             .write_to(block.request_pointer().unwrap());
@@ -1036,7 +1035,7 @@ mod tests {
 
     #[test]
     fn test_block_finalize_pending() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         Object::new(ObjectValue::Float(10.0))
             .write_to(block.request_pointer().unwrap());
@@ -1051,7 +1050,7 @@ mod tests {
 
     #[test]
     fn test_block_prepare_finalization() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         Object::new(ObjectValue::Float(10.0))
             .write_to(block.request_pointer().unwrap());
@@ -1065,7 +1064,7 @@ mod tests {
 
     #[test]
     fn test_block_prepare_finalization_twice() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         Object::new(ObjectValue::Float(10.5))
             .write_to(block.request_pointer().unwrap());
@@ -1080,7 +1079,7 @@ mod tests {
 
     #[test]
     fn test_block_update_hole_count() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.used_lines_bitmap.set(1);
         block.used_lines_bitmap.set(3);
@@ -1093,7 +1092,7 @@ mod tests {
 
     #[test]
     fn test_block_marked_lines_count() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert_eq!(block.marked_lines_count(), 0);
 
@@ -1104,7 +1103,7 @@ mod tests {
 
     #[test]
     fn test_block_available_lines_count() {
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         assert_eq!(block.available_lines_count(), 255);
 

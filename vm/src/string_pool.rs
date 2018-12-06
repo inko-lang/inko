@@ -20,7 +20,6 @@ pub struct StringPool {
 }
 
 impl StringPointer {
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn new(pointer: &ImmutableString) -> Self {
         StringPointer {
             raw: pointer as *const ImmutableString,
@@ -54,7 +53,6 @@ impl StringPool {
         Self::default()
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn get(&self, string: &ImmutableString) -> Option<ObjectPointer> {
         let pointer = StringPointer::new(string);
 
@@ -127,7 +125,7 @@ mod tests {
         use object_value;
 
         fn allocator() -> Box<PermanentAllocator> {
-            let global_alloc = GlobalAllocator::new();
+            let global_alloc = GlobalAllocator::with_rc();
 
             Box::new(PermanentAllocator::new(global_alloc))
         }
@@ -135,7 +133,7 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_add_regular() {
-            let global_alloc = GlobalAllocator::new();
+            let global_alloc = GlobalAllocator::with_rc();
             let mut alloc = LocalAllocator::new(global_alloc, &Config::new());
 
             let mut pool = StringPool::new();

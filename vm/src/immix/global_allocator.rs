@@ -18,7 +18,7 @@ pub struct GlobalAllocator {
 
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
-    pub fn new() -> RcGlobalAllocator {
+    pub fn with_rc() -> RcGlobalAllocator {
         Arc::new(GlobalAllocator {
             blocks: Mutex::new(BlockList::new()),
         })
@@ -31,7 +31,7 @@ impl GlobalAllocator {
         if let Some(block) = blocks.pop_front() {
             block
         } else {
-            Block::new()
+            Block::boxed()
         }
     }
 
@@ -54,14 +54,14 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let alloc = GlobalAllocator::new();
+        let alloc = GlobalAllocator::with_rc();
 
         assert_eq!(alloc.blocks.lock().len(), 0);
     }
 
     #[test]
     fn test_request_block() {
-        let alloc = GlobalAllocator::new();
+        let alloc = GlobalAllocator::with_rc();
         let block = alloc.request_block();
 
         alloc.add_block(block);
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_add_block() {
-        let alloc = GlobalAllocator::new();
+        let alloc = GlobalAllocator::with_rc();
         let block = alloc.request_block();
 
         alloc.add_block(block);

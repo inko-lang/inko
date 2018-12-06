@@ -22,7 +22,6 @@ pub struct HistogramIterator<'a> {
 }
 
 impl Histogram {
-    #![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
     pub fn new(capacity: usize) -> Self {
         let values = Chunk::new(capacity);
 

@@ -1,6 +1,4 @@
 //! Scopes for module-local global variables.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use deref_pointer::DerefPointer;
 use object_pointer::ObjectPointer;
 use std::cell::UnsafeCell;
@@ -36,7 +34,7 @@ impl GlobalScope {
     }
 
     /// Sets a global variable.
-    pub fn set(&self, index: usize, value: ObjectPointer) {
+    pub fn set(&mut self, index: usize, value: ObjectPointer) {
         if !value.is_permanent() {
             panic!("Only permanent objects can be stored in a global scope");
         }
@@ -54,8 +52,7 @@ impl GlobalScope {
         unsafe { &*self.variables.get() }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-    fn locals_mut(&self) -> &mut Vec<ObjectPointer> {
+    fn locals_mut(&mut self) -> &mut Vec<ObjectPointer> {
         unsafe { &mut *self.variables.get() }
     }
 }
@@ -80,9 +77,9 @@ mod tests {
         #[test]
         #[should_panic]
         fn test_set_not_permanent() {
-            let scope = GlobalScope::new();
+            let mut scope = GlobalScope::new();
             let mut alloc =
-                LocalAllocator::new(GlobalAllocator::new(), &Config::new());
+                LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
             let pointer = alloc.allocate_empty();
 
             scope.set(0, pointer);
@@ -90,7 +87,7 @@ mod tests {
 
         #[test]
         fn test_get_set() {
-            let scope = GlobalScope::new();
+            let mut scope = GlobalScope::new();
 
             scope.set(0, ObjectPointer::integer(5));
 

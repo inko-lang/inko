@@ -6,9 +6,6 @@
 //! a value in the queue.
 //!
 //! Values are processed in FIFO order.
-
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
-
 use arc_without_weak::ArcWithoutWeak;
 use parking_lot::{Condvar, Mutex};
 use std::collections::VecDeque;

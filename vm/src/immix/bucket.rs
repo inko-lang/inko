@@ -2,8 +2,6 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
-
 use parking_lot::Mutex;
 use pool::Job;
 use rayon::prelude::*;
@@ -128,7 +126,6 @@ impl Bucket {
     ///
     /// The return value is a tuple containing a boolean that indicates if a new
     /// block was requested, and the pointer to the allocated object.
-    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
     pub fn allocate(
         &mut self,
         global_allocator: &RcGlobalAllocator,
@@ -140,29 +137,29 @@ impl Bucket {
             let mut advance_block = false;
             let started_at = self.current_block.atomic_load();
 
-            for mut block in self.current_block() {
-                if block.is_fragmented() {
-                    // The block is fragmented, so skip it. The next time we
-                    // find an available block we'll set it as the current
-                    // block.
-                    advance_block = true;
+            if let Some(mut current) = self.current_block() {
+                for mut block in current.iter_mut() {
+                    if block.is_fragmented() {
+                        // The block is fragmented, so skip it. The next time we
+                        // find an available block we'll set it as the current
+                        // block.
+                        advance_block = true;
 
-                    continue;
-                }
-
-                if let Some(raw_pointer) = block.request_pointer() {
-                    if advance_block {
-                        let _lock = lock_bucket!(self);
-
-                        // Only advance the block if another thread didn't
-                        // request a new one in the mean time.
-                        self.current_block.compare_and_swap(
-                            started_at.pointer,
-                            block.pointer,
-                        );
+                        continue;
                     }
 
-                    return (new_block, object.write_to(raw_pointer));
+                    if let Some(raw_pointer) = block.request_pointer() {
+                        if advance_block {
+                            let _lock = lock_bucket!(self);
+
+                            // Only advance the block if another thread didn't
+                            // request a new one in the mean time.
+                            self.current_block
+                                .compare_and_swap(started_at.pointer, block);
+                        }
+
+                        return (new_block, object.write_to(raw_pointer));
+                    }
                 }
             }
 
@@ -184,7 +181,6 @@ impl Bucket {
     ///
     /// This method does not use synchronisation, so it _can not_ be safely used
     /// from a collector thread.
-    #[cfg_attr(feature = "cargo-clippy", allow(for_loop_over_option))]
     pub unsafe fn allocate_for_mutator(
         &mut self,
         global_allocator: &RcGlobalAllocator,
@@ -195,22 +191,26 @@ impl Bucket {
         loop {
             let mut advance_block = false;
 
-            for mut block in self.current_block() {
-                if block.is_fragmented() {
-                    // The block is fragmented, so skip it. The next time we
-                    // find an available block we'll set it as the current
-                    // block.
-                    advance_block = true;
+            if let Some(mut current) = self.current_block() {
+                for mut block in current.iter_mut() {
+                    if block.is_fragmented() {
+                        // The block is fragmented, so skip it. The next time we
+                        // find an available block we'll set it as the current
+                        // block.
+                        advance_block = true;
 
-                    continue;
-                }
-
-                if let Some(raw_pointer) = block.request_pointer_for_mutator() {
-                    if advance_block {
-                        self.current_block = block;
+                        continue;
                     }
 
-                    return (new_block, object.write_to(raw_pointer));
+                    if let Some(raw_pointer) =
+                        block.request_pointer_for_mutator()
+                    {
+                        if advance_block {
+                            self.current_block = DerefPointer::new(block);
+                        }
+
+                        return (new_block, object.write_to(raw_pointer));
+                    }
                 }
             }
 
@@ -363,7 +363,7 @@ mod tests {
     use vm::state::State;
 
     fn global_allocator() -> RcGlobalAllocator {
-        GlobalAllocator::new()
+        GlobalAllocator::with_rc()
     }
 
     #[test]
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn test_current_block_with_block() {
         let mut bucket = Bucket::new();
-        let block = Block::new();
+        let block = Block::boxed();
 
         bucket.add_block(block);
 
@@ -424,7 +424,7 @@ mod tests {
     fn test_add_block() {
         let mut bucket = Bucket::new();
 
-        bucket.add_block(Block::new());
+        bucket.add_block(Block::boxed());
 
         assert_eq!(bucket.blocks.len(), 1);
         assert_eq!(bucket.current_block.is_null(), false);
@@ -435,7 +435,7 @@ mod tests {
                 == &*bucket.blocks.head().unwrap() as *const Block
         );
 
-        bucket.add_block(Block::new());
+        bucket.add_block(Block::boxed());
 
         assert_eq!(bucket.blocks.len(), 2);
 
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn test_allocate_with_recyclable_blocks() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
         let histos = Histograms::new();
@@ -534,7 +534,7 @@ mod tests {
 
     #[test]
     fn test_allocate_for_mutator_with_recyclable_blocks() {
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
         let histos = Histograms::new();
@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn test_should_evacuate_with_fragmented_blocks() {
         let mut bucket = Bucket::new();
-        let mut block = Block::new();
+        let mut block = Block::boxed();
 
         block.set_fragmented();
 
@@ -585,10 +585,10 @@ mod tests {
     #[test]
     fn test_reclaim_blocks() {
         let mut bucket = Bucket::new();
-        let mut block1 = Block::new();
-        let block2 = Block::new();
-        let mut block3 = Block::new();
-        let state = State::new(Config::new(), &[]);
+        let mut block1 = Block::boxed();
+        let block2 = Block::boxed();
+        let mut block3 = Block::boxed();
+        let state = State::with_rc(Config::new(), &[]);
         let histos = Histograms::new();
 
         block1.used_lines_bitmap.set(255);
@@ -611,9 +611,9 @@ mod tests {
     #[test]
     fn test_reclaim_blocks_full() {
         let mut bucket = Bucket::new();
-        let mut block = Block::new();
+        let mut block = Block::boxed();
         let histos = Histograms::new();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
 
         for i in 0..256 {
             block.used_lines_bitmap.set(i);
@@ -631,7 +631,7 @@ mod tests {
         let mut bucket = Bucket::new();
         let histos = Histograms::new();
 
-        bucket.add_block(Block::new());
+        bucket.add_block(Block::boxed());
         bucket.current_block().unwrap().used_lines_bitmap.set(1);
 
         assert_eq!(bucket.prepare_for_collection(&histos), false);
@@ -647,9 +647,9 @@ mod tests {
     #[test]
     fn test_prepare_for_collection_with_evacuation() {
         let mut bucket = Bucket::new();
-        let mut block1 = Block::new();
+        let mut block1 = Block::boxed();
         let histos = Histograms::new();
-        let block2 = Block::new();
+        let block2 = Block::boxed();
 
         block1.used_lines_bitmap.set(1);
         block1.set_fragmented();

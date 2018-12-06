@@ -23,7 +23,6 @@ fn print_stderr(message: &str) {
     stderr.flush().unwrap();
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(print_literal))]
 fn run() -> i32 {
     let args: Vec<String> = env::args().collect();
     let mut options = Options::new();
@@ -82,7 +81,8 @@ fn run() -> i32 {
 
         config.populate_from_env();
 
-        let machine = Machine::default(State::new(config, &matches.free[1..]));
+        let machine =
+            Machine::default(State::with_rc(config, &matches.free[1..]));
 
         machine.start(path);
         machine.state.current_exit_status()

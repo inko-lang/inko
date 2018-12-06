@@ -6,8 +6,6 @@
 //!
 //! These settings are all stored in the Config struct, allowing various parts
 //! of the VM to easily access these configuration details.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use immix::block::BLOCK_SIZE;
 use num_cpus;
 use std::env;

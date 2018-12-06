@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn test_new() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let request = Request::new(CollectionType::Heap, state, process);
 
         assert!(match request.collection_type {
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn test_heap() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let request = Request::heap(state, process);
 
         assert!(match request.collection_type {
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_mailbox() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let request = Request::mailbox(state, process);
 
         assert!(match request.collection_type {
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_perform() {
         let (_machine, _block, process) = setup();
-        let state = State::new(Config::new(), &[]);
+        let state = State::with_rc(Config::new(), &[]);
         let mut request = Request::heap(state, process.clone());
 
         process.set_register(0, process.allocate_empty());

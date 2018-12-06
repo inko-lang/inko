@@ -120,7 +120,8 @@ pub fn set_parent_local(
     depth: usize,
     value: ObjectPointer,
 ) -> Result<(), String> {
-    if let Some(binding) = process.context().binding.find_parent(depth) {
+    if let Some(mut binding) = process.context_mut().binding.find_parent(depth)
+    {
         binding.set_local(local, value);
 
         Ok(())

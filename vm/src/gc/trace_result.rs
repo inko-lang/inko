@@ -1,6 +1,4 @@
 //! Statistics produced by tracing object graphs.
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-
 use std::ops::Add;
 
 pub struct TraceResult {

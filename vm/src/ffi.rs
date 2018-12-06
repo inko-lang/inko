@@ -28,7 +28,7 @@
 //!     use ffi::{Library;
 //!     use process::Process;
 //!
-//!     let state = State::new(Config::new());
+//!     let state = State::with_rc(Config::new());
 //!     let process = Process.new(...);
 //!
 //!     let lib = Library.new("libc.so.6").unwrap();
@@ -310,7 +310,7 @@ pub enum Argument {
 impl Argument {
     // Creates a new Argument wrapping the value of `ptr` according to the needs
     // of the FFI type specified in `ffi_type`.
-    unsafe fn new(
+    unsafe fn wrap(
         ffi_type: *mut ffi_type,
         ptr: ObjectPointer,
     ) -> Result<Argument, String> {
@@ -435,11 +435,11 @@ impl Library {
             names.push(name.string_value()?.as_slice());
         }
 
-        Self::new(&names)
+        Self::open(&names)
     }
 
     /// Opens a library using one or more possible names.
-    pub fn new<P: AsRef<OsStr> + Debug + Display>(
+    pub fn open<P: AsRef<OsStr> + Debug + Display>(
         search_for: &[P],
     ) -> Result<RcLibrary, String> {
         let mut errors = Vec::new();
@@ -665,11 +665,11 @@ impl Function {
             ffi_arg_types.push(ffi_type_for(*ptr)?);
         }
 
-        Self::new(func_ptr, ffi_arg_types, ffi_rtype)
+        Self::create(func_ptr, ffi_arg_types, ffi_rtype)
     }
 
     /// Creates a new prepared function.
-    pub unsafe fn new(
+    pub unsafe fn create(
         pointer: Pointer,
         arguments: Vec<TypePointer>,
         return_type: TypePointer,
@@ -720,7 +720,7 @@ impl Function {
         let mut arguments = Vec::with_capacity(arg_ptrs.len());
 
         for (index, arg) in arg_ptrs.iter().enumerate() {
-            arguments.push(Argument::new(self.arguments[index], *arg)?);
+            arguments.push(Argument::wrap(self.arguments[index], *arg)?);
         }
 
         // libffi expects an array of _pointers_ to the arguments to pass,
@@ -804,12 +804,12 @@ mod tests {
 
     #[test]
     fn test_library_new() {
-        assert!(Library::new(&[LIBM]).is_ok());
+        assert!(Library::open(&[LIBM]).is_ok());
     }
 
     #[test]
     fn test_library_get() {
-        let lib = Library::new(&[LIBM]).unwrap();
+        let lib = Library::open(&[LIBM]).unwrap();
         let sym = unsafe { lib.get("floor") };
 
         assert!(sym.is_ok());
@@ -817,12 +817,12 @@ mod tests {
 
     #[test]
     fn test_function_new() {
-        let lib = Library::new(&[LIBM]).unwrap();
+        let lib = Library::open(&[LIBM]).unwrap();
 
         unsafe {
             let sym = lib.get("floor").unwrap();
 
-            let fun = Function::new(
+            let fun = Function::create(
                 sym,
                 vec![&mut types::double],
                 &mut types::double,
@@ -844,13 +844,13 @@ mod tests {
 
     #[test]
     fn test_function_call() {
-        let lib = Library::new(&[LIBM]).unwrap();
+        let lib = Library::open(&[LIBM]).unwrap();
         let (machine, _, process) = setup();
         let arg = process.allocate_without_prototype(object_value::float(3.15));
 
         unsafe {
             let sym = lib.get("floor").unwrap();
-            let fun = Function::new(
+            let fun = Function::create(
                 sym,
                 vec![&mut types::double],
                 &mut types::double,
@@ -898,7 +898,7 @@ mod tests_for_all_platforms {
 
     #[test]
     fn test_library_new_invalid() {
-        let lib = Library::new(&["inko-test-1", "inko-test-2"]);
+        let lib = Library::open(&["inko-test-1", "inko-test-2"]);
 
         assert!(lib.is_err());
     }
