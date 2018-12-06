@@ -10,6 +10,7 @@ use immix::bucket::{Bucket, MATURE};
 use immix::copy_object::CopyObject;
 use immix::generation_config::GenerationConfig;
 use immix::global_allocator::RcGlobalAllocator;
+use immix::histograms::Histograms;
 use object::Object;
 use object_pointer::ObjectPointer;
 use object_value;
@@ -27,6 +28,12 @@ pub struct LocalAllocator {
 
     /// The buckets to use for the eden and young survivor spaces.
     pub young_generation: [Bucket; YOUNG_MAX_AGE as usize + 1],
+
+    /// The histograms to use for collecting the young generation.
+    pub young_histograms: Histograms,
+
+    /// The histograms to use for collecting the mature generation.
+    pub mature_histograms: Histograms,
 
     /// The position of the eden bucket in the young generation.
     pub eden_index: usize,
@@ -59,6 +66,8 @@ impl LocalAllocator {
                 Bucket::with_age(-2),
                 Bucket::with_age(-3),
             ],
+            young_histograms: Histograms::new(),
+            mature_histograms: Histograms::new(),
             eden_index: 0,
             mature_generation: Bucket::with_age(MATURE),
             young_config: GenerationConfig::new(config.young_threshold),
@@ -94,7 +103,7 @@ impl LocalAllocator {
         let mut move_objects = false;
 
         for bucket in &mut self.young_generation {
-            if bucket.prepare_for_collection() {
+            if bucket.prepare_for_collection(&self.young_histograms) {
                 move_objects = true;
             }
 
@@ -104,7 +113,10 @@ impl LocalAllocator {
         }
 
         if mature {
-            if self.mature_generation.prepare_for_collection() {
+            if self
+                .mature_generation
+                .prepare_for_collection(&self.mature_histograms)
+            {
                 move_objects = true;
             }
         } else if self.has_remembered_objects() {
@@ -116,12 +128,17 @@ impl LocalAllocator {
 
     /// Reclaims blocks in the young (and mature) generation.
     pub fn reclaim_blocks(&mut self, state: &RcState, mature: bool) {
+        self.young_histograms.reset();
+
         for bucket in &mut self.young_generation {
-            bucket.reclaim_blocks(state);
+            bucket.reclaim_blocks(state, &self.young_histograms);
         }
 
         if mature {
-            self.mature_generation.reclaim_blocks(state);
+            self.mature_histograms.reset();
+
+            self.mature_generation
+                .reclaim_blocks(state, &self.mature_histograms);
         } else {
             for block in self.mature_generation.blocks.iter_mut() {
                 block.update_line_map();

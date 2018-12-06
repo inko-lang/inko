@@ -10,10 +10,10 @@ use rayon::prelude::*;
 use std::cell::UnsafeCell;
 
 use deref_pointer::DerefPointer;
-use immix::block::{Block, LINES_PER_BLOCK, MAX_HOLES};
+use immix::block::Block;
 use immix::block_list::BlockList;
 use immix::global_allocator::RcGlobalAllocator;
-use immix::histogram::Histogram;
+use immix::histograms::Histograms;
 use object::Object;
 use object_pointer::ObjectPointer;
 use vm::state::RcState;
@@ -35,12 +35,6 @@ pub const PERMANENT: i8 = 127;
 
 /// Structure storing data of a single bucket.
 pub struct Bucket {
-    // The available space histogram for the blocks in this bucket.
-    pub available_histogram: Histogram,
-
-    /// The mark histogram for the blocks in this bucket.
-    pub mark_histogram: Histogram,
-
     /// Lock used whenever moving objects around (e.g. when evacuating or
     /// promoting them).
     pub lock: UnsafeCell<Mutex<()>>,
@@ -73,8 +67,6 @@ impl Bucket {
             blocks: BlockList::new(),
             current_block: DerefPointer::null(),
             age,
-            available_histogram: Histogram::new(MAX_HOLES),
-            mark_histogram: Histogram::new(LINES_PER_BLOCK),
             promote: false,
             lock: UnsafeCell::new(Mutex::new(())),
         }
@@ -242,11 +234,8 @@ impl Bucket {
     ///
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
-    pub fn reclaim_blocks(&mut self, state: &RcState) {
+    pub fn reclaim_blocks(&mut self, state: &RcState, histograms: &Histograms) {
         let mut reclaim = BlockList::new();
-
-        self.available_histogram.reset();
-        self.mark_histogram.reset();
 
         let finalize = self
             .blocks
@@ -263,7 +252,8 @@ impl Bucket {
                     let holes = block.update_hole_count();
 
                     if holes > 0 {
-                        self.mark_histogram
+                        histograms
+                            .marked
                             .increment(holes, block.marked_lines_count());
 
                         block.recycle();
@@ -298,7 +288,7 @@ impl Bucket {
     /// Prepares this bucket for a collection.
     ///
     /// Returns true if evacuation is needed for this bucket.
-    pub fn prepare_for_collection(&mut self) -> bool {
+    pub fn prepare_for_collection(&mut self, histograms: &Histograms) -> bool {
         let mut available: isize = 0;
         let mut required: isize = 0;
         let evacuate = self.should_evacuate();
@@ -309,7 +299,7 @@ impl Bucket {
             if evacuate && holes > 0 {
                 let count = block.available_lines_count();
 
-                self.available_histogram.increment(holes, count);
+                histograms.available.increment(holes, count);
 
                 available += count as isize;
             }
@@ -318,13 +308,13 @@ impl Bucket {
         }
 
         if available > 0 {
-            let mut iter = self.mark_histogram.iter();
+            let mut iter = histograms.marked.iter();
             let mut min_bin = None;
 
             while available > required {
                 if let Some(bin) = iter.next() {
-                    required += self.mark_histogram.get(bin) as isize;
-                    available -= self.available_histogram.get(bin) as isize;
+                    required += histograms.marked.get(bin) as isize;
+                    available -= histograms.available.get(bin) as isize;
 
                     min_bin = Some(bin);
                 } else {
@@ -367,6 +357,7 @@ mod tests {
     use immix::bitmap::Bitmap;
     use immix::block::Block;
     use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
+    use immix::histograms::Histograms;
     use object::Object;
     use object_value;
     use vm::state::State;
@@ -483,13 +474,14 @@ mod tests {
         let state = State::new(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
+        let histos = Histograms::new();
 
         let (_, pointer) =
             bucket.allocate(&global_alloc, Object::new(object_value::none()));
 
         pointer.mark();
 
-        bucket.reclaim_blocks(&state);
+        bucket.reclaim_blocks(&state, &histos);
 
         assert_eq!(bucket.blocks.len(), 1);
 
@@ -545,6 +537,7 @@ mod tests {
         let state = State::new(Config::new(), &[]);
         let global_alloc = global_allocator();
         let mut bucket = Bucket::new();
+        let histos = Histograms::new();
 
         let (_, pointer) = unsafe {
             bucket.allocate_for_mutator(
@@ -555,7 +548,7 @@ mod tests {
 
         pointer.mark();
 
-        bucket.reclaim_blocks(&state);
+        bucket.reclaim_blocks(&state, &histos);
 
         assert_eq!(bucket.blocks.len(), 1);
 
@@ -596,6 +589,7 @@ mod tests {
         let block2 = Block::new();
         let mut block3 = Block::new();
         let state = State::new(Config::new(), &[]);
+        let histos = Histograms::new();
 
         block1.used_lines_bitmap.set(255);
         block3.used_lines_bitmap.set(2);
@@ -603,21 +597,22 @@ mod tests {
         bucket.add_block(block1);
         bucket.add_block(block2);
         bucket.add_block(block3);
-        bucket.reclaim_blocks(&state);
+        bucket.reclaim_blocks(&state, &histos);
 
         assert_eq!(bucket.blocks.len(), 2);
 
         assert_eq!(bucket.blocks[0].holes(), 1);
         assert_eq!(bucket.blocks[1].holes(), 2);
 
-        assert_eq!(bucket.mark_histogram.get(1), 1);
-        assert_eq!(bucket.mark_histogram.get(2), 1);
+        assert_eq!(histos.marked.get(1), 1);
+        assert_eq!(histos.marked.get(2), 1);
     }
 
     #[test]
     fn test_reclaim_blocks_full() {
         let mut bucket = Bucket::new();
         let mut block = Block::new();
+        let histos = Histograms::new();
         let state = State::new(Config::new(), &[]);
 
         for i in 0..256 {
@@ -625,7 +620,7 @@ mod tests {
         }
 
         bucket.add_block(block);
-        bucket.reclaim_blocks(&state);
+        bucket.reclaim_blocks(&state, &histos);
 
         assert_eq!(bucket.blocks.len(), 1);
         assert_eq!(bucket.current_block.is_null(), false);
@@ -634,14 +629,15 @@ mod tests {
     #[test]
     fn test_prepare_for_collection_without_evacuation() {
         let mut bucket = Bucket::new();
+        let histos = Histograms::new();
 
         bucket.add_block(Block::new());
         bucket.current_block().unwrap().used_lines_bitmap.set(1);
 
-        assert_eq!(bucket.prepare_for_collection(), false);
+        assert_eq!(bucket.prepare_for_collection(&histos), false);
 
         // No evacuation needed means the available histogram is not updated.
-        assert_eq!(bucket.available_histogram.get(1), 0);
+        assert_eq!(histos.available.get(1), 0);
 
         let block = bucket.current_block().unwrap();
 
@@ -652,6 +648,7 @@ mod tests {
     fn test_prepare_for_collection_with_evacuation() {
         let mut bucket = Bucket::new();
         let mut block1 = Block::new();
+        let histos = Histograms::new();
         let block2 = Block::new();
 
         block1.used_lines_bitmap.set(1);
@@ -663,11 +660,11 @@ mod tests {
         // Normally the collector updates the mark histogram at the end of a
         // cycle. Since said code is not executed by the function we're testing
         // we'll update this histogram manually.
-        bucket.mark_histogram.increment(1, 1);
+        histos.marked.increment(1, 1);
 
-        assert!(bucket.prepare_for_collection());
+        assert!(bucket.prepare_for_collection(&histos));
 
-        assert_eq!(bucket.available_histogram.get(1), 509);
+        assert_eq!(histos.available.get(1), 509);
 
         let block = bucket.current_block().unwrap();
 
