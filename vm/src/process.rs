@@ -69,15 +69,6 @@ pub struct LocalData {
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
 
-    /// The number of young garbage collections that have been performed.
-    pub young_collections: u16,
-
-    /// The number of mature garbage collections that have been performed.
-    pub mature_collections: u16,
-
-    /// The number of mailbox collections that have been performed.
-    pub mailbox_collections: u16,
-
     /// The ID of the pool that this process belongs to.
     pub pool_id: u8,
 
@@ -114,9 +105,6 @@ impl Process {
             allocator: LocalAllocator::new(global_allocator.clone(), config),
             context: Box::new(context),
             mailbox: Mailbox::new(global_allocator, config),
-            young_collections: 0,
-            mature_collections: 0,
-            mailbox_collections: 0,
             panic_handler: ObjectPointer::null(),
             pool_id,
             thread_id: None,
@@ -534,18 +522,11 @@ impl Process {
         local_data
             .allocator
             .update_collection_statistics(config, mature);
-
-        if mature {
-            local_data.mature_collections += 1;
-        } else {
-            local_data.young_collections += 1;
-        }
     }
 
     pub fn update_mailbox_collection_statistics(&self, config: &Config) {
         let local_data = self.local_data_mut();
 
-        local_data.mailbox_collections += 1;
         local_data
             .mailbox
             .allocator
@@ -617,34 +598,56 @@ mod tests {
     fn test_update_collection_statistics_without_mature() {
         let (machine, _block, process) = setup();
 
+        {
+            let local_data = process.local_data_mut();
+
+            local_data.allocator.young_config.increment_allocations();
+            local_data.allocator.mature_config.increment_allocations();
+        }
+
         process.update_collection_statistics(&machine.state.config, false);
 
         let local_data = process.local_data();
 
-        assert_eq!(local_data.young_collections, 1);
+        assert_eq!(local_data.allocator.young_config.block_allocations, 0);
+        assert_eq!(local_data.allocator.mature_config.block_allocations, 1);
     }
 
     #[test]
     fn test_update_collection_statistics_with_mature() {
         let (machine, _block, process) = setup();
 
+        {
+            let local_data = process.local_data_mut();
+
+            local_data.allocator.young_config.increment_allocations();
+            local_data.allocator.mature_config.increment_allocations();
+        }
+
         process.update_collection_statistics(&machine.state.config, true);
 
         let local_data = process.local_data();
 
-        assert_eq!(local_data.young_collections, 0);
-        assert_eq!(local_data.mature_collections, 1);
+        assert_eq!(local_data.allocator.young_config.block_allocations, 0);
+        assert_eq!(local_data.allocator.mature_config.block_allocations, 0);
     }
 
     #[test]
     fn test_update_mailbox_collection_statistics() {
         let (machine, _block, process) = setup();
 
+        process
+            .local_data_mut()
+            .mailbox
+            .allocator
+            .config
+            .increment_allocations();
+
         process.update_mailbox_collection_statistics(&machine.state.config);
 
         let local_data = process.local_data();
 
-        assert_eq!(local_data.mailbox_collections, 1);
+        assert_eq!(local_data.mailbox.allocator.config.block_allocations, 0);
     }
 
     #[test]
@@ -747,7 +750,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 480);
+        assert_eq!(size, 472);
     }
 
     #[test]
