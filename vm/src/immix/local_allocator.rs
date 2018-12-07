@@ -311,6 +311,7 @@ mod tests {
     use immix::global_allocator::GlobalAllocator;
     use object::Object;
     use object_value;
+    use std::mem;
     use vm::state::{RcState, State};
 
     fn local_allocator() -> (RcState, LocalAllocator) {
@@ -540,5 +541,12 @@ mod tests {
         alloc.prepare_remembered_objects_for_collection();
 
         assert_eq!(ptr1.is_marked(), false);
+    }
+
+    #[test]
+    fn test_type_size() {
+        // This test is put in place to ensure that the type size doesn't change
+        // unexpectedly.
+        assert_eq!(mem::size_of::<LocalAllocator>(), 296);
     }
 }
