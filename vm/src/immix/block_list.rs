@@ -12,10 +12,6 @@ use std::ops::Index;
 pub struct BlockList {
     /// The first (owned) block in the list, if any.
     pub head: Option<Box<Block>>,
-
-    /// The last block in this list. If there are no blocks this pointer will be
-    /// a NULL pointer.
-    pub tail: DerefPointer<Block>,
 }
 
 /// An iterator over immutable block references.
@@ -35,23 +31,16 @@ pub struct Drain {
 
 impl BlockList {
     pub fn new() -> Self {
-        BlockList {
-            head: None,
-            tail: DerefPointer::null(),
-        }
+        BlockList { head: None }
     }
 
-    /// Pushes a block to the end of this list.
-    pub fn push_back(&mut self, block: Box<Block>) {
-        let new_tail = DerefPointer::new(&*block);
-
-        if self.tail.is_null() {
-            self.head = Some(block);
-        } else {
-            self.tail.header_mut().set_next(block);
+    /// Pushes a block to the start of the list.
+    pub fn push_front(&mut self, mut block: Box<Block>) {
+        if let Some(head) = self.head.take() {
+            block.header_mut().set_next(head);
         }
 
-        self.tail = new_tail;
+        self.head = Some(block);
     }
 
     /// Pops a block from the start of the list.
@@ -66,14 +55,12 @@ impl BlockList {
     /// Adds the other list to the end of the current list.
     pub fn append(&mut self, other: &mut Self) {
         if let Some(head) = other.head.take() {
-            if self.head.is_none() {
-                self.head = Some(head);
-            } else {
-                self.tail.header_mut().set_next(head);
+            if let Some(last) = self.iter_mut().last() {
+                last.header_mut().set_next(head);
+                return;
             }
 
-            self.tail = other.tail;
-            other.tail = DerefPointer::null();
+            self.head = Some(head);
         }
     }
 
@@ -100,15 +87,6 @@ impl BlockList {
         self.head.as_ref().map(|block| &**block)
     }
 
-    /// Returns a mutable reference to the tail of the list.
-    pub fn tail_mut(&mut self) -> Option<&mut Block> {
-        if self.tail.is_null() {
-            None
-        } else {
-            Some(&mut self.tail)
-        }
-    }
-
     pub fn iter(&self) -> BlockIterator {
         BlockIterator {
             current: self.head.as_ref().map(|block| &**block),
@@ -126,8 +104,6 @@ impl BlockList {
     /// Calling this method will reset the head and tail. The returned iterator
     /// will consume all blocks.
     pub fn drain(&mut self) -> Drain {
-        self.tail = DerefPointer::null();
-
         Drain {
             current: self.head.take(),
         }
@@ -233,28 +209,26 @@ mod tests {
             let list = BlockList::new();
 
             assert!(list.head.is_none());
-            assert!(list.tail.is_null());
         }
 
         #[test]
-        fn test_push_back_with_empty_list() {
+        fn test_push_front_with_empty_list() {
             let block = Block::boxed();
             let mut list = BlockList::new();
 
-            list.push_back(block);
+            list.push_front(block);
 
             assert!(list.head.is_some());
-            assert!(!list.tail.is_null());
         }
 
         #[test]
-        fn test_push_back_with_existing_items() {
+        fn test_push_front_with_existing_items() {
             let block1 = Block::boxed();
             let block2 = Block::boxed();
             let mut list = BlockList::new();
 
-            list.push_back(block1);
-            list.push_back(block2);
+            list.push_front(block1);
+            list.push_front(block2);
 
             assert!(list[0].header().next.is_some());
             assert!(list[1].header().next.is_none());
@@ -276,7 +250,7 @@ mod tests {
         fn test_pop_front_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             let block = list.pop_front();
 
@@ -292,7 +266,6 @@ mod tests {
             list1.append(&mut list2);
 
             assert!(list1.head.is_none());
-            assert!(list1.tail.is_null());
         }
 
         #[test]
@@ -300,17 +273,14 @@ mod tests {
             let mut list1 = BlockList::new();
             let mut list2 = BlockList::new();
 
-            list1.push_back(Block::boxed());
-            list2.push_back(Block::boxed());
+            list1.push_front(Block::boxed());
+            list2.push_front(Block::boxed());
             list1.append(&mut list2);
 
             assert!(list1.head.is_some());
-            assert!(!list1.tail.is_null());
-            assert!(&*list1.tail as *const Block == &list1[1] as *const Block);
             assert_eq!(list1.len(), 2);
 
             assert!(list2.head.is_none());
-            assert!(list2.tail.is_null());
             assert_eq!(list2.len(), 0);
         }
 
@@ -323,7 +293,7 @@ mod tests {
         fn test_len_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             assert_eq!(list.len(), 1);
         }
@@ -337,7 +307,7 @@ mod tests {
         fn test_is_empty_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             assert_eq!(list.is_empty(), false);
         }
@@ -351,7 +321,7 @@ mod tests {
         fn test_head_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             assert!(list.head_mut().is_some());
         }
@@ -365,23 +335,9 @@ mod tests {
         fn test_head_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             assert!(list.head().is_some());
-        }
-
-        #[test]
-        fn test_tail_mut_with_empty_list() {
-            assert!(BlockList::new().tail_mut().is_none());
-        }
-
-        #[test]
-        fn test_tail_mut_with_existing_items() {
-            let mut list = BlockList::new();
-
-            list.push_back(Block::boxed());
-
-            assert!(list.tail_mut().is_some());
         }
 
         #[test]
@@ -396,7 +352,7 @@ mod tests {
         fn test_iter_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             let mut iter = list.iter();
 
@@ -416,7 +372,7 @@ mod tests {
         fn test_iter_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             let mut iter = list.iter_mut();
 
@@ -436,8 +392,8 @@ mod tests {
         fn test_drain_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
+            list.push_front(Block::boxed());
 
             let mut drain = list.drain();
 
@@ -452,7 +408,7 @@ mod tests {
         fn test_pointers() {
             let mut list = BlockList::new();
 
-            list.push_back(Block::boxed());
+            list.push_front(Block::boxed());
 
             assert_eq!(list.pointers().len(), 1);
         }

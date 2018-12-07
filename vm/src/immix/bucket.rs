@@ -109,7 +109,7 @@ impl Bucket {
         block.set_bucket(self as *mut Bucket);
 
         self.set_current_block(DerefPointer::new(&*block));
-        self.blocks.push_back(block);
+        self.blocks.push_front(block);
     }
 
     pub fn reset_current_block(&mut self) {
@@ -274,9 +274,9 @@ impl Bucket {
         // access to the destination lists.
         for mut block in self.blocks.drain() {
             if block.is_empty() {
-                reclaim.push_back(block);
+                reclaim.push_front(block);
             } else {
-                self.blocks.push_back(block);
+                self.blocks.push_front(block);
             }
         }
 
@@ -441,7 +441,7 @@ mod tests {
 
         assert!(
             bucket.current_block.pointer as *const Block
-                == &bucket.blocks[1] as *const Block
+                == &bucket.blocks[0] as *const Block
         );
     }
 

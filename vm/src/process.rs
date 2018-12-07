@@ -745,7 +745,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 528);
+        assert_eq!(size, 480);
     }
 
     #[test]

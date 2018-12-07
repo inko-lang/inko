@@ -37,7 +37,7 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        self.blocks.lock().push_back(block);
+        self.blocks.lock().push_front(block);
     }
 
     /// Adds multiple blocks to the global allocator.
