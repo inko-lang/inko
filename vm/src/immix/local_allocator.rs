@@ -206,32 +206,43 @@ impl LocalAllocator {
         }
     }
 
-    pub fn update_collection_statistics(&mut self, config: &Config) {
+    pub fn update_collection_statistics(
+        &mut self,
+        config: &Config,
+        mature: bool,
+    ) {
+        self.update_young_collection_statistics(config);
+
+        if mature {
+            self.update_mature_collection_statistics(config);
+        }
+    }
+
+    pub fn update_young_collection_statistics(&mut self, config: &Config) {
         self.increment_young_ages();
 
         self.young_config.block_allocations = 0;
-        self.mature_config.block_allocations = 0;
 
-        let young_blocks = self.number_of_young_blocks();
-        let mature_blocks = self.mature_generation.number_of_blocks();
-
-        let threshold = config.heap_growth_threshold;
+        let blocks = self.number_of_young_blocks();
+        let max = config.heap_growth_threshold;
         let factor = config.heap_growth_factor;
 
-        if self
-            .mature_config
-            .should_increase_threshold(mature_blocks, threshold)
-        {
-            // If the mature generation is running full we also want
-            // to increase the young generation to reduce the number of
-            // objects that are promoted prematurely.
+        if self.young_config.should_increase_threshold(blocks, max) {
             self.young_config.increment_threshold(factor);
+        }
+    }
+
+    pub fn update_mature_collection_statistics(&mut self, config: &Config) {
+        self.update_young_collection_statistics(config);
+
+        self.mature_config.block_allocations = 0;
+
+        let blocks = self.mature_generation.number_of_blocks();
+        let max = config.heap_growth_threshold;
+        let factor = config.heap_growth_factor;
+
+        if self.mature_config.should_increase_threshold(blocks, max) {
             self.mature_config.increment_threshold(factor);
-        } else if self
-            .young_config
-            .should_increase_threshold(young_blocks, threshold)
-        {
-            self.young_config.increment_threshold(factor);
         }
     }
 

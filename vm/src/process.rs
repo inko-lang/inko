@@ -531,7 +531,9 @@ impl Process {
     pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
         let local_data = self.local_data_mut();
 
-        local_data.allocator.update_collection_statistics(config);
+        local_data
+            .allocator
+            .update_collection_statistics(config, mature);
 
         if mature {
             local_data.mature_collections += 1;
