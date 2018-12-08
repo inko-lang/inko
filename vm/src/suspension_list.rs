@@ -77,24 +77,16 @@ impl SuspendedProcess {
     /// Returns `true` if the current entry's process should be rescheduled for
     /// execution.
     pub fn should_reschedule(&self) -> bool {
-        let waiting_for_message = self.process.is_waiting_for_message();
-
-        if waiting_for_message && self.process.has_messages() {
+        if self.process.should_reschedule_for_received_message() {
             return true;
         }
 
         if let Some(timeout) = self.timeout {
             let resume_after = self.suspended_at + timeout;
 
-            if Instant::now() >= resume_after {
-                self.process.wakeup_after_suspension_timeout();
-
-                true
-            } else {
-                false
-            }
+            Instant::now() >= resume_after
         } else {
-            !waiting_for_message
+            !self.process.is_waiting_for_message()
         }
     }
 }

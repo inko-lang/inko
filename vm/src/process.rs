@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::i64;
 use std::mem;
 use std::panic::RefUnwindSafe;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use binding::RcBinding;
@@ -28,28 +28,6 @@ use process_table::PID;
 use vm::state::RcState;
 
 pub type RcProcess = Arc<Process>;
-
-#[derive(Debug, Clone, Copy)]
-#[repr(usize)]
-pub enum ProcessStatus {
-    /// The process has been (re-)scheduled for execution.
-    Scheduled,
-
-    /// The process is running.
-    Running,
-
-    /// The process has been suspended.
-    Suspended,
-
-    /// The process has been suspended for garbage collection.
-    SuspendForGc,
-
-    /// The process is waiting for a message to arrive.
-    WaitingForMessage,
-
-    /// The process has finished execution.
-    Finished,
-}
 
 pub struct LocalData {
     /// The process-local memory allocator.
@@ -84,8 +62,8 @@ pub struct Process {
     /// The process identifier of this process.
     pub pid: PID,
 
-    /// The status of this process.
-    pub status: AtomicUsize,
+    /// If the process is waiting for a message.
+    pub waiting_for_message: AtomicBool,
 }
 
 unsafe impl Sync for LocalData {}
@@ -110,13 +88,11 @@ impl Process {
             thread_id: None,
         };
 
-        let process = Process {
+        Arc::new(Process {
             pid,
-            status: AtomicUsize::new(ProcessStatus::Scheduled as usize),
             local_data: UnsafeCell::new(local_data),
-        };
-
-        Arc::new(process)
+            waiting_for_message: AtomicBool::new(false),
+        })
     }
 
     pub fn from_block(
@@ -172,24 +148,6 @@ impl Process {
         mem::swap(target, &mut boxed);
 
         target.set_parent(boxed);
-    }
-
-    pub fn status_integer(&self) -> u8 {
-        self.status() as u8
-    }
-
-    pub fn status(&self) -> ProcessStatus {
-        let status = self.status.load(Ordering::Acquire);
-
-        match status {
-            0 => ProcessStatus::Scheduled,
-            1 => ProcessStatus::Running,
-            2 => ProcessStatus::Suspended,
-            3 => ProcessStatus::SuspendForGc,
-            4 => ProcessStatus::WaitingForMessage,
-            5 => ProcessStatus::Finished,
-            _ => panic!("invalid process status: {}", status),
-        }
     }
 
     /// Pops an execution context.
@@ -385,57 +343,6 @@ impl Process {
         self.context().code
     }
 
-    pub fn available_for_execution(&self) -> bool {
-        match self.status() {
-            ProcessStatus::Scheduled => true,
-            _ => false,
-        }
-    }
-
-    pub fn set_status(&self, new_status: ProcessStatus) {
-        self.status.store(new_status as usize, Ordering::Release);
-    }
-
-    pub fn running(&self) {
-        self.set_status(ProcessStatus::Running);
-    }
-
-    pub fn finished(&self) {
-        self.set_status(ProcessStatus::Finished);
-    }
-
-    pub fn scheduled(&self) {
-        self.set_status(ProcessStatus::Scheduled);
-    }
-
-    pub fn suspended(&self) {
-        self.set_status(ProcessStatus::Suspended);
-    }
-
-    pub fn suspend_for_gc(&self) {
-        self.set_status(ProcessStatus::SuspendForGc);
-    }
-
-    pub fn waiting_for_message(&self) {
-        self.set_status(ProcessStatus::WaitingForMessage);
-    }
-
-    pub fn is_waiting_for_message(&self) -> bool {
-        match self.status() {
-            ProcessStatus::WaitingForMessage => true,
-            _ => false,
-        }
-    }
-
-    pub fn wakeup_after_suspension_timeout(&self) {
-        if self.is_waiting_for_message() {
-            // When a timeout expires we don't want to retry the last
-            // instruction as otherwise we'd end up in an infinite loop if
-            // no message is received.
-            self.advance_instruction_index();
-        }
-    }
-
     pub fn has_messages(&self) -> bool {
         self.local_data().mailbox.has_messages()
     }
@@ -559,6 +466,22 @@ impl Process {
         }
 
         pointers
+    }
+
+    pub fn waiting_for_message(&self) {
+        self.waiting_for_message.store(true, Ordering::Relaxed);
+    }
+
+    pub fn is_waiting_for_message(&self) -> bool {
+        self.waiting_for_message.load(Ordering::Relaxed)
+    }
+
+    pub fn should_reschedule_for_received_message(&self) -> bool {
+        self.is_waiting_for_message() && self.has_messages()
+    }
+
+    pub fn no_longer_waiting_for_message(&self) {
+        self.waiting_for_message.store(false, Ordering::Relaxed);
     }
 }
 

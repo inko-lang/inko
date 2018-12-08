@@ -1177,10 +1177,6 @@ module Inkoc
         raw_nullary_instruction(:ProcessCurrentPid, node, body)
       end
 
-      def on_raw_process_status(node, body)
-        raw_unary_instruction(:ProcessStatus, node, body)
-      end
-
       def on_raw_process_suspend_current(node, body)
         timeout = process_node(node.arguments.fetch(0), body)
 

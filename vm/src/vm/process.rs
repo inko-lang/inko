@@ -3,7 +3,7 @@ use block::Block;
 use immix::copy_object::CopyObject;
 use object_pointer::ObjectPointer;
 use pool::Worker;
-use process::{Process, ProcessStatus, RcProcess};
+use process::{Process, RcProcess};
 use stacktrace;
 use vm::state::RcState;
 
@@ -92,25 +92,7 @@ pub fn current_pid(state: &RcState, process: &RcProcess) -> ObjectPointer {
     process.allocate_usize(process.pid, state.integer_prototype)
 }
 
-pub fn status(
-    state: &RcState,
-    pid_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
-    let pid = pid_ptr.usize_value()?;
-    let table = state.process_table.lock();
-
-    let status = if let Some(receiver) = table.get(pid) {
-        receiver.status_integer()
-    } else {
-        ProcessStatus::Finished as u8
-    };
-
-    Ok(ObjectPointer::integer(i64::from(status)))
-}
-
 pub fn suspend(state: &RcState, process: &RcProcess, timeout: Option<f64>) {
-    process.suspended();
-
     state.suspension_list.suspend(process.clone(), timeout);
 }
 

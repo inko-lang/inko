@@ -285,8 +285,6 @@ impl Machine {
     ) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
 
-        process.running();
-
         let mut context;
         let mut index;
         let mut instruction;
@@ -926,40 +924,36 @@ impl Machine {
 
                     if let Some(msg) = process.receive_message() {
                         context.set_register(reg, msg);
-                    } else {
-                        let time_ptr = context.get_register(instruction.arg(1));
-
-                        // When resuming (except when the timeout expires) we
-                        // want to retry this instruction so we can store the
-                        // received message in the target register.
-                        context.instruction_index = index - 1;
-
-                        // If the timeout expires we won't retry this
-                        // instruction so we need to ensure the register is
-                        // already set.
-                        context.set_register(reg, self.state.nil_object);
-
-                        process::wait_for_message(
-                            &self.state,
-                            process,
-                            process::optional_timeout(time_ptr)?,
-                        );
-
-                        return Ok(());
+                        continue;
                     }
+
+                    if process.is_waiting_for_message() {
+                        // A timeout expired, but no message was received.
+                        context.set_register(reg, self.state.nil_object);
+                        process.no_longer_waiting_for_message();
+
+                        continue;
+                    }
+
+                    let time_ptr = context.get_register(instruction.arg(1));
+
+                    // When resuming we want to retry this instruction so we can
+                    // store the received message in the target register.
+                    context.instruction_index = index - 1;
+
+                    process::wait_for_message(
+                        &self.state,
+                        process,
+                        process::optional_timeout(time_ptr)?,
+                    );
+
+                    return Ok(());
                 }
                 InstructionType::ProcessCurrentPid => {
                     let reg = instruction.arg(0);
                     let pid = process::current_pid(&self.state, process);
 
                     context.set_register(reg, pid);
-                }
-                InstructionType::ProcessStatus => {
-                    let reg = instruction.arg(0);
-                    let pid = process.get_register(instruction.arg(1));
-                    let res = process::status(&self.state, pid)?;
-
-                    context.set_register(reg, res);
                 }
                 InstructionType::ProcessSuspendCurrent => {
                     let time_ptr = context.get_register(instruction.arg(0));
@@ -1728,8 +1722,6 @@ impl Machine {
             };
         }
 
-        process.finished();
-
         if process.is_pinned() {
             // A pinned process can only run on the corresponding worker.
             // Because pinned workers won't run already unpinned processes, and
@@ -1778,7 +1770,6 @@ impl Machine {
     }
 
     fn schedule_gc_request(&self, request: GcRequest) {
-        request.process.suspend_for_gc();
         self.state.gc_pool.schedule(Job::normal(request));
     }
 

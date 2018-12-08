@@ -1418,10 +1418,6 @@ module Inkoc
         typedb.integer_type.new_instance
       end
 
-      def on_raw_process_status(*)
-        typedb.integer_type.new_instance
-      end
-
       def on_raw_process_suspend_current(*)
         TypeSystem::Void.new
       end

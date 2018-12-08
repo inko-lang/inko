@@ -87,7 +87,6 @@ pub enum InstructionType {
     Throw,
     SetRegister,
     TailCall,
-    ProcessStatus,
     ProcessSuspendCurrent,
     IntegerGreaterOrEqual,
     IntegerSmallerOrEqual,

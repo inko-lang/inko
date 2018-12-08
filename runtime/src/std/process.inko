@@ -372,30 +372,6 @@ def blocking!(R)(block: do -> R) -> R {
   block.call
 }
 
-## Returns the status of a process as an `Integer`.
-##
-## The following values can be returned:
-##
-## * 0: The process has been scheduled.
-## * 1: The process is running.
-## * 2: The process has been suspended.
-## * 3: The process has been suspended for garbage collection.
-## * 4: The process is waiting for a message to arrive.
-## * 5: The process finished execution.
-##
-## If a process does not exist (any more) then the status will also be `5`.
-##
-## # Examples
-##
-## Getting the status of a process:
-##
-##     import std::process
-##
-##     process.status(process.current) # => 1
-def status(pid: ToInteger) -> Integer {
-  _INKOC.process_status(pid.to_integer)
-}
-
 ## Suspends the current process until it is rescheduled.
 ##
 ## The argument of this method can be used to set a minimum suspension time (in

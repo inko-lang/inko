@@ -141,7 +141,6 @@ mod tests {
         let mut request = Request::heap(state, process.clone());
 
         process.set_register(0, process.allocate_empty());
-        process.running();
         request.perform();
 
         assert!(process.get_register(0).is_marked());

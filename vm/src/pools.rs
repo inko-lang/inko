@@ -33,8 +33,6 @@ impl Pools {
         let pool_id = process.pool_id();
 
         if let Some(pool) = self.get(pool_id) {
-            process.scheduled();
-
             let job = if let Some(thread_id) = process.thread_id() {
                 Job::pinned(process, thread_id)
             } else {
@@ -93,11 +91,9 @@ mod tests {
         let pools = Pools::new(1, 1);
         let (_machine, _block, process) = setup();
 
-        process.running();
         pools.schedule(process.clone());
 
         assert_eq!(pools.pools[0].inner.queues.len(), 1);
-        assert_eq!(process.available_for_execution(), true);
     }
 
     #[test]

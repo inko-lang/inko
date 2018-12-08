@@ -89,7 +89,6 @@ module Inkoc
         Throw
         SetRegister
         TailCall
-        ProcessStatus
         ProcessSuspendCurrent
         IntegerGreaterOrEqual
         IntegerSmallerOrEqual
