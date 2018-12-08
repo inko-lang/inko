@@ -18,7 +18,7 @@ use object_value::ObjectValue;
 use vm::state::RcState;
 
 /// The maximum age of a bucket in the young generation.
-pub const YOUNG_MAX_AGE: i8 = 3;
+pub const YOUNG_MAX_AGE: i8 = 2;
 
 /// Structure containing the state of a process-local allocator.
 pub struct LocalAllocator {
@@ -64,7 +64,6 @@ impl LocalAllocator {
                 Bucket::with_age(0),
                 Bucket::with_age(-1),
                 Bucket::with_age(-2),
-                Bucket::with_age(-3),
             ],
             young_histograms: Histograms::new(),
             mature_histograms: Histograms::new(),
@@ -329,8 +328,6 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, -1);
         assert_eq!(alloc.young_generation[2].age, -2);
-        assert_eq!(alloc.young_generation[3].age, -3);
-
         assert_eq!(alloc.eden_index, 0);
     }
 
@@ -442,7 +439,6 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, -1);
         assert_eq!(alloc.young_generation[2].age, -2);
-        assert_eq!(alloc.young_generation[3].age, -3);
         assert_eq!(alloc.eden_index, 0);
 
         alloc.increment_young_ages();
@@ -450,7 +446,6 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 1);
         assert_eq!(alloc.young_generation[1].age, 0);
         assert_eq!(alloc.young_generation[2].age, -1);
-        assert_eq!(alloc.young_generation[3].age, -2);
         assert_eq!(alloc.eden_index, 1);
 
         alloc.increment_young_ages();
@@ -458,38 +453,35 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 2);
         assert_eq!(alloc.young_generation[1].age, 1);
         assert_eq!(alloc.young_generation[2].age, 0);
-        assert_eq!(alloc.young_generation[3].age, -1);
+        assert_eq!(alloc.young_generation[0].promote, true);
         assert_eq!(alloc.eden_index, 2);
 
         alloc.increment_young_ages();
 
-        assert_eq!(alloc.young_generation[0].age, 3);
-        assert_eq!(alloc.young_generation[0].promote, true);
-
+        assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, 2);
         assert_eq!(alloc.young_generation[2].age, 1);
-        assert_eq!(alloc.young_generation[3].age, 0);
-        assert_eq!(alloc.eden_index, 3);
-
-        alloc.increment_young_ages();
-
-        assert_eq!(alloc.young_generation[0].age, 0);
-        assert_eq!(alloc.young_generation[0].promote, false);
-
-        assert_eq!(alloc.young_generation[1].age, 3);
         assert_eq!(alloc.young_generation[1].promote, true);
-
-        assert_eq!(alloc.young_generation[2].age, 2);
-        assert_eq!(alloc.young_generation[3].age, 1);
         assert_eq!(alloc.eden_index, 0);
 
         alloc.increment_young_ages();
 
         assert_eq!(alloc.young_generation[0].age, 1);
+        assert_eq!(alloc.young_generation[0].promote, false);
+
         assert_eq!(alloc.young_generation[1].age, 0);
-        assert_eq!(alloc.young_generation[2].age, 3);
-        assert_eq!(alloc.young_generation[3].age, 2);
+        assert_eq!(alloc.young_generation[1].promote, false);
+
+        assert_eq!(alloc.young_generation[2].age, 2);
+        assert_eq!(alloc.young_generation[2].promote, true);
         assert_eq!(alloc.eden_index, 1);
+
+        alloc.increment_young_ages();
+
+        assert_eq!(alloc.young_generation[0].age, 2);
+        assert_eq!(alloc.young_generation[1].age, 1);
+        assert_eq!(alloc.young_generation[2].age, 0);
+        assert_eq!(alloc.eden_index, 2);
     }
 
     #[test]
@@ -547,6 +539,6 @@ mod tests {
     fn test_type_size() {
         // This test is put in place to ensure that the type size doesn't change
         // unexpectedly.
-        assert_eq!(mem::size_of::<LocalAllocator>(), 296);
+        assert_eq!(mem::size_of::<LocalAllocator>(), 264);
     }
 }
