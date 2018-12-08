@@ -924,6 +924,8 @@ impl Machine {
 
                     if let Some(msg) = process.receive_message() {
                         context.set_register(reg, msg);
+                        process.no_longer_waiting_for_message();
+
                         continue;
                     }
 
