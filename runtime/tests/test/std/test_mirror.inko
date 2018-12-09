@@ -1,0 +1,264 @@
+import std::fs
+import std::mirror::(
+  self, BlockMirror, ModuleMirror, OBJECT_NAME_ATTRIBUTE, ObjectMirror
+)
+import std::test
+import std::test::assert
+
+let CURRENT_FILE = ModuleMirror.new(ThisModule).path
+
+trait DummyTrait {}
+
+object Dummy impl DummyTrait {
+  def init {
+    let @name = 'Alice'
+    let @age = 28
+  }
+}
+
+test.group('std::mirror::ObjectMirror.subject') do (g) {
+  g.test('Obtaining the subject of a mirror') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.subject, obj)
+  }
+}
+
+test.group('std::mirror::ObjectMirror.prototype') do (g) {
+  g.test('Obtaining the prototype of an object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.prototype as Object, Dummy)
+  }
+}
+
+test.group('std::mirror::ObjectMirror.prototype=') do (g) {
+  g.test('Setting the prototype of an object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.prototype = 10
+
+    assert.equal(mirror.prototype as Integer, 10)
+  }
+}
+
+test.group('std::mirror::ObjectMirror.get_attribute') do (g) {
+  g.test('Obtaining the value of a non existing attribute') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.get_attribute('foo') as Object, Nil)
+  }
+
+  g.test('Obtaining the value of an existing attribute') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.get_attribute('@name') as String, 'Alice')
+  }
+}
+
+test.group('std::mirror::ObjectMirror.set_attribute') do (g) {
+  g.test('Setting the value of a non existing attribute') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.set_attribute('foo', 10)
+
+    assert.equal(mirror.get_attribute('foo') as Integer, 10)
+  }
+
+  test.group('Setting the value of an existing attribute') do (g) {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.set_attribute('@name', 'Bob')
+
+    assert.equal(mirror.get_attribute('@name') as String, 'Bob')
+  }
+}
+
+test.group('std::mirror::ObjectMirror.attributes') do (g) {
+  g.test('Obtaining the attribute names of an object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+    let names = mirror.attributes
+
+    assert.true(names.contains?('@name'))
+    assert.true(names.contains?('@age'))
+  }
+}
+
+test.group('std::mirror::ObjectMirror.instance_attributes') do (g) {
+  g.test('Obtaining the instances attribute names of an object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.set_attribute('foo', 'bar')
+
+    let names = mirror.instance_attributes
+
+    assert.true(names.contains?('@name'))
+    assert.true(names.contains?('@age'))
+    assert.false(names.contains?('foo'))
+  }
+}
+
+test.group('std::mirror::ObjectMirror.instance_of?') do (g) {
+  g.test('Checking if an object is an instance of another object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.true(mirror.instance_of?(Dummy))
+    assert.false(mirror.instance_of?(String))
+  }
+}
+
+test.group('std::mirror::ObjectMirror.kind_of?') do (g) {
+  g.test('Checking if an object is a kind of another object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.true(mirror.kind_of?(Dummy))
+    assert.true(mirror.kind_of?(DummyTrait))
+    assert.false(mirror.kind_of?(String))
+  }
+}
+
+test.group('std::mirror::ObjectMirror.name') do (g) {
+  g.test('Obtaining the name of a named object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.name, 'Dummy')
+  }
+
+  g.test('Obtaining the name of an anonymous object') {
+    let obj = Object.new
+    let mirror = ObjectMirror.new(obj)
+
+    assert.equal(mirror.name, 'Object')
+  }
+
+  g.test('Obtaining the name of an unnamed object without a prototype') {
+    let obj = Object.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.set_attribute(OBJECT_NAME_ATTRIBUTE, Nil)
+
+    assert.equal(mirror.name, 'Object')
+  }
+
+  g.test('Obtaining the name of a built-in object') {
+    assert.equal(ObjectMirror.new(Object).name, 'Object')
+    assert.equal(ObjectMirror.new(String).name, 'String')
+    assert.equal(ObjectMirror.new(Inko).name, 'Inko')
+  }
+}
+
+test.group('std::mirror::BlockMirror.name') do (g) {
+  g.test('Obtaining the name of a closure') {
+    let mirror = BlockMirror.new({})
+
+    assert.equal(mirror.name, '<block>')
+  }
+
+  g.test('Obtianing the name of a lambda') {
+    let mirror = BlockMirror.new(lambda {})
+
+    assert.equal(mirror.name, '<lambda>')
+  }
+
+  g.test('Obtaining the name of a method') {
+    let mirror = ObjectMirror.new(Dummy)
+    let init = mirror.get_attribute('init') as Block
+
+    assert.equal(BlockMirror.new(init).name, 'init')
+  }
+}
+
+test.group('std::mirror::BlockMirror.path') do (g) {
+  g.test('Obtaining the path of a block') {
+    let mirror = BlockMirror.new({})
+
+    assert.equal(mirror.path, CURRENT_FILE)
+  }
+}
+
+test.group('std::mirror::BlockMirror.line') do (g) {
+  g.test('Obtaining the line number of a block') {
+    let mirror = BlockMirror.new({})
+
+    assert.equal(mirror.line, 193)
+  }
+}
+
+test.group('std::mirror::BlockMirror.argument_names') do (g) {
+  g.test('Obtaining the argument names of a block') {
+    let mirror = BlockMirror.new(do (foo, bar) {})
+
+    assert.equal(mirror.argument_names, ['foo', 'bar'])
+  }
+}
+
+test.group('std::mirror::BlockMirror.required_arguments') do (g) {
+  g.test('Obtaining the number of required arguments') {
+    let mirror = BlockMirror.new(do (foo, bar, baz = 10) {})
+
+    assert.equal(mirror.required_arguments, 2)
+  }
+}
+
+test.group('std::mirror::BlockMirror.rest_argument?') do (g) {
+  g.test('Checking if a block defines a rest argument') {
+    let with_rest = do (*values) {}
+    let without_rest = do (values) {}
+
+    assert.true(BlockMirror.new(with_rest).rest_argument?)
+    assert.false(BlockMirror.new(without_rest).rest_argument?)
+  }
+}
+
+test.group('std::mirror::ModuleMirror.name') do (g) {
+  g.test('Obtaining the name of a module') {
+    let mirror = ModuleMirror.new(ThisModule)
+
+    assert.equal(mirror.name, 'test::std::test_mirror')
+  }
+}
+
+test.group('std::mirror::ModuleMirror.path') do (g) {
+  g.test('Obtaining the file path of a module') {
+    let mirror = ModuleMirror.new(ThisModule)
+
+    assert.equal(mirror.path, CURRENT_FILE)
+    assert.true(fs.file?(mirror.path))
+  }
+}
+
+test.group('std::mirror.reflect_object') do (g) {
+  g.test('Obtaining a mirror for an object') {
+    let mirror = mirror.reflect_object(Dummy.new)
+
+    assert.equal(mirror.name, 'Dummy')
+  }
+}
+
+test.group('std::mirror.reflect_block') do (g) {
+  g.test('Obtaining a mirror for a block') {
+    let mirror = mirror.reflect_block({})
+
+    assert.equal(mirror.name, '<block>')
+  }
+}
+
+test.group('std::mirror.reflect_module') do (g) {
+  g.test('Obtaining a mirror for a module') {
+    let mirror = mirror.reflect_module(ThisModule)
+
+    assert.equal(mirror.name, 'test::std::test_mirror')
+  }
+}

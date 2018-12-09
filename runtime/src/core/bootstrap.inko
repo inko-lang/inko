@@ -26,6 +26,7 @@ let Float = _INKOC.get_float_prototype
 let Block = _INKOC.get_block_prototype
 let Array = _INKOC.get_array_prototype
 
+_INKOC.set_object_name(self, 'Inko')
 _INKOC.set_object_name(Boolean, 'Boolean')
 _INKOC.set_object_name(True, 'True')
 _INKOC.set_object_name(False, 'False')
