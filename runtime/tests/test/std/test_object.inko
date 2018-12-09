@@ -1,0 +1,88 @@
+import std::test
+import std::test::assert
+
+test.group('std::object::Object.equal?') do (g) {
+  g.test('Comparing two objects that do not reside at the same address') {
+    let obj1 = Object.new
+    let obj2 = Object.new
+
+    assert.false(obj1.equal?(obj2))
+  }
+
+  g.test('Comparing two objects that reside at the same address') {
+    let obj = Object.new
+
+    assert.true(obj.equal?(obj))
+  }
+}
+
+test.group('std::object::Object.==') do (g) {
+  g.test('Comparing two objects that do not reside at the same address') {
+    let obj1 = Object.new
+    let obj2 = Object.new
+
+    assert.not_equal(obj1, obj2)
+  }
+
+  g.test('Comparing two objects that reside at the same address') {
+    let obj = Object.new
+
+    assert.equal(obj, obj)
+  }
+}
+
+test.group('std::object::Object.!=') do (g) {
+  g.test('Comparing two objects that do not reside at the same address') {
+    let obj1 = Object.new
+    let obj2 = Object.new
+
+    assert.true(obj1 != obj2)
+  }
+
+  g.test('Comparing two objects that reside at the same address') {
+    let obj = Object.new
+
+    assert.false(obj != obj)
+  }
+}
+
+test.group('std::object::Object.if_true') do (g) {
+  g.test('The supplied block is always executed') {
+    let obj = Object.new
+
+    assert.equal(obj.if_true({ 10 }), 10)
+  }
+}
+
+test.group('std::object::Object.if_false') do (g) {
+  g.test('The supplied block is never executed') {
+    let obj = Object.new
+
+    assert.equal(obj.if_false({ 10 }), Nil)
+  }
+}
+
+test.group('std::object::Object.if') do (g) {
+  g.test('The block passed to the true: argument is always executed') {
+    let obj = Object.new
+    let res = obj.if true: { 10 }, false: { 20 }
+
+    assert.equal(res, 10)
+  }
+}
+
+test.group('std::object::Object.and') do (g) {
+  g.test('The supplied block is always executed') {
+    let obj = Object.new
+
+    assert.true(obj.and({ True }))
+  }
+}
+
+test.group('std::object::Object.or') do (g) {
+  g.test('The supplied block is never executed') {
+    let obj = Object.new
+
+    assert.true(obj.or({ False }))
+  }
+}
