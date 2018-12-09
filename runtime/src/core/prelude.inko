@@ -35,7 +35,9 @@ import std::hash_map::(HashMap as _HashMap)
 import std::inspect
 import std::byte_array
 import std::vm
+import std::range::(Range as _Range)
 
 # These constants are re-exported so they're available to all modules by
 # default. Core types such as String should be exposed in std::globals instead.
 let HashMap = _HashMap
+let Range = _Range

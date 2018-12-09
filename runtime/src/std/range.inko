@@ -17,7 +17,7 @@ import std::successor::Successor
 ##
 ## 1. They are both of the same type.
 ## 2. Both implement the `Successor` and `Compare` traits.
-object Range!(T: Successor + Compare) {
+object Range!(T: Successor + Compare) impl Equal, ToArray!(T) {
   def init(start: T, end: T) {
     let @start = start
     let @end = end
@@ -32,14 +32,7 @@ object Range!(T: Successor + Compare) {
   def end -> T {
     @end
   }
-}
 
-trait ToRange!(T: Successor + Compare) {
-  ## Returns a `Range` starting at `self` up to (and including) `other`.
-  def ..(other: T) -> Range!(T)
-}
-
-impl Equal for Range!(T) {
   ## Returns `True` if `self` and `other` are identical.
   ##
   ## # Examples
@@ -55,9 +48,7 @@ impl Equal for Range!(T) {
     start == other.start
       .and { end == other.end }
   }
-}
 
-impl ToArray!(T) for Range!(T) {
   ## Converts `self` to an `Array`.
   ##
   ## # Examples
@@ -78,6 +69,11 @@ impl ToArray!(T) for Range!(T) {
 
     values
   }
+}
+
+trait ToRange!(T: Successor + Compare) {
+  ## Returns a `Range` starting at `self` up to (and including) `other`.
+  def ..(other: T) -> Range!(T)
 }
 
 impl ToRange!(Integer) for Integer {
