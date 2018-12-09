@@ -1,0 +1,38 @@
+import std::os::(self, NEWLINE)
+import std::test
+import std::test::assert
+
+let VALID_PLATFORMS = [
+  'android',
+  'bitrig',
+  'dragonfly',
+  'freebsd',
+  'ios',
+  'linux',
+  'macos',
+  'netbsd',
+  'openbsd',
+  'unix',
+  'unknown',
+  'windows'
+]
+
+test.group('std::os.platform') do (g) {
+  g.test('Obtaining the name of the underlying platform') {
+    assert.true(VALID_PLATFORMS.contains?(os.platform))
+  }
+}
+
+test.group('std::os.windows?') do (g) {
+  g.test('Checking if the underlying platform is Windows') {
+    assert.equal(os.windows?, os.platform == 'windows')
+  }
+}
+
+test.group('std::os::NEWLINE') do (g) {
+  g.test('Obtaining the newline separator for the underlying platform') {
+    let expected = os.windows?.if true: { "\r\n" }, false: { "\n" }
+
+    assert.equal(NEWLINE, expected)
+  }
+}
