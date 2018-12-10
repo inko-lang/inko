@@ -116,6 +116,8 @@ object RunTests impl Command {
 
   ## Runs all the tests currently registered, returning once they have been
   ## completed.
+  ##
+  ## Once this method has been called, no new tests can be registered.
   def run(state: RunnerState) {
     let mut pending = 0
     let start_time = time.monotonic
@@ -136,13 +138,7 @@ object RunTests impl Command {
         .or { index == last_index }
         .if_true {
           { pending > 0 }.while_true {
-            # We may receive messages of other types, such as newly registered
-            # tests. In practise this shouldn't happen, but technically it's
-            # possible. As such we use `process.receive_if` here, instead of
-            # `process.channel`.
-            let finished_test = process.receive_if do (msg) {
-              reflection.instance_of?(msg, Test)
-            } as Test
+            let finished_test = process.receive as Test
 
             state.formatter.test(finished_test)
 
@@ -231,6 +227,9 @@ object Client {
   def init(sender: Sender!(Command)) {
     ## The Sender to use for communicating with the `Runner`.
     let @sender = sender
+
+    ## A boolean indicating if the test suite is running or not.
+    let mut @running = False
   }
 
   ## Returns the PID of the `Runner`.
@@ -240,16 +239,28 @@ object Client {
 
   ## Sets a configuration option to the given value.
   def configure(option: String, value: Dynamic) {
+    @running.if_true {
+      process.panic(
+        'Configuration settings can not be changed for a running test suite'
+      )
+    }
+
     @sender.send(ConfigureRunner.new(option, value))
   }
 
   ## Adds a new test to the `Runner`.
   def add_test(test: Test) {
+    @running.if_true {
+      process.panic('New tests can not be added to a running test suite')
+    }
+
     @sender.send(AddTest.new(test))
   }
 
   ## Schedules all tests for execution and waits for them to complete.
   def run {
+    @running = True
+
     @sender.send(RunTests.new(process.current))
 
     wait_for_tests
@@ -260,13 +271,7 @@ object Client {
   ## If any tests failed to run, this method will terminate the VM with exit
   ## status code 1.
   def wait_for_tests {
-    # We have no control over what messages may be sent to the current process.
-    # This means we can't use `process.channel`, and instead have to make sure
-    # that the message we receive is the message we actually want.
-    let message = process.receive_if do (message) {
-      reflection.instance_of?(message, RunnerFinished)
-        .and { message.pid == @sender.pid as Boolean }
-    } as RunnerFinished
+    let message = process.receive as RunnerFinished
 
     message.failures?.if_true {
       vm.exit(FAILURE_EXIT_STATUS)

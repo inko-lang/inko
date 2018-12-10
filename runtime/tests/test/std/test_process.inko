@@ -1,0 +1,197 @@
+import std::process::(self, Receiver, Sender)
+import std::test
+import std::test::assert
+import std::time::MonotonicTime
+
+test.group('std::process::Sender.send') do (g) {
+  g.test('Sending a message to a process') {
+    let pid = process.spawn {
+      let parent = process.receive as Integer
+
+      process.send(pid: parent, message: parent)
+    }
+
+    Sender.new(pid).send(process.current)
+
+    assert.equal(process.receive as Integer, process.current)
+  }
+}
+
+test.group('std::process::Sender.pid') do (g) {
+  g.test('Obtaining a PID of the receiving end of a Sender') {
+    let sender = Sender.new(process.current)
+
+    assert.equal(sender.pid, process.current)
+  }
+}
+
+test.group('std::process::Receiver.receive') do (g) {
+  g.test('Receiving a message without a timeout') {
+    let receiver: Receiver!(Integer) = Receiver.new
+
+    process.send(pid: process.current, message: 10)
+
+    assert.equal(receiver.receive, 10)
+  }
+
+  g.test('Receiving a message with a timeout') {
+    let receiver: Receiver!(Integer) = Receiver.new
+    let message = receiver.receive(0.0001)
+
+    assert.equal(message, Nil)
+  }
+}
+
+test.group('std::process.current') do (g) {
+  g.test('Obtaining the PID of the current process') {
+    assert.true(process.current >= 0)
+  }
+}
+
+test.group('std::process.send') do (g) {
+  g.test('Sending a message to a process') {
+    let message = process.send(pid: process.current, message: 'testing')
+    let received = process.receive as String
+
+    assert.equal(message, 'testing')
+    assert.equal(received, message)
+  }
+}
+
+test.group('std::process.receive') do (g) {
+  g.test('Receiving a message without a timeout') {
+    process.send(pid: process.current, message: 'testing')
+
+    let received = process.receive as String
+
+    assert.equal(received, 'testing')
+  }
+
+  g.test('Receiving a message with a timeout') {
+    let received = process.receive(0.001) as ?String
+
+    assert.equal(received, Nil)
+  }
+}
+
+test.group('std::process.spawn') do (g) {
+  g.test('Spawning a process') {
+    let pid = process.spawn {}
+
+    assert.true(pid >= 0)
+  }
+}
+
+test.group('std::process.channel') do (g) {
+  g.test('Sending and receiving messages using a Sender and Receiver') {
+    let sender = process.channel!(Integer) lambda (receiver) {
+      let pid = *receiver.receive
+
+      process.send(pid: pid, message: pid)
+    }
+
+    sender.send(process.current)
+
+    assert.equal(process.receive as Integer, process.current)
+  }
+}
+
+test.group('std::process.blocking') do (g) {
+  g.test('Performing a blocking operation') {
+    assert.equal(process.blocking({ 10 }), 10)
+  }
+}
+
+test.group('std::process.suspend') do (g) {
+  g.test('Suspending a process') {
+    assert.equal(process.suspend, Nil)
+  }
+
+  g.test('Suspending a process for a minimum amount of time') {
+    let start = MonotonicTime.new
+    let wait = 0.01
+
+    process.suspend(wait)
+
+    let duration = (MonotonicTime.new - start).to_float
+
+    assert.true(duration >= wait)
+  }
+}
+
+test.group('std::process.terminate') do (g) {
+  g.test('Terminating the current process') {
+    let pid = process.spawn {
+      let parent = process.receive as Integer
+
+      process.terminate
+
+      # This code will never run, unless `process.terminate` somehow doesn't
+      # terminate the current process.
+      process.send(pid: parent, message: parent)
+    }
+
+    process.send(pid: pid, message: process.current)
+
+    # Only if `process.terminate` _does not_ terminate the process will we
+    # receive a message.
+    let message = process.receive(0.01) as ?Integer
+
+    assert.equal(message, Nil)
+  }
+}
+
+test.group('std::process.panicking') do (g) {
+  g.test('Registering a custom panic handler') {
+    let pid = process.spawn {
+      let parent = process.receive as Integer
+
+      process.panicking do (error) {
+        process.send(pid: parent, message: error)
+      }
+
+      process.panic('example panic')
+    }
+
+    process.send(pid: pid, message: process.current)
+
+    let error = process.receive as String
+
+    assert.equal(error, 'example panic')
+  }
+}
+
+test.group('std::process.defer') do (g) {
+  g.test('Deferring the execution of a Block') {
+    let mut number = 0
+
+    do {
+      process.defer {
+        # This will be executed _after_ `number = 1` below.
+        number = 2
+      }
+
+      number = 1
+    }.call
+
+    assert.equal(number, 2)
+  }
+}
+
+test.group('std::process.pinned') do (g) {
+  g.test('Pinning a process to an OS thread') {
+    # There is no reliable way of testing whether we are truly pinned, without
+    # using some sort of FFI example that uses thread-local storage. Since that
+    # is far too much to test here, we'll just test that the block returns the
+    # proper value.
+    assert.equal(process.pinned({ 10 }), 10)
+  }
+}
+
+test.group('std::process.panic') do (g) {
+  g.test('Causing a process to panic') {
+    assert.panic {
+      process.panic('This is a panic')
+    }
+  }
+}

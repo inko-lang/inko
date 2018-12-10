@@ -96,6 +96,9 @@ object Sender!(T) {
 object Receiver!(T) {
   ## Receives a message of type `T` sent to the current process.
   ##
+  ## The returned value will be `Nil` if the supplied timeout expired before a
+  ## message was received.
+  ##
   ## # Examples
   ##
   ## Receiving a message using a `Sender` and `Receiver`:
@@ -107,8 +110,8 @@ object Receiver!(T) {
   ##
   ##     sender.send(10)
   ##     receiver.receive # => 10
-  def receive(timeout: ToFloat = 0.0) -> T {
-    ThisModule.receive(timeout.to_float) as T
+  def receive(timeout: ToFloat = 0.0) -> ?T {
+    ThisModule.receive(timeout.to_float) as ?T
   }
 }
 
@@ -169,76 +172,6 @@ def send!(T)(pid: ToInteger, message: T) -> T {
 ##     process.receive(5) # => Nil
 def receive(timeout: ToFloat = 0.0) {
   _INKOC.process_receive_message(timeout.to_float)
-}
-
-## Receives a message that matches a condition.
-##
-## The `condition` argument is a `Block` that takes a single argument, which is
-## the message to test. If the `Block` returns `True`, then the message is
-## returned by this method. If the `Block` returns `False`, the message is
-## put back into the mailbox.
-##
-## If no messages match the condition, this method will suspend the current
-## process for a brief period of time. The time the process will be suspended
-## for can be controlled using the `recheck_interval` argument. This argument
-## specifies the minimum suspension time in seconds.
-##
-## # Examples
-##
-## Receiving a message that matches our condition:
-##
-##     import std::process
-##
-##     process.send(pid: process.current, message: 20)
-##     process.send(pid: process.current, message: 10)
-##
-##     let message = process.receive_if do (message) {
-##       message == 10
-##     }
-##
-##     message # => 10
-##
-## Receiving a message with a timeout:
-##
-##     import std::process
-##
-##     process.send(pid: process.current, message: 10)
-##
-##     let message = process.receive_if(timeout: 10, condition: do (message) {
-##       message == 10
-##     })
-##
-##     message # => 10
-##
-## When supplying both the `timeout` and `condition` arguments, it is preferred
-## to specify the `timeout` argument first.
-def receive_if(
-  condition: do (Dynamic) -> Dynamic,
-  timeout: ToFloat = 0.0,
-  recheck_interval = 50,
-) {
-  let first_message = receive(timeout)
-  let mut message = first_message
-
-  {
-    condition.call(message).if_true {
-      return message
-    }
-
-    send(pid: current, message: message)
-
-    message = receive(timeout)
-
-    # It's possible none of the messages in our mailbox match the given
-    # condition. This could lead to this process being suspended and resumed
-    # many times, using a lot of CPU time.
-    #
-    # To prevent this from happening we'll manually suspend ourselves for a
-    # brief period of time once we have checked all messages in the mailbox.
-    message.equal?(first_message).if_true {
-      suspend(recheck_interval)
-    }
-  }.loop
 }
 
 ## Spawns a new process that will execute the given lambda.
@@ -375,7 +308,7 @@ def blocking!(R)(block: do -> R) -> R {
 ## Suspends the current process until it is rescheduled.
 ##
 ## The argument of this method can be used to set a minimum suspension time (in
-## seconds). If no timeout is specified the process may be rescheduled at
+## seconds). If no minimum time is specified the process may be rescheduled at
 ## any time.
 ##
 ## # Examples
@@ -391,8 +324,8 @@ def blocking!(R)(block: do -> R) -> R {
 ##     import std::process
 ##
 ##     process.suspend(5) # => Nil
-def suspend(timeout: ToFloat = 0.0) -> Nil {
-  _INKOC.process_suspend_current(timeout.to_float)
+def suspend(minimum: ToFloat = 0.0) -> Nil {
+  _INKOC.process_suspend_current(minimum.to_float)
   Nil
 }
 
@@ -412,9 +345,8 @@ def suspend(timeout: ToFloat = 0.0) -> Nil {
 ##     # This code will never run because at this point the process has been
 ##     # terminated.
 ##     stdout.print('after')
-def terminate -> Nil {
+def terminate -> Void {
   _INKOC.process_terminate_current
-  Nil
 }
 
 ## Registers the given block as this process' panic handler.

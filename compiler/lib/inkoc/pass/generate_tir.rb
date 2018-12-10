@@ -1185,6 +1185,8 @@ module Inkoc
 
       def on_raw_process_terminate_current(node, body)
         body.instruct(:ProcessTerminateCurrent, node.location)
+
+        get_nil(body, node.location)
       end
 
       def on_raw_remove_attribute(node, body)
