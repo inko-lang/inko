@@ -1087,7 +1087,7 @@ module Inkoc
       end
 
       def on_raw_get_toplevel(*)
-        typedb.top_level
+        typedb.top_level.new_instance
       end
 
       def on_raw_set_prototype(node, _)
@@ -1127,16 +1127,8 @@ module Inkoc
         typedb.boolean_type.new_instance
       end
 
-      def on_raw_object_is_kind_of(*)
-        typedb.boolean_type.new_instance
-      end
-
       def on_raw_copy_blocks(*)
         TypeSystem::Void.new
-      end
-
-      def on_raw_prototype_chain_attribute_contains(*)
-        typedb.boolean_type.new_instance
       end
 
       def on_raw_integer_to_string(*)
@@ -1438,7 +1430,7 @@ module Inkoc
       end
 
       def on_raw_get_prototype(*)
-        TypeSystem::Dynamic.new
+        typedb.object_type.new_instance
       end
 
       def on_raw_get_attribute_names(*)

@@ -94,10 +94,8 @@ module Inkoc
         IntegerSmallerOrEqual
         FloatGreaterOrEqual
         FloatSmallerOrEqual
-        ObjectIsKindOf
         CopyBlocks
         SetAttributeToObject
-        PrototypeChainAttributeContains
         FloatIsNan
         FloatIsInfinite
         FloatFloor

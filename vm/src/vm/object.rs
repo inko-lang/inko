@@ -185,33 +185,6 @@ pub fn kind_of(
     }
 }
 
-pub fn prototype_chain_attribute_contains(
-    state: &RcState,
-    obj_ptr: ObjectPointer,
-    name_ptr: ObjectPointer,
-    val_ptr: ObjectPointer,
-) -> ObjectPointer {
-    let mut source = obj_ptr;
-    let name = state.intern_pointer(name_ptr).unwrap_or_else(|_| name_ptr);
-
-    // For every object in the prototype chain (including self)
-    // we look up the target object, then we check if the value
-    // is in said object.
-    loop {
-        if let Some(obj) = source.lookup_attribute_in_self(&state, name) {
-            if obj.lookup_attribute(&state, val_ptr).is_some() {
-                return state.true_object;
-            }
-        }
-
-        if let Some(proto) = source.prototype(&state) {
-            source = proto;
-        } else {
-            return state.false_object;
-        }
-    }
-}
-
 pub fn attribute_exists(
     state: &RcState,
     source_ptr: ObjectPointer,

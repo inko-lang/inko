@@ -2,7 +2,6 @@
 import std::compare::Compare
 import std::conversion::ToArray
 import std::operators::(Equal, SmallerOrEqual)
-import std::reflection
 import std::successor::Successor
 
 ## An inclusive range of values of a fixed type.

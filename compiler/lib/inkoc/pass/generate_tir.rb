@@ -863,19 +863,11 @@ module Inkoc
         raw_binary_instruction(:ObjectEquals, node, body)
       end
 
-      def on_raw_object_is_kind_of(node, body)
-        raw_binary_instruction(:ObjectIsKindOf, node, body)
-      end
-
       def on_raw_copy_blocks(node, body)
         to = process_node(node.arguments.fetch(0), body)
         from = process_node(node.arguments.fetch(1), body)
 
         body.instruct(:CopyBlocks, to, from, node.location)
-      end
-
-      def on_raw_prototype_chain_attribute_contains(node, body)
-        raw_ternary_instruction(:PrototypeChainAttributeContains, node, body)
       end
 
       def on_raw_integer_to_string(node, body)

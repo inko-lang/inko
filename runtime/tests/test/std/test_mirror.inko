@@ -1,3 +1,5 @@
+import std::conversion::ToString
+import std::debug
 import std::fs
 import std::mirror::(
   self, BlockMirror, ModuleMirror, OBJECT_NAME_ATTRIBUTE, ObjectMirror
@@ -7,9 +9,10 @@ import std::test::assert
 
 let CURRENT_FILE = ModuleMirror.new(ThisModule).path
 
-trait DummyTrait {}
+trait Trait1 {}
+trait Trait2 {}
 
-object Dummy impl DummyTrait {
+object Dummy impl Trait1 {
   def init {
     let @name = 'Alice'
     let @age = 28
@@ -21,7 +24,7 @@ test.group('std::mirror::ObjectMirror.subject') do (g) {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
 
-    assert.equal(mirror.subject, obj)
+    assert.equal(mirror.subject as Dummy, obj)
   }
 }
 
@@ -114,17 +117,46 @@ test.group('std::mirror::ObjectMirror.instance_of?') do (g) {
 
     assert.true(mirror.instance_of?(Dummy))
     assert.false(mirror.instance_of?(String))
+    assert.false(mirror.instance_of?(Nil))
+  }
+
+  g.test('Checking if Nil is an instance of Nil') {
+    let mirror = ObjectMirror.new(Nil)
+
+    assert.false(mirror.instance_of?(Nil))
+  }
+
+  g.test('Checking if Nil is an instance of Object') {
+    let mirror = ObjectMirror.new(Nil)
+
+    assert.true(mirror.instance_of?(Object))
   }
 }
 
-test.group('std::mirror::ObjectMirror.kind_of?') do (g) {
-  g.test('Checking if an object is a kind of another object') {
+test.group('std::mirror::ObjectMirror.implements_trait?') do (g) {
+  g.test('Checking if an object implements a trait') {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
 
-    assert.true(mirror.kind_of?(Dummy))
-    assert.true(mirror.kind_of?(DummyTrait))
-    assert.false(mirror.kind_of?(String))
+    assert.true(mirror.implements_trait?(Trait1))
+    assert.false(mirror.implements_trait?(Trait2))
+  }
+
+  g.test('Checking if a parent object implements a trait') {
+    let obj1 = Dummy.new
+    let obj2 = Object.new
+    let mirror = ObjectMirror.new(obj2)
+
+    mirror.prototype = obj1
+
+    assert.true(mirror.implements_trait?(Trait1))
+  }
+
+  g.test('Checking if Nil implements a trait') {
+    let mirror = ObjectMirror.new(Nil)
+
+    assert.true(mirror.implements_trait?(ToString))
+    assert.false(mirror.implements_trait?(Trait1))
   }
 }
 
@@ -155,7 +187,6 @@ test.group('std::mirror::ObjectMirror.name') do (g) {
   g.test('Obtaining the name of a built-in object') {
     assert.equal(ObjectMirror.new(Object).name, 'Object')
     assert.equal(ObjectMirror.new(String).name, 'String')
-    assert.equal(ObjectMirror.new(Inko).name, 'Inko')
   }
 }
 
@@ -191,8 +222,9 @@ test.group('std::mirror::BlockMirror.path') do (g) {
 test.group('std::mirror::BlockMirror.line') do (g) {
   g.test('Obtaining the line number of a block') {
     let mirror = BlockMirror.new({})
+    let line = *debug.stacktrace(skip: 1, limit: 1)[0].line - 1
 
-    assert.equal(mirror.line, 193)
+    assert.equal(mirror.line, line)
   }
 }
 

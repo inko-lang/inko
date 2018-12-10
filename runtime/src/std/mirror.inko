@@ -72,7 +72,6 @@
 #! Like most reflection systems mirrors do come with some overhead. In
 #! particular a mirror has to be allocated every time you need one. As such we
 #! recommend against using reflection in performance critical code.
-import std::reflection
 import std::fs::path::Path
 
 ## The default name to use for objects that don't have an explicit name.
@@ -81,25 +80,49 @@ let DEFAULT_OBJECT_NAME = 'Object'
 ## The name of the attribute that contains the name of an object.
 let OBJECT_NAME_ATTRIBUTE = '@_object_name'
 
+## The name of the attribute that stores all the implemented traits.
+let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
+
 ## A generic mirror for a regular object.
-object ObjectMirror!(T) {
-  def init(subject: T) {
+object ObjectMirror {
+  def init(subject: Object) {
     let @subject = subject
   }
 
   ## Returns the object reflected upon.
-  def subject -> T {
+  def subject -> Object {
     @subject
   }
 
   ## Returns the prototype of the given object.
-  def prototype {
-    reflection.prototype(@subject)
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the prototype of an object:
+  ##
+  ##     import std::mirror
+  ##
+  ##     mirror.reflect_object('hello').prototype # => String
+  def prototype -> Object {
+    _INKOC.get_prototype(@subject)
   }
 
   ## Sets the prototype of an object.
+  ##
+  ## ## Examples
+  ##
+  ## Setting the prototype of an object:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let obj = Object.new
+  ##     let obj_mirror = mirror.reflect_object(obj)
+  ##
+  ##     obj_mirror.prototype          # => Object
+  ##     obj_mirror.prototype = String # => String
+  ##     obj_mirror.prototype          # => String
   def prototype=!(P)(prototype: P) -> P {
-    reflection.set_prototype(@subject, prototype)
+    _INKOC.set_prototype(@subject, prototype)
   }
 
   ## Returns the value of an attribute.
@@ -197,18 +220,74 @@ object ObjectMirror!(T) {
     instance_attributes
   }
 
-  ## Returns `True` if one object is an instance of another object.
+  ## Returns `True` if the subject is an instance of the given object.
   ##
-  ## See `std::reflection.instance_of?` for more information.
-  def instance_of?(other) -> Boolean {
-    reflection.instance_of?(@subject, other)
+  ## # Examples
+  ##
+  ## Checking if a `String` is an instance of `String`:
+  ##
+  ##     import std::mirror
+  ##
+  ##     let string_mirror = mirror.reflect_object('hello')
+  ##
+  ##     string_mirror.instance_of?(String) # => True
+  ##     string_mirror.instance_of?(Integer) # => False
+  def instance_of?(other: Object) -> Boolean {
+    let mut proto = prototype
+
+    {
+      proto.equal?(other).if_true {
+        return True
+      }
+
+      proto = _INKOC.get_prototype(proto) as Object
+
+      proto.equal?(Nil).if_true {
+        return False
+      }
+    }.loop
   }
 
-  ## Returns `True` if one object is a kind of the other object.
+  ## Returns `True` if the subject implements the given trait.
   ##
-  ## See `std::reflection.kind_of?` for more information.
-  def kind_of?(other) -> Boolean {
-    reflection.kind_of?(@subject, other)
+  ## # Examples
+  ##
+  ## Checking if an object implements a trait:
+  ##
+  ##     import std::mirror
+  ##
+  ##     trait Trait1 {}
+  ##     trait Trait2 {}
+  ##
+  ##     object ExampleObject impl Trait1 {}
+  ##
+  ##     let mirror = mirror.reflect_object(ExampleObject.new)
+  ##
+  ##     mirror.implements_trait?(Trait1) # => True
+  ##     mirror.implements_trait?(Trait2) # => False
+  def implements_trait?(find: Trait) -> Boolean {
+    let mut subject = @subject
+
+    {
+      let traits = _INKOC.get_attribute(@subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
+
+      traits.if_true {
+        _INKOC.get_attribute(traits, find).if_true {
+          return True
+        }
+      }
+
+      subject = _INKOC.get_prototype(subject) as Object
+
+      # If an object does not have a prototype (e.g. Object), Nil will be
+      # returned. Since we don't know the difference between "has no prototype"
+      # and "the prototype is Nil", we will just bail out once we hit Nil as the
+      # prototype. This works fine for Nil itself, because there is only a
+      # single instance of it.
+      subject.equal?(Nil).if_true {
+        return False
+      }
+    }.loop
   }
 
   ## Returns the name of an object.
@@ -362,7 +441,7 @@ object ModuleMirror {
 }
 
 ## Returns a regular mirror for the given object.
-def reflect_object!(T)(subject: T) -> ObjectMirror!(T) {
+def reflect_object(subject: Object) -> ObjectMirror {
   ObjectMirror.new(subject)
 }
 

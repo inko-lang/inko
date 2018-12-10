@@ -990,28 +990,6 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
-                InstructionType::ObjectIsKindOf => {
-                    let reg = instruction.arg(0);
-                    let comp = context.get_register(instruction.arg(1));
-                    let comp_with = context.get_register(instruction.arg(2));
-                    let res = object::kind_of(&self.state, comp, comp_with);
-
-                    context.set_register(reg, res);
-                }
-                InstructionType::PrototypeChainAttributeContains => {
-                    let reg = instruction.arg(0);
-                    let obj = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-                    let val = context.get_register(instruction.arg(3));
-                    let res = object::prototype_chain_attribute_contains(
-                        &self.state,
-                        obj,
-                        name,
-                        val,
-                    );
-
-                    context.set_register(reg, res);
-                }
                 InstructionType::GetToplevel => {
                     context
                         .set_register(instruction.arg(0), self.state.top_level);

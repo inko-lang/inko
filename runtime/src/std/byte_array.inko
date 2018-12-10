@@ -15,7 +15,6 @@ import std::index::(Index, SetIndex)
 import std::iterator::(Iterator as IteratorTrait)
 import std::length::Length
 import std::operators::Equal
-import std::reflection
 
 ## A mutable sequence of bytes, similar to an `Array`.
 let ByteArray = _INKOC.get_byte_array_prototype
@@ -42,11 +41,7 @@ impl ByteArray {
   ##
   ##     ByteArray.new([10, 20, 30])
   def new(bytes: Array!(Integer) = []) -> Self {
-    let byte_array = _INKOC.byte_array_from_array(bytes)
-
-    reflection.set_prototype(byte_array, self)
-
-    byte_array as ByteArray
+    _INKOC.byte_array_from_array(bytes) as ByteArray
   }
 
   ## Removes all values from this `ByteArray`.
@@ -365,11 +360,7 @@ impl Inspect for ByteArray {
 impl String {
   ## Returns a `ByteArray` containing the bytes of this `String`.
   def to_byte_array -> ByteArray {
-    let bytes = _INKOC.string_to_byte_array(self)
-
-    reflection.set_prototype(bytes, ByteArray)
-
-    bytes as ByteArray
+    _INKOC.string_to_byte_array(self) as ByteArray
   }
 }
 

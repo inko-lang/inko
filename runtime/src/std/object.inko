@@ -6,6 +6,9 @@ impl Object {
   ##
   ## Two objects are considered identical if they reside at the exact same
   ## memory address. This is also known as referential equality.
+  ##
+  ## This method should not be redefined by other objects, as doing so can break
+  ## various parts of the Inko runtime.
   def equal?(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }

@@ -5,7 +5,8 @@ impl Trait {
   ##
   ## Implementing a trait will result in all the trait's methods being copied
   ## over to the given object. Once copied the trait is tracked in an internal
-  ## object so methods such as `std::reflection.kind_of?` can make use of it.
+  ## object so modules such as `std::mirror` can reflect upon this data during
+  ## runtime.
   ##
   ## This method is not really meant for general use, instead it's called by the
   ## compiler whenever implementing a trait using the `impl` keyword.

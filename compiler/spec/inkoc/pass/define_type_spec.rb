@@ -2797,7 +2797,7 @@ describe Inkoc::Pass::DefineType do
     it 'returns the top-level type' do
       type = expression_type('_INKOC.get_toplevel')
 
-      expect(type).to eq(state.typedb.top_level)
+      expect(type).to be_type_instance_of(state.typedb.top_level)
     end
   end
 
