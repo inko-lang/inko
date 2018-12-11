@@ -415,27 +415,6 @@ object SystemTime impl
     ThisModule.from_utc_timestamp(to_float)
   }
 
-  ## Converts the `SystemTime` to a `String` in the given format.
-  ##
-  ## The format `String` uses the same syntax as the
-  ## [`strftime()`](http://man7.org/linux/man-pages/man3/strftime.3.html)
-  ## function from the C standard library.
-  ##
-  ## # Panics
-  ##
-  ## This method will panic if the format `String` is invalid.
-  ##
-  ## # Examples
-  ##
-  ## Formatting a `SystemTime`:
-  ##
-  ##     import std::time
-  ##
-  ##     time.now.format('%Y-%m-%d') # => '2018-02-17'
-  def format(pattern: String) -> String {
-    'SystemTime.format is currently disabled'
-  }
-
   ## Returns the timestamp since the Unix epoch.
   def to_integer -> Integer {
     seconds_since_epoch
@@ -802,44 +781,6 @@ def utc -> SystemTime {
 ##     time.monotonic
 def monotonic -> MonotonicTime {
   MonotonicTime.new
-}
-
-## Parses a `String` into a `SystemTime` object.
-##
-## This method will parse the `input` argument into a `SystemTime` object using
-## the format defined in the `format` argument.
-##
-## The `format` argument is always required. This removes the need for this
-## method having to guess what the format is, which it may not always be able to
-## determine correctly.
-##
-## # Errors
-##
-## This method will throw if the input `String` does not match the given
-## pattern.
-##
-## # Examples
-##
-## Parsing a `String`:
-##
-##     import std::time
-##
-##     try! time.parse('2018-02-17', '%Y-%m-%d')
-##
-## Parsing an invalid input `String`:
-##
-##     import std::time
-##
-##     let parsed = try {
-##       time.parse('2018', '%Y-%m-%d')
-##     } else (error) {
-##       time.parse('2018', '%Y')
-##     }
-##
-##     parsed.year  # => 2018
-##     parsed.month # => 1
-def parse(input: String, format: String) !! ParseError {
-  throw ParseError.new('This method is currently disabled')
 }
 
 ## Returns a new `SystemTime` from a Unix timestamp.
