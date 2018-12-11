@@ -1,53 +1,78 @@
 import std::env
 import std::test
+import std::process
 import std::test::assert
 
-env['INKO_VALID'] = 'foo'
+def temporary_environment_variable!(R)(block: do (String) -> R) -> R {
+  let name = 'INKO_ENV_' + process.current.to_string
+
+  process.defer {
+    env.remove(name)
+  }
+
+  block.call(name)
+}
 
 test.group('std::env.[]') do (g) {
   g.test('Obtaining the value of an existing environment variable') {
-    assert.equal(env['INKO_VALID'], 'foo')
+    temporary_environment_variable do (name) {
+      env[name] = 'foo'
+
+      assert.equal(env[name], 'foo')
+    }
   }
 
   g.test('Obtaining the value of a non-existing environment variable') {
-    assert.equal(env['INKO_INVALID'], Nil)
+    temporary_environment_variable do (name) {
+      assert.equal(env[name], Nil)
+    }
   }
 }
 
 test.group('std::env.[]=') do (g) {
   g.test('Setting the value of an environment variable') {
-    env['INKO_TEST_ENV_SET'] = 'foo'
+    temporary_environment_variable do (name) {
+      env[name] = 'foo'
 
-    assert.equal(env['INKO_TEST_ENV_SET'], 'foo')
+      assert.equal(env[name], 'foo')
 
-    env['INKO_TEST_ENV_SET'] = 'bar'
+      env[name] = 'bar'
 
-    assert.equal(env['INKO_TEST_ENV_SET'], 'bar')
+      assert.equal(env[name], 'bar')
+    }
   }
 }
 
 test.group('std::env.remove') do (g) {
   g.test('Removing an existing environment variable') {
-    env['INKO_TO_REMOVE'] = 'foo'
+    temporary_environment_variable do (name) {
+      env[name] = 'foo'
 
-    env.remove('INKO_TO_REMOVE')
+      env.remove(name)
 
-    assert.equal(env['INKO_TO_REMOVE'], Nil)
+      assert.equal(env[name], Nil)
+    }
   }
 
   g.test('Removing a non-existing environment variable') {
-    env.remove('INKO_TO_REMOVE')
+    temporary_environment_variable do (name) {
+      env.remove(name)
 
-    assert.equal(env['INKO_TO_REMOVE'], Nil)
+      assert.equal(env[name], Nil)
+    }
   }
 }
 
 test.group('std::env.variables') do (g) {
   g.test('Obtaining all environment variables and their values') {
-    let vars = env.variables
+    temporary_environment_variable do (name) {
+      env[name] = 'foo'
 
-    assert.false(vars.empty?)
-    assert.equal(vars['INKO_VALID'], 'foo')
+      let vars = env.variables
+
+      assert.false(vars.empty?)
+      assert.equal(vars[name], 'foo')
+    }
   }
 }
 
