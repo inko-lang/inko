@@ -1,9 +1,14 @@
 //! VM functions for working with Inko strings.
+use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
 use object_value;
 use process::RcProcess;
 use slicing;
 use vm::state::RcState;
+
+/// The result of a string conversion. The OK value is the value converted to,
+/// the Err value is an error message to thrown in the VM.
+type ConversionResult = Result<ObjectPointer, String>;
 
 pub fn to_lower(
     state: &RcState,
@@ -150,4 +155,50 @@ pub fn format_debug(
     let new_str = format!("{:?}", str_ptr.string_value()?);
 
     Ok(process.allocate(object_value::string(new_str), state.string_prototype))
+}
+
+/// Converts a string to an integer.
+pub fn to_integer(
+    state: &RcState,
+    process: &RcProcess,
+    str_ptr: ObjectPointer,
+    radix_ptr: ObjectPointer,
+) -> Result<ConversionResult, String> {
+    let string = str_ptr.string_value()?;
+    let radix = radix_ptr.integer_value()?;
+
+    if radix < 2 || radix > 36 {
+        return Err("radix must be between 2 and 32, not {}".to_string());
+    }
+
+    let int_ptr = if let Ok(value) = i64::from_str_radix(string, radix as u32) {
+        process.allocate_i64(value, state.integer_prototype)
+    } else if let Ok(val) = string.parse::<BigInt>() {
+        process.allocate(object_value::bigint(val), state.integer_prototype)
+    } else {
+        return Ok(Err(format!(
+            "{:?} can not be converted to an Integer",
+            string
+        )));
+    };
+
+    Ok(Ok(int_ptr))
+}
+
+/// Converts a string to a float.
+pub fn to_float(
+    state: &RcState,
+    process: &RcProcess,
+    str_ptr: ObjectPointer,
+) -> Result<ConversionResult, String> {
+    let string = str_ptr.string_value()?;
+
+    if let Ok(value) = string.parse::<f64>() {
+        let pointer =
+            process.allocate(object_value::float(value), state.float_prototype);
+
+        Ok(Ok(pointer))
+    } else {
+        Ok(Err(format!("{:?} can not be converted to a Float", string)))
+    }
 }

@@ -1699,6 +1699,29 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
+                InstructionType::StringToInteger => {
+                    let reg = instruction.arg(0);
+                    let val = context.get_register(instruction.arg(1));
+                    let rdx = context.get_register(instruction.arg(2));
+
+                    match string::to_integer(&self.state, process, val, rdx)? {
+                        Ok(value) => context.set_register(reg, value),
+                        Err(err) => throw_error_message!(
+                            self, process, err, context, index
+                        ),
+                    };
+                }
+                InstructionType::StringToFloat => {
+                    let reg = instruction.arg(0);
+                    let val = context.get_register(instruction.arg(1));
+
+                    match string::to_float(&self.state, process, val)? {
+                        Ok(value) => context.set_register(reg, value),
+                        Err(err) => throw_error_message!(
+                            self, process, err, context, index
+                        ),
+                    };
+                }
             };
         }
 

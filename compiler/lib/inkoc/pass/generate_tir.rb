@@ -1488,6 +1488,14 @@ module Inkoc
         raw_unary_instruction(:ForeignTypeAlignment, node, body)
       end
 
+      def on_raw_string_to_integer(node, body)
+        raw_binary_instruction(:StringToInteger, node, body)
+      end
+
+      def on_raw_string_to_float(node, body)
+        raw_unary_instruction(:StringToFloat, node, body)
+      end
+
       def on_return(node, body)
         location = node.location
         register =

@@ -161,6 +161,8 @@ pub enum InstructionType {
     PointerAddress,
     ForeignTypeSize,
     ForeignTypeAlignment,
+    StringToInteger,
+    StringToFloat,
 }
 
 /// Struct for storing information about a single instruction.

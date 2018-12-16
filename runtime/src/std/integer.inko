@@ -2,10 +2,58 @@
 
 import std::compare::Compare
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::error::StandardError
 import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
 import std::successor::Successor
+
+impl Integer {
+  ## Parses an `Integer` from a `String` in a given base.
+  ##
+  ## # Error handling
+  ##
+  ## This method will panic if `radix` is not between `2` and `36`. If the input
+  ## `String` is invalid, an error will be thrown instead.
+  ##
+  ## # Format
+  ##
+  ## The `String` is expected to start with an optional `+` or `-` sign,
+  ## followed by one or more digits. Digits are a subset of the following
+  ## ranges, depending on the value of the `radix` argument:
+  ##
+  ## * 0-9
+  ## * a-z
+  ## * A-Z
+  ##
+  ## Leading and/or trailing whitespace is considered to be invalid, and will
+  ## result in an error being thrown.
+  ##
+  ## # Examples
+  ##
+  ## Parsing a `String` into a base 2 `Integer`:
+  ##
+  ##     try! Integer.from_string('11', 2) # => 3
+  ##
+  ## Parsing a `String` into a base 8 `Integer`:
+  ##
+  ##     try! Integer.from_string('0o52', 8) # => 42
+  ##
+  ## Parsing a `String` into a base 10 `Integer`:
+  ##
+  ##     try! Integer.from_string('10') # => 10
+  ##
+  ## Parsing a `String` into a base 16 `Integer`:
+  ##
+  ##     try! Integer.from_string('F', 16) # => 15
+  def from_string(string: String, radix = 10) !! StandardError -> Integer {
+    try {
+      _INKOC.string_to_integer(string, radix)
+    } else (error) {
+      throw StandardError.new(error as String)
+    }
+  }
+}
 
 impl ToInteger for Integer {
   def to_integer -> Integer {

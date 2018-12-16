@@ -93,3 +93,25 @@ test.group('std::string::String.to_path') do (g) {
     assert.equal('foo.inko'.to_path, Path.new('foo.inko'))
   }
 }
+
+test.group('std::string::String.to_integer') do (g) {
+  g.test('Converting a String to an Integer') {
+    assert.equal('10'.to_integer, 10)
+    assert.equal('-5'.to_integer, -5)
+  }
+
+  g.test('Converting an invalid String to an Integer') {
+    assert.equal('foo'.to_integer, 0)
+  }
+}
+
+test.group('std::string::String.to_float') do (g) {
+  g.test('Converting a String to a Float') {
+    assert.equal('10.5'.to_float, 10.5)
+    assert.equal('-5.0'.to_float, -5.0)
+  }
+
+  g.test('Converting an invalid String to an Integer') {
+    assert.equal('foo'.to_float, 0.0)
+  }
+}

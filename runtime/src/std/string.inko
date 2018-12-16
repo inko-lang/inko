@@ -3,7 +3,7 @@
 #! Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
 #! UTF-8.
 
-import std::conversion::ToString
+import std::conversion::(ToFloat, ToInteger, ToString)
 import std::hash::(Hasher, Hash)
 import std::length::Length
 import std::operators::(Equal, Add)
@@ -131,6 +131,40 @@ impl ToString for String {
   ##     'hello'.to_string # => 'hello'
   def to_string -> String {
     self
+  }
+}
+
+impl ToInteger for String {
+  ## Converts `self` to an `Integer`.
+  ##
+  ## The string is parsed in base 10. If the `String` can not be converted to
+  ## an `Integer`, `0` is returned instead.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` to an `Integer`:
+  ##
+  ##     '10'.to_integer # => 10
+  ##     'a'.to_integer  # => 0
+  def to_integer -> Integer {
+    try Integer.from_string(self, 10) else (_) 0
+  }
+}
+
+impl ToFloat for String {
+  ## Converts `self` to a `Float`.
+  ##
+  ## If the `String` can not be converted to a `Float`, `0.0` is returned
+  ## instead.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `String` to a `Float`:
+  ##
+  ##     '10.5'.to_float # => 10.5
+  ##     'a'.to_float    # => 0.0
+  def to_float -> Float {
+    try Float.from_string(self) else (_) 0.0
   }
 }
 

@@ -4,9 +4,13 @@
 
 import std::compare::Compare
 import std::conversion::(ToInteger, ToString, ToFloat)
+import std::error::StandardError
 import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
+
+let INFINITY_LABEL = 'Infinity'
+let NEGATIVE_INFINITY_LABEL = '-Infinity'
 
 impl Add!(Self) for Float {
   def +(other: Self) -> Self {
@@ -109,6 +113,45 @@ impl Numeric for Float {
 }
 
 impl Float {
+  ## Parses a `Float` from a `String`.
+  ##
+  ## # Error handling
+  ##
+  ## This method will throw if the input `String` is not in the right format.
+  ##
+  ## # Format
+  ##
+  ## The input `String` is expected to be in base 10. Leading and/or trailing
+  ## whitespace is considered to be invalid, and will result in an error being
+  ## thrown.
+  ##
+  ## # Examples
+  ##
+  ## Parsing a `Float` from a `String`:
+  ##
+  ##     try! Float.from_string('10.5') # => 10.5
+  ##
+  ## Parsing a `Float` with an exponent:
+  ##
+  ##     try! Float.from_string('1.2e1') # => 12.0
+  def from_string(string: String) !! StandardError -> Float {
+    string == INFINITY_LABEL
+      .if_true {
+        return INFINITY
+      }
+
+    string == NEGATIVE_INFINITY_LABEL
+      .if_true {
+        return NEGATIVE_INFINITY
+      }
+
+    try {
+      _INKOC.string_to_float(string)
+    } else (error) {
+      throw StandardError.new(error as String)
+    }
+  }
+
   ## Returns `True` if `self` is not a number (NAN).
   ##
   ## # Examples
@@ -282,12 +325,11 @@ impl ToString for Float {
   ##
   ##     INFINITY.to_string # => 'INFINITY'
   def to_string -> String {
-
     infinite?.if_true {
       positive?.if true: {
-        return 'Infinity'
+        return INFINITY_LABEL
       }, false: {
-        return '-Infinity'
+        return NEGATIVE_INFINITY_LABEL
       }
     }
 

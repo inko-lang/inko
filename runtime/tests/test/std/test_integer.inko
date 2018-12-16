@@ -217,3 +217,62 @@ test.group('std::integer::Integer.successor') do (g) {
     assert.equal(-2.successor, -1)
   }
 }
+
+test.group('std::integer::Integer.from_string') do (g) {
+  g.test('Parsing a base 2 Integer') {
+    assert.equal(try! Integer.from_string(string: '11', radix: 2), 3)
+  }
+
+  g.test('Parsing an Integer with leading whitespace') {
+    assert.panic {
+      try! Integer.from_string(' 1')
+    }
+  }
+
+  g.test('Parsing an Integer with trailing whitespace') {
+    assert.panic {
+      try! Integer.from_string('1 ')
+    }
+  }
+
+  g.test('Parsing a base 8 Integer') {
+    assert.equal(try! Integer.from_string(string: '52', radix: 8), 42)
+  }
+
+  g.test('Parsing a base 10 Integer') {
+    assert.equal(try! Integer.from_string(string: '12', radix: 10), 12)
+  }
+
+  g.test('Parsing a base 12 Integer') {
+    assert.equal(try! Integer.from_string(string: '10', radix: 12), 12)
+  }
+
+  g.test('Parsing a base 16 Integer') {
+    assert.equal(try! Integer.from_string(string: 'F', radix: 16), 15)
+  }
+
+  g.test('Parsing a base 20 Integer') {
+    assert.equal(try! Integer.from_string(string: 'H', radix: 20), 17)
+  }
+
+  g.test('Parsing a negative base 10 Integer') {
+    assert.equal(try! Integer.from_string(string: '-5', radix: 10), -5)
+  }
+
+  g.test('Parsing an invalid Integer') {
+    assert.panic {
+      try! Integer.from_string(string: 'Z', radix: 16)
+    }
+  }
+
+  g.test('Parsing a large base 10 Integer') {
+    let integer = try! Integer.from_string(
+      '123456789123456789123456789123456789123456789123456789123456789123456789123456789'
+    )
+
+    assert.equal(
+      integer,
+      123456789123456789123456789123456789123456789123456789123456789123456789123456789
+    )
+  }
+}

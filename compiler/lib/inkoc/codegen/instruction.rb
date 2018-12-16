@@ -163,6 +163,8 @@ module Inkoc
         PointerAddress
         ForeignTypeSize
         ForeignTypeAlignment
+        StringToInteger
+        StringToFloat
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }
