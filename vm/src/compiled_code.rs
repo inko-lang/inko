@@ -168,6 +168,7 @@ mod tests {
     use super::*;
     use config::Config;
     use object_pointer::ObjectPointer;
+    use std::mem;
     use vm::instruction::{Instruction, InstructionType};
     use vm::state::{RcState, State};
 
@@ -274,5 +275,10 @@ mod tests {
         code.arguments = vec![arg];
 
         assert_eq!(code.number_of_arguments_to_set(2), (true, 0));
+    }
+
+    #[test]
+    fn test_compiled_code_size() {
+        assert_eq!(mem::size_of::<CompiledCode>(), 152);
     }
 }

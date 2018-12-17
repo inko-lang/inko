@@ -56,14 +56,38 @@ macro_rules! read_instruction_vector {
     };
 }
 
+/// The bytes that every bytecode file must start with.
 const SIGNATURE_BYTES: [u8; 4] = [105, 110, 107, 111]; // "inko"
 
+/// The current version of the bytecode format.
 const VERSION: u8 = 2;
 
+/// The tag that marks the start of an integer literal.
 const LITERAL_INTEGER: u8 = 0;
+
+/// The tag that marks the start of a float literal.
 const LITERAL_FLOAT: u8 = 1;
+
+/// The tag that marks the start of a string literal.
 const LITERAL_STRING: u8 = 2;
+
+/// The tag that marks the start of a big integer literal.
 const LITERAL_BIGINT: u8 = 3;
+
+/// The maximum size of vector literals, in bytes.
+const VECTOR_LITERAL_SIZE_LIMIT: u64 = 100 * (1024 * 1024);
+
+/// The maximum number of CompiledCode objects per bytecode file.
+const COMPILED_CODE_LIMIT: u64 =
+    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<CompiledCode>() as u64;
+
+/// The maximum number of object literals that can reside in a single vector.
+const OBJECT_LITERALS_LIMIT: u64 =
+    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<ObjectPointer>() as u64;
+
+/// The maximum number of CatchEntry values in a single CatchTable.
+const CATCH_ENTRIES_LIMIT: u64 =
+    VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<CatchEntry>() as u64;
 
 #[derive(Debug)]
 pub enum ParserError {
@@ -79,6 +103,7 @@ pub enum ParserError {
     InvalidLiteralType(u8),
     MissingReturnInstruction(String, u16),
     MissingInstructions(String, u16),
+    SizeTooLarge,
 }
 
 pub type ParserResult<T> = Result<T, ParserError>;
@@ -125,7 +150,7 @@ pub fn parse<T: Read>(state: &RcState, bytes: &mut Bytes<T>) -> BytecodeResult {
 }
 
 fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
-    let size = read_u64(bytes)?;
+    let size = read_u64_with_limit(bytes, VECTOR_LITERAL_SIZE_LIMIT)?;
     let mut buff: Vec<u8> = Vec::with_capacity(size as usize);
 
     for _ in 0..size {
@@ -139,7 +164,7 @@ fn read_string<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<String> {
 }
 
 fn read_byte_array<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<Vec<u8>> {
-    let size = read_u64(bytes)?;
+    let size = read_u64_with_limit(bytes, VECTOR_LITERAL_SIZE_LIMIT)?;
     let mut buff: Vec<u8> = Vec::with_capacity(size as usize);
 
     for _ in 0..size {
@@ -201,8 +226,17 @@ fn read_i64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<i64> {
     Ok(i64::from_be(value))
 }
 
-fn read_u64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<u64> {
-    Ok(read_i64(bytes)? as u64)
+fn read_u64_with_limit<T: Read>(
+    bytes: &mut Bytes<T>,
+    limit: u64,
+) -> ParserResult<u64> {
+    let value = read_i64(bytes)? as u64;
+
+    if value <= limit {
+        Ok(value)
+    } else {
+        Err(ParserError::SizeTooLarge)
+    }
 }
 
 fn read_f64<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<f64> {
@@ -221,7 +255,8 @@ fn read_vector<V, T: Read>(
     bytes: &mut Bytes<T>,
     reader: fn(&mut Bytes<T>) -> ParserResult<V>,
 ) -> ParserResult<Vec<V>> {
-    let amount = read_u64(bytes)? as usize;
+    let limit = VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<V>() as u64;
+    let amount = read_u64_with_limit(bytes, limit)? as usize;
     let mut buff: Vec<V> = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -235,7 +270,7 @@ fn read_code_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<CompiledCode>> {
-    let amount = read_u64(bytes)? as usize;
+    let amount = read_u64_with_limit(bytes, COMPILED_CODE_LIMIT)? as usize;
     let mut buff = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -312,7 +347,7 @@ fn read_literals_vector<T: Read>(
     state: &RcState,
     bytes: &mut Bytes<T>,
 ) -> ParserResult<Vec<ObjectPointer>> {
-    let amount = read_u64(bytes)?;
+    let amount = read_u64_with_limit(bytes, OBJECT_LITERALS_LIMIT)?;
     let mut buff = Vec::with_capacity(amount as usize);
 
     for _ in 0..amount {
@@ -358,7 +393,7 @@ fn read_literal<T: Read>(
 }
 
 fn read_catch_table<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchTable> {
-    let amount = read_u64(bytes)? as usize;
+    let amount = read_u64_with_limit(bytes, CATCH_ENTRIES_LIMIT)? as usize;
     let mut entries = Vec::with_capacity(amount);
 
     for _ in 0..amount {
@@ -382,6 +417,7 @@ mod tests {
     use super::*;
     use config::Config;
     use std::mem;
+    use std::u64;
     use vm::instruction::InstructionType;
     use vm::state::{RcState, State};
 
@@ -537,6 +573,17 @@ mod tests {
     }
 
     #[test]
+    fn test_read_string_too_large() {
+        let mut buffer = Vec::new();
+
+        pack_u64!(u64::MAX, buffer);
+
+        let output = read_string(&mut buffer.bytes());
+
+        assert!(output.is_err());
+    }
+
+    #[test]
     fn test_read_byte_array() {
         let mut buffer = Vec::new();
 
@@ -545,6 +592,17 @@ mod tests {
         let output = unwrap!(read!(read_byte_array, buffer));
 
         assert_eq!(output, vec![105, 110, 107, 111]);
+    }
+
+    #[test]
+    fn test_read_byte_array_too_large() {
+        let mut buffer = Vec::new();
+
+        pack_u64!(u64::MAX, buffer);
+
+        let output = read_byte_array(&mut buffer.bytes());
+
+        assert!(output.is_err());
     }
 
     #[test]
@@ -636,14 +694,26 @@ mod tests {
     }
 
     #[test]
-    fn test_read_u64() {
+    fn test_read_u64_with_limit() {
         let mut buffer = Vec::new();
 
         pack_u64!(2, buffer);
 
-        let output = unwrap!(read!(read_u64, buffer));
+        let output = read_u64_with_limit(&mut buffer.bytes(), 2);
 
-        assert_eq!(output, 2);
+        assert!(output.is_ok());
+        assert_eq!(output.unwrap(), 2);
+    }
+
+    #[test]
+    fn test_read_u64_with_limit_exceeded() {
+        let mut buffer = Vec::new();
+
+        pack_u64!(2, buffer);
+
+        let output = read_u64_with_limit(&mut buffer.bytes(), 1);
+
+        assert!(output.is_err());
     }
 
     #[test]
@@ -680,6 +750,18 @@ mod tests {
         assert_eq!(output.len(), 2);
         assert_eq!(output[0], "hello".to_string());
         assert_eq!(output[1], "world".to_string());
+    }
+
+    #[test]
+    fn test_read_vector_too_large() {
+        let mut buffer = Vec::new();
+
+        pack_u64!(u64::MAX, buffer);
+
+        let output =
+            read_vector::<String, &[u8]>(&mut buffer.bytes(), read_string);
+
+        assert!(output.is_err());
     }
 
     #[test]
