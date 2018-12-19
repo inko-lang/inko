@@ -32,5 +32,6 @@ import test::std::test_process
 import test::std::test_range
 import test::std::test_string
 import test::std::test_string_buffer
+import test::std::test_trait
 
 test.run

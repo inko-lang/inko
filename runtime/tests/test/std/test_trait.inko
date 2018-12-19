@@ -1,0 +1,34 @@
+import std::mirror
+import std::test
+import std::test::assert
+import std::trait::(self as trait_mod)
+
+trait Example {
+  def pass(number: Integer) -> Integer {
+    number
+  }
+}
+
+test.group('std::trait.implement') do (g) {
+  g.test('Copying the default methods of a Trait to the Object') {
+    let obj = Object.new
+    let obj_mirror = mirror.reflect_object(obj)
+
+    trait_mod.implement(implement_for: obj, to_implement: Example)
+
+    let method_impl = obj_mirror.get_attribute('pass') as Block
+    let method_exp =
+      mirror.reflect_object(Example).get_attribute('pass') as Block
+
+    assert.equal(method_impl, method_exp)
+  }
+
+  g.test('Tracking the implemented trait') {
+    let obj = Object.new
+    let obj_mirror = mirror.reflect_object(obj)
+
+    trait_mod.implement(implement_for: obj, to_implement: Example)
+
+    assert.equal(obj_mirror.implemented_traits, [Example])
+  }
+}

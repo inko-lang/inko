@@ -1,5 +1,8 @@
 #! Methods for `Trait` that should be available before defining other types.
 
+## The name of the attribute that stores all the implemented traits.
+let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
+
 ## Implements a `Trait` for an `Object`.
 ##
 ## Implementing a trait will result in all the trait's methods being copied over
@@ -32,7 +35,7 @@ def implement(implement_for: Object, to_implement: Trait) -> Trait {
   # This will look up `@_implemented_traits` if it exists, or create it (then
   # return it) if it does not.
   let mut traits =
-    _INKOC.set_attribute_to_object(implement_for, '@_implemented_traits')
+    _INKOC.set_attribute_to_object(implement_for, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
   _INKOC.copy_blocks(implement_for, to_implement)
 

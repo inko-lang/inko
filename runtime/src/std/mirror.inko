@@ -73,15 +73,13 @@
 #! particular a mirror has to be allocated every time you need one. As such we
 #! recommend against using reflection in performance critical code.
 import std::fs::path::Path
+import std::trait::IMPLEMENTED_TRAITS_ATTRIBUTE
 
 ## The default name to use for objects that don't have an explicit name.
 let DEFAULT_OBJECT_NAME = 'Object'
 
 ## The name of the attribute that contains the name of an object.
 let OBJECT_NAME_ATTRIBUTE = '@_object_name'
-
-## The name of the attribute that stores all the implemented traits.
-let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
 
 ## A generic mirror for a regular object.
 object ObjectMirror {
@@ -312,6 +310,32 @@ object ObjectMirror {
       *name
     }, false: {
       DEFAULT_OBJECT_NAME
+    }
+  }
+
+  ## Returns the traits implemented by the subject.
+  ##
+  ## # Examples
+  ##
+  ## Obtaining the implemented traits of an object:
+  ##
+  ##     import std::conversion::ToString
+  ##     import std::mirror
+  ##
+  ##     object Person impl ToString {
+  ##       def to_string -> String {
+  ##         'Alice'
+  ##       }
+  ##     }
+  ##
+  ##     mirror.reflect_object(Person).implemented_traits # => [ToString]
+  def implemented_traits -> Array!(Trait) {
+    let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Object
+
+    impl_set.if true: {
+      _INKOC.get_attribute_names(impl_set) as Dynamic as Array!(Trait)
+    }, false: {
+      []
     }
   }
 }

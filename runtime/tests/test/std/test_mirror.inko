@@ -190,6 +190,20 @@ test.group('std::mirror::ObjectMirror.name') do (g) {
   }
 }
 
+test.group('std::mirror::ObjectMirror.implemented_traits') do (g) {
+  g.test('Obtaining the traits implemented by an object') {
+    let traits = ObjectMirror.new(Dummy).implemented_traits
+
+    assert.equal(traits, [Trait1])
+  }
+
+  g.test('Obtaining the traits implemented by an object instance') {
+    let traits = ObjectMirror.new(Dummy.new).implemented_traits
+
+    assert.equal(traits, [Trait1])
+  }
+}
+
 test.group('std::mirror::BlockMirror.name') do (g) {
   g.test('Obtaining the name of a closure') {
     let mirror = BlockMirror.new({})
