@@ -267,7 +267,7 @@ object ObjectMirror {
     let mut subject = @subject
 
     {
-      let traits = _INKOC.get_attribute(@subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
+      let traits = _INKOC.get_attribute(subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
       traits.if_true {
         _INKOC.get_attribute(traits, find).if_true {

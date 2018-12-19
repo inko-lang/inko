@@ -6,6 +6,7 @@ import std::mirror::(
 )
 import std::test
 import std::test::assert
+import std::trait::(self as trait_mod)
 
 let CURRENT_FILE = ModuleMirror.new(ThisModule).path
 
@@ -150,6 +151,17 @@ test.group('std::mirror::ObjectMirror.implements_trait?') do (g) {
     mirror.prototype = obj1
 
     assert.true(mirror.implements_trait?(Trait1))
+  }
+
+  g.test('Checking if a parent implements a trait for a child with custom implementations') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    trait_mod.implement(implement_for: obj, to_implement: Trait2)
+
+    assert.true(mirror.implements_trait?(Trait1))
+    assert.true(mirror.implements_trait?(Trait2))
+    assert.false(ObjectMirror.new(Dummy).implements_trait?(Trait2))
   }
 
   g.test('Checking if Nil implements a trait') {
