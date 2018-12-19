@@ -11,9 +11,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use deref_pointer::DerefPointer;
-use immix::bitmap::{Bitmap, LineMap, ObjectMap};
 use immix::block_list::BlockIteratorMut;
 use immix::bucket::Bucket;
+use immix::bytemap::{Bytemap, LineMap, ObjectMap};
 use object::Object;
 use object_pointer::RawObjectPointer;
 
@@ -636,8 +636,8 @@ impl Drop for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::bitmap::Bitmap;
     use immix::bucket::Bucket;
+    use immix::bytemap::Bytemap;
     use object::Object;
     use object_value::ObjectValue;
     use std::mem;

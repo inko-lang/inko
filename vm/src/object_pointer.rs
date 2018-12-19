@@ -22,9 +22,9 @@ use binding::RcBinding;
 use block::Block;
 use ffi::{Pointer, RcFunction, RcLibrary};
 use hasher::Hasher;
-use immix::bitmap::Bitmap;
 use immix::block;
 use immix::bucket::{MAILBOX, MATURE, PERMANENT};
+use immix::bytemap::Bytemap;
 use immix::local_allocator::YOUNG_MAX_AGE;
 use immutable_string::ImmutableString;
 use object::{Object, ObjectStatus, FORWARDED_BIT};
@@ -672,9 +672,9 @@ mod tests {
     use std::i128;
 
     use config::Config;
-    use immix::bitmap::Bitmap;
     use immix::block::Block;
     use immix::bucket::{Bucket, MAILBOX, MATURE, PERMANENT};
+    use immix::bytemap::Bytemap;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
     use object::{Object, ObjectStatus};

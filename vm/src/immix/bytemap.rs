@@ -1,9 +1,9 @@
-//! Object And Line Bitmaps
+//! Object And Line Bytemaps
 //!
-//! Bitmaps are used for marking live objects as well as marking which lines are
-//! in use. An ObjectMap is used for marking objects and can hold at most 1024
-//! entries while a LineMap is used for marking lines and can hold at most 256
-//! entries.
+//! Bytemaps are used for marking live objects as well as marking which lines
+//! are in use. An ObjectMap is used for marking objects and can hold at most
+//! 1024 entries while a LineMap is used for marking lines and can hold at most
+//! 256 entries.
 
 /// The number of entries in an object map.
 const OBJECT_ENTRIES: usize = 1024;
@@ -20,7 +20,7 @@ pub struct LineMap {
     mark_value: u8,
 }
 
-pub trait Bitmap {
+pub trait Bytemap {
     fn max_entries(&self) -> usize;
     fn values(&self) -> &[u8];
     fn values_mut(&mut self) -> &mut [u8];
@@ -137,7 +137,7 @@ impl LineMap {
     }
 }
 
-impl Bitmap for ObjectMap {
+impl Bytemap for ObjectMap {
     #[inline(always)]
     fn values(&self) -> &[u8] {
         &self.values
@@ -153,7 +153,7 @@ impl Bitmap for ObjectMap {
     }
 }
 
-impl Bitmap for LineMap {
+impl Bytemap for LineMap {
     #[inline(always)]
     fn values(&self) -> &[u8] {
         &self.values

@@ -1,7 +1,7 @@
-pub mod bitmap;
 pub mod block;
 pub mod block_list;
 pub mod bucket;
+pub mod bytemap;
 pub mod copy_object;
 pub mod generation_config;
 pub mod global_allocator;

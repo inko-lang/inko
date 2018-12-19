@@ -354,8 +354,8 @@ impl Drop for Bucket {
 mod tests {
     use super::*;
     use config::Config;
-    use immix::bitmap::Bitmap;
     use immix::block::Block;
+    use immix::bytemap::Bytemap;
     use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
     use immix::histograms::Histograms;
     use object::Object;
