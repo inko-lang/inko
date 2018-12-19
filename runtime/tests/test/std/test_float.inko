@@ -1,4 +1,4 @@
-import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
+import std::float::(self, NAN, INFINITY, NEGATIVE_INFINITY)
 import std::format::DefaultFormatter
 import std::hasher::DefaultHasher
 import std::test
@@ -823,51 +823,51 @@ test.group('std::float::Float.hash') do (g) {
   }
 }
 
-test.group('std::float::Float.from_string') do (g) {
+test.group('std::float.parse') do (g) {
   g.test('Parsing a Float') {
-    assert.equal(try! Float.from_string('1.2'), 1.2)
+    assert.equal(try! float.parse('1.2'), 1.2)
   }
 
   g.test('Parsing a Float with leading whitespace') {
     assert.panic {
-      try! Float.from_string(' 1.2')
+      try! float.parse(' 1.2')
     }
   }
 
   g.test('Parsing a Float with trailing whitespace') {
     assert.panic {
-      try! Float.from_string('1.2 ')
+      try! float.parse('1.2 ')
     }
   }
 
   g.test('Parsing a Float with an exponentn') {
-    assert.equal(try! Float.from_string('1.2e1'), 12.0)
-    assert.equal(try! Float.from_string('1.2E1'), 12.0)
+    assert.equal(try! float.parse('1.2e1'), 12.0)
+    assert.equal(try! float.parse('1.2E1'), 12.0)
   }
 
   g.test('Parsing a Float with just a decimal point') {
-    assert.equal(try! Float.from_string('.5'), 0.5)
+    assert.equal(try! float.parse('.5'), 0.5)
   }
 
   g.test('Parsing a Float without a decimal digit') {
-    assert.equal(try! Float.from_string('5.'), 5.0)
+    assert.equal(try! float.parse('5.'), 5.0)
   }
 
   g.test('Parsing a negative Float') {
-    assert.equal(try! Float.from_string('-1.2'), -1.2)
+    assert.equal(try! float.parse('-1.2'), -1.2)
   }
 
   g.test('Parsing infinity') {
-    assert.equal(try! Float.from_string('inf'), INFINITY)
-    assert.equal(try! Float.from_string('Infinity'), INFINITY)
+    assert.equal(try! float.parse('inf'), INFINITY)
+    assert.equal(try! float.parse('Infinity'), INFINITY)
   }
 
   g.test('Parsing negative infinity') {
-    assert.equal(try! Float.from_string('-inf'), NEGATIVE_INFINITY)
-    assert.equal(try! Float.from_string('-Infinity'), NEGATIVE_INFINITY)
+    assert.equal(try! float.parse('-inf'), NEGATIVE_INFINITY)
+    assert.equal(try! float.parse('-Infinity'), NEGATIVE_INFINITY)
   }
 
   g.test('Parsing a NaN') {
-    assert.true(try! { Float.from_string('NaN') }.not_a_number?)
+    assert.true(try! { float.parse('NaN') }.not_a_number?)
   }
 }

@@ -482,12 +482,13 @@ module Inkoc
 
       def implement_trait(object, trait, body, location)
         message = Config::IMPLEMENT_TRAIT_MESSAGE
-        method = trait.type.lookup_method(message).type
+        trait_mod = get_global(Config::INTERNAL_TRAIT_IMPORT, body, location)
+        method = trait_mod.type.lookup_method(message).type
 
         send_object_message(
-          trait,
+          trait_mod,
           message,
-          [object],
+          [object, trait],
           [],
           method,
           method.return_type,
@@ -516,12 +517,6 @@ module Inkoc
         object
       end
 
-      def trait_builtin(body, location)
-        top = get_toplevel(body, location)
-
-        get_attribute(top, Config::TRAIT_CONST, body, location)
-      end
-
       def set_object_literal_name(object, name, body, location)
         attr = Config::OBJECT_NAME_INSTANCE_ATTRIBUTE
         name_reg = set_string(name, body, location)
@@ -539,14 +534,13 @@ module Inkoc
       end
 
       def on_send(node, body)
-        receiver = receiver_for_send(node, body)
-
         # HashMap literals need to be optimised before we process their
         # arguments.
         if node.hash_map_literal?
-          return on_hash_map_literal(receiver, node, body)
+          return on_hash_map_literal(node, body)
         end
 
+        receiver = receiver_for_send(node, body)
         args, kwargs = split_send_arguments(node.arguments, body)
 
         send_object_message(
@@ -578,7 +572,10 @@ module Inkoc
       #
       # While the example above uses a local variable `hash_map`, the generated
       # code only uses registers.
-      def on_hash_map_literal(hash_map_global_reg, node, body)
+      def on_hash_map_literal(node, body)
+        hash_map_global_reg =
+          get_global(Config::HASH_MAP_CONST, body, node.location)
+
         hash_map_type = hash_map_global_reg.type
         new_method = hash_map_type.lookup_method(Config::NEW_MESSAGE).type
         set_method = hash_map_type.lookup_method(Config::SET_INDEX_MESSAGE).type

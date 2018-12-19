@@ -3,21 +3,20 @@
 module Inkoc
   module TIR
     class ModuleConfig
-      VALID_KEYS = Set.new(
-        %w[import_prelude import_bootstrap import_globals define_module]
-      ).freeze
+      DEFAULTS = {
+        import_prelude: true,
+        import_bootstrap: true,
+        import_globals: true,
+        define_module: true,
+        import_trait_module: false,
+      }.freeze
 
       def initialize
-        @options = {
-          import_prelude: true,
-          import_bootstrap: true,
-          import_globals: true,
-          define_module: true
-        }
+        @options = DEFAULTS.dup
       end
 
       def valid_key?(key)
-        VALID_KEYS.include?(key)
+        DEFAULTS.key?(key.to_sym)
       end
 
       def []=(key, value)
@@ -38,6 +37,10 @@ module Inkoc
 
       def define_module?
         @options[:define_module]
+      end
+
+      def import_trait_module?
+        @options[:import_trait_module]
       end
     end
   end

@@ -4,7 +4,9 @@
 #! UTF-8.
 
 import std::conversion::(ToFloat, ToInteger, ToString)
+import std::float
 import std::hash::(Hasher, Hash)
+import std::integer
 import std::length::Length
 import std::operators::(Equal, Add)
 
@@ -147,7 +149,7 @@ impl ToInteger for String {
   ##     '10'.to_integer # => 10
   ##     'a'.to_integer  # => 0
   def to_integer -> Integer {
-    try Integer.from_string(self, 10) else (_) 0
+    try integer.parse(self, 10) else (_) 0
   }
 }
 
@@ -164,7 +166,7 @@ impl ToFloat for String {
   ##     '10.5'.to_float # => 10.5
   ##     'a'.to_float    # => 0.0
   def to_float -> Float {
-    try Float.from_string(self) else (_) 0.0
+    try float.parse(self) else (_) 0.0
   }
 }
 

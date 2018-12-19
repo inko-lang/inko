@@ -1,4 +1,4 @@
-import std::hash_map::(Iterator, Keys, Pair, Table, Values)
+import std::hash_map::(self, Iterator, Keys, Pair, Table, Values)
 import std::hasher::DefaultHasher
 import std::test
 import std::test::assert
@@ -490,28 +490,21 @@ test.group('std::hash_map::Values.next') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.from_array') do (g) {
-  # HashMap.from_array might be optimised away by the compiler. As such, we use
-  # an extra layer of indirection to prevent the optimisation from happening.
-
+test.group('std::hash_map.from_array') do (g) {
   g.test('Creating a HashMap without any keys and values') {
-    let rec = HashMap
-    let map = rec.from_array([], [])
+    let map = hash_map.from_array([], [])
 
     assert.equal(map, %[])
   }
 
   g.test('Creating a HashMap with keys but without values') {
     assert.panic {
-      let rec = HashMap
-
-      rec.from_array(['name'], [])
+      hash_map.from_array(['name'], [])
     }
   }
 
   g.test('Creating a HashMap with an equal number of keys and values') {
-    let rec = HashMap
-    let map = rec.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
+    let map = hash_map.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
 
     assert.equal(map['name'], 'Alice')
     assert.equal(map['city'], 'Amsterdam')

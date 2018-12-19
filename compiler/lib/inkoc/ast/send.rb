@@ -51,7 +51,7 @@ module Inkoc
 
       def hash_map_literal?
         receiver&.global? &&
-          receiver&.name == Config::HASH_MAP_CONST &&
+          receiver&.name == Config::HASH_MAP_LITERAL_RECEIVER &&
           name == Config::FROM_ARRAY_MESSAGE &&
           arguments[0]&.array_literal? &&
           arguments[1]&.array_literal?

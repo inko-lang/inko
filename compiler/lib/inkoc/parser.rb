@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Inkoc
+  # rubocop: disable Metrics/ClassLength
   class Parser
     ParseError = Class.new(StandardError)
 
@@ -118,8 +119,11 @@ module Inkoc
       ]
     ).freeze
 
+    attr_reader :trait_implementation
+
     def initialize(input, file_path = Pathname.new('(eval)'))
       @lexer = Lexer.new(input, file_path)
+      @trait_implementation = false
     end
 
     def location
@@ -793,7 +797,7 @@ module Inkoc
       end
 
       location = start.location
-      receiver = AST::Global.new(Config::HASH_MAP_CONST, location)
+      receiver = AST::Global.new(Config::HASH_MAP_LITERAL_RECEIVER, location)
       keys_array = new_array(keys, start)
       vals_array = new_array(vals, start)
 
@@ -1100,6 +1104,8 @@ module Inkoc
         end
       end
 
+      @trait_implementation = true unless impls.empty?
+
       impls
     end
 
@@ -1172,6 +1178,8 @@ module Inkoc
 
       if @lexer.next_type_is?(:for)
         advance_and_expect!(:for)
+
+        @trait_implementation = true
 
         object_name = type_name(advance_and_expect!(:constant))
         body = block_body(advance_and_expect!(:curly_open))
@@ -1558,4 +1566,5 @@ module Inkoc
       AST::Send.new('new', receiver, [], values, start.location)
     end
   end
+  # rubocop: enable Metrics/ClassLength
 end

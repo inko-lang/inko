@@ -20,6 +20,7 @@ module Inkoc
         @module.imports << import_bootstrap(loc) if @module.import_bootstrap?
         @module.imports << import_globals(loc) if @module.import_globals?
         @module.imports << import_prelude(loc) if @module.import_prelude?
+        @module.imports << import_trait(loc) if @module.import_trait_module?
       end
 
       # Generates the import statement for importing the bootstrap module.
@@ -55,22 +56,41 @@ module Inkoc
       #
       #     import core::bootstrap::(self as _)
       def import_and_ignore(name, location)
-        std = identifier_for(Config::CORE_MODULE, location)
+        core = identifier_for(Config::CORE_MODULE, location)
         bootstrap = identifier_for(name, location)
         underscore = identifier_for('_', location)
 
         symbol = AST::ImportSymbol
           .new(AST::Self.new(location), underscore, location)
 
-        AST::Import.new([std, bootstrap], [symbol], location)
+        AST::Import.new([core, bootstrap], [symbol], location)
       end
 
       def import_everything_from(module_name, location)
-        std = identifier_for(Config::CORE_MODULE, location)
+        core = identifier_for(Config::CORE_MODULE, location)
         prelude = identifier_for(module_name, location)
         symbol = AST::GlobImport.new(location)
 
-        AST::Import.new([std, prelude], [symbol], location)
+        AST::Import.new([core, prelude], [symbol], location)
+      end
+
+      def import_trait(location)
+        import_std_module_as(
+          Config::TRAIT_MODULE,
+          Config::INTERNAL_TRAIT_IMPORT,
+          location
+        )
+      end
+
+      def import_std_module_as(name, symbol_name, location)
+        std = identifier_for(Config::STD_MODULE, location)
+        name_ident = identifier_for(name, location)
+        alias_name = identifier_for(symbol_name, location)
+
+        symbol = AST::ImportSymbol
+          .new(AST::Self.new(location), alias_name, location)
+
+        AST::Import.new([std, name_ident], [symbol], location)
       end
     end
   end

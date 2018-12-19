@@ -13,6 +13,9 @@ module Inkoc
     # The file extension of source files.
     SOURCE_EXT = '.inko'
 
+    # The name of the root module for the standard library.
+    STD_MODULE = 'std'
+
     # The name of the root module for the core library.
     CORE_MODULE = 'core'
 
@@ -25,6 +28,11 @@ module Inkoc
     # The path to the module that defines the default globals exposed to every
     # module.
     GLOBALS_MODULE = 'globals'
+
+    TRAIT_MODULE = 'trait'
+
+    INTERNAL_TRAIT_IMPORT = '_inkoc_std_trait'
+    HASH_MAP_LITERAL_RECEIVER = '_inkoc_hash_map_literal'
 
     MARKER_MODULE = 'std::marker'
     HASH_MAP_MODULE = 'std::hash_map'
@@ -79,7 +87,7 @@ module Inkoc
     TRY_BLOCK_NAME = '<try>'
     ELSE_BLOCK_NAME = '<else>'
     IMPL_NAME = '<impl>'
-    IMPLEMENT_TRAIT_MESSAGE = 'implement_for'
+    IMPLEMENT_TRAIT_MESSAGE = 'implement'
     OBJECT_NAME_INSTANCE_ATTRIBUTE = '@_object_name'
     INIT_MESSAGE = 'init'
 

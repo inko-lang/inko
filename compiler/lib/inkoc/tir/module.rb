@@ -75,6 +75,10 @@ module Inkoc
         config.define_module?
       end
 
+      def import_trait_module?
+        config.import_trait_module?
+      end
+
       def source_code
         location.file.path.read
       end
