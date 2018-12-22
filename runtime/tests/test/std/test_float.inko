@@ -373,7 +373,7 @@ test.group('std::float::Float.<=') do (g) {
     assert.false(INFINITY <= 1.0)
   }
 
-  g.test('Comparing INFINITY with another Infinity') {
+  g.test('Comparing Infinity with another Infinity') {
     assert.true(INFINITY <= INFINITY)
   }
 }
@@ -820,6 +820,24 @@ test.group('std::float::Float.hash') do (g) {
     NEGATIVE_INFINITY.hash(hasher2)
 
     assert.equal(hasher1.finish, hasher2.finish)
+  }
+}
+
+test.group('std::float::Float.to_bits') do (g) {
+  g.test('Converting a Float to its bitwise representation') {
+    assert.equal(1.0.to_bits, 4607182418800017408)
+  }
+
+  g.test('Converting a NaN to its bitwise representation') {
+    assert.equal(NAN.to_bits, 18444492273895866368)
+  }
+
+  g.test('Converting Infinity to its bitwise representation') {
+    assert.equal(INFINITY.to_bits, 9218868437227405312)
+  }
+
+  g.test('Converting negative Infinity to its bitwise representation') {
+    assert.equal(NEGATIVE_INFINITY.to_bits, 18442240474082181120)
   }
 }
 

@@ -1722,6 +1722,13 @@ impl Machine {
                         ),
                     };
                 }
+                InstructionType::FloatToBits => {
+                    let reg = instruction.arg(0);
+                    let val = context.get_register(instruction.arg(1));
+                    let res = float::to_bits(&self.state, process, val)?;
+
+                    context.set_register(reg, res);
+                }
             };
         }
 

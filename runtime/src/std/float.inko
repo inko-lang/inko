@@ -243,6 +243,20 @@ impl Float {
   def fractional -> Float {
     absolute % 1.0
   }
+
+  ## Returns the bitwise representation of `self`, as an `Integer`.
+  ##
+  ## This does not _cast_ the `Float`, instead the returned `Integer` has all
+  ## the bits set that make up `self`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Float` to its bitwise representation:
+  ##
+  ##     1.0.to_bits # => 4607182418800017408
+  def to_bits -> Integer {
+    _INKOC.float_to_bits(self)
+  }
 }
 
 impl ToInteger for Float {

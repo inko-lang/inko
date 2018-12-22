@@ -124,3 +124,13 @@ pub fn round(
 
     Ok(process.allocate(object_value::float(result), state.float_prototype))
 }
+
+pub fn to_bits(
+    state: &RcState,
+    process: &RcProcess,
+    float_ptr: ObjectPointer,
+) -> Result<ObjectPointer, String> {
+    let bits = float_ptr.float_value()?.to_bits();
+
+    Ok(process.allocate_u64(bits, state.integer_prototype))
+}

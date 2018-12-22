@@ -163,6 +163,7 @@ pub enum InstructionType {
     ForeignTypeAlignment,
     StringToInteger,
     StringToFloat,
+    FloatToBits,
 }
 
 /// Struct for storing information about a single instruction.
