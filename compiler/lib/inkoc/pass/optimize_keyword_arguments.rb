@@ -89,9 +89,7 @@ module Inkoc
       def on_keyword_argument(node, position, block_type)
         symbol = block_type.arguments[node.name]
 
-        # We add +1 to the position since "self" is the first argument but isn't
-        # included explicitly in the argument list.
-        if symbol.index == position + 1
+        if symbol.index == position
           process_node(node.value)
           node.value
         else
