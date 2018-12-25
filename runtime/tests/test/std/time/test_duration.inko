@@ -1,0 +1,104 @@
+import std::test
+import std::test::assert
+import std::time::duration
+import std::time::duration::Duration
+
+test.group('std::time::duration::Duration.as_seconds') do (g) {
+  g.test('Converting a Duration to seconds') {
+    assert.equal(Duration.new(1.2).as_seconds, 1.2)
+  }
+}
+
+test.group('std::time::duration::Duration.as_milliseconds') do (g) {
+  g.test('Converting a Duration to milliseconds') {
+    assert.equal(Duration.new(1.2).as_milliseconds, 1200.0)
+  }
+}
+
+test.group('std::time::duration::Duration.as_microseconds') do (g) {
+  g.test('Converting a Duration to microseconds') {
+    assert.equal(Duration.new(1.2).as_microseconds, 1_200_000.0)
+  }
+}
+
+test.group('std::time::duration::Duration.as_nanoseconds') do (g) {
+  g.test('Converting a Duration to nanoseconds') {
+    assert.equal(Duration.new(1.2).as_nanoseconds, 1_200_000_000.0)
+  }
+}
+
+test.group('std::time::duration::Duration.to_integer') do (g) {
+  g.test('Converting a Duration to an Integer') {
+    assert.equal(Duration.new(1.2).to_integer, 1)
+  }
+}
+
+test.group('std::time::duration::Duration.to_float') do (g) {
+  g.test('Converting a Duration to a Float') {
+    assert.equal(Duration.new(1.2).to_float, 1.2)
+  }
+}
+
+test.group('std::time::duration::Duration.+') do (g) {
+  g.test('Adding two Durations together') {
+    let duration = Duration.new(1.0) + Duration.new(2.0)
+
+    assert.equal(duration.as_seconds, 3.0)
+  }
+}
+
+test.group('std::time::duration::Duration.-') do (g) {
+  g.test('Subtracting a Duration from another Duration') {
+    let duration = Duration.new(2.0) - Duration.new(0.5)
+
+    assert.equal(duration.as_seconds, 1.5)
+  }
+}
+
+test.group('std::time::duration::Duration.<') do (g) {
+  g.test('Checking if on Duration is shorter than another Duration') {
+    assert.true(Duration.new(1.0) < Duration.new(2.0))
+    assert.false(Duration.new(2.0) < Duration.new(1.0))
+  }
+}
+
+test.group('std::time::duration::Duration.>') do (g) {
+  g.test('Checking if on Duration is longer than another Duration') {
+    assert.true(Duration.new(2.0) > Duration.new(1.0))
+    assert.false(Duration.new(1.0) > Duration.new(2.0))
+  }
+}
+
+test.group('std::time::duration::Duration.<=') do (g) {
+  g.test('Checking if on Duration is shorter than or equal to another Duration') {
+    assert.true(Duration.new(1.0) <= Duration.new(2.0))
+    assert.true(Duration.new(1.0) <= Duration.new(1.0))
+    assert.false(Duration.new(2.0) <= Duration.new(1.0))
+  }
+}
+
+test.group('std::time::duration::Duration.>=') do (g) {
+  g.test('Checking if on Duration is longer than or equal to another Duration') {
+    assert.true(Duration.new(2.0) >= Duration.new(1.0))
+    assert.true(Duration.new(2.0) >= Duration.new(2.0))
+    assert.false(Duration.new(1.0) >= Duration.new(2.0))
+  }
+}
+
+test.group('std::time::duration.from_seconds') do (g) {
+  g.test('Creating a Duration using seconds as the unit of time') {
+    assert.equal(duration.from_seconds(5.0).as_seconds, 5.0)
+  }
+}
+
+test.group('std::time::duration.from_milliseconds') do (g) {
+  g.test('Creating a Duration using milliseconds as the unit of time') {
+    assert.equal(duration.from_milliseconds(500).as_seconds, 0.5)
+  }
+}
+
+test.group('std::time::duration.from_nanoseconds') do (g) {
+  g.test('Creating a Duration using nanoseconds as the unit of time') {
+    assert.equal(duration.from_nanoseconds(5_00_000_000).as_seconds, 0.5)
+  }
+}

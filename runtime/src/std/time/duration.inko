@@ -1,0 +1,228 @@
+#! Types for measuring the duration between two points in time.
+import std::conversion::(ToFloat, ToInteger)
+import std::operators::(Add, Subtract)
+import std::operators::(Smaller, Greater, GreaterOrEqual, SmallerOrEqual, Equal)
+import std::time::constants::*
+
+## A span of time measured in seconds.
+##
+## A `Duration` can be used to measure the span of time without having to worry
+## about casting the time to different scales yourself. A `Duration` can be
+## created using various scales such as seconds and milliseconds.
+object Duration impl
+  ToInteger,
+  ToFloat,
+  Add!(Self),
+  Subtract!(Self),
+  Smaller,
+  Greater,
+  SmallerOrEqual,
+  GreaterOrEqual {
+
+  def init(seconds: Float) {
+    let @seconds = seconds
+  }
+
+  ## Returns the duration in seconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the seconds in a `Duration`:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5).as_seconds # => 5.0
+  def as_seconds -> Float {
+    @seconds
+  }
+
+  ## Returns the duration in milliseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the milliseconds in a `Duration`:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5).as_milliseconds # => 5000.0
+  def as_milliseconds -> Float {
+    @seconds * MILLISEC_TO_SEC
+  }
+
+  ## Returns the duration in microseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the microseconds in a `Duration`:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5).as_microseconds # => 5000000.0
+  def as_microseconds -> Float {
+    @seconds * MICROSEC_TO_SEC
+  }
+
+  ## Returns the duration in nanoseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the nanoseconds in a `Duration`:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5).as_nanoseconds # => 5000000000.0
+  def as_nanoseconds -> Float {
+    @seconds * NANOSEC_TO_SEC
+  }
+
+  ## Returns the number of seconds in the `Duration`.
+  def to_integer -> Integer {
+    @seconds.to_integer
+  }
+
+  ## Returns the number of seconds in the `Duration`.
+  def to_float -> Float {
+    @seconds
+  }
+
+  ## Adds two `Duration` objects together.
+  ##
+  ## # Examples
+  ##
+  ## Adding two `Duration` objects:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     let sum = duration.from_seconds(5) + duration.from_seconds(2)
+  ##
+  ##     sum.as_seconds # => 7.0
+  def +(other: Self) -> Self {
+    Duration.new(@seconds + other.as_seconds)
+  }
+
+  ## Subtracts the given `Duration` from `self`.
+  ##
+  ## # Examples
+  ##
+  ## Subtracting a `Duration` from another `Duration`
+  ##
+  ##     import std::time::duration
+  ##
+  ##     let diff = duration.from_seconds(5) - duration.from_seconds(2)
+  ##
+  ##     diff.as_seconds # => 3.0
+  def -(other: Self) -> Self {
+    Duration.new(@seconds - other.as_seconds)
+  }
+
+  ## Returns `True` if `self` is smaller than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5) < duration.from_seconds(10) # => True
+  def <(other: Self) -> Boolean {
+    @seconds < other.as_seconds
+  }
+
+  ## Returns `True` if `self` is greater than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5) > duration.from_seconds(10) # => False
+  def >(other: Self) -> Boolean {
+    @seconds > other.as_seconds
+  }
+
+  ## Returns `True` if `self` is smaller than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5) <= duration.from_seconds(10) # => True
+  ##     duration.from_seconds(5) <= duration.from_seconds(5)  # => True
+  def <=(other: Self) -> Boolean {
+    @seconds <= other.as_seconds
+  }
+
+  ## Returns `True` if `self` is greater than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::duration
+  ##
+  ##     duration.from_seconds(5) >= duration.from_seconds(10) # => False
+  ##     duration.from_seconds(5) >= duration.from_seconds(5)  # => True
+  def >=(other: Self) -> Boolean {
+    @seconds >= other.as_seconds
+  }
+}
+
+## Creates a new `Duration` from the given number of seconds.
+##
+## # Examples
+##
+## Creating a `Duration` using an `Integer`:
+##
+##     import std::time::duration
+##
+##     duration.from_seconds(10)
+##
+## Creating a `Duration` using a `Float`:
+##
+##     import std::time::duration
+##
+##     duration.from_seconds(10.5)
+def from_seconds(seconds: ToFloat) -> Duration {
+  Duration.new(seconds.to_float)
+}
+
+## Creates a new `Duration` from the given number of milliseconds.
+##
+## # Examples
+##
+## Creating a `Duration` using an `Integer`:
+##
+##     import std::time::duration
+##
+##     duration.from_milliseconds(10)
+##
+## Creating a `Duration` using a `Float`:
+##
+##     import std::time::duration
+##
+##     duration.from_milliseconds(10.5)
+def from_milliseconds(milliseconds: ToFloat) -> Duration {
+  Duration.new(milliseconds.to_float / MILLISEC_TO_SEC)
+}
+
+## Creates a new `Duration` from the given number of nanoseconds.
+##
+## # Examples
+##
+## Creating a `Duration` using an `Integer`:
+##
+##     import std::time::duration
+##
+##     duration.from_nanoseconds(10)
+##
+## Creating a `Duration` using a `Float`:
+##
+##     import std::time::duration
+##
+##     duration.from_nanoseconds(10.5)
+def from_nanoseconds(nanoseconds: ToFloat) -> Duration {
+  Duration.new(nanoseconds.to_float / NANOSEC_TO_SEC)
+}

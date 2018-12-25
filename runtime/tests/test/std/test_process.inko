@@ -1,7 +1,7 @@
 import std::process::(self, Receiver, Sender)
 import std::test
 import std::test::assert
-import std::time::MonotonicTime
+import std::time::Instant
 
 test.group('std::process::Sender.send') do (g) {
   g.test('Sending a message to a process') {
@@ -108,12 +108,12 @@ test.group('std::process.suspend') do (g) {
   }
 
   g.test('Suspending a process for a minimum amount of time') {
-    let start = MonotonicTime.new
+    let start = Instant.new
     let wait = 0.01
 
     process.suspend(wait)
 
-    let duration = (MonotonicTime.new - start).to_float
+    let duration = start.elapsed.to_float
 
     assert.true(duration >= wait)
   }
