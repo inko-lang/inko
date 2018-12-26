@@ -1,0 +1,109 @@
+import std::process
+import std::test
+import std::test::assert::(self, PanicResult, PanicTest)
+
+def run_panic_test(block: lambda) -> PanicResult {
+  let test = PanicTest
+    .new(owner: process.current, block: block)
+
+  let sender = process.channel!(PanicTest) lambda (receiver) {
+    receiver.receive.run
+  }
+
+  sender.send(test)
+
+  process.receive as PanicResult
+}
+
+test.group('std::test::assert::PanicResult.panicked?') do (g) {
+  g.test('Checking if a test panicked') {
+    assert.false(PanicResult.new(panicked: False).panicked?)
+    assert.true(PanicResult.new(panicked: True).panicked?)
+  }
+}
+
+test.group('std::test::assert::PanicResult.error') do (g) {
+  g.test('Obtaining the message of a panic') {
+    assert.equal(PanicResult.new(panicked: False).error, Nil)
+    assert.equal(PanicResult.new(panicked: True, error: 'oops').error, 'oops')
+  }
+}
+
+test.group('std::test::assert::PanicTest.run') do (g) {
+  g.test('Running a panic test that panics') {
+    let result = run_panic_test lambda { process.panic('oops') }
+
+    assert.true(result.panicked?)
+    assert.equal(result.error, 'oops')
+  }
+
+  g.test('Running a panic test that does not panic') {
+    let result = run_panic_test lambda { 0 }
+
+    assert.false(result.panicked?)
+  }
+}
+
+test.group('std::test::assert.equal') do (g) {
+  g.test('Comparing two equal values') {
+    assert.equal(10, 10)
+  }
+
+  g.test('Comparing two different values') {
+    assert.panic {
+      assert.equal(10, 20)
+    }
+  }
+}
+
+test.group('std::test::assert.not_equal') do (g) {
+  g.test('Comparing two equal values') {
+    assert.panic {
+      assert.not_equal(10, 10)
+    }
+  }
+
+  g.test('Comparing two different values') {
+    assert.not_equal(10, 20)
+  }
+}
+
+test.group('std::test::assert.greater') do (g) {
+  g.test('Comparing two equal values') {
+    assert.panic {
+      assert.greater(10, 10)
+    }
+  }
+
+  g.test('Comparing a greater value with a smaller value') {
+    assert.greater(10, 5)
+  }
+}
+
+test.group('std::test::assert.panic') do (g) {
+  g.test('Checking if a block panics') {
+    assert.panic {
+      process.panic('oops')
+    }
+  }
+}
+
+test.group('std::test::assert.no_panic') do (g) {
+  g.test('Checking if a block does not panic') {
+    assert.no_panic {
+      10
+    }
+  }
+}
+
+test.group('std::test::assert.true') do (g) {
+  g.test('Checking if a value is truthy') {
+    assert.true(10 == 10)
+  }
+}
+
+test.group('std::test::assert.falsy') do (g) {
+  g.test('Checking if a value is falsy') {
+    assert.false(10 == 5)
+  }
+}

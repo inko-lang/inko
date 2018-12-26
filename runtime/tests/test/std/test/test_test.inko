@@ -1,0 +1,69 @@
+import std::debug::CallFrame
+import std::process
+import std::test
+import std::test::assert
+import std::test::test::Test
+
+def example_test -> Test {
+  let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+
+  Test.new(
+    name: 'test name',
+    group_name: 'group name',
+    runner_pid: process.current,
+    location: frame,
+    body: lambda { process.panic('This is a failure!') }
+  )
+}
+
+def run_example_test -> Test {
+  let sender = process.channel!(Test) lambda (receiver) {
+    receiver.receive.run
+  }
+
+  sender.send(example_test)
+
+  process.receive as Test
+}
+
+test.group('std::test::test::Test.name') do (g) {
+  g.test('Obtaining the name of the test') {
+    assert.equal(example_test.name, 'test name')
+  }
+}
+
+test.group('std::test::test::Test.group_name') do (g) {
+  g.test('Obtaining the name of the test group') {
+    assert.equal(example_test.group_name, 'group name')
+  }
+}
+
+test.group('std::test::test::Test.location') do (g) {
+  g.test('Obtaining the CallFrame of a test') {
+    let location = example_test.location
+
+    assert.equal(location.file.to_string, 'test.inko')
+    assert.equal(location.name, 'test')
+    assert.equal(location.line, 1)
+  }
+}
+
+test.group('std::test::test::Test.failure') do (g) {
+  g.test('Obtaining the failure reason of a test that failed') {
+    let failed_test = run_example_test
+
+    assert.equal(failed_test.failure.to_string, 'This is a failure!')
+    assert.equal(failed_test.failure.message.to_string, 'This is a failure!')
+  }
+
+  g.test('Obtaining the failure reason of a test that passed') {
+    assert.equal(example_test.failure, Nil)
+  }
+}
+
+test.group('std::test::test::Test.passed?') do (g) {
+  g.test('Checking if a test passed') {
+    assert.false(run_example_test.passed?)
+    assert.true(example_test.passed?)
+  }
+}

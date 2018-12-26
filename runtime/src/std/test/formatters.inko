@@ -1,9 +1,5 @@
-#! Formatter for displaying test results similar to a progress bar.
-#!
-#! The produced output is inspired by existing test frameworks such as RSpec and
-#! ExUnit. Output is colorised using ANSI escape sequences, though this can be
-#! disabled if necessary.
-import std::ansi
+#! Built-in formatters for test suites.
+import std::ansi::(self, BOLD, CYAN, GREEN, RED)
 import std::conversion::ToString
 import std::stdio::stdout
 import std::string_buffer::StringBuffer
@@ -17,6 +13,10 @@ import std::time::duration::Duration
 let TIME_IN_SECONDS_THRESHOLD = 1.0
 
 ## A formatter that displays tests similar to a progress bar.
+##
+#! The produced output is inspired by existing test frameworks such as RSpec and
+#! ExUnit. Output is colorised using ANSI escape sequences, though this can be
+#! disabled if necessary.
 ##
 ## Passed tests are displayed as a ".", while failed tests are displayed as "F".
 ## All output is written to STDOUT.
@@ -135,34 +135,26 @@ object ProgressFormatter impl Formatter {
   }
 
   def green(string: ToString) -> String {
-    @colors.if true: {
-      ansi.green(string)
-    }, false: {
-      string
-    }
+    color(string: string, code: GREEN)
   }
 
   def red(string: ToString) -> String {
-    @colors.if true: {
-      ansi.red(string)
-    }, false: {
-      string
-    }
+    color(string: string, code: RED)
   }
 
   def cyan(string: ToString) -> String {
-    @colors.if true: {
-      ansi.cyan(string)
-    }, false: {
-      string
-    }
+    color(string: string, code: CYAN)
   }
 
   def bold(string: ToString) -> String {
+    color(string: string, code: BOLD)
+  }
+
+  def color(string: ToString, code: String) -> String {
     @colors.if true: {
-      ansi.bold(string)
+      ansi.wrap(string: string, code: code)
     }, false: {
-      string
+      string.to_string
     }
   }
 }

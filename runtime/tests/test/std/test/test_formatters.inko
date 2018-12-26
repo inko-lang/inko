@@ -1,0 +1,133 @@
+import std::debug::CallFrame
+import std::process
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+import std::test::error::TestFailure
+import std::test::formatters::ProgressFormatter
+import std::test::test::Test
+import std::time::duration
+
+def example_test -> Test {
+  let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+  let test = Test.new(
+    name: 'test name',
+    group_name: 'group name',
+    runner_pid: process.current,
+    location: frame,
+    body: lambda {}
+  )
+}
+
+test.group('std::test::formatters::ProgressFormatter.failure_title') do (g) {
+  g.test('Generating the title for a failed test') {
+    let fmt = ProgressFormatter.new
+
+    assert.equal(fmt.failure_title(example_test), 'group name test name')
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.failure_location') do (g) {
+  g.test('Generating the failure location description for a failed test') {
+    let fmt = ProgressFormatter.new
+    let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+    let failure = TestFailure.new(message: 'oops', location: frame)
+
+    assert.equal(fmt.failure_location(failure), 'test.inko:1')
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.test_suite_duration_unit') do (g) {
+  g.test('Obtaining the time unit for the duration of a test suite') {
+    let fmt = ProgressFormatter.new
+
+    assert.equal(
+      fmt.test_suite_duration_unit(duration.from_milliseconds(5)),
+      'milliseconds'
+    )
+
+    assert.equal(
+      fmt.test_suite_duration_unit(duration.from_seconds(5)),
+      'seconds'
+    )
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.test_suite_statistics') do (g) {
+  g.test('Formatting the test suite statistics') {
+    let fmt = ProgressFormatter.new(colors: False)
+
+    assert.equal(
+      fmt.test_suite_statistics([example_test]),
+      '1 tests, 0 failures '
+    )
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.green') do (g) {
+  g.test('Generating a green string when colors are enabled') {
+    assert.equal(ProgressFormatter.new.green('hello'), "\e[32mhello\e[0m")
+  }
+
+  g.test('Generating a normal string when colors are disabled') {
+    assert.equal(ProgressFormatter.new(colors: False).green('hello'), 'hello')
+  }
+
+  g.test('Generating a normal string when colors are disabled using a StringBuffer') {
+    assert.equal(
+      ProgressFormatter.new(colors: False).green(StringBuffer.new(['hello'])),
+      'hello'
+    )
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.red') do (g) {
+  g.test('Generating a red string when colors are enabled') {
+    assert.equal(ProgressFormatter.new.red('hello'), "\e[31mhello\e[0m")
+  }
+
+  g.test('Generating a normal string when colors are disabled') {
+    assert.equal(ProgressFormatter.new(colors: False).red('hello'), 'hello')
+  }
+
+  g.test('Generating a normal string when colors are disabled using a StringBuffer') {
+    assert.equal(
+      ProgressFormatter.new(colors: False).red(StringBuffer.new(['hello'])),
+      'hello'
+    )
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.cyan') do (g) {
+  g.test('Generating a cyan string when colors are enabled') {
+    assert.equal(ProgressFormatter.new.cyan('hello'), "\e[36mhello\e[0m")
+  }
+
+  g.test('Generating a normal string when colors are disabled') {
+    assert.equal(ProgressFormatter.new(colors: False).cyan('hello'), 'hello')
+  }
+
+  g.test('Generating a normal string when colors are disabled using a StringBuffer') {
+    assert.equal(
+      ProgressFormatter.new(colors: False).cyan(StringBuffer.new(['hello'])),
+      'hello'
+    )
+  }
+}
+
+test.group('std::test::formatters::ProgressFormatter.bold') do (g) {
+  g.test('Generating a bold string when colors are enabled') {
+    assert.equal(ProgressFormatter.new.bold('hello'), "\e[1mhello\e[0m")
+  }
+
+  g.test('Generating a normal string when colors are disabled') {
+    assert.equal(ProgressFormatter.new(colors: False).bold('hello'), 'hello')
+  }
+
+  g.test('Generating a normal string when colors are disabled using a StringBuffer') {
+    assert.equal(
+      ProgressFormatter.new(colors: False).bold(StringBuffer.new(['hello'])),
+      'hello'
+    )
+  }
+}

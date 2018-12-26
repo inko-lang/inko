@@ -7,6 +7,13 @@ import test::std::fs::test_dir
 import test::std::fs::test_file
 import test::std::fs::test_path
 import test::std::fs::test_raw
+import test::std::test::test_assert
+import test::std::test::test_config
+import test::std::test::test_error::(self as test_test_error)
+import test::std::test::test_formatters
+import test::std::test::test_runner
+import test::std::test::test_test
+import test::std::test::test_test_group
 import test::std::test_ansi
 import test::std::test_array
 import test::std::test_array_iter

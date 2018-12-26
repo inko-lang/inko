@@ -8,7 +8,7 @@
 import std::index::SetIndex
 import std::process
 import std::test::formatter::Formatter
-import std::test::formatter::progress_formatter::ProgressFormatter
+import std::test::formatters::ProgressFormatter
 
 ## The default number of tests to run concurrently.
 let DEFAULT_CONCURRENCY = 32

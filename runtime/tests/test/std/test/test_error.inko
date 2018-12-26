@@ -1,0 +1,32 @@
+import std::debug::CallFrame
+import std::test
+import std::test::assert
+import std::test::error::TestFailure
+
+def test_failure -> TestFailure {
+  let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+
+  TestFailure.new(message: 'oops', location: frame)
+}
+
+test.group('std::test::error::TestFailure.location') do (g) {
+  g.test('Obtaining the CallFrame of a TestFailure') {
+    let failure = test_failure
+
+    assert.equal(failure.location.file.to_string, 'test.inko')
+    assert.equal(failure.location.name, 'test')
+    assert.equal(failure.location.line, 1)
+  }
+}
+
+test.group('std::test::error::TestFailure.to_string') do (g) {
+  g.test('Converting a TestFailure to a String') {
+    assert.equal(test_failure.to_string, 'oops')
+  }
+}
+
+test.group('std::test::error::TestFailure.message') do (g) {
+  g.test('Obtaining the error message of a TestFailure') {
+    assert.equal(test_failure.message, 'oops')
+  }
+}

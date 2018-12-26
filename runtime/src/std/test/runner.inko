@@ -36,15 +36,6 @@ object RunnerState {
 
     ## The configuration details for this runner.
     let @configuration = Configuration.new
-
-    ## A boolean indicating if the runner should terminate after receiving a
-    ## message.
-    let mut @terminate = False
-  }
-
-  ## Returns `True` if the `Runner` this state belongs to should terminate.
-  def terminate? -> Boolean {
-    @terminate
   }
 
   ## Adds a new `Test` to this `Runner`.
@@ -155,14 +146,18 @@ object RunTests impl Command {
 
     let duration = start_time.elapsed
 
-    failed.empty?.if_false {
+    failed.length.positive?.if_true {
       state.formatter.failures(failed)
     }
 
     state.formatter.summary(tests: executed, duration: duration)
 
+    notify_client(failed.length.positive?)
+  }
+
+  def notify_client(failures: Boolean) {
     let finished_message = RunnerFinished
-      .new(pid: process.current, failures: failed.empty?.not)
+      .new(pid: process.current, failures: failures)
 
     process.send(pid: @notify, message: finished_message)
   }
@@ -210,13 +205,7 @@ object Runner {
   ## This method will not return until a command has instructed this Runner to
   ## terminate.
   def run {
-    let command = @receiver.receive
-
-    command.run(@state)
-
-    @state.terminate?.if_true {
-      return
-    }
+    @receiver.receive.run(@state)
 
     run
   }
@@ -239,7 +228,7 @@ object Client {
 
   ## Sets a configuration option to the given value.
   def configure(option: String, value: Dynamic) {
-    @running.if_true {
+    running?.if_true {
       process.panic(
         'Configuration settings can not be changed for a running test suite'
       )
@@ -250,7 +239,7 @@ object Client {
 
   ## Adds a new test to the `Runner`.
   def add_test(test: Test) {
-    @running.if_true {
+    running?.if_true {
       process.panic('New tests can not be added to a running test suite')
     }
 
@@ -259,7 +248,7 @@ object Client {
 
   ## Schedules all tests for execution and waits for them to complete.
   def run {
-    @running = True
+    mark_as_running
 
     @sender.send(RunTests.new(process.current))
 
@@ -276,6 +265,14 @@ object Client {
     message.failures?.if_true {
       vm.exit(FAILURE_EXIT_STATUS)
     }
+  }
+
+  def running? -> Boolean {
+    @running
+  }
+
+  def mark_as_running {
+    @running = True
   }
 }
 

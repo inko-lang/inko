@@ -1,0 +1,57 @@
+import std::mirror
+import std::test
+import std::test::assert
+import std::test::config::(Configuration, DEFAULT_CONCURRENCY)
+import std::test::formatter::Formatter
+import std::test::formatters::ProgressFormatter
+import std::test::test::Test
+import std::time::duration::Duration
+
+object DummyFormatter impl Formatter {
+  def passed(test: Test) {}
+  def failed(test: Test) {}
+  def failures(test: Array!(Test)) {}
+  def summary(tests: Array!(Test), duration: Duration) {}
+}
+
+test.group('std::test::config::Configuration.concurrency') do (g) {
+  g.test('Obtaining the number of concurrent tests') {
+    assert.equal(Configuration.new.concurrency, DEFAULT_CONCURRENCY)
+  }
+}
+
+test.group('std::test::config::Configuration.formatter') do (g) {
+  g.test('Obtaining the formatter to use') {
+    let fmt = Configuration.new.formatter
+    let fmt_mirror = mirror.reflect_object(fmt)
+
+    assert.true(fmt_mirror.instance_of?(ProgressFormatter))
+  }
+}
+
+test.group('std::test::config::Configuration.[]=') do (g) {
+  g.test('Setting the concurrency level') {
+    let config = Configuration.new
+
+    config['concurrency'] = 2
+
+    assert.equal(config.concurrency, 2)
+  }
+
+  g.test('Setting the formatter to use') {
+    let config = Configuration.new
+    let fmt = DummyFormatter.new
+
+    config['formatter']  = fmt
+
+    assert.equal(config.formatter as DummyFormatter, fmt)
+  }
+
+  g.test('Setting an unsupported option') {
+    assert.panic {
+      let config = Configuration.new
+
+      config['foo'] = 'bar'
+    }
+  }
+}
