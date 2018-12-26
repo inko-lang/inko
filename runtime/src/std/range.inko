@@ -1,5 +1,4 @@
 #! Range data types and methods.
-import std::compare::Compare
 import std::conversion::ToArray
 import std::operators::(Equal, SmallerOrEqual)
 import std::successor::Successor
@@ -15,8 +14,8 @@ import std::successor::Successor
 ## A `Range` supports a start and end value of any type as long as:
 ##
 ## 1. They are both of the same type.
-## 2. Both implement the `Successor` and `Compare` traits.
-object Range!(T: Successor + Compare) impl Equal, ToArray!(T) {
+## 2. Both implement the `Successor` and `SmallerOrEqual` traits.
+object Range!(T: Successor + SmallerOrEqual) impl Equal, ToArray!(T) {
   def init(start: T, end: T) {
     let @start = start
     let @end = end
@@ -70,7 +69,7 @@ object Range!(T: Successor + Compare) impl Equal, ToArray!(T) {
   }
 }
 
-trait ToRange!(T: Successor + Compare) {
+trait ToRange!(T: Successor + SmallerOrEqual) {
   ## Returns a `Range` starting at `self` up to (and including) `other`.
   def ..(other: T) -> Range!(T)
 }

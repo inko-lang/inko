@@ -1,6 +1,5 @@
 #! The integer type.
 
-import std::compare::Compare
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
 import std::hash::(Hasher, Hash)
@@ -115,8 +114,6 @@ impl ShiftRight for Integer {
     _INKOC.integer_shift_right(self, other)
   }
 }
-
-impl Compare for Integer {}
 
 impl Numeric for Integer {
   def negative? -> Boolean {
