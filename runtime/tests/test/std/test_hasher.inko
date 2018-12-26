@@ -1,0 +1,35 @@
+import std::hasher::DefaultHasher
+import std::test
+import std::test::assert
+
+test.group('std::hasher::DefaultHasher.write_integer') do (g) {
+  g.test('Hashing an Integer') {
+    let hasher = DefaultHasher.new
+
+    hasher.write_integer(10)
+
+    let hash1 = hasher.finish
+
+    hasher.write_integer(10)
+
+    let hash2 = hasher.finish
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hasher::DefaultHasher.write_float') do (g) {
+  g.test('Hashing an Float') {
+    let hasher = DefaultHasher.new
+
+    hasher.write_float(10.0)
+
+    let hash1 = hasher.finish
+
+    hasher.write_float(10.0)
+
+    let hash2 = hasher.finish
+
+    assert.equal(hash1, hash2)
+  }
+}
