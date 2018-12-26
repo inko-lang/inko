@@ -9,7 +9,7 @@ import std::test::test::Test
 import std::time::duration
 
 def example_test -> Test {
-  let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+  let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
   let test = Test.new(
     name: 'test name',
     group_name: 'group name',
@@ -30,7 +30,7 @@ test.group('std::test::formatters::ProgressFormatter.failure_title') do (g) {
 test.group('std::test::formatters::ProgressFormatter.failure_location') do (g) {
   g.test('Generating the failure location description for a failed test') {
     let fmt = ProgressFormatter.new
-    let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+    let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
     let failure = TestFailure.new(message: 'oops', location: frame)
 
     assert.equal(fmt.failure_location(failure), 'test.inko:1')

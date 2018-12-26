@@ -12,7 +12,7 @@ import std::test::test::Test
 import std::time::duration
 
 def example_test -> Test {
-  let frame = CallFrame.new(file: 'test.inko', name: 'test', line: 1)
+  let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
 
   Test.new(
     name: 'test name',

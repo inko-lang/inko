@@ -67,12 +67,12 @@ panicking lambda (error) {
   debug.stacktrace(skip: 2).each_with_index do (frame, index) {
     # If the frame originates from this particular module, we ignore it. This
     # way we ignore any frames produced by this handler itself.
-    frame.file == module_path
+    frame.path == module_path
       .if_false {
         output.push("\n  ")
         output.push(index.to_string)
         output.push(': ')
-        output.push(frame.file.to_string.inspect)
+        output.push(frame.path.to_string.inspect)
         output.push(', line ')
         output.push(frame.line.to_string)
         output.push(', in ')

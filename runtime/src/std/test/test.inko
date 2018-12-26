@@ -73,7 +73,7 @@ object Test {
     process.panicking do (error) {
       @failure = TestFailure.new(
         message: error,
-        location: debug.last_call_frame_in(location.file),
+        location: debug.last_call_frame_in(location.path),
       )
 
       notify_runner

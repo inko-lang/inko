@@ -8,15 +8,15 @@ import std::string_buffer::StringBuffer
 
 ## Details of a single call frame in a call stack.
 object CallFrame {
-  def init(file: ToPath, name: String, line: Integer) {
-    let @file = file.to_path
+  def init(path: ToPath, name: String, line: Integer) {
+    let @path = path.to_path
     let @name = name
     let @line = line
   }
 
   ## Returns the path of the file the frame belongs to.
-  def file -> Path {
-    @file
+  def path -> Path {
+    @path
   }
 
   ## Returns the name of the block of code the frame belongs to.
@@ -34,7 +34,7 @@ impl ToString for CallFrame {
   ## Formats the CallFrame as a String
   def to_string -> String {
     let buffer = StringBuffer.new([
-      @file.to_string.inspect,
+      @path.to_string.inspect,
       ', line ',
       @line.to_string,
       ', in ',
@@ -86,7 +86,7 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   raw_frames.each do (raw_frame) {
     frames.push(
       CallFrame.new(
-        file: (raw_frame[0] as String).to_path,
+        path: (raw_frame[0] as String).to_path,
         name: raw_frame[1] as String,
         line: raw_frame[2] as Integer,
       ),
@@ -119,7 +119,7 @@ def last_call_frame_in(file: ToPath) -> CallFrame {
   { index >= 0 }.while_true {
     let frame = *frames[index]
 
-    frame.file == path
+    frame.path == path
       .if_true {
         return frame
       }

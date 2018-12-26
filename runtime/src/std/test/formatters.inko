@@ -87,7 +87,7 @@ object ProgressFormatter impl Formatter {
     let location = failure.location
 
     StringBuffer
-      .new([location.file.to_string, ':', location.line.to_string])
+      .new([location.path.to_string, ':', location.line.to_string])
       .to_string
   }
 

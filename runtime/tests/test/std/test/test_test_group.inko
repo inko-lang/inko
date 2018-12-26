@@ -35,7 +35,7 @@ test.group('std::test::test_group::TestGroup.test') do (g) {
     let mod_mirror = mirror.reflect_module(ThisModule)
     let test = add_test
 
-    assert.equal(test.location.file, mod_mirror.path)
+    assert.equal(test.location.path, mod_mirror.path)
     assert.equal(test.location.line, 14)
   }
 }

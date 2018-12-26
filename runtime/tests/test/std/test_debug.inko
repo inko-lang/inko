@@ -1,0 +1,74 @@
+import std::debug::(self, CallFrame)
+import std::mirror
+import std::test
+import std::test::assert
+
+test.group('std::debug::CallFrame.path') do (g) {
+  g.test('Obtaining the file path of a CallFrame') {
+    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+
+    assert.equal(frame.path.to_string, 'foo.inko')
+  }
+}
+
+test.group('std::debug::CallFrame.name') do (g) {
+  g.test('Obtaining the name of a CallFrame') {
+    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+
+    assert.equal(frame.name, 'foo')
+  }
+}
+
+test.group('std::debug::CallFrame.line') do (g) {
+  g.test('Obtaining the line number of a CallFrame') {
+    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+
+    assert.equal(frame.line, 1)
+  }
+}
+
+test.group('std::debug::CallFrame.to_string') do (g) {
+  g.test('Converting a CallFrame to a String') {
+    let frame = CallFrame.new(path: 'foo.inko', name: 'foo', line: 1)
+
+    assert.equal(frame.to_string, '"foo.inko", line 1, in "foo"')
+  }
+}
+
+test.group('std::debug.stacktrace') do (g) {
+  g.test('Obtaining a stacktrace to the caller') {
+    let trace = debug.stacktrace
+    let mirror = mirror.reflect_module(ThisModule)
+    let last = *trace[-1]
+
+    assert.true(trace.length > 0)
+    assert.equal(last.name, '<block>')
+    assert.equal(last.line, 40)
+    assert.equal(last.path, mirror.path)
+  }
+
+  g.test('Limiting the number of call frames in a stacktrace') {
+    let trace = debug.stacktrace(limit: 1)
+
+    assert.equal(trace.length, 1)
+  }
+
+  g.test('Skipping a number of call frames in a stacktrace') {
+    let trace = debug.stacktrace(skip: 2)
+    let mirror = mirror.reflect_module(ThisModule)
+
+    assert.true(trace.length > 0)
+    assert.not_equal(trace[-1].path, mirror.path)
+  }
+}
+
+test.group('std::debug.last_call_frame_in') do (g) {
+  g.test('Obtaining the last call frame of a file') {
+    let mirror = mirror.reflect_module(ThisModule)
+    let frame = debug.last_call_frame_in(mirror.path)
+
+    assert.equal(frame.name, '<block>')
+    assert.equal(frame.path, mirror.path)
+    assert.equal(frame.line, 68)
+  }
+}
