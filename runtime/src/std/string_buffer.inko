@@ -1,5 +1,6 @@
 #! Efficient concatenating of `String` objects.
 import std::conversion::ToString
+import std::length::Length
 
 ## A buffer for efficiently concatenating `String` objects together.
 ##
@@ -35,7 +36,7 @@ import std::conversion::ToString
 ## This would only allocate four `String` objects: three for the `String`
 ## literals, and one for the resulting `String` returned by
 ## `StringBuffer.to_string`.
-object StringBuffer impl ToString {
+object StringBuffer impl ToString, Length {
   def init(strings: Array!(String) = []) {
     let @strings = strings
   }
@@ -71,5 +72,9 @@ object StringBuffer impl ToString {
   ##     buffer.to_string # => 'hello world'
   def to_string -> String {
     _INKOC.string_concat_multiple(@strings)
+  }
+
+  def length -> Integer {
+    @strings.length
   }
 }

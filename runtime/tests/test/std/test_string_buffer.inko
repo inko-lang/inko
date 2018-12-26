@@ -23,3 +23,13 @@ test.group('std::string_buffer::StringBuffer.to_string') do (g) {
     assert.equal(buffer.to_string, 'foobarbaz')
   }
 }
+
+test.group('std::string_buffer::StringBuffer.length') do (g) {
+  g.test('Obtaining the length of an empty StringBuffer') {
+    assert.equal(StringBuffer.new.length, 0)
+  }
+
+  g.test('Obtaining the length of a non-empty StringBuffer') {
+    assert.equal(StringBuffer.new(['foo']).length, 1)
+  }
+}
