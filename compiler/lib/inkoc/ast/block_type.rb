@@ -18,6 +18,14 @@ module Inkoc
         @optional = false
       end
 
+      def late_binding=(*)
+        # Late binding does not apply to block types.
+      end
+
+      def late_binding?
+        false
+      end
+
       def optional?
         @optional
       end
