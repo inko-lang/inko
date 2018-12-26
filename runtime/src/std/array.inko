@@ -233,23 +233,6 @@ impl Length for Array!(T) {
   }
 }
 
-impl Array!(T) {
-  ## Returns `True` if this `Array` contains one or more values.
-  ##
-  ## # Examples
-  ##
-  ## Using an empty `Array`:
-  ##
-  ##     [].empty? # => True
-  ##
-  ## Using a non-empty `Array`:
-  ##
-  ##     [10].empty? # => False
-  def empty? -> Boolean {
-    length.zero?
-  }
-}
-
 impl Index!(Integer, T) for Array!(T) {
   ## Returns the value at the given index, or Nil if no value was found.
   ##

@@ -5,6 +5,21 @@
 #! `Array`.
 
 trait Length {
-  ## Returns the number of values in the object.
+  ## Returns the number of values in `self`.
   def length -> Integer
+
+  ## Returns `True` if `self` is empty.
+  ##
+  ## # Examples
+  ##
+  ## Using an empty `Array`:
+  ##
+  ##     [].empty? # => True
+  ##
+  ## Using a non-empty `Array`:
+  ##
+  ##     [10].empty? # => False
+  def empty? -> Boolean {
+    length.zero?
+  }
 }

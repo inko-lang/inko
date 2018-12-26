@@ -34,6 +34,7 @@ import test::std::test_inspect
 import test::std::test_integer
 import test::std::test_io
 import test::std::test_iterator
+import test::std::test_length
 import test::std::test_mirror
 import test::std::test_nil
 import test::std::test_object

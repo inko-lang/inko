@@ -1,0 +1,25 @@
+import std::length::Length
+import std::test
+import std::test::assert
+
+object EmptyList impl Length {
+  def length -> Integer {
+    0
+  }
+}
+
+object NonEmptyList impl Length {
+  def length -> Integer {
+    1
+  }
+}
+
+test.group('std::length::Length.empty?') do (g) {
+  g.test('Checking if an empty object is empty') {
+    assert.true(EmptyList.new.empty?)
+  }
+
+  g.test('Checking if a non-empty object is empty') {
+    assert.false(NonEmptyList.new.empty?)
+  }
+}
