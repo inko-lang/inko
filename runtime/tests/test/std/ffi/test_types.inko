@@ -1,0 +1,118 @@
+import std::ffi::types
+import std::ffi::types::*
+import std::test
+import std::test::assert
+
+test.group('std::ffi::types::Type.to_integer') do (g) {
+  g.test('Obtaining the type ID of a Type') {
+    let type = Type.new(2)
+
+    assert.equal(type.to_integer, 2)
+  }
+}
+
+test.group('std::ffi::types::Type.size') do (g) {
+  g.test('Obtaining the size of a Type') {
+    let type = Type.new(2)
+
+    assert.equal(type.size, 8)
+  }
+}
+
+test.group('std::ffi::types::Type.alignment') do (g) {
+  g.test('Obtaining the alignment of a Type') {
+    let type = Type.new(2)
+
+    assert.equal(type.alignment, 8)
+  }
+}
+
+test.group('std::ffi::types.void') do (g) {
+  g.test('Creating a new void type') {
+    assert.equal(types.void, VOID)
+  }
+}
+
+test.group('std::ffi::types.pointer') do (g) {
+  g.test('Creating a new pointer type') {
+    assert.equal(types.pointer, POINTER)
+  }
+}
+
+test.group('std::ffi::types.f64') do (g) {
+  g.test('Creating a new double type') {
+    assert.equal(types.f64, F64)
+  }
+}
+
+test.group('std::ffi::types.f32') do (g) {
+  g.test('Creating a new float type') {
+    assert.equal(types.f32, F32)
+  }
+}
+
+test.group('std::ffi::types.i8') do (g) {
+  g.test('Creating a new char type') {
+    assert.equal(types.i8, I8)
+  }
+}
+
+test.group('std::ffi::types.i16') do (g) {
+  g.test('Creating a new short type') {
+    assert.equal(types.i16, I16)
+  }
+}
+
+test.group('std::ffi::types.i32') do (g) {
+  g.test('Creating a new int type') {
+    assert.equal(types.i32, I32)
+  }
+}
+
+test.group('std::ffi::types.i64') do (g) {
+  g.test('Creating a new long type') {
+    assert.equal(types.i64, I64)
+  }
+}
+
+test.group('std::ffi::types.u8') do (g) {
+  g.test('Creating a new unsigned char type') {
+    assert.equal(types.u8, U8)
+  }
+}
+
+test.group('std::ffi::types.u16') do (g) {
+  g.test('Creating a new unsigned short type') {
+    assert.equal(types.u16, U16)
+  }
+}
+
+test.group('std::ffi::types.u32') do (g) {
+  g.test('Creating a new unsigned int type') {
+    assert.equal(types.u32, U32)
+  }
+}
+
+test.group('std::ffi::types.u64') do (g) {
+  g.test('Creating a new unsigned long type') {
+    assert.equal(types.u64, U64)
+  }
+}
+
+test.group('std::ffi::types.size_t') do (g) {
+  g.test('Creating a new size_t type') {
+    assert.equal(types.size_t, SIZE_T)
+  }
+}
+
+test.group('std::ffi::types.string') do (g) {
+  g.test('Creating a new string type') {
+    assert.equal(types.string, STRING)
+  }
+}
+
+test.group('std::ffi::types.byte_array') do (g) {
+  g.test('Creating a new byte array type') {
+    assert.equal(types.byte_array, BYTE_ARRAY)
+  }
+}
