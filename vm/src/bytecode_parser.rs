@@ -12,17 +12,16 @@
 //!
 //!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
+use catch_table::{CatchEntry, CatchTable};
+use compiled_code::CompiledCode;
 use num_bigint::BigInt;
+use object_pointer::ObjectPointer;
 use std::f64;
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::Bytes;
+use std::io::{BufReader, Bytes};
 use std::mem;
 use std::str;
-
-use catch_table::{CatchEntry, CatchTable};
-use compiled_code::CompiledCode;
-use object_pointer::ObjectPointer;
 use vm::instruction::{Instruction, InstructionType};
 use vm::state::RcState;
 
@@ -89,6 +88,9 @@ const OBJECT_LITERALS_LIMIT: u64 =
 const CATCH_ENTRIES_LIMIT: u64 =
     VECTOR_LITERAL_SIZE_LIMIT / mem::size_of::<CatchEntry>() as u64;
 
+/// The number of bytes to buffer for every read from a bytecode file.
+const BUFFER_SIZE: usize = 32 * 1024;
+
 #[derive(Debug)]
 pub enum ParserError {
     InvalidFile,
@@ -117,7 +119,10 @@ pub type BytecodeResult = ParserResult<CompiledCode>;
 ///     let result = bytecode_parser::parse_file(&state, "path/to/file.inkoc");
 pub fn parse_file(state: &RcState, path: &str) -> BytecodeResult {
     match File::open(path) {
-        Ok(file) => parse(state, &mut file.bytes()),
+        Ok(file) => parse(
+            state,
+            &mut BufReader::with_capacity(BUFFER_SIZE, file).bytes(),
+        ),
         Err(_) => parser_error!(InvalidFile),
     }
 }
