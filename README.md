@@ -1,21 +1,27 @@
 # Inko
 
-Inko is a gradually-typed, safe, object-oriented programming languages for
+**Inko** is a gradually-typed, safe, object-oriented programming languages for
 writing concurrent programs. By using lightweight isolated processes, data race
 conditions can not occur. The syntax is easy to learn and remember, and thanks
 to its error handling model you will never have to worry about unexpected
 runtime errors.
 
-This repository contains the source code of the Inko compiler ("inkoc"), the
-runtime, and the Inko virtual machine ("IVM").
+For more information, see the [Inko website](https://inko-lang.org/).
 
-For more information, see the [Inko website](https://inko-lang.org).
+## Features
 
-## Requirements
+* A bytecode interpreter that is easy to build across different platforms
+* Parallel garbage collection based on [Immix][immix]
+* Lightweight, isolated processes that communicate using message passing
+* Gradual typing
+* Explicit handling of exceptions, making it impossible for unexpected
+  exceptions to occur
+* Tail call optimisation
+* A C FFI using [libffi][libffi]
+* A standard library written in Inko itself
 
-* Ruby 2.3 or newer and RubyGems, for the compiler
-* Rust 1.28 or newer
-* Make 4.0 or newer
+More information about all the available features can be found [on the Inko
+website](https://inko-lang.org/about/).
 
 ## Supported Platforms
 
@@ -25,6 +31,12 @@ Inko supports any Unix-like platform, such as Linux, Mac OS, or BSD. Technically
 Inko also works on Windows, but installing from source requires a Linux
 compatibility layer such as [MSYS2](http://www.msys2.org/) or [Linux for
 Windows](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+
+## Requirements
+
+* Ruby 2.3 or newer and RubyGems, for the compiler
+* Rust 1.28 or newer
+* Make 4.0 or newer
 
 ## Installation
 
@@ -61,3 +73,6 @@ Instead, use either the full path or use the `$HOME` variable:
 All source code in this repository is licensed under the Mozilla Public License
 version 2.0, unless stated otherwise. A copy of this license can be found in the
 file "LICENSE".
+
+[immix]: http://www.cs.utexas.edu/users/speedway/DaCapo/papers/immix-pldi-2008.pdf
+[libffi]: https://sourceware.org/libffi/
