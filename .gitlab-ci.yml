@@ -119,7 +119,7 @@ lint:clippy:
       - vm/target
 
 lint:rustfmt:
-  image: registry.gitlab.com/inko-lang/development-docker-images:rust-nightly
+  image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
   stage: test
   before_script:
     - cd vm
