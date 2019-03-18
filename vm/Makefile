@@ -34,7 +34,6 @@ clippy:
 	${CARGO_CMD} clippy -- -Dwarnings \
 		-Arenamed_and_removed_lints \
 		-Aclippy::new_without_default \
-		-Aclippy::new_without_default_derive \
 		-Aclippy::needless_range_loop
 
 rustfmt-check:

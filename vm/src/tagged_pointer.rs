@@ -8,7 +8,24 @@ use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// The mask to use for untagging a pointer.
-const UNTAG_MASK: isize = !(0x3 as isize);
+const UNTAG_MASK: usize = (!0x3) as usize;
+
+/// Returns true if the pointer has the given bit set to 1.
+pub fn bit_is_set<T>(pointer: *mut T, bit: usize) -> bool {
+    let shifted = 1 << bit;
+
+    (pointer as usize & shifted) == shifted
+}
+
+/// Returns the pointer with the given bit set.
+pub fn with_bit<T>(pointer: *mut T, bit: usize) -> *mut T {
+    (pointer as usize | 1 << bit) as _
+}
+
+/// Returns the given pointer without any tags set.
+pub fn untagged<T>(pointer: *mut T) -> *mut T {
+    (pointer as usize & UNTAG_MASK) as _
+}
 
 /// Structure wrapping a raw, tagged pointer.
 #[derive(Debug)]
@@ -40,7 +57,7 @@ impl<T> TaggedPointer<T> {
 
     /// Returns the wrapped pointer without any tags.
     pub fn untagged(self) -> *mut T {
-        (self.raw as isize & UNTAG_MASK) as *mut T
+        self::untagged(self.raw)
     }
 
     /// Returns a new TaggedPointer using the current pointer but without any
@@ -51,14 +68,12 @@ impl<T> TaggedPointer<T> {
 
     /// Returns true if the given bit is set.
     pub fn bit_is_set(self, bit: usize) -> bool {
-        let shifted = 1 << bit;
-
-        (self.raw as usize & shifted) == shifted
+        self::bit_is_set(self.raw, bit)
     }
 
     /// Sets the given bit.
     pub fn set_bit(&mut self, bit: usize) {
-        self.raw = (self.raw as usize | 1 << bit) as *mut T;
+        self.raw = with_bit(self.raw, bit);
     }
 
     /// Returns true if the current pointer is a null pointer.
@@ -79,9 +94,10 @@ impl<T> TaggedPointer<T> {
     /// Atomically swaps the internal pointer with another one.
     ///
     /// This boolean returns true if the pointer was swapped, false otherwise.
-    pub fn compare_and_swap(&mut self, current: *mut T, other: *mut T) -> bool {
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    pub fn compare_and_swap(&self, current: *mut T, other: *mut T) -> bool {
         self.as_atomic()
-            .compare_and_swap(current, other, Ordering::Release)
+            .compare_and_swap(current, other, Ordering::AcqRel)
             == current
     }
 
@@ -100,7 +116,7 @@ impl<T> TaggedPointer<T> {
     /// Checks if a bit is set using an atomic load.
     #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
     pub fn atomic_bit_is_set(&self, bit: usize) -> bool {
-        Self::new(self.as_atomic().load(Ordering::Acquire)).bit_is_set(bit)
+        Self::new(self.atomic_load()).bit_is_set(bit)
     }
 
     fn as_atomic(&self) -> &AtomicPtr<T> {
@@ -253,7 +269,7 @@ mod tests {
         let mut alice = "Alice".to_string();
         let mut bob = "Bob".to_string();
 
-        let mut pointer = TaggedPointer::new(&mut alice as *mut String);
+        let pointer = TaggedPointer::new(&mut alice as *mut String);
         let current = pointer.raw;
         let target = &mut bob as *mut String;
 

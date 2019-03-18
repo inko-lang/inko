@@ -15,15 +15,15 @@ use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
 use object_value;
 use parking_lot::Mutex;
-use pool::Pool;
-use pools::Pools;
 use process::RcProcess;
 use process_table::ProcessTable;
+use scheduler::generic_pool::GenericPool;
+use scheduler::process_scheduler::ProcessScheduler;
+use scheduler::timeout_worker::TimeoutWorker;
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::time;
 use string_pool::StringPool;
-use suspension_list::SuspensionList;
 
 /// A reference counted State.
 pub type RcState = Arc<State>;
@@ -61,14 +61,14 @@ pub struct State {
     /// Table containing all processes.
     pub process_table: Mutex<ProcessTable<RcProcess>>,
 
+    /// The scheduler to use for executing Inko processes.
+    pub scheduler: ProcessScheduler,
+
     /// The pool to use for garbage collection.
-    pub gc_pool: Pool<Request>,
+    pub gc_pool: GenericPool<Request>,
 
     /// The pool to use for finalizing objects.
-    pub finalizer_pool: Pool<DerefPointer<Block>>,
-
-    /// The process pools to use.
-    pub process_pools: Pools,
+    pub finalizer_pool: GenericPool<Vec<DerefPointer<Block>>>,
 
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
@@ -82,11 +82,10 @@ pub struct State {
     /// The start time of the VM (more or less).
     pub start_time: time::Instant,
 
-    /// The list of suspended processes.
-    pub suspension_list: SuspensionList,
-
     /// The exit status to use when the VM terminates.
     pub exit_status: Mutex<i32>,
+
+    pub timeout_worker: TimeoutWorker,
 
     /// The prototype of the base object, used as the prototype for all other
     /// prototypes.
@@ -211,18 +210,18 @@ impl State {
             pointer_prototype.set_prototype(object_proto);
         }
 
-        let gc_pool = Pool::new(config.gc_threads, Some("GC".to_string()));
+        let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
 
         let finalizer_pool =
-            Pool::new(config.finalizer_threads, Some("finalizer".to_string()));
-
-        let process_pools =
-            Pools::new(config.primary_threads, config.secondary_threads);
+            GenericPool::new("finalizer".to_string(), config.finalizer_threads);
 
         let mut state = State {
+            scheduler: ProcessScheduler::new(
+                config.primary_threads,
+                config.blocking_threads,
+            ),
             config,
             process_table: Mutex::new(ProcessTable::new()),
-            process_pools,
             gc_pool,
             finalizer_pool,
             permanent_allocator: Mutex::new(perm_alloc),
@@ -230,7 +229,7 @@ impl State {
             string_pool: Mutex::new(StringPool::new()),
             start_time: time::Instant::now(),
             exit_status: Mutex::new(0),
-            suspension_list: SuspensionList::new(),
+            timeout_worker: TimeoutWorker::new(),
             top_level,
             object_prototype: object_proto,
             integer_prototype: integer_proto,
@@ -350,6 +349,10 @@ impl State {
         } else {
             Some(handler)
         }
+    }
+
+    pub fn process_for_pid(&self, pid: usize) -> Option<RcProcess> {
+        self.process_table.lock().get(pid)
     }
 }
 

@@ -100,7 +100,7 @@ pub enum InstructionType {
     FloatCeil,
     FloatRound,
     Drop,
-    MoveToPool,
+    ProcessSetBlocking,
     StdoutFlush,
     StderrFlush,
     FileRemove,

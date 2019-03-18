@@ -1151,7 +1151,7 @@ module Inkoc
       end
 
       def on_raw_process_spawn(node, body)
-        raw_binary_instruction(:ProcessSpawn, node, body)
+        raw_unary_instruction(:ProcessSpawn, node, body)
       end
 
       def on_raw_process_send_message(node, body)
@@ -1258,8 +1258,8 @@ module Inkoc
         get_nil(body, node.location)
       end
 
-      def on_raw_move_to_pool(node, body)
-        raw_unary_instruction(:MoveToPool, node, body)
+      def on_raw_set_blocking(node, body)
+        raw_unary_instruction(:SetBlocking, node, body)
       end
 
       def on_raw_panic(node, body)

@@ -4,7 +4,6 @@ use rayon::ThreadPoolBuilder;
 use std::i32;
 use std::ops::{Add, Mul, Sub};
 use std::panic;
-use std::thread;
 
 use compiled_code::CompiledCodePointer;
 use execution_context::ExecutionContext;
@@ -15,10 +14,12 @@ use numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use numeric::modulo::{Modulo, OverflowingModulo};
 use object_pointer::ObjectPointer;
 use object_value;
-use pool::{Job, JoinGuard as PoolJoinGuard, Worker, STACK_SIZE};
-use pools::{PRIMARY_POOL, SECONDARY_POOL};
 use process::RcProcess;
 use runtime_panic;
+use scheduler::join_list::JoinList;
+use scheduler::pool::Pool;
+use scheduler::process_worker::ProcessWorker;
+use std::thread;
 use vm::array;
 use vm::block;
 use vm::byte_array;
@@ -118,7 +119,7 @@ macro_rules! safepoint_and_reduce {
         if $reductions > 0 {
             $reductions -= 1;
         } else {
-            $vm.state.process_pools.schedule($process.clone());
+            $vm.state.scheduler.schedule($process.clone());
             return Ok(());
         }
     }};
@@ -153,14 +154,17 @@ impl Machine {
     /// otherwise.
     pub fn start(&self, file: &str) {
         self.configure_rayon();
+        self.schedule_main_process(file);
 
-        let primary_guard = self.start_primary_threads();
         let gc_pool_guard = self.start_gc_threads();
         let finalizer_pool_guard = self.start_finalizer_threads();
-        let secondary_guard = self.start_secondary_threads();
-        let suspend_guard = self.start_suspension_worker();
+        let secondary_guard = self.start_blocking_threads();
+        let timeout_guard = self.start_timeout_worker_thread();
 
-        self.start_main_process(file);
+        // Starting the primary threads will block this thread, as the main
+        // worker will run directly onto the current thread. As such, we must
+        // start these threads last.
+        let primary_guard = self.start_primary_threads();
 
         // Joining the pools only fails in case of a panic. In this case we
         // don't want to re-panic as this clutters the error output.
@@ -168,7 +172,7 @@ impl Machine {
             || secondary_guard.join().is_err()
             || gc_pool_guard.join().is_err()
             || finalizer_pool_guard.join().is_err()
-            || suspend_guard.join().is_err()
+            || timeout_guard.join().is_err()
         {
             self.state.set_exit_status(1);
         }
@@ -177,81 +181,82 @@ impl Machine {
     fn configure_rayon(&self) {
         ThreadPoolBuilder::new()
             .thread_name(|idx| format!("rayon {}", idx))
-            .num_threads(self.state.config.generic_parallel_threads as usize)
-            .stack_size(STACK_SIZE)
+            .num_threads(self.state.config.generic_parallel_threads)
             .build_global()
             .unwrap();
     }
 
-    fn start_primary_threads(&self) -> PoolJoinGuard<()> {
+    fn start_primary_threads(&self) -> JoinList<()> {
         let machine = self.clone();
-        let pool = self.state.process_pools.get(PRIMARY_POOL).unwrap();
 
-        pool.run(move |worker, process| {
-            machine.run_with_error_handling(worker, &process)
+        self.state
+            .scheduler
+            .primary_pool
+            .start_main(move |worker, process| {
+                machine.run_with_error_handling(worker, &process)
+            })
+    }
+
+    fn start_blocking_threads(&self) -> JoinList<()> {
+        let machine = self.clone();
+
+        self.state
+            .scheduler
+            .blocking_pool
+            .start(move |worker, process| {
+                machine.run_with_error_handling(worker, &process)
+            })
+    }
+
+    /// Starts the garbage collection threads.
+    fn start_gc_threads(&self) -> JoinList<()> {
+        self.state
+            .gc_pool
+            .start(move |_, mut request| request.perform())
+    }
+
+    fn start_finalizer_threads(&self) -> JoinList<()> {
+        self.state.finalizer_pool.start(move |_, blocks| {
+            for mut block in blocks {
+                block.finalize_pending();
+            }
         })
     }
 
-    fn start_secondary_threads(&self) -> PoolJoinGuard<()> {
-        let machine = self.clone();
-        let pool = self.state.process_pools.get(SECONDARY_POOL).unwrap();
-
-        pool.run(move |worker, process| {
-            machine.run_with_error_handling(worker, &process)
-        })
-    }
-
-    fn start_suspension_worker(&self) -> thread::JoinHandle<()> {
+    fn start_timeout_worker_thread(&self) -> thread::JoinHandle<()> {
         let state = self.state.clone();
 
-        let builder = thread::Builder::new()
-            .stack_size(STACK_SIZE)
-            .name("suspend worker".to_string());
-
-        builder
+        thread::Builder::new()
+            .name("timeout worker".to_string())
             .spawn(move || {
-                state.suspension_list.process_suspended_processes(&state)
+                state.timeout_worker.run(&state.scheduler);
             })
             .unwrap()
     }
 
-    /// Starts the garbage collection threads.
-    fn start_gc_threads(&self) -> PoolJoinGuard<()> {
-        self.state
-            .gc_pool
-            .run(move |_, mut request| request.perform())
-    }
-
-    pub fn start_finalizer_threads(&self) -> PoolJoinGuard<()> {
-        self.state
-            .finalizer_pool
-            .run(move |_, mut block| block.finalize_pending())
-    }
-
     fn terminate(&self) {
-        self.state.process_pools.terminate();
+        self.state.scheduler.terminate();
         self.state.gc_pool.terminate();
         self.state.finalizer_pool.terminate();
-        self.state.suspension_list.terminate();
+        self.state.timeout_worker.terminate();
     }
 
-    /// Starts the main process
-    pub fn start_main_process(&self, file: &str) {
+    pub fn schedule_main_process(&self, file: &str) {
         let process = {
             let (block, _) =
                 module::load_string(&self.state, &self.module_registry, file)
                     .unwrap();
 
-            process::allocate(&self.state, PRIMARY_POOL, &block).unwrap()
+            process::allocate(&self.state, &block).unwrap()
         };
 
-        self.state.process_pools.schedule(process);
+        self.state.scheduler.schedule_on_main_thread(process);
     }
 
     /// Executes a single process, terminating in the event of an error.
     pub fn run_with_error_handling(
         &self,
-        worker: &mut Worker,
+        worker: &mut ProcessWorker,
         process: &RcProcess,
     ) {
         // We are using AssertUnwindSafe here so we can pass a &mut Worker to
@@ -280,7 +285,7 @@ impl Machine {
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn run(
         &self,
-        worker: &mut Worker,
+        worker: &mut ProcessWorker,
         process: &RcProcess,
     ) -> Result<(), String> {
         let mut reductions = self.state.config.reductions;
@@ -905,8 +910,7 @@ impl Machine {
                 InstructionType::ProcessSpawn => {
                     let reg = instruction.arg(0);
                     let block = context.get_register(instruction.arg(1));
-                    let pool_id = context.get_register(instruction.arg(2));
-                    let pid = process::spawn(&self.state, pool_id, block)?;
+                    let pid = process::spawn(&self.state, block)?;
 
                     context.set_register(reg, pid);
                 }
@@ -921,26 +925,20 @@ impl Machine {
                 }
                 InstructionType::ProcessReceiveMessage => {
                     let reg = instruction.arg(0);
-
-                    if let Some(msg) = process.receive_message() {
-                        context.set_register(reg, msg);
-                        process.no_longer_waiting_for_message();
-
-                        continue;
-                    }
-
-                    if process.is_waiting_for_message() {
-                        // A timeout expired, but no message was received.
-                        context.set_register(reg, self.state.nil_object);
-                        process.no_longer_waiting_for_message();
-
-                        continue;
-                    }
-
                     let time_ptr = context.get_register(instruction.arg(1));
 
-                    // When resuming we want to retry this instruction so we can
-                    // store the received message in the target register.
+                    if let Some(message) =
+                        process::receive_message(&self.state, process)
+                    {
+                        context.set_register(reg, message);
+                        continue;
+                    }
+
+                    // We *must* save the instruction index first. If we save
+                    // this later on, a copy of this process scheduled by
+                    // another thread (because it sent the process a message)
+                    // may end up running the wrong instructions and/or corrupt
+                    // registers in the process.
                     context.instruction_index = index - 1;
 
                     process::wait_for_message(
@@ -1148,19 +1146,12 @@ impl Machine {
 
                     object::drop_value(ptr);
                 }
-                InstructionType::MoveToPool => {
+                InstructionType::ProcessSetBlocking => {
                     let reg = instruction.arg(0);
-                    let pool_ptr = context.get_register(instruction.arg(1));
-                    let pool_id = pool_ptr.u8_value()?;
+                    let blocking_ptr = context.get_register(instruction.arg(1));
+                    let is_blocking = blocking_ptr == self.state.true_object;
 
-                    if !self.state.process_pools.pool_id_is_valid(pool_id) {
-                        return Err(format!(
-                            "The process pool ID {} is invalid",
-                            pool_id
-                        ));
-                    }
-
-                    if process.thread_id().is_some() {
+                    if process.is_pinned() {
                         // If a process is pinned we can't move it to another
                         // pool. We can't panic in this case, since it would
                         // prevent code from using certain IO operations that
@@ -1173,18 +1164,17 @@ impl Machine {
                         continue;
                     }
 
-                    if pool_id == process.pool_id() {
+                    if is_blocking == process.is_blocking() {
                         context.set_register(reg, self.state.false_object);
                     } else {
-                        process.set_pool_id(pool_id);
-
+                        process.set_blocking(is_blocking);
                         context.set_register(reg, self.state.true_object);
                         context.instruction_index = index;
 
                         // After this we can _not_ perform any operations on the
                         // process any more as it might be concurrently modified
                         // by the pool we just moved it to.
-                        self.state.process_pools.schedule(process.clone());
+                        self.state.scheduler.schedule(process.clone());
 
                         return Ok(());
                     }
@@ -1737,7 +1727,7 @@ impl Machine {
             // Because pinned workers won't run already unpinned processes, and
             // because processes can't be pinned until they run, this means
             // there will only ever be one process that triggers this code.
-            worker.unpin();
+            worker.leave_exclusive_mode();
         }
 
         self.state.process_table.lock().release(process.pid);
@@ -1780,12 +1770,13 @@ impl Machine {
     }
 
     fn schedule_gc_request(&self, request: GcRequest) {
-        self.state.gc_pool.schedule(Job::normal(request));
+        self.state.gc_pool.schedule(request);
     }
 
     fn schedule_gc_for_finished_process(&self, process: &RcProcess) {
         let request = GcRequest::finished(self.state.clone(), process.clone());
-        self.state.gc_pool.schedule(Job::normal(request));
+
+        self.schedule_gc_request(request);
     }
 
     #[inline(always)]
@@ -1953,7 +1944,12 @@ impl Machine {
         }
     }
 
-    fn panic(&self, worker: &mut Worker, process: &RcProcess, message: &str) {
+    fn panic(
+        &self,
+        worker: &mut ProcessWorker,
+        process: &RcProcess,
+        message: &str,
+    ) {
         let handler_opt = process
             .panic_handler()
             .cloned()
@@ -1976,7 +1972,7 @@ impl Machine {
     /// panic handler.
     fn run_custom_panic_handler(
         &self,
-        worker: &mut Worker,
+        worker: &mut ProcessWorker,
         process: &RcProcess,
         message: &str,
         handler: ObjectPointer,

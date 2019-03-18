@@ -36,9 +36,10 @@ impl<T> DerefPointer<T> {
     /// Atomically swaps the internal pointer with another one.
     ///
     /// This boolean returns true if the pointer was swapped, false otherwise.
-    pub fn compare_and_swap(&mut self, current: *mut T, other: *mut T) -> bool {
+    #[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+    pub fn compare_and_swap(&self, current: *mut T, other: *mut T) -> bool {
         self.as_atomic()
-            .compare_and_swap(current, other, Ordering::Release)
+            .compare_and_swap(current, other, Ordering::AcqRel)
             == current
     }
 
@@ -136,7 +137,7 @@ mod tests {
         let mut alice = "Alice".to_string();
         let mut bob = "Bob".to_string();
 
-        let mut pointer = DerefPointer::new(&mut alice);
+        let pointer = DerefPointer::new(&mut alice);
         let current = pointer.pointer;
         let target = &mut bob as *mut String;
 

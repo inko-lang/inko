@@ -464,7 +464,9 @@ test.group('std::time::Instant.elapsed') do (g) {
 
     process.suspend(duration.from_milliseconds(10))
 
-    assert.true(time.elapsed.as_milliseconds >= 10.0)
+    # Due to the use of floats, the exact time might be slightly smaller than
+    # 10.0 (e.g. 9.9999994).
+    assert.true(time.elapsed.as_milliseconds >= 9.0)
   }
 }
 

@@ -31,7 +31,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     profile.reclaim.stop();
     profile.suspended.stop();
 
-    vm_state.process_pools.schedule(process.clone());
+    vm_state.scheduler.schedule(process.clone());
 
     profile.total.stop();
     profile.populate_tracing_statistics(&trace_result);

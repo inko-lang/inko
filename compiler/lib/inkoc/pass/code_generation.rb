@@ -306,12 +306,6 @@ module Inkoc
         compiled_code.instruct(:Drop, [object], tir_ins.location)
       end
 
-      def on_move_to_pool(tir_ins, compiled_code, *)
-        id = tir_ins.pool_id.id
-
-        compiled_code.instruct(:MoveToPool, [id], tir_ins.location)
-      end
-
       def on_panic(tir_ins, compiled_code, *)
         message = tir_ins.message.id
 

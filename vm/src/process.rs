@@ -1,13 +1,4 @@
-use num_bigint::BigInt;
-use num_traits::FromPrimitive;
-use std::cell::UnsafeCell;
-use std::hash::{Hash, Hasher};
-use std::i64;
-use std::mem;
-use std::panic::RefUnwindSafe;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
+use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
 use compiled_code::CompiledCodePointer;
@@ -21,13 +12,58 @@ use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::local_allocator::LocalAllocator;
 use mailbox::Mailbox;
+use num_bigint::BigInt;
+use num_traits::FromPrimitive;
 use object_pointer::ObjectPointer;
 use object_value;
-use pool::Job;
 use process_table::PID;
+use scheduler::pool::Pool;
+use scheduler::timeouts::Timeout;
+use std::cell::UnsafeCell;
+use std::hash::{Hash, Hasher};
+use std::i64;
+use std::mem;
+use std::ops::Drop;
+use std::panic::RefUnwindSafe;
+use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tagged_pointer::{self, TaggedPointer};
 use vm::state::RcState;
 
-pub type RcProcess = Arc<Process>;
+pub type RcProcess = ArcWithoutWeak<Process>;
+
+/// The bit that is set to mark a process as being suspended.
+const SUSPENDED_BIT: usize = 0;
+
+/// An enum describing what rights a thread was given when trying to reschedule
+/// a process.
+pub enum RescheduleRights {
+    /// The rescheduling rights were not obtained.
+    Failed,
+
+    /// The rescheduling rights were obtained.
+    Acquired,
+
+    /// The rescheduling rights were obtained, and the process was using a
+    /// timeout.
+    AcquiredWithTimeout(ArcWithoutWeak<Timeout>),
+}
+
+impl RescheduleRights {
+    pub fn are_acquired(&self) -> bool {
+        match self {
+            RescheduleRights::Failed => false,
+            _ => true,
+        }
+    }
+
+    pub fn process_had_timeout(&self) -> bool {
+        match self {
+            RescheduleRights::AcquiredWithTimeout(_) => true,
+            _ => false,
+        }
+    }
+}
 
 pub struct LocalData {
     /// The process-local memory allocator.
@@ -47,23 +83,41 @@ pub struct LocalData {
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
 
-    /// The ID of the pool that this process belongs to.
-    pub pool_id: u8,
+    /// A boolean indicating if this process is performing a blocking operation.
+    pub blocking: bool,
 
     /// The ID of the thread this process is pinned to.
     pub thread_id: Option<u8>,
 }
 
 pub struct Process {
-    /// Data stored in a process that should only be modified by a single thread
-    /// at once.
-    pub local_data: UnsafeCell<LocalData>,
-
     /// The process identifier of this process.
     pub pid: PID,
 
+    /// Data stored in a process that should only be modified by a single thread
+    /// at once.
+    local_data: UnsafeCell<LocalData>,
+
     /// If the process is waiting for a message.
-    pub waiting_for_message: AtomicBool,
+    waiting_for_message: AtomicBool,
+
+    /// A marker indicating if a process is suspened, optionally including the
+    /// pointer to the timeout.
+    ///
+    /// When this value is NULL, the process is not suspended.
+    ///
+    /// When the lowest bit is set to 1, the pointer may point to (after
+    /// unsetting the bit) to one of the following:
+    ///
+    /// 1. NULL, meaning the process is suspended indefinitely.
+    /// 2. A Timeout, meaning the process is suspended until the timeout
+    ///    expires.
+    ///
+    /// While the type here uses a `TaggedPointer`, in reality the type is an
+    /// `ArcWithoutWeak<Timeout>`. This trick is needed to allow for atomic
+    /// operations and tagging, something which isn't possible using an
+    /// `Option<T>`.
+    suspended: TaggedPointer<Timeout>,
 }
 
 unsafe impl Sync for LocalData {}
@@ -74,7 +128,6 @@ impl RefUnwindSafe for Process {}
 impl Process {
     pub fn with_rc(
         pid: PID,
-        pool_id: u8,
         context: ExecutionContext,
         global_allocator: RcGlobalAllocator,
         config: &Config,
@@ -84,35 +137,35 @@ impl Process {
             context: Box::new(context),
             mailbox: Mailbox::new(global_allocator, config),
             panic_handler: ObjectPointer::null(),
-            pool_id,
+            blocking: false,
             thread_id: None,
         };
 
-        Arc::new(Process {
+        ArcWithoutWeak::new(Process {
             pid,
             local_data: UnsafeCell::new(local_data),
             waiting_for_message: AtomicBool::new(false),
+            suspended: TaggedPointer::null(),
         })
     }
 
     pub fn from_block(
         pid: PID,
-        pool_id: u8,
         block: &Block,
         global_allocator: RcGlobalAllocator,
         config: &Config,
     ) -> RcProcess {
         let context = ExecutionContext::from_isolated_block(block);
 
-        Process::with_rc(pid, pool_id, context, global_allocator, config)
+        Process::with_rc(pid, context, global_allocator, config)
     }
 
-    pub fn set_pool_id(&self, id: u8) {
-        self.local_data_mut().pool_id = id;
+    pub fn set_blocking(&self, value: bool) {
+        self.local_data_mut().blocking = value;
     }
 
-    pub fn pool_id(&self) -> u8 {
-        self.local_data().pool_id
+    pub fn is_blocking(&self) -> bool {
+        self.local_data().blocking
     }
 
     pub fn thread_id(&self) -> Option<u8> {
@@ -129,6 +182,50 @@ impl Process {
 
     pub fn is_pinned(&self) -> bool {
         self.thread_id().is_some()
+    }
+
+    pub fn suspend_with_timeout(&self, timeout: ArcWithoutWeak<Timeout>) {
+        let pointer = ArcWithoutWeak::into_raw(timeout);
+        let tagged = tagged_pointer::with_bit(pointer, SUSPENDED_BIT);
+
+        self.suspended.atomic_store(tagged);
+    }
+
+    pub fn suspend_without_timeout(&self) {
+        let pointer = ptr::null_mut();
+        let tagged = tagged_pointer::with_bit(pointer, SUSPENDED_BIT);
+
+        self.suspended.atomic_store(tagged);
+    }
+
+    pub fn is_suspended_with_timeout(
+        &self,
+        timeout: &ArcWithoutWeak<Timeout>,
+    ) -> bool {
+        let pointer = self.suspended.atomic_load();
+
+        tagged_pointer::untagged(pointer) == timeout.as_ptr()
+    }
+
+    /// Attempts to acquire the rights to reschedule this process.
+    pub fn acquire_rescheduling_rights(&self) -> RescheduleRights {
+        let current = self.suspended.atomic_load();
+
+        if current.is_null() {
+            RescheduleRights::Failed
+        } else if self.suspended.compare_and_swap(current, ptr::null_mut()) {
+            let untagged = tagged_pointer::untagged(current);
+
+            if untagged.is_null() {
+                RescheduleRights::Acquired
+            } else {
+                let timeout = unsafe { ArcWithoutWeak::from_raw(untagged) };
+
+                RescheduleRights::AcquiredWithTimeout(timeout)
+            }
+        } else {
+            RescheduleRights::Failed
+        }
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
@@ -318,10 +415,6 @@ impl Process {
         }
     }
 
-    pub fn advance_instruction_index(&self) {
-        self.local_data_mut().context.instruction_index += 1;
-    }
-
     pub fn binding(&self) -> RcBinding {
         self.context().binding()
     }
@@ -410,15 +503,18 @@ impl Process {
     pub fn reclaim_and_finalize(&self, state: &RcState) {
         let mut blocks = self.reclaim_all_blocks();
 
-        for block in blocks.iter_mut() {
-            block.reset_mark_bitmaps();
-            block.prepare_finalization();
-            block.reset();
+        let to_finalize = blocks
+            .iter_mut()
+            .map(|block| {
+                block.reset_mark_bitmaps();
+                block.prepare_finalization();
+                block.reset();
 
-            state
-                .finalizer_pool
-                .schedule(Job::normal(DerefPointer::new(block)));
-        }
+                DerefPointer::new(block)
+            })
+            .collect();
+
+        state.finalizer_pool.schedule(to_finalize);
 
         state.global_allocator.add_blocks(&mut blocks);
     }
@@ -469,19 +565,15 @@ impl Process {
     }
 
     pub fn waiting_for_message(&self) {
-        self.waiting_for_message.store(true, Ordering::Relaxed);
-    }
-
-    pub fn is_waiting_for_message(&self) -> bool {
-        self.waiting_for_message.load(Ordering::Relaxed)
-    }
-
-    pub fn should_reschedule_for_received_message(&self) -> bool {
-        self.is_waiting_for_message() && self.has_messages()
+        self.waiting_for_message.store(true, Ordering::Release);
     }
 
     pub fn no_longer_waiting_for_message(&self) {
-        self.waiting_for_message.store(false, Ordering::Relaxed);
+        self.waiting_for_message.store(false, Ordering::Release);
+    }
+
+    pub fn is_waiting_for_message(&self) -> bool {
+        self.waiting_for_message.load(Ordering::Acquire)
     }
 }
 
@@ -496,6 +588,14 @@ impl Eq for Process {}
 impl Hash for Process {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pid.hash(state);
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        // This ensures the timeout is dropped if it's present, without having
+        // to duplicate the dropping logic.
+        self.acquire_rescheduling_rights();
     }
 }
 
@@ -673,7 +773,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 440);
+        assert_eq!(size, 456);
     }
 
     #[test]

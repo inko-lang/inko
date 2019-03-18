@@ -59,12 +59,6 @@
 ## reaches zero.
 import std::conversion::(ToFloat, ToInteger, ToString)
 
-## The ID of the pool to schedule regular processes on.
-let PRIMARY_POOL = 0
-
-## The ID of the pool to use for slow or (potentially) blocking operations.
-let SECONDARY_POOL = 1
-
 ## The sending-half of a channel.
 object Sender!(T) {
   def init(pid: ToInteger) {
@@ -189,7 +183,7 @@ def receive(timeout: ToFloat = 0.0) {
 ##       10 # => 10
 ##     }
 def spawn(block: lambda) -> Integer {
-  _INKOC.process_spawn(block, PRIMARY_POOL)
+  _INKOC.process_spawn(block)
 }
 
 ## Spawns a process that accepts messages of a single type.
@@ -279,11 +273,11 @@ def channel!(T)(receiver: lambda (Receiver!(T))) -> Sender!(T) {
 ##
 ##     result # => 12
 def blocking!(R)(block: do -> R) -> R {
-  let moved = _INKOC.move_to_pool(SECONDARY_POOL)
+  let moved = _INKOC.set_blocking(True)
 
   defer {
-    # "moved" will be set to true the first time we try to move a process, and
-    # false if it has already been moved to the target pool. For example:
+    # "moved" will be set to true the first time we try to mark a process as
+    # blocking, and false if it has already been marked. For example:
     #
     #     import std::process
     #
@@ -291,14 +285,14 @@ def blocking!(R)(block: do -> R) -> R {
     #       process.blocking {    # moved = false
     #         process.blocking {  # moved = false
     #           # ...
-    #         }                   # still on the secondary pool
-    #       }                     # still on the secondary pool
+    #         }                   # still on the blocking pool
+    #       }                     # still on the blocking pool
     #     }                       # now we can move back to the primary pool
     #
     # Using the `if_true` below, we ensure that we only move the process back
     # once we return from the outer most call to this method.
     moved.if_true {
-      _INKOC.move_to_pool(PRIMARY_POOL)
+      _INKOC.set_blocking(False)
     }
   }
 

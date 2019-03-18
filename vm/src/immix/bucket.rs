@@ -2,11 +2,6 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
-use parking_lot::Mutex;
-use pool::Job;
-use rayon::prelude::*;
-use std::cell::UnsafeCell;
-
 use deref_pointer::DerefPointer;
 use immix::block::Block;
 use immix::block_list::BlockList;
@@ -14,6 +9,10 @@ use immix::global_allocator::RcGlobalAllocator;
 use immix::histograms::Histograms;
 use object::Object;
 use object_pointer::ObjectPointer;
+use parking_lot::Mutex;
+use rayon::prelude::*;
+use scheduler::pool::Pool;
+use std::cell::UnsafeCell;
 use vm::state::RcState;
 
 macro_rules! lock_bucket {
@@ -237,7 +236,7 @@ impl Bucket {
     pub fn reclaim_blocks(&mut self, state: &RcState, histograms: &Histograms) {
         let mut reclaim = BlockList::new();
 
-        let finalize = self
+        let to_finalize = self
             .blocks
             .pointers()
             .into_par_iter()
@@ -261,14 +260,14 @@ impl Bucket {
                 }
 
                 if finalize {
-                    Some(Job::normal(block))
+                    Some(block)
                 } else {
                     None
                 }
             })
             .collect();
 
-        state.finalizer_pool.schedule_multiple(finalize);
+        state.finalizer_pool.schedule(to_finalize);
 
         // We partition the blocks in sequence so we don't need to synchronise
         // access to the destination lists.

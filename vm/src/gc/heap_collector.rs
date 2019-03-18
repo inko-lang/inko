@@ -28,7 +28,7 @@ pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
 
     profile.reclaim.stop();
 
-    vm_state.process_pools.schedule(process.clone());
+    vm_state.scheduler.schedule(process.clone());
 
     profile.suspended.stop();
 

@@ -1507,7 +1507,7 @@ module Inkoc
         typedb.nil_type.new_instance
       end
 
-      def on_raw_move_to_pool(*)
+      def on_raw_set_blocking(*)
         typedb.boolean_type.new_instance
       end
 

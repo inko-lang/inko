@@ -102,7 +102,7 @@ module Inkoc
         FloatCeil
         FloatRound
         Drop
-        MoveToPool
+        SetBlocking
         StdoutFlush
         StderrFlush
         FileRemove

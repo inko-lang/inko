@@ -27,7 +27,6 @@ const DEFAULT_MATURE_THRESHOLD: u32 = (16 * 1024 * 1024) / (BLOCK_SIZE as u32);
 const DEFAULT_MAILBOX_THRESHOLD: u32 = 1;
 const DEFAULT_GROWTH_FACTOR: f64 = 1.5;
 const DEFAULT_GROWTH_THRESHOLD: f64 = 0.9;
-const DEFAULT_SUSPENSION_CHECK_INTERVAL: f64 = 0.1;
 const DEFAULT_REDUCTIONS: usize = 1000;
 
 /// Structure containing the configuration settings for the virtual machine.
@@ -36,28 +35,24 @@ pub struct Config {
     pub directories: Vec<PathBuf>,
 
     /// The number of primary process threads to run.
-    pub primary_threads: u8,
+    pub primary_threads: usize,
 
-    /// The number of secondary process threads to run.
-    pub secondary_threads: u8,
+    /// The number of blocking process threads to run.
+    pub blocking_threads: usize,
 
-    /// The number of garbage collector threads to run. Defaults to 2 threads.
-    pub gc_threads: u8,
+    /// The number of garbage collector threads to run.
+    pub gc_threads: usize,
 
-    /// The number of finalizer threads to run. Defaults to 2 threads.
-    pub finalizer_threads: u8,
+    /// The number of finalizer threads to run.
+    pub finalizer_threads: usize,
 
     /// The number of threads to use for various generic parallel tasks such as
-    /// scanning stack frames during garbage collection. Defaults to the number
-    /// of physical CPU cores.
-    pub generic_parallel_threads: u8,
+    /// scanning stack frames during garbage collection.
+    pub generic_parallel_threads: usize,
 
     /// The number of reductions a process can perform before being suspended.
     /// Defaults to 1000.
     pub reductions: usize,
-
-    /// The number of seconds to wait between checking for suspended processes.
-    pub suspension_check_interval: f64,
 
     /// The number of memory blocks that can be allocated before triggering a
     /// young collection.
@@ -88,17 +83,16 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Config {
-        let cpu_count = num_cpus::get() as u8;
+        let cpu_count = num_cpus::get();
 
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
             gc_threads: cpu_count,
             finalizer_threads: cpu_count,
-            secondary_threads: cpu_count,
+            blocking_threads: cpu_count,
             generic_parallel_threads: cpu_count,
             reductions: DEFAULT_REDUCTIONS,
-            suspension_check_interval: DEFAULT_SUSPENSION_CHECK_INTERVAL,
             young_threshold: DEFAULT_YOUNG_THRESHOLD,
             mature_threshold: DEFAULT_MATURE_THRESHOLD,
             heap_growth_factor: DEFAULT_GROWTH_FACTOR,
@@ -112,19 +106,13 @@ impl Config {
     /// Populates configuration settings based on environment variables.
     #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
     pub fn populate_from_env(&mut self) {
-        set_from_env!(self, primary_threads, "CONCURRENCY", u8);
-        set_from_env!(self, secondary_threads, "CONCURRENCY", u8);
-        set_from_env!(self, gc_threads, "CONCURRENCY", u8);
-        set_from_env!(self, finalizer_threads, "CONCURRENCY", u8);
-        set_from_env!(self, generic_parallel_threads, "CONCURRENCY", u8);
+        set_from_env!(self, primary_threads, "CONCURRENCY", usize);
+        set_from_env!(self, blocking_threads, "CONCURRENCY", usize);
+        set_from_env!(self, gc_threads, "CONCURRENCY", usize);
+        set_from_env!(self, finalizer_threads, "CONCURRENCY", usize);
+        set_from_env!(self, generic_parallel_threads, "CONCURRENCY", usize);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
-        set_from_env!(
-            self,
-            suspension_check_interval,
-            "SUSPENSION_CHECK_INTERVAL",
-            f64
-        );
 
         set_from_env!(self, young_threshold, "YOUNG_THRESHOLD", u32);
         set_from_env!(self, mature_threshold, "MATURE_THRESHOLD", u32);
@@ -156,42 +144,6 @@ impl Config {
 
     pub fn add_directory(&mut self, path: String) {
         self.directories.push(PathBuf::from(path));
-    }
-
-    pub fn set_primary_threads(&mut self, threads: u8) {
-        if threads == 0 {
-            self.primary_threads = 1;
-        } else {
-            self.primary_threads = threads;
-        }
-    }
-
-    pub fn set_secondary_threads(&mut self, threads: u8) {
-        if threads == 0 {
-            self.secondary_threads = 1;
-        } else {
-            self.secondary_threads = threads;
-        }
-    }
-
-    pub fn set_gc_threads(&mut self, threads: u8) {
-        if threads == 0 {
-            self.gc_threads = 1;
-        } else {
-            self.gc_threads = threads;
-        }
-    }
-
-    pub fn set_reductions(&mut self, reductions: usize) {
-        if reductions > 0 {
-            self.reductions = reductions;
-        }
-    }
-
-    pub fn set_suspension_check_interval(&mut self, interval: f64) {
-        if interval > 0.0 {
-            self.suspension_check_interval = interval;
-        }
     }
 }
 
@@ -234,41 +186,5 @@ mod tests {
         config.add_directory("foo".to_string());
 
         assert_eq!(config.directories.len(), 1);
-    }
-
-    #[test]
-    fn test_set_primary_threads() {
-        let mut config = Config::new();
-
-        config.set_primary_threads(5);
-
-        assert_eq!(config.primary_threads, 5);
-    }
-
-    #[test]
-    fn test_set_gc_threads() {
-        let mut config = Config::new();
-
-        config.set_gc_threads(5);
-
-        assert_eq!(config.gc_threads, 5);
-    }
-
-    #[test]
-    fn test_set_reductions() {
-        let mut config = Config::new();
-
-        config.set_reductions(5);
-
-        assert_eq!(config.reductions, 5);
-    }
-
-    #[test]
-    fn test_set_secondary_threads() {
-        let mut config = Config::new();
-
-        config.set_secondary_threads(2);
-
-        assert_eq!(config.secondary_threads, 2);
     }
 }

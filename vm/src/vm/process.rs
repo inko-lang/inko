@@ -2,9 +2,10 @@
 use block::Block;
 use immix::copy_object::CopyObject;
 use object_pointer::ObjectPointer;
-use pool::Worker;
-use process::{Process, RcProcess};
+use process::{Process, RcProcess, RescheduleRights};
+use scheduler::process_worker::ProcessWorker;
 use stacktrace;
+use std::time::Duration;
 use vm::state::RcState;
 
 pub fn local_exists(
@@ -19,11 +20,7 @@ pub fn local_exists(
     }
 }
 
-pub fn allocate(
-    state: &RcState,
-    pool_id: u8,
-    block: &Block,
-) -> Result<RcProcess, String> {
+pub fn allocate(state: &RcState, block: &Block) -> Result<RcProcess, String> {
     let mut process_table = state.process_table.lock();
 
     let pid = process_table
@@ -32,7 +29,6 @@ pub fn allocate(
 
     let process = Process::from_block(
         pid,
-        pool_id,
         block,
         state.global_allocator.clone(),
         &state.config,
@@ -45,16 +41,14 @@ pub fn allocate(
 
 pub fn spawn(
     state: &RcState,
-    pool_id_ptr: ObjectPointer,
     block_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    let pool_id = pool_id_ptr.u8_value()?;
     let block_obj = block_ptr.block_value()?;
-    let new_proc = allocate(&state, pool_id, block_obj)?;
+    let new_proc = allocate(&state, block_obj)?;
     let new_pid = new_proc.pid;
     let pid_ptr = new_proc.allocate_usize(new_pid, state.integer_prototype);
 
-    state.process_pools.schedule(new_proc);
+    state.scheduler.schedule(new_proc);
 
     Ok(pid_ptr)
 }
@@ -62,38 +56,73 @@ pub fn spawn(
 pub fn send_message(
     state: &RcState,
     process: &RcProcess,
-    pid_ptr: ObjectPointer,
-    msg_ptr: ObjectPointer,
+    pid: ObjectPointer,
+    msg: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    let pid = pid_ptr.usize_value()?;
+    if let Some(receiver) = state.process_for_pid(pid.usize_value()?) {
+        receiver.send_message(&process, msg);
 
-    if let Some(receiver) = state.process_table.lock().get(pid) {
-        receiver.send_message(&process, msg_ptr);
-
-        if receiver.is_waiting_for_message() {
-            state.suspension_list.wake_up();
+        if process != &receiver {
+            attempt_to_reschedule_process(state, &receiver);
         }
     }
 
-    Ok(msg_ptr)
+    Ok(msg)
+}
+
+pub fn receive_message(
+    state: &RcState,
+    process: &RcProcess,
+) -> Option<ObjectPointer> {
+    if let Some(msg) = process.receive_message() {
+        process.no_longer_waiting_for_message();
+
+        Some(msg)
+    } else if process.is_waiting_for_message() {
+        // A timeout expired, but no message was received.
+        process.no_longer_waiting_for_message();
+
+        Some(state.nil_object)
+    } else {
+        None
+    }
 }
 
 pub fn wait_for_message(
     state: &RcState,
     process: &RcProcess,
-    timeout: Option<f64>,
+    wait_for: Option<Duration>,
 ) {
     process.waiting_for_message();
 
-    state.suspension_list.suspend(process.clone(), timeout);
+    if let Some(duration) = wait_for {
+        state.timeout_worker.suspend(process.clone(), duration);
+    } else {
+        process.suspend_without_timeout();
+    }
+
+    if process.has_messages() {
+        // We may have received messages before marking the process as
+        // suspended. If this happens we have to reschedule ourselves, otherwise
+        // our process may be suspended until it is sent another message.
+        attempt_to_reschedule_process(state, process);
+    }
 }
 
 pub fn current_pid(state: &RcState, process: &RcProcess) -> ObjectPointer {
     process.allocate_usize(process.pid, state.integer_prototype)
 }
 
-pub fn suspend(state: &RcState, process: &RcProcess, timeout: Option<f64>) {
-    state.suspension_list.suspend(process.clone(), timeout);
+pub fn suspend(
+    state: &RcState,
+    process: &RcProcess,
+    wait_for: Option<Duration>,
+) {
+    if let Some(duration) = wait_for {
+        state.timeout_worker.suspend(process.clone(), duration);
+    } else {
+        state.scheduler.schedule(process.clone());
+    }
 }
 
 pub fn set_parent_local(
@@ -183,17 +212,17 @@ pub fn add_defer_to_caller(
 pub fn pin_thread(
     state: &RcState,
     process: &RcProcess,
-    worker: &mut Worker,
+    worker: &mut ProcessWorker,
 ) -> ObjectPointer {
     let result = if process.thread_id().is_some() {
         state.false_object
     } else {
-        process.set_thread_id(worker.thread_id);
+        process.set_thread_id(worker.id as u8);
 
         state.true_object
     };
 
-    worker.pin();
+    worker.enter_exclusive_mode();
 
     result
 }
@@ -201,11 +230,10 @@ pub fn pin_thread(
 pub fn unpin_thread(
     state: &RcState,
     process: &RcProcess,
-    worker: &mut Worker,
+    worker: &mut ProcessWorker,
 ) -> ObjectPointer {
     process.unset_thread_id();
-
-    worker.unpin();
+    worker.leave_exclusive_mode();
 
     state.nil_object
 }
@@ -224,12 +252,94 @@ pub fn unwind_until_defining_scope(process: &RcProcess) {
     }
 }
 
-pub fn optional_timeout(pointer: ObjectPointer) -> Result<Option<f64>, String> {
+pub fn optional_timeout(
+    pointer: ObjectPointer,
+) -> Result<Option<Duration>, String> {
     let time = pointer.float_value()?;
 
     if time < 0.0 {
         return Err(format!("{} is an invalid timeout value", time));
     }
 
-    Ok(if time == 0.0 { None } else { Some(time) })
+    let result = if time == 0.0 {
+        None
+    } else {
+        let secs = time.trunc() as u64;
+        let nanos = (time.fract() * 1_000_000_000.0) as u32;
+
+        Some(Duration::new(secs, nanos))
+    };
+
+    Ok(result)
+}
+
+/// Attempts to reschedule the given process after it was sent a message.
+fn attempt_to_reschedule_process(state: &RcState, process: &RcProcess) {
+    // The logic below is necessary as a process' state may change between
+    // sending it a message and attempting to reschedule it. Imagine we have two
+    // processes: A, and B. A sends B a message, and B waits for a message twice
+    // in a row. Now imagine the order of operations to be as follows:
+    //
+    //     Process A    | Process B
+    //     -------------+--------------
+    //     send(X)      | receive₁() -> X
+    //                  | receive₂()
+    //     reschedule() |
+    //
+    // The second receive() happens before we check the receiver's state to
+    // determine if we can reschedule it. As a result we observe the process to
+    // be suspended, and would attempt to reschedule it. Without checking if
+    // this is actually still necessary, we would wake up the receiving process
+    // too early, resulting the second receive() producing a nil object:
+    //
+    //     Process A    | Process B
+    //     -------------+--------------
+    //     send(X)      | receive₁() -> X
+    //                  | receive₂() -> suspends
+    //     reschedule() |
+    //                  | receive₂() -> nil
+    //
+    // The logic below ensures that we only wake up a process when actually
+    // necessary, and suspend it again if it didn't receive any messages (taking
+    // into account messages it may have received while doing so).
+    let reschedule = match process.acquire_rescheduling_rights() {
+        RescheduleRights::Failed => false,
+        RescheduleRights::Acquired => {
+            if process.has_messages() {
+                true
+            } else {
+                process.suspend_without_timeout();
+
+                if process.has_messages() {
+                    process.acquire_rescheduling_rights().are_acquired()
+                } else {
+                    false
+                }
+            }
+        }
+        RescheduleRights::AcquiredWithTimeout(timeout) => {
+            if process.has_messages() {
+                state.timeout_worker.increase_expired_timeouts();
+                true
+            } else {
+                process.suspend_with_timeout(timeout);
+
+                if process.has_messages() {
+                    if process.acquire_rescheduling_rights().are_acquired() {
+                        state.timeout_worker.increase_expired_timeouts();
+
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+        }
+    };
+
+    if reschedule {
+        state.scheduler.schedule(process.clone());
+    }
 }

@@ -1,6 +1,8 @@
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 
+extern crate crossbeam_channel;
+extern crate crossbeam_deque;
 extern crate dirs;
 extern crate float_cmp;
 extern crate fnv;
@@ -45,18 +47,15 @@ pub mod object;
 pub mod object_pointer;
 pub mod object_value;
 pub mod platform;
-pub mod pool;
-pub mod pools;
 pub mod prefetch;
 pub mod process;
 pub mod process_table;
-pub mod queue;
 pub mod register;
 pub mod runtime_panic;
+pub mod scheduler;
 pub mod slicing;
 pub mod stacktrace;
 pub mod string_pool;
-pub mod suspension_list;
 pub mod tagged_pointer;
 pub mod timer;
 pub mod vm;

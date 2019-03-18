@@ -1,12 +1,12 @@
-use parking_lot::Mutex;
-use std::collections::LinkedList;
-
 use config::Config;
 use gc::work_list::WorkList;
 use immix::copy_object::CopyObject;
 use immix::global_allocator::RcGlobalAllocator;
 use immix::mailbox_allocator::MailboxAllocator;
 use object_pointer::ObjectPointer;
+use parking_lot::Mutex;
+use std::collections::LinkedList;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct Mailbox {
     /// Messages sent from external processes.
@@ -22,6 +22,15 @@ pub struct Mailbox {
     /// A lock to use when synchronising various operations, such as sending
     /// messages from external processes.
     pub write_lock: Mutex<()>,
+
+    /// The number of messages stored in this mailbox.
+    ///
+    /// Since messages can be stored in either the synchronised external half
+    /// or the unsynchronised internal half, obtaining this number would be
+    /// expensive. Storing it separately and using atomic operations to access
+    /// it allows us to more efficiently retrieve this number, at the cost of a
+    /// little bit of extra memory.
+    amount: AtomicUsize,
 }
 
 impl Mailbox {
@@ -31,6 +40,7 @@ impl Mailbox {
             internal: LinkedList::new(),
             allocator: MailboxAllocator::new(global_allocator, config),
             write_lock: Mutex::new(()),
+            amount: AtomicUsize::new(0),
         }
     }
 
@@ -39,10 +49,13 @@ impl Mailbox {
 
         self.external
             .push_back(self.allocator.copy_object(original));
+
+        self.amount.fetch_add(1, Ordering::AcqRel);
     }
 
     pub fn send_from_self(&mut self, pointer: ObjectPointer) {
         self.internal.push_back(pointer);
+        self.amount.fetch_add(1, Ordering::AcqRel);
     }
 
     /// Returns a tuple containing a boolean and an optional message.
@@ -57,6 +70,8 @@ impl Mailbox {
         }
 
         if let Some(pointer) = self.internal.pop_front() {
+            self.amount.fetch_sub(1, Ordering::AcqRel);
+
             return (pointer.is_mailbox(), Some(pointer));
         } else {
             (false, None)
@@ -87,17 +102,108 @@ impl Mailbox {
         pointers
     }
 
-    /// Returns true if the process has any messages available.
-    ///
-    /// This method should only be called when the owning processes is suspended
-    /// as otherwise the counts returned could be inaccurate.
     pub fn has_messages(&self) -> bool {
-        if !self.internal.is_empty() {
-            return true;
-        }
+        self.amount.load(Ordering::Acquire) > 0
+    }
+}
 
-        let _lock = self.write_lock.lock();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::Config;
+    use immix::global_allocator::GlobalAllocator;
+    use object_pointer::ObjectPointer;
+    use vm::test::setup;
 
-        !self.external.is_empty()
+    #[test]
+    fn test_send_from_self() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 0);
+
+        mailbox.send_from_self(ObjectPointer::integer(5));
+
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn test_send_from_external() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 0);
+
+        mailbox.send_from_external(ObjectPointer::integer(5));
+
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn test_receive_without_messages() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        let (must_copy, message) = mailbox.receive();
+
+        assert_eq!(must_copy, false);
+        assert!(message.is_none());
+    }
+
+    #[test]
+    fn test_receive_with_external_message() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        mailbox.send_from_external(ObjectPointer::integer(5));
+
+        let (must_copy, message) = mailbox.receive();
+
+        assert_eq!(must_copy, false);
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 0);
+        assert!(message == Some(ObjectPointer::integer(5)));
+    }
+
+    #[test]
+    fn test_receive_with_external_message_with_copying() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+        let (_machine, _block, process) = setup();
+
+        let message = process.allocate_empty();
+
+        mailbox.send_from_external(message);
+
+        let (must_copy, message) = mailbox.receive();
+
+        assert_eq!(must_copy, true);
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 0);
+        assert!(message.unwrap().get().value.is_none());
+    }
+
+    #[test]
+    fn test_receive_with_internal_message() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        mailbox.send_from_self(ObjectPointer::integer(5));
+
+        let (must_copy, message) = mailbox.receive();
+
+        assert_eq!(must_copy, false);
+        assert_eq!(mailbox.amount.load(Ordering::Acquire), 0);
+        assert!(message == Some(ObjectPointer::integer(5)));
+    }
+
+    #[test]
+    fn test_has_messages() {
+        let config = Config::new();
+        let mut mailbox = Mailbox::new(GlobalAllocator::with_rc(), &config);
+
+        assert_eq!(mailbox.has_messages(), false);
+
+        mailbox.send_from_self(ObjectPointer::integer(5));
+
+        assert!(mailbox.has_messages());
     }
 }

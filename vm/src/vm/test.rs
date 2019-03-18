@@ -37,7 +37,7 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let scope = module.global_scope_ref();
         let block =
             Block::new(module.code(), None, machine.state.top_level, scope);
-        let process = process::allocate(&machine.state, 0, &block);
+        let process = process::allocate(&machine.state, &block);
 
         (block, process.unwrap())
     };
