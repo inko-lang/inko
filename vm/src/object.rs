@@ -607,9 +607,15 @@ mod tests {
 
         obj.set_attributes_map(map);
 
-        assert!(obj.take_attributes().is_some());
+        let attr_opt = obj.take_attributes();
+
+        assert!(attr_opt.is_some());
         assert!(obj.attributes.bit_is_set(PENDING_FORWARD_BIT));
         assert!(obj.attributes.is_null());
+
+        unsafe {
+            Box::from_raw(attr_opt.unwrap().untagged());
+        }
     }
 
     #[test]

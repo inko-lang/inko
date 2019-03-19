@@ -270,6 +270,10 @@ mod tests {
         let (_machine, _block, process) = setup();
 
         worker.suspend(process.clone(), Duration::from_secs(10));
+
+        // This drops the old timeout so we don't leak it.
+        process.acquire_rescheduling_rights();
+
         worker.suspend(process.clone(), Duration::from_secs(5));
         worker.increase_expired_timeouts();
 
@@ -456,6 +460,10 @@ mod tests {
         assert_eq!(worker.heap_is_fragmented(), false);
 
         worker.suspend(process.clone(), Duration::from_secs(1));
+
+        // This drops the old timeout so we don't leak it.
+        process.acquire_rescheduling_rights();
+
         worker.suspend(process.clone(), Duration::from_secs(2));
         worker.increase_expired_timeouts();
 
@@ -484,6 +492,10 @@ mod tests {
         let (_machine, _block, process) = setup();
 
         worker.suspend(process.clone(), Duration::from_secs(1));
+
+        // This drops the old timeout so we don't leak it.
+        process.acquire_rescheduling_rights();
+
         worker.suspend(process, Duration::from_secs(1));
         worker.increase_expired_timeouts();
 
