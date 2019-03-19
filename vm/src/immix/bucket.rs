@@ -265,9 +265,11 @@ impl Bucket {
                     None
                 }
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        state.finalizer_pool.schedule(to_finalize);
+        if !to_finalize.is_empty() {
+            state.finalizer_pool.schedule(to_finalize);
+        }
 
         // We partition the blocks in sequence so we don't need to synchronise
         // access to the destination lists.

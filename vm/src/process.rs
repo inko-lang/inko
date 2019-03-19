@@ -512,9 +512,11 @@ impl Process {
 
                 DerefPointer::new(block)
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        state.finalizer_pool.schedule(to_finalize);
+        if !to_finalize.is_empty() {
+            state.finalizer_pool.schedule(to_finalize);
+        }
 
         state.global_allocator.add_blocks(&mut blocks);
     }
