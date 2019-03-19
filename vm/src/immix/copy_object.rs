@@ -171,6 +171,7 @@ mod tests {
     use config::Config;
     use deref_pointer::DerefPointer;
     use global_scope::{GlobalScope, GlobalScopePointer};
+    use immix::bytemap::Bytemap;
     use immix::global_allocator::GlobalAllocator;
     use immix::local_allocator::LocalAllocator;
     use object::Object;
@@ -235,8 +236,12 @@ mod tests {
         ptr1.mark_for_finalization();
 
         let copy = dummy.copy_object(ptr1);
+        let copy_index =
+            copy.block().object_index_of_pointer(copy.raw.untagged());
 
+        assert!(copy.is_finalizable());
         assert!(copy.get().attributes_map().is_some());
+        assert!(copy.block().finalize_bitmap.is_set(copy_index));
     }
 
     #[test]
@@ -404,11 +409,15 @@ mod tests {
 
         let copy = dummy.move_object(ptr1);
 
+        let copy_index =
+            copy.block().object_index_of_pointer(copy.raw.untagged());
+
         assert_eq!(ptr1.is_finalizable(), false);
         assert!(ptr1.get().attributes_map().is_none());
 
-        assert_eq!(copy.is_finalizable(), true);
+        assert!(copy.is_finalizable());
         assert!(copy.get().attributes_map().is_some());
+        assert!(copy.block().finalize_bitmap.is_set(copy_index));
     }
 
     #[test]
