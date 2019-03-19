@@ -85,15 +85,15 @@ impl ParkGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arc_without_weak::ArcWithoutWeak;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use std::sync::Arc;
     use std::thread;
 
     #[test]
     fn test_notify_one() {
-        let group = Arc::new(ParkGroup::new());
-        let alive = Arc::new(AtomicBool::new(true));
-        let started = Arc::new(AtomicBool::new(true));
+        let group = ArcWithoutWeak::new(ParkGroup::new());
+        let alive = ArcWithoutWeak::new(AtomicBool::new(true));
+        let started = ArcWithoutWeak::new(AtomicBool::new(true));
         let group_clone = group.clone();
         let alive_clone = alive.clone();
         let started_clone = started.clone();
@@ -122,9 +122,9 @@ mod tests {
 
     #[test]
     fn test_notify_all() {
-        let group = Arc::new(ParkGroup::new());
-        let started = Arc::new(AtomicUsize::new(0));
-        let alive = Arc::new(AtomicBool::new(true));
+        let group = ArcWithoutWeak::new(ParkGroup::new());
+        let started = ArcWithoutWeak::new(AtomicUsize::new(0));
+        let alive = ArcWithoutWeak::new(AtomicBool::new(true));
         let mut handles = Vec::new();
 
         for _ in 0..4 {

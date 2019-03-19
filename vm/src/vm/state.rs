@@ -3,6 +3,7 @@
 //! Each virtual machine has its own state. This state includes any scheduled
 //! garbage collections, the configuration, the files that have been parsed,
 //! etc.
+use arc_without_weak::ArcWithoutWeak;
 use config::Config;
 use deref_pointer::DerefPointer;
 use gc::request::Request;
@@ -21,12 +22,11 @@ use scheduler::generic_pool::GenericPool;
 use scheduler::process_scheduler::ProcessScheduler;
 use scheduler::timeout_worker::TimeoutWorker;
 use std::panic::RefUnwindSafe;
-use std::sync::Arc;
 use std::time;
 use string_pool::StringPool;
 
 /// A reference counted State.
-pub type RcState = Arc<State>;
+pub type RcState = ArcWithoutWeak<State>;
 
 macro_rules! intern_string {
     ($state:expr, $lookup:expr, $store:expr) => {{
@@ -259,7 +259,7 @@ impl State {
             state.arguments.push(pointer);
         }
 
-        Arc::new(state)
+        ArcWithoutWeak::new(state)
     }
 
     /// Interns a pointer pointing to a string.

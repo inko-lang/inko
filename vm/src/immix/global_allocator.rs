@@ -3,13 +3,12 @@
 //! The global allocator is used by process-local allocators to request the
 //! allocation of new blocks or the re-using of existing (and returned) free
 //! blocks.
-use parking_lot::Mutex;
-use std::sync::Arc;
-
+use arc_without_weak::ArcWithoutWeak;
 use immix::block::Block;
 use immix::block_list::BlockList;
+use parking_lot::Mutex;
 
-pub type RcGlobalAllocator = Arc<GlobalAllocator>;
+pub type RcGlobalAllocator = ArcWithoutWeak<GlobalAllocator>;
 
 /// Structure used for storing the state of the global allocator.
 pub struct GlobalAllocator {
@@ -19,7 +18,7 @@ pub struct GlobalAllocator {
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
     pub fn with_rc() -> RcGlobalAllocator {
-        Arc::new(GlobalAllocator {
+        ArcWithoutWeak::new(GlobalAllocator {
             blocks: Mutex::new(BlockList::new()),
         })
     }

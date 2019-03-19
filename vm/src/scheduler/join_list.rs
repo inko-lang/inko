@@ -27,13 +27,13 @@ impl<T> JoinList<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arc_without_weak::ArcWithoutWeak;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
     use std::thread;
 
     #[test]
     fn test_join() {
-        let number = Arc::new(AtomicUsize::new(0));
+        let number = ArcWithoutWeak::new(AtomicUsize::new(0));
         let number1 = number.clone();
         let number2 = number.clone();
         let handle1 =
