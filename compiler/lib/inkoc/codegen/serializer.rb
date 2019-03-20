@@ -11,6 +11,14 @@ module Inkoc
       STRING_LITERAL = 2
       BIGINT_LITERAL = 3
 
+      U8_RANGE = 0..255
+      U16_RANGE = 0..65535
+      U32_RANGE = 0..4294967295
+      U64_RANGE = 0..18446744073709551615
+
+      I32_RANGE = -2147483648..2147483647
+      I64_RANGE = -9223372036854775808..9223372036854775807
+
       # The range of values that can be encoded as an signed 64 bits integer.
       #
       # These values are based on Rust's `std::i64::MIN` and `std::i64::MAX`.
@@ -31,26 +39,38 @@ module Inkoc
       end
 
       def u8(num)
+        validate_range!(num, U8_RANGE)
+
         [num].pack('C')
       end
 
       def u16(num)
+        validate_range!(num, U16_RANGE)
+
         [num].pack('S>')
       end
 
       def u32(num)
+        validate_range!(num, U32_RANGE)
+
         [num].pack('L>')
       end
 
       def u64(num)
+        validate_range!(num, U64_RANGE)
+
         [num].pack('Q>')
       end
 
       def i32(num)
+        validate_range!(num, I32_RANGE)
+
         [num].pack('l>')
       end
 
       def i64(num)
+        validate_range!(num, I64_RANGE)
+
         [num].pack('q>')
       end
 
@@ -130,6 +150,15 @@ module Inkoc
           array(code.literals.to_a, :literal) +
           array(code.code_objects.to_a, :compiled_code) +
           array(code.catch_table.to_a, :catch_entry)
+      end
+
+      def validate_range!(value, range)
+        return if range.cover?(value)
+
+        raise(
+          ArgumentError,
+          "The value #{value.inspect} is not in the range #{range.inspect}"
+        )
       end
     end
   end

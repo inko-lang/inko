@@ -808,7 +808,7 @@ module Inkoc
         define_method_bounds(node, new_scope)
         define_block_signature(node, new_scope)
 
-        store_type(type, new_scope, node.location)
+        store_type(type, scope, node.location)
 
         @deferred_methods << DeferredMethod.new(node, new_scope)
 
