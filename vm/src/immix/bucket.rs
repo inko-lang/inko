@@ -234,8 +234,6 @@ impl Bucket {
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
     pub fn reclaim_blocks(&mut self, state: &RcState, histograms: &Histograms) {
-        let mut reclaim = BlockList::new();
-
         let to_finalize = self
             .blocks
             .pointers()
@@ -275,15 +273,13 @@ impl Bucket {
         // access to the destination lists.
         for mut block in self.blocks.drain() {
             if block.is_empty() {
-                reclaim.push_front(block);
+                state.global_allocator.add_block(block);
             } else {
                 self.blocks.push_front(block);
             }
         }
 
         self.reset_current_block();
-
-        state.global_allocator.add_blocks(&mut reclaim);
     }
 
     /// Prepares this bucket for a collection.
@@ -355,7 +351,7 @@ impl Drop for Bucket {
 mod tests {
     use super::*;
     use config::Config;
-    use immix::block::Block;
+    use immix::block::{Block, LINES_PER_BLOCK};
     use immix::bytemap::Bytemap;
     use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
     use immix::histograms::Histograms;
@@ -592,7 +588,7 @@ mod tests {
         let state = State::with_rc(Config::new(), &[]);
         let histos = Histograms::new();
 
-        block1.used_lines_bitmap.set(255);
+        block1.used_lines_bitmap.set(LINES_PER_BLOCK - 1);
         block3.used_lines_bitmap.set(2);
 
         bucket.add_block(block1);
@@ -616,7 +612,7 @@ mod tests {
         let histos = Histograms::new();
         let state = State::with_rc(Config::new(), &[]);
 
-        for i in 0..256 {
+        for i in 0..LINES_PER_BLOCK {
             block.used_lines_bitmap.set(i);
         }
 
@@ -665,7 +661,14 @@ mod tests {
 
         assert!(bucket.prepare_for_collection(&histos));
 
-        assert_eq!(histos.available.get(1), 509);
+        assert_eq!(
+            histos.available.get(1),
+            // We added two blocks worth of lines. Line 0 in every block is
+            // reserved, meaning we have to subtract two lines from the number
+            // of available ones. We also marked line 1 of block 1 as in use, so
+            // we have to subtract another line.
+            (LINES_PER_BLOCK * 2) - 3
+        );
 
         let block = bucket.current_block().unwrap();
 

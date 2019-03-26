@@ -3,6 +3,7 @@ static A: std::alloc::System = std::alloc::System;
 
 extern crate crossbeam_channel;
 extern crate crossbeam_deque;
+extern crate crossbeam_queue;
 extern crate dirs;
 extern crate float_cmp;
 extern crate fnv;

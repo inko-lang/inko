@@ -136,11 +136,12 @@ mod tests {
     fn test_drop() {
         let mut alloc = permanent_allocator();
         let global_alloc = alloc.global_allocator.clone();
-
-        alloc.allocate_empty();
+        let pointer = alloc.allocate_empty();
 
         drop(alloc);
 
-        assert_eq!(global_alloc.blocks.lock().len(), 1);
+        let block = global_alloc.request_block();
+
+        assert!(&*block as *const _ == pointer.block() as *const _);
     }
 }

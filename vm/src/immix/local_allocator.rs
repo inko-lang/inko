@@ -332,14 +332,6 @@ mod tests {
     }
 
     #[test]
-    fn test_global_allocator() {
-        let (_, alloc) = local_allocator();
-        let global_alloc = alloc.global_allocator();
-
-        assert_eq!(global_alloc.blocks.lock().len(), 0);
-    }
-
-    #[test]
     fn test_eden_space_mut() {
         let (_, mut alloc) = local_allocator();
 

@@ -3,19 +3,19 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
-use parking_lot::Mutex;
-use std::alloc::{self, Layout};
-use std::ops::Drop;
-use std::ptr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-
 use deref_pointer::DerefPointer;
 use immix::block_list::BlockIteratorMut;
 use immix::bucket::Bucket;
 use immix::bytemap::{Bytemap, LineMap, ObjectMap};
 use object::Object;
 use object_pointer::RawObjectPointer;
+use parking_lot::Mutex;
+use std::alloc::{self, Layout};
+use std::mem;
+use std::ops::Drop;
+use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 
 /// The number of bytes in a block.
 pub const BLOCK_SIZE: usize = 32 * 1024;
@@ -33,7 +33,7 @@ pub const MAX_HOLES: usize = LINES_PER_BLOCK / 2;
 
 /// The number of bytes to use for a single object. This **must** equal the
 /// output of size_of::<Object>().
-pub const BYTES_PER_OBJECT: usize = 32;
+pub const BYTES_PER_OBJECT: usize = mem::size_of::<Object>();
 
 /// The number of objects that can fit in a block. This is based on the current
 /// size of "Object".
@@ -976,7 +976,7 @@ mod tests {
 
         block.used_lines_bitmap.set(1);
         block.used_lines_bitmap.set(2);
-        block.used_lines_bitmap.set(255);
+        block.used_lines_bitmap.set(LINES_PER_BLOCK - 1);
 
         find_available_hole!(block);
 
@@ -1105,10 +1105,10 @@ mod tests {
     fn test_block_available_lines_count() {
         let mut block = Block::boxed();
 
-        assert_eq!(block.available_lines_count(), 255);
+        assert_eq!(block.available_lines_count(), LINES_PER_BLOCK - 1);
 
         block.used_lines_bitmap.set(1);
 
-        assert_eq!(block.available_lines_count(), 254);
+        assert_eq!(block.available_lines_count(), LINES_PER_BLOCK - 2);
     }
 }

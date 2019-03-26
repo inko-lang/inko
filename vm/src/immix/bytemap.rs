@@ -4,19 +4,14 @@
 //! are in use. An ObjectMap is used for marking objects and can hold at most
 //! 1024 entries while a LineMap is used for marking lines and can hold at most
 //! 256 entries.
-
-/// The number of entries in an object map.
-const OBJECT_ENTRIES: usize = 1024;
-
-/// The number of entries in a line map.
-const LINE_ENTRIES: usize = 256;
+use immix::block::{LINES_PER_BLOCK, OBJECTS_PER_BLOCK};
 
 pub struct ObjectMap {
-    values: [u8; OBJECT_ENTRIES],
+    values: [u8; OBJECTS_PER_BLOCK],
 }
 
 pub struct LineMap {
-    values: [u8; LINE_ENTRIES],
+    values: [u8; LINES_PER_BLOCK],
     mark_value: u8,
 }
 
@@ -99,7 +94,7 @@ impl ObjectMap {
     /// Returns a new, empty object bitmap.
     pub fn new() -> ObjectMap {
         ObjectMap {
-            values: [0; OBJECT_ENTRIES],
+            values: [0; OBJECTS_PER_BLOCK],
         }
     }
 }
@@ -108,7 +103,7 @@ impl LineMap {
     /// Returns a new, empty line bitmap.
     pub fn new() -> LineMap {
         LineMap {
-            values: [0; LINE_ENTRIES],
+            values: [0; LINES_PER_BLOCK],
             mark_value: 1,
         }
     }
@@ -149,7 +144,7 @@ impl Bytemap for ObjectMap {
     }
 
     fn max_entries(&self) -> usize {
-        OBJECT_ENTRIES
+        OBJECTS_PER_BLOCK
     }
 }
 
@@ -165,7 +160,7 @@ impl Bytemap for LineMap {
     }
 
     fn max_entries(&self) -> usize {
-        LINE_ENTRIES
+        LINES_PER_BLOCK
     }
 }
 
@@ -228,7 +223,7 @@ mod tests {
     fn test_object_map_size_of() {
         // This test is put in place to ensure the ObjectMap type doesn't
         // suddenly grow due to some change.
-        assert_eq!(size_of::<ObjectMap>(), 1024);
+        assert_eq!(size_of::<ObjectMap>(), OBJECTS_PER_BLOCK);
     }
 
     #[test]
@@ -297,7 +292,7 @@ mod tests {
     fn test_line_map_size_of() {
         // This test is put in place to ensure the LineMap type doesn't suddenly
         // grow due to some change.
-        assert_eq!(size_of::<LineMap>(), 257);
+        assert_eq!(size_of::<LineMap>(), LINES_PER_BLOCK + 1);
     }
 
     #[test]
