@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 /// The number of bytes in a block.
-pub const BLOCK_SIZE: usize = 32 * 1024;
+pub const BLOCK_SIZE: usize = 8 * 1024;
 
 /// The number of bytes in single line.
 pub const LINE_SIZE: usize = 128;
