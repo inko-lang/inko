@@ -1,24 +1,6 @@
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
 
-extern crate crossbeam_channel;
-extern crate crossbeam_deque;
-extern crate crossbeam_queue;
-extern crate dirs;
-extern crate float_cmp;
-extern crate fnv;
-extern crate libffi;
-extern crate libloading;
-extern crate num_bigint;
-extern crate num_cpus;
-extern crate num_integer;
-extern crate num_traits;
-extern crate parking_lot;
-extern crate rayon;
-extern crate time;
-
-pub mod macros;
-
 pub mod arc_without_weak;
 pub mod binding;
 pub mod block;
@@ -40,6 +22,7 @@ pub mod hasher;
 pub mod immix;
 pub mod immutable_string;
 pub mod integer_operations;
+pub mod macros;
 pub mod mailbox;
 pub mod module;
 pub mod module_registry;
