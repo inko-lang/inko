@@ -60,7 +60,6 @@ module Inkoc
     POINTER_CONST = 'Pointer'
     PROCESS_CONST = 'Process'
     ARRAY_TYPE_PARAMETER = 'T'
-    PROCESS_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
 
     MODULE_TYPE = 'Module'

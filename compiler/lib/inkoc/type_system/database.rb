@@ -59,12 +59,6 @@ module Inkoc
           array.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
         end
       end
-
-      def initialize_process_type
-        new_object_type(Config::PROCESS_CONST).tap do |process|
-          process.define_type_parameter(Config::PROCESS_TYPE_PARAMETER)
-        end
-      end
     end
   end
 end
