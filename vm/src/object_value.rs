@@ -4,17 +4,17 @@
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
-use num_bigint::BigInt;
-use std::fs;
-use std::mem;
-
 use arc_without_weak::ArcWithoutWeak;
 use binding::RcBinding;
 use block::Block;
 use ffi::{Pointer, RcFunction, RcLibrary};
 use hasher::Hasher;
 use immutable_string::ImmutableString;
+use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
+use process::RcProcess;
+use std::fs;
+use std::mem;
 
 /// Enum for storing different values in an Object.
 #[cfg_attr(feature = "cargo-clippy", allow(box_vec))]
@@ -55,6 +55,9 @@ pub enum ObjectValue {
 
     /// A raw C pointer.
     Pointer(Pointer),
+
+    /// A lightweight Inko process.
+    Process(RcProcess),
 }
 
 impl ObjectValue {
@@ -279,6 +282,16 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_process(&self) -> Result<&RcProcess, String> {
+        match *self {
+            ObjectValue::Process(ref proc) => Ok(proc),
+            _ => {
+                Err("ObjectValue::as_process() called on a non process"
+                    .to_string())
+            }
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -318,6 +331,7 @@ impl ObjectValue {
             ObjectValue::Library(_) => "Library",
             ObjectValue::Function(_) => "Function",
             ObjectValue::Pointer(_) => "Pointer",
+            ObjectValue::Process(_) => "Process",
         }
     }
 }
@@ -384,6 +398,10 @@ pub fn function(value: RcFunction) -> ObjectValue {
 
 pub fn pointer(value: Pointer) -> ObjectValue {
     ObjectValue::Pointer(value)
+}
+
+pub fn process(value: RcProcess) -> ObjectValue {
+    ObjectValue::Process(value)
 }
 
 #[cfg(test)]

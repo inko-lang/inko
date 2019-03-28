@@ -169,14 +169,14 @@ mod tests {
         let (_machine, _block, process) = setup();
         let mut worker = worker();
 
-        worker.state.push_global(process);
+        worker.state.push_global(process.clone());
 
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
             worker.state.terminate();
         });
 
-        assert!(pids.lock().contains(&0));
+        assert!(pids.lock().contains(&process.identifier()));
         assert_eq!(worker.state.queues[1].has_local_jobs(), false);
     }
 
@@ -186,14 +186,14 @@ mod tests {
         let (_machine, _block, process) = setup();
         let mut worker = worker();
 
-        worker.state.queues[0].push_external(process);
+        worker.state.queues[0].push_external(process.clone());
 
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
             worker.state.terminate();
         });
 
-        assert!(pids.lock().contains(&0));
+        assert!(pids.lock().contains(&process.identifier()));
     }
 
     #[test]
@@ -202,14 +202,14 @@ mod tests {
         let (_machine, _block, process) = setup();
         let mut worker = worker();
 
-        worker.state.queues[1].push_internal(process);
+        worker.state.queues[1].push_internal(process.clone());
 
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
             worker.state.terminate();
         });
 
-        assert!(pids.lock().contains(&0));
+        assert!(pids.lock().contains(&process.identifier()));
         assert_eq!(worker.state.queues[1].has_local_jobs(), false);
     }
 
@@ -217,10 +217,12 @@ mod tests {
     fn test_run_steal_then_work() {
         let (pids, pids_copy) = pids_set();
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block).unwrap();
+        let process2 = process::allocate(&machine.state, &block);
+        let process2_clone = process2.clone();
         let mut worker = worker();
 
-        worker.state.queues[1].push_internal(process);
+        process.set_main();
+        worker.state.queues[1].push_internal(process.clone());
 
         // Here the order of work is:
         //
@@ -228,17 +230,17 @@ mod tests {
         // 2. Go back to processing our own queue
         // 3. Terminate
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
 
-            worker.queue.push_internal(process2.clone());
+            worker.queue.push_internal(process2_clone.clone());
 
-            if process.pid == 1 {
+            if !process.is_main() {
                 worker.state.terminate();
             }
         });
 
-        assert!(pids.lock().contains(&0));
-        assert!(pids.lock().contains(&1));
+        assert!(pids.lock().contains(&process.identifier()));
+        assert!(pids.lock().contains(&process2.identifier()));
         assert_eq!(worker.state.queues[1].has_local_jobs(), false);
     }
 
@@ -246,19 +248,19 @@ mod tests {
     fn test_run_work_then_terminate_steal_loop() {
         let (pids, pids_copy) = pids_set();
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block).unwrap();
+        let process2 = process::allocate(&machine.state, &block);
         let mut worker = worker();
 
-        worker.state.queues[0].push_internal(process);
-        worker.state.queues[1].push_internal(process2);
+        worker.state.queues[0].push_internal(process.clone());
+        worker.state.queues[1].push_internal(process2.clone());
 
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
             worker.state.terminate();
         });
 
-        assert_eq!(pids.lock().contains(&0), true);
-        assert_eq!(pids.lock().contains(&1), false);
+        assert_eq!(pids.lock().contains(&process.identifier()), true);
+        assert_eq!(pids.lock().contains(&process2.identifier()), false);
 
         assert!(worker.state.queues[1].has_local_jobs());
     }
@@ -270,21 +272,21 @@ mod tests {
         let mut worker = worker();
 
         worker.enter_exclusive_mode();
-        worker.queue.push_external(process);
+        worker.queue.push_external(process.clone());
 
         worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.pid);
+            pids_copy.lock().insert(process.identifier());
             worker.state.terminate();
         });
 
-        assert!(pids.lock().contains(&0));
+        assert!(pids.lock().contains(&process.identifier()));
     }
 
     #[test]
     fn test_enter_exclusive_mode() {
         let mut worker = worker();
         let (machine, block, process) = setup();
-        let process2 = process::allocate(&machine.state, &block).unwrap();
+        let process2 = process::allocate(&machine.state, &block);
 
         worker.queue.push_internal(process);
         worker.queue.push_external(process2);

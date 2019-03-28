@@ -16,8 +16,6 @@ use num_bigint::BigInt;
 use object_pointer::ObjectPointer;
 use object_value;
 use parking_lot::Mutex;
-use process::RcProcess;
-use process_table::ProcessTable;
 use scheduler::generic_pool::GenericPool;
 use scheduler::process_scheduler::ProcessScheduler;
 use scheduler::timeout_worker::TimeoutWorker;
@@ -57,9 +55,6 @@ macro_rules! intern_string {
 pub struct State {
     /// The virtual machine's configuration.
     pub config: Config,
-
-    /// Table containing all processes.
-    pub process_table: Mutex<ProcessTable<RcProcess>>,
 
     /// The scheduler to use for executing Inko processes.
     pub scheduler: ProcessScheduler,
@@ -120,6 +115,9 @@ pub struct State {
 
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
+
+    /// The prototype for processes.
+    pub process_prototype: ObjectPointer,
 
     /// The prototype for read-only files.
     pub read_only_file_prototype: ObjectPointer,
@@ -186,6 +184,7 @@ impl State {
         let library_prototype = perm_alloc.allocate_empty();
         let function_prototype = perm_alloc.allocate_empty();
         let pointer_prototype = perm_alloc.allocate_empty();
+        let process_prototype = perm_alloc.allocate_empty();
 
         {
             top_level.set_prototype(object_proto);
@@ -208,6 +207,7 @@ impl State {
             library_prototype.set_prototype(object_proto);
             function_prototype.set_prototype(object_proto);
             pointer_prototype.set_prototype(object_proto);
+            process_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
@@ -221,7 +221,6 @@ impl State {
                 config.blocking_threads,
             ),
             config,
-            process_table: Mutex::new(ProcessTable::new()),
             gc_pool,
             finalizer_pool,
             permanent_allocator: Mutex::new(perm_alloc),
@@ -251,6 +250,7 @@ impl State {
             library_prototype,
             function_prototype,
             pointer_prototype,
+            process_prototype,
         };
 
         for argument in arguments {
@@ -349,10 +349,6 @@ impl State {
         } else {
             Some(handler)
         }
-    }
-
-    pub fn process_for_pid(&self, pid: usize) -> Option<RcProcess> {
-        self.process_table.lock().get(pid)
     }
 }
 

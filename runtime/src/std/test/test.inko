@@ -4,7 +4,7 @@
 #! source location and the `Block` to run. Tests are typically defined by
 #! sending `test` to an instance of `std::test::test_group::TestGroup`.
 import std::debug::(self, CallFrame)
-import std::process
+import std::process::(self, Process)
 import std::stdio::stdout
 import std::test::error::TestFailure
 
@@ -14,7 +14,7 @@ object Test {
   def init(
     name: String,
     group_name: String,
-    runner_pid: Integer,
+    runner: Process,
     location: CallFrame,
     body: lambda,
   ) {
@@ -27,8 +27,8 @@ object Test {
     ## A CallFrame pointing to the location the test was defined on by the user.
     let @location = location
 
-    ## The PID of the runner this test belongs.
-    let @runner_pid = runner_pid
+    ## The runner process this test belongs.
+    let @runner = runner
 
     ## The failure of this test, if any.
     let mut @failure: ?TestFailure = Nil
@@ -85,6 +85,6 @@ object Test {
   }
 
   def notify_runner {
-    process.send(pid: @runner_pid, message: self)
+    @runner.send(self)
   }
 }

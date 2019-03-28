@@ -2,6 +2,7 @@
 use block::Block;
 use immix::copy_object::CopyObject;
 use object_pointer::ObjectPointer;
+use object_value;
 use process::{Process, RcProcess, RescheduleRights};
 use scheduler::process_worker::ProcessWorker;
 use stacktrace;
@@ -20,51 +21,41 @@ pub fn local_exists(
     }
 }
 
-pub fn allocate(state: &RcState, block: &Block) -> Result<RcProcess, String> {
-    let mut process_table = state.process_table.lock();
-
-    let pid = process_table
-        .reserve()
-        .ok_or_else(|| "No PID could be reserved".to_string())?;
-
-    let process = Process::from_block(
-        pid,
-        block,
-        state.global_allocator.clone(),
-        &state.config,
-    );
-
-    process_table.map(pid, process.clone());
-
-    Ok(process)
+pub fn allocate(state: &RcState, block: &Block) -> RcProcess {
+    Process::from_block(block, state.global_allocator.clone(), &state.config)
 }
 
 pub fn spawn(
     state: &RcState,
+    current_process: &RcProcess,
     block_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    let block_obj = block_ptr.block_value()?;
-    let new_proc = allocate(&state, block_obj)?;
-    let new_pid = new_proc.pid;
-    let pid_ptr = new_proc.allocate_usize(new_pid, state.integer_prototype);
+    let block = block_ptr.block_value()?;
+    let new_proc = allocate(&state, &block);
 
-    state.scheduler.schedule(new_proc);
+    // We schedule the process right away so we don't have to wait for the
+    // allocation below (which may require requesting a new block) to finish.
+    state.scheduler.schedule(new_proc.clone());
 
-    Ok(pid_ptr)
+    let new_proc_ptr = current_process
+        .allocate(object_value::process(new_proc), state.process_prototype);
+
+    Ok(new_proc_ptr)
 }
 
 pub fn send_message(
     state: &RcState,
-    process: &RcProcess,
-    pid: ObjectPointer,
+    sender: &RcProcess,
+    receiver_ptr: ObjectPointer,
     msg: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
-    if let Some(receiver) = state.process_for_pid(pid.usize_value()?) {
-        receiver.send_message(&process, msg);
+    let receiver = receiver_ptr.process_value()?;
 
-        if process != &receiver {
-            attempt_to_reschedule_process(state, &receiver);
-        }
+    if receiver == sender {
+        receiver.send_message_from_self(msg);
+    } else {
+        receiver.send_message_from_external_process(msg);
+        attempt_to_reschedule_process(state, &receiver);
     }
 
     Ok(msg)
@@ -110,7 +101,7 @@ pub fn wait_for_message(
 }
 
 pub fn current_pid(state: &RcState, process: &RcProcess) -> ObjectPointer {
-    process.allocate_usize(process.pid, state.integer_prototype)
+    process.allocate_usize(process.identifier(), state.integer_prototype)
 }
 
 pub fn suspend(
@@ -236,6 +227,18 @@ pub fn unpin_thread(
     worker.leave_exclusive_mode();
 
     state.nil_object
+}
+
+pub fn identifier(
+    state: &RcState,
+    current_process: &RcProcess,
+    process_ptr: ObjectPointer,
+) -> Result<ObjectPointer, String> {
+    let proc = process_ptr.process_value()?;
+    let proto = state.string_prototype;
+    let identifier = format!("{:#x}", proc.identifier());
+
+    Ok(current_process.allocate(object_value::string(identifier), proto))
 }
 
 pub fn unwind_until_defining_scope(process: &RcProcess) {

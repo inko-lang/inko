@@ -614,6 +614,7 @@ impl ObjectPointer {
     def_value_getter!(library_value, get, as_library, &RcLibrary);
     def_value_getter!(function_value, get, as_function, &RcFunction);
     def_value_getter!(pointer_value, get, as_pointer, Pointer);
+    def_value_getter!(process_value, get, as_process, &RcProcess);
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

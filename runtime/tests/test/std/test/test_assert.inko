@@ -6,12 +6,13 @@ def run_panic_test(block: lambda) -> PanicResult {
   let test = PanicTest
     .new(owner: process.current, block: block)
 
-  let sender = process.channel!(PanicTest) lambda (receiver) {
-    receiver.receive.run
+  let proc = process.spawn {
+    let test = process.receive as PanicTest
+
+    test.run
   }
 
-  sender.send(test)
-
+  proc.send(test)
   process.receive as PanicResult
 }
 

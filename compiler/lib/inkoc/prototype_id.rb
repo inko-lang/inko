@@ -17,5 +17,6 @@ module Inkoc
     LIBRARY = 12
     FUNCTION = 13
     POINTER = 14
+    PROCESS = 15
   end
 end

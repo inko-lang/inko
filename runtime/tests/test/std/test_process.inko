@@ -1,56 +1,18 @@
-import std::process::(self, Receiver, Sender)
+import std::process::(self, Process)
 import std::test
 import std::test::assert
 import std::time::Instant
-
-test.group('std::process::Sender.send') do (g) {
-  g.test('Sending a message to a process') {
-    let pid = process.spawn {
-      let parent = process.receive as Integer
-
-      process.send(pid: parent, message: parent)
-    }
-
-    Sender.new(pid).send(process.current)
-
-    assert.equal(process.receive as Integer, process.current)
-  }
-}
-
-test.group('std::process::Sender.pid') do (g) {
-  g.test('Obtaining a PID of the receiving end of a Sender') {
-    let sender = Sender.new(process.current)
-
-    assert.equal(sender.pid, process.current)
-  }
-}
-
-test.group('std::process::Receiver.receive') do (g) {
-  g.test('Receiving a message without a timeout') {
-    let receiver: Receiver!(Integer) = Receiver.new
-
-    process.send(pid: process.current, message: 10)
-
-    assert.equal(receiver.receive, 10)
-  }
-
-  g.test('Receiving a message with a timeout') {
-    let receiver: Receiver!(Integer) = Receiver.new
-    let message = receiver.receive(0.0001)
-
-    assert.equal(message, Nil)
-  }
-}
+import std::mirror
 
 test.group('std::process.current') do (g) {
-  g.test('Obtaining the PID of the current process') {
-    assert.true(process.current >= 0)
+  g.test('Obtaining the current Process') {
+    assert.true(mirror.reflect_object(process.current).instance_of?(Process))
   }
 }
 
-test.group('std::process.send') do (g) {
-  g.test('Sending a message to a process') {
-    let message = process.send(pid: process.current, message: 'testing')
+test.group('std::process::Process.send') do (g) {
+  g.test('Sending a message to a Process') {
+    let message = process.current.send('testing')
     let received = process.receive as String
 
     assert.equal(message, 'testing')
@@ -60,14 +22,22 @@ test.group('std::process.send') do (g) {
 
 test.group('std::process.receive') do (g) {
   g.test('Receiving a message without a timeout') {
-    process.send(pid: process.current, message: 'testing')
+    process.current.send('testing')
 
     let received = process.receive as String
 
     assert.equal(received, 'testing')
   }
 
-  g.test('Receiving a message with a timeout') {
+  g.test('Receiving a message with a timeout when there is a message') {
+    process.current.send('testing')
+
+    let received = process.receive(0.001) as String
+
+    assert.equal(received, 'testing')
+  }
+
+  g.test('Receiving a message with a timeout when there is no message') {
     let received = process.receive(0.001) as ?String
 
     assert.equal(received, Nil)
@@ -76,23 +46,9 @@ test.group('std::process.receive') do (g) {
 
 test.group('std::process.spawn') do (g) {
   g.test('Spawning a process') {
-    let pid = process.spawn {}
+    let proc = process.spawn {}
 
-    assert.true(pid >= 0)
-  }
-}
-
-test.group('std::process.channel') do (g) {
-  g.test('Sending and receiving messages using a Sender and Receiver') {
-    let sender = process.channel!(Integer) lambda (receiver) {
-      let pid = *receiver.receive
-
-      process.send(pid: pid, message: pid)
-    }
-
-    sender.send(process.current)
-
-    assert.equal(process.receive as Integer, process.current)
+    assert.true(mirror.reflect_object(proc).instance_of?(Process))
   }
 }
 
@@ -123,21 +79,21 @@ test.group('std::process.suspend') do (g) {
 
 test.group('std::process.terminate') do (g) {
   g.test('Terminating the current process') {
-    let pid = process.spawn {
-      let parent = process.receive as Integer
+    let proc = process.spawn {
+      let parent = process.receive as Process
 
       process.terminate
 
       # This code will never run, unless `process.terminate` somehow doesn't
       # terminate the current process.
-      process.send(pid: parent, message: parent)
+      parent.send(True)
     }
 
-    process.send(pid: pid, message: process.current)
+    proc.send(process.current)
 
     # Only if `process.terminate` _does not_ terminate the process will we
     # receive a message.
-    let message = process.receive(0.01) as ?Integer
+    let message = process.receive(0.01) as ?Boolean
 
     assert.equal(message, Nil)
   }
@@ -145,17 +101,17 @@ test.group('std::process.terminate') do (g) {
 
 test.group('std::process.panicking') do (g) {
   g.test('Registering a custom panic handler') {
-    let pid = process.spawn {
-      let parent = process.receive as Integer
+    let proc = process.spawn {
+      let parent = process.receive as Process
 
       process.panicking do (error) {
-        process.send(pid: parent, message: error)
+        parent.send(error)
       }
 
       process.panic('example panic')
     }
 
-    process.send(pid: pid, message: process.current)
+    proc.send(process.current)
 
     let error = process.receive as String
 

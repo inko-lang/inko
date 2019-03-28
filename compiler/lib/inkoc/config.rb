@@ -58,7 +58,9 @@ module Inkoc
     LIBRARY_CONST = 'Library'
     FUNCTION_CONST = 'Function'
     POINTER_CONST = 'Pointer'
+    PROCESS_CONST = 'Process'
     ARRAY_TYPE_PARAMETER = 'T'
+    PROCESS_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
 
     MODULE_TYPE = 'Module'

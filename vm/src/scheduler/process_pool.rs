@@ -102,16 +102,16 @@ mod tests {
         let pid = ArcWithoutWeak::new(Mutex::new(10));
         let pid_copy = pid.clone();
 
-        pool.schedule(process);
+        pool.schedule(process.clone());
 
         let threads = pool.start_main(move |worker, process| {
-            *pid_copy.lock() = process.pid;
+            *pid_copy.lock() = process.identifier();
             worker.state().terminate();
         });
 
         threads.join().unwrap();
 
-        assert_eq!(*pid.lock(), 0);
+        assert_eq!(*pid.lock(), process.identifier());
     }
 
     #[test]
@@ -133,7 +133,7 @@ mod tests {
 
         let callback = ArcWithoutWeak::new(
             move |worker: &mut ProcessWorker, process: RcProcess| {
-                *pid_copy.lock() = process.pid;
+                *pid_copy.lock() = process.identifier();
                 worker.state().terminate();
             },
         );
@@ -141,10 +141,10 @@ mod tests {
         let thread =
             pool.spawn_thread(0, pool.state.queues[0].clone(), callback);
 
-        pool.schedule(process);
+        pool.schedule(process.clone());
 
         thread.join().unwrap();
 
-        assert_eq!(*pid.lock(), 0);
+        assert_eq!(*pid.lock(), process.identifier());
     }
 }

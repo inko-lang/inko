@@ -23,7 +23,7 @@ object TestGroup {
     let test = Test.new(
       name: name,
       group_name: @name,
-      runner_pid: @client.runner_pid,
+      runner: @client.runner,
       location: location,
       body: body,
     )

@@ -13,7 +13,7 @@ let TEMP = env.temporary_directory.to_string
 
 def temp_dir(components: Array!(String) = []) -> String {
   let buffer = StringBuffer
-    .new([TEMP, SEPARATOR, 'inko-test-' + process.current.to_string])
+    .new([TEMP, SEPARATOR, 'inko-test-' + process.current.identifier])
 
   components.each do (component) {
     buffer.push(SEPARATOR)

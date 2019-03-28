@@ -1397,7 +1397,7 @@ module Inkoc
       end
 
       def on_raw_process_spawn(*)
-        typedb.integer_type.new_instance
+        typedb.process_type.new_instance
       end
 
       def on_raw_process_send_message(node, _)
@@ -1408,8 +1408,8 @@ module Inkoc
         TypeSystem::Dynamic.new
       end
 
-      def on_raw_process_current_pid(*)
-        typedb.integer_type.new_instance
+      def on_raw_process_current(*)
+        typedb.process_type.new_instance
       end
 
       def on_raw_process_suspend_current(*)
@@ -1621,6 +1621,10 @@ module Inkoc
         typedb.pointer_type.new_instance
       end
 
+      def on_raw_get_process_prototype(*)
+        typedb.process_type.new_instance
+      end
+
       def on_raw_set_object_name(*)
         typedb.string_type.new_instance
       end
@@ -1683,6 +1687,10 @@ module Inkoc
 
       def on_raw_process_unpin_thread(*)
         typedb.nil_type.new_instance
+      end
+
+      def on_raw_process_identifier(*)
+        typedb.string_type.new_instance
       end
 
       def on_raw_library_open(*)

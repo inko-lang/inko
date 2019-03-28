@@ -8,7 +8,7 @@ module Inkoc
                   :object_type, :hasher_type, :boolean_type,
                   :read_only_file_type, :write_only_file_type,
                   :read_write_file_type, :byte_array_type, :library_type,
-                  :function_type, :pointer_type
+                  :function_type, :pointer_type, :process_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -30,6 +30,7 @@ module Inkoc
         @library_type = new_object_type(Config::LIBRARY_CONST)
         @function_type = new_object_type(Config::FUNCTION_CONST)
         @pointer_type = new_object_type(Config::POINTER_CONST)
+        @process_type = new_object_type(Config::PROCESS_CONST)
         @trait_id = -1
       end
 
@@ -56,6 +57,12 @@ module Inkoc
       def initialize_array_type
         new_object_type(Config::ARRAY_CONST).tap do |array|
           array.define_type_parameter(Config::ARRAY_TYPE_PARAMETER)
+        end
+      end
+
+      def initialize_process_type
+        new_object_type(Config::PROCESS_CONST).tap do |process|
+          process.define_type_parameter(Config::PROCESS_TYPE_PARAMETER)
         end
       end
     end

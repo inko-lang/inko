@@ -247,8 +247,10 @@ impl Machine {
                 module::load_string(&self.state, &self.module_registry, file)
                     .unwrap();
 
-            process::allocate(&self.state, &block).unwrap()
+            process::allocate(&self.state, &block)
         };
+
+        process.set_main();
 
         self.state.scheduler.schedule_on_main_thread(process);
     }
@@ -910,16 +912,16 @@ impl Machine {
                 InstructionType::ProcessSpawn => {
                     let reg = instruction.arg(0);
                     let block = context.get_register(instruction.arg(1));
-                    let pid = process::spawn(&self.state, block)?;
+                    let proc = process::spawn(&self.state, process, block)?;
 
-                    context.set_register(reg, pid);
+                    context.set_register(reg, proc);
                 }
                 InstructionType::ProcessSendMessage => {
                     let reg = instruction.arg(0);
-                    let pid = context.get_register(instruction.arg(1));
+                    let rec = context.get_register(instruction.arg(1));
                     let msg = context.get_register(instruction.arg(2));
                     let res =
-                        process::send_message(&self.state, process, pid, msg)?;
+                        process::send_message(&self.state, process, rec, msg)?;
 
                     context.set_register(reg, res);
                 }
@@ -949,11 +951,14 @@ impl Machine {
 
                     return Ok(());
                 }
-                InstructionType::ProcessCurrentPid => {
+                InstructionType::ProcessCurrent => {
                     let reg = instruction.arg(0);
-                    let pid = process::current_pid(&self.state, process);
+                    let obj = process.allocate(
+                        object_value::process(process.clone()),
+                        self.state.process_prototype,
+                    );
 
-                    context.set_register(reg, pid);
+                    context.set_register(reg, obj);
                 }
                 InstructionType::ProcessSuspendCurrent => {
                     let time_ptr = context.get_register(instruction.arg(0));
@@ -1593,6 +1598,13 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
+                InstructionType::ProcessIdentifier => {
+                    let reg = instruction.arg(0);
+                    let proc = context.get_register(instruction.arg(1));
+                    let res = process::identifier(&self.state, process, proc)?;
+
+                    context.set_register(reg, res);
+                }
                 InstructionType::LibraryOpen => {
                     let reg = instruction.arg(0);
                     let names = context.get_register(instruction.arg(1));
@@ -1729,8 +1741,6 @@ impl Machine {
             // there will only ever be one process that triggers this code.
             worker.leave_exclusive_mode();
         }
-
-        self.state.process_table.lock().release(process.pid);
 
         // We must clean up _after_ removing the process from the process table
         // to prevent a cleanup from happening while the process is still
@@ -1937,8 +1947,8 @@ impl Machine {
                 process.context_mut().append_deferred_blocks(&mut deferred);
 
                 return Err(format!(
-                    "A thrown value reached the top-level in process {}",
-                    process.pid
+                    "A thrown value reached the top-level in process {:#x}",
+                    process.identifier()
                 ));
             }
         }

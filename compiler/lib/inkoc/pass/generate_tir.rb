@@ -1162,8 +1162,8 @@ module Inkoc
         raw_unary_instruction(:ProcessReceiveMessage, node, body)
       end
 
-      def on_raw_process_current_pid(node, body)
-        raw_nullary_instruction(:ProcessCurrentPid, node, body)
+      def on_raw_process_current(node, body)
+        raw_nullary_instruction(:ProcessCurrent, node, body)
       end
 
       def on_raw_process_suspend_current(node, body)
@@ -1376,6 +1376,10 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::POINTER, node, body)
       end
 
+      def on_raw_get_process_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::PROCESS, node, body)
+      end
+
       def on_raw_set_object_name(node, body)
         loc = node.location
         obj = process_node(node.arguments.fetch(0), body)
@@ -1443,6 +1447,10 @@ module Inkoc
 
       def on_raw_process_unpin_thread(node, body)
         raw_nullary_instruction(:ProcessUnpinThread, node, body)
+      end
+
+      def on_raw_process_identifier(node, body)
+        raw_unary_instruction(:ProcessIdentifier, node, body)
       end
 
       def on_raw_library_open(node, body)

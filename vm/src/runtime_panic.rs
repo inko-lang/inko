@@ -23,5 +23,5 @@ pub fn display_panic(process: &RcProcess, message: &str) {
         eprintln!("  {}: {}", format!("{:01$}", index, index_padding), line);
     }
 
-    eprintln!("Process {} panicked: {}", process.pid.to_string(), message);
+    eprintln!("Process {:#x} panicked: {}", process.identifier(), message);
 }

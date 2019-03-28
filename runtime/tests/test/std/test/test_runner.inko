@@ -1,6 +1,6 @@
 import std::debug::CallFrame
 import std::mirror
-import std::process::(self, Sender)
+import std::process::(self, Process)
 import std::test
 import std::test::assert
 import std::test::config::DEFAULT_CONCURRENCY
@@ -17,7 +17,7 @@ def example_test -> Test {
   Test.new(
     name: 'test name',
     group_name: 'group name',
-    runner_pid: process.current,
+    runner: process.current,
     location: frame,
     body: lambda {}
   )
@@ -82,30 +82,34 @@ test.group('std::test::runner::AddTest.run') do (g) {
   }
 }
 
-test.group('std::test::runner::RunnerFinished.pid') do (g) {
-  g.test('Obtaining the PID of a runner') {
-    assert.equal(RunnerFinished.new(pid: 1, failures: False).pid, 1)
+test.group('std::test::runner::RunnerFinished.runner') do (g) {
+  g.test('Obtaining the Process of a runner') {
+    let proc = process.current
+
+    assert.equal(RunnerFinished.new(runner: proc, failures: False).runner, proc)
   }
 }
 
 test.group('std::test::runner::RunnerFinished.failures?') do (g) {
   g.test('Checking if a runner encountered any test failures') {
-    assert.false(RunnerFinished.new(pid: 1, failures: False).failures?)
-    assert.true(RunnerFinished.new(pid: 1, failures: True).failures?)
+    let proc = process.current
+
+    assert.false(RunnerFinished.new(runner: proc, failures: False).failures?)
+    assert.true(RunnerFinished.new(runner: proc, failures: True).failures?)
   }
 }
 
-test.group('std::test::runner::Client.runner_pid') do (g) {
-  g.test('Obtaining the PID of the test runner') {
-    let client = Client.new(Sender.new(process.current))
+test.group('std::test::runner::Client.runner') do (g) {
+  g.test('Obtaining the Process of the test runner') {
+    let proc = process.current
 
-    assert.equal(client.runner_pid, process.current)
+    assert.equal(Client.new(proc).runner, proc)
   }
 }
 
 test.group('std::test::runner::Client.configure') do (g) {
   g.test('Configuring a test runner that is not running') {
-    let client = Client.new(Sender.new(process.current))
+    let client = Client.new(process.current)
     let state = RunnerState.new
 
     client.configure('concurrency', 4)
@@ -117,7 +121,7 @@ test.group('std::test::runner::Client.configure') do (g) {
 
   g.test('Configuring a test runner that is already running') {
     assert.panic {
-      let client = Client.new(Sender.new(process.current))
+      let client = Client.new(process.current)
 
       client.mark_as_running
       client.configure('concurrency', 4)
@@ -127,7 +131,7 @@ test.group('std::test::runner::Client.configure') do (g) {
 
 test.group('std::test::runner::Client.add_test') do (g) {
   g.test('Adding a test to a test runner that is not running') {
-    let client = Client.new(Sender.new(process.current))
+    let client = Client.new(process.current)
     let state = RunnerState.new
     let test = example_test
 
@@ -140,7 +144,7 @@ test.group('std::test::runner::Client.add_test') do (g) {
 
   g.test('Adding a test to a test runner that is running') {
     assert.panic {
-      let client = Client.new(Sender.new(process.current))
+      let client = Client.new(process.current)
 
       client.mark_as_running
       client.add_test(example_test)
@@ -150,11 +154,13 @@ test.group('std::test::runner::Client.add_test') do (g) {
 
 test.group('std::test::runner::Client.run') do (g) {
   g.test('Running a test suite') {
-    let sender = process.channel!(RunTests) lambda (receiver) {
-      receiver.receive.notify_client(failures: False)
+    let proc = process.spawn {
+      let command = process.receive as RunTests
+
+      command.notify_client(failures: False)
     }
 
-    let client = Client.new(sender)
+    let client = Client.new(proc)
 
     client.run
 
@@ -164,19 +170,19 @@ test.group('std::test::runner::Client.run') do (g) {
 
 test.group('std::test::runner::Client.wait_for_tests') do (g) {
   g.test('Wait for the tests to finish running') {
-    let sender = process.channel!(Integer) lambda (receiver) {
-      let parent = *receiver.receive
-      let result = RunnerFinished.new(pid: parent, failures: False)
-      let client = Client.new(Sender.new(parent))
+    let proc = process.spawn {
+      let parent = process.receive as Process
+      let result = RunnerFinished.new(runner: parent, failures: False)
+      let client = Client.new(parent)
 
-      process.send(pid: process.current, message: result)
+      process.current.send(result)
 
       client.wait_for_tests
 
-      process.send(pid: parent, message: True)
+      parent.send(True)
     }
 
-    sender.send(process.current)
+    proc.send(process.current)
 
     # If the client never stops waiting for tests, this receive will time out
     # causing the below assertion to fail.
@@ -188,7 +194,7 @@ test.group('std::test::runner::Client.wait_for_tests') do (g) {
 
 test.group('std::test::runner::Client.running?') do (g) {
   g.test('Checking if a test runner is running') {
-    let client = Client.new(Sender.new(process.current))
+    let client = Client.new(process.current)
 
     assert.false(client.running?)
 

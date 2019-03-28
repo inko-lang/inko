@@ -16,11 +16,9 @@ use num_bigint::BigInt;
 use num_traits::FromPrimitive;
 use object_pointer::ObjectPointer;
 use object_value;
-use process_table::PID;
 use scheduler::pool::Pool;
 use scheduler::timeouts::Timeout;
 use std::cell::UnsafeCell;
-use std::hash::{Hash, Hasher};
 use std::i64;
 use std::mem;
 use std::ops::Drop;
@@ -86,14 +84,16 @@ pub struct LocalData {
     /// A boolean indicating if this process is performing a blocking operation.
     pub blocking: bool,
 
+    /// A boolean indicating if this process is the main process or not.
+    ///
+    /// When the main process terminates, so does the entire program.
+    pub main: bool,
+
     /// The ID of the thread this process is pinned to.
     pub thread_id: Option<u8>,
 }
 
 pub struct Process {
-    /// The process identifier of this process.
-    pub pid: PID,
-
     /// Data stored in a process that should only be modified by a single thread
     /// at once.
     local_data: UnsafeCell<LocalData>,
@@ -127,7 +127,6 @@ impl RefUnwindSafe for Process {}
 
 impl Process {
     pub fn with_rc(
-        pid: PID,
         context: ExecutionContext,
         global_allocator: RcGlobalAllocator,
         config: &Config,
@@ -138,11 +137,11 @@ impl Process {
             mailbox: Mailbox::new(global_allocator, config),
             panic_handler: ObjectPointer::null(),
             blocking: false,
+            main: false,
             thread_id: None,
         };
 
         ArcWithoutWeak::new(Process {
-            pid,
             local_data: UnsafeCell::new(local_data),
             waiting_for_message: AtomicBool::new(false),
             suspended: TaggedPointer::null(),
@@ -150,14 +149,21 @@ impl Process {
     }
 
     pub fn from_block(
-        pid: PID,
         block: &Block,
         global_allocator: RcGlobalAllocator,
         config: &Config,
     ) -> RcProcess {
         let context = ExecutionContext::from_isolated_block(block);
 
-        Process::with_rc(pid, context, global_allocator, config)
+        Process::with_rc(context, global_allocator, config)
+    }
+
+    pub fn set_main(&self) {
+        self.local_data_mut().main = true;
+    }
+
+    pub fn is_main(&self) -> bool {
+        self.local_data().main
     }
 
     pub fn set_blocking(&self, value: bool) {
@@ -381,13 +387,12 @@ impl Process {
         local_data.allocator.allocate_without_prototype(value)
     }
 
-    /// Sends a message to the current process.
-    pub fn send_message(&self, sender: &RcProcess, message: ObjectPointer) {
-        if sender.pid == self.pid {
-            self.local_data_mut().mailbox.send_from_self(message);
-        } else {
-            self.local_data_mut().mailbox.send_from_external(message);
-        }
+    pub fn send_message_from_external_process(&self, message: ObjectPointer) {
+        self.local_data_mut().mailbox.send_from_external(message);
+    }
+
+    pub fn send_message_from_self(&self, message: ObjectPointer) {
+        self.local_data_mut().mailbox.send_from_self(message);
     }
 
     /// Returns a message from the mailbox.
@@ -538,10 +543,6 @@ impl Process {
             .update_collection_statistics(config);
     }
 
-    pub fn is_main(&self) -> bool {
-        self.pid == 0
-    }
-
     pub fn panic_handler(&self) -> Option<&ObjectPointer> {
         let local_data = self.local_data();
 
@@ -579,20 +580,6 @@ impl Process {
     }
 }
 
-impl PartialEq for Process {
-    fn eq(&self, other: &Process) -> bool {
-        self.pid == other.pid
-    }
-}
-
-impl Eq for Process {}
-
-impl Hash for Process {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pid.hash(state);
-    }
-}
-
 impl Drop for Process {
     fn drop(&mut self) {
         // This ensures the timeout is dropped if it's present, without having
@@ -600,6 +587,21 @@ impl Drop for Process {
         self.acquire_rescheduling_rights();
     }
 }
+
+impl RcProcess {
+    /// Returns the unique identifier associated with this process.
+    pub fn identifier(&self) -> usize {
+        self.as_ptr() as usize
+    }
+}
+
+impl PartialEq for RcProcess {
+    fn eq(&self, other: &Self) -> bool {
+        self.identifier() == other.identifier()
+    }
+}
+
+impl Eq for RcProcess {}
 
 #[cfg(test)]
 mod tests {
@@ -775,7 +777,7 @@ mod tests {
 
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(size, 456);
+        assert_eq!(size, 448);
     }
 
     #[test]
@@ -791,5 +793,12 @@ mod tests {
         process.unset_thread_id();
 
         assert!(process.thread_id().is_none());
+    }
+
+    #[test]
+    fn test_identifier() {
+        let (_machine, _block, process) = setup();
+
+        assert!(process.identifier() > 0);
     }
 }

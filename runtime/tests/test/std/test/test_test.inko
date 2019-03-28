@@ -10,19 +10,20 @@ def example_test -> Test {
   Test.new(
     name: 'test name',
     group_name: 'group name',
-    runner_pid: process.current,
+    runner: process.current,
     location: frame,
     body: lambda { process.panic('This is a failure!') }
   )
 }
 
 def run_example_test -> Test {
-  let sender = process.channel!(Test) lambda (receiver) {
-    receiver.receive.run
+  let proc = process.spawn {
+    let test = process.receive as Test
+
+    test.run
   }
 
-  sender.send(example_test)
-
+  proc.send(example_test)
   process.receive as Test
 }
 

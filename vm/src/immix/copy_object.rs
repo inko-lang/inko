@@ -73,6 +73,9 @@ pub trait CopyObject: Sized {
                 ObjectValue::Function(val.clone())
             }
             ObjectValue::Pointer(val) => ObjectValue::Pointer(val),
+            ObjectValue::Process(ref proc) => {
+                ObjectValue::Process(proc.clone())
+            }
         };
 
         let mut copy = if let Some(proto_ptr) = to_copy.prototype() {

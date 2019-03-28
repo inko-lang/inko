@@ -72,7 +72,7 @@ pub enum InstructionType {
     ProcessSpawn,
     ProcessSendMessage,
     ProcessReceiveMessage,
-    ProcessCurrentPid,
+    ProcessCurrent,
     SetParentLocal,
     GetParentLocal,
     ObjectEquals,
@@ -164,6 +164,7 @@ pub enum InstructionType {
     StringToInteger,
     StringToFloat,
     FloatToBits,
+    ProcessIdentifier,
 }
 
 /// Struct for storing information about a single instruction.

@@ -50,7 +50,6 @@ pub mod object_value;
 pub mod platform;
 pub mod prefetch;
 pub mod process;
-pub mod process_table;
 pub mod register;
 pub mod runtime_panic;
 pub mod scheduler;

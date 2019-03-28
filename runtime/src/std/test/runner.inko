@@ -17,7 +17,7 @@
 #! the `Command` trait. A `Runner` in turn will send the `run` message to these
 #! objects, passing its instance of `RunnerState`. This allows for type-safe
 #! message passing, without the need for pattern matching.
-import std::process::(self, Receiver, Sender)
+import std::process::(self, Process)
 import std::test::config::Configuration
 import std::test::formatter::Formatter
 import std::test::test::Test
@@ -100,8 +100,8 @@ object AddTest impl Command {
 
 ## A command for running all tests currently registered with a `Runner`.
 object RunTests impl Command {
-  def init(notify: Integer) {
-    ## The PID of the process to notify once all tests have been completed.
+  def init(notify: Process) {
+    ## The `Process` to notify once all tests have been completed.
     let @notify = notify
   }
 
@@ -117,11 +117,13 @@ object RunTests impl Command {
     let failed = []
 
     state.tests.each_with_index do (test, index) {
-      let sender = process.channel!(Test) lambda (receiver) {
-        receiver.receive.run
+      let proc = process.spawn {
+        let test = process.receive as Test
+
+        test.run
       }
 
-      sender.send(test)
+      proc.send(test)
 
       pending += 1
 
@@ -157,26 +159,26 @@ object RunTests impl Command {
 
   def notify_client(failures: Boolean) {
     let finished_message = RunnerFinished
-      .new(pid: process.current, failures: failures)
+      .new(runner: process.current, failures: failures)
 
-    process.send(pid: @notify, message: finished_message)
+    @notify.send(finished_message)
   }
 }
 
 ## A message sent by a `Runner` to inform a process that the `Runner` has
 ## finished.
 object RunnerFinished {
-  def init(pid: Integer, failures: Boolean) {
-    ## The PID of the `Runner` that sent the message.
-    let @pid = pid
+  def init(runner: Process, failures: Boolean) {
+    ## The runner `Process` that sent the message.
+    let @runner = runner
 
     ## A boolean indicating if there were any test failures.
     let @failures = failures
   }
 
-  ## Returns the PID of the `Runner` that sent the message.
-  def pid -> Integer {
-    @pid
+  ## Returns the `Process` of the `Runner` that sent the message.
+  def runner -> Process {
+    @runner
   }
 
   ## Returns `True` if one or more tests failed, `False` otherwise.
@@ -192,10 +194,7 @@ object RunnerFinished {
 ## `Runner`), and one or more clients (instances of `Client`). The state of a
 ## `Runner` is stored in a separate `RunnerState` instance.
 object Runner {
-  def init(receiver: Receiver!(Command)) {
-    ## The Receiver to use for receiving commands from one or more clients.
-    let @receiver = receiver
-
+  def init {
     ## The internal state of a Runner.
     let @state = RunnerState.new
   }
@@ -205,7 +204,9 @@ object Runner {
   ## This method will not return until a command has instructed this Runner to
   ## terminate.
   def run {
-    @receiver.receive.run(@state)
+    let command = process.receive as Command
+
+    command.run(@state)
 
     run
   }
@@ -213,17 +214,17 @@ object Runner {
 
 ## A client that communicates with a certain `Runner`.
 object Client {
-  def init(sender: Sender!(Command)) {
-    ## The Sender to use for communicating with the `Runner`.
-    let @sender = sender
+  def init(runner: Process) {
+    ## The `Process` to use for communicating with the `Runner`.
+    let @runner = runner
 
     ## A boolean indicating if the test suite is running or not.
     let mut @running = False
   }
 
-  ## Returns the PID of the `Runner`.
-  def runner_pid -> Integer {
-    @sender.pid
+  ## Returns the jrocess of the `Runner`.
+  def runner -> Process {
+    @runner
   }
 
   ## Sets a configuration option to the given value.
@@ -234,7 +235,7 @@ object Client {
       )
     }
 
-    @sender.send(ConfigureRunner.new(option, value))
+    @runner.send(ConfigureRunner.new(option, value))
   }
 
   ## Adds a new test to the `Runner`.
@@ -243,14 +244,14 @@ object Client {
       process.panic('New tests can not be added to a running test suite')
     }
 
-    @sender.send(AddTest.new(test))
+    @runner.send(AddTest.new(test))
   }
 
   ## Schedules all tests for execution and waits for them to complete.
   def run {
     mark_as_running
 
-    @sender.send(RunTests.new(process.current))
+    @runner.send(RunTests.new(process.current))
 
     wait_for_tests
   }
@@ -278,9 +279,9 @@ object Client {
 
 ## Starts a new `Runner` in a separate process.
 def start -> Client {
-  let sender = process.channel!(Command) lambda (receiver) {
-    Runner.new(receiver).run
+  let proc = process.spawn {
+    Runner.new.run
   }
 
-  Client.new(sender)
+  Client.new(proc)
 }

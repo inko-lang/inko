@@ -1,5 +1,5 @@
 import std::mirror
-import std::process::(self, Sender)
+import std::process
 import std::test
 import std::test::assert
 import std::test::runner::(AddTest, Client, RunnerState)
@@ -7,7 +7,7 @@ import std::test::test::Test
 import std::test::test_group::TestGroup
 
 def add_test -> ?Test {
-  let client = Client.new(Sender.new(process.current))
+  let client = Client.new(process.current)
   let state = RunnerState.new
   let group = TestGroup.new(name: 'group', client: client)
 

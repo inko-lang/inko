@@ -13,7 +13,7 @@ def example_test -> Test {
   let test = Test.new(
     name: 'test name',
     group_name: 'group name',
-    runner_pid: process.current,
+    runner: process.current,
     location: frame,
     body: lambda {}
   )

@@ -34,6 +34,7 @@ import std::array_iter
 import std::hash_map::(HashMap as _HashMap)
 import std::inspect
 import std::byte_array
+import std::process
 import std::vm
 import std::range::(Range as _Range)
 

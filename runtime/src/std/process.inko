@@ -3,9 +3,9 @@
 ## Processes are lightweight, isolated tasks that can run concurrently. Each
 ## process has its own heap, and communication happens using message passing.
 ##
-## Processes can be spawned using `process.spawn`, or `process.channel`. Sending
-## messages can be done using `process.send`, or a `Sender` when using
-## `process.channel`.
+## Processes are spawned using `process.spawn`. Sending messages is done by
+## sending `send` to a `Process`, while receiving messages is done using
+## `process.receive`.`
 ##
 ## # Lightweight
 ##
@@ -57,86 +57,41 @@
 ## suspended. These units of work are called reductions. Each process starts
 ## with a given number of reductions, and will be suspended once this value
 ## reaches zero.
-import std::conversion::(ToFloat, ToInteger, ToString)
+import std::conversion::(ToFloat, ToString)
 
-## The sending-half of a channel.
-object Sender!(T) {
-  def init(pid: ToInteger) {
-    let @pid = pid.to_integer
-  }
+## A lightweight, isolated process.
+let Process = _INKOC.get_process_prototype
 
-  ## Sends a message to the underlying process.
+_INKOC.set_object_name(Process, 'Process')
+
+impl Process {
+  ## Sends a message to this process, returning the message that was sent.
   ##
   ## # Examples
   ##
-  ## Sending a message using a Sender:
+  ## Sending a message:
   ##
-  ##     import std::process::(self, Sender)
+  ##     import std::process
   ##
-  ##     let sender: Sender!(Integer) = Sender.new(0)
+  ##     let proc = process.spawn {
+  ##       process.receive # => 'hello'
+  ##     }
   ##
-  ##     sender.send(10) # => 10
-  def send(message: T) -> T {
-    ThisModule.send(pid: @pid, message: message)
+  ##     proc.send('hello') # => 'hello'
+  def send!(T)(message: T) -> T {
+    _INKOC.process_send_message(self, message)
   }
 
-  ## Returns the PID of the `Receiver` that belongs to this `Sender`.
-  def pid -> Integer {
-    @pid
+  ## Returns the identifier associated with this process.
+  ##
+  ## The identifier is unique for every process, but might be different between
+  ## program invocations even for processes spawned in the same order. The
+  ## format of the identifier is also unspecified, and might change
+  ## unexpectedly. Process identifiers should only be used for debugging
+  ## purposes.
+  def identifier -> String {
+    _INKOC.process_identifier(self)
   }
-}
-
-## The receiving-half of a channel.
-object Receiver!(T) {
-  ## Receives a message of type `T` sent to the current process.
-  ##
-  ## The returned value will be `Nil` if the supplied timeout expired before a
-  ## message was received.
-  ##
-  ## # Examples
-  ##
-  ## Receiving a message using a `Sender` and `Receiver`:
-  ##
-  ##     import std::process::(self, Sender, Receiver)
-  ##
-  ##     let sender: Sender!(Integer) = Sender.new(0)
-  ##     let receiver: Receiver!(Integer) = Receiver.new
-  ##
-  ##     sender.send(10)
-  ##     receiver.receive # => 10
-  def receive(timeout: ToFloat = 0.0) -> ?T {
-    ThisModule.receive(timeout.to_float) as ?T
-  }
-}
-
-## Returns the PID of the current process.
-##
-## # Examples
-##
-## Getting the PID of a process:
-##
-##     import std::process
-##
-##     process.current # => 0
-def current -> Integer {
-  _INKOC.process_current_pid
-}
-
-## Sends a message to a process, returning the message that was sent.
-##
-## # Examples
-##
-## Sending a message:
-##
-##     import std::process
-##
-##     let pid = process.spawn {
-##       process.receive # => 'hello'
-##     }
-##
-##     process.send(pid, 'hello') # => 'hello'
-def send!(T)(pid: ToInteger, message: T) -> T {
-  _INKOC.process_send_message(pid.to_integer, message)
 }
 
 ## Receives a process message.
@@ -144,7 +99,7 @@ def send!(T)(pid: ToInteger, message: T) -> T {
 ## Calling this method will block the current process until a message is
 ## received.
 ##
-## The argument of this method can be used to set a timeout (in seconds).  If no
+## The argument of this method can be used to set a timeout (in seconds). If no
 ## message is received and the timeout expires this method will return `Nil`.
 ##
 ## Messages are received in the same order in which they are sent.
@@ -182,76 +137,21 @@ def receive(timeout: ToFloat = 0.0) {
 ##     process.spawn {
 ##       10 # => 10
 ##     }
-def spawn(block: lambda) -> Integer {
+def spawn(block: lambda) -> Process {
   _INKOC.process_spawn(block)
 }
 
-## Spawns a process that accepts messages of a single type.
-##
-## The returned `Sender` can be used to send messages of a single type to the
-## spawned process. The spawned process in turn can use its instance of a
-## `Receiver` to receive messages of the given type.
-##
-## The combination of the `Sender` and `Receiver` object allows one to
-## communicate with a process in a type-safe way, similar to using a
-## [Channel](https://en.wikipedia.org/wiki/Channel_(programming)) found in other
-## languages, such as Go and Rust.
-##
-## A `Sender` can only send messages to the `Receiver`, and the `Receiver` in
-## turn can only receive messages. For bi-directional communication you need to
-## explicitly include the PID in the message.
+## Returns the currently running process.
 ##
 ## # Examples
 ##
-## Creating a channel and sending a message to the receiver:
+## Obtaining the current process:
 ##
 ##     import std::process
 ##
-##     let sender = process.channel!(Integer) lambda (receiver) {
-##       receiver.receive # => 10
-##     }
-##
-##     sender.send(10) # => 10
-##
-## Bi-directional communication:
-##
-##     import std::process
-##
-##     object Message {
-##       def init(message: String) {
-##         let @pid = process.current
-##         let @message = message
-##       }
-##
-##       def pid -> Integer {
-##         @pid
-##      }
-##
-##       def message -> String {
-##         @message
-##       }
-##     }
-##
-##     let sender = process.channel!(Message) lambda (receiver) {
-##       let message = receiver.receive
-##
-##       process.send(message.pid, 'pong')
-##     }
-##
-##     sender.send(Message.new('ping'))
-##
-##     process.receive # => 'pong'
-def channel!(T)(receiver: lambda (Receiver!(T))) -> Sender!(T) {
-  let pid = spawn {
-    let receiver_block = receive as lambda (Receiver!(T))
-    let receiver = Receiver.new
-
-    receiver_block.call(receiver)
-  }
-
-  send(pid: pid, message: receiver)
-
-  Sender.new(pid)
+##     process.current
+def current -> Process {
+  _INKOC.process_current
 }
 
 ## Executes the supplied closure in a separate OS thread pool, returning its
