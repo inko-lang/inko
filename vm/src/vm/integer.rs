@@ -1,9 +1,9 @@
 //! VM functions for working with Inko integers.
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 use num_traits::ToPrimitive;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
 
 pub fn to_float(
     state: &RcState,

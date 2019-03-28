@@ -1,12 +1,12 @@
 //! VM functions for inspecting and manipulating the OS process' environment.
-use directories;
-use object_pointer::ObjectPointer;
-use object_value;
-use platform;
-use process::RcProcess;
+use crate::directories;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::platform;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 use std::env;
 use std::io::Result as IOResult;
-use vm::state::RcState;
 
 /// Returns the value of an environment variable.
 pub fn get(

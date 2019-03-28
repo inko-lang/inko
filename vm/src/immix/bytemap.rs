@@ -4,7 +4,7 @@
 //! are in use. An ObjectMap is used for marking objects and can hold at most
 //! 1024 entries while a LineMap is used for marking lines and can hold at most
 //! 256 entries.
-use immix::block::{LINES_PER_BLOCK, OBJECTS_PER_BLOCK};
+use crate::immix::block::{LINES_PER_BLOCK, OBJECTS_PER_BLOCK};
 
 pub struct ObjectMap {
     values: [u8; OBJECTS_PER_BLOCK],

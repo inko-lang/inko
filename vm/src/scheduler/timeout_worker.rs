@@ -1,9 +1,9 @@
 //! Rescheduling of processes with expired timeouts.
-use arc_without_weak::ArcWithoutWeak;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::process::RcProcess;
+use crate::scheduler::process_scheduler::ProcessScheduler;
+use crate::scheduler::timeouts::{Timeout, Timeouts};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use process::RcProcess;
-use scheduler::process_scheduler::ProcessScheduler;
-use scheduler::timeouts::{Timeout, Timeouts};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -219,11 +219,11 @@ impl TimeoutWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arc_without_weak::ArcWithoutWeak;
-    use scheduler::process_scheduler::ProcessScheduler;
+    use crate::arc_without_weak::ArcWithoutWeak;
+    use crate::scheduler::process_scheduler::ProcessScheduler;
+    use crate::vm::test::setup;
     use std::thread;
     use std::time::Instant;
-    use vm::test::setup;
 
     #[test]
     fn test_new() {

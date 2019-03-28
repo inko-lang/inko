@@ -3,12 +3,12 @@
 //! Immix blocks are 32 KB of memory containing a number of 128 bytes lines (256
 //! to be exact).
 
-use deref_pointer::DerefPointer;
-use immix::block_list::BlockIteratorMut;
-use immix::bucket::Bucket;
-use immix::bytemap::{Bytemap, LineMap, ObjectMap};
-use object::Object;
-use object_pointer::RawObjectPointer;
+use crate::deref_pointer::DerefPointer;
+use crate::immix::block_list::BlockIteratorMut;
+use crate::immix::bucket::Bucket;
+use crate::immix::bytemap::{Bytemap, LineMap, ObjectMap};
+use crate::object::Object;
+use crate::object_pointer::RawObjectPointer;
 use parking_lot::Mutex;
 use std::alloc::{self, Layout};
 use std::mem;
@@ -636,10 +636,10 @@ impl Drop for Block {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::bucket::Bucket;
-    use immix::bytemap::Bytemap;
-    use object::Object;
-    use object_value::ObjectValue;
+    use crate::immix::bucket::Bucket;
+    use crate::immix::bytemap::Bytemap;
+    use crate::object::Object;
+    use crate::object_value::ObjectValue;
     use std::mem;
 
     macro_rules! find_available_hole {

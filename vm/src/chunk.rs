@@ -81,7 +81,7 @@ impl<T> IndexMut<usize> for Chunk<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::ObjectPointer;
+    use crate::object_pointer::ObjectPointer;
 
     #[test]
     fn test_len() {

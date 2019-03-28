@@ -1,7 +1,7 @@
 //! State management of a thread pool.
+use crate::scheduler::park_group::ParkGroup;
+use crate::scheduler::queue::{Queue, RcQueue};
 use crossbeam_deque::{Injector, Steal};
-use scheduler::park_group::ParkGroup;
-use scheduler::queue::{Queue, RcQueue};
 use std::iter;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -106,7 +106,7 @@ impl<T: Send> PoolState<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arc_without_weak::ArcWithoutWeak;
+    use crate::arc_without_weak::ArcWithoutWeak;
     use std::sync::Barrier;
     use std::thread;
 

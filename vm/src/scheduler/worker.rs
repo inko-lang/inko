@@ -1,5 +1,5 @@
-use scheduler::pool_state::PoolState;
-use scheduler::queue::RcQueue;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::queue::RcQueue;
 
 /// A trait providing the basic building blocks of a worker thread.
 pub trait Worker<T: Send> {

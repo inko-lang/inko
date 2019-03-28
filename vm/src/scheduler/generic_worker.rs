@@ -1,8 +1,8 @@
 //! Workers for executing generic tasks.
-use arc_without_weak::ArcWithoutWeak;
-use scheduler::pool_state::PoolState;
-use scheduler::queue::RcQueue;
-use scheduler::worker::Worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::queue::RcQueue;
+use crate::scheduler::worker::Worker;
 
 /// A worker that can be used for executing a wide variety of tasks, instead of
 /// being limited to only executing lightweight processes.

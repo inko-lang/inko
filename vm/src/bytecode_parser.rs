@@ -12,18 +12,18 @@
 //!
 //!     let result = bytecode_parser::parse_file("path/to/file.inkoc");
 
-use catch_table::{CatchEntry, CatchTable};
-use compiled_code::CompiledCode;
+use crate::catch_table::{CatchEntry, CatchTable};
+use crate::compiled_code::CompiledCode;
+use crate::object_pointer::ObjectPointer;
+use crate::vm::instruction::{Instruction, InstructionType};
+use crate::vm::state::RcState;
 use num_bigint::BigInt;
-use object_pointer::ObjectPointer;
 use std::f64;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{BufReader, Bytes};
 use std::mem;
 use std::str;
-use vm::instruction::{Instruction, InstructionType};
-use vm::state::RcState;
 
 macro_rules! parser_error {
     ($variant:ident) => {
@@ -420,11 +420,11 @@ fn read_catch_entry<T: Read>(bytes: &mut Bytes<T>) -> ParserResult<CatchEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
+    use crate::config::Config;
+    use crate::vm::instruction::InstructionType;
+    use crate::vm::state::{RcState, State};
     use std::mem;
     use std::u64;
-    use vm::instruction::InstructionType;
-    use vm::state::{RcState, State};
 
     fn state() -> RcState {
         State::with_rc(Config::new(), &[])

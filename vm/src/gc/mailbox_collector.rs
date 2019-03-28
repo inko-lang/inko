@@ -1,10 +1,10 @@
 //! Functions for performing garbage collection of a process mailbox.
-use gc::collector;
-use gc::profile::Profile;
-use gc::trace_result::TraceResult;
-use mailbox::Mailbox;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::gc::collector;
+use crate::gc::profile::Profile;
+use crate::gc::trace_result::TraceResult;
+use crate::mailbox::Mailbox;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     let local_data = process.local_data_mut();
@@ -54,9 +54,9 @@ pub fn trace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use vm::state::State;
-    use vm::test::setup;
+    use crate::config::Config;
+    use crate::vm::state::State;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_collect() {

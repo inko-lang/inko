@@ -1,5 +1,5 @@
 //! Functions for slicing operations on Vec and String types.
-use numeric::modulo::Modulo;
+use crate::numeric::modulo::Modulo;
 use std::i128;
 use std::i64;
 

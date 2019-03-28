@@ -4,18 +4,18 @@
 //! process heap.
 use std::collections::HashSet;
 
-use config::Config;
-use gc::work_list::WorkList;
-use immix::bucket::{Bucket, MATURE};
-use immix::copy_object::CopyObject;
-use immix::generation_config::GenerationConfig;
-use immix::global_allocator::RcGlobalAllocator;
-use immix::histograms::Histograms;
-use object::Object;
-use object_pointer::ObjectPointer;
-use object_value;
-use object_value::ObjectValue;
-use vm::state::RcState;
+use crate::config::Config;
+use crate::gc::work_list::WorkList;
+use crate::immix::bucket::{Bucket, MATURE};
+use crate::immix::copy_object::CopyObject;
+use crate::immix::generation_config::GenerationConfig;
+use crate::immix::global_allocator::RcGlobalAllocator;
+use crate::immix::histograms::Histograms;
+use crate::object::Object;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::object_value::ObjectValue;
+use crate::vm::state::RcState;
 
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: i8 = 2;
@@ -305,13 +305,13 @@ impl CopyObject for LocalAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::copy_object::CopyObject;
-    use immix::global_allocator::GlobalAllocator;
-    use object::Object;
-    use object_value;
+    use crate::config::Config;
+    use crate::immix::copy_object::CopyObject;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::object::Object;
+    use crate::object_value;
+    use crate::vm::state::{RcState, State};
     use std::mem;
-    use vm::state::{RcState, State};
 
     fn local_allocator() -> (RcState, LocalAllocator) {
         let state = State::with_rc(Config::new(), &[]);

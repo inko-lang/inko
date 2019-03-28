@@ -1,13 +1,13 @@
 //! VM functions for working with Inko processes.
-use block::Block;
-use immix::copy_object::CopyObject;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::{Process, RcProcess, RescheduleRights};
-use scheduler::process_worker::ProcessWorker;
-use stacktrace;
+use crate::block::Block;
+use crate::immix::copy_object::CopyObject;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::{Process, RcProcess, RescheduleRights};
+use crate::scheduler::process_worker::ProcessWorker;
+use crate::stacktrace;
+use crate::vm::state::RcState;
 use std::time::Duration;
-use vm::state::RcState;
 
 pub fn local_exists(
     state: &RcState,

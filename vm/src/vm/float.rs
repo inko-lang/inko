@@ -1,11 +1,11 @@
 //! VM functions for working with Inko floats.
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 use float_cmp::ApproxEqUlps;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
 use std::i32;
 use std::i64;
-use vm::state::RcState;
 
 pub fn to_integer(
     state: &RcState,

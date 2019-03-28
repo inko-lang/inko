@@ -1,23 +1,25 @@
-use arc_without_weak::ArcWithoutWeak;
-use binding::RcBinding;
-use block::Block;
-use compiled_code::CompiledCodePointer;
-use config::Config;
-use deref_pointer::DerefPointer;
-use execution_context::ExecutionContext;
-use gc::work_list::WorkList;
-use global_scope::GlobalScopePointer;
-use immix::block_list::BlockList;
-use immix::copy_object::CopyObject;
-use immix::global_allocator::RcGlobalAllocator;
-use immix::local_allocator::LocalAllocator;
-use mailbox::Mailbox;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::binding::RcBinding;
+use crate::block::Block;
+use crate::compiled_code::CompiledCodePointer;
+use crate::config::Config;
+use crate::deref_pointer::DerefPointer;
+use crate::execution_context::ExecutionContext;
+use crate::gc::work_list::WorkList;
+use crate::global_scope::GlobalScopePointer;
+use crate::immix::block_list::BlockList;
+use crate::immix::copy_object::CopyObject;
+use crate::immix::global_allocator::RcGlobalAllocator;
+use crate::immix::local_allocator::LocalAllocator;
+use crate::mailbox::Mailbox;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::scheduler::pool::Pool;
+use crate::scheduler::timeouts::Timeout;
+use crate::tagged_pointer::{self, TaggedPointer};
+use crate::vm::state::RcState;
 use num_bigint::BigInt;
 use num_traits::FromPrimitive;
-use object_pointer::ObjectPointer;
-use object_value;
-use scheduler::pool::Pool;
-use scheduler::timeouts::Timeout;
 use std::cell::UnsafeCell;
 use std::i64;
 use std::mem;
@@ -25,8 +27,6 @@ use std::ops::Drop;
 use std::panic::RefUnwindSafe;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tagged_pointer::{self, TaggedPointer};
-use vm::state::RcState;
 
 pub type RcProcess = ArcWithoutWeak<Process>;
 
@@ -606,13 +606,13 @@ impl Eq for RcProcess {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::object_value;
+    use crate::vm::test::setup;
     use num_bigint::BigInt;
-    use object_value;
     use std::f64;
     use std::i32;
     use std::i64;
     use std::mem;
-    use vm::test::setup;
 
     #[test]
     fn test_contexts() {

@@ -1,12 +1,12 @@
 //! Thread pool for executing lightweight Inko processes.
-use arc_without_weak::ArcWithoutWeak;
-use process::RcProcess;
-use scheduler::join_list::JoinList;
-use scheduler::pool::Pool;
-use scheduler::pool_state::PoolState;
-use scheduler::process_worker::ProcessWorker;
-use scheduler::queue::RcQueue;
-use scheduler::worker::Worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::process::RcProcess;
+use crate::scheduler::join_list::JoinList;
+use crate::scheduler::pool::Pool;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::process_worker::ProcessWorker;
+use crate::scheduler::queue::RcQueue;
+use crate::scheduler::worker::Worker;
 use std::thread;
 
 /// A pool of threads for running lightweight processes.
@@ -86,8 +86,8 @@ impl Pool<RcProcess, ProcessWorker> for ProcessPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vm::test::setup;
     use parking_lot::Mutex;
-    use vm::test::setup;
 
     #[test]
     #[should_panic]

@@ -1,9 +1,9 @@
 //! VM functions for hashing objects.
-use hasher::Hasher;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::hasher::Hasher;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub fn create(state: &RcState, process: &RcProcess) -> ObjectPointer {
     process

@@ -2,18 +2,18 @@
 //!
 //! A Bucket contains a sequence of Immix blocks that all contain objects of the
 //! same age.
-use deref_pointer::DerefPointer;
-use immix::block::Block;
-use immix::block_list::BlockList;
-use immix::global_allocator::RcGlobalAllocator;
-use immix::histograms::Histograms;
-use object::Object;
-use object_pointer::ObjectPointer;
+use crate::deref_pointer::DerefPointer;
+use crate::immix::block::Block;
+use crate::immix::block_list::BlockList;
+use crate::immix::global_allocator::RcGlobalAllocator;
+use crate::immix::histograms::Histograms;
+use crate::object::Object;
+use crate::object_pointer::ObjectPointer;
+use crate::scheduler::pool::Pool;
+use crate::vm::state::RcState;
 use parking_lot::Mutex;
 use rayon::prelude::*;
-use scheduler::pool::Pool;
 use std::cell::UnsafeCell;
-use vm::state::RcState;
 
 macro_rules! lock_bucket {
     ($bucket: expr) => {
@@ -137,7 +137,7 @@ impl Bucket {
             let started_at = self.current_block.atomic_load();
 
             if let Some(mut current) = self.current_block() {
-                for mut block in current.iter_mut() {
+                for block in current.iter_mut() {
                     if block.is_fragmented() {
                         // The block is fragmented, so skip it. The next time we
                         // find an available block we'll set it as the current
@@ -191,7 +191,7 @@ impl Bucket {
             let mut advance_block = false;
 
             if let Some(mut current) = self.current_block() {
-                for mut block in current.iter_mut() {
+                for block in current.iter_mut() {
                     if block.is_fragmented() {
                         // The block is fragmented, so skip it. The next time we
                         // find an available block we'll set it as the current
@@ -271,7 +271,7 @@ impl Bucket {
 
         // We partition the blocks in sequence so we don't need to synchronise
         // access to the destination lists.
-        for mut block in self.blocks.drain() {
+        for block in self.blocks.drain() {
             if block.is_empty() {
                 state.global_allocator.add_block(block);
             } else {
@@ -350,14 +350,14 @@ impl Drop for Bucket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::block::{Block, LINES_PER_BLOCK};
-    use immix::bytemap::Bytemap;
-    use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
-    use immix::histograms::Histograms;
-    use object::Object;
-    use object_value;
-    use vm::state::State;
+    use crate::config::Config;
+    use crate::immix::block::{Block, LINES_PER_BLOCK};
+    use crate::immix::bytemap::Bytemap;
+    use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
+    use crate::immix::histograms::Histograms;
+    use crate::object::Object;
+    use crate::object_value;
+    use crate::vm::state::State;
 
     fn global_allocator() -> RcGlobalAllocator {
         GlobalAllocator::with_rc()

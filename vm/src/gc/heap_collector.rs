@@ -2,11 +2,11 @@
 
 use rayon::prelude::*;
 
-use gc::collector;
-use gc::profile::Profile;
-use gc::trace_result::TraceResult;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::gc::collector;
+use crate::gc::profile::Profile;
+use crate::gc::trace_result::TraceResult;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub fn collect(vm_state: &RcState, process: &RcProcess, profile: &mut Profile) {
     let collect_mature = process.should_collect_mature_generation();
@@ -157,15 +157,15 @@ pub fn trace_with_moving(process: &RcProcess, mature: bool) -> TraceResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
-    use block::Block;
-    use config::Config;
-    use execution_context::ExecutionContext;
-    use object::Object;
-    use object_pointer::ObjectPointer;
-    use object_value;
-    use vm::state::State;
-    use vm::test::setup;
+    use crate::binding::Binding;
+    use crate::block::Block;
+    use crate::config::Config;
+    use crate::execution_context::ExecutionContext;
+    use crate::object::Object;
+    use crate::object_pointer::ObjectPointer;
+    use crate::object_value;
+    use crate::vm::state::State;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_collect() {

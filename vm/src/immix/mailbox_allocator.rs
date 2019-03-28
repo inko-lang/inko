@@ -4,15 +4,15 @@
 //! copied into this heap. When a message is received its copied from the
 //! mailbox heap to the process local heap.
 
-use config::Config;
-use immix::bucket::{Bucket, MAILBOX};
-use immix::copy_object::CopyObject;
-use immix::generation_config::GenerationConfig;
-use immix::global_allocator::RcGlobalAllocator;
-use immix::histograms::Histograms;
-use object::Object;
-use object_pointer::ObjectPointer;
-use vm::state::RcState;
+use crate::config::Config;
+use crate::immix::bucket::{Bucket, MAILBOX};
+use crate::immix::copy_object::CopyObject;
+use crate::immix::generation_config::GenerationConfig;
+use crate::immix::global_allocator::RcGlobalAllocator;
+use crate::immix::histograms::Histograms;
+use crate::object::Object;
+use crate::object_pointer::ObjectPointer;
+use crate::vm::state::RcState;
 
 pub struct MailboxAllocator {
     global_allocator: RcGlobalAllocator,
@@ -89,12 +89,12 @@ impl CopyObject for MailboxAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::copy_object::CopyObject;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
-    use object::Object;
-    use object_value;
+    use crate::config::Config;
+    use crate::immix::copy_object::CopyObject;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::immix::local_allocator::LocalAllocator;
+    use crate::object::Object;
+    use crate::object_value;
 
     fn mailbox_allocator() -> MailboxAllocator {
         let global = GlobalAllocator::with_rc();

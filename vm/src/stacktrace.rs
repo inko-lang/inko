@@ -1,10 +1,10 @@
 //! Runtime stack traces.
-use execution_context::ExecutionContext;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
+use crate::execution_context::ExecutionContext;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 use std::i64;
-use vm::state::RcState;
 
 /// Produces a stacktrace containing up to N stack frames.
 pub fn allocate_stacktrace(

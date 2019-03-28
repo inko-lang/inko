@@ -1,6 +1,6 @@
 //! Immix histograms used for garbage collection.
-use immix::block::{LINES_PER_BLOCK, MAX_HOLES};
-use immix::histogram::Histogram;
+use crate::immix::block::{LINES_PER_BLOCK, MAX_HOLES};
+use crate::immix::histogram::Histogram;
 
 /// A collection of histograms that Immix will use for determining when to move
 /// objects.

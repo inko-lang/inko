@@ -1,9 +1,9 @@
-use config::Config;
-use gc::work_list::WorkList;
-use immix::copy_object::CopyObject;
-use immix::global_allocator::RcGlobalAllocator;
-use immix::mailbox_allocator::MailboxAllocator;
-use object_pointer::ObjectPointer;
+use crate::config::Config;
+use crate::gc::work_list::WorkList;
+use crate::immix::copy_object::CopyObject;
+use crate::immix::global_allocator::RcGlobalAllocator;
+use crate::immix::mailbox_allocator::MailboxAllocator;
+use crate::object_pointer::ObjectPointer;
 use parking_lot::Mutex;
 use std::collections::LinkedList;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -110,10 +110,10 @@ impl Mailbox {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use object_pointer::ObjectPointer;
-    use vm::test::setup;
+    use crate::config::Config;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::object_pointer::ObjectPointer;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_send_from_self() {

@@ -18,20 +18,20 @@ use std::u64;
 use std::u8;
 use std::usize;
 
-use binding::RcBinding;
-use block::Block;
-use ffi::{Pointer, RcFunction, RcLibrary};
-use hasher::Hasher;
-use immix::block;
-use immix::bucket::{MAILBOX, MATURE, PERMANENT};
-use immix::bytemap::Bytemap;
-use immix::local_allocator::YOUNG_MAX_AGE;
-use immutable_string::ImmutableString;
-use object::{Object, ObjectStatus, FORWARDED_BIT};
-use object_value::ObjectValue;
-use process::RcProcess;
-use tagged_pointer::TaggedPointer;
-use vm::state::RcState;
+use crate::binding::RcBinding;
+use crate::block::Block;
+use crate::ffi::{Pointer, RcFunction, RcLibrary};
+use crate::hasher::Hasher;
+use crate::immix::block;
+use crate::immix::bucket::{MAILBOX, MATURE, PERMANENT};
+use crate::immix::bytemap::Bytemap;
+use crate::immix::local_allocator::YOUNG_MAX_AGE;
+use crate::immutable_string::ImmutableString;
+use crate::object::{Object, ObjectStatus, FORWARDED_BIT};
+use crate::object_value::ObjectValue;
+use crate::process::RcProcess;
+use crate::tagged_pointer::TaggedPointer;
+use crate::vm::state::RcState;
 
 /// Performs a write to an object and tracks it in the write barrier.
 macro_rules! write_object {
@@ -672,15 +672,15 @@ mod tests {
     use std::collections::HashSet;
     use std::i128;
 
-    use config::Config;
-    use immix::block::Block;
-    use immix::bucket::{Bucket, MAILBOX, MATURE, PERMANENT};
-    use immix::bytemap::Bytemap;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
-    use object::{Object, ObjectStatus};
-    use object_value::{self, ObjectValue};
-    use vm::state::State;
+    use crate::config::Config;
+    use crate::immix::block::Block;
+    use crate::immix::bucket::{Bucket, MAILBOX, MATURE, PERMANENT};
+    use crate::immix::bytemap::Bytemap;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::immix::local_allocator::LocalAllocator;
+    use crate::object::{Object, ObjectStatus};
+    use crate::object_value::{self, ObjectValue};
+    use crate::vm::state::State;
 
     fn fake_raw_pointer() -> RawObjectPointer {
         0x4 as RawObjectPointer

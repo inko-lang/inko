@@ -1,9 +1,9 @@
 //! Functions and macros for performing garbage collection.
-use gc::trace_result::TraceResult;
-use gc::work_list::WorkList;
-use object::ObjectStatus;
-use object_pointer::ObjectPointer;
-use process::RcProcess;
+use crate::gc::trace_result::TraceResult;
+use crate::gc::work_list::WorkList;
+use crate::object::ObjectStatus;
+use crate::object_pointer::ObjectPointer;
+use crate::process::RcProcess;
 
 /// Macro that returns true if the pointer can be skipped during tracing.
 macro_rules! can_skip_pointer {
@@ -125,9 +125,9 @@ pub fn trace_pointers_without_moving(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object::Object;
-    use object_value;
-    use vm::test::setup;
+    use crate::object::Object;
+    use crate::object_value;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_promote_mature() {

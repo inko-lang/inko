@@ -1,13 +1,13 @@
 //! Functions for testing instruction handlers.
-use block::Block;
-use compiled_code::CompiledCode;
-use config::Config;
-use module::Module;
-use process::RcProcess;
-use vm::instruction::{Instruction, InstructionType};
-use vm::machine::Machine;
-use vm::process;
-use vm::state::State;
+use crate::block::Block;
+use crate::compiled_code::CompiledCode;
+use crate::config::Config;
+use crate::module::Module;
+use crate::process::RcProcess;
+use crate::vm::instruction::{Instruction, InstructionType};
+use crate::vm::machine::Machine;
+use crate::vm::process;
+use crate::vm::state::State;
 
 /// Sets up a VM with a single process.
 pub fn setup() -> (Machine, Block, RcProcess) {
@@ -56,7 +56,7 @@ pub fn new_instruction(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vm::instruction::InstructionType;
+    use crate::vm::instruction::InstructionType;
 
     #[test]
     fn test_new_instruction() {

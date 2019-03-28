@@ -1,10 +1,10 @@
 //! VM functions for working with Inko arrays.
-use immix::copy_object::CopyObject;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use slicing;
-use vm::state::RcState;
+use crate::immix::copy_object::CopyObject;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::slicing;
+use crate::vm::state::RcState;
 
 // Creates a new array, populated with the values of the given registers.
 pub fn create(

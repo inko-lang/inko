@@ -1,7 +1,7 @@
 //! Scheduling and execution of lightweight Inko processes.
-use process::RcProcess;
-use scheduler::pool::Pool;
-use scheduler::process_pool::ProcessPool;
+use crate::process::RcProcess;
+use crate::scheduler::pool::Pool;
+use crate::scheduler::process_pool::ProcessPool;
 
 /// The ID of the queue that is processed by the main thread.
 const MAIN_THREAD_QUEUE_ID: usize = 0;
@@ -62,7 +62,7 @@ impl ProcessScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vm::test::setup;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_terminate() {

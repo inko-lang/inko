@@ -1,6 +1,6 @@
 //! Processes suspended with a timeout.
-use arc_without_weak::ArcWithoutWeak;
-use process::RcProcess;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::process::RcProcess;
 use std::cmp;
 use std::collections::BinaryHeap;
 use std::time::{Duration, Instant};
@@ -217,8 +217,8 @@ mod tests {
 
     mod timeout_entry {
         use super::*;
+        use crate::vm::test::setup;
         use std::cmp;
-        use vm::test::setup;
 
         #[test]
         fn test_valid() {
@@ -303,7 +303,7 @@ mod tests {
 
     mod timeouts {
         use super::*;
-        use vm::test::setup;
+        use crate::vm::test::setup;
 
         #[test]
         fn test_insert() {

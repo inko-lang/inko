@@ -1,6 +1,6 @@
 //! Scopes for module-local global variables.
-use deref_pointer::DerefPointer;
-use object_pointer::ObjectPointer;
+use crate::deref_pointer::DerefPointer;
+use crate::object_pointer::ObjectPointer;
 use std::cell::UnsafeCell;
 
 /// A GlobalScope contains all the global variables defined in a module.
@@ -60,10 +60,10 @@ impl GlobalScope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
-    use object_pointer::ObjectPointer;
+    use crate::config::Config;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::immix::local_allocator::LocalAllocator;
+    use crate::object_pointer::ObjectPointer;
 
     mod global_scope {
         use super::*;

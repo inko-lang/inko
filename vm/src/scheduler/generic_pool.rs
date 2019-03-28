@@ -1,10 +1,10 @@
 //! Thread pool for executing generic tasks.
-use arc_without_weak::ArcWithoutWeak;
-use scheduler::generic_worker::GenericWorker;
-use scheduler::pool::Pool;
-use scheduler::pool_state::PoolState;
-use scheduler::queue::RcQueue;
-use scheduler::worker::Worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::scheduler::generic_worker::GenericWorker;
+use crate::scheduler::pool::Pool;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::queue::RcQueue;
+use crate::scheduler::worker::Worker;
 use std::thread;
 
 /// A pool of threads for running generic tasks.

@@ -1,10 +1,10 @@
 //! VM functions for working with Inko blocks.
-use block::Block;
-use compiled_code::CompiledCodePointer;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::block::Block;
+use crate::compiled_code::CompiledCodePointer;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 /// Creates a block from a CompiledCode object.
 pub fn create(

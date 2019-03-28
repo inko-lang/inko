@@ -1,4 +1,4 @@
-use process::RcProcess;
+use crate::process::RcProcess;
 
 /// Prints a runtime panic to STDERR.
 pub fn display_panic(process: &RcProcess, message: &str) {

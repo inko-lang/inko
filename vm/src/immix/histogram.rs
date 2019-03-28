@@ -6,7 +6,7 @@
 //!
 //! Histograms are of a fixed size and use atomic operations for incrementing
 //! bucket values, allowing concurrent use of the same histogram.
-use chunk::Chunk;
+use crate::chunk::Chunk;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const DEFAULT_VALUE: usize = 0;

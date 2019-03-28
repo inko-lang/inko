@@ -3,10 +3,10 @@
 //! The global allocator is used by process-local allocators to request the
 //! allocation of new blocks or the re-using of existing (and returned) free
 //! blocks.
-use arc_without_weak::ArcWithoutWeak;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::immix::block::Block;
+use crate::immix::block_list::BlockList;
 use crossbeam_queue::SegQueue;
-use immix::block::Block;
-use immix::block_list::BlockList;
 
 pub type RcGlobalAllocator = ArcWithoutWeak<GlobalAllocator>;
 

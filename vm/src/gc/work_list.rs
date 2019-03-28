@@ -15,8 +15,8 @@
 //! performance drastically compared to just prefetching one pointer at a time.
 //! In the best case scenario using this technique can improve tracing
 //! performance by 20-30%.
-use object_pointer::ObjectPointerPointer;
-use prefetch;
+use crate::object_pointer::ObjectPointerPointer;
+use crate::prefetch;
 use std::collections::VecDeque;
 
 /// The number of pointers to prefetch when the buffer is empty. This size is
@@ -85,7 +85,7 @@ impl WorkList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::ObjectPointer;
+    use crate::object_pointer::ObjectPointer;
 
     fn fake_pointer(address: usize) -> ObjectPointerPointer {
         ObjectPointerPointer {

@@ -1,8 +1,8 @@
 //! VM functions for working with Inko modules.
-use block::Block;
-use module_registry::RcModuleRegistry;
-use object_pointer::ObjectPointer;
-use vm::state::RcState;
+use crate::block::Block;
+use crate::module_registry::RcModuleRegistry;
+use crate::object_pointer::ObjectPointer;
+use crate::vm::state::RcState;
 
 pub fn load(
     state: &RcState,

@@ -1,9 +1,9 @@
 //! VM functions for working with Inko objects.
-use immix::copy_object::CopyObject;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::immix::copy_object::CopyObject;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 /// Creates a new object.
 pub fn create(
@@ -269,8 +269,8 @@ pub fn drop_value(pointer: ObjectPointer) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use vm::state::State;
+    use crate::config::Config;
+    use crate::vm::state::State;
 
     #[test]
     fn test_prototype_for_identifier() {

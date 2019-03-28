@@ -3,9 +3,9 @@
 use num_bigint::BigInt;
 use std::ops::{Shl, Shr};
 
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
 
 /// Shifts an integer to the left or right.
 ///

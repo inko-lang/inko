@@ -1,9 +1,9 @@
 //! VM functions for working with the Foreign Function Interface.
-use ffi;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::ffi;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub fn open_library(
     state: &RcState,

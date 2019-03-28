@@ -2,6 +2,7 @@
 name = "inko"
 version = "0.3.0" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
+edition = "2018"
 
 [lib]
 name = "libinko"

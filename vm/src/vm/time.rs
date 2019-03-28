@@ -1,9 +1,9 @@
 //! VM functions for working with time objects.
-use date_time::DateTime;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::date_time::DateTime;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub fn monotonic(state: &RcState, process: &RcProcess) -> ObjectPointer {
     let duration = state.start_time.elapsed();

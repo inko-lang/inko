@@ -1,8 +1,8 @@
 //! Sequences of bytecode instructions with associated literal values.
-use catch_table::CatchTable;
-use deref_pointer::DerefPointer;
-use object_pointer::ObjectPointer;
-use vm::instruction::Instruction;
+use crate::catch_table::CatchTable;
+use crate::deref_pointer::DerefPointer;
+use crate::object_pointer::ObjectPointer;
+use crate::vm::instruction::Instruction;
 
 /// An immutable, reference counted CompiledCode.
 pub type CompiledCodePointer = DerefPointer<CompiledCode>;
@@ -166,11 +166,11 @@ impl CompiledCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use object_pointer::ObjectPointer;
+    use crate::config::Config;
+    use crate::object_pointer::ObjectPointer;
+    use crate::vm::instruction::{Instruction, InstructionType};
+    use crate::vm::state::{RcState, State};
     use std::mem;
-    use vm::instruction::{Instruction, InstructionType};
-    use vm::state::{RcState, State};
 
     fn state() -> RcState {
         State::with_rc(Config::new(), &[])

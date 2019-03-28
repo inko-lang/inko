@@ -3,12 +3,12 @@
 //! A garbage collection request specifies what to collect (a heap or mailbox),
 //! and what process to collect.
 
-use gc::finished_collector;
-use gc::heap_collector;
-use gc::mailbox_collector;
-use gc::profile::Profile;
-use process::RcProcess;
-use vm::state::RcState;
+use crate::gc::finished_collector;
+use crate::gc::heap_collector;
+use crate::gc::mailbox_collector;
+use crate::gc::profile::Profile;
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 
 pub enum CollectionType {
     /// A request to collect the regular heap of a process.
@@ -94,9 +94,9 @@ impl Request {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use vm::state::State;
-    use vm::test::setup;
+    use crate::config::Config;
+    use crate::vm::state::State;
+    use crate::vm::test::setup;
 
     #[test]
     fn test_new() {

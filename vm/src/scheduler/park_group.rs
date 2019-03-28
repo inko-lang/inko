@@ -85,7 +85,7 @@ impl ParkGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arc_without_weak::ArcWithoutWeak;
+    use crate::arc_without_weak::ArcWithoutWeak;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::thread;
 

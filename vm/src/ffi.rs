@@ -48,16 +48,17 @@
 //!     // errno would be set to 1 after this call finishes.
 //!     sym.write_as(kind, val);
 //!
-use arc_without_weak::ArcWithoutWeak;
-use error_messages::from_io_error;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::error_messages::from_io_error;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value::{self, ObjectValue};
+use crate::process::RcProcess;
+use crate::vm::state::RcState;
 use libffi::low::{
     call as ffi_call, ffi_abi_FFI_DEFAULT_ABI as ABI, ffi_cif, ffi_type,
     prep_cif, types, CodePtr, Error as FFIError,
 };
 use libloading;
-use object_pointer::ObjectPointer;
-use object_value::{self, ObjectValue};
-use process::RcProcess;
 use std::convert::Into;
 use std::ffi::{CStr, OsStr};
 use std::fmt::{Debug, Display};
@@ -67,7 +68,6 @@ use std::os::raw::{
     c_ulong, c_ushort, c_void,
 };
 use std::ptr;
-use vm::state::RcState;
 
 /// Returns a pointer to a statically allocated FFI type.
 macro_rules! ffi_type {
@@ -568,7 +568,7 @@ impl Pointer {
                 );
             }
             TYPE_BYTE_ARRAY => {
-                let mut byte_array = value.byte_array_value()?;
+                let byte_array = value.byte_array_value()?;
 
                 ptr::copy(
                     byte_array.as_ptr(),
@@ -786,7 +786,7 @@ impl Function {
 ))]
 mod tests {
     use super::*;
-    use vm::test::setup;
+    use crate::vm::test::setup;
 
     extern "C" {
         fn calloc(amount: usize, size: usize) -> RawPointer;

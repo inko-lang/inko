@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
-use immutable_string::ImmutableString;
-use object_pointer::ObjectPointer;
+use crate::immutable_string::ImmutableString;
+use crate::object_pointer::ObjectPointer;
 
 #[derive(Clone, Copy)]
 pub struct StringPointer {
@@ -118,11 +118,11 @@ mod tests {
     mod string_pool {
         use super::*;
 
-        use config::Config;
-        use immix::global_allocator::GlobalAllocator;
-        use immix::local_allocator::LocalAllocator;
-        use immix::permanent_allocator::PermanentAllocator;
-        use object_value;
+        use crate::config::Config;
+        use crate::immix::global_allocator::GlobalAllocator;
+        use crate::immix::local_allocator::LocalAllocator;
+        use crate::immix::permanent_allocator::PermanentAllocator;
+        use crate::object_value;
 
         fn allocator() -> Box<PermanentAllocator> {
             let global_alloc = GlobalAllocator::with_rc();

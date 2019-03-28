@@ -1,5 +1,5 @@
 //! Efficient work stealing queues.
-use arc_without_weak::ArcWithoutWeak;
+use crate::arc_without_weak::ArcWithoutWeak;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossbeam_deque::{Steal, Stealer, Worker};
 use std::sync::atomic::{AtomicUsize, Ordering};

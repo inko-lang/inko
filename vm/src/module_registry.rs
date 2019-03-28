@@ -1,12 +1,12 @@
 //! Parsing and caching of bytecode modules.
-use arc_without_weak::ArcWithoutWeak;
+use crate::arc_without_weak::ArcWithoutWeak;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use bytecode_parser;
-use module::Module;
-use vm::state::RcState;
+use crate::bytecode_parser;
+use crate::module::Module;
+use crate::vm::state::RcState;
 
 pub type RcModuleRegistry = ArcWithoutWeak<Mutex<ModuleRegistry>>;
 
@@ -127,10 +127,10 @@ impl ModuleRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
+    use crate::config::Config;
+    use crate::vm::state::State;
     use std::env;
     use std::path::PathBuf;
-    use vm::state::State;
 
     fn executable_path() -> PathBuf {
         env::current_exe().unwrap()

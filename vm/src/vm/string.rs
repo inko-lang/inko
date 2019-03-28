@@ -1,10 +1,10 @@
 //! VM functions for working with Inko strings.
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::slicing;
+use crate::vm::state::RcState;
 use num_bigint::BigInt;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use slicing;
-use vm::state::RcState;
 
 /// The result of a string conversion. The OK value is the value converted to,
 /// the Err value is an error message to thrown in the VM.

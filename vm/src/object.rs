@@ -7,10 +7,10 @@ use fnv::FnvHashMap;
 use std::ops::Drop;
 use std::ptr;
 
-use gc::work_list::WorkList;
-use object_pointer::{ObjectPointer, RawObjectPointer};
-use object_value::ObjectValue;
-use tagged_pointer::TaggedPointer;
+use crate::gc::work_list::WorkList;
+use crate::object_pointer::{ObjectPointer, RawObjectPointer};
+use crate::object_value::ObjectValue;
+use crate::tagged_pointer::TaggedPointer;
 
 macro_rules! push_collection {
     ($map:expr, $what:ident, $vec:expr) => {{
@@ -372,9 +372,9 @@ impl Drop for Object {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::block::Block;
-    use object_pointer::{ObjectPointer, RawObjectPointer};
-    use object_value::ObjectValue;
+    use crate::immix::block::Block;
+    use crate::object_pointer::{ObjectPointer, RawObjectPointer};
+    use crate::object_value::ObjectValue;
     use std::mem;
 
     fn fake_pointer() -> ObjectPointer {

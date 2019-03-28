@@ -1,8 +1,8 @@
 //! Modules containing bytecode objects and global variables.
 
-use compiled_code::{CompiledCode, CompiledCodePointer};
-use deref_pointer::DerefPointer;
-use global_scope::{GlobalScope, GlobalScopePointer};
+use crate::compiled_code::{CompiledCode, CompiledCodePointer};
+use crate::deref_pointer::DerefPointer;
+use crate::global_scope::{GlobalScope, GlobalScopePointer};
 
 /// A module is a single file containing bytecode and an associated global
 /// scope.

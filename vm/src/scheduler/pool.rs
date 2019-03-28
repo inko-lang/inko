@@ -1,8 +1,8 @@
-use arc_without_weak::ArcWithoutWeak;
-use scheduler::join_list::JoinList;
-use scheduler::pool_state::PoolState;
-use scheduler::queue::RcQueue;
-use scheduler::worker::Worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::scheduler::join_list::JoinList;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::queue::RcQueue;
+use crate::scheduler::worker::Worker;
 use std::thread;
 
 pub trait Pool<T: Send, W: Worker<T>> {

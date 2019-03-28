@@ -1,9 +1,9 @@
 //! Executing of lightweight Inko processes in a single thread.
-use arc_without_weak::ArcWithoutWeak;
-use process::RcProcess;
-use scheduler::pool_state::PoolState;
-use scheduler::queue::RcQueue;
-use scheduler::worker::Worker;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::process::RcProcess;
+use crate::scheduler::pool_state::PoolState;
+use crate::scheduler::queue::RcQueue;
+use crate::scheduler::worker::Worker;
 
 /// The state that a worker is in.
 #[derive(Eq, PartialEq, Debug)]
@@ -142,10 +142,10 @@ impl Worker<RcProcess> for ProcessWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vm::process;
+    use crate::vm::test::setup;
     use parking_lot::Mutex;
     use std::collections::HashSet;
-    use vm::process;
-    use vm::test::setup;
 
     fn pids_set() -> (
         ArcWithoutWeak<Mutex<HashSet<usize>>>,

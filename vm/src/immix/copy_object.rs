@@ -3,15 +3,15 @@
 //! The CopyObject trait can be implemented by allocators to support copying of
 //! objects into a heap.
 
-use block::Block;
-use object::{AttributesMap, Object};
-use object_pointer::ObjectPointer;
-use object_value;
-use object_value::ObjectValue;
+use crate::block::Block;
+use crate::object::{AttributesMap, Object};
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::object_value::ObjectValue;
 
 pub trait CopyObject: Sized {
     /// Allocates a copied object.
-    fn allocate_copy(&mut self, Object) -> ObjectPointer;
+    fn allocate_copy(&mut self, _: Object) -> ObjectPointer;
 
     /// Performs a deep copy of the given pointer.
     ///
@@ -122,7 +122,7 @@ pub trait CopyObject: Sized {
                 ObjectValue::Array(array)
             }
             ObjectValue::Block(mut block) => {
-                if let Some(mut captures_from) = block.captures_from.as_mut() {
+                if let Some(captures_from) = block.captures_from.as_mut() {
                     captures_from.move_pointers_to(self);
                 }
 
@@ -169,18 +169,18 @@ pub trait CopyObject: Sized {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
-    use compiled_code::CompiledCode;
-    use config::Config;
-    use deref_pointer::DerefPointer;
-    use global_scope::{GlobalScope, GlobalScopePointer};
-    use immix::bytemap::Bytemap;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
-    use object::Object;
-    use object_pointer::ObjectPointer;
-    use object_value;
-    use vm::state::{RcState, State};
+    use crate::binding::Binding;
+    use crate::compiled_code::CompiledCode;
+    use crate::config::Config;
+    use crate::deref_pointer::DerefPointer;
+    use crate::global_scope::{GlobalScope, GlobalScopePointer};
+    use crate::immix::bytemap::Bytemap;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::immix::local_allocator::LocalAllocator;
+    use crate::object::Object;
+    use crate::object_pointer::ObjectPointer;
+    use crate::object_value;
+    use crate::vm::state::{RcState, State};
 
     struct DummyAllocator {
         pub allocator: LocalAllocator,

@@ -3,12 +3,12 @@
 //! A binding contains the local variables available to a certain scope.
 use std::cell::UnsafeCell;
 
-use arc_without_weak::ArcWithoutWeak;
-use block::Block;
-use chunk::Chunk;
-use gc::work_list::WorkList;
-use immix::copy_object::CopyObject;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::block::Block;
+use crate::chunk::Chunk;
+use crate::gc::work_list::WorkList;
+use crate::immix::copy_object::CopyObject;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 pub struct Binding {
     /// The local variables in the current binding.
@@ -203,11 +203,11 @@ impl<'a> Iterator for PointerIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
-    use immix::global_allocator::GlobalAllocator;
-    use immix::local_allocator::LocalAllocator;
-    use object_pointer::ObjectPointer;
-    use object_value;
+    use crate::config::Config;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::immix::local_allocator::LocalAllocator;
+    use crate::object_pointer::ObjectPointer;
+    use crate::object_value;
 
     fn binding_with_parent(parent: RcBinding, locals: usize) -> RcBinding {
         let mut binding = Binding::with_rc(locals, ObjectPointer::integer(1));

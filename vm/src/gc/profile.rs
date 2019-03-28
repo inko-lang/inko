@@ -1,5 +1,5 @@
-use gc::trace_result::TraceResult;
-use timer::Timer;
+use crate::gc::trace_result::TraceResult;
+use crate::timer::Timer;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum CollectionType {
@@ -86,7 +86,7 @@ impl Profile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gc::trace_result::TraceResult;
+    use crate::gc::trace_result::TraceResult;
 
     #[test]
     fn test_new() {

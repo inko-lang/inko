@@ -2,14 +2,14 @@
 //!
 //! An execution context contains the registers, bindings, and other information
 //! needed by a process in order to execute bytecode.
-use binding::{Binding, RcBinding};
-use block::Block;
-use compiled_code::CompiledCodePointer;
-use gc::work_list::WorkList;
-use global_scope::GlobalScopePointer;
-use object_pointer::ObjectPointer;
-use process::RcProcess;
-use register::Register;
+use crate::binding::{Binding, RcBinding};
+use crate::block::Block;
+use crate::compiled_code::CompiledCodePointer;
+use crate::gc::work_list::WorkList;
+use crate::global_scope::GlobalScopePointer;
+use crate::object_pointer::ObjectPointer;
+use crate::process::RcProcess;
+use crate::register::Register;
 
 pub struct ExecutionContext {
     /// The registers for this context.
@@ -297,9 +297,9 @@ impl<'a> Iterator for ExecutionContextIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::{ObjectPointer, RawObjectPointer};
+    use crate::object_pointer::{ObjectPointer, RawObjectPointer};
+    use crate::vm::test::*;
     use std::mem;
-    use vm::test::*;
 
     #[test]
     fn test_set_parent() {

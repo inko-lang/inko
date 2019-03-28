@@ -3,8 +3,8 @@
 //! A BlockList is used to construct a linked list of (owned) Immix blocks. To
 //! conserve space the pointer to the next block is stored in each block's
 //! header.
-use deref_pointer::DerefPointer;
-use immix::block::Block;
+use crate::deref_pointer::DerefPointer;
+use crate::immix::block::Block;
 use std::ops::Drop;
 use std::ops::Index;
 

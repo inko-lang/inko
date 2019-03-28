@@ -3,8 +3,8 @@
 //! Registers can be set in any particular order. However, reading from a
 //! register that is not set can lead to bogus data being returned.
 
-use chunk::Chunk;
-use object_pointer::{ObjectPointer, ObjectPointerPointer};
+use crate::chunk::Chunk;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
@@ -71,7 +71,7 @@ impl<'a> Iterator for PointerIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use object_pointer::{ObjectPointer, RawObjectPointer};
+    use crate::object_pointer::{ObjectPointer, RawObjectPointer};
 
     #[test]
     fn test_set_get() {

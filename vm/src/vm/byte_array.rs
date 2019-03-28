@@ -1,11 +1,11 @@
 //! VM functions for working with Inko byte arrays.
-use immutable_string::ImmutableString;
-use object_pointer::ObjectPointer;
-use object_value;
-use process::RcProcess;
-use slicing;
+use crate::immutable_string::ImmutableString;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::process::RcProcess;
+use crate::slicing;
+use crate::vm::state::RcState;
 use std::u8;
-use vm::state::RcState;
 
 const MIN_BYTE: i64 = u8::MIN as i64;
 const MAX_BYTE: i64 = u8::MAX as i64;

@@ -3,25 +3,25 @@
 //! Each virtual machine has its own state. This state includes any scheduled
 //! garbage collections, the configuration, the files that have been parsed,
 //! etc.
-use arc_without_weak::ArcWithoutWeak;
-use config::Config;
-use deref_pointer::DerefPointer;
-use gc::request::Request;
-use immix::block::Block;
-use immix::copy_object::CopyObject;
-use immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
-use immix::permanent_allocator::PermanentAllocator;
-use immutable_string::ImmutableString;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::config::Config;
+use crate::deref_pointer::DerefPointer;
+use crate::gc::request::Request;
+use crate::immix::block::Block;
+use crate::immix::copy_object::CopyObject;
+use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
+use crate::immix::permanent_allocator::PermanentAllocator;
+use crate::immutable_string::ImmutableString;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::scheduler::generic_pool::GenericPool;
+use crate::scheduler::process_scheduler::ProcessScheduler;
+use crate::scheduler::timeout_worker::TimeoutWorker;
+use crate::string_pool::StringPool;
 use num_bigint::BigInt;
-use object_pointer::ObjectPointer;
-use object_value;
 use parking_lot::Mutex;
-use scheduler::generic_pool::GenericPool;
-use scheduler::process_scheduler::ProcessScheduler;
-use scheduler::timeout_worker::TimeoutWorker;
 use std::panic::RefUnwindSafe;
 use std::time;
-use string_pool::StringPool;
 
 /// A reference counted State.
 pub type RcState = ArcWithoutWeak<State>;
@@ -355,7 +355,7 @@ impl State {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config::Config;
+    use crate::config::Config;
 
     #[test]
     fn test_intern() {

@@ -2,10 +2,10 @@
 //!
 //! A Block is an executable block of code (based on a CompiledCode) combined
 //! with binding of the scope the block was created in.
-use binding::RcBinding;
-use compiled_code::CompiledCodePointer;
-use global_scope::GlobalScopePointer;
-use object_pointer::ObjectPointer;
+use crate::binding::RcBinding;
+use crate::compiled_code::CompiledCodePointer;
+use crate::global_scope::GlobalScopePointer;
+use crate::object_pointer::ObjectPointer;
 
 #[derive(Clone)]
 pub struct Block {

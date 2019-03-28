@@ -4,14 +4,14 @@
 
 use std::ops::Drop;
 
-use immix::bucket::{Bucket, PERMANENT};
-use immix::copy_object::CopyObject;
-use immix::global_allocator::RcGlobalAllocator;
+use crate::immix::bucket::{Bucket, PERMANENT};
+use crate::immix::copy_object::CopyObject;
+use crate::immix::global_allocator::RcGlobalAllocator;
 
-use object::Object;
-use object_pointer::ObjectPointer;
-use object_value;
-use object_value::ObjectValue;
+use crate::object::Object;
+use crate::object_pointer::ObjectPointer;
+use crate::object_value;
+use crate::object_value::ObjectValue;
 
 pub struct PermanentAllocator {
     global_allocator: RcGlobalAllocator,
@@ -84,8 +84,8 @@ impl Drop for PermanentAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use immix::global_allocator::GlobalAllocator;
-    use object_value;
+    use crate::immix::global_allocator::GlobalAllocator;
+    use crate::object_value;
 
     fn permanent_allocator() -> PermanentAllocator {
         PermanentAllocator::new(GlobalAllocator::with_rc())

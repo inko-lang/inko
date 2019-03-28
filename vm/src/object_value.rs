@@ -4,15 +4,15 @@
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
 
-use arc_without_weak::ArcWithoutWeak;
-use binding::RcBinding;
-use block::Block;
-use ffi::{Pointer, RcFunction, RcLibrary};
-use hasher::Hasher;
-use immutable_string::ImmutableString;
+use crate::arc_without_weak::ArcWithoutWeak;
+use crate::binding::RcBinding;
+use crate::block::Block;
+use crate::ffi::{Pointer, RcFunction, RcLibrary};
+use crate::hasher::Hasher;
+use crate::immutable_string::ImmutableString;
+use crate::object_pointer::ObjectPointer;
+use crate::process::RcProcess;
 use num_bigint::BigInt;
-use object_pointer::ObjectPointer;
-use process::RcProcess;
 use std::fs;
 use std::mem;
 
@@ -407,16 +407,16 @@ pub fn process(value: RcProcess) -> ObjectValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use binding::Binding;
-    use block::Block;
-    use compiled_code::CompiledCode;
-    use config::Config;
-    use deref_pointer::DerefPointer;
-    use ffi::Library;
-    use global_scope::{GlobalScope, GlobalScopePointer};
-    use object_pointer::ObjectPointer;
+    use crate::binding::Binding;
+    use crate::block::Block;
+    use crate::compiled_code::CompiledCode;
+    use crate::config::Config;
+    use crate::deref_pointer::DerefPointer;
+    use crate::ffi::Library;
+    use crate::global_scope::{GlobalScope, GlobalScopePointer};
+    use crate::object_pointer::ObjectPointer;
+    use crate::vm::state::{RcState, State};
     use std::fs::File;
-    use vm::state::{RcState, State};
 
     #[cfg(target_os = "macos")]
     const LIBM: &'static str = "libm.dylib";
