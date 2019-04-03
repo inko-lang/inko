@@ -1,5 +1,6 @@
 //! VM functions for working with Inko processes.
 use crate::block::Block;
+use crate::duration;
 use crate::immix::copy_object::CopyObject;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
@@ -258,22 +259,7 @@ pub fn unwind_until_defining_scope(process: &RcProcess) {
 pub fn optional_timeout(
     pointer: ObjectPointer,
 ) -> Result<Option<Duration>, String> {
-    let time = pointer.float_value()?;
-
-    if time < 0.0 {
-        return Err(format!("{} is an invalid timeout value", time));
-    }
-
-    let result = if time == 0.0 {
-        None
-    } else {
-        let secs = time.trunc() as u64;
-        let nanos = (time.fract() * 1_000_000_000.0) as u32;
-
-        Some(Duration::new(secs, nanos))
-    };
-
-    Ok(result)
+    duration::from_f64(pointer.float_value()?)
 }
 
 /// Attempts to reschedule the given process after it was sent a message.

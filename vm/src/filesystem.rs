@@ -5,6 +5,7 @@ use crate::error_messages;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use std::fs;
 
@@ -18,7 +19,9 @@ const TYPE_DIRECTORY: i64 = 2;
 
 macro_rules! map_io {
     ($op:expr) => {{
-        $op.map_err(|err| error_messages::from_io_error(&err))
+        $op.map_err(|err| {
+            RuntimeError::Exception(error_messages::from_io_error(&err))
+        })
     }};
 }
 
@@ -26,14 +29,22 @@ macro_rules! map_io {
 ///
 /// The `kind` argument specifies whether the creation, modification or access
 /// time should be retrieved.
-pub fn date_time_for_path(path: &str, kind: i64) -> Result<DateTime, String> {
+pub fn date_time_for_path(
+    path: &str,
+    kind: i64,
+) -> Result<DateTime, RuntimeError> {
     let meta = map_io!(fs::metadata(path))?;
 
     let system_time = match kind {
         TIME_CREATED => map_io!(meta.created())?,
         TIME_MODIFIED => map_io!(meta.modified())?,
         TIME_ACCESSED => map_io!(meta.accessed())?,
-        _ => return Err(format!("{} is not a valid type of timestamp", kind)),
+        _ => {
+            return Err(RuntimeError::Panic(format!(
+                "{} is not a valid type of timestamp",
+                kind
+            )));
+        }
     };
 
     Ok(DateTime::from_system_time(system_time))
@@ -60,7 +71,7 @@ pub fn list_directory_as_pointers(
     state: &RcState,
     process: &RcProcess,
     path: &str,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let mut paths = Vec::new();
 
     for entry in map_io!(fs::read_dir(path))? {

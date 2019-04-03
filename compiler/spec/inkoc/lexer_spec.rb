@@ -260,6 +260,14 @@ describe Inkoc::Lexer do
       expect(token.value).to eq('0x10')
     end
 
+    it 'tokenizes a hexadecimal integer with letters' do
+      lexer = described_class.new('0xFF')
+      token = lexer.number
+
+      expect(token.type).to eq(:integer)
+      expect(token.value).to eq('0xFF')
+    end
+
     it 'tokenizes a float using the scientific notation with a lowercase e' do
       lexer = described_class.new('1e2')
       token = lexer.number
@@ -366,6 +374,14 @@ describe Inkoc::Lexer do
 
       expect(token.type).to eq(:string)
       expect(token.value).to eq("\n")
+    end
+
+    it 'tokenizes a double quoted string with a NULL byte' do
+      lexer = described_class.new('"\0"')
+      token = lexer.double_string
+
+      expect(token.type).to eq(:string)
+      expect(token.value).to eq("\0")
     end
 
     it 'tokenizes a double quoted string with a carriage return' do

@@ -1,0 +1,211 @@
+#! Types, constants and methods reused by IP and Unix sockets.
+#!
+#! This module should not be used directly, instead one should use
+#! `std::net::socket` and `std::net::unix`.
+import std::byte_array::ByteArray
+import std::io::(Error as IoError)
+
+## A marker trait used for values that can be directly sent across a socket.
+trait SocketValue {}
+
+impl SocketValue for ByteArray {}
+impl SocketValue for String {}
+
+## The domain for IPv4 sockets.
+let AF_INET = 0
+
+## The domain for IPv6 sockets.
+let AF_INET6 = 1
+
+## The domain for Unix sockets.
+let AF_UNIX = 2
+
+## The socket type for socket streams.
+let SOCK_STREAM = 0
+
+## The socket type for datagram sockets.
+let SOCK_DGRAM = 1
+
+## The socket type for sequential packet sockets.
+let SOCK_SEQPACKET = 2
+
+## The socket type for raw sockets.
+let SOCK_RAW = 3
+
+## The maximum value valid for a listen() call.
+##
+## Linux and FreeBSD do not allow for values greater than this as they
+## internally use an u16, so we'll limit the backlog to this value. We don't use
+## SOMAXCONN because it might be hardcoded. This means that setting
+## `net.core.somaxconn` on Linux (for example) would have no effect.
+let MAXIMUM_LISTEN_BACKLOG = 65_535
+
+let TTL = 0
+let ONLY_V6 = 1
+let NODELAY = 2
+let BROADCAST = 3
+let LINGER = 4
+let RECV_SIZE = 5
+let SEND_SIZE = 6
+let KEEPALIVE = 7
+let MULTICAST_LOOP_V4 = 8
+let MULTICAST_LOOP_V6 = 9
+let MULTICAST_TTL_V4 = 10
+let MULTICAST_HOPS_V6 = 11
+let MULTICAST_IF_V4 = 12
+let MULTICAST_IF_V6 = 13
+let UNICAST_HOPS_V6 = 14
+let REUSE_ADDRESS = 15
+let REUSE_PORT = 16
+
+let LOCAL_ADDRESS = 0
+let PEER_ADDRESS = 1
+
+## Sets a socket option to the given value.
+##
+## The allowed value `value` differs based on the value passed to `option`.
+def set_socket_option!(T)(
+  socket,
+  option: Integer,
+  value: T
+) !! IoError -> T {
+  try {
+    _INKOC.socket_set_option(socket, option, value) as T
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+## Retrieves the value of a socket option.
+##
+## The type of the returned value depends on the `option` argument.
+def get_socket_option!(T)(socket, option: Integer) !! IoError -> T {
+  try {
+    _INKOC.socket_get_option(socket, option) as T
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+## Obtains the local or peer address of a socket.
+def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
+  let kind = peer.if true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS }
+
+  try {
+    _INKOC.socket_address(socket, kind)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def socket(domain: Integer, kind: Integer) !! IoError {
+  try {
+    _INKOC.socket_create(domain, kind)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def bind(socket, address: String, port: Integer) !! IoError -> Nil {
+  try {
+    _INKOC.socket_bind(socket, address, port)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+
+  Nil
+}
+
+def connect(socket, address: String, port: Integer) !! IoError -> Nil {
+  try {
+    _INKOC.socket_connect(socket, address, port)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+
+  Nil
+}
+
+def listen(socket, backlog: Integer) !! IoError -> Integer {
+  try {
+    _INKOC.socket_listen(socket, backlog)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def accept(socket) !! IoError {
+  try {
+    _INKOC.socket_accept(socket)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def send_to(
+  socket,
+  message: SocketValue,
+  address: String,
+  port: Integer
+) !! IoError -> Integer {
+  try {
+    _INKOC.socket_send_to(socket, message, address, port)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def receive_from(
+  socket,
+  bytes: ByteArray,
+  size: Integer
+) !! IoError -> Array!(Dynamic) {
+  try {
+    _INKOC.socket_receive_from(socket, bytes, size)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def read_bytes(
+  socket,
+  bytes: ByteArray,
+  size: ?Integer = Nil
+) !! IoError -> Integer {
+  try {
+    _INKOC.socket_read(socket, bytes, size)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def write_bytes(socket, bytes: ByteArray) !! IoError -> Integer {
+  try {
+    _INKOC.socket_write(socket, bytes)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def write_string(socket, string: String) !! IoError -> Integer {
+  try {
+    _INKOC.socket_write(socket, string)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def close(socket) -> Nil {
+  _INKOC.drop(socket)
+}
+
+def to_stream(socket, prototype) {
+  let stream = _INKOC.set_object(False, prototype)
+
+  # Currently Inko does not support multiple constructors (e.g. via overloading)
+  # or directly initialising an object with its attributes.  Using `std::mirror`
+  # would not be very efficient, so we use raw VM instructions directly.
+  _INKOC.set_attribute(stream, '@socket', socket)
+
+  stream
+}

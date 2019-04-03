@@ -30,6 +30,7 @@ use crate::immutable_string::ImmutableString;
 use crate::object::{Object, ObjectStatus, FORWARDED_BIT};
 use crate::object_value::ObjectValue;
 use crate::process::RcProcess;
+use crate::socket::Socket;
 use crate::tagged_pointer::TaggedPointer;
 use crate::vm::state::RcState;
 
@@ -615,6 +616,9 @@ impl ObjectPointer {
     def_value_getter!(function_value, get, as_function, &RcFunction);
     def_value_getter!(pointer_value, get, as_pointer, Pointer);
     def_value_getter!(process_value, get, as_process, &RcProcess);
+    def_value_getter!(socket_value, get, as_socket, &Socket);
+
+    def_value_getter!(socket_value_mut, get_mut, as_socket_mut, &mut Socket);
 
     /// Atomically loads the underlying pointer, returning a new ObjectPointer.
     pub fn atomic_load(&self) -> Self {

@@ -1625,6 +1625,14 @@ module Inkoc
         typedb.process_type.new_instance
       end
 
+      def on_raw_get_socket_prototype(*)
+        typedb.socket_type.new_instance
+      end
+
+      def on_raw_get_unix_socket_prototype(*)
+        typedb.unix_socket_type.new_instance
+      end
+
       def on_raw_set_object_name(*)
         typedb.string_type.new_instance
       end
@@ -1742,6 +1750,54 @@ module Inkoc
       end
 
       def on_raw_float_to_bits(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_socket_create(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_socket_write(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_socket_read(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_socket_accept(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_socket_receive_from(*)
+        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+      end
+
+      def on_raw_socket_send_to(*)
+        typedb.integer_type.new_instance
+      end
+
+      def on_raw_socket_address(*)
+        typedb.new_array_of_type(TypeSystem::Dynamic.new)
+      end
+
+      def on_raw_socket_get_option(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_socket_set_option(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_socket_bind(*)
+        typedb.nil_type.new_instance
+      end
+
+      def on_raw_socket_connect(*)
+        typedb.nil_type.new_instance
+      end
+
+      def on_raw_socket_listen(*)
         typedb.integer_type.new_instance
       end
 

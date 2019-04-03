@@ -16,3 +16,9 @@ macro_rules! is_false {
         $pointer == $state.false_object || $pointer == $state.nil_object
     };
 }
+
+macro_rules! is_true {
+    ($state:expr, $pointer:expr) => {
+        $pointer == $state.true_object
+    };
+}

@@ -29,6 +29,24 @@ test.group('std::os.windows?') do (g) {
   }
 }
 
+test.group('std::os.linux?') do (g) {
+  g.test('Checking if the underlying platform is Linux') {
+    assert.equal(os.linux?, os.platform == 'linux')
+  }
+}
+
+test.group('std::os.unix?') do (g) {
+  g.test('Checking if the underlying platform is Unix') {
+    assert.equal(os.unix?, os.windows?.not)
+  }
+}
+
+test.group('std::os.mac?') do (g) {
+  g.test('Checking if the underlying platform is Mac OS') {
+    assert.equal(os.mac?, os.platform == 'macos')
+  }
+}
+
 test.group('std::os::NEWLINE') do (g) {
   g.test('Obtaining the newline separator for the underlying platform') {
     let expected = os.windows?.if true: { "\r\n" }, false: { "\n" }

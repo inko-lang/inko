@@ -165,6 +165,18 @@ pub enum InstructionType {
     StringToFloat,
     FloatToBits,
     ProcessIdentifier,
+    SocketCreate,
+    SocketWrite,
+    SocketRead,
+    SocketAccept,
+    SocketReceiveFrom,
+    SocketSendTo,
+    SocketAddress,
+    SocketGetOption,
+    SocketSetOption,
+    SocketBind,
+    SocketListen,
+    SocketConnect,
 }
 
 /// Struct for storing information about a single instruction.

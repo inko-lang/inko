@@ -35,7 +35,9 @@ pub fn to_string(
     } else if integer.is_bigint() {
         integer.bigint_value()?.to_string()
     } else {
-        return Err("Only integers are supported for this operation".to_string());
+        return Err(
+            "Only integers are supported for this operation".to_string()
+        );
     };
 
     Ok(process.allocate(object_value::string(result), state.string_prototype))

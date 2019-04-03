@@ -277,3 +277,73 @@ test.group('std::integer.parse') do (g) {
     )
   }
 }
+
+test.group('std::integer::Integer.format') do (g) {
+  g.test('Formatting an Integer in base 2') {
+    assert.equal(4.format(radix: 2), '100')
+    assert.equal(10.format(radix: 2), '1010')
+    assert.equal(32.format(radix: 2), '100000')
+
+    assert.equal(-4.format(radix: 2), '-100')
+    assert.equal(-10.format(radix: 2), '-1010')
+    assert.equal(-32.format(radix: 2), '-100000')
+  }
+
+  g.test('Formatting an Integer in base 4') {
+    assert.equal(4.format(radix: 4), '10')
+    assert.equal(10.format(radix: 4), '22')
+    assert.equal(32.format(radix: 4), '200')
+
+    assert.equal(-4.format(radix: 4), '-10')
+    assert.equal(-10.format(radix: 4), '-22')
+    assert.equal(-32.format(radix: 4), '-200')
+  }
+
+  g.test('Formatting an Integer in base 16') {
+    assert.equal(4.format(radix: 16), '4')
+    assert.equal(10.format(radix: 16), 'a')
+    assert.equal(32.format(radix: 16), '20')
+    assert.equal(0x2ff.format(radix: 16), '2ff')
+
+    assert.equal(-4.format(radix: 16), '-4')
+    assert.equal(-10.format(radix: 16), '-a')
+    assert.equal(-32.format(radix: 16), '-20')
+    assert.equal(-0x2ff.format(radix: 16), '-2ff')
+  }
+
+  g.test('Formatting an Integer in base 32') {
+    assert.equal(4.format(radix: 32), '4')
+    assert.equal(10.format(radix: 32), 'a')
+    assert.equal(32.format(radix: 32), '10')
+
+    assert.equal(-4.format(radix: 32), '-4')
+    assert.equal(-10.format(radix: 32), '-a')
+    assert.equal(-32.format(radix: 32), '-10')
+  }
+
+  g.test('Formatting Integer 0') {
+    assert.equal(0.format(radix: 2), '0')
+    assert.equal(0.format(radix: 4), '0')
+    assert.equal(0.format(radix: 16), '0')
+  }
+
+  g.test('Using a radix smaller than 2') {
+    assert.panic {
+      10.format(radix: -1)
+    }
+
+    assert.panic {
+      10.format(radix: 0)
+    }
+
+    assert.panic {
+      10.format(radix: 1)
+    }
+  }
+
+  g.test('Using a radix greater than 36') {
+    assert.panic {
+      10.format(radix: 37)
+    }
+  }
+}

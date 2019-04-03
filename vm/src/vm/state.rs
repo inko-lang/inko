@@ -12,6 +12,7 @@ use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
 use crate::immutable_string::ImmutableString;
+use crate::network_poller::NetworkPoller;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::scheduler::generic_pool::GenericPool;
@@ -143,6 +144,12 @@ pub struct State {
     /// The prototype to use for pointers to C variables.
     pub pointer_prototype: ObjectPointer,
 
+    /// The prototype to use for regular sockets.
+    pub socket_prototype: ObjectPointer,
+
+    /// The prototype to use for Unix domain sockets.
+    pub unix_socket_prototype: ObjectPointer,
+
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
 
@@ -151,6 +158,9 @@ pub struct State {
     /// This field defaults to a null pointer. Reading and writing this field
     /// should be done using atomic operations.
     pub default_panic_handler: ObjectPointer,
+
+    /// The system polling mechanism to use for polling non-blocking sockets.
+    pub network_poller: NetworkPoller,
 }
 
 impl RefUnwindSafe for State {}
@@ -185,6 +195,8 @@ impl State {
         let function_prototype = perm_alloc.allocate_empty();
         let pointer_prototype = perm_alloc.allocate_empty();
         let process_prototype = perm_alloc.allocate_empty();
+        let socket_prototype = perm_alloc.allocate_empty();
+        let unix_socket_prototype = perm_alloc.allocate_empty();
 
         {
             top_level.set_prototype(object_proto);
@@ -208,6 +220,8 @@ impl State {
             function_prototype.set_prototype(object_proto);
             pointer_prototype.set_prototype(object_proto);
             process_prototype.set_prototype(object_proto);
+            socket_prototype.set_prototype(object_proto);
+            unix_socket_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
@@ -251,6 +265,9 @@ impl State {
             function_prototype,
             pointer_prototype,
             process_prototype,
+            socket_prototype,
+            unix_socket_prototype,
+            network_poller: NetworkPoller::new(),
         };
 
         for argument in arguments {

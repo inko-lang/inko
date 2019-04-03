@@ -3,7 +3,6 @@
 //! Objects need to be able to store values of different types such as floats or
 //! strings. The ObjectValue enum can be used for storing such data and
 //! operating on it.
-
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::binding::RcBinding;
 use crate::block::Block;
@@ -12,6 +11,7 @@ use crate::hasher::Hasher;
 use crate::immutable_string::ImmutableString;
 use crate::object_pointer::ObjectPointer;
 use crate::process::RcProcess;
+use crate::socket::Socket;
 use num_bigint::BigInt;
 use std::fs;
 use std::mem;
@@ -58,6 +58,9 @@ pub enum ObjectValue {
 
     /// A lightweight Inko process.
     Process(RcProcess),
+
+    /// A nonblocking socket.
+    Socket(Box<Socket>),
 }
 
 impl ObjectValue {
@@ -292,6 +295,24 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_socket(&self) -> Result<&Socket, String> {
+        match *self {
+            ObjectValue::Socket(ref sock) => Ok(sock),
+            _ => {
+                Err("ObjectValue::as_socket() called on a non socket"
+                    .to_string())
+            }
+        }
+    }
+
+    pub fn as_socket_mut(&mut self) -> Result<&mut Socket, String> {
+        match *self {
+            ObjectValue::Socket(ref mut sock) => Ok(sock),
+            _ => Err("ObjectValue::as_socket_mut() called on a non socket"
+                .to_string()),
+        }
+    }
+
     pub fn take(&mut self) -> ObjectValue {
         mem::replace(self, ObjectValue::None)
     }
@@ -332,6 +353,7 @@ impl ObjectValue {
             ObjectValue::Function(_) => "Function",
             ObjectValue::Pointer(_) => "Pointer",
             ObjectValue::Process(_) => "Process",
+            ObjectValue::Socket(_) => "Socket",
         }
     }
 }
@@ -402,6 +424,10 @@ pub fn pointer(value: Pointer) -> ObjectValue {
 
 pub fn process(value: RcProcess) -> ObjectValue {
     ObjectValue::Process(value)
+}
+
+pub fn socket(value: Socket) -> ObjectValue {
+    ObjectValue::Socket(Box::new(value))
 }
 
 #[cfg(test)]

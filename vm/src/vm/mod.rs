@@ -12,6 +12,7 @@ pub mod machine;
 pub mod module;
 pub mod object;
 pub mod process;
+pub mod socket;
 pub mod state;
 pub mod string;
 pub mod test;

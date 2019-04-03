@@ -226,7 +226,7 @@ impl Bucket {
         // the time we start a collection (as they have all been consumed). As
         // such we don't check for these and instead only check for fragmented
         // blocks.
-        self.blocks.iter().any(|block| block.is_fragmented())
+        self.blocks.iter().any(Block::is_fragmented)
     }
 
     /// Reclaims the blocks in this bucket

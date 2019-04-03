@@ -1,0 +1,727 @@
+import std::byte_array::ByteArray
+import std::fs::file
+import std::fs::path::Path
+import std::net::bits::MAXIMUM_LISTEN_BACKLOG
+import std::net::unix::(
+  DGRAM, RAW, SEQPACKET, STREAM, Socket, SocketAddress, UnixDatagram,
+  UnixListener, UnixStream
+)
+import std::os
+import std::process
+import std::test
+import std::test::assert
+import test::fixtures
+
+def with_path(block: do (Path)) {
+  let path = fixtures.temporary_file_path
+
+  process.defer {
+    try file.remove(path) else Nil
+  }
+
+  block.call(path)
+}
+
+def with_paths(block: do (Path, Path)) {
+  let path1 = fixtures.temporary_file_path
+  let path2 = (path1.to_string + '2').to_path
+
+  process.defer {
+    try file.remove(path1) else Nil
+    try file.remove(path2) else Nil
+  }
+
+  block.call(path1, path2)
+}
+
+def abstract_socket_address -> String {
+  "\0inko-tests-" + process.current.identifier.to_string
+}
+
+test.group('std::net::unix::SocketAddress.to_path') do (g) {
+  g.test('Converting a path based SocketAddress to a Path') {
+    let addr = SocketAddress.new('foo.sock')
+
+    assert.equal(addr.to_path, 'foo.sock'.to_path)
+  }
+
+  g.test('Converting an abstract SocketAddress to a Path') {
+    let addr = SocketAddress.new("\0foo")
+
+    assert.equal(addr.to_path, Nil)
+  }
+
+  g.test('Converting an unnamed SocketAddress to a Path') {
+    let addr = SocketAddress.new
+
+    assert.equal(addr.to_path, Nil)
+  }
+}
+
+test.group('std::net::unix::SocketAddress.to_string') do (g) {
+  g.test('Converting a path based SocketAddress to a String') {
+    let addr = SocketAddress.new('foo.sock')
+
+    assert.equal(addr.to_string, 'foo.sock')
+  }
+
+  g.test('Converting an abstract SocketAddress to a String') {
+    let addr = SocketAddress.new("\0foo")
+
+    assert.equal(addr.to_string, "\0foo")
+  }
+
+  g.test('Converting an unnamed SocketAddress to a String') {
+    let addr = SocketAddress.new
+
+    assert.equal(addr.to_string, '')
+  }
+}
+
+test.group('std::net::unix::SocketAddress.abstract?') do (g) {
+  g.test('Checking if a SocketAddress is an abstract address') {
+    assert.false(SocketAddress.new.abstract?)
+    assert.false(SocketAddress.new('foo.sock').abstract?)
+    assert.true(SocketAddress.new("\0foo").abstract?)
+  }
+}
+
+test.group('std::net::unix::SocketAddress.unnamed?') do (g) {
+  g.test('Checking if a SocketAddress is an unnamed address') {
+    assert.false(SocketAddress.new('foo.sock').unnamed?)
+    assert.false(SocketAddress.new("\0foo").unnamed?)
+    assert.true(SocketAddress.new.unnamed?)
+  }
+}
+
+test.group('std::net::unix::SocketAddress.==') do (g) {
+  g.test('Comparing two SocketAddress objects') {
+    assert.equal(SocketAddress.new('a.sock'), SocketAddress.new('a.sock'))
+    assert.not_equal(SocketAddress.new('a.sock'), SocketAddress.new('b.sock'))
+  }
+}
+
+os.unix?.if_true {
+  test.group('std::net::unix::Socket.new') do (g) {
+    g.test('Creating datagram Unix socket') {
+      assert.no_panic {
+        try! Socket.new(DGRAM)
+      }
+    }
+
+    g.test('Creating a stream Unix socket') {
+      assert.no_panic {
+        try! Socket.new(STREAM)
+      }
+    }
+
+    os.mac?.if_false {
+      g.test('Creating a sequential packet Unix socket') {
+        assert.no_panic {
+          try! Socket.new(SEQPACKET)
+        }
+      }
+
+      g.test('Creating a raw Unix socket') {
+        assert.no_panic {
+          try! Socket.new(RAW)
+        }
+      }
+    }
+
+    g.test('Creating a Unix socket of an invalid kind') {
+      assert.panic {
+        try! Socket.new(9999)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.bind') do (g) {
+    g.test('Binding a Unix socket to a path') {
+      assert.no_panic {
+        with_path do (path) {
+          let socket = try! Socket.new(STREAM)
+
+          try! socket.bind(path)
+        }
+      }
+    }
+
+    g.test('Binding a Unix socket to a path that already exists') {
+      assert.panic {
+        with_path do (path) {
+          let socket1 = try! Socket.new(STREAM)
+          let socket2 = try! Socket.new(STREAM)
+
+          try! socket1.bind(path)
+          try! socket2.bind(path)
+        }
+      }
+    }
+
+    os.linux?.if_true {
+      g.test('Binding a Unix socket to an abstract address') {
+        assert.no_panic {
+          let socket = try! Socket.new(STREAM)
+
+          try! socket.bind(abstract_socket_address)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.connect') do (g) {
+    g.test('Connecting to an invalid address') {
+      assert.panic {
+        with_path do (path) {
+          let socket = try! Socket.new(STREAM)
+
+          try! socket.connect(path)
+        }
+      }
+    }
+
+    g.test('Connecting to a valid address') {
+      assert.no_panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+          let stream = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+          try! stream.connect(path)
+        }
+      }
+    }
+
+    os.linux?.if_true {
+      g.test('Connecting to an abstract address') {
+        assert.no_panic {
+          let listener = try! Socket.new(STREAM)
+          let stream = try! Socket.new(STREAM)
+
+          try! listener.bind(abstract_socket_address)
+          try! listener.listen
+          try! stream.connect(abstract_socket_address)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.listen') do (g) {
+    g.test('Marking a Socket as listening with a custom backlog') {
+      with_path do (path) {
+        let socket = try! Socket.new(STREAM)
+
+        try! socket.bind(path)
+
+        assert.equal(try! socket.listen(4), 4)
+      }
+    }
+
+    g.test('Marking a Socket as listening with the default backlog') {
+      with_path do (path) {
+        let socket = try! Socket.new(STREAM)
+
+        try! socket.bind(path)
+
+        assert.equal(try! socket.listen, MAXIMUM_LISTEN_BACKLOG)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.accept') do (g) {
+    g.test('Accepting an incoming connection') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+        let stream = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+        try! stream.connect(path)
+
+        let client = try! listener.accept
+
+        assert.equal(try! client.peer_address, try! stream.local_address)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.send_to') do (g) {
+    g.test('Sending a message to a specific address') {
+      with_path do (path) {
+        let socket = try! Socket.new(DGRAM)
+
+        try! socket.bind(path)
+        try! socket.send_to(message: 'ping', address: path)
+
+        assert.equal(try! socket.read_string(size: 4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.receive_from') do (g) {
+    g.test('Receiving a message and a SocketAddress') {
+      with_paths do (path1, path2) {
+        let listener = try! Socket.new(DGRAM)
+        let client = try! Socket.new(DGRAM)
+
+        try! listener.bind(path1)
+        try! client.bind(path2)
+        try! client.send_to(message: 'ping', address: path1)
+
+        let bytes = ByteArray.new
+        let sender = try! listener.receive_from(bytes: bytes, size: 4)
+
+        assert.equal(sender, try! client.local_address)
+        assert.equal(bytes.to_string, 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.local_address') do (g) {
+    g.test('Obtaining the local address of an unbound socket') {
+      let socket = try! Socket.new(DGRAM)
+      let address = try! socket.local_address
+
+      assert.equal(address, SocketAddress.new)
+    }
+
+    g.test('Obtaining the local address of a bound socket') {
+      with_path do (path) {
+        let socket = try! Socket.new(DGRAM)
+
+        try! socket.bind(path)
+
+        let local_address = try! socket.local_address
+
+        assert.equal(local_address.to_string, path.to_string)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.peer_address') do (g) {
+    g.test('Obtaining the peer address of a disconnected socket') {
+      assert.panic {
+        let socket = try! Socket.new(DGRAM)
+
+        try! socket.peer_address
+      }
+    }
+
+    g.test('Obtaining the peer address of a connected socket') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+        let client = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+        try! client.connect(path)
+
+        assert.equal(try! client.peer_address, try! listener.local_address)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.read_bytes') do (g) {
+    g.test('Reading bytes from a Socket') {
+      with_path do (path) {
+        let socket = try! Socket.new(DGRAM)
+        let bytes = ByteArray.new
+
+        try! socket.bind(path)
+        try! socket.send_to(message: 'ping', address: path)
+
+        let read = try! socket.read_bytes(bytes: bytes, size: 4)
+
+        assert.equal(bytes.to_string, 'ping')
+        assert.equal(read, 4)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.write_bytes') do (g) {
+    g.test('Writing bytes to a Socket') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+        let stream = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+        try! stream.connect(path)
+
+        let written = try! stream.write_bytes('ping'.to_byte_array)
+        let connection = try! listener.accept
+        let message = try! connection.read_string(size: 4)
+
+        assert.equal(message, 'ping')
+        assert.equal(written, 4)
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.close') do (g) {
+    g.test('Closing a Socket') {
+      assert.no_panic {
+        let socket = try! Socket.new(STREAM)
+
+        socket.close
+      }
+    }
+  }
+
+  test.group('std::net::unix::Socket.flush') do (g) {
+    g.test('Flushing a Socket') {
+      let socket = try! Socket.new(STREAM)
+
+      assert.equal(socket.flush, Nil)
+    }
+  }
+
+  test.group('std::net::unix::Socket.receive_buffer_size') do (g) {
+    g.test('Setting and obtaining the value of the SO_RCVBUF option') {
+      let socket = try! Socket.new(STREAM)
+
+      try! socket.receive_buffer_size = 256
+
+      assert.true(try! socket.receive_buffer_size >= 256)
+    }
+  }
+
+  test.group('std::net::unix::Socket.send_buffer_size') do (g) {
+    g.test('Setting and obtaining the value of the SO_SNDBUT option') {
+      let socket = try! Socket.new(STREAM)
+
+      try! socket.send_buffer_size = 256
+
+      assert.true(try! socket.send_buffer_size >= 256)
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram') do (g) {
+    g.test('Creating a UnixDatagram') {
+      assert.no_panic {
+        with_path do (path) {
+          try! UnixDatagram.new(path)
+        }
+      }
+    }
+
+    g.test('Creating a UnixDatagram using an address that is already in use') {
+      assert.panic {
+        with_path do (path) {
+          try! UnixDatagram.new(path)
+          try! UnixDatagram.new(path)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.connect') do (g) {
+    g.test('Connecting a UnixDatagram') {
+      assert.no_panic {
+        with_paths do (path1, path2) {
+          let socket1 = try! UnixDatagram.new(path1)
+          let socket2 = try! UnixDatagram.new(path2)
+
+          try! socket1.connect(path2)
+        }
+      }
+    }
+
+    g.test('Reading and writing from a connected UdpSocket') {
+      with_paths do (path1, path2) {
+        let socket1 = try! UnixDatagram.new(path1)
+        let socket2 = try! UnixDatagram.new(path2)
+        let address = try! socket2.local_address
+
+        try! socket1.connect(path2)
+        try! socket1.write_string('ping')
+
+        assert.equal(try! socket2.read_string(4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.send_to') do (g) {
+    g.test('Sending a message to a specific address') {
+      with_path do (path) {
+        let socket = try! UnixDatagram.new(path)
+
+        try! socket.send_to(message: 'ping', address: path)
+
+        assert.equal(try! socket.read_string(size: 4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.receive_from') do (g) {
+    g.test('Receiving a message and a SocketAddress') {
+      with_paths do (path1, path2) {
+        let listener = try! UnixDatagram.new(path1)
+        let client = try! UnixDatagram.new(path2)
+
+        try! client.send_to(message: 'ping', address: path1)
+
+        let bytes = ByteArray.new
+        let sender = try! listener.receive_from(bytes: bytes, size: 4)
+
+        assert.equal(sender, try! client.local_address)
+        assert.equal(bytes.to_string, 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.local_address') do (g) {
+    g.test('Obtaining the local address of a UnixDatagram') {
+      with_path do (path) {
+        let socket = try! UnixDatagram.new(path)
+        let local_address = try! socket.local_address
+
+        assert.equal(local_address.to_string, path.to_string)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.read_bytes') do (g) {
+    g.test('Reading bytes from a UnixDatagram') {
+      with_path do (path) {
+        let socket = try! UnixDatagram.new(path)
+        let bytes = ByteArray.new
+
+        try! socket.send_to(message: 'ping', address: path)
+
+        let read = try! socket.read_bytes(bytes: bytes, size: 4)
+
+        assert.equal(bytes.to_string, 'ping')
+        assert.equal(read, 4)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.write_bytes') do (g) {
+    g.test('Writing bytes to a connected UnixDatagram') {
+      with_paths do (path1, path2) {
+        let server = try! UnixDatagram.new(path1)
+        let client = try! UnixDatagram.new(path2)
+
+        try! client.connect(path1)
+
+        let written = try! client.write_bytes('ping'.to_byte_array)
+        let message = try! server.read_string(size: 4)
+
+        assert.equal(message, 'ping')
+        assert.equal(written, 4)
+      }
+    }
+
+    g.test('Writing bytes to a disconnected UnixDatagram') {
+      assert.panic {
+        with_path do (path) {
+          let socket = try! UnixDatagram.new(path)
+
+          try! socket.write_bytes('ping'.to_byte_array)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.close') do (g) {
+    g.test('Closing a UnixDatagram') {
+      assert.no_panic {
+        with_path do (path) {
+          let socket = try! UnixDatagram.new(path)
+
+          socket.close
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixDatagram.flush') do (g) {
+    g.test('Flushing a UnixDatagram') {
+      with_path do (path) {
+        let socket = try! UnixDatagram.new(path)
+
+        assert.equal(socket.flush, Nil)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.new') do (g) {
+    g.test('Creating a new UnixStream') {
+      assert.no_panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+          try! UnixStream.new(path)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.local_address') do (g) {
+    g.test('Obtaining the local address') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+        let local_addr = try! stream.local_address
+
+        assert.equal(local_addr.to_string, '')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.peer_address') do (g) {
+    g.test('Obtaining the peer address') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+        let peer_addr = try! stream.peer_address
+
+        assert.equal(peer_addr.to_string, path.to_string)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.read_bytes') do (g) {
+    g.test('Reading bytes from a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+        let bytes = ByteArray.new
+
+        try! listener.accept.write_string('ping')
+        try! stream.read_bytes(bytes: bytes, size: 4)
+
+        assert.equal(bytes.to_string, 'ping')
+      }
+    }
+  }
+
+
+  test.group('std::net::unix::UnixStream.write_bytes') do (g) {
+    g.test('Writing bytes to a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+        let connection = try! listener.accept
+
+        try! stream.write_bytes('ping'.to_byte_array)
+
+        assert.equal(try! connection.read_string(4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.write_string') do (g) {
+    g.test('Writing a String to a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+        let connection = try! listener.accept
+
+        try! stream.write_string('ping')
+
+        assert.equal(try! connection.read_string(4), 'ping')
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.close') do (g) {
+    g.test('Closing a UnixStream') {
+      assert.no_panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+
+          let stream = try! UnixStream.new(path)
+
+          stream.close
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.flush') do (g) {
+    g.test('Flushing a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+
+        assert.equal(stream.flush, Nil)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixListener.new') do (g) {
+    g.test('Creating a UnixListener') {
+      assert.no_panic {
+        with_path do (path) {
+          try! UnixListener.new(path)
+        }
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixListener.accept') do (g) {
+    g.test('Accepting an incoming connection') {
+      with_path do (path) {
+        let listener = try! UnixListener.new(path)
+        let stream = try! UnixStream.new(path)
+        let connection = try! listener.accept
+
+        assert.equal(try! connection.local_address, try! stream.peer_address)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixListener.local_address') do (g) {
+    g.test('Obtaining the local address') {
+      with_path do (path) {
+        let listener = try! UnixListener.new(path)
+        let addr = try! listener.local_address
+
+        assert.equal(addr.to_string, path.to_string)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixListener.close') do (g) {
+    g.test('Closing a UnixListener') {
+      with_path do (path) {
+        let listener = try! UnixListener.new(path)
+
+        assert.equal(listener.close, Nil)
+      }
+    }
+  }
+}

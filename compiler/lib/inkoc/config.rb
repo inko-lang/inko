@@ -59,6 +59,8 @@ module Inkoc
     FUNCTION_CONST = 'Function'
     POINTER_CONST = 'Pointer'
     PROCESS_CONST = 'Process'
+    SOCKET_CONST = 'Socket'
+    UNIX_SOCKET_CONST = 'UnixSocket'
     ARRAY_TYPE_PARAMETER = 'T'
     OPTIONAL_CONST = 'Optional'
 

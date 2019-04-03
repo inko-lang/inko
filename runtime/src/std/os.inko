@@ -31,9 +31,24 @@ def platform -> String {
   _INKOC.platform
 }
 
-## Returns `True` if the program is currently running on Windows.
+## Returns `True` if the program is running on Windows.
 def windows? -> Boolean {
   platform == 'windows'
+}
+
+## Returns `True` if the program is running on Linux.
+def linux? -> Boolean {
+  platform == 'linux'
+}
+
+## Returns `True` if the program is running on a Unix system.
+def unix? -> Boolean {
+  windows?.not
+}
+
+## Returns `True` if the program is running on Mac OS.
+def mac? -> Boolean {
+  platform == 'macos'
 }
 
 ## The newline separator to use on the current platform.

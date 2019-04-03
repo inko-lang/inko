@@ -8,6 +8,9 @@ import test::std::fs::test_dir
 import test::std::fs::test_file
 import test::std::fs::test_path
 import test::std::fs::test_raw
+import test::std::net::test_ip
+import test::std::net::test_socket
+import test::std::net::test_unix
 import test::std::test::test_assert
 import test::std::test::test_config
 import test::std::test::test_error::(self as test_test_error)

@@ -34,6 +34,7 @@ module Inkoc
     ).freeze
 
     NUMBER_RANGE = '0'..'9'
+    NUMBER_ALLOWED_LETTERS = %w[a b c d e f A B C D E F x _]
 
     # We allocate this once so we don't end up wasting allocations every time we
     # consume a peeked value.
@@ -293,7 +294,7 @@ module Inkoc
           type = :float
 
           @position += next_char == '+' ? 2 : 1
-        when NUMBER_RANGE, '_', 'x'
+        when NUMBER_RANGE, *NUMBER_ALLOWED_LETTERS
           @position += 1
         else
           break
@@ -378,11 +379,12 @@ module Inkoc
 
       if has_special && unescape_special
         token.value.gsub!(
-          /\\t|\\r|\\n|\\e/,
+          /\\t|\\r|\\n|\\e|\\0/,
           '\t' => "\t",
           '\n' => "\n",
           '\r' => "\r",
-          '\e' => "\e"
+          '\e' => "\e",
+          '\0' => "\0"
         )
       end
 

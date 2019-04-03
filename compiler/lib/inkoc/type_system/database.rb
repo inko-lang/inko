@@ -8,7 +8,8 @@ module Inkoc
                   :object_type, :hasher_type, :boolean_type,
                   :read_only_file_type, :write_only_file_type,
                   :read_write_file_type, :byte_array_type, :library_type,
-                  :function_type, :pointer_type, :process_type
+                  :function_type, :pointer_type, :process_type,
+                  :socket_type, :unix_socket_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -31,6 +32,8 @@ module Inkoc
         @function_type = new_object_type(Config::FUNCTION_CONST)
         @pointer_type = new_object_type(Config::POINTER_CONST)
         @process_type = new_object_type(Config::PROCESS_CONST)
+        @socket_type = new_object_type(Config::SOCKET_CONST)
+        @unix_socket_type = new_object_type(Config::UNIX_SOCKET_CONST)
         @trait_id = -1
       end
 

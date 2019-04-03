@@ -4,9 +4,9 @@ use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::platform;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use std::env;
-use std::io::Result as IOResult;
 
 /// Returns the value of an environment variable.
 pub fn get(
@@ -93,19 +93,21 @@ pub fn tmp_directory(state: &RcState, process: &RcProcess) -> ObjectPointer {
 pub fn working_directory(
     state: &RcState,
     process: &RcProcess,
-) -> IOResult<ObjectPointer> {
-    directories::working_directory().map(|path| {
-        process.allocate(object_value::string(path), state.string_prototype)
-    })
+) -> Result<ObjectPointer, RuntimeError> {
+    let path = directories::working_directory()?;
+
+    Ok(process.allocate(object_value::string(path), state.string_prototype))
 }
 
 /// Sets the working directory of the current process.
 pub fn set_working_directory(
     dir_ptr: ObjectPointer,
-) -> Result<IOResult<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let dir = dir_ptr.string_value()?;
 
-    Ok(directories::set_working_directory(dir).map(|_| dir_ptr))
+    directories::set_working_directory(dir)?;
+
+    Ok(dir_ptr)
 }
 
 /// Returns all the commandline arguments.

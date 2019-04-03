@@ -2,13 +2,10 @@
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::slicing;
 use crate::vm::state::RcState;
 use num_bigint::BigInt;
-
-/// The result of a string conversion. The OK value is the value converted to,
-/// the Err value is an error message to thrown in the VM.
-type ConversionResult = Result<ObjectPointer, String>;
 
 pub fn to_lower(
     state: &RcState,
@@ -163,12 +160,14 @@ pub fn to_integer(
     process: &RcProcess,
     str_ptr: ObjectPointer,
     radix_ptr: ObjectPointer,
-) -> Result<ConversionResult, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let string = str_ptr.string_value()?;
     let radix = radix_ptr.integer_value()?;
 
     if radix < 2 || radix > 36 {
-        return Err("radix must be between 2 and 32, not {}".to_string());
+        return Err(RuntimeError::Panic(
+            "radix must be between 2 and 32, not {}".to_string(),
+        ));
     }
 
     let int_ptr = if let Ok(value) = i64::from_str_radix(string, radix as u32) {
@@ -176,13 +175,13 @@ pub fn to_integer(
     } else if let Ok(val) = string.parse::<BigInt>() {
         process.allocate(object_value::bigint(val), state.integer_prototype)
     } else {
-        return Ok(Err(format!(
+        return Err(RuntimeError::Exception(format!(
             "{:?} can not be converted to an Integer",
             string
         )));
     };
 
-    Ok(Ok(int_ptr))
+    Ok(int_ptr)
 }
 
 /// Converts a string to a float.
@@ -190,15 +189,18 @@ pub fn to_float(
     state: &RcState,
     process: &RcProcess,
     str_ptr: ObjectPointer,
-) -> Result<ConversionResult, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let string = str_ptr.string_value()?;
 
     if let Ok(value) = string.parse::<f64>() {
         let pointer =
             process.allocate(object_value::float(value), state.float_prototype);
 
-        Ok(Ok(pointer))
+        Ok(pointer)
     } else {
-        Ok(Err(format!("{:?} can not be converted to a Float", string)))
+        Err(RuntimeError::Exception(format!(
+            "{:?} can not be converted to a Float",
+            string
+        )))
     }
 }

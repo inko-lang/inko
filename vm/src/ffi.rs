@@ -728,7 +728,7 @@ impl Function {
         // and the values they point to must outlive the FFI call, otherwise we
         // may end up passing pointers to invalid memory.
         let mut argument_pointers: Vec<RawPointer> =
-            arguments.iter_mut().map(|arg| arg.as_c_pointer()).collect();
+            arguments.iter_mut().map(Argument::as_c_pointer).collect();
 
         // libffi requires a mutable pointer to the CIF, but "self" is immutable
         // since we never actually modify the current function. To work around

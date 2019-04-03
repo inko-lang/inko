@@ -60,6 +60,8 @@ pub fn prototype_for_identifier(
         13 => state.function_prototype,
         14 => state.pointer_prototype,
         15 => state.process_prototype,
+        16 => state.socket_prototype,
+        17 => state.unix_socket_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

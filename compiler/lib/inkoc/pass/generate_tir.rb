@@ -1380,6 +1380,14 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::PROCESS, node, body)
       end
 
+      def on_raw_get_socket_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::SOCKET, node, body)
+      end
+
+      def on_raw_get_unix_socket_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::UNIX_SOCKET, node, body)
+      end
+
       def on_raw_set_object_name(node, body)
         loc = node.location
         obj = process_node(node.arguments.fetch(0), body)
@@ -1503,6 +1511,54 @@ module Inkoc
 
       def on_raw_float_to_bits(node, body)
         raw_unary_instruction(:FloatToBits, node, body)
+      end
+
+      def on_raw_socket_create(node, body)
+        raw_binary_instruction(:SocketCreate, node, body)
+      end
+
+      def on_raw_socket_write(node, body)
+        raw_binary_instruction(:SocketWrite, node, body)
+      end
+
+      def on_raw_socket_read(node, body)
+        raw_ternary_instruction(:SocketRead, node, body)
+      end
+
+      def on_raw_socket_accept(node, body)
+        raw_unary_instruction(:SocketAccept, node, body)
+      end
+
+      def on_raw_socket_receive_from(node, body)
+        raw_ternary_instruction(:SocketReceiveFrom, node, body)
+      end
+
+      def on_raw_socket_send_to(node, body)
+        raw_quaternary_instruction(:SocketSendTo, node, body)
+      end
+
+      def on_raw_socket_address(node, body)
+        raw_binary_instruction(:SocketAddress, node, body)
+      end
+
+      def on_raw_socket_get_option(node, body)
+        raw_binary_instruction(:SocketGetOption, node, body)
+      end
+
+      def on_raw_socket_set_option(node, body)
+        raw_ternary_instruction(:SocketSetOption, node, body)
+      end
+
+      def on_raw_socket_bind(node, body)
+        raw_ternary_instruction(:SocketBind, node, body)
+      end
+
+      def on_raw_socket_connect(node, body)
+        raw_ternary_instruction(:SocketConnect, node, body)
+      end
+
+      def on_raw_socket_listen(node, body)
+        raw_binary_instruction(:SocketListen, node, body)
       end
 
       def on_return(node, body)

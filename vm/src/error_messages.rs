@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io;
 
 pub const IO_PERMISSION_DENIED: &str =
@@ -46,26 +45,24 @@ pub const IO_NOT_FOUND: &str = "The resource could not be found.";
 
 /// Returns an error message from a Rust IO error.
 pub fn from_io_error(error: &io::Error) -> String {
-    let slice = match error.kind() {
-        io::ErrorKind::NotFound => IO_NOT_FOUND,
-        io::ErrorKind::PermissionDenied => IO_PERMISSION_DENIED,
-        io::ErrorKind::ConnectionRefused => IO_CONNECTION_REFUSED,
-        io::ErrorKind::ConnectionReset => IO_CONNECTION_RESET,
-        io::ErrorKind::ConnectionAborted => IO_CONNECTION_ABORTED,
-        io::ErrorKind::NotConnected => IO_NOT_CONNECTED,
-        io::ErrorKind::AddrInUse => IO_ADDRESS_IN_USE,
-        io::ErrorKind::AddrNotAvailable => IO_ADDRESS_NOT_AVAILABLE,
-        io::ErrorKind::BrokenPipe => IO_BROKEN_PIPE,
-        io::ErrorKind::AlreadyExists => IO_ALREADY_EXISTS,
-        io::ErrorKind::WouldBlock => IO_WOULD_BLOCK,
-        io::ErrorKind::InvalidInput => IO_INVALID_INPUT,
-        io::ErrorKind::InvalidData => IO_INVALID_DATA,
-        io::ErrorKind::TimedOut => IO_TIMED_OUT,
-        io::ErrorKind::WriteZero => IO_WRITE_ZERO,
-        io::ErrorKind::Interrupted => IO_INTERRUPTED,
-        io::ErrorKind::UnexpectedEof => IO_UNEXPECTED_EOF,
-        _ => error.description(),
-    };
-
-    slice.to_string()
+    match error.kind() {
+        io::ErrorKind::NotFound => IO_NOT_FOUND.to_string(),
+        io::ErrorKind::PermissionDenied => IO_PERMISSION_DENIED.to_string(),
+        io::ErrorKind::ConnectionRefused => IO_CONNECTION_REFUSED.to_string(),
+        io::ErrorKind::ConnectionReset => IO_CONNECTION_RESET.to_string(),
+        io::ErrorKind::ConnectionAborted => IO_CONNECTION_ABORTED.to_string(),
+        io::ErrorKind::NotConnected => IO_NOT_CONNECTED.to_string(),
+        io::ErrorKind::AddrInUse => IO_ADDRESS_IN_USE.to_string(),
+        io::ErrorKind::AddrNotAvailable => IO_ADDRESS_NOT_AVAILABLE.to_string(),
+        io::ErrorKind::BrokenPipe => IO_BROKEN_PIPE.to_string(),
+        io::ErrorKind::AlreadyExists => IO_ALREADY_EXISTS.to_string(),
+        io::ErrorKind::WouldBlock => IO_WOULD_BLOCK.to_string(),
+        io::ErrorKind::InvalidInput => IO_INVALID_INPUT.to_string(),
+        io::ErrorKind::InvalidData => IO_INVALID_DATA.to_string(),
+        io::ErrorKind::TimedOut => IO_TIMED_OUT.to_string(),
+        io::ErrorKind::WriteZero => IO_WRITE_ZERO.to_string(),
+        io::ErrorKind::Interrupted => IO_INTERRUPTED.to_string(),
+        io::ErrorKind::UnexpectedEof => IO_UNEXPECTED_EOF.to_string(),
+        _ => error.to_string(),
+    }
 }

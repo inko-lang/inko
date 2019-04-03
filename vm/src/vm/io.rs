@@ -3,6 +3,7 @@ use crate::filesystem;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::vm::state::RcState;
 use num_traits::ToPrimitive;
 use std::fs;
@@ -32,23 +33,18 @@ macro_rules! file_mode_error {
 
 /// Reads a number of bytes from a stream into a byte array.
 pub fn io_read(
+    state: &RcState,
+    process: &RcProcess,
     stream: &mut Read,
     buffer: &mut Vec<u8>,
     amount: ObjectPointer,
-) -> Result<io::Result<usize>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let result = if amount.is_integer() {
-        let amount_bytes = amount.integer_value().unwrap();
+        let amount_bytes = amount.usize_value()?;
 
-        if amount_bytes < 0 {
-            return Err(format!(
-                "{} is not a valid number of bytes to read",
-                amount_bytes
-            ));
-        }
-
-        stream.take(amount_bytes as u64).read_to_end(buffer)
+        stream.take(amount_bytes as u64).read_to_end(buffer)?
     } else {
-        stream.read_to_end(buffer)
+        stream.read_to_end(buffer)?
     };
 
     // When reading into a buffer, the Vec type may decide to grow it beyond the
@@ -57,7 +53,18 @@ pub fn io_read(
     // we manually shrink the buffer once we're done writing.
     buffer.shrink_to_fit();
 
-    Ok(result)
+    Ok(process.allocate_usize(result, state.integer_prototype))
+}
+
+#[cfg_attr(feature = "cargo-clippy", allow(trivially_copy_pass_by_ref))]
+pub fn buffer_to_write(buffer: &ObjectPointer) -> Result<&[u8], RuntimeError> {
+    let buff = if buffer.is_string() {
+        buffer.string_value()?.as_bytes()
+    } else {
+        buffer.byte_array_value()?
+    };
+
+    Ok(buff)
 }
 
 pub fn io_write<W: Write>(
@@ -65,34 +72,30 @@ pub fn io_write<W: Write>(
     process: &RcProcess,
     output: &mut W,
     to_write: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
-    let result = if to_write.is_string() {
-        output.write(to_write.string_value()?.as_bytes())
-    } else {
-        output.write(to_write.byte_array_value()?)
-    };
+) -> Result<ObjectPointer, RuntimeError> {
+    let written = output.write(buffer_to_write(&to_write)?)?;
 
-    Ok(result.map(|num| process.allocate_usize(num, state.integer_prototype)))
+    Ok(process.allocate_usize(written, state.integer_prototype))
 }
 
 pub fn io_flush<W: Write>(
     state: &RcState,
     output: &mut W,
-) -> io::Result<ObjectPointer> {
-    output.flush().map(|_| state.nil_object)
+) -> Result<ObjectPointer, RuntimeError> {
+    Ok(output.flush().map(|_| state.nil_object)?)
 }
 
 pub fn stdout_write(
     state: &RcState,
     process: &RcProcess,
     to_write: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let mut output = io::stdout();
 
     io_write(state, process, &mut output, to_write)
 }
 
-pub fn stdout_flush(state: &RcState) -> io::Result<ObjectPointer> {
+pub fn stdout_flush(state: &RcState) -> Result<ObjectPointer, RuntimeError> {
     let mut output = io::stdout();
 
     io_flush(state, &mut output)
@@ -102,13 +105,13 @@ pub fn stderr_write(
     state: &RcState,
     process: &RcProcess,
     to_write: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let mut output = io::stderr();
 
     io_write(state, process, &mut output, to_write)
 }
 
-pub fn stderr_flush(state: &RcState) -> io::Result<ObjectPointer> {
+pub fn stderr_flush(state: &RcState) -> Result<ObjectPointer, RuntimeError> {
     let mut output = io::stdout();
 
     io_flush(state, &mut output)
@@ -119,14 +122,11 @@ pub fn stdin_read(
     process: &RcProcess,
     buffer_ptr: ObjectPointer,
     amount: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let mut input = io::stdin();
     let buffer = buffer_ptr.byte_array_value_mut()?;
 
-    let result = io_read(&mut input, buffer, amount)?
-        .map(|num| process.allocate_usize(num, state.integer_prototype));
-
-    Ok(result)
+    io_read(state, process, &mut input, buffer, amount)
 }
 
 pub fn write_file(
@@ -134,7 +134,7 @@ pub fn write_file(
     process: &RcProcess,
     file_ptr: ObjectPointer,
     to_write: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let file = file_ptr.file_value_mut()?;
 
     io_write(state, process, file, to_write)
@@ -143,10 +143,10 @@ pub fn write_file(
 pub fn flush_file(
     state: &RcState,
     file_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let file = file_ptr.file_value_mut()?;
 
-    Ok(io_flush(state, file))
+    io_flush(state, file)
 }
 
 pub fn read_file(
@@ -155,14 +155,11 @@ pub fn read_file(
     file_ptr: ObjectPointer,
     buffer_ptr: ObjectPointer,
     amount: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let mut input = file_ptr.file_value_mut()?;
     let buffer = buffer_ptr.byte_array_value_mut()?;
 
-    let result = io_read(&mut input, buffer, amount)?
-        .map(|num| process.allocate_usize(num, state.integer_prototype));
-
-    Ok(result)
+    io_read(state, process, &mut input, buffer, amount)
 }
 
 pub fn open_file(
@@ -170,29 +167,25 @@ pub fn open_file(
     process: &RcProcess,
     path_ptr: ObjectPointer,
     mode_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
     let mode = mode_ptr.integer_value()?;
     let open_opts = options_for_integer(mode)?;
     let prototype = prototype_for_open_mode(&state, mode)?;
+    let file = open_opts.open(path)?;
 
-    let result = open_opts
-        .open(path)
-        .map(|file| process.allocate(object_value::file(file), prototype));
-
-    Ok(result)
+    Ok(process.allocate(object_value::file(file), prototype))
 }
 
 pub fn file_size(
     state: &RcState,
     process: &RcProcess,
     path_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
-    let result = fs::metadata(path)
-        .map(|meta| process.allocate_u64(meta.len(), state.integer_prototype));
+    let meta = fs::metadata(path)?;
 
-    Ok(result)
+    Ok(process.allocate_u64(meta.len(), state.integer_prototype))
 }
 
 pub fn seek_file(
@@ -200,7 +193,7 @@ pub fn seek_file(
     process: &RcProcess,
     file_ptr: ObjectPointer,
     offset_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let file = file_ptr.file_value_mut()?;
 
     let offset = if offset_ptr.is_bigint() {
@@ -209,32 +202,38 @@ pub fn seek_file(
         if let Some(offset) = big_offset.to_u64() {
             offset
         } else {
-            return Err(format!("{} is too big for a seek offset", big_offset));
+            return Err(RuntimeError::Panic(format!(
+                "{} is too big for a seek offset",
+                big_offset
+            )));
         }
     } else {
         let offset = offset_ptr.integer_value()?;
 
         if offset < 0 {
-            return Err(format!("{} is not a valid seek offset", offset));
+            return Err(RuntimeError::Panic(format!(
+                "{} is not a valid seek offset",
+                offset
+            )));
         }
 
         offset as u64
     };
 
-    let result = file
-        .seek(SeekFrom::Start(offset))
-        .map(|cursor| process.allocate_u64(cursor, state.integer_prototype));
+    let cursor = file.seek(SeekFrom::Start(offset))?;
 
-    Ok(result)
+    Ok(process.allocate_u64(cursor, state.integer_prototype))
 }
 
 pub fn remove_file(
     state: &RcState,
     path_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path_str = path_ptr.string_value()?;
 
-    Ok(fs::remove_file(path_str).map(|_| state.nil_object))
+    fs::remove_file(path_str)?;
+
+    Ok(state.nil_object)
 }
 
 pub fn copy_file(
@@ -242,16 +241,17 @@ pub fn copy_file(
     process: &RcProcess,
     src_ptr: ObjectPointer,
     dst_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let src = src_ptr.string_value()?;
     let dst = dst_ptr.string_value()?;
-    let result = fs::copy(src, dst)
-        .map(|bytes| process.allocate_u64(bytes, state.integer_prototype));
+    let bytes_copied = fs::copy(src, dst)?;
 
-    Ok(result)
+    Ok(process.allocate_u64(bytes_copied, state.integer_prototype))
 }
 
-pub fn file_type(path_ptr: ObjectPointer) -> Result<ObjectPointer, String> {
+pub fn file_type(
+    path_ptr: ObjectPointer,
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
     let file_type = filesystem::type_of_path(path);
 
@@ -263,16 +263,13 @@ pub fn file_time(
     process: &RcProcess,
     path_ptr: ObjectPointer,
     kind_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
     let kind = kind_ptr.integer_value()?;
+    let dt = filesystem::date_time_for_path(path, kind)?;
 
-    filesystem::date_time_for_path(path, kind).map(|dt| {
-        process.allocate(
-            object_value::float(dt.timestamp()),
-            state.float_prototype,
-        )
-    })
+    Ok(process
+        .allocate(object_value::float(dt.timestamp()), state.float_prototype))
 }
 
 pub fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
@@ -308,40 +305,41 @@ pub fn create_directory(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
 
-    let result = if is_false!(state, recursive_ptr) {
-        fs::create_dir(path)
+    if is_false!(state, recursive_ptr) {
+        fs::create_dir(path)?;
     } else {
-        fs::create_dir_all(path)
-    };
+        fs::create_dir_all(path)?;
+    }
 
-    Ok(result.map(|_| state.nil_object))
+    Ok(state.nil_object)
 }
 
 pub fn remove_directory(
     state: &RcState,
     path_ptr: ObjectPointer,
     recursive_ptr: ObjectPointer,
-) -> Result<io::Result<ObjectPointer>, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
 
-    let result = if is_false!(state, recursive_ptr) {
-        fs::remove_dir(path)
+    if is_false!(state, recursive_ptr) {
+        fs::remove_dir(path)?;
     } else {
-        fs::remove_dir_all(path)
-    };
+        fs::remove_dir_all(path)?;
+    }
 
-    Ok(result.map(|_| state.nil_object))
+    Ok(state.nil_object)
 }
 
 pub fn list_directory(
     state: &RcState,
     process: &RcProcess,
     path_ptr: ObjectPointer,
-) -> Result<ObjectPointer, String> {
+) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
+    let files = filesystem::list_directory_as_pointers(&state, process, path)?;
 
-    filesystem::list_directory_as_pointers(&state, process, path)
+    Ok(files)
 }

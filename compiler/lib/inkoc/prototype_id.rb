@@ -18,5 +18,7 @@ module Inkoc
     FUNCTION = 13
     POINTER = 14
     PROCESS = 15
+    SOCKET = 16
+    UNIX_SOCKET = 17
   end
 end

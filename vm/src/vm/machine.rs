@@ -1,20 +1,16 @@
 //! Virtual Machine for running instructions
-use num_bigint::BigInt;
-use rayon::ThreadPoolBuilder;
-use std::i32;
-use std::ops::{Add, Mul, Sub};
-use std::panic;
-
 use crate::compiled_code::CompiledCodePointer;
 use crate::execution_context::ExecutionContext;
 use crate::gc::request::Request as GcRequest;
 use crate::integer_operations;
 use crate::module_registry::{ModuleRegistry, RcModuleRegistry};
+use crate::network_poller::worker::Worker as NetworkPollerWorker;
 use crate::numeric::division::{FlooredDiv, OverflowingFlooredDiv};
 use crate::numeric::modulo::{Modulo, OverflowingModulo};
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
+use crate::runtime_error::RuntimeError;
 use crate::runtime_panic;
 use crate::scheduler::join_list::JoinList;
 use crate::scheduler::pool::Pool;
@@ -32,9 +28,15 @@ use crate::vm::io;
 use crate::vm::module;
 use crate::vm::object;
 use crate::vm::process;
+use crate::vm::socket;
 use crate::vm::state::RcState;
 use crate::vm::string;
 use crate::vm::time;
+use num_bigint::BigInt;
+use rayon::ThreadPoolBuilder;
+use std::i32;
+use std::ops::{Add, Mul, Sub};
+use std::panic;
 use std::thread;
 
 macro_rules! reset_context {
@@ -86,20 +88,6 @@ macro_rules! throw_error_message {
     }};
 }
 
-macro_rules! throw_io_error {
-    (
-        $machine:expr,
-        $process:expr,
-        $error:expr,
-        $context:ident,
-        $index:ident
-    ) => {{
-        let msg = $crate::error_messages::from_io_error(&$error);
-
-        throw_error_message!($machine, $process, msg, $context, $index);
-    }};
-}
-
 macro_rules! enter_context {
     ($process:expr, $context:ident, $index:ident) => {{
         $context.instruction_index = $index;
@@ -123,6 +111,36 @@ macro_rules! safepoint_and_reduce {
             return Ok(());
         }
     }};
+}
+
+macro_rules! try_runtime_error {
+    ($expr:expr, $vm:expr, $proc:expr, $context:ident, $index:ident) => {
+        match $expr {
+            Ok(thing) => thing,
+            Err(err) => {
+                match err {
+                    RuntimeError::Panic(msg) => return Err(msg),
+                    RuntimeError::Exception(msg) => {
+                        throw_error_message!($vm, $proc, msg, $context, $index);
+                        continue;
+                    }
+                    RuntimeError::WouldBlock => {
+                        $context.instruction_index = $index - 1;
+
+                        // It's up to the called function to register the
+                        // resource with a poller, so all we need/can do here is
+                        // bail out.
+                        return Ok(());
+                    }
+                    RuntimeError::InProgress => {
+                        $context.instruction_index = $index;
+
+                        return Ok(());
+                    }
+                };
+            }
+        }
+    };
 }
 
 #[derive(Clone)]
@@ -160,6 +178,11 @@ impl Machine {
         let finalizer_pool_guard = self.start_finalizer_threads();
         let secondary_guard = self.start_blocking_threads();
         let timeout_guard = self.start_timeout_worker_thread();
+
+        // The network poller doesn't produce a guard, because there's no
+        // cross-platform way of waking up the system poller, so we just don't
+        // wait for it to finish when terminating.
+        self.start_network_poller_thread();
 
         // Starting the primary threads will block this thread, as the main
         // worker will run directly onto the current thread. As such, we must
@@ -232,6 +255,17 @@ impl Machine {
                 state.timeout_worker.run(&state.scheduler);
             })
             .unwrap()
+    }
+
+    fn start_network_poller_thread(&self) {
+        let state = self.state.clone();
+
+        thread::Builder::new()
+            .name("network poller".to_string())
+            .spawn(move || {
+                NetworkPollerWorker::new(state).run();
+            })
+            .unwrap();
     }
 
     fn terminate(&self) {
@@ -450,7 +484,9 @@ impl Machine {
                     let divide_with = context.get_register(instruction.arg(2));
 
                     if divide_with.is_zero_integer() {
-                        return Err("Can not divide an Integer by 0".to_string());
+                        return Err(
+                            "Can not divide an Integer by 0".to_string()
+                        );
                     }
 
                     integer_overflow_op!(
@@ -708,124 +744,147 @@ impl Machine {
                 InstructionType::StdoutWrite => {
                     let reg = instruction.arg(0);
                     let input = context.get_register(instruction.arg(1));
+                    let size = try_runtime_error!(
+                        io::stdout_write(&self.state, process, input),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::stdout_write(&self.state, process, input)? {
-                        Ok(size) => context.set_register(reg, size),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, size);
                 }
                 InstructionType::StderrWrite => {
                     let reg = instruction.arg(0);
                     let input = context.get_register(instruction.arg(1));
+                    let size = try_runtime_error!(
+                        io::stderr_write(&self.state, process, input),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::stderr_write(&self.state, process, input)? {
-                        Ok(size) => context.set_register(reg, size),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, size);
                 }
                 InstructionType::StdoutFlush => {
                     let reg = instruction.arg(0);
+                    let obj = try_runtime_error!(
+                        io::stdout_flush(&self.state),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::stdout_flush(&self.state) {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StderrFlush => {
                     let reg = instruction.arg(0);
+                    let obj = try_runtime_error!(
+                        io::stderr_flush(&self.state),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::stderr_flush(&self.state) {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, obj);
                 }
                 InstructionType::StdinRead => {
                     let reg = instruction.arg(0);
                     let buff = context.get_register(instruction.arg(1));
                     let max = context.get_register(instruction.arg(2));
+                    let obj = try_runtime_error!(
+                        io::stdin_read(&self.state, process, buff, max),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::stdin_read(&self.state, process, buff, max)? {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FileOpen => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let mode = context.get_register(instruction.arg(2));
+                    let file = try_runtime_error!(
+                        io::open_file(&self.state, process, path, mode),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::open_file(&self.state, process, path, mode)? {
-                        Ok(file) => context.set_register(reg, file),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, file);
                 }
                 InstructionType::FileWrite => {
                     let reg = instruction.arg(0);
                     let file = context.get_register(instruction.arg(1));
                     let input = context.get_register(instruction.arg(2));
+                    let size = try_runtime_error!(
+                        io::write_file(&self.state, process, file, input),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::write_file(&self.state, process, file, input)? {
-                        Ok(size) => context.set_register(reg, size),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    }
+                    context.set_register(reg, size);
                 }
                 InstructionType::FileRead => {
                     let reg = instruction.arg(0);
                     let file = context.get_register(instruction.arg(1));
                     let buff = context.get_register(instruction.arg(2));
                     let max = context.get_register(instruction.arg(3));
+                    let obj = try_runtime_error!(
+                        io::read_file(&self.state, process, file, buff, max),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::read_file(&self.state, process, file, buff, max)?
-                    {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FileFlush => {
                     let file = context.get_register(instruction.arg(0));
 
-                    if let Err(err) = io::flush_file(&self.state, file)? {
-                        throw_io_error!(self, process, err, context, index);
-                    }
+                    try_runtime_error!(
+                        io::flush_file(&self.state, file),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
                 }
                 InstructionType::FileSize => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
+                    let size = try_runtime_error!(
+                        io::file_size(&self.state, process, path),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::file_size(&self.state, process, path)? {
-                        Ok(size) => context.set_register(reg, size),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, size);
                 }
                 InstructionType::FileSeek => {
                     let reg = instruction.arg(0);
                     let file = context.get_register(instruction.arg(1));
                     let offset = context.get_register(instruction.arg(2));
+                    let cursor = try_runtime_error!(
+                        io::seek_file(&self.state, process, file, offset),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::seek_file(&self.state, process, file, offset)? {
-                        Ok(cursor) => context.set_register(reg, cursor),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    }
+                    context.set_register(reg, cursor);
                 }
                 InstructionType::LoadModule => {
                     let reg = instruction.arg(0);
@@ -1187,13 +1246,15 @@ impl Machine {
                 InstructionType::FileRemove => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
+                    let obj = try_runtime_error!(
+                        io::remove_file(&self.state, path),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::remove_file(&self.state, path)? {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, obj);
                 }
                 InstructionType::Panic => {
                     let msg = context.get_register(instruction.arg(0));
@@ -1228,18 +1289,26 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let src = context.get_register(instruction.arg(1));
                     let dst = context.get_register(instruction.arg(2));
+                    let obj = try_runtime_error!(
+                        io::copy_file(&self.state, process, src, dst),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::copy_file(&self.state, process, src, dst)? {
-                        Ok(obj) => context.set_register(reg, obj),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    }
+                    context.set_register(reg, obj);
                 }
                 InstructionType::FileType => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
-                    let res = io::file_type(path)?;
+                    let res = try_runtime_error!(
+                        io::file_type(path),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
@@ -1247,13 +1316,15 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let kind = context.get_register(instruction.arg(2));
+                    let time = try_runtime_error!(
+                        io::file_time(&self.state, process, path, kind),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::file_time(&self.state, process, path, kind) {
-                        Ok(time) => context.set_register(reg, time),
-                        Err(err) => throw_error_message!(
-                            self, process, err, context, index
-                        ),
-                    };
+                    context.set_register(reg, time);
                 }
                 InstructionType::TimeSystem => {
                     let reg = instruction.arg(0);
@@ -1277,36 +1348,42 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let recursive = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        io::create_directory(&self.state, path, recursive),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::create_directory(&self.state, path, recursive)? {
-                        Ok(res) => context.set_register(reg, res),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, res);
                 }
                 InstructionType::DirectoryRemove => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
                     let recursive = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        io::remove_directory(&self.state, path, recursive),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::remove_directory(&self.state, path, recursive)? {
-                        Ok(res) => context.set_register(reg, res),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, res);
                 }
                 InstructionType::DirectoryList => {
                     let reg = instruction.arg(0);
                     let path = context.get_register(instruction.arg(1));
+                    let array = try_runtime_error!(
+                        io::list_directory(&self.state, process, path),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match io::list_directory(&self.state, process, path) {
-                        Ok(array) => context.set_register(reg, array),
-                        Err(err) => throw_error_message!(
-                            self, process, err, context, index
-                        ),
-                    };
+                    context.set_register(reg, array);
                 }
                 InstructionType::StringConcat => {
                     let reg = instruction.arg(0);
@@ -1490,24 +1567,28 @@ impl Machine {
                 }
                 InstructionType::EnvGetWorkingDirectory => {
                     let reg = instruction.arg(0);
+                    let path = try_runtime_error!(
+                        env::working_directory(&self.state, process),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match env::working_directory(&self.state, process) {
-                        Ok(path) => context.set_register(reg, path),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index);
-                        }
-                    };
+                    context.set_register(reg, path);
                 }
                 InstructionType::EnvSetWorkingDirectory => {
                     let reg = instruction.arg(0);
                     let dir = context.get_register(instruction.arg(1));
+                    let res = try_runtime_error!(
+                        env::set_working_directory(dir),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match env::set_working_directory(dir)? {
-                        Ok(dir) => context.set_register(reg, dir),
-                        Err(err) => {
-                            throw_io_error!(self, process, err, context, index)
-                        }
-                    };
+                    context.set_register(reg, res);
                 }
                 InstructionType::EnvArguments => {
                     let reg = instruction.arg(0);
@@ -1705,29 +1786,220 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
                     let rdx = context.get_register(instruction.arg(2));
+                    let value = try_runtime_error!(
+                        string::to_integer(&self.state, process, val, rdx),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match string::to_integer(&self.state, process, val, rdx)? {
-                        Ok(value) => context.set_register(reg, value),
-                        Err(err) => throw_error_message!(
-                            self, process, err, context, index
-                        ),
-                    };
+                    context.set_register(reg, value);
                 }
                 InstructionType::StringToFloat => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
+                    let value = try_runtime_error!(
+                        string::to_float(&self.state, process, val),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
-                    match string::to_float(&self.state, process, val)? {
-                        Ok(value) => context.set_register(reg, value),
-                        Err(err) => throw_error_message!(
-                            self, process, err, context, index
-                        ),
-                    };
+                    context.set_register(reg, value);
                 }
                 InstructionType::FloatToBits => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
                     let res = float::to_bits(&self.state, process, val)?;
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketCreate => {
+                    let reg = instruction.arg(0);
+                    let domain = context.get_register(instruction.arg(1));
+                    let kind = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        socket::create(&self.state, process, domain, kind),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketWrite => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let input = context.get_register(instruction.arg(2));
+                    let size = try_runtime_error!(
+                        socket::write(&self.state, process, sock, input),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, size);
+                }
+                InstructionType::SocketRead => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let buff = context.get_register(instruction.arg(2));
+                    let amount = context.get_register(instruction.arg(3));
+                    let size = try_runtime_error!(
+                        socket::read(&self.state, process, sock, buff, amount),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, size);
+                }
+                InstructionType::SocketAccept => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let res = try_runtime_error!(
+                        socket::accept(&self.state, process, sock),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketReceiveFrom => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let buff = context.get_register(instruction.arg(2));
+                    let amount = context.get_register(instruction.arg(3));
+                    let res = try_runtime_error!(
+                        socket::receive_from(
+                            &self.state,
+                            process,
+                            sock,
+                            buff,
+                            amount
+                        ),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketSendTo => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let buff = context.get_register(instruction.arg(2));
+                    let addr = context.get_register(instruction.arg(3));
+                    let port = context.get_register(instruction.arg(4));
+                    let res = try_runtime_error!(
+                        socket::send_to(
+                            &self.state,
+                            process,
+                            sock,
+                            buff,
+                            addr,
+                            port
+                        ),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketAddress => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let kind = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        socket::address(&self.state, process, sock, kind),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketGetOption => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let opt = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        socket::get_option(&self.state, process, sock, opt),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketSetOption => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let opt = context.get_register(instruction.arg(2));
+                    let val = context.get_register(instruction.arg(3));
+                    let res = try_runtime_error!(
+                        socket::set_option(&self.state, sock, opt, val),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketBind => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let addr = context.get_register(instruction.arg(2));
+                    let port = context.get_register(instruction.arg(3));
+                    let res = try_runtime_error!(
+                        socket::bind(&self.state, process, sock, addr, port),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketListen => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let backlog = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        socket::listen(sock, backlog),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::SocketConnect => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let addr = context.get_register(instruction.arg(2));
+                    let port = context.get_register(instruction.arg(3));
+                    let res = try_runtime_error!(
+                        socket::connect(&self.state, process, sock, addr, port),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
 
                     context.set_register(reg, res);
                 }
