@@ -38,7 +38,7 @@ to start. Some files/directories that may be of interest are:
 
 ## Requirements
 
-* Rust 1.30 or newer, using the 2018 edition
+* Rust 1.31 or newer, using the 2018 edition
 * Cargo
 * Make
 
