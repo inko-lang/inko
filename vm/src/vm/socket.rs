@@ -99,14 +99,17 @@ pub fn read(
 ) -> Result<ObjectPointer, RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
     let buffer = buff_ptr.byte_array_value_mut()?;
+    let amount = if amount_ptr.is_integer() {
+        Some(amount_ptr.usize_value()?)
+    } else {
+        None
+    };
 
-    socket_result(
-        io::io_read(state, process, sock, buffer, amount_ptr),
-        state,
-        process,
-        sock,
-        Interest::Read,
-    )
+    let result = sock
+        .read(buffer, amount)
+        .map(|read| process.allocate_usize(read, state.integer_prototype));
+
+    socket_result(result, state, process, sock, Interest::Read)
 }
 
 pub fn listen(

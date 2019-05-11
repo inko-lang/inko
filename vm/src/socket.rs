@@ -10,6 +10,7 @@ use crate::runtime_error::RuntimeError;
 use crate::socket::socket_address::SocketAddress;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
 use std::io;
+use std::io::Read;
 use std::net::Ipv4Addr;
 use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
@@ -134,6 +135,14 @@ fn socket_output_slice(buffer: &mut Vec<u8>, bytes: usize) -> &mut [u8] {
     }
 
     unsafe { slice::from_raw_parts_mut(buffer.as_mut_ptr().add(len), bytes) }
+}
+
+fn update_buffer_length_and_capacity(buffer: &mut Vec<u8>, read: usize) {
+    unsafe {
+        buffer.set_len(buffer.len() + read);
+    }
+
+    buffer.shrink_to_fit();
 }
 
 /// A nonblocking socket that can be registered with a `NetworkPoller`.
@@ -272,6 +281,30 @@ impl Socket {
         })
     }
 
+    pub fn read(
+        &self,
+        buffer: &mut Vec<u8>,
+        bytes_opt: Option<usize>,
+    ) -> Result<usize, RuntimeError> {
+        if let Some(bytes) = bytes_opt {
+            // We don't use take(), because that only terminates if:
+            //
+            // 1. We hit EOF, or
+            // 2. We have read the desired number of bytes
+            //
+            // For files this is fine, but for sockets EOF is not triggered
+            // until the socket is closed; which is almost always too late.
+            let slice = socket_output_slice(buffer, bytes);
+            let read = self.socket.recv(slice)?;
+
+            update_buffer_length_and_capacity(buffer, read);
+
+            Ok(read)
+        } else {
+            Ok((&self.socket).read_to_end(buffer)?)
+        }
+    }
+
     pub fn recv_from(
         &self,
         buffer: &mut Vec<u8>,
@@ -280,9 +313,7 @@ impl Socket {
         let slice = socket_output_slice(buffer, bytes);
         let (read, sockaddr) = self.socket.recv_from(slice)?;
 
-        unsafe {
-            buffer.set_len(buffer.len() + read);
-        }
+        update_buffer_length_and_capacity(buffer, read);
 
         Ok(decode_sockaddr(sockaddr, self.unix)?)
     }
