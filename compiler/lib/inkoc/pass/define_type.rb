@@ -1797,6 +1797,10 @@ module Inkoc
         typedb.nil_type.new_instance
       end
 
+      def on_raw_socket_shutdown(*)
+        typedb.nil_type.new_instance
+      end
+
       def on_raw_socket_listen(*)
         typedb.integer_type.new_instance
       end

@@ -398,6 +398,74 @@ os.unix?.if_true {
     }
   }
 
+  test.group('std::net::unix::Socket.shutdown_read') do (g) {
+    g.test('Shutting down the reading half of a Socket') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+        let stream = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+        try! stream.connect(path)
+        try! stream.shutdown_read
+
+        let message = try! stream.read_string(4)
+
+        assert.equal(message, '')
+      }
+    }
+  }
+
+  test.group('std::net::socket::Socket.shutdown_write') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
+      assert.panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+          let stream = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+          try! stream.connect(path)
+          try! stream.shutdown_write
+          try! stream.write_string('ping')
+        }
+      }
+    }
+  }
+
+  test.group('std::net::socket::Socket.shutdown') do (g) {
+    g.test('Shutting down the writing half of a Socket') {
+      assert.panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+          let stream = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+          try! stream.connect(path)
+          try! stream.shutdown
+          try! stream.write_string('ping')
+        }
+      }
+    }
+
+    g.test('Shutting down the reading half of a Socket') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+        let stream = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+        try! stream.connect(path)
+        try! stream.shutdown
+
+        let message = try! stream.read_string(4)
+
+        assert.equal(message, '')
+      }
+    }
+  }
+
   test.group('std::net::unix::UnixDatagram') do (g) {
     g.test('Creating a UnixDatagram') {
       assert.no_panic {
@@ -678,6 +746,78 @@ os.unix?.if_true {
         let stream = try! UnixStream.new(path)
 
         assert.equal(stream.flush, Nil)
+      }
+    }
+  }
+
+  test.group('std::net::unix::UnixStream.shutdown_read') do (g) {
+    g.test('Shutting down the reading half of a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+
+        try! stream.shutdown_read
+
+        let message = try! stream.read_string(4)
+
+        assert.equal(message, '')
+      }
+    }
+  }
+
+  test.group('std::net::socket::UnixStream.shutdown_write') do (g) {
+    g.test('Shutting down the writing half of a UnixStream') {
+      assert.panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+
+          let stream = try! UnixStream.new(path)
+
+          try! stream.shutdown_write
+          try! stream.write_string('ping')
+        }
+      }
+    }
+  }
+
+  test.group('std::net::socket::UnixStream.shutdown') do (g) {
+    g.test('Shutting down the writing half of a UnixStream') {
+      assert.panic {
+        with_path do (path) {
+          let listener = try! Socket.new(STREAM)
+
+          try! listener.bind(path)
+          try! listener.listen
+
+          let stream = try! UnixStream.new(path)
+
+          try! stream.shutdown
+          try! stream.write_string('ping')
+        }
+      }
+    }
+
+    g.test('Shutting down the reading half of a UnixStream') {
+      with_path do (path) {
+        let listener = try! Socket.new(STREAM)
+
+        try! listener.bind(path)
+        try! listener.listen
+
+        let stream = try! UnixStream.new(path)
+
+        try! stream.shutdown
+
+        let message = try! stream.read_string(4)
+
+        assert.equal(message, '')
       }
     }
   }

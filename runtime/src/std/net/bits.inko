@@ -61,6 +61,10 @@ let REUSE_PORT = 16
 let LOCAL_ADDRESS = 0
 let PEER_ADDRESS = 1
 
+let SHUTDOWN_READ = 0
+let SHUTDOWN_WRITE = 1
+let SHUTDOWN_BOTH = 2
+
 ## Sets a socket option to the given value.
 ##
 ## The allowed value `value` differs based on the value passed to `option`.
@@ -208,4 +212,28 @@ def to_stream(socket, prototype) {
   _INKOC.set_attribute(stream, '@socket', socket)
 
   stream
+}
+
+def shutdown_read(socket) !! IoError -> Nil {
+  try {
+    _INKOC.socket_shutdown(socket, SHUTDOWN_READ)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def shutdown_write(socket) !! IoError -> Nil {
+  try {
+    _INKOC.socket_shutdown(socket, SHUTDOWN_WRITE)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
+}
+
+def shutdown(socket) !! IoError -> Nil {
+  try {
+    _INKOC.socket_shutdown(socket, SHUTDOWN_BOTH)
+  } else (error) {
+    throw IoError.new(error as String)
+  }
 }

@@ -1557,6 +1557,10 @@ module Inkoc
         raw_ternary_instruction(:SocketConnect, node, body)
       end
 
+      def on_raw_socket_shutdown(node, body)
+        raw_binary_instruction(:SocketShutdown, node, body)
+      end
+
       def on_raw_socket_listen(node, body)
         raw_binary_instruction(:SocketListen, node, body)
       end

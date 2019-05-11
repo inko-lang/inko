@@ -2003,6 +2003,20 @@ impl Machine {
 
                     context.set_register(reg, res);
                 }
+                InstructionType::SocketShutdown => {
+                    let reg = instruction.arg(0);
+                    let sock = context.get_register(instruction.arg(1));
+                    let mode = context.get_register(instruction.arg(2));
+                    let res = try_runtime_error!(
+                        socket::shutdown(&self.state, sock, mode),
+                        self,
+                        process,
+                        context,
+                        index
+                    );
+
+                    context.set_register(reg, res);
+                }
             };
         }
 

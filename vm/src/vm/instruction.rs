@@ -177,6 +177,7 @@ pub enum InstructionType {
     SocketBind,
     SocketListen,
     SocketConnect,
+    SocketShutdown,
 }
 
 /// Struct for storing information about a single instruction.

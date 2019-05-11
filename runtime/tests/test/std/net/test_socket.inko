@@ -514,6 +514,78 @@ test.group('std::net::socket::Socket.flush') do (g) {
   }
 }
 
+test.group('std::net::socket::Socket.shutdown_read') do (g) {
+  g.test('Shutting down the reading half of a Socket') {
+    let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+    let stream = try! Socket.new(domain: IPV4, kind: STREAM)
+
+    try! listener.bind(ip: '127.0.0.1', port: 0)
+    try! listener.listen
+
+    let local_addr = try! listener.local_address
+
+    try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+    try! stream.shutdown_read
+
+    let message = try! stream.read_string(4)
+
+    assert.equal(message, '')
+  }
+}
+
+test.group('std::net::socket::Socket.shutdown_write') do (g) {
+  g.test('Shutting down the writing half of a Socket') {
+    assert.panic {
+      let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+      let stream = try! Socket.new(domain: IPV4, kind: STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let local_addr = try! listener.local_address
+
+      try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+      try! stream.shutdown_write
+      try! stream.write_string('ping')
+    }
+  }
+}
+
+test.group('std::net::socket::Socket.shutdown') do (g) {
+  g.test('Shutting down the writing half of a Socket') {
+    assert.panic {
+      let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+      let stream = try! Socket.new(domain: IPV4, kind: STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let local_addr = try! listener.local_address
+
+      try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+      try! stream.shutdown
+      try! stream.write_string('ping')
+    }
+  }
+
+  g.test('Shutting down the reading half of a Socket') {
+    let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+    let stream = try! Socket.new(domain: IPV4, kind: STREAM)
+
+    try! listener.bind(ip: '127.0.0.1', port: 0)
+    try! listener.listen
+
+    let local_addr = try! listener.local_address
+
+    try! stream.connect(ip: local_addr.ip, port: local_addr.port)
+    try! stream.shutdown
+
+    let message = try! stream.read_string(4)
+
+    assert.equal(message, '')
+  }
+}
+
 test.group('std::net::socket::UdpSocket.new') do (g) {
   g.test('Creating a UdpSocket') {
     assert.no_panic {
@@ -777,6 +849,74 @@ test.group('std::net::socket::TcpStream.flush') do (g) {
     let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
 
     assert.equal(stream.flush, Nil)
+  }
+}
+
+test.group('std::net::socket::TcpStream.shutdown_read') do (g) {
+  g.test('Shutting down the reading half of a TcpStream') {
+    let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+
+    try! listener.bind(ip: '127.0.0.1', port: 0)
+    try! listener.listen
+
+    let addr = try! listener.local_address
+    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+
+    try! stream.shutdown_read
+
+    let message = try! stream.read_string(4)
+
+    assert.equal(message, '')
+  }
+}
+
+test.group('std::net::socket::TcpStream.shutdown_write') do (g) {
+  g.test('Shutting down the writing half of a Socket') {
+    assert.panic {
+      let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+
+      try! stream.shutdown_write
+      try! stream.write_string('ping')
+    }
+  }
+}
+
+test.group('std::net::socket::Socket.shutdown') do (g) {
+  g.test('Shutting down the writing half of a Socket') {
+    assert.panic {
+      let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+
+      try! listener.bind(ip: '127.0.0.1', port: 0)
+      try! listener.listen
+
+      let addr = try! listener.local_address
+      let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+
+      try! stream.shutdown
+      try! stream.write_string('ping')
+    }
+  }
+
+  g.test('Shutting down the reading half of a Socket') {
+    let listener = try! Socket.new(domain: IPV4, kind: STREAM)
+
+    try! listener.bind(ip: '127.0.0.1', port: 0)
+    try! listener.listen
+
+    let addr = try! listener.local_address
+    let stream = try! TcpStream.new(ip: addr.ip, port: addr.port)
+
+    try! stream.shutdown
+
+    let message = try! stream.read_string(4)
+
+    assert.equal(message, '')
   }
 }
 

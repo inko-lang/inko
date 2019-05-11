@@ -445,6 +445,21 @@ impl Socket {
   def reuse_port=(value: Boolean) !! IoError -> Boolean {
     try bits.set_socket_option!(Boolean)(self, REUSE_PORT, value)
   }
+
+  ## Shuts down the reading half of this socket.
+  def shutdown_read !! IoError -> Nil {
+    try bits.shutdown_read(self)
+  }
+
+  ## Shuts down the writing half of this socket.
+  def shutdown_write !! IoError -> Nil {
+    try bits.shutdown_write(self)
+  }
+
+  ## Shuts down both the reading and writing half of this socket.
+  def shutdown !! IoError -> Nil {
+    try bits.shutdown(self)
+  }
 }
 
 impl Read for Socket {
@@ -657,6 +672,21 @@ object TcpStream impl Read, Write, Close {
 
   def close -> Nil {
     @socket.close
+  }
+
+  ## Shuts down the reading half of this socket.
+  def shutdown_read !! IoError -> Nil {
+    try @socket.shutdown_read
+  }
+
+  ## Shuts down the writing half of this socket.
+  def shutdown_write !! IoError -> Nil {
+    try @socket.shutdown_write
+  }
+
+  ## Shuts down both the reading and writing half of this socket.
+  def shutdown !! IoError -> Nil {
+    try @socket.shutdown
   }
 }
 

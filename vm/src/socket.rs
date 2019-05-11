@@ -11,6 +11,7 @@ use crate::socket::socket_address::SocketAddress;
 use socket2::{Domain, SockAddr, Socket as RawSocket, Type};
 use std::io;
 use std::net::Ipv4Addr;
+use std::net::Shutdown;
 use std::net::{IpAddr, SocketAddr};
 use std::slice;
 
@@ -307,6 +308,22 @@ impl Socket {
 
     pub fn is_unix(&self) -> bool {
         self.unix
+    }
+
+    pub fn shutdown(&self, mode: u8) -> Result<(), RuntimeError> {
+        let shutdown = match mode {
+            0 => Shutdown::Read,
+            1 => Shutdown::Write,
+            2 => Shutdown::Both,
+            _ => {
+                return Err(RuntimeError::Panic(format!(
+                    "{} is not a valid mode to shut down",
+                    mode
+                )));
+            }
+        };
+
+        Ok(self.socket.shutdown(shutdown)?)
     }
 
     socket_setter!(set_ttl, u32);

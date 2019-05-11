@@ -322,6 +322,17 @@ pub fn get_option(
     Ok(result)
 }
 
+pub fn shutdown(
+    state: &RcState,
+    socket_ptr: ObjectPointer,
+    mode_ptr: ObjectPointer,
+) -> Result<ObjectPointer, RuntimeError> {
+    let sock = socket_ptr.socket_value()?;
+    let mode = mode_ptr.u8_value()?;
+
+    sock.shutdown(mode).map(|_| state.nil_object)
+}
+
 fn allocate_address_pair(
     state: &RcState,
     process: &RcProcess,
