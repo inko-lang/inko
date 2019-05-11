@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.4.0 - May 11, 2019
+
+* 2fb8e93: Fix non-blocking socket reads
+* 0393df5: Turn accepted sockets into non-blocking sockets
+* f913117: Added support for shutting down sockets
+* 3974f47: Added support for non-blocking network IO
+* 99c9f04: Removed use of "extern crate"
+* 5ca5a29: Use Rust 2018 for the VM
+* e9331a7: Removed unused code from the compiler
+* ff6297f: Reduce Immix block size to 8 KB
+* 11ee161: Remove PIDs from processes
+* c7c0bef: Refactor the global allocator and block sizes
+* bd3465a: Fix storing module methods in globals
+* e74843a: Fix various memory leaks in the VM tests
+* 1b92357: Replace std::sync::Arc with ArcWithoutWeak
+* 291d76b: Added some finalization tests when copying/moving
+* 8290e5a: Don't send empty finalization requests
+* 3e5882b: Rewrite the process scheduler from the ground up
+* d80c4c3: Use BufReader when reading bytecode from files
+* 4758073: Implement Length for StringBuffer
+* a3d9ab9: Move empty? to the Length trait
+* 4b87da2: Make late binding noops for blocks as return types
+* 6bea945: Reorganise and test std::debug
+* fc2f797: Removed the Compare trait
+* bb35dea: Reorganise and test std::test
+* 7f0cb46: Reorganise and test std::time
+* f9c07ef: Fixed outdated keyword argument optimisation
+* a4c2d68: Added method Float.to_bits
+* 57247e7: Rename Immix bitmap structures to bytemaps
+* 9af6498: Fix lookups in ObjectMirror.implements_trait?
+* e33ed34: Added tests for std::trait
+* 1a57743: Move all "class" methods to module methods
+* 26f0023: Enforce a limit on bytecode input sizes
+* 6558d6b: Parsing of Strings into Floats and Integers
+* a38d0f5: Remove SystemTime.format and SystemTime.parse
+* b3c7e36: Move std::reflection into std::mirror
+* bf0d6d6: Tests for std::process and remove receive_if
+* 8747098: Add tests for std::range and expose via prelude
+* a8105b0: Added tests for std::mirror
+* a51d1b6: Reset maiting state when there is a process
+* 86cadf1: Removed storing of entire process statuses
+* 3caf963: Use two survivor spaces for local allocators
+* 65a8b19: Added type size test for LocalAllocator
+* 3a7d49f: Stop storing garbage collection counts
+* f84ec08: Update young and mature statistics separately
+* 82284cc: Remove the tail from BlockList
+* 05d8972: Clean up code for Clippy on Rust 1.31
+* f0b6fde: Move histograms from buckets to allocators
+* 5aaa746: Use i8 for the bucket ages
+* ff158aa: Use u32 for block allocation thresholds
+* e5b1919: Rework storage and use of GC statistics
+* 0a762c8: Removed double zeroing of Immix histograms
+* d149633: Use 1 env variable for concurrency settings
+* ddb6cc2: Replace RwLock usage with parking_lot mutexes
+* 8450931: Improve remapping of initialised type parameters
+
 ## 0.3.0 - November 25, 2018
 
 * 1411241: Use Rust's Debug to format Float
