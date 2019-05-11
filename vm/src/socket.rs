@@ -261,6 +261,10 @@ impl Socket {
     pub fn accept(&self) -> Result<Self, RuntimeError> {
         let (socket, _) = self.socket.accept()?;
 
+        // Accepted sockets don't inherit the non-blocking status of the
+        // listener, so we need to manually mark them as non-blocking.
+        socket.set_nonblocking(true)?;
+
         Ok(Socket {
             socket,
             registered: false,
