@@ -132,11 +132,6 @@ macro_rules! try_runtime_error {
                         // bail out.
                         return Ok(());
                     }
-                    RuntimeError::InProgress => {
-                        $context.instruction_index = $index;
-
-                        return Ok(());
-                    }
                 };
             }
         }

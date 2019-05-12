@@ -17,10 +17,12 @@ use std::net::{IpAddr, SocketAddr};
 use std::slice;
 
 #[cfg(unix)]
-use libc::EINPROGRESS;
+use libc::{EINPROGRESS, EISCONN};
 
 #[cfg(windows)]
-use winapi::shared::winerror::WSAEINPROGRESS as EINPROGRESS;
+use winapi::shared::winerror::{
+    WSAEINPROGRESS as EINPROGRESS, WSAEISCONN as EISCONN,
+};
 
 macro_rules! socket_setter {
     ($setter:ident, $type:ty) => {
@@ -227,17 +229,26 @@ impl Socket {
 
         match self.socket.connect(&sockaddr) {
             Ok(_) => {}
-            #[cfg(windows)]
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+            Err(ref e)
+                if e.kind() == io::ErrorKind::WouldBlock
+                    || e.raw_os_error() == Some(EINPROGRESS as i32) =>
+            {
+                if let Ok(Some(err)) = self.socket.take_error() {
+                    // When performing a connect(), the error returned may be
+                    // WouldBlock, with the actual error being stored in
+                    // SO_ERROR on the socket. Windows in particular seems to
+                    // take this approach.
+                    return Err(err.into());
+                }
+
                 // On Windows a connect(2) might throw WSAEWOULDBLOCK, the
-                // Windows equivalent of EAGAIN/EWOULDBLOCK. When this happens
-                // we should not retry the connect(), as that may then fail with
-                // WSAEISCONN. Instead, we signal that the network poller should
-                // just wait until the socket is ready for writing.
-                return Err(RuntimeError::InProgress);
+                // Windows equivalent of EAGAIN/EWOULDBLOCK. Other platforms may
+                // also produce some error that Rust will report as WouldBlock.
+                return Err(RuntimeError::WouldBlock);
             }
-            Err(ref e) if e.raw_os_error() == Some(EINPROGRESS as i32) => {
-                return Err(RuntimeError::InProgress);
+            Err(ref e) if e.raw_os_error() == Some(EISCONN as i32) => {
+                // We may run into an EISCONN if a previous connect(2) attempt
+                // would block. In this case we can just continue.
             }
             Err(e) => {
                 return Err(e.into());
@@ -452,8 +463,25 @@ impl Clone for Socket {
                 .socket
                 .try_clone()
                 .expect("Failed to clone the socket"),
-            registered: self.registered,
+            registered: false,
             unix: self.unix,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clone() {
+        let mut socket1 = Socket::new(0, 0).unwrap();
+
+        socket1.registered = true;
+
+        let socket2 = socket1.clone();
+
+        assert_eq!(socket2.registered, false);
+        assert_eq!(socket2.unix, false);
     }
 }

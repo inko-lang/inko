@@ -17,18 +17,12 @@ pub enum RuntimeError {
     /// A non-blocking operation would block, and should be retried at a later
     /// point in time.
     WouldBlock,
-
-    /// A non-blocking operation is still in progress and should not be retried.
-    /// Instead, the process should be suspended until the operation is done,
-    /// after which it should start off at the _next_ instruction.
-    InProgress,
 }
 
 impl RuntimeError {
     pub fn should_poll(&self) -> bool {
         match self {
             RuntimeError::WouldBlock => true,
-            RuntimeError::InProgress => true,
             _ => false,
         }
     }
