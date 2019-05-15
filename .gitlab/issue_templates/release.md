@@ -21,9 +21,9 @@ This issue tracks the work necessary to release version NEW_VERSION.
 
 ## After publishing
 
-1. [ ] Submit to <https://www.reddit.com/r/inko/>: LINK
-1. [ ] Submit to <https://discourse.inko-lang.org/c/announcements>: LINK
-1. [ ] Tweet about it: LINK
+1. [ ] Submit to <https://www.reddit.com/r/inko/>
+1. [ ] Submit to <https://discourse.inko-lang.org/c/announcements>
+1. [ ] Tweet about it
 1. [ ] Post a link to the article in the Matrix channel
 
 /label ~Release
