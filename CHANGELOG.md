@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 - May 14, 2019
+
+* 53675b7: Refactor connecting of sockets
+
 ## 0.4.0 - May 11, 2019
 
 * 2fb8e93: Fix non-blocking socket reads
