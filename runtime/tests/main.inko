@@ -20,7 +20,6 @@ import test::std::test::test_test
 import test::std::test::test_test_group
 import test::std::test_ansi
 import test::std::test_array
-import test::std::test_array_iter
 import test::std::test_block
 import test::std::test_boolean
 import test::std::test_byte_array

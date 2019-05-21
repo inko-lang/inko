@@ -12,7 +12,7 @@ import std::conversion::ToArray
 import std::conversion::ToString
 import std::format::(self, Formatter, Inspect)
 import std::index::(Index, SetIndex)
-import std::iterator::(Iterator as IteratorTrait)
+import std::iterator::(self, Iterator)
 import std::length::Length
 import std::operators::Equal
 
@@ -364,29 +364,11 @@ impl String {
   }
 }
 
-## An iterator over a `ByteArray`.
-object Iterator impl IteratorTrait!(Integer) {
-  def init(bytes: ByteArray) {
-    let @bytes = bytes
-    let mut @index = 0
-  }
-
-  def next? -> Boolean {
-    @index < @bytes.length
-  }
-
-  def next -> ?Integer {
-    let value = @bytes[@index]
-
-    @index += 1
-
-    value
-  }
-}
-
 impl ByteArray {
   ## Returns an `Iterator` that iterates over all values in `self`.
-  def iter -> Iterator {
-    Iterator.new(self)
+  def iter -> Iterator!(Integer) {
+    iterator.index_enumerator(length) do (index) {
+      self[index]
+    }
   }
 }

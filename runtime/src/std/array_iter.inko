@@ -3,34 +3,25 @@
 #! These types and methods are defined separately as otherwise `std::iterator`
 #! would depend on `std::array` while `std::array` would depend on
 #! `std::iterator`.
-
-import std::iterator::(Iterator as IteratorTrait)
-
-## An iterator over an `Array`.
-object Iterator!(T) {
-  def init(array: Array!(T)) {
-    let @array = array
-    let mut @index = 0
-  }
-}
-
-impl IteratorTrait!(T) for Iterator!(T) {
-  def next? -> Boolean {
-    @index < @array.length
-  }
-
-  def next -> ?T {
-    let value = @array[@index]
-
-    @index += 1
-
-    value
-  }
-}
+import std::iterator::(self, Iterator)
 
 impl Array!(T) {
   ## Returns an `Iterator` that iterates over all values in `self`.
+  ##
+  ## # Examples
+  ##
+  ## Iterating over an `Array`:
+  ##
+  ##     let numbers = [10, 20, 30]
+  ##     let iter = numbers.iter
+  ##
+  ##     iter.next # => 10
+  ##     iter.next # => 20
+  ##     iter.next # => 30
+  ##     iter.next # => Nil
   def iter -> Iterator!(T) {
-    Iterator.new(self)
+    iterator.index_enumerator(length) do (index) {
+      self[index]
+    }
   }
 }

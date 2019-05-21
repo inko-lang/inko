@@ -1,4 +1,4 @@
-import std::iterator::Iterator
+import std::iterator::(self, Enumerator, Iterator)
 import std::test
 import std::test::assert
 
@@ -29,6 +29,22 @@ object SimpleIterator impl Iterator!(Integer) {
   def next? -> Boolean {
     @index < @values.length
   }
+}
+
+def integer_enumerator -> Iterator!(Integer) {
+  let array = [10, 20, 30]
+  let mut index = 0
+
+  Enumerator.new(
+    while: { index < array.length },
+    yield: {
+      let value = array[index]
+
+      index += 1
+
+      value
+    }
+  )
 }
 
 test.group('std::iterator::Iterator.each') do (g) {
@@ -90,5 +106,48 @@ test.group('std::iterator::Iterator.to_array') do (g) {
     let vals = iter.to_array
 
     assert.equal(vals, [10, 20, 30])
+  }
+}
+
+test.group('std::iterator::Enumerator.next') do (g) {
+  g.test('Obtaining the next value in an Enumerator') {
+    let enum = integer_enumerator
+
+    assert.equal(enum.next, 10)
+    assert.equal(enum.next, 20)
+    assert.equal(enum.next, 30)
+    assert.equal(enum.next, Nil)
+  }
+}
+
+test.group('std::iterator::Enumerator.next?') do (g) {
+  g.test('Checking if there are remaining values in an Enumerator') {
+    let enum = integer_enumerator
+
+    assert.true(enum.next?)
+    enum.next
+
+    assert.true(enum.next?)
+    enum.next
+
+    assert.true(enum.next?)
+    enum.next
+
+    assert.false(enum.next?)
+  }
+}
+
+test.group('std::iterator.index_enumerator') do (g) {
+  g.test('Iterating over an Array') {
+    let numbers = [10, 20, 30]
+    let enum: Enumerator!(Integer) =
+      iterator.index_enumerator(numbers.length) do (index) {
+        numbers[index]
+      }
+
+    assert.equal(enum.next, 10)
+    assert.equal(enum.next, 20)
+    assert.equal(enum.next, 30)
+    assert.equal(enum.next, Nil)
   }
 }

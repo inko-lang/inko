@@ -2,7 +2,7 @@
 import std::hash::(Hash, Hasher)
 import std::hasher::DefaultHasher
 import std::index::(Index, SetIndex)
-import std::iterator::(Iterator as IteratorTrait)
+import std::iterator::(Enumerator, Iterator)
 import std::length::Length
 import std::operators::Equal
 import std::process
@@ -271,71 +271,6 @@ impl SetIndex!(K, V) for Table!(K, V) {
   }
 }
 
-## An `Iterator` visiting all key-value pairs in a `HashMap`.
-object Iterator!(K: Hash + Equal, V) {
-  def init(table: Table!(K, V)) {
-    let @table = table
-    let mut @index = 0
-  }
-}
-
-impl IteratorTrait!(Pair!(K, V)) for Iterator!(K, V) {
-  def next? -> Boolean {
-    @index < @table.buckets.length
-  }
-
-  ## Returns the next `Pair` in a `HashMap`.
-  def next -> ?Pair!(K, V) {
-    { next? }.while_true {
-      let pair = @table.buckets[@index]
-
-      @index += 1
-
-      pair.if_true {
-        return pair
-      }
-    }
-
-    Nil
-  }
-}
-
-## An `Iterator` visiting all the keys in a `HashMap`.
-object Keys!(K: Hash + Equal, V) {
-  def init(iterator: Iterator!(K, V)) {
-    let mut @iterator = iterator
-  }
-}
-
-impl IteratorTrait!(K) for Keys!(K, V) {
-  def next? -> Boolean {
-    @iterator.next?
-  }
-
-  ## Returns the next key in a `HashMap`.
-  def next -> ?K {
-    @iterator.next.key
-  }
-}
-
-## An `Iterator` visiting all the values in a `HashMap`.
-object Values!(K: Hash + Equal, V) {
-  def init(iterator: Iterator!(K, V)) {
-    let mut @iterator = iterator
-  }
-}
-
-impl IteratorTrait!(V) for Values!(K, V) {
-  def next? -> Boolean {
-    @iterator.next?
-  }
-
-  ## Returns the next value in a `HashMap`.
-  def next -> ?V {
-    @iterator.next.value
-  }
-}
-
 ## An unordered hash map using linear probing and Robin Hood bucket stealing.
 ##
 ## The keys in a `HashMap` can be any object that implements the `Hash` and
@@ -424,10 +359,8 @@ object HashMap!(K: Hash + Equal, V) impl
   ##       value # => 'Alice'
   ##     }
   def each(block: do (K, V)) {
-    @table.buckets.each do (pair) {
-      pair.if_true {
-        block.call(*pair.key, *pair.value)
-      }
+    iter.each do (pair) {
+      block.call(pair.key, pair.value)
     }
   }
 
@@ -446,8 +379,26 @@ object HashMap!(K: Hash + Equal, V) impl
   ##       pair.key   # => 'name'
   ##       pair.value # => 'Alice'
   ##     }
-  def iter -> Iterator!(K, V) {
-    Iterator.new(@table)
+  def iter -> Iterator!(Pair!(K, V)) {
+    let mut index = 0
+    let max = @table.buckets.length
+
+    Enumerator.new(
+      while: { index < max },
+      yield: {
+        let mut found: ?Pair!(K, V) = Nil
+
+        {
+          index < max
+            .and { found == Nil }
+        }.while_true {
+          found = @table.buckets[index]
+          index += 1
+        }
+
+        found
+      }
+    )
   }
 
   ## Returns an `Iterator` visiting all the keys in this `HashMap`.
@@ -463,8 +414,8 @@ object HashMap!(K: Hash + Equal, V) impl
   ##     map.keys.each do (key) {
   ##       key # => 'name'
   ##     }
-  def keys -> Keys!(K, V) {
-    Keys.new(iter)
+  def keys -> Iterator!(K) {
+    iter.map do (pair) { pair.key }
   }
 
   ## Returns an `Iterator` visiting all the values in this `HashMap`.
@@ -480,8 +431,8 @@ object HashMap!(K: Hash + Equal, V) impl
   ##     map.values.each do (value) {
   ##       value # => 'Alice'
   ##     }
-  def values -> Values!(K, V) {
-    Values.new(iter)
+  def values -> Iterator!(V) {
+    iter.map do (pair) { pair.value }
   }
 
   ## Returns `True` if `self` and the given `HashMap` are identical to each

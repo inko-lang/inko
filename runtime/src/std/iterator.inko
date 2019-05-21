@@ -1,4 +1,4 @@
-#! Types for composing external iterators.
+#! External and internal iteration for collections.
 #!
 #! Iterators are objects that can be used to traverse collections such as an
 #! `Array` or a `HashMap`. Typically iterators are implemented in one of two
@@ -10,28 +10,26 @@
 #!    somewhere and require you to manually advance the iterator.
 #!
 #! Both have their benefits and drawbacks. Internal iterators are easy to
-#! implement and typically faster as they don't require the allocation of
+#! implement and typically faster, as they don't require the allocation of
 #! additional data structures. External iterators on the other hand can be
-#! composed together, suspended (and later resumed), and they separate the logic
-#! necessary for iteration from the collection. External iterators can also be
-#! easily turned into internal iterators, while the inverse is not possible
+#! composed together, suspended, and later resumed. External iterators can also
+#! be easily turned into internal iterators, while the inverse is not possible
 #! unless a language supports some form of coroutines or generators.
 #!
 #! Inko uses external iterators for the following reasons:
 #!
-#! 1. They can be easily adapted for lazy iterators.
+#! 1. They are lazy by default.
 #! 2. Composing different iterators together is possible, without immediately
 #!    processing the entire input collection.
-#! 3. We can separate the logic of iteration from the collections.
-#! 4. External iterators can be processed in parallel, while doing so with
-#!    internal iterators is much harder.
+#! 3. They do not require additional functionality such as continuations,
+#!    coroutines, or generators.
 #!
-#! Certain types such as `Array` may provide iterator-like methods (e.g.
-#! `Array.each`) to optimise common use cases. This provides a nice balance
-#! between the flexibility and power of external iterators with the performance
-#! of internal iterators.
+#! Certain types such as `Array` may provide methods for internal iteration
+#! (e.g.  `Array.each`) to optimise common use cases. This provides a nice
+#! balance between the flexibility and power of external iterators with the
+#! performance of internal iterators.
 #!
-#! # Creating iterators
+#! # Creating iterators manually
 #!
 #! Creating your own iterator is fairly straightforward and requires the
 #! two building blocks:
@@ -96,6 +94,50 @@
 #!     iterator.next? # => False
 #!     iterator.next  # => Nil
 #!
+#! # Creating iterators using Enumerator
+#!
+#! Creating a separate object for every type of iteration requires quite a bit
+#! of boilerplate. Fortunately, the `Enumerator` type can be used to make it
+#! much easier to create an iterator. Using the `Enumerator` type we can convert
+#! the above iterator code to the following:
+#!
+#!     import std::iterator::Enumerator
+#!
+#!     def to_enum(array: Array!(Integer)) -> Iterator!(Integer) {
+#!       let mut index = 0
+#!
+#!       Enumerator.new(
+#!         while: { index < 5 },
+#!         yield: {
+#!           let value = array[index]
+#!
+#!           index += 1
+#!
+#!           value
+#!         }
+#!       )
+#!     }
+#!
+#!     let enum = to_enum([1, 2, 3, 4, 5, 6, 7])
+#!
+#!     enum.next # => 1
+#!     enum.next # => 2
+#!     enum.next # => 3
+#!     enum.next # => 4
+#!     enum.next # => 5
+#!     enum.next # => Nil
+#!
+#! Here we use the method `to_enum` to generate a `Enumerator` for a given
+#! `Array`.
+#!
+#! When returning a `Enumerator!(T)` from a method, it's recommended to specify
+#! the return type as `Iterator!(T)`. This allows you to change the type in the
+#! future, without having to change the method's return type and possibly
+#! breaking code using it.
+#!
+#! It is recommended to use `Enumerator` instead of manually creating `Iterator`
+#! types, unless manually creating the iterator type is truly necessary.
+#!
 #! # Exposing Iterators
 #!
 #! The usual way of exposing an `Iterator` is by defining an `iter` method on a
@@ -104,31 +146,14 @@
 #! that yields the lines in a file, or `characters` for an `Iterator` that
 #! returns the characters in a `String`.
 
-# First we need to forward declare Iterator since Map depends on it while
-# Iterator depends on Map.
-
 ## A generic iterator over a sequence of values of type `T`.
-trait Iterator!(T) {}
-
-## An iterator that maps values of type `In` to type `Out`.
-##
-## A `Map` iterator takes two input variables: an `Iterator` that produces
-## values we want to map, and a `Block` that takes these values and maps them to
-## something else.
-object Map!(In, Out) {
-  def init(iterator: Iterator!(In), block: do (In) -> Out) {
-    let mut @iterator = iterator
-    let @block = block
-  }
-}
-
 trait Iterator!(T) {
   ## Advances the iterator and returns the next value.
   ##
-  ## If no values are available this method must return `Nil`. Since `Nil`
-  ## itself is a valid value to be returned you should not check for `Nil` to
-  ## determine if the iterator has reached the end; instead you should check the
-  ## result of `next?`.
+  ## If no values are available, this method must return `Nil`. Since `Nil`
+  ## itself is a valid value to be returned, you should not check for `Nil` to
+  ## determine if the iterator has reached the end. Instead, check the result of
+  ## `next?` to determine if the iterator has any values left to produce.
   ##
   ## # Examples
   ##
@@ -157,6 +182,25 @@ trait Iterator!(T) {
   ##     iter.next  # => 10
   ##     iter.next? # => False
   def next? -> Boolean
+
+  ## Returns an `Iterator` that transforms values of type `T` to values of type
+  ## `R`.
+  ##
+  ## # Examples
+  ##
+  ## Multiplying the numbers in an `Array`:
+  ##
+  ##     let mut iter = [1, 2, 3]
+  ##       .iter
+  ##       .map do (number) { number * 2 }
+  ##
+  ##     iter.to_array # => [2, 4, 6]
+  def map!(R)(block: do (T) -> R) -> Iterator!(R) {
+    Enumerator.new(
+      while: { next? },
+      yield: { block.call(*next) }
+    )
+  }
 
   ## Yields all the values in this iterator to the supplied `Block`.
   ##
@@ -199,22 +243,6 @@ trait Iterator!(T) {
     Nil
   }
 
-  ## Returns an `Iterator` that transforms values of type `T` to values of type
-  ## `R`.
-  ##
-  ## # Examples
-  ##
-  ## Multiplying the numbers in an `Array`:
-  ##
-  ##     let mut iter = [1, 2, 3]
-  ##       .iter
-  ##       .map do (number) { number * 2 }
-  ##
-  ##     iter.to_array # => [2, 4, 6]
-  def map!(R)(block: do (T) -> R) -> Map!(T, R) {
-    Map.new(iterator: self, block: block)
-  }
-
   ## Transforms the `Iterator` into an `Array`.
   ##
   ## This method will advance the iterator to the end.
@@ -235,16 +263,81 @@ trait Iterator!(T) {
   }
 }
 
-impl Iterator!(Out) for Map!(In, Out) {
-  def next? -> Boolean {
-    @iterator.next?
+## A type for easily creating external iterators, without having to define your
+## own `Iterator` objects.
+##
+## An `Enumerator` is typically created inside a method. This allows you to
+## capture any variables you may need for the iterator's internal state, without
+## having to expose these using methods.
+object Enumerator!(T) impl Iterator!(T) {
+  ## Returns a new `Enumerator` that produces values of type `T`.
+  ##
+  ## The `while` block must return a `Boolean` that indicates if the iterator
+  ## has any values left to produce.
+  ##
+  ## The `yield` block must return a value the iterator has produced, or `Nil`
+  ## if there are no more values.
+  def init(while: do -> Boolean, yield: do -> ?T) {
+    let @while = while
+    let @yield = yield
   }
 
-  def next -> ?Out {
+  ## Advances the iterator and returns the next value.
+  ##
+  ## See the documentation of `Iterator.next` for more information.
+  def next -> ?T {
     next?.if true: {
-      @block.call(@iterator.next)
+      @yield.call
     }, false: {
       Nil
     }
   }
+
+  ## Returns `True` if there are values available, `False` otherwise.
+  ##
+  ## See the documentation of `Iterator.next?` for more information.
+  def next? -> Boolean {
+    @while.call
+  }
+}
+
+## Returns an `Enumerator` that can be used to easily enumerate over an index
+## based collection.
+##
+## This `Enumerator` will start at index 0, and increment the index until
+## reaching the limit specified with the `max` argument. For every value, the
+## supplied block is called and its return value will be the value produced by
+## the `Enumerator`.
+##
+## # Examples
+##
+## Iterating over an `Array`:
+##
+##     import std::iterator::(self, Enumerator)
+##
+##     let numbers = [10, 20, 30]
+##     let enum: Enumerator!(Integer) =
+##       iterator.index_enumerator(numbers.length) do (index) {
+##         numbers[index]
+##       }
+##
+##     enum.next # => 10
+##     enum.next # => 20
+##     enum.next # => 30
+def index_enumerator!(T)(
+  max: Integer,
+  block: do (Integer) -> ?T
+) -> Enumerator!(T) {
+  let mut index = 0
+
+  Enumerator.new(
+    while: { index < max },
+    yield: {
+      let value = block.call(index)
+
+      index += 1
+
+      value
+    }
+  )
 }
