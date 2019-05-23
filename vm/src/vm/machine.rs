@@ -114,28 +114,39 @@ macro_rules! safepoint_and_reduce {
 }
 
 macro_rules! try_runtime_error {
-    ($expr:expr, $vm:expr, $proc:expr, $context:ident, $index:ident) => {
-        match $expr {
-            Ok(thing) => thing,
-            Err(err) => {
-                match err {
-                    RuntimeError::Panic(msg) => return Err(msg),
-                    RuntimeError::Exception(msg) => {
-                        throw_error_message!($vm, $proc, msg, $context, $index);
-                        continue;
-                    }
-                    RuntimeError::WouldBlock => {
-                        $context.instruction_index = $index - 1;
+    ($expr:expr, $vm:expr, $proc:expr, $context:ident, $index:ident) => {{
+        // When an operation would block, the socket is already registered, and
+        // the process may already be running again in another thread. This
+        // means that when a WouldBlock is produced it is not safe to access any
+        // process data.
+        //
+        // To ensure blocking operations are retried properly, we _first_ set
+        // the instruction index, then advance it again if it is safe to do so.
+        $context.instruction_index = $index - 1;
 
-                        // It's up to the called function to register the
-                        // resource with a poller, so all we need/can do here is
-                        // bail out.
-                        return Ok(());
-                    }
-                };
+        match $expr {
+            Ok(thing) => {
+                $context.instruction_index = $index;
+
+                thing
+            }
+            Err(RuntimeError::Panic(msg)) => {
+                $context.instruction_index = $index;
+
+                return Err(msg);
+            }
+            Err(RuntimeError::Exception(msg)) => {
+                throw_error_message!($vm, $proc, msg, $context, $index);
+                continue;
+            }
+            Err(RuntimeError::WouldBlock) => {
+                // *DO NOT* use "$context" at this point, as it may have been
+                // invalidated if the process is already running again in
+                // another thread.
+                return Ok(());
             }
         }
-    };
+    }};
 }
 
 #[derive(Clone)]

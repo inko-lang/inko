@@ -360,14 +360,11 @@ fn socket_result(
     socket: &mut Socket,
     interest: Interest,
 ) -> Result<ObjectPointer, RuntimeError> {
-    match result {
-        Ok(res) => Ok(res),
-        Err(error) => {
-            if error.should_poll() {
-                socket.register(process, &state.network_poller, interest)?;
-            }
-
-            Err(error)
+    if let Err(ref err) = result {
+        if err.should_poll() {
+            socket.register(process, &state.network_poller, interest)?;
         }
     }
+
+    result
 }

@@ -267,15 +267,25 @@ impl Socket {
         let event_id =
             EventId(ArcWithoutWeak::into_raw(process.clone()) as u64);
 
+        // Once registered, the process might be rescheduled immediately if
+        // there is data available. This means that once we (re)register the
+        // socket, it is not safe to use "self" anymore.
+        //
+        // To deal with this we:
+        //
+        // 1. Set "registered" _first_ (if necessary)
+        //
+        // 2. Return the value of register/reregister directly, ensuring that
+        //    any code after it triggers a compilation error.
         if self.registered {
-            poller.reregister(&self.socket, event_id, interest)?;
+            Ok(poller.reregister(&self.socket, event_id, interest)?)
         } else {
-            poller.register(&self.socket, event_id, interest)?;
-
             self.registered = true;
+
+            Ok(poller.register(&self.socket, event_id, interest)?)
         }
 
-        Ok(())
+        // *DO NOT* use "self" from here on.
     }
 
     pub fn accept(&self) -> Result<Self, RuntimeError> {

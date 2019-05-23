@@ -18,10 +18,12 @@ impl Worker {
         let mut events = Events::with_capacity(EVENTS_PER_ITERATION);
 
         loop {
-            self.state
-                .network_poller
-                .poll(&mut events)
-                .expect("Failed to poll for network events");
+            if self.state.network_poller.poll(&mut events).is_err() {
+                // The poller might be interrupted when shutting down, or when
+                // another thread panics. In this case we just shut down
+                // gracefully.
+                return;
+            }
 
             for id in events.event_ids() {
                 let process =
