@@ -36,12 +36,6 @@ to start. Some files/directories that may be of interest are:
 * `src/vm/machine.rs`: the source code of the instruction handlers.
 * `src/vm/instruction.rs`: contains all available instructions.
 
-## Requirements
-
-* Rust 1.31 or newer, using the 2018 edition
-* Cargo
-* Make
-
 ## Installation
 
 Installing the VM is done as follows:

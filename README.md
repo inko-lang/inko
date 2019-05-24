@@ -35,7 +35,7 @@ Windows](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
 ## Requirements
 
 * Ruby 2.3 or newer and RubyGems, for the compiler
-* Rust 1.31 or newer, using the 2018 edition
+* Rust 1.34 or newer, using the 2018 edition
 * Make 4.0 or newer
 
 ## Installation
