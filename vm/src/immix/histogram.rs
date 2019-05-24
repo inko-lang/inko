@@ -7,12 +7,12 @@
 //! Histograms are of a fixed size and use atomic operations for incrementing
 //! bucket values, allowing concurrent use of the same histogram.
 use crate::chunk::Chunk;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU16, Ordering};
 
-const DEFAULT_VALUE: usize = 0;
+const DEFAULT_VALUE: u16 = 0;
 
 pub struct Histogram {
-    values: Chunk<AtomicUsize>,
+    values: Chunk<AtomicU16>,
 }
 
 /// Iterator for traversing the most fragmented bins in a histogram.
@@ -32,7 +32,7 @@ impl Histogram {
     ///
     /// Bounds checking is not performed, as the garbage collector never uses an
     /// out of bounds index.
-    pub fn increment(&self, index: usize, value: usize) {
+    pub fn increment(&self, index: usize, value: u16) {
         self.values[index].fetch_add(value, Ordering::Release);
     }
 
@@ -40,7 +40,7 @@ impl Histogram {
     ///
     /// Bounds checking is not performed, as the garbage collector never uses an
     /// out of bounds index.
-    pub fn get(&self, index: usize) -> usize {
+    pub fn get(&self, index: usize) -> u16 {
         self.values[index].load(Ordering::Acquire)
     }
 

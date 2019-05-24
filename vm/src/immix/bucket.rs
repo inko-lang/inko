@@ -249,9 +249,10 @@ impl Bucket {
                     let holes = block.update_hole_count();
 
                     if holes > 0 {
-                        histograms
-                            .marked
-                            .increment(holes, block.marked_lines_count());
+                        histograms.marked.increment(
+                            holes,
+                            block.marked_lines_count() as u16,
+                        );
 
                         block.recycle();
                     }
@@ -294,7 +295,7 @@ impl Bucket {
             let holes = block.holes();
 
             if evacuate && holes > 0 {
-                let count = block.available_lines_count();
+                let count = block.available_lines_count() as u16;
 
                 histograms.available.increment(holes, count);
 
@@ -667,7 +668,7 @@ mod tests {
             // reserved, meaning we have to subtract two lines from the number
             // of available ones. We also marked line 1 of block 1 as in use, so
             // we have to subtract another line.
-            (LINES_PER_BLOCK * 2) - 3
+            ((LINES_PER_BLOCK * 2) - 3) as u16
         );
 
         let block = bucket.current_block().unwrap();
