@@ -104,7 +104,10 @@ impl Config {
     }
 
     /// Populates configuration settings based on environment variables.
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(cyclomatic_complexity, cognitive_complexity)
+    )]
     pub fn populate_from_env(&mut self) {
         set_from_env!(self, primary_threads, "CONCURRENCY", usize);
         set_from_env!(self, blocking_threads, "CONCURRENCY", usize);

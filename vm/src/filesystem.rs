@@ -1,7 +1,6 @@
 //! Helpers for working with the filesystem.
 
 use crate::date_time::DateTime;
-use crate::error_messages;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::process::RcProcess;
@@ -17,14 +16,6 @@ const TYPE_INVALID: i64 = 0;
 const TYPE_FILE: i64 = 1;
 const TYPE_DIRECTORY: i64 = 2;
 
-macro_rules! map_io {
-    ($op:expr) => {{
-        $op.map_err(|err| {
-            RuntimeError::Exception(error_messages::from_io_error(&err))
-        })
-    }};
-}
-
 /// Returns a DateTime for the given path.
 ///
 /// The `kind` argument specifies whether the creation, modification or access
@@ -33,12 +24,12 @@ pub fn date_time_for_path(
     path: &str,
     kind: i64,
 ) -> Result<DateTime, RuntimeError> {
-    let meta = map_io!(fs::metadata(path))?;
+    let meta = fs::metadata(path)?;
 
     let system_time = match kind {
-        TIME_CREATED => map_io!(meta.created())?,
-        TIME_MODIFIED => map_io!(meta.modified())?,
-        TIME_ACCESSED => map_io!(meta.accessed())?,
+        TIME_CREATED => meta.created()?,
+        TIME_MODIFIED => meta.modified()?,
+        TIME_ACCESSED => meta.accessed()?,
         _ => {
             return Err(RuntimeError::Panic(format!(
                 "{} is not a valid type of timestamp",
@@ -52,7 +43,7 @@ pub fn date_time_for_path(
 
 /// Returns the type of the given path.
 pub fn type_of_path(path: &str) -> i64 {
-    if let Ok(meta) = map_io!(fs::metadata(path)) {
+    if let Ok(meta) = fs::metadata(path) {
         if meta.is_dir() {
             TYPE_DIRECTORY
         } else {
@@ -74,8 +65,8 @@ pub fn list_directory_as_pointers(
 ) -> Result<ObjectPointer, RuntimeError> {
     let mut paths = Vec::new();
 
-    for entry in map_io!(fs::read_dir(path))? {
-        let entry = map_io!(entry)?;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
         let path = entry.path().to_string_lossy().to_string();
         let pointer = process
             .allocate(object_value::string(path), state.string_prototype);

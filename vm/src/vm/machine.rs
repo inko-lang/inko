@@ -324,7 +324,10 @@ impl Machine {
     }
 
     /// Executes a single process.
-    #[cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(cyclomatic_complexity, cognitive_complexity)
+    )]
     pub fn run(
         &self,
         worker: &mut ProcessWorker,
