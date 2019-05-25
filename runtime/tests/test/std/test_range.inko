@@ -62,3 +62,16 @@ test.group('std::integer::Integer...') do (g) {
     assert.equal(range.end, 3)
   }
 }
+
+test.group('std::range::Range.cover?') do (g) {
+  g.test('Checking if a Range covers a value') {
+    let range = 1..10
+
+    assert.false(range.cover?(0))
+    assert.false(range.cover?(11))
+
+    assert.true(range.cover?(1))
+    assert.true(range.cover?(5))
+    assert.true(range.cover?(10))
+  }
+}

@@ -31,6 +31,19 @@ object Range!(T: Successor + SmallerOrEqual) impl Equal, ToArray!(T) {
     @end
   }
 
+  ## Returns `True` if the given argument resides in the range of `self`.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a `Range` covers a value:
+  ##
+  ##     (1..10).cover?(5)  # => True
+  ##     (1..10).cover?(15) # => False
+  def cover?(value: T) -> Boolean {
+    @start <= value
+      .and { value <= @end }
+  }
+
   ## Returns `True` if `self` and `other` are identical.
   ##
   ## # Examples
