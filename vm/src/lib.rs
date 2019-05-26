@@ -1,5 +1,10 @@
+#[cfg(not(feature = "jemalloc"))]
 #[global_allocator]
 static A: std::alloc::System = std::alloc::System;
+
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static A: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 pub mod arc_without_weak;
 pub mod binding;

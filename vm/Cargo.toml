@@ -4,6 +4,10 @@ version = "0.4.1" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 edition = "2018"
 
+[features]
+default = []
+jemalloc = ["jemallocator"]
+
 [lib]
 name = "libinko"
 doctest = false
@@ -31,6 +35,7 @@ crossbeam-deque = "^0.7"
 crossbeam-channel = "^0.3"
 crossbeam-queue = "^0.1"
 libc = "^0.2"
+jemallocator = { version = "^0.1", optional = true }
 
 [dependencies.socket2]
 version = "^0.3.9"

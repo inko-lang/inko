@@ -27,8 +27,14 @@ unsafe fn layout_for<T>(capacity: usize) -> Layout {
 #[cfg_attr(feature = "cargo-clippy", allow(len_without_is_empty))]
 impl<T> Chunk<T> {
     pub fn new(capacity: usize) -> Self {
-        let layout = unsafe { layout_for::<T>(capacity) };
+        if capacity == 0 {
+            return Chunk {
+                ptr: ptr::null_mut(),
+                capacity: 0,
+            };
+        }
 
+        let layout = unsafe { layout_for::<T>(capacity) };
         let ptr = unsafe { alloc::alloc(layout) as *mut T };
 
         if ptr.is_null() {
@@ -47,9 +53,11 @@ impl<T> Chunk<T> {
 
     pub fn reset(&mut self) {
         unsafe {
-            // We need to zero out the memory as otherwise we might get random
-            // garbage.
-            ptr::write_bytes(self.ptr, 0, self.capacity);
+            if !self.ptr.is_null() {
+                // We need to zero out the memory as otherwise we might get random
+                // garbage.
+                ptr::write_bytes(self.ptr, 0, self.capacity);
+            }
         }
     }
 }
@@ -57,9 +65,12 @@ impl<T> Chunk<T> {
 impl<T> Drop for Chunk<T> {
     fn drop(&mut self) {
         unsafe {
-            let layout = layout_for::<T>(self.len());
-
-            alloc::dealloc(self.ptr as *mut u8, layout);
+            if !self.ptr.is_null() {
+                alloc::dealloc(
+                    self.ptr as *mut u8,
+                    layout_for::<T>(self.len()),
+                );
+            }
         }
     }
 }
@@ -82,6 +93,23 @@ impl<T> IndexMut<usize> for Chunk<T> {
 mod tests {
     use super::*;
     use crate::object_pointer::ObjectPointer;
+
+    #[test]
+    fn test_empty_chunk() {
+        let chunk = Chunk::<()>::new(0);
+
+        assert_eq!(chunk.len(), 0);
+        assert!(chunk.ptr.is_null());
+    }
+
+    #[test]
+    fn test_reset_empty_chunk() {
+        let mut chunk = Chunk::<()>::new(0);
+
+        // There's nothing to really test for result wise, so we just expect
+        // this function to not panic/segfault.
+        chunk.reset();
+    }
 
     #[test]
     fn test_len() {

@@ -12,6 +12,9 @@ BINDIR := ${PREFIX}/bin
 # target of the underlying platform.
 TARGET :=
 
+# The list of features to enable when building the VM.
+FEATURES :=
+
 ifneq (${TARGET},)
 	TARGET_OPTION=--target ${TARGET}
 	TARGET_BINARY=target/${TARGET}/release/ivm
@@ -20,14 +23,20 @@ else
 	TARGET_BINARY=target/release/ivm
 endif
 
+ifneq (${FEATURES},)
+	FEATURES_OPTION=--features ${FEATURES}
+else
+	FEATURES_OPTION=
+endif
+
 debug:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} build ${TARGET_OPTION}
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} build ${TARGET_OPTION} ${FEATURES_OPTION}
 
 check:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} check
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} check ${FEATURES_OPTION}
 
 test:
-	CARGO_INCREMENTAL=1 ${CARGO_CMD} test
+	CARGO_INCREMENTAL=1 ${CARGO_CMD} test ${FEATURES_OPTION}
 
 clippy:
 	touch src/lib.rs
@@ -43,16 +52,16 @@ rustfmt:
 	rustfmt --emit files src/lib.rs src/bin/ivm.rs
 
 release:
-	${CARGO_CMD} build --release ${TARGET_OPTION}
+	${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 profile:
-	RUSTFLAGS="-g" ${CARGO_CMD} build --release ${TARGET_OPTION}
+	RUSTFLAGS="-g" ${CARGO_CMD} build --release ${TARGET_OPTION} ${FEATURES_OPTION}
 
 clean:
 	${CARGO_CMD} clean
 
 install:
-	${CARGO_CMD} build --release ${TARGET_OPTION}
+	${CARGO_CMD} build --release ${TARGET_OPTION} ${TARGET_OPTION}
 	mkdir -p "${BINDIR}"
 	install -m755 "${TARGET_BINARY}" "${BINDIR}/ivm"
 
