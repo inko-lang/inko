@@ -218,3 +218,20 @@ test.group('std::byte_array::ByteArray.iter') do (g) {
     assert.equal(iter.next, Nil)
   }
 }
+
+test.group('std::byte_array::ByteArray.slice') do (g) {
+  g.test('Slicing a ByteArray with a positive start position') {
+    let bytes = 'hello_world'.to_byte_array
+
+    assert.equal(bytes.slice(0, 5), 'hello'.to_byte_array)
+    assert.equal(bytes.slice(0, 20), 'hello_world'.to_byte_array)
+  }
+
+  g.test('Slicing a ByteArray with a negative start position') {
+    let bytes = 'hello_world'.to_byte_array
+
+    assert.equal(bytes.slice(-5, 2), 'wo'.to_byte_array)
+    assert.equal(bytes.slice(-5, 5), 'world'.to_byte_array)
+    assert.equal(bytes.slice(-1, 5), 'd'.to_byte_array)
+  }
+}

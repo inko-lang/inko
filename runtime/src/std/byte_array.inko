@@ -206,6 +206,49 @@ impl ByteArray {
   def drain_to_string -> String {
     _INKOC.byte_array_to_string(self, True)
   }
+
+  ## Slices `self` into a new `ByteArray`.
+  ##
+  ## Similar to slicing a `String`, slicing a `ByteArray` allows one to extract
+  ## a sub-array by providing a start position and the number of _bytes_ to
+  ## include starting at the start position.
+  ##
+  ## # Examples
+  ##
+  ## Slicing a `ByteArray`:
+  ##
+  ##     import std::byte_array::ByteArray
+  ##
+  ##     let bytes = ByteArray.new([1, 2, 3, 4])
+  ##     let sliced = bytes.slice(start: 1, length: 2)
+  ##
+  ##     sliced[0] # => 2
+  ##     sliced[1] # => 3
+  def slice(start: Integer, length: Integer) -> ByteArray {
+    let new_array = ByteArray.new
+    let mut index =
+      start >= 0
+        .if true: {
+          start
+        }, false: {
+          start % self.length
+        }
+
+    let mut until = index + length
+
+    until >= self.length
+      .if_true {
+        until = self.length
+      }
+
+    { index < until }.while_true {
+      new_array.push(*self[index])
+
+      index += 1
+    }
+
+    new_array
+  }
 }
 
 impl Index!(Integer, Integer) for ByteArray {
