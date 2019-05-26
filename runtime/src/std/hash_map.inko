@@ -285,11 +285,7 @@ impl SetIndex!(K, V) for Table!(K, V) {
 ## By default a `HashMap` uses `DefaultHasher` for hashing objects. You can
 ## provide a custom hasher using `HashMap.new(hasher: YourCustomerHasher.new)`,
 ## as long as the custom hasher implements the `Hasher` trait.
-object HashMap!(K: Hash + Equal, V) impl
-  Equal,
-  Index!(K, V),
-  SetIndex!(K, V),
-  Length {
+object HashMap!(K: Hash + Equal, V) {
   ## Creates a new, empty `HashMap`.
   ##
   ## The `hasher` argument can be used to provide an alternative `Hasher` to use
@@ -435,6 +431,26 @@ object HashMap!(K: Hash + Equal, V) impl
     iter.map do (pair) { pair.value }
   }
 
+  ## Returns `True` if `self` contains the key `key`.
+  ##
+  ## # Examples
+  ##
+  ## Checking if a `HashMap` defines a key:
+  ##
+  ##     let map = %['name': 'Alice']
+  ##
+  ##     map.key?('name') # => True
+  ##     map.key?('city') # => False
+  def key?(key: K) -> Boolean {
+    @table.bucket_index(key).if true: {
+      True
+    }, false: {
+      False
+    }
+  }
+}
+
+impl Equal for HashMap!(K, V) {
   ## Returns `True` if `self` and the given `HashMap` are identical to each
   ## other.
   ##
@@ -464,25 +480,9 @@ object HashMap!(K: Hash + Equal, V) impl
 
     True
   }
+}
 
-  ## Returns `True` if `self` contains the key `key`.
-  ##
-  ## # Examples
-  ##
-  ## Checking if a `HashMap` defines a key:
-  ##
-  ##     let map = %['name': 'Alice']
-  ##
-  ##     map.key?('name') # => True
-  ##     map.key?('city') # => False
-  def key?(key: K) -> Boolean {
-    @table.bucket_index(key).if true: {
-      True
-    }, false: {
-      False
-    }
-  }
-
+impl Index!(K, V) for HashMap!(K, V) {
   ## Returns the value for the given key, if any.
   ##
   ## # Examples
@@ -503,7 +503,9 @@ object HashMap!(K: Hash + Equal, V) impl
   def [](key: K) -> ?V {
     @table[key]
   }
+}
 
+impl SetIndex!(K, V) for HashMap!(K, V) {
   ## Inserts the given key and value into this map, returning the inserted
   ## value.
   ##
@@ -517,7 +519,9 @@ object HashMap!(K: Hash + Equal, V) impl
   def []=(key: K, value: V) -> V {
     @table[key] = value
   }
+}
 
+impl Length for HashMap!(K, V) {
   ## Returns the number of key-value pairs in this map.
   ##
   ## # Examples

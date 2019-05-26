@@ -71,7 +71,7 @@ let SEPARATOR = os.windows?.if true: {
 ##     import std::fs::path::Path
 ##
 ##     '/tmp/hello.txt'.to_path
-object Path impl Equal, ToString, Size {
+object Path {
   def init(path: String) {
     let @path = path
   }
@@ -89,52 +89,6 @@ object Path impl Equal, ToString, Size {
   ## Returns `True` if the path points to an existing file or directory.
   def exists? -> Boolean {
     raw.exists?(@path)
-  }
-
-  ## Converts a `Path` to a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `Path`:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('/dev/null')
-  ##
-  ##     path.to_string # => '/dev/null'
-  def to_string -> String {
-    @path
-  }
-
-  ## Returns the size of the path in bytes.
-  ##
-  ## # Examples
-  ##
-  ## Getting the size of a path:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('/dev/null')
-  ##
-  ##     try! path.size # => 0
-  def size !! IOError -> Integer {
-    try raw.size(@path)
-  }
-
-  ## Returns `True` if `self` is equal to the given `Path`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two paths:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path1 = Path.new('foo')
-  ##     let path2 = Path.new('foo')
-  ##
-  ##     path1 == path2 # => True
-  def ==(other: Self) -> Boolean {
-    to_string == other.to_string
   }
 
   ## Returns the creation time of `self`.
@@ -180,6 +134,58 @@ object Path impl Equal, ToString, Size {
   ##     try! path.accessed_at # => SystemTime { ... }
   def accessed_at !! IOError -> SystemTime {
     try raw.accessed_at(@path)
+  }
+}
+
+impl Equal for Path {
+  ## Returns `True` if `self` is equal to the given `Path`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two paths:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path1 = Path.new('foo')
+  ##     let path2 = Path.new('foo')
+  ##
+  ##     path1 == path2 # => True
+  def ==(other: Self) -> Boolean {
+    to_string == other.to_string
+  }
+}
+
+impl ToString for Path {
+  ## Converts a `Path` to a `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `Path`:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('/dev/null')
+  ##
+  ##     path.to_string # => '/dev/null'
+  def to_string -> String {
+    @path
+  }
+}
+
+impl Size for Path {
+  ## Returns the size of the path in bytes.
+  ##
+  ## # Examples
+  ##
+  ## Getting the size of a path:
+  ##
+  ##     import std::fs::path::Path
+  ##
+  ##     let path = Path.new('/dev/null')
+  ##
+  ##     try! path.size # => 0
+  def size !! IOError -> Integer {
+    try raw.size(@path)
   }
 }
 

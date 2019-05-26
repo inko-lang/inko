@@ -24,12 +24,21 @@ trait Formatter: ToString {
 }
 
 ## The default formatter to use when formatting an object.
-object DefaultFormatter impl Formatter, ToString {
+object DefaultFormatter {
   def init {
     let @buffer = StringBuffer.new
     let mut @nesting = 0
   }
+}
 
+impl ToString for DefaultFormatter {
+  ## Returns a `String` containing the data pushed into this buffer so far.
+  def to_string -> String {
+    @buffer.to_string
+  }
+}
+
+impl Formatter for DefaultFormatter {
   ## Pushes a new `String` into the underlying buffer.
   def push(string: String) {
     @buffer.push(string)
@@ -51,11 +60,6 @@ object DefaultFormatter impl Formatter, ToString {
 
         @nesting -= 1
       }
-  }
-
-  ## Returns a `String` containing the data pushed into this buffer so far.
-  def to_string -> String {
-    @buffer.to_string
   }
 }
 

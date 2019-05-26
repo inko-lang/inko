@@ -269,7 +269,7 @@ trait Iterator!(T) {
 ## An `Enumerator` is typically created inside a method. This allows you to
 ## capture any variables you may need for the iterator's internal state, without
 ## having to expose these using methods.
-object Enumerator!(T) impl Iterator!(T) {
+object Enumerator!(T) {
   ## Returns a new `Enumerator` that produces values of type `T`.
   ##
   ## The `while` block must return a `Boolean` that indicates if the iterator
@@ -281,7 +281,9 @@ object Enumerator!(T) impl Iterator!(T) {
     let @while = while
     let @yield = yield
   }
+}
 
+impl Iterator!(T) for Enumerator!(T) {
   ## Advances the iterator and returns the next value.
   ##
   ## See the documentation of `Iterator.next` for more information.

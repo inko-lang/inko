@@ -13,12 +13,14 @@ let CURRENT_FILE = ModuleMirror.new(ThisModule).path
 trait Trait1 {}
 trait Trait2 {}
 
-object Dummy impl Trait1 {
+object Dummy {
   def init {
     let @name = 'Alice'
     let @age = 28
   }
 }
+
+impl Trait1 for Dummy {}
 
 test.group('std::mirror::ObjectMirror.subject') do (g) {
   g.test('Obtaining the subject of a mirror') {

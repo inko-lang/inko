@@ -33,7 +33,7 @@ let RAW = SOCK_RAW
 let Socket = _INKOC.get_unix_socket_prototype
 
 ## A Unix domain socket address.
-object SocketAddress impl Equal, ToString {
+object SocketAddress {
   ## Creates a new `SocketAddress` from the given path or name.
   ##
   ## # Examples
@@ -74,20 +74,6 @@ object SocketAddress impl Equal, ToString {
     }
   }
 
-  ## Returns the address name or path as a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `SocketAddress` to a `String`:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
-  ##     SocketAddress.new("\0example").to_string      # => "\0example"
-  def to_string -> String {
-    @address
-  }
-
   ## Returns `True` if `self` is an abstract address.
   ##
   ## # Examples
@@ -115,7 +101,9 @@ object SocketAddress impl Equal, ToString {
   def unnamed? -> Boolean {
     @address.empty?
   }
+}
 
+impl Equal for SocketAddress {
   ## Returns `True` if `self` and `other` are the same socket addresses.
   ##
   ## # Examples
@@ -128,6 +116,22 @@ object SocketAddress impl Equal, ToString {
   ##     SocketAddress.new('a.sock') == SocketAddress.new('b.sock') # => False
   def ==(other: Self) -> Boolean {
     @address == other.to_string
+  }
+}
+
+impl ToString for SocketAddress {
+  ## Returns the address name or path as a `String`.
+  ##
+  ## # Examples
+  ##
+  ## Converting a `SocketAddress` to a `String`:
+  ##
+  ##     import std::net::unix::SocketAddress
+  ##
+  ##     SocketAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
+  ##     SocketAddress.new("\0example").to_string      # => "\0example"
+  def to_string -> String {
+    @address
   }
 }
 
@@ -356,7 +360,7 @@ impl Close for Socket {
 }
 
 ## A Unix datagram socket.
-object UnixDatagram impl Read, Write, Close {
+object UnixDatagram {
   ## Creates a new Unix datagram socket bound to the given address.
   ##
   ## # Examples
@@ -434,11 +438,15 @@ object UnixDatagram impl Read, Write, Close {
   def socket -> Socket {
     @socket
   }
+}
 
+impl Read for UnixDatagram {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
+}
 
+impl Write for UnixDatagram {
   def write_bytes(bytes: ByteArray) !! IoError -> Integer {
     try @socket.write_bytes(bytes)
   }
@@ -450,14 +458,16 @@ object UnixDatagram impl Read, Write, Close {
   def flush -> Nil {
     @socket.flush
   }
+}
 
+impl Close for UnixDatagram {
   def close -> Nil {
     @socket.close
   }
 }
 
 ## A Unix stream socket connected to another Unix socket.
-object UnixStream impl Read, Write, Close {
+object UnixStream {
   ## Creates a new `UnixStream` that is connected to the given address.
   ##
   ## # Examples
@@ -497,26 +507,6 @@ object UnixStream impl Read, Write, Close {
     @socket
   }
 
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
-    try @socket.read_bytes(bytes: bytes, size: size)
-  }
-
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
-    try @socket.write_bytes(bytes)
-  }
-
-  def write_string(string: String) !! IoError -> Integer {
-    try @socket.write_string(string)
-  }
-
-  def flush -> Nil {
-    @socket.flush
-  }
-
-  def close -> Nil {
-    @socket.close
-  }
-
   ## Shuts down the reading half of this socket.
   def shutdown_read !! IoError -> Nil {
     try @socket.shutdown_read
@@ -533,8 +523,34 @@ object UnixStream impl Read, Write, Close {
   }
 }
 
+impl Read for UnixStream {
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+    try @socket.read_bytes(bytes: bytes, size: size)
+  }
+}
+
+impl Write for UnixStream {
+  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+    try @socket.write_bytes(bytes)
+  }
+
+  def write_string(string: String) !! IoError -> Integer {
+    try @socket.write_string(string)
+  }
+
+  def flush -> Nil {
+    @socket.flush
+  }
+}
+
+impl Close for UnixStream {
+  def close -> Nil {
+    @socket.close
+  }
+}
+
 ## A Unix socket server that can accept incoming connections.
-object UnixListener impl Close {
+object UnixListener {
   ## Creates a new `UnixListener` bound to and listening on the given address.
   ##
   ## The `backlog` argument can be used to set the listen backlog.
@@ -598,7 +614,9 @@ object UnixListener impl Close {
   def socket -> Socket {
     @socket
   }
+}
 
+impl Close for UnixListener {
   def close -> Nil {
     @socket.close
   }

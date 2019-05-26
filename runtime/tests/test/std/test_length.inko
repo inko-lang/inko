@@ -2,13 +2,17 @@ import std::length::Length
 import std::test
 import std::test::assert
 
-object EmptyList impl Length {
+object EmptyList {}
+
+impl Length for EmptyList {
   def length -> Integer {
     0
   }
 }
 
-object NonEmptyList impl Length {
+object NonEmptyList {}
+
+impl Length for NonEmptyList {
   def length -> Integer {
     1
   }

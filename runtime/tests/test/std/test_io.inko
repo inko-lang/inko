@@ -4,7 +4,9 @@ import std::os::NEWLINE
 import std::test
 import std::test::assert
 
-object Reader impl Read {
+object Reader {}
+
+impl Read for Reader {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) -> Integer {
     let input = [105, 110, 107, 111]
     let max = size.if true: { *size }, false: { input.length }
@@ -20,7 +22,7 @@ object Reader impl Read {
   }
 }
 
-object Writer impl Write {
+object Writer {
   def init {
     let @buffer: Array!(String) = []
   }
@@ -28,7 +30,9 @@ object Writer impl Write {
   def buffer -> Array!(String) {
     @buffer
   }
+}
 
+impl Write for Writer {
   def write_bytes(bytes: ByteArray) -> Integer {
     0
   }

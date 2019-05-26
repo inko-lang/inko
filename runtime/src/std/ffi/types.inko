@@ -6,15 +6,10 @@ import std::conversion::ToInteger
 ## A Type is just a simple wrapper around an Integer. The use of a `Type`
 ## instead of a regular `Integer` makes it a little more difficult to use
 ## incorrect type identifiers when attaching C functions.
-object Type impl ToInteger {
+object Type {
   def init(id: Integer) {
     ## The numeric identifier of this type.
     let @id = id
-  }
-
-  ## Returns the numeric identifier of this type.
-  def to_integer -> Integer {
-    @id
   }
 
   ## Returns the size of this type in bytes.
@@ -25,6 +20,13 @@ object Type impl ToInteger {
   ## Returns the alignment of this type in bytes.
   def alignment -> Integer {
     _INKOC.foreign_type_alignment(@id)
+  }
+}
+
+impl ToInteger for Type {
+  ## Returns the numeric identifier of this type.
+  def to_integer -> Integer {
+    @id
   }
 }
 

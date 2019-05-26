@@ -39,7 +39,7 @@ let RAW = SOCK_RAW
 let Socket = _INKOC.get_socket_prototype
 
 ## An IPv4 or IPv6 socket address.
-object SocketAddress impl Equal {
+object SocketAddress {
   def init(ip: IpAddress, port: Integer) {
     ## The IPv4/IPv6 address of this socket address.
     let @ip = ip
@@ -57,7 +57,9 @@ object SocketAddress impl Equal {
   def port -> Integer {
     @port
   }
+}
 
+impl Equal for SocketAddress {
   ## Returns `True` if `self` and `other` are the same.
   def ==(other: Self) -> Boolean {
     @ip == other.ip
@@ -494,7 +496,7 @@ impl Close for Socket {
 ## A `UdpSocket` can be used to easily create a bound UDP socket from an IP
 ## address and a port. Optionally a `UdpSocket` can be connected to another
 ## socket using `UdpSocket::connect`.
-object UdpSocket impl Read, Write, Close {
+object UdpSocket {
   ## Creates a new `UdpSocket`, bound to the given address.
   ##
   ## The domain to use for the underlying socket (`AF_INET` or `AF_INET6`) is
@@ -588,11 +590,15 @@ object UdpSocket impl Read, Write, Close {
   def socket -> Socket {
     @socket
   }
+}
 
+impl Read for UdpSocket {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
     try @socket.read_bytes(bytes: bytes, size: size)
   }
+}
 
+impl Write for UdpSocket {
   def write_bytes(bytes: ByteArray) !! IoError -> Integer {
     try @socket.write_bytes(bytes)
   }
@@ -604,14 +610,16 @@ object UdpSocket impl Read, Write, Close {
   def flush -> Nil {
     @socket.flush
   }
+}
 
+impl Close for UdpSocket {
   def close -> Nil {
     @socket.close
   }
 }
 
 ## A TCP socket connected to another TCP socket.
-object TcpStream impl Read, Write, Close {
+object TcpStream {
   ## Creates a new `TcpStream` that is connected to the TCP socket at the given
   ## IP address and port.
   ##
@@ -654,26 +662,6 @@ object TcpStream impl Read, Write, Close {
     @socket
   }
 
-  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
-    try @socket.read_bytes(bytes: bytes, size: size)
-  }
-
-  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
-    try @socket.write_bytes(bytes)
-  }
-
-  def write_string(string: String) !! IoError -> Integer {
-    try @socket.write_string(string)
-  }
-
-  def flush -> Nil {
-    @socket.flush
-  }
-
-  def close -> Nil {
-    @socket.close
-  }
-
   ## Shuts down the reading half of this socket.
   def shutdown_read !! IoError -> Nil {
     try @socket.shutdown_read
@@ -690,8 +678,34 @@ object TcpStream impl Read, Write, Close {
   }
 }
 
+impl Read for TcpStream {
+  def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IoError -> Integer {
+    try @socket.read_bytes(bytes: bytes, size: size)
+  }
+}
+
+impl Write for TcpStream {
+  def write_bytes(bytes: ByteArray) !! IoError -> Integer {
+    try @socket.write_bytes(bytes)
+  }
+
+  def write_string(string: String) !! IoError -> Integer {
+    try @socket.write_string(string)
+  }
+
+  def flush -> Nil {
+    @socket.flush
+  }
+}
+
+impl Close for TcpStream {
+  def close -> Nil {
+    @socket.close
+  }
+}
+
 ## A TCP socket server that can accept incoming connections.
-object TcpListener impl Close {
+object TcpListener {
   ## Creates a new `TcpListener` bound to and listening on the given IP address
   ## and port.
   ##
@@ -784,7 +798,9 @@ object TcpListener impl Close {
   def socket -> Socket {
     @socket
   }
+}
 
+impl Close for TcpListener {
   def close -> Nil {
     @socket.close
   }

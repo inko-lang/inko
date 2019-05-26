@@ -71,7 +71,7 @@ trait Command {
 }
 
 ## A Command for setting configuration options of a `Runner`.
-object ConfigureRunner impl Command {
+object ConfigureRunner {
   def init(option: String, value) {
     ## The name of the option to set.
     let @option = option
@@ -80,31 +80,44 @@ object ConfigureRunner impl Command {
     ## vary based on the name of the option.
     let @value = value
   }
+}
 
+impl Command for ConfigureRunner {
   def run(state: RunnerState) {
     state.configuration[@option] = @value
   }
 }
 
 ## A command for adding a new test to a runner.
-object AddTest impl Command {
+object AddTest {
   def init(test: Test) {
     ## The test to add.
     let @test = test
   }
+}
 
+impl Command for AddTest {
   def run(state: RunnerState) {
     state.add_test(@test)
   }
 }
 
 ## A command for running all tests currently registered with a `Runner`.
-object RunTests impl Command {
+object RunTests {
   def init(notify: Process) {
     ## The `Process` to notify once all tests have been completed.
     let @notify = notify
   }
 
+  def notify_client(failures: Boolean) {
+    let finished_message = RunnerFinished
+      .new(runner: process.current, failures: failures)
+
+    @notify.send(finished_message)
+  }
+}
+
+impl Command for RunTests {
   ## Runs all the tests currently registered, returning once they have been
   ## completed.
   ##
@@ -155,13 +168,6 @@ object RunTests impl Command {
     state.formatter.summary(tests: executed, duration: duration)
 
     notify_client(failed.length.positive?)
-  }
-
-  def notify_client(failures: Boolean) {
-    let finished_message = RunnerFinished
-      .new(runner: process.current, failures: failures)
-
-    @notify.send(finished_message)
   }
 }
 

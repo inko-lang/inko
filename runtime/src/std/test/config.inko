@@ -39,7 +39,7 @@ let DEFAULT_CONCURRENCY = 32
 ##     config['concurrency'] = 16
 ##
 ##     config.concurrency # => 16
-object Configuration impl SetIndex!(String, Dynamic) {
+object Configuration {
   def init {
     ## The number of tests to execute concurrently.
     let mut @concurrency = DEFAULT_CONCURRENCY
@@ -57,7 +57,9 @@ object Configuration impl SetIndex!(String, Dynamic) {
   def formatter -> Formatter {
     @formatter
   }
+}
 
+impl SetIndex!(String, Dynamic) for Configuration {
   ## Sets an option by its name.
   ##
   ## Setting an unknown option will result in a panic.

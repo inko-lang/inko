@@ -36,7 +36,7 @@ import std::length::Length
 ## This would only allocate four `String` objects: three for the `String`
 ## literals, and one for the resulting `String` returned by
 ## `StringBuffer.to_string`.
-object StringBuffer impl ToString, Length {
+object StringBuffer {
   def init(strings: Array!(String) = []) {
     let @strings = strings
   }
@@ -55,7 +55,9 @@ object StringBuffer impl ToString, Length {
   def push(string: String) -> String {
     @strings.push(string)
   }
+}
 
+impl ToString for StringBuffer {
   ## Generates a `String` using the current contents of the buffer.
   ##
   ## # Examples
@@ -73,7 +75,9 @@ object StringBuffer impl ToString, Length {
   def to_string -> String {
     _INKOC.string_concat_multiple(@strings)
   }
+}
 
+impl Length for StringBuffer {
   def length -> Integer {
     @strings.length
   }

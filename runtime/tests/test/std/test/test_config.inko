@@ -7,7 +7,9 @@ import std::test::formatters::ProgressFormatter
 import std::test::test::Test
 import std::time::duration::Duration
 
-object DummyFormatter impl Formatter {
+object DummyFormatter {}
+
+impl Formatter for DummyFormatter {
   def passed(test: Test) {}
   def failed(test: Test) {}
   def failures(test: Array!(Test)) {}

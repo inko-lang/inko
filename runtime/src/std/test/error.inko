@@ -7,7 +7,7 @@ import std::debug::CallFrame
 ##
 ## Each `TestFailure` is given a message describing the failure, and a
 ## `CallFrame` that points to the location of the failure.
-object TestFailure impl ToString, Error {
+object TestFailure {
   def init(message: String, location: CallFrame) {
     ## A message describing the assertion failure.
     let @message = message
@@ -20,12 +20,16 @@ object TestFailure impl ToString, Error {
   def location -> CallFrame {
     @location
   }
+}
 
+impl ToString for TestFailure {
   ## Returns a message describing the assertion failure.
   def to_string -> String {
     @message
   }
+}
 
+impl Error for TestFailure {
   ## Returns a message describing the assertion failure.
   def message -> String {
     @message

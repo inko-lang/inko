@@ -394,7 +394,7 @@ impl Layout {
 }
 
 ## An object used for constructing an immutable `Layout`.
-object LayoutBuilder impl SetIndex!(String, Type) {
+object LayoutBuilder {
   def init {
     ## The names of all members, in the order they are defined in.
     let @members: Array!(String) = []
@@ -416,33 +416,6 @@ object LayoutBuilder impl SetIndex!(String, Type) {
   def disable_padding {
     @padding = False
     @alignment = 1
-  }
-
-  ## Defines a new member.
-  ##
-  ## Trying to redefine a member will result in a panic.
-  def []=(name: String, type: Type) -> Type {
-    @existing[name].if_true {
-      let error = StringBuffer
-        .new(['The member ', name.inspect, ' has already been defined'])
-
-      process.panic(error)
-    }
-
-    @existing[name] = True
-
-    @members.push(name)
-    @types.push(type)
-
-    # If padding is enabled we determine the structure's alignment based on the
-    # alignment of the largest field.
-    @padding
-      .and { type.alignment > @alignment }
-      .if_true {
-        @alignment = type.alignment
-      }
-
-    type
   }
 
   ## Creates a new `Layout` based on the current state of this builder.
@@ -506,6 +479,35 @@ object LayoutBuilder impl SetIndex!(String, Type) {
     }
 
     Layout.new(members: members, alignment: @alignment, size: offset)
+  }
+}
+
+impl SetIndex!(String, Type) for LayoutBuilder {
+  ## Defines a new member.
+  ##
+  ## Trying to redefine a member will result in a panic.
+  def []=(name: String, type: Type) -> Type {
+    @existing[name].if_true {
+      let error = StringBuffer
+        .new(['The member ', name.inspect, ' has already been defined'])
+
+      process.panic(error)
+    }
+
+    @existing[name] = True
+
+    @members.push(name)
+    @types.push(type)
+
+    # If padding is enabled we determine the structure's alignment based on the
+    # alignment of the largest field.
+    @padding
+      .and { type.alignment > @alignment }
+      .if_true {
+        @alignment = type.alignment
+      }
+
+    type
   }
 }
 

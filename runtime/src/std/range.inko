@@ -15,7 +15,7 @@ import std::successor::Successor
 ##
 ## 1. They are both of the same type.
 ## 2. Both implement the `Successor` and `SmallerOrEqual` traits.
-object Range!(T: Successor + SmallerOrEqual) impl Equal, ToArray!(T) {
+object Range!(T: Successor + SmallerOrEqual) {
   def init(start: T, end: T) {
     let @start = start
     let @end = end
@@ -43,7 +43,9 @@ object Range!(T: Successor + SmallerOrEqual) impl Equal, ToArray!(T) {
     @start <= value
       .and { value <= @end }
   }
+}
 
+impl Equal for Range!(T) {
   ## Returns `True` if `self` and `other` are identical.
   ##
   ## # Examples
@@ -59,7 +61,9 @@ object Range!(T: Successor + SmallerOrEqual) impl Equal, ToArray!(T) {
     start == other.start
       .and { end == other.end }
   }
+}
 
+impl ToArray!(T) for Range!(T) {
   ## Converts `self` to an `Array`.
   ##
   ## # Examples

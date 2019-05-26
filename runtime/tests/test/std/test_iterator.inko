@@ -2,7 +2,9 @@ import std::iterator::(self, Enumerator, Iterator)
 import std::test
 import std::test::assert
 
-object EmptyIterator impl Iterator!(Integer) {
+object EmptyIterator {}
+
+impl Iterator!(Integer) for EmptyIterator {
   def next? -> Boolean {
     False
   }
@@ -12,12 +14,14 @@ object EmptyIterator impl Iterator!(Integer) {
   }
 }
 
-object SimpleIterator impl Iterator!(Integer) {
+object SimpleIterator {
   def init {
     let @values = [10, 20, 30]
     let mut @index = 0
   }
+}
 
+impl Iterator!(Integer) for SimpleIterator {
   def next -> ?Integer {
     let value = @values[@index]
 

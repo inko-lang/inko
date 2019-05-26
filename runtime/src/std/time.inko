@@ -13,17 +13,7 @@ import std::time::duration::Duration
 ## `SystemTime` can be influenced by time zone changes, clock adjustments, or
 ## leap seconds. If you need a monotonically increasing clock you should use
 ## `Instant` instead.
-object SystemTime impl
-  ToInteger,
-  ToFloat,
-  Add!(Duration),
-  Subtract!(Duration),
-  Smaller,
-  SmallerOrEqual,
-  Greater,
-  GreaterOrEqual,
-  Equal {
-
+object SystemTime {
   def init(
     year = 0,
     month = 1,
@@ -211,18 +201,24 @@ object SystemTime impl
   def to_utc -> Self {
     ThisModule.from_utc_timestamp(to_float)
   }
+}
 
+impl ToInteger for SystemTime {
   ## Returns the timestamp since the Unix epoch.
   def to_integer -> Integer {
     seconds_since_unix_epoch
   }
+}
 
+impl ToFloat for SystemTime {
   ## Returns the timestamp since the Unix epoch, the including fractional
   ## seconds.
   def to_float -> Float {
     seconds_since_unix_epoch.to_float + sub_second
   }
+}
 
+impl Add!(Duration) for SystemTime {
   ## Adds the given number of seconds to `self`, returning the result as a new
   ## `SystemTime`.
   ##
@@ -243,7 +239,9 @@ object SystemTime impl
       ThisModule.from_timestamp(timestamp)
     }
   }
+}
 
+impl Subtract!(Duration) for SystemTime {
   ## Subtracts the given number of seconds from `self`, returning the result as
   ## a new `SystemTime`.
   ##
@@ -264,7 +262,9 @@ object SystemTime impl
       ThisModule.from_timestamp(timestamp)
     }
   }
+}
 
+impl Smaller for SystemTime {
   ## Returns `True` if `self` is smaller than the given `SystemTime`.
   ##
   ## # Examples
@@ -280,7 +280,9 @@ object SystemTime impl
   def <(other: Self) -> Boolean {
     to_float < other.to_float
   }
+}
 
+impl SmallerOrEqual for SystemTime {
   ## Returns `True` if `self` is smaller than or equal to the given
   ## `SystemTime`.
   ##
@@ -298,7 +300,9 @@ object SystemTime impl
   def <=(other: Self) -> Boolean {
     to_float <= other.to_float
   }
+}
 
+impl Greater for SystemTime {
   ## Returns `True` if `self` is greater than the given `SystemTime`.
   ##
   ## # Examples
@@ -314,7 +318,9 @@ object SystemTime impl
   def >(other: Self) -> Boolean {
     to_float > other.to_float
   }
+}
 
+impl GreaterOrEqual for SystemTime {
   ## Returns `True` if `self` is greater than or equal to the given
   ## `SystemTime`.
   ##
@@ -332,7 +338,9 @@ object SystemTime impl
   def >=(other: Self) -> Boolean {
     to_float >= other.to_float
   }
+}
 
+impl Equal for SystemTime {
   ## Returns `True` if `self` and the given `SystemTime` are equal to each
   ## other.
   ##
@@ -355,129 +363,9 @@ object SystemTime impl
 ## `Instant` objects represent the number of seconds relative to an unspecified
 ## epoch. Unlike a system clock a monotonic clock never decreases, making it
 ## useful for tasks such as measuring the execution time of a block of code.
-object Instant impl
-  ToInteger,
-  ToFloat,
-  Add!(Duration),
-  Subtract!(Duration),
-  Smaller,
-  SmallerOrEqual,
-  Greater,
-  GreaterOrEqual,
-  Equal {
-
+object Instant {
   def init(time = _INKOC.time_monotonic) {
     let @time = time
-  }
-
-  ## Returns the number of seconds since the epoch.
-  def to_integer -> Integer {
-    @time.to_integer
-  }
-
-  ## Returns the number of seconds since the epoch.
-  def to_float -> Float {
-    @time
-  }
-
-  ## Adds the given number of seconds to `self`, returning the result as a new
-  ## `Instant`.
-  ##
-  ## # Examples
-  ##
-  ## Adding a `Duration` to a `Instant`:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     time.instant + duration.from_seconds(5)
-  def +(other: Duration) -> Self {
-    Instant.new(@time + other.to_float)
-  }
-
-  ## Subtracts the given number of seconds from `self`, returning the result as
-  ## a new `Instant`.
-  ##
-  ## Subtracting a `Duration` from a `Instant`:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     time.instant - duration.from_seconds(5)
-  def -(other: Duration) -> Self {
-    Instant.new(@time - other.to_float)
-  }
-
-  ## Returns `True` if `self` is smaller than the given `Instant`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `Instant` objects:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
-  ##
-  ##     before < after # => True
-  def <(other: Self) -> Boolean {
-    @time < other.to_float
-  }
-
-  ## Returns `True` if `self` is smaller than or equal to the given
-  ## `Instant`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `Instant` objects:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
-  ##
-  ##     before <= after  # => True
-  ##     before <= before # => True
-  def <=(other: Self) -> Boolean {
-    @time <= other.to_float
-  }
-
-  ## Returns `True` if `self` is greater than the given `Instant`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `Instant` objects:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
-  ##
-  ##     after > before # => True
-  def >(other: Self) -> Boolean {
-    @time > other.to_float
-  }
-
-  ## Returns `True` if `self` is greater than or equal to the given
-  ## `Instant`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `Instant` objects:
-  ##
-  ##     import std::time
-  ##     import std::time::duration
-  ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
-  ##
-  ##     after >= before # => True
-  ##     after >= after  # => True
-  def >=(other: Self) -> Boolean {
-    @time >= other.to_float
   }
 
   ## Returns a `Duration` measuring the time elapsed since the point in time
@@ -499,7 +387,135 @@ object Instant impl
   def elapsed -> Duration {
     Duration.new(_INKOC.time_monotonic - @time)
   }
+}
 
+impl ToInteger for Instant {
+  ## Returns the number of seconds since the epoch.
+  def to_integer -> Integer {
+    @time.to_integer
+  }
+}
+
+impl ToFloat for Instant {
+  ## Returns the number of seconds since the epoch.
+  def to_float -> Float {
+    @time
+  }
+}
+
+impl Add!(Duration) for Instant {
+  ## Adds the given number of seconds to `self`, returning the result as a new
+  ## `Instant`.
+  ##
+  ## # Examples
+  ##
+  ## Adding a `Duration` to a `Instant`:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     time.instant + duration.from_seconds(5)
+  def +(other: Duration) -> Self {
+    Instant.new(@time + other.to_float)
+  }
+}
+
+impl Subtract!(Duration) for Instant {
+  ## Subtracts the given number of seconds from `self`, returning the result as
+  ## a new `Instant`.
+  ##
+  ## Subtracting a `Duration` from a `Instant`:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     time.instant - duration.from_seconds(5)
+  def -(other: Duration) -> Self {
+    Instant.new(@time - other.to_float)
+  }
+}
+
+impl Smaller for Instant {
+  ## Returns `True` if `self` is smaller than the given `Instant`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Instant` objects:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     let before = time.instant
+  ##     let after = before + duration.from_seconds(5)
+  ##
+  ##     before < after # => True
+  def <(other: Self) -> Boolean {
+    @time < other.to_float
+  }
+}
+
+impl SmallerOrEqual for Instant {
+  ## Returns `True` if `self` is smaller than or equal to the given
+  ## `Instant`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Instant` objects:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     let before = time.instant
+  ##     let after = before + duration.from_seconds(5)
+  ##
+  ##     before <= after  # => True
+  ##     before <= before # => True
+  def <=(other: Self) -> Boolean {
+    @time <= other.to_float
+  }
+}
+
+impl Greater for Instant {
+  ## Returns `True` if `self` is greater than the given `Instant`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Instant` objects:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     let before = time.instant
+  ##     let after = before + duration.from_seconds(5)
+  ##
+  ##     after > before # => True
+  def >(other: Self) -> Boolean {
+    @time > other.to_float
+  }
+}
+
+impl GreaterOrEqual for Instant {
+  ## Returns `True` if `self` is greater than or equal to the given
+  ## `Instant`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Instant` objects:
+  ##
+  ##     import std::time
+  ##     import std::time::duration
+  ##
+  ##     let before = time.instant
+  ##     let after = before + duration.from_seconds(5)
+  ##
+  ##     after >= before # => True
+  ##     after >= after  # => True
+  def >=(other: Self) -> Boolean {
+    @time >= other.to_float
+  }
+}
+
+impl Equal  for Instant {
   ## Returns `True` if `self` is equal to the given `Instant`.
   ##
   ## # Examples
