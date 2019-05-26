@@ -1,10 +1,6 @@
 # The "globals" module defines various constants that are to be imported into
 # every module implicitly. Because the prelude has not yet been imported we can
 # only expose a few core types defined directly in the top-level object.
-
-![import_prelude: false]
-![import_globals: false]
-
 let Inko = _INKOC.get_toplevel
 let Boolean = Inko::Boolean
 let True = Inko::True

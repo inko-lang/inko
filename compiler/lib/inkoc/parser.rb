@@ -119,11 +119,8 @@ module Inkoc
       ]
     ).freeze
 
-    attr_reader :trait_implementation
-
     def initialize(input, file_path = Pathname.new('(eval)'))
       @lexer = Lexer.new(input, file_path)
-      @trait_implementation = false
     end
 
     def location
@@ -164,8 +161,6 @@ module Inkoc
         def_trait(start)
       when :impl
         implement_trait(start)
-      when :compiler_option_open
-        compiler_option
       when :module_documentation
         module_documentation(start)
       else
@@ -1160,8 +1155,6 @@ module Inkoc
       if @lexer.next_type_is?(:for)
         advance_and_expect!(:for)
 
-        @trait_implementation = true
-
         object_name = type_name(advance_and_expect!(:constant))
         body = block_body(advance_and_expect!(:curly_open))
 
@@ -1406,24 +1399,6 @@ module Inkoc
       type.optional = optional
 
       type
-    end
-
-    # Parses a compiler option
-    #
-    # Example:
-    #
-    #     ![key: value]
-    def compiler_option
-      key = advance_and_expect!(:identifier)
-
-      advance_and_expect!(:colon)
-
-      val = advance_and_expect!(:identifier).value
-      opt = AST::CompilerOption.new(key.value, val, key.location)
-
-      advance_and_expect!(:bracket_close)
-
-      opt
     end
 
     def documentation(start)

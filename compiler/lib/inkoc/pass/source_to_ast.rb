@@ -19,8 +19,6 @@ module Inkoc
             return
           end
 
-        @module.config[:import_trait_module] = parser.trait_implementation
-
         [ast]
       end
     end

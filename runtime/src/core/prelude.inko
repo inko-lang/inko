@@ -2,8 +2,6 @@
 # available to every other module. Any globals that should be exposed to every
 # module must be defined in std::globals instead.
 
-![import_prelude: false]
-
 # The order in which modules are imported is important as some modules may
 # depend on types / methods defined in other modules.
 

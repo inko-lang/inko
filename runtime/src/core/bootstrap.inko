@@ -1,15 +1,11 @@
 # Importing of both the prelude and the bootstrap modules will not yet work at
 # this point, hence these are disabled.
-![import_bootstrap: false]
-![import_globals: false]
-![import_prelude: false]
-
+#
 # Implicit module definitions will not yet work since we haven't defined the
 # required objects just yet.
 #
 # As a result of this setting all constants and methods defined in this module
 # are defined directly on the top-level object.
-![define_module: false]
 
 # Set up the various built-in objects that Inko comes with. These objects need
 # to be set manually since the "object" keyword can not yet be used at this

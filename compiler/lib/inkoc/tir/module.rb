@@ -19,7 +19,6 @@ module Inkoc
         )
 
         @globals = SymbolTable.new
-        @config = ModuleConfig.new
 
         hash = Digest::SHA1.hexdigest(file_path_as_string)
 
@@ -60,23 +59,30 @@ module Inkoc
       end
 
       def import_bootstrap?
-        config.import_bootstrap?
+        name.to_s != Config.core_module_name(Config::BOOTSTRAP_MODULE)
       end
 
       def import_prelude?
-        config.import_prelude?
+        name = self.name.to_s
+
+        name != Config.core_module_name(Config::BOOTSTRAP_MODULE) &&
+          name != Config.core_module_name(Config::GLOBALS_MODULE) &&
+          name != Config.core_module_name(Config::PRELUDE_MODULE)
       end
 
       def import_globals?
-        config.import_globals?
+        name = self.name.to_s
+
+        name != Config.core_module_name(Config::BOOTSTRAP_MODULE) &&
+          name != Config.core_module_name(Config::GLOBALS_MODULE)
       end
 
       def define_module?
-        config.define_module?
+        name.to_s != Config.core_module_name(Config::BOOTSTRAP_MODULE)
       end
 
       def import_trait_module?
-        config.import_trait_module?
+        import_prelude?
       end
 
       def source_code

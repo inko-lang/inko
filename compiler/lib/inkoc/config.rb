@@ -110,6 +110,10 @@ module Inkoc
 
     attr_reader :source_directories, :mode, :target
 
+    def self.core_module_name(name)
+      "#{CORE_MODULE}#{MODULE_SEPARATOR}#{name}"
+    end
+
     def initialize(mode = :debug)
       @source_directories = Set.new
       @mode = mode

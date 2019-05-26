@@ -494,8 +494,6 @@ module Inkoc
                      :not_equal
                    when '('
                      :type_args_open
-                   when '['
-                     :compiler_option_open
                    when '!'
                      :throws
                    else

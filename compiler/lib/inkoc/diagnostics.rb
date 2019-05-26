@@ -166,10 +166,6 @@ module Inkoc
       TypeSystem::Error.new
     end
 
-    def invalid_compiler_option(key, location)
-      error("#{key} is not a valid compiler option", location)
-    end
-
     def uninplemented_trait_error(trait, object, required_trait, location)
       tname = trait.type_name.inspect
       oname = object.type_name.inspect
