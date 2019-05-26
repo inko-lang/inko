@@ -429,10 +429,6 @@ module Inkoc
 
         set_object_literal_name(object, name, body, loc)
 
-        if node.object?
-          implement_traits(object, node.trait_implementations, body)
-        end
-
         block = define_block(
           name,
           node.block_type,
@@ -470,14 +466,6 @@ module Inkoc
         run_block(block, [], [], node.type, body, loc)
 
         trait
-      end
-
-      def implement_traits(object, trait_name_nodes, body)
-        trait_name_nodes.each do |trait_name|
-          trait = get_global(trait_name.type_name, body, trait_name.location)
-
-          implement_trait(object, trait, body, trait_name.location)
-        end
       end
 
       def implement_trait(object, trait, body, location)

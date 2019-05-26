@@ -671,35 +671,9 @@ module Inkoc
 
         define_types(node.type_parameters, body_scope)
         store_type(new_type, scope, node.location)
-
-        if node.object?
-          add_object_trait_implementations(new_type, node, body_scope)
-        end
-
         define_type(node.body, body_scope)
 
-        verify_object_trait_implementations(new_type, node) if node.object?
-
         new_type
-      end
-
-      def add_object_trait_implementations(object, node, body_scope)
-        node.trait_implementations.each do |trait_name_node|
-          trait_type = define_type(trait_name_node, body_scope)
-
-          object.implement_trait(trait_type) unless trait_type.error?
-        end
-      end
-
-      def verify_object_trait_implementations(object, node)
-        node.trait_implementations.each do |trait_name|
-          trait = trait_name.type
-
-          next if trait.error?
-          next if trait_requirements_met?(object, trait, trait_name.location)
-
-          object.remove_trait_implementation(trait)
-        end
       end
 
       def on_reopen_object(node, scope)

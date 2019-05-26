@@ -1085,28 +1085,9 @@ module Inkoc
     def def_object(start)
       name = advance_and_expect!(:constant)
       targs = optional_type_parameter_definitions
-      impls = optional_trait_implementations
       body = object_body(advance_and_expect!(:curly_open))
 
-      AST::Object.new(name.value, targs, impls, body, start.location)
-    end
-
-    def optional_trait_implementations
-      impls = []
-
-      if @lexer.next_type_is?(:impl)
-        skip_one
-
-        while @lexer.next_type_is?(:constant)
-          impls << type_name(advance_and_expect!(:constant))
-
-          skip_one_if(:comma)
-        end
-      end
-
-      @trait_implementation = true unless impls.empty?
-
-      impls
+      AST::Object.new(name.value, targs, body, start.location)
     end
 
     # Parses the body of an object definition.
