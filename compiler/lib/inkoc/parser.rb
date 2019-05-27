@@ -1090,15 +1090,7 @@ module Inkoc
       nodes = []
 
       while (token = @lexer.advance) && token.valid_but_not?(:curly_close)
-        nodes <<
-          case token.type
-          when :object
-            def_object(token)
-          when :trait
-            def_trait(token)
-          else
-            expression(token)
-          end
+        nodes << expression(token)
       end
 
       AST::Body.new(nodes, start.location)
