@@ -1,0 +1,887 @@
+#! Lexing of Inko source code into tokens.
+#!
+#! The types and methods of this module are not part of the public API at this
+#! time, meaning they can change at any time.
+import std::byte_array::(ByteArray, ToByteArray)
+import std::compiler::keywords
+import std::compiler::source_location::SourceLocation
+import std::conversion::ToString
+import std::fs::path::ToPath
+import std::iterator::Iterator
+
+let INTEGER_DIGIT_RANGE = 48..57
+let HEX_LOWER_DIGIT_RANGE = 97..102
+let HEX_UPPER_DIGIT_RANGE = 65..70
+let LOWER_AZ_RANGE = 97..122
+let UPPER_AZ_RANGE = 65..90
+
+let NULL = 0
+let TAB = 9
+let NEWLINE = 10
+let CARRIAGE_RETURN = 13
+let ESCAPE = 27
+let SPACE = 32
+let EXCLAMATION = 33
+let DOUBLE_QUOTE = 34
+let HASH = 35
+let PERCENT = 37
+let AMPERSAND = 38
+let SINGLE_QUOTE = 39
+let PAREN_OPEN = 40
+let PAREN_CLOSE = 41
+let STAR = 42
+let PLUS = 43
+let COMMA = 44
+let MINUS = 45
+let DOT = 46
+let SLASH = 47
+let ZERO = 48
+let COLON = 58
+let LOWER = 60
+let EQUAL = 61
+let GREATER = 62
+let QUESTION = 63
+let AT_SIGN = 64
+let UPPER_E = 69
+let UPPER_X = 88
+let BRACKET_OPEN = 91
+let BACKSLASH = 92
+let BRACKET_CLOSE = 93
+let CARET = 94
+let UNDERSCORE = 95
+let LOWER_E = 101
+let LOWER_N = 110
+let LOWER_R = 114
+let LOWER_T = 116
+let LOWER_X = 120
+let CURLY_OPEN = 123
+let PIPE = 124
+let CURLY_CLOSE = 125
+
+## The escape sequence literals supported by a single quoted string, and their
+## replacement bytes.
+let SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[SINGLE_QUOTE: SINGLE_QUOTE]
+
+## The escape sequence literals supported by a double quoted string, and their
+## replacement bytes.
+let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[
+  DOUBLE_QUOTE: DOUBLE_QUOTE,
+  LOWER_N: NEWLINE,
+  LOWER_T: TAB,
+  ZERO: NULL,
+  LOWER_E: ESCAPE,
+  LOWER_R: CARRIAGE_RETURN
+]
+
+## A single token produced by a `Lexer`.
+object Token {
+  def init(type: String, value: String, location: SourceLocation) {
+    let @type = type
+    let @value = value
+    let @location = location
+  }
+
+  ## Returns the type of token.
+  def type -> String {
+    @type
+  }
+
+  ## Returns the expression of this token.
+  def value -> String {
+    @value
+  }
+
+  ## Returns the source location of this token.
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+## A `Lexer` is used for turning Inko source code into a sequence of tokens.
+## These tokens in turn can be used by a parser to produce an Abstract Syntax
+## Tree.
+##
+## A `Lexer` is an `Iterator`, and tokens are obtained by sending `next` to a
+## `Lexer`:
+##
+##     import std::compiler::lexer::Lexer
+##
+##     let lexer = Lexer.new('10')
+##     let token = lexer.next
+##
+##     token.type  # => 'integer'
+##     token.value # => '10'
+object Lexer {
+  def init(input: ToByteArray, file: ToPath) {
+    let @input = input.to_byte_array
+    let @file = file.to_path
+
+    let @max_position = @input.length
+    let mut @position = 0
+
+    let mut @line = 1
+    let mut @column = 1
+  }
+
+  def next_non_whitespace_token -> ?Token {
+    let current = current_byte
+
+    INTEGER_DIGIT_RANGE.cover?(current).if_true {
+      return number
+    }
+
+    current == AT_SIGN
+      .if_true {
+        return attribute
+      }
+
+    current == HASH
+      .if_true {
+        return comment
+      }
+
+    current == CURLY_OPEN
+      .if_true {
+        return single_character_token('curly_open')
+      }
+
+    current == CURLY_CLOSE
+      .if_true {
+        return single_character_token('curly_close')
+      }
+
+    current == PAREN_OPEN
+      .if_true {
+        return single_character_token('paren_open')
+      }
+
+    current == PAREN_CLOSE
+      .if_true {
+        return single_character_token('paren_close')
+      }
+
+    current == SINGLE_QUOTE
+      .if_true {
+        return string(
+          quote: SINGLE_QUOTE,
+          replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
+        )
+      }
+
+    current == DOUBLE_QUOTE
+      .if_true {
+        return string(
+          quote: DOUBLE_QUOTE,
+          replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
+        )
+      }
+
+    current == COLON
+      .if_true {
+        return colon
+      }
+
+    current == SLASH
+      .if_true {
+        return operator(type: 'div', assign_type: 'div_assign')
+      }
+
+    current == PERCENT
+      .if_true {
+        return percent
+      }
+
+    current == CARET
+      .if_true {
+        return operator(type: 'xor', assign_type: 'xor_assign')
+      }
+
+    current == AMPERSAND
+      .if_true {
+        return operator(type: 'and', assign_type: 'and_assign')
+      }
+
+    current == PIPE
+      .if_true {
+        return operator(type: 'or', assign_type: 'or_assign')
+      }
+
+    current == STAR
+      .if_true {
+        return operator(type: 'mul', assign_type: 'mul_assign')
+      }
+
+    current == MINUS
+      .if_true {
+        return minus
+      }
+
+    current == PLUS
+      .if_true {
+        return operator(type: 'add', assign_type: 'add_assign')
+      }
+
+    current == EQUAL
+      .if_true {
+        return operator(type: 'assign', assign_type: 'equal')
+      }
+
+    current == LOWER
+      .if_true {
+        return lower
+      }
+
+    current == GREATER
+      .if_true {
+        return greater
+      }
+
+    current == BRACKET_OPEN
+      .if_true {
+        return single_character_token('bracket_open')
+      }
+
+    current == BRACKET_CLOSE
+      .if_true {
+        return single_character_token('bracket_close')
+      }
+
+    current == EXCLAMATION
+      .if_true {
+        return exclamation
+      }
+
+    current == DOT
+      .if_true {
+        return dot
+      }
+
+    current == COMMA
+      .if_true {
+        return single_character_token('comma')
+      }
+
+    current == QUESTION
+      .if_true {
+        return single_character_token('question')
+      }
+
+    lowercase?.if_true {
+      return identifier_or_keyword
+    }
+
+    uppercase?.if_true {
+      return constant
+    }
+
+    current == UNDERSCORE
+      .if_true {
+        return underscore
+      }
+
+    next?.if true: {
+      invalid
+    }, false: {
+      # TODO: we return Nil for trailing newlines, which we should not do.
+      Nil
+    }
+  }
+
+  def number(skip_after_start = False) -> Token {
+    let mut current = current_byte
+    let mut next = next_byte
+
+    # When lexing negative numbers (e.g. -10) we want to skip the first
+    # character. This also means we need to peek one byte further, instead of
+    # just looking at the next one.
+    skip_after_start.if_true {
+      current = next_byte
+      next = peek(offset: 2)
+    }
+
+    # "0x" is only valid at the start of an integer.
+    INTEGER_DIGIT_RANGE.start == current
+      .and {
+        next == LOWER_X
+          .or { next == UPPER_X }
+      }
+      .if true: {
+        hexadecimal_integer(skip_after_start)
+      }, false: {
+        integer_or_float(skip_after_start)
+      }
+  }
+
+  def integer_or_float(skip_after_start = False) -> Token {
+    let start = @position
+    let line = @line
+    let mut type = 'integer'
+
+    skip_after_start.if_true {
+      @position += 1
+    }
+
+    {
+      let byte = current_byte
+
+      INTEGER_DIGIT_RANGE.cover?(byte)
+        .or { byte == UNDERSCORE }
+        .or {
+          let float_digit =
+            byte == LOWER_E
+              .or { byte == UPPER_E }
+              .if true: {
+                let next = next_byte
+
+                # '-' and '+' are only allowed directly after the exponent sign
+                # (e/E).
+                next == PLUS
+                  .or { next == MINUS }
+                  .if_true {
+                    @position += 1
+                  }
+
+                True
+              }, false: {
+                byte == DOT
+              }
+
+          float_digit.if_true {
+            type = 'float'
+          }
+
+          float_digit
+        }
+    }.while_true {
+      @position += 1
+    }
+
+    token(type: type, start: start, line: line)
+  }
+
+  def hexadecimal_integer(skip_after_start = False) -> Token {
+    let start = @position
+    let line = @line
+
+    skip_after_start.if_true {
+      @position += 1
+    }
+
+    # Advance 2 for "0x"
+    @position += 2
+
+    {
+      let byte = current_byte
+
+      INTEGER_DIGIT_RANGE.cover?(byte)
+        .or { HEX_LOWER_DIGIT_RANGE.cover?(byte) }
+        .or { HEX_UPPER_DIGIT_RANGE.cover?(byte) }
+        .or { byte == UNDERSCORE }
+    }.while_true {
+      @position += 1
+    }
+
+    token(type: 'integer', start: start, line: line)
+  }
+
+  def comment -> Token {
+    next_byte == HASH
+      .if_true {
+        return documentation_comment
+      }
+
+    next_byte == EXCLAMATION
+      .if_true {
+        return module_comment
+      }
+
+    regular_comment
+  }
+
+  def documentation_comment -> Token {
+    comment_token(type: 'documentation', padding: 2)
+  }
+
+  def module_comment -> Token {
+    comment_token(type: 'module_documentation', padding: 2)
+  }
+
+  def regular_comment -> Token {
+    comment_token(type: 'comment', padding: 1)
+  }
+
+  def comment_token(type: String, padding: Integer) -> Token {
+    @position += padding
+
+    let start = @position
+    let line = @line
+
+    {
+      next?.and { newline?.not }
+    }.while_true {
+      @position += 1
+    }
+
+    let comment = token(
+      type: type,
+      start: start,
+      line: line,
+      padding: padding
+    )
+
+    advance_line
+
+    comment
+  }
+
+  def attribute -> Token {
+    let start = @position
+    let line = @line
+
+    # Advance 1 for the @ sign itself.
+    @position += 1
+
+    { valid_identifier_byte? }.while_true {
+      @position += 1
+    }
+
+    token(type: 'attribute', start: start, line: line)
+  }
+
+  def single_character_token(type: String) -> Token {
+    let start = @position
+
+    @position += 1
+
+    token(type: type, start: start, line: @line)
+  }
+
+  def two_character_token(type: String) -> Token {
+    let start = @position
+
+    @position += 2
+
+    token(type: type, start: start, line: @line)
+  }
+
+  def operator(
+    type: String,
+    assign_type: String,
+    skip_after_start = False
+  ) -> Token {
+    let start = @position
+    let line = @line
+
+    skip_after_start.if_true {
+      @position += 1
+    }
+
+    let token_type =
+      next_byte == EQUAL
+        .if true: {
+          @position += 2
+
+          assign_type
+        }, false: {
+          @position += 1
+
+          type
+        }
+
+    token(type: token_type, start: start, line: @line)
+  }
+
+  def string(
+    quote: Integer,
+    replacements: HashMap!(Integer, Integer)
+  ) -> Token {
+    # Advance 1 for the opening quote.
+    @position += 1
+
+    let start = @position
+    let start_line = @line
+    let buffer = ByteArray.new
+    let line_buffer = ByteArray.new
+
+    # We start with a padding of two: one for the opening quote, and one for the
+    # closing quote.
+    let mut padding = 2
+
+    {
+      next?.and { current_byte != quote }
+    }.while_true {
+      append_string_byte(
+        buffer: buffer,
+        line_buffer: line_buffer,
+        replacements: replacements
+      ).if_true {
+        padding += 1
+      }
+    }
+
+    # Advance 1 for the closing quote.
+    @position += 1
+
+    let value = buffer.drain_to_string
+    let location = source_location(start_line)
+
+    # If a string contains newlines, we only want to increment the column by the
+    # length of the last line.
+    #
+    # To prevent allocating an additional String, we only use the line buffer is
+    # needed.
+    let advance_column_by =
+      @line > start_line
+        .if true: {
+          # We subtract 1 for the opening quote padding, since that only applies
+          # to the first line.
+          line_buffer.drain_to_string.length - 1
+        }, false: {
+          value.length
+        }
+
+    @column += advance_column_by + padding
+
+    Token.new(type: 'string', value: value, location: location)
+  }
+
+  def append_string_byte(
+    buffer: ByteArray,
+    line_buffer: ByteArray,
+    replacements: HashMap!(Integer, Integer)
+  ) -> Boolean {
+    let current = current_byte
+
+    current == BACKSLASH
+      .if_true {
+        let replace_with = replacements[next_byte]
+
+        replace_with.if_true {
+          buffer.push(*replace_with)
+          line_buffer.push(*replace_with)
+
+          @position += 2
+
+          return True
+        }
+      }
+
+    buffer.push(current)
+    line_buffer.push(current)
+
+    newline?.if true: {
+      advance_line
+      line_buffer.clear
+    }, false: {
+      @position += 1
+    }
+
+    False
+  }
+
+  def colon -> Token {
+    let start = @position
+
+    let type =
+      next_byte == COLON
+        .if true: {
+          @position += 2
+
+          'colon_colon'
+        }, false: {
+          @position += 1
+
+          'colon'
+        }
+
+    token(type: type, start: start, @line)
+  }
+
+  def percent -> Token {
+    next_byte == BRACKET_OPEN
+      .if_true {
+        return hash_open
+      }
+
+    operator(type: 'mod', assign_type: 'mod_assign')
+  }
+
+  def hash_open -> Token {
+    let start = @position
+
+    @position += 2
+
+    token(type: 'hash_open', start: start, line: @line)
+  }
+
+  def minus -> Token {
+    let next = next_byte
+
+    INTEGER_DIGIT_RANGE.cover?(next).if_true {
+      return number(skip_after_start: True)
+    }
+
+    next == GREATER
+      .if true: {
+        arrow
+      }, false: {
+        operator(type: 'sub', assign_type: 'sub_assign')
+      }
+  }
+
+  def lower -> Token {
+    next_byte == LOWER
+      .if true: {
+        operator(
+          type: 'shift_left',
+          assign_type: 'shift_left_assign',
+          skip_after_start: True
+        )
+      }, false: {
+        operator(type: 'lower', assign_type: 'lower_equal')
+      }
+  }
+
+  def greater -> Token {
+    next_byte == GREATER
+      .if true: {
+        operator(
+          type: 'shift_right',
+          assign_type: 'shift_right_assign',
+          skip_after_start: True
+        )
+      }, false: {
+        operator(type: 'greater', assign_type: 'greater_equal')
+      }
+  }
+
+  def arrow -> Token {
+    let start = @position
+
+    @position += 2
+
+    token(type: 'arrow', start: start, line: @line)
+  }
+
+  def exclamation -> Token {
+    let next = next_byte
+
+    next == EQUAL
+      .if_true {
+        return two_character_token('not_equal')
+      }
+
+    next == PAREN_OPEN
+      .if_true {
+        return two_character_token('type_args_open')
+      }
+
+    next == EXCLAMATION
+      .if_true {
+        return two_character_token('throws')
+      }
+
+    single_character_token('exclamation')
+  }
+
+  def dot -> Token {
+    let start = @position
+
+    @position += 1
+
+    current_byte == DOT
+      .and { next_byte == DOT }
+      .if_true {
+        @position += 2
+
+        return token(type: 'exclusive_range', start: start, line: @line)
+      }
+
+    current_byte == DOT
+      .if_true {
+        @position += 1
+
+        return token(type: 'inclusive_range', start: start, line: @line)
+      }
+
+    token(type: 'dot', start: start, line: @line)
+  }
+
+  def underscore -> Token {
+    let start = @position
+
+    { current_byte == UNDERSCORE }.while_true {
+      @position += 1
+    }
+
+    uppercase?.if_true {
+      return identifier_or_constant(type: 'constant', start: start)
+    }
+
+    identifier_or_constant(type: 'identifier', start: start)
+  }
+
+  def identifier_or_keyword -> Token {
+    let start = @position
+
+    { valid_identifier_byte? }.while_true {
+      @position += 1
+    }
+
+    let bytes = slice_bytes(start: start, stop: @position)
+    let string = bytes.to_string
+    let location = source_location(@line)
+    let type = keywords.keyword?(bytes).if true: {
+      string
+    }, false: {
+      'identifier'
+    }
+
+    @column += string.length
+
+    Token.new(type: type, value: string, location: location)
+  }
+
+  def constant -> Token {
+    identifier_or_constant(type: 'constant', start: @position)
+  }
+
+  def identifier_or_constant(type: String, start: Integer) -> Token {
+    { valid_identifier_byte? }.while_true {
+      @position += 1
+    }
+
+    token(type: type, start: start, line: @line)
+  }
+
+  def token(
+    type: String,
+    start: Integer,
+    line: Integer,
+    padding = 0
+  ) -> Token {
+    let value = slice_string(start: start, stop: @position)
+
+    # Padding is applied for cases where an expression starts with a set of
+    # characters we don't want to include in the value, but _do_ want to use to
+    # advance the column number.
+    let length = value.length + padding
+    let location = source_location(line)
+
+    @column += length
+
+    Token.new(type: type, value: value, location: location)
+  }
+
+  def invalid -> Token {
+    let value = slice_string(start: @position, stop: @position + 1)
+    let location = source_location(@line)
+
+    # When we run into invalid input we want to immediately stop processing any
+    # further input.
+    @position = @max_position
+
+    Token.new(type: 'invalid', value: value, location: location)
+  }
+
+  def source_location(line: Integer) -> SourceLocation {
+    SourceLocation.new(file: @file, line_range: line..@line, column: @column)
+  }
+
+  # Consumes any whitespace, until reaching the first non-whitespace character.
+  def consume_whitespace -> Nil {
+    whitespace?.if_false {
+      return
+    }
+
+    newline?.if true: {
+      advance_line
+    }, false: {
+      @position += 1
+      @column += 1
+    }
+
+    consume_whitespace
+  }
+
+  def advance_line {
+    @position += 1
+    @column = 1
+    @line += 1
+  }
+
+  def slice_string(start: Integer, stop: Integer) -> String {
+    slice_bytes(start: start, stop: stop).drain_to_string
+  }
+
+  def slice_bytes(start: Integer, stop: Integer) -> ByteArray {
+    @input.slice(start: start, length: stop - start)
+  }
+
+  def current_byte -> Integer {
+    @input[@position].to_integer
+  }
+
+  def next_byte -> Integer {
+    peek(offset: 1)
+  }
+
+  def peek(offset: Integer) -> Integer {
+    @input[@position + offset].to_integer
+  }
+
+  def valid_identifier_byte? -> Boolean {
+    let current = current_byte
+
+    lowercase?
+      .or { uppercase? }
+      .or { INTEGER_DIGIT_RANGE.cover?(current) }
+      .or { current == UNDERSCORE }
+  }
+
+  def lowercase? -> Boolean {
+    LOWER_AZ_RANGE.cover?(current_byte)
+  }
+
+  def uppercase? -> Boolean {
+    UPPER_AZ_RANGE.cover?(current_byte)
+  }
+
+  def newline? -> Boolean {
+    current_byte == NEWLINE
+  }
+
+  def whitespace? -> Boolean {
+    let current = current_byte
+
+    current == NEWLINE
+      .or { current == SPACE }
+      .or { current == TAB }
+      .or { current == CARRIAGE_RETURN }
+  }
+
+  def end_of_input? -> Boolean {
+    next?.not
+  }
+}
+
+impl Iterator!(Token) for Lexer {
+  ## Returns `True` if there is remaining input to lex.
+  def next? -> Boolean {
+    @position < @max_position
+  }
+
+  ## Returns the next `Token` available, if any.
+  def next -> ?Token {
+    consume_whitespace
+
+    let token = next_non_whitespace_token
+
+    # We have to consume trailing whitespace. Not doing so may result in a
+    # consumer of the iterator thinking there are tokens left to produce, when
+    # this might not be the case.
+    consume_whitespace
+
+    token
+  }
+}

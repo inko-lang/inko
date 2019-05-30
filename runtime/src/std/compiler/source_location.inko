@@ -1,0 +1,36 @@
+#! Source location information for tokens and AST trees produced by the
+#! compiler.
+import std::fs::path::(Path, ToPath)
+
+## The location of a single Inko expression.
+object SourceLocation {
+  def init(
+    file: ToPath,
+    line_range: Range!(Integer),
+    column: Integer
+  ) {
+    ## The file path of the expression.
+    let @file = file.to_path
+
+    ## The line range of the expression.
+    let @line_range = line_range
+
+    ## The start column of the expression.
+    let @column = column
+  }
+
+  ## Returns the file path of the expression.
+  def file -> Path {
+    @file
+  }
+
+  ## Returns the line range of the expression.
+  def line_range -> Range!(Integer) {
+    @line_range
+  }
+
+  ## Returns the start column of the expression.
+  def column -> Integer {
+    @column
+  }
+}

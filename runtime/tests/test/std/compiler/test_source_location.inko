@@ -1,0 +1,25 @@
+import std::compiler::source_location::SourceLocation
+import std::test
+import std::test::assert
+
+def location -> SourceLocation {
+  SourceLocation.new(file: 'test.inko', line_range: 1..2, column: 4)
+}
+
+test.group('std::compiler::source_location::SourceLocation.file') do (g) {
+  g.test('Obtaining the file path') {
+    assert.equal(location.file, 'test.inko'.to_path)
+  }
+}
+
+test.group('std::compiler::source_location::SourceLocation.line_range') do (g) {
+  g.test('Obtaining the line range') {
+    assert.equal(location.line_range, 1..2)
+  }
+}
+
+test.group('std::compiler::source_location::SourceLocation.column') do (g) {
+  g.test('Obtaining the column') {
+    assert.equal(location.column, 4)
+  }
+}

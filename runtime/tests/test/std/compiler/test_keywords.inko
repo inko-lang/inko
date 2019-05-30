@@ -1,0 +1,80 @@
+import std::compiler::keywords
+import std::test
+import std::test::assert
+
+test.group('std::compiler::keywords.keyword?') do (g) {
+  g.test('Checking if "let" is a keyword') {
+    assert.true(keywords.keyword?('let'.to_byte_array))
+  }
+
+  g.test('Checking if "else" is a keyword') {
+    assert.true(keywords.keyword?('else'.to_byte_array))
+  }
+
+  g.test('Checking if "try" is a keyword') {
+    assert.true(keywords.keyword?('try'.to_byte_array))
+  }
+
+  g.test('Checking if "return" is a keyword') {
+    assert.true(keywords.keyword?('return'.to_byte_array))
+  }
+
+  g.test('Checking if "trait" is a keyword') {
+    assert.true(keywords.keyword?('trait'.to_byte_array))
+  }
+
+  g.test('Checking if "impl" is a keyword') {
+    assert.true(keywords.keyword?('impl'.to_byte_array))
+  }
+
+  g.test('Checking if "self" is a keyword') {
+    assert.true(keywords.keyword?('self'.to_byte_array))
+  }
+
+  g.test('Checking if "import" is a keyword') {
+    assert.true(keywords.keyword?('import'.to_byte_array))
+  }
+
+  g.test('Checking if "lambda" is a keyword') {
+    assert.true(keywords.keyword?('lambda'.to_byte_array))
+  }
+
+  g.test('Checking if "as" is a keyword') {
+    assert.true(keywords.keyword?('as'.to_byte_array))
+  }
+
+  g.test('Checking if "throw" is a keyword') {
+    assert.true(keywords.keyword?('throw'.to_byte_array))
+  }
+
+  g.test('Checking if "where" is a keyword') {
+    assert.true(keywords.keyword?('where'.to_byte_array))
+  }
+
+  g.test('Checking if "mut" is a keyword') {
+    assert.true(keywords.keyword?('mut'.to_byte_array))
+  }
+
+  g.test('Checking if "def" is a keyword') {
+    assert.true(keywords.keyword?('def'.to_byte_array))
+  }
+
+  g.test('Checking if "do" is a keyword') {
+    assert.true(keywords.keyword?('do'.to_byte_array))
+  }
+
+  g.test('Checking if "for" is a keyword') {
+    assert.true(keywords.keyword?('for'.to_byte_array))
+  }
+
+  g.test('Checking if "object" is a keyword') {
+    assert.true(keywords.keyword?('object'.to_byte_array))
+  }
+
+  g.test('Checking if an invalid identifier is a keyword') {
+    assert.false(keywords.keyword?('foo'.to_byte_array))
+    assert.false(keywords.keyword?('bar'.to_byte_array))
+    assert.false(keywords.keyword?('baz'.to_byte_array))
+    assert.false(keywords.keyword?('this is not an identifier'.to_byte_array))
+  }
+}

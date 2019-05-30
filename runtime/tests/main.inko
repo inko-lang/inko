@@ -3,6 +3,9 @@ import std::test
 # Because the compiler is not available to the Inko runtime we don't have a way
 # to automatically compile and import all test modules. This means that for the
 # time being you'll have to manually import any test modules here.
+import test::std::compiler::test_keywords
+import test::std::compiler::test_lexer
+import test::std::compiler::test_source_location
 import test::std::ffi::test_types
 import test::std::fs::test_dir
 import test::std::fs::test_file

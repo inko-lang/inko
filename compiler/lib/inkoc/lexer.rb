@@ -385,12 +385,17 @@ module Inkoc
 
       if has_special && unescape_special
         token.value.gsub!(
-          /\\t|\\r|\\n|\\e|\\0/,
+          /\\?\\(t|r|n|e|0)/,
           '\t' => "\t",
           '\n' => "\n",
           '\r' => "\r",
           '\e' => "\e",
-          '\0' => "\0"
+          '\0' => "\0",
+          '\\\t' => '\t',
+          '\\\n' => '\n',
+          '\\\r' => '\r',
+          '\\\e' => '\e',
+          '\\\0' => '\0',
         )
       end
 

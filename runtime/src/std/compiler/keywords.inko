@@ -1,0 +1,93 @@
+#! Detection of Inko keywords using perfect hashing.
+#!
+#! The code in this module was originally generated using gperf using the
+#! `-m100` option. The generated C code was then ported to Inko by hand.
+#!
+#! Since this code is based on generated code, changing it may produce
+#! unexpected results. For example, the various lookup tables in this module
+#! should not have their order changed.
+import std::byte_array::ByteArray
+
+## The associated values for the first and second bytes in a keyword.
+let ASSOCIATED_VALUES = [
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20,  5, 11, 20,
+  13,  0, 13, 20,  6,  2, 20, 20,  0,  2,
+  20,  2, 20, 20,  0,  5,  2, 10, 20,  3,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+  20, 20, 20, 20, 20, 20
+]
+
+## All available keywords, as ByteArray instances.
+##
+## The first three empty values are necessary and produced by gperf. Removing
+## these may produce unexpected results.
+let WORD_LIST = [
+ ''.to_byte_array,
+ ''.to_byte_array,
+ ''.to_byte_array,
+ 'let'.to_byte_array,
+ 'else'.to_byte_array,
+ 'try'.to_byte_array,
+ 'return'.to_byte_array,
+ 'trait'.to_byte_array,
+ 'impl'.to_byte_array,
+ 'self'.to_byte_array,
+ 'import'.to_byte_array,
+ 'lambda'.to_byte_array,
+ 'as'.to_byte_array,
+ 'throw'.to_byte_array,
+ 'where'.to_byte_array,
+ 'mut'.to_byte_array,
+ 'def'.to_byte_array,
+ 'do'.to_byte_array,
+ 'for'.to_byte_array,
+ 'object'.to_byte_array
+]
+
+## Input values with a length outside of this `Range` definitely can not be a
+## keyword.
+let WORD_LENGTH = 2..6
+
+## The maximum possible hash value. If a hash value is greater, the input is
+## definitely not a keyword.
+let MAX_HASH_VALUE = 19
+
+## Returns `True` if the given `ByteArray` is a valid Inko keyword.
+def keyword?(bytes: ByteArray) -> Boolean {
+  let length = bytes.length
+
+  WORD_LENGTH.cover?(length).if_false {
+    return False
+  }
+
+  let hash =
+    length + *ASSOCIATED_VALUES[*bytes[1]] + *ASSOCIATED_VALUES[*bytes[0]]
+
+  hash > MAX_HASH_VALUE
+    .if_true {
+      return False
+    }
+
+  WORD_LIST[hash] == bytes
+}
