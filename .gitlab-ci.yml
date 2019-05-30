@@ -12,6 +12,23 @@ stages:
   - release
   - post-release
 
+dependency_scanning:
+  image: registry.gitlab.com/inko-lang/development-docker-images:cargo-audit
+  stage: test
+  before_script:
+    - cargo --version
+    - rustc --version
+  script:
+    - ./scripts/audit.sh
+  artifacts:
+    paths:
+      - gl-dependency-scanning-report.json
+  allow_failure: true
+  cache:
+    key: cargo-audit
+    paths:
+      - .cargo
+
 test:compiler:linux:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
   stage: test
