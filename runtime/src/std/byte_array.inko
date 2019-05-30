@@ -21,6 +21,12 @@ let ByteArray = _INKOC.get_byte_array_prototype
 
 _INKOC.set_object_name(ByteArray, 'ByteArray')
 
+## A type that can be converted to a `ByteArray`.
+trait ToByteArray {
+  ## Converts `self` to a `ByteArray`.
+  def to_byte_array -> ByteArray
+}
+
 impl ByteArray {
   ## Creates a new `ByteArray` from the given `Array` of `Integer` values.
   ##
@@ -400,7 +406,14 @@ impl Inspect for ByteArray {
   }
 }
 
-impl String {
+impl ToByteArray for ByteArray {
+  ## Converts `self` to a `ByteArray`.
+  def to_byte_array -> ByteArray {
+    self
+  }
+}
+
+impl ToByteArray for String {
   ## Returns a `ByteArray` containing the bytes of this `String`.
   def to_byte_array -> ByteArray {
     _INKOC.string_to_byte_array(self) as ByteArray
