@@ -291,6 +291,14 @@ describe Inkoc::Lexer do
       expect(token.type).to eq(:float)
       expect(token.value).to eq('1e+2')
     end
+
+    it 'tokenizes a hexadecimal integer containing the letter "e"' do
+      lexer = described_class.new('0x1e2')
+      token = lexer.number
+
+      expect(token.type).to eq(:integer)
+      expect(token.value).to eq('0x1e2')
+    end
   end
 
   describe '#curly_open' do

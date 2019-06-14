@@ -279,6 +279,9 @@ module Inkoc
 
       @position += 1 if skip_first
 
+      next_char = @input[@position + 1]
+      is_hex = @input[@position] == '0' && (next_char == 'x' || next_char == 'X')
+
       loop do
         case @input[@position]
         when '.'
@@ -290,10 +293,13 @@ module Inkoc
 
           @position += 1
         when 'e', 'E'
-          next_char = @input[@position + 1]
-          type = :float
-
-          @position += next_char == '+' ? 2 : 1
+          if is_hex
+            @position += 1
+          else
+            type = :float
+            next_char = @input[@position + 1]
+            @position += next_char == '+' ? 2 : 1
+          end
         when NUMBER_RANGE, *NUMBER_ALLOWED_LETTERS
           @position += 1
         else
