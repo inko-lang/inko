@@ -257,6 +257,16 @@ impl ObjectValue {
         }
     }
 
+    pub fn as_hasher(&self) -> Result<&Hasher, String> {
+        match *self {
+            ObjectValue::Hasher(ref val) => Ok(val),
+            _ => {
+                Err("ObjectValue::as_hasher() called on a non hasher"
+                    .to_string())
+            }
+        }
+    }
+
     pub fn as_library(&self) -> Result<&RcLibrary, String> {
         match *self {
             ObjectValue::Library(ref lib) => Ok(lib),

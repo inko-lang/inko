@@ -119,7 +119,7 @@ pub enum InstructionType {
     StringConcat,
     HasherNew,
     HasherWrite,
-    HasherFinish,
+    HasherToHash,
     Stacktrace,
     ProcessTerminateCurrent,
     StringSlice,
@@ -178,6 +178,10 @@ pub enum InstructionType {
     SocketListen,
     SocketConnect,
     SocketShutdown,
+    HasherReset,
+    RandomNumber,
+    RandomRange,
+    RandomBytes,
 }
 
 /// Struct for storing information about a single instruction.

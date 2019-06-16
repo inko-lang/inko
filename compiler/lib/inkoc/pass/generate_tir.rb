@@ -1267,15 +1267,19 @@ module Inkoc
       end
 
       def on_raw_hasher_new(node, body)
-        raw_nullary_instruction(:HasherNew, node, body)
+        raw_binary_instruction(:HasherNew, node, body)
       end
 
       def on_raw_hasher_write(node, body)
         raw_binary_instruction(:HasherWrite, node, body)
       end
 
-      def on_raw_hasher_finish(node, body)
-        raw_unary_instruction(:HasherFinish, node, body)
+      def on_raw_hasher_to_hash(node, body)
+        raw_unary_instruction(:HasherToHash, node, body)
+      end
+
+      def on_raw_hasher_reset(node, body)
+        raw_unary_instruction(:HasherReset, node, body)
       end
 
       def on_raw_stacktrace(node, body)
@@ -1551,6 +1555,18 @@ module Inkoc
 
       def on_raw_socket_listen(node, body)
         raw_binary_instruction(:SocketListen, node, body)
+      end
+
+      def on_raw_random_number(node, body)
+        raw_unary_instruction(:RandomNumber, node, body)
+      end
+
+      def on_raw_random_range(node, body)
+        raw_binary_instruction(:RandomRange, node, body)
+      end
+
+      def on_raw_random_bytes(node, body)
+        raw_unary_instruction(:RandomBytes, node, body)
       end
 
       def on_return(node, body)

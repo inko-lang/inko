@@ -1501,12 +1501,16 @@ module Inkoc
         typedb.hasher_type.new_instance
       end
 
-      def on_raw_hasher_write(*)
-        typedb.nil_type.new_instance
+      def on_raw_hasher_write(node, _)
+        node.arguments.fetch(1).type
       end
 
-      def on_raw_hasher_finish(*)
+      def on_raw_hasher_to_hash(*)
         typedb.integer_type.new_instance
+      end
+
+      def on_raw_hasher_reset(node, _)
+        node.arguments.fetch(0).type
       end
 
       def on_raw_stacktrace(*)
@@ -1777,6 +1781,18 @@ module Inkoc
 
       def on_raw_socket_listen(*)
         typedb.integer_type.new_instance
+      end
+
+      def on_raw_random_number(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_random_range(*)
+        TypeSystem::Dynamic.new
+      end
+
+      def on_raw_random_bytes(*)
+        typedb.byte_array_type.new_instance
       end
 
       def define_block_signature(node, scope, expected_block = nil)

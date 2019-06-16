@@ -1,4 +1,5 @@
 import std::fs::path::Path
+import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
@@ -113,5 +114,17 @@ test.group('std::string::String.to_float') do (g) {
 
   g.test('Converting an invalid String to an Integer') {
     assert.equal('foo'.to_float, 0.0)
+  }
+}
+
+test.group('std::string::String.hash') do (g) {
+  g.test('Hashing a String') {
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
+
+    'foo'.hash(hasher1)
+    'foo'.hash(hasher2)
+
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }

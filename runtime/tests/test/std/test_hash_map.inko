@@ -1,7 +1,101 @@
-import std::hash_map::(self, Pair, Table)
-import std::hasher::DefaultHasher
+import std::hash_map::(self, DefaultHasher, Pair, RandomState, Table)
 import std::test
 import std::test::assert
+
+test.group('std::hash_map::DefaultHasher.write_integer') do (g) {
+  g.test('Hashing an Integer') {
+    let hasher = DefaultHasher.new(1, 2)
+
+    hasher.write_integer(10)
+
+    let hash1 = hasher.to_hash
+
+    hasher.reset
+    hasher.write_integer(10)
+
+    let hash2 = hasher.to_hash
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hash_map::DefaultHasher.write_float') do (g) {
+  g.test('Hashing an Float') {
+    let hasher = DefaultHasher.new(1, 2)
+
+    hasher.write_float(10.0)
+
+    let hash1 = hasher.to_hash
+
+    hasher.reset
+    hasher.write_float(10.0)
+
+    let hash2 = hasher.to_hash
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hash_map::DefaultHasher.write_string') do (g) {
+  g.test('Hashing a String') {
+    let hasher = DefaultHasher.new(1, 2)
+
+    hasher.write_string('hello')
+
+    let hash1 = hasher.to_hash
+
+    hasher.reset
+    hasher.write_string('hello')
+
+    let hash2 = hasher.to_hash
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hash_map::DefaultHasher.write_boolean') do (g) {
+  g.test('Hashing a Boolean') {
+    let hasher = DefaultHasher.new(1, 2)
+
+    hasher.write_boolean(True)
+
+    let hash1 = hasher.to_hash
+
+    hasher.reset
+    hasher.write_boolean(True)
+
+    let hash2 = hasher.to_hash
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hash_map::DefaultHasher.reset') do (g) {
+  g.test('Resetting the internal state of a hasher') {
+    let hasher = DefaultHasher.new(1, 2)
+    let hash1 = hasher.to_hash
+
+    hasher.write_integer(10)
+    hasher.reset
+
+    let hash2 = hasher.to_hash
+
+    assert.equal(hash1, hash2)
+  }
+}
+
+test.group('std::hash_map::RandomState.to_hasher') do (g) {
+  g.test('Creating a DefaultHasher') {
+    let state = RandomState.new
+    let hasher1 = state.to_hasher
+    let hasher2 = state.to_hasher
+
+    10.hash(hasher1)
+    10.hash(hasher2)
+
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
+  }
+}
 
 test.group('std::hash_map::Pair.distance') do (g) {
   g.test('Obtaining the distance of a Pair') {
@@ -79,7 +173,7 @@ test.group('std::hash_map::Pair.hash') do (g) {
 
 test.group('std::hash_map::Table.buckets') do (g) {
   g.test('Obtaining the buckets in a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     assert.equal(table.buckets, [])
   }
@@ -87,7 +181,7 @@ test.group('std::hash_map::Table.buckets') do (g) {
 
 test.group('std::hash_map::Table.length') do (g) {
   g.test('Obtaining the number of pairs in a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
     table.insert_pair(pair)
@@ -98,7 +192,7 @@ test.group('std::hash_map::Table.length') do (g) {
 
 test.group('std::hash_map::Table.resize') do (g) {
   g.test('Resizing a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     assert.equal(table.buckets, [])
 
@@ -110,7 +204,7 @@ test.group('std::hash_map::Table.resize') do (g) {
 
 test.group('std::hash_map::Table.rehash') do (g) {
   g.test('Rehashing a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'value', hash: 1)
 
@@ -138,7 +232,7 @@ test.group('std::hash_map::Table.rehash') do (g) {
 
 test.group('std::hash_map::Table.resize?') do (g) {
   g.test('Checking if a table needs to be resized') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'a', value: 'value', hash: 0)
 
     assert.false(table.resize?)
@@ -151,7 +245,7 @@ test.group('std::hash_map::Table.resize?') do (g) {
 
 test.group('std::hash_map::Table.hash_key') do (g) {
   g.test("Hashing a key using the Table's hasher") {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     # We can't really maky any guarantees about the exact value returned, all we
     # can guarantee is that the same key should produce the same hash.
@@ -166,7 +260,7 @@ test.group('std::hash_map::Table.hash_key') do (g) {
 
 test.group('std::hash_map::Table.desired_bucket') do (g) {
   g.test('Obtaining the desired bucket index of a hash') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     table.resize
 
@@ -178,7 +272,7 @@ test.group('std::hash_map::Table.desired_bucket') do (g) {
 
 test.group('std::hash_map::Table.insert_pair') do (g) {
   g.test('Inserting a Pair into a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
     table.insert_pair(pair)
@@ -188,7 +282,7 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
   }
 
   g.test('Inserting a Pair into a Table without incrementing its length') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
     table.insert_pair(pair: pair, increment_length: False)
@@ -198,7 +292,7 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
   }
 
   g.test('Inserting a Pair into an existing bucket in a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
@@ -214,7 +308,7 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
   }
 
   g.test('Inserting a Pair using an already used key') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'a', value: 'b', hash: 0)
 
@@ -228,7 +322,7 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
 
 test.group('std::hash_map::Table.bucket_index') do (g) {
   g.test('Obtaining the bucket index of an existing key') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'a', value: 'a', hash: 0)
 
     table.insert_pair(pair)
@@ -237,7 +331,7 @@ test.group('std::hash_map::Table.bucket_index') do (g) {
   }
 
   g.test('Obtaining the bucket index of a non existing key') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     assert.equal(table.bucket_index('a'), Nil)
   }
@@ -245,7 +339,7 @@ test.group('std::hash_map::Table.bucket_index') do (g) {
 
 test.group('std::hash_map::Table.remove') do (g) {
   g.test('Removing an existing key from a Table') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'a', value: 'a', hash: 0)
 
     table.insert_pair(pair)
@@ -255,13 +349,13 @@ test.group('std::hash_map::Table.remove') do (g) {
   }
 
   g.test('Removing a non-existing key from a Table') {
-    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+    let table: Table!(String, String) = Table.new
 
     assert.equal(table.remove('a'), Nil)
   }
 
   g.test('Backwards shifting Pairs that follow the removed Pair') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
@@ -277,7 +371,7 @@ test.group('std::hash_map::Table.remove') do (g) {
 
 test.group('std::hash_map::Table.backwards_shift') do (g) {
   g.test('Performing a backwards shift starting at a particular bucket') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
     let pair3 = Pair.new(key: 'c', value: 'c', hash: 0)
@@ -302,7 +396,7 @@ test.group('std::hash_map::Table.backwards_shift') do (g) {
 
 test.group('std::hash_map::Table.[]') do (g) {
   g.test('Obtaining the value of a Pair by its key') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
     let pair = Pair.new(key: 'a', value: 'b', hash: 0)
 
     table.insert_pair(pair)
@@ -311,7 +405,7 @@ test.group('std::hash_map::Table.[]') do (g) {
   }
 
   g.test('Obtaining the value of a Pair using a non-existing key') {
-    let table: Table!(String, String) = Table.new(DefaultHasher.new)
+    let table: Table!(String, String) = Table.new
 
     assert.equal(table['a'], Nil)
   }
@@ -319,7 +413,7 @@ test.group('std::hash_map::Table.[]') do (g) {
 
 test.group('std::hash_map::Table.[]=') do (g) {
   g.test('Creating an inserting a Pair') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     let val1 = table['a'] = 'foo'
     let val2 = table['b'] = 'bar'
@@ -333,7 +427,7 @@ test.group('std::hash_map::Table.[]=') do (g) {
   }
 
   g.test('Overwriting an existing Pair') {
-    let table = Table.new(DefaultHasher.new)
+    let table = Table.new
 
     let val1 = table['a'] = 'foo'
     let val2 = table['a'] = 'bar'

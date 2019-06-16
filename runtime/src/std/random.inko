@@ -1,0 +1,73 @@
+#! Generating of random values.
+#!
+#! This module provides methods for generating random numbers and bytes.
+import std::byte_array::ByteArray
+import std::conversion::(ToFloat, ToInteger)
+
+## Returns a random `Integer`.
+def integer -> Integer {
+  _INKOC.random_number(0) as Integer
+}
+
+## Returns a random `Integer` that is incremented on every request.
+##
+## The base number is a OS thread-specific randomly generated number. This
+## number is incremented upon calling this method. The number will wrap around
+## when it can not fit in a 64 bits unsigned integer.
+##
+## Since the base values are thread-specific, the values of this method may
+## differ depending on what OS thread the current process is running on.
+##
+## # Examples
+##
+## Requesting an incremental random `Integer`:
+##
+##     import std::random
+##
+##     let one = random.incremental_integer
+##     let two = random.incremental_integer
+##
+##     two - one # => 1
+def incremental_integer -> Integer {
+  _INKOC.random_number(1) as Integer
+}
+
+## Returns a random `Float`.
+def float -> Float {
+  _INKOC.random_number(2) as Float
+}
+
+## Returns a random `Integer` in the given range.
+##
+## The returned `Integer` is greater than or equal to `min`, and lower than or
+## equal to `max`.
+##
+## # Panics
+##
+## This method will panic if `min` is equal to or greater than `max`.
+def integer_between(min: ToInteger, max: ToInteger) -> Integer {
+  _INKOC.random_range(min.to_integer, max.to_integer) as Integer
+}
+
+## Returns a random `Float` in the given range.
+##
+## The returned `Float` is greater than or equal to `min`, and lower than or
+## equal to `max`.
+##
+## # Panics
+##
+## This method will panic if `min` is equal to or greater than `max`.
+def float_between(min: ToFloat, max: ToFloat) -> Float {
+  _INKOC.random_range(min.to_float, max.to_float) as Float
+}
+
+## Returns a `ByteArray` containing random bytes.
+##
+## The returned `ByteArray` will contain exactly `size` bytes.
+##
+## # Panics
+##
+## This method might panic if no random bytes could be generated.
+def bytes(size: Integer) -> ByteArray {
+  _INKOC.random_bytes(size)
+}

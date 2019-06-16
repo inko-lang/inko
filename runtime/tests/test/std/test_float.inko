@@ -1,6 +1,6 @@
 import std::float::(self, NAN, INFINITY, NEGATIVE_INFINITY)
 import std::format::DefaultFormatter
-import std::hasher::DefaultHasher
+import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
@@ -782,44 +782,43 @@ test.group('std::float::Float.format') do (g) {
 
 test.group('std::float::Float.hash') do (g) {
   g.test('Hashing a Float') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
-    let float = 1.5
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
-    float.hash(hasher1)
-    float.hash(hasher2)
+    1.5.hash(hasher1)
+    1.5.hash(hasher2)
 
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 
   g.test('Hashing a NaN') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     NAN.hash(hasher1)
     NAN.hash(hasher2)
 
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 
   g.test('Hashing Infinity') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     INFINITY.hash(hasher1)
     INFINITY.hash(hasher2)
 
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 
   g.test('Hashing negative Infinity') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     NEGATIVE_INFINITY.hash(hasher1)
     NEGATIVE_INFINITY.hash(hasher2)
 
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
 

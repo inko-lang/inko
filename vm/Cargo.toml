@@ -25,7 +25,6 @@ fnv = "^1.0"
 time = "^0.1"
 num-integer = "^0.1"
 float-cmp = "^0.4"
-num-bigint = "^0.2"
 num-traits = "^0.2"
 dirs = "^1.0"
 libloading = "^0.5"
@@ -36,6 +35,12 @@ crossbeam-channel = "^0.3"
 crossbeam-queue = "^0.1"
 libc = "^0.2"
 jemallocator = { version = "^0.1", optional = true }
+siphasher = "^0.3"
+rand = "^0.6"
+
+[dependencies.num-bigint]
+version = "^0.2"
+features = ["rand"]
 
 [dependencies.socket2]
 version = "^0.3.9"

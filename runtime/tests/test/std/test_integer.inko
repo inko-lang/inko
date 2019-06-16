@@ -1,4 +1,4 @@
-import std::hasher::DefaultHasher
+import std::hash_map::DefaultHasher
 import std::integer
 import std::test
 import std::test::assert
@@ -194,14 +194,13 @@ test.group('std::integer::Integer.opposite') do (g) {
 
 test.group('std::integer::Integer.hash') do (g) {
   g.test('Hashing an Integer') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
-    let int = 5
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
-    int.hash(hasher1)
-    int.hash(hasher2)
+    5.hash(hasher1)
+    5.hash(hasher2)
 
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
 

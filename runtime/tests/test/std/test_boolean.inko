@@ -1,5 +1,5 @@
 import std::format::DefaultFormatter
-import std::hasher::DefaultHasher
+import std::hash_map::DefaultHasher
 import std::test
 import std::test::assert
 
@@ -70,8 +70,8 @@ test.group('std::boolean::Boolean.to_string') do (g) {
 
 test.group('std::boolean::Boolean.hash') do (g) {
   g.test('Hashing a Boolean') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     Boolean.hash(hasher1)
     Boolean.hash(hasher2)
@@ -79,7 +79,7 @@ test.group('std::boolean::Boolean.hash') do (g) {
     # The exact hash value may change between OS processes or releases, so all
     # we can do is assert that the value is the same every time we send `hash`
     # to `Boolean`.
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
 
@@ -166,8 +166,8 @@ test.group('std::boolean::True.to_string') do (g) {
 
 test.group('std::boolean::True.hash') do (g) {
   g.test('Hashing a True') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     True.hash(hasher1)
     True.hash(hasher2)
@@ -175,7 +175,7 @@ test.group('std::boolean::True.hash') do (g) {
     # The exact hash value may change between OS processes or releases, so all
     # we can do is assert that the value is the same every time we send `hash`
     # to `True`.
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
 
@@ -262,8 +262,8 @@ test.group('std::boolean::False.to_string') do (g) {
 
 test.group('std::boolean::False.hash') do (g) {
   g.test('Hashing a False') {
-    let hasher1 = DefaultHasher.new
-    let hasher2 = DefaultHasher.new
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
 
     False.hash(hasher1)
     False.hash(hasher2)
@@ -271,7 +271,7 @@ test.group('std::boolean::False.hash') do (g) {
     # The exact hash value may change between OS processes or releases, so all
     # we can do is assert that the value is the same every time we send `hash`
     # to `True`.
-    assert.equal(hasher1.finish, hasher2.finish)
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
 

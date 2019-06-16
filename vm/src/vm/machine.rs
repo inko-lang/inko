@@ -28,6 +28,7 @@ use crate::vm::io;
 use crate::vm::module;
 use crate::vm::object;
 use crate::vm::process;
+use crate::vm::random;
 use crate::vm::socket;
 use crate::vm::state::RcState;
 use crate::vm::string;
@@ -1405,7 +1406,9 @@ impl Machine {
                 }
                 InstructionType::HasherNew => {
                     let reg = instruction.arg(0);
-                    let res = hasher::create(&self.state, process);
+                    let key0 = context.get_register(instruction.arg(1));
+                    let key1 = context.get_register(instruction.arg(2));
+                    let res = hasher::create(&self.state, process, key0, key1)?;
 
                     context.set_register(reg, res);
                 }
@@ -1413,14 +1416,21 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let hasher = context.get_register(instruction.arg(1));
                     let value = context.get_register(instruction.arg(2));
-                    let res = hasher::write(&self.state, hasher, value)?;
+                    let res = hasher::write(hasher, value)?;
 
                     context.set_register(reg, res);
                 }
-                InstructionType::HasherFinish => {
+                InstructionType::HasherToHash => {
                     let reg = instruction.arg(0);
                     let hasher = context.get_register(instruction.arg(1));
-                    let res = hasher::finish(&self.state, process, hasher)?;
+                    let res = hasher::to_hash(&self.state, process, hasher)?;
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::HasherReset => {
+                    let reg = instruction.arg(0);
+                    let hasher = context.get_register(instruction.arg(1));
+                    let res = hasher::reset(hasher)?;
 
                     context.set_register(reg, res);
                 }
@@ -2023,6 +2033,31 @@ impl Machine {
                         context,
                         index
                     );
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::RandomNumber => {
+                    let reg = instruction.arg(0);
+                    let kind = context.get_register(instruction.arg(1));
+                    let res =
+                        random::number(&self.state, process, worker, kind)?;
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::RandomRange => {
+                    let reg = instruction.arg(0);
+                    let min = context.get_register(instruction.arg(1));
+                    let max = context.get_register(instruction.arg(2));
+                    let res =
+                        random::range(&self.state, process, worker, min, max)?;
+
+                    context.set_register(reg, res);
+                }
+                InstructionType::RandomBytes => {
+                    let reg = instruction.arg(0);
+                    let size = context.get_register(instruction.arg(1));
+                    let res =
+                        random::bytes(&self.state, process, worker, size)?;
 
                     context.set_register(reg, res);
                 }

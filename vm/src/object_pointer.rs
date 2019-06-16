@@ -451,6 +451,10 @@ impl ObjectPointer {
         self.is_tagged_integer() || self.get().value.is_integer()
     }
 
+    pub fn is_float(&self) -> bool {
+        self.float_value().is_ok()
+    }
+
     pub fn is_bigint(&self) -> bool {
         if self.is_integer() {
             false
@@ -603,6 +607,7 @@ impl ObjectPointer {
     def_value_getter!(binding_value, get, as_binding, RcBinding);
     def_value_getter!(bigint_value, get, as_bigint, &BigInt);
     def_value_getter!(hasher_value_mut, get_mut, as_hasher_mut, &mut Hasher);
+    def_value_getter!(hasher_value, get, as_hasher, &Hasher);
 
     def_value_getter!(byte_array_value, get, as_byte_array, &Vec<u8>);
     def_value_getter!(

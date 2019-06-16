@@ -121,7 +121,7 @@ module Inkoc
         StringConcat
         HasherNew
         HasherWrite
-        HasherFinish
+        HasherToHash
         Stacktrace
         ProcessTerminateCurrent
         StringSlice
@@ -180,6 +180,10 @@ module Inkoc
         SocketListen
         SocketConnect
         SocketShutdown
+        HasherReset
+        RandomNumber
+        RandomRange
+        RandomBytes
       ]
         .each_with_index
         .each_with_object({}) { |(value, index), hash| hash[value] = index }

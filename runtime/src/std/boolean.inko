@@ -71,7 +71,7 @@ impl ToString for Boolean {
 
 impl Hash for Boolean {
   def hash(hasher: Hasher) {
-    _INKOC.hasher_write(hasher, self)
+    hasher.write_boolean(self)
   }
 }
 

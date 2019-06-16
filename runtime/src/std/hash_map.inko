@@ -1,14 +1,82 @@
 #! A hash map using linear probing and Robin Hood bucket stealing.
 import std::hash::(Hash, Hasher)
-import std::hasher::DefaultHasher
 import std::index::(Index, SetIndex)
 import std::iterator::(Enumerator, Iterator)
 import std::length::Length
 import std::operators::Equal
 import std::process
+import std::random
 
-# The load factor of a Table before it should be resized.
+## The load factor of a Table before it should be resized.
 let LOAD_FACTOR = 0.75
+
+## The default `Hasher` used for a `HashMap`.
+##
+## Different instances of a `DefaultHasher` may produce different hash values
+## for the same object. The internal hashing algorithm may also change, and so
+## the exact hash values should not be relied upon.
+##
+## Internally this hasher uses the hashing instructions provided by IVM, which
+## currently uses SipHash 1-3.
+let DefaultHasher = _INKOC.get_hasher_prototype
+
+_INKOC.set_object_name(DefaultHasher, 'DefaultHasher')
+
+impl DefaultHasher {
+  ## Returns a new `DefaultHasher`.
+  ##
+  ## The given keys will be used as secrets for the hasher.
+  ##
+  ## # Panics
+  ##
+  ## This method will panic if any of the provided keys are below zero.
+  def new(key0: Integer, key1: Integer) -> Self {
+    _INKOC.hasher_new(key0, key1)
+  }
+}
+
+impl Hasher for DefaultHasher {
+  def write_integer(value: Integer) -> Integer {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def write_float(value: Float) -> Float {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def write_string(value: String) -> String {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def write_boolean(value: Boolean) -> Boolean {
+    _INKOC.hasher_write(self, value)
+  }
+
+  def to_hash -> Integer {
+    _INKOC.hasher_to_hash(self)
+  }
+
+  def reset -> Self {
+    _INKOC.hasher_reset(self)
+  }
+}
+
+## The state used for creating a `DefaultHasher`.
+##
+## Different `DefaultHasher` instances created from the same `RandomState` will
+## produce the same hash values for the same input values. However, hashers
+## created from different `RandomState` objects will produce different hashes.
+object RandomState {
+  def init {
+    let @key0 = random.incremental_integer
+    let @key1 = random.incremental_integer
+  }
+
+  ## Creates a new `DefaultHasher`.
+  def to_hasher -> DefaultHasher {
+    DefaultHasher.new(key0: @key0, key1: @key1)
+  }
+}
 
 ## A single key-value pair
 object Pair!(K: Hash + Equal, V) {
@@ -72,9 +140,9 @@ object Pair!(K: Hash + Equal, V) {
 ## * http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/
 ## * https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/
 object Table!(K: Hash + Equal, V) {
-  def init(hasher: Hasher = DefaultHasher.new) {
-    ## The Hasher to use for hashing keys.
-    let mut @hasher = hasher
+  def init {
+    ## The state to use for creating hashers.
+    let @random_state = RandomState.new
 
     ## The buckets to store pairs in. Each bucket can only contain a single
     ## pair.
@@ -144,9 +212,11 @@ object Table!(K: Hash + Equal, V) {
 
   ## Returns the hash for the given key.
   def hash_key(key: K) -> Integer {
-    key.hash(@hasher)
+    let hasher = @random_state.to_hasher
 
-    @hasher.finish
+    key.hash(hasher)
+
+    hasher.to_hash
   }
 
   ## Returns the desired bucket index for the given hash.
@@ -294,19 +364,10 @@ impl SetIndex!(K, V) for Table!(K, V) {
 ##
 ## A `HashMap` is unordered, meaning that keys can be returned in a (seemingly)
 ## random order.
-##
-## # Custom Hashers
-##
-## By default a `HashMap` uses `DefaultHasher` for hashing objects. You can
-## provide a custom hasher using `HashMap.new(hasher: YourCustomerHasher.new)`,
-## as long as the custom hasher implements the `Hasher` trait.
 object HashMap!(K: Hash + Equal, V) {
   ## Creates a new, empty `HashMap`.
-  ##
-  ## The `hasher` argument can be used to provide an alternative `Hasher` to use
-  ## for this `HashMap`.
-  def init(hasher: Hasher = DefaultHasher.new) {
-    let mut @table = Table.new(hasher)
+  def init {
+    let mut @table = Table.new
   }
 
   ## Removes the given key, returning its value if the key was present in the
