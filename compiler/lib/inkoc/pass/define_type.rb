@@ -967,12 +967,11 @@ module Inkoc
           return existing.type
         end
 
-        if value_type.type_compatible?(existing.type, @state)
-          scope.self_type.reassign_attribute(name, value_type)
-        else
+        unless value_type.type_compatible?(existing.type, @state)
           diagnostics.type_error(existing.type, value_type, node.location)
-          existing.type
         end
+
+        existing.type
       end
 
       def on_define_argument(arg_node, scope, default_type = nil)
