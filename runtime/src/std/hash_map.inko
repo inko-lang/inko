@@ -98,10 +98,6 @@ object Pair!(K: Hash + Equal, V) {
     @distance
   }
 
-  def prepare_for_rehash -> Integer {
-    @distance = -1
-  }
-
   def reset_distance -> Integer {
     @distance = 0
   }
@@ -112,6 +108,10 @@ object Pair!(K: Hash + Equal, V) {
 
   def reduce_distance -> Integer {
     @distance -= 1
+  }
+
+  def replace_with?(other: Self) -> Boolean {
+    distance < other.distance
   }
 
   def key -> K {
@@ -172,35 +172,17 @@ object Table!(K: Hash + Equal, V) {
 
   ## Resizes and rehashes the table.
   def resize {
+    let old_buckets = @buckets
+
     @capacity = @capacity * 2
     @resize_threshold = (LOAD_FACTOR * @capacity.to_float).to_integer
-
-    # We immediately resize the Array (by padding it wil Nil values) so we don't
-    # need to do this when inserting new elements.
+    @buckets = []
     @buckets[@capacity - 1] = Nil
 
-    rehash
-  }
-
-  ## Rehashes the table.
-  ##
-  ## Rehashing is done in two separate steps:
-  ##
-  ## 1. We set the distances of all pairs to -1.
-  ## 2. We relocate all pairs with a distance of -1.
-  ##
-  ## This approach removes the need for allocating a new `Array` to copy all the
-  ## pairs to, at the cost of requiring slightly more CPU time.
-  def rehash {
-    @buckets.each do (pair) {
-      pair.prepare_for_rehash
-    }
-
-    @buckets.each_with_index do (pair, index) {
-      pair.distance.negative?.if_true {
-        @buckets[index] = Nil
+    old_buckets.each_with_index do (pair, index) {
+      pair.if_true {
         pair.reset_distance
-        insert_pair(pair: *pair, increment_length: False)
+        rehash_pair(*pair)
       }
     }
   }
@@ -225,10 +207,7 @@ object Table!(K: Hash + Equal, V) {
   }
 
   ## Inserts a new pair into the table.
-  ##
-  ## If the `increment_length` argument is set to `True` we'll also increment
-  ## the length of the table should the pair be a newly inserted pair.
-  def insert_pair(mut pair: Pair!(K, V), increment_length = True) {
+  def insert_pair(mut pair: Pair!(K, V)) {
     let mut index = desired_bucket(pair.hash)
 
     {
@@ -238,23 +217,42 @@ object Table!(K: Hash + Equal, V) {
         existing.key == pair.key
           .if_true {
             @buckets[index] = pair
+
             return
           }
 
-        # Per Robin Hood hashing we swap the to-insert and existing pairs if the
-        # existing pair is closer to its desired bucket.
-        existing.distance < pair.distance
-          .if_true {
-            @buckets[index] = pair
-            pair = *existing
-          }
-      }, false: {
-        increment_length.if_true {
-          @length += 1
+        existing.replace_with?(pair).if_true {
+          @buckets[index] = pair
+          pair = *existing
         }
-
+      }, false: {
+        @length += 1
         @buckets[index] = pair
+
         return
+      }
+
+      index = desired_bucket(index + 1)
+      pair.increase_distance
+    }.loop
+  }
+
+  ## Rehashes an existing pair into the list of buckets.
+  def rehash_pair(mut pair: Pair!(K, V)) {
+    let mut index = desired_bucket(pair.hash)
+
+    {
+      let existing = @buckets[index]
+
+      existing.if_false {
+        @buckets[index] = pair
+
+        return
+      }
+
+      existing.replace_with?(pair).if_true {
+        @buckets[index] = pair
+        pair = *existing
       }
 
       index = desired_bucket(index + 1)
@@ -264,7 +262,8 @@ object Table!(K: Hash + Equal, V) {
 
   ## Returns the index of the bucket the key resides in.
   def bucket_index(key: K) -> ?Integer {
-    let mut index = desired_bucket(hash_key(key))
+    let hash = hash_key(key)
+    let mut index = desired_bucket(hash)
     let desired = index
     let mut pair = @buckets[index]
 

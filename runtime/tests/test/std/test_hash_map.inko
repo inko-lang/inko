@@ -105,13 +105,15 @@ test.group('std::hash_map::Pair.distance') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.prepare_for_rehash') do (g) {
-  g.test('Preparing a Pair for a rehash') {
-    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+test.group('std::hash_map::Pair.replace_with?') do (g) {
+  g.test('Checking if a Pair should be replaced with another Pair') {
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
-    pair.prepare_for_rehash
+    pair2.increase_distance
 
-    assert.equal(pair.distance, -1)
+    assert.true(pair1.replace_with?(pair2))
+    assert.false(pair2.replace_with?(pair1))
   }
 }
 
@@ -119,7 +121,7 @@ test.group('std::hash_map::Pair.reset_distance') do (g) {
   g.test('Resetting the distance of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
-    pair.prepare_for_rehash
+    pair.increase_distance
     pair.reset_distance
 
     assert.equal(pair.distance, 0)
@@ -200,9 +202,7 @@ test.group('std::hash_map::Table.resize') do (g) {
 
     assert.equal(table.buckets, [Nil, Nil])
   }
-}
 
-test.group('std::hash_map::Table.rehash') do (g) {
   g.test('Rehashing a Table') {
     let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
@@ -219,7 +219,7 @@ test.group('std::hash_map::Table.rehash') do (g) {
     table.buckets[1] = Nil
     table.buckets[2] = pair2
 
-    table.rehash
+    table.resize
 
     assert.equal(pair1.distance, 0)
     assert.equal(pair2.distance, 0)
@@ -281,16 +281,6 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
     assert.equal(table.buckets[0], pair)
   }
 
-  g.test('Inserting a Pair into a Table without incrementing its length') {
-    let table = Table.new
-    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
-
-    table.insert_pair(pair: pair, increment_length: False)
-
-    assert.equal(table.length, 0)
-    assert.equal(table.buckets[0], pair)
-  }
-
   g.test('Inserting a Pair into an existing bucket in a Table') {
     let table = Table.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
@@ -317,6 +307,53 @@ test.group('std::hash_map::Table.insert_pair') do (g) {
     table.insert_pair(pair2)
 
     assert.equal(table.buckets[0], pair2)
+  }
+
+  g.test('Inserting a Pair after an unused bucket') {
+    let table = Table.new
+    let pair1 = Pair.new(key: 'one', value: 1, hash: 4764096362064740795)
+    let pair2 = Pair.new(key: 'two', value: 2, hash: -9161411174267222279)
+    let pair3 = Pair.new(key: 'three', value: 3, hash: 902578265635837404)
+
+    table.insert_pair(pair1)
+    table.resize
+
+    table.insert_pair(pair2)
+    table.resize
+
+    table.insert_pair(pair3)
+
+    assert.equal(table.buckets[0], pair3)
+    assert.equal(table.buckets[1], pair2)
+    assert.equal(table.buckets[2], Nil)
+    assert.equal(table.buckets[3], pair1)
+  }
+}
+
+test.group('std::hash_map::Table.rehash_pair') do (g) {
+  g.test('Rehashing a Pair') {
+    let table = Table.new
+    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+
+    table.rehash_pair(pair)
+
+    assert.equal(table.buckets[0], pair)
+  }
+
+  g.test('Rehashing a Pair into an existing bucket in a Table') {
+    let table = Table.new
+    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
+
+    table.resize
+    table.rehash_pair(pair1)
+    table.rehash_pair(pair2)
+
+    assert.equal(table.buckets[0], pair1)
+    assert.equal(table.buckets[1], pair2)
+
+    assert.equal(pair1.distance, 0)
+    assert.equal(pair2.distance, 1)
   }
 }
 
