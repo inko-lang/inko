@@ -29,6 +29,10 @@ module Inkoc
       def new_instance(*)
         self
       end
+
+      def lookup_method(name)
+        NullSymbol.new(name)
+      end
     end
   end
 end

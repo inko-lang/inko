@@ -70,7 +70,7 @@ module Inkoc
 
         return true if other.dynamic? || self == other
         return true if other.trait? && implements_trait?(other, state)
-        return compatible_with_type_parameter?(other) if other.type_parameter?
+        return compatible_with_type_parameter?(other, state) if other.type_parameter?
 
         if other.generic_object?
           return true if compatible_with_generic_type?(other, state)
@@ -81,8 +81,12 @@ module Inkoc
       # rubocop: enable Metrics/CyclomaticComplexity
       # rubocop: enable Metrics/PerceivedComplexity
 
-      def compatible_with_type_parameter?(param)
-        param.required_traits.empty? || param.required_traits.include?(self)
+      def compatible_with_type_parameter?(param, state)
+        return true if param.required_traits.empty?
+
+        param.required_traits.all? do |trait|
+          implements_trait?(trait, state)
+        end
       end
 
       def empty?
@@ -95,6 +99,8 @@ module Inkoc
 
       def implements_trait?(trait, state)
         if required_traits[trait.unique_id]
+          true
+        elsif self == trait
           true
         else
           # The trait is not directly required, but might be required indirectly
