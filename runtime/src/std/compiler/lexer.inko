@@ -5,6 +5,7 @@
 import std::byte_array::(ByteArray, ToByteArray)
 import std::compiler::keywords
 import std::compiler::source_location::SourceLocation
+import std::compiler::token::*
 import std::conversion::ToString
 import std::fs::path::ToPath
 import std::iterator::Iterator
@@ -72,30 +73,6 @@ let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[
   LOWER_E: ESCAPE,
   LOWER_R: CARRIAGE_RETURN
 ]
-
-## A single token produced by a `Lexer`.
-object Token {
-  def init(type: String, value: String, location: SourceLocation) {
-    let @type = type
-    let @value = value
-    let @location = location
-  }
-
-  ## Returns the type of token.
-  def type -> String {
-    @type
-  }
-
-  ## Returns the expression of this token.
-  def value -> String {
-    @value
-  }
-
-  ## Returns the source location of this token.
-  def location -> SourceLocation {
-    @location
-  }
-}
 
 ## A `Lexer` is used for turning Inko source code into a sequence of tokens.
 ## These tokens in turn can be used by a parser to produce an Abstract Syntax
@@ -282,8 +259,7 @@ object Lexer {
     next?.if true: {
       invalid
     }, false: {
-      # TODO: we return Nil for trailing newlines, which we should not do.
-      Nil
+      NullToken.new(current_location)
     }
   }
 
@@ -542,7 +518,7 @@ object Lexer {
 
     @column += advance_column_by + padding
 
-    Token.new(type: 'string', value: value, location: location)
+    RegularToken.new(type: 'string', value: value, location: location)
   }
 
   def append_string_byte(
@@ -723,6 +699,7 @@ object Lexer {
 
   def identifier_or_keyword -> Token {
     let start = @position
+    let mut keyword = False
 
     { valid_identifier_byte? }.while_true {
       @position += 1
@@ -731,15 +708,14 @@ object Lexer {
     let bytes = slice_bytes(start: start, stop: @position)
     let string = bytes.to_string
     let location = source_location(@line)
-    let type = keywords.keyword?(bytes).if true: {
-      string
-    }, false: {
-      'identifier'
-    }
 
     @column += string.length
 
-    Token.new(type: type, value: string, location: location)
+    keywords.keyword?(bytes).if true: {
+      KeywordToken.new(keyword: string, location: location)
+    }, false: {
+      RegularToken.new(type: 'identifier', value: string, location: location)
+    }
   }
 
   def constant -> Token {
@@ -770,7 +746,7 @@ object Lexer {
 
     @column += length
 
-    Token.new(type: type, value: value, location: location)
+    RegularToken.new(type: type, value: value, location: location)
   }
 
   def invalid -> Token {
@@ -781,11 +757,15 @@ object Lexer {
     # further input.
     @position = @max_position
 
-    Token.new(type: 'invalid', value: value, location: location)
+    InvalidToken.new(value: value, location: location)
   }
 
   def source_location(line: Integer) -> SourceLocation {
     SourceLocation.new(file: @file, line_range: line..@line, column: @column)
+  }
+
+  def current_location -> SourceLocation {
+    source_location(line: @line)
   }
 
   # Consumes any whitespace, until reaching the first non-whitespace character.

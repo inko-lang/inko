@@ -1,5 +1,6 @@
 import std::byte_array::ByteArray
-import std::compiler::lexer::(Lexer, Token)
+import std::compiler::lexer::Lexer
+import std::compiler::token::Token
 import std::test
 import std::test::assert
 
@@ -1147,6 +1148,8 @@ world\n" "hello"'
 
     assert.equal(token.type, 'invalid')
     assert.equal(token.value, ';')
+    assert.false(token.valid?)
+
     assert.false(lexer.next?)
   }
 
@@ -1164,6 +1167,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'let')
     assert.equal(token.value, 'let')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1174,6 +1178,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'mut')
     assert.equal(token.value, 'mut')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1184,6 +1189,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'object')
     assert.equal(token.value, 'object')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1194,6 +1200,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'trait')
     assert.equal(token.value, 'trait')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1204,6 +1211,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'import')
     assert.equal(token.value, 'import')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1214,6 +1222,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'return')
     assert.equal(token.value, 'return')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1224,6 +1233,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'self')
     assert.equal(token.value, 'self')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1234,6 +1244,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'def')
     assert.equal(token.value, 'def')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1244,6 +1255,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'do')
     assert.equal(token.value, 'do')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1254,6 +1266,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'throw')
     assert.equal(token.value, 'throw')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1264,6 +1277,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'else')
     assert.equal(token.value, 'else')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1274,6 +1288,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'try')
     assert.equal(token.value, 'try')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1284,6 +1299,7 @@ world\n" "hello"'
 
     assert.equal(tokens[0].type, 'try')
     assert.equal(tokens[0].value, 'try')
+    assert.true(tokens[0].keyword?)
 
     assert.equal(tokens[0].location.column, 1)
     assert.equal(tokens[0].location.line_range, 1..1)
@@ -1300,6 +1316,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'as')
     assert.equal(token.value, 'as')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1310,6 +1327,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'impl')
     assert.equal(token.value, 'impl')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1320,6 +1338,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'for')
     assert.equal(token.value, 'for')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1330,6 +1349,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'lambda')
     assert.equal(token.value, 'lambda')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1340,6 +1360,7 @@ world\n" "hello"'
 
     assert.equal(token.type, 'where')
     assert.equal(token.value, 'where')
+    assert.true(token.keyword?)
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -1376,5 +1397,18 @@ world\n" "hello"'
     assert.equal(token.type, 'identifier')
     assert.equal(token.value, 'foo')
     assert.false(lexer.next?)
+  }
+}
+
+test.group('std::compiler::lexer::Lexer.current_location') do (g) {
+  g.test('Obtaining the current location of the input stream') {
+    let lexer = Lexer.new(input: "foo\nbar", file: 'test.inko')
+
+    lexer.next
+
+    let location = lexer.current_location
+
+    assert.equal(location.line_range, 2..2)
+    assert.equal(location.column, 1)
   }
 }

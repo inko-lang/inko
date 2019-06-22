@@ -6,6 +6,7 @@ import std::test
 import test::std::compiler::test_keywords
 import test::std::compiler::test_lexer
 import test::std::compiler::test_source_location
+import test::std::compiler::test_token
 import test::std::ffi::test_types
 import test::std::fs::test_dir
 import test::std::fs::test_file
