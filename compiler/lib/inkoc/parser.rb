@@ -277,11 +277,11 @@ module Inkoc
     end
 
     def binary_send(start)
-      node = dereference(start)
+      node = send_chain(start)
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = dereference(@lexer.advance, require_same_line: true)
+        rhs = send_chain(@lexer.advance, require_same_line: true)
         node = AST::Send.new(operator.value, node, [], [rhs], operator.location)
       end
 
@@ -303,14 +303,6 @@ module Inkoc
       end
 
       node
-    end
-
-    def dereference(start, require_same_line: false)
-      if start.type == :mul
-        AST::Dereference.new(send_chain(advance!), start.location)
-      else
-        send_chain(start, require_same_line: require_same_line)
-      end
     end
 
     # Parses an expression such as `[X]` or `[X] = Y`.
@@ -423,6 +415,8 @@ module Inkoc
           name, args = bracket_get_or_set
 
           node = AST::Send.new(name, node, [], args, bracket.location)
+        when :exclamation
+          node = AST::Dereference.new(node, advance!.location)
         else
           break
         end

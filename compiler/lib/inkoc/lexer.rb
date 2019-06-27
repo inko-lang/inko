@@ -500,6 +500,7 @@ module Inkoc
     end
 
     def not_equal_or_type_args_open_or_throws
+      advance = 2
       token_type = case @input[@position + 1]
                    when '='
                      :not_equal
@@ -508,10 +509,11 @@ module Inkoc
                    when '!'
                      :throws
                    else
-                     return NULL_TOKEN
+                     advance = 1
+                     :exclamation
                    end
 
-      new_token(token_type, @position, @position += 2)
+      new_token(token_type, @position, @position += advance)
     end
 
     def dot_or_range

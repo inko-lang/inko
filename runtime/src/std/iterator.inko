@@ -198,7 +198,7 @@ trait Iterator!(T) {
   def map!(R)(block: do (T) -> R) -> Iterator!(R) {
     Enumerator.new(
       while: { next? },
-      yield: { block.call(*next) }
+      yield: { block.call(next!) }
     )
   }
 
@@ -217,7 +217,7 @@ trait Iterator!(T) {
   ##     }
   def each(block: do (T)) {
     { next? }.while_true {
-      block.call(*next)
+      block.call(next!)
     }
   }
 

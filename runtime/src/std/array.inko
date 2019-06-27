@@ -151,7 +151,7 @@ impl Array!(T) {
     { index < max }.while_true {
       let value = self[index]
 
-      block.call(*value)
+      block.call(value!)
 
       index += 1
     }
@@ -330,7 +330,7 @@ impl Equal for Array!(T) {
       .if_false { return False }
 
     each_with_index do (ours: T, index: Integer) {
-      let theirs = *other[index]
+      let theirs = other[index]!
 
       ours == theirs
         .if_false { return False }

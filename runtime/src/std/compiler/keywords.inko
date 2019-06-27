@@ -82,7 +82,7 @@ def keyword?(bytes: ByteArray) -> Boolean {
   }
 
   let hash =
-    length + *ASSOCIATED_VALUES[*bytes[1]] + *ASSOCIATED_VALUES[*bytes[0]]
+    length + ASSOCIATED_VALUES[bytes[1]!]! + ASSOCIATED_VALUES[bytes[0]!]!
 
   hash > MAX_HASH_VALUE
     .if_true {

@@ -128,7 +128,7 @@ impl Formatter for ProgressFormatter {
     stdout.write_string("\n\nFailures:")
 
     tests.each do (test) {
-      let failure = *test.failure
+      let failure = test.failure!
 
       let buffer = StringBuffer.new([
         "\n\n",

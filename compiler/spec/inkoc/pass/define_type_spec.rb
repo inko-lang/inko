@@ -2717,7 +2717,7 @@ describe Inkoc::Pass::DefineType do
         .locals
         .define('number', optional_type)
 
-      type = expression_type('*number')
+      type = expression_type('number!')
 
       expect(type).to be_type_instance_of(int_type)
       expect(state.diagnostics.errors?).to eq(false)
@@ -2732,7 +2732,7 @@ describe Inkoc::Pass::DefineType do
         .locals
         .define('number', int_type.new_instance)
 
-      type = expression_type('*number')
+      type = expression_type('number!')
 
       expect(type).to be_type_instance_of(int_type)
       expect(state.diagnostics.errors?).to eq(true)

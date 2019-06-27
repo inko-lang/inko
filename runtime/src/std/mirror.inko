@@ -307,7 +307,7 @@ object ObjectMirror {
     let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
 
     name.if true: {
-      *name
+      name!
     }, false: {
       DEFAULT_OBJECT_NAME
     }

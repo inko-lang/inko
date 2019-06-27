@@ -182,7 +182,7 @@ object Table!(K: Hash + Equal, V) {
     old_buckets.each_with_index do (pair, index) {
       pair.if_true {
         pair.reset_distance
-        rehash_pair(*pair)
+        rehash_pair(pair!)
       }
     }
   }
@@ -223,7 +223,7 @@ object Table!(K: Hash + Equal, V) {
 
         existing.replace_with?(pair).if_true {
           @buckets[index] = pair
-          pair = *existing
+          pair = existing!
         }
       }, false: {
         @length += 1
@@ -252,7 +252,7 @@ object Table!(K: Hash + Equal, V) {
 
       existing.replace_with?(pair).if_true {
         @buckets[index] = pair
-        pair = *existing
+        pair = existing!
       }
 
       index = desired_bucket(index + 1)
@@ -302,12 +302,12 @@ object Table!(K: Hash + Equal, V) {
     let index = bucket_index(key)
 
     index.if true: {
-      let pair = @buckets[*index]
+      let pair = @buckets[index!]
 
-      @buckets[*index] = Nil
+      @buckets[index!] = Nil
       @length -= 1
 
-      backwards_shift(*index + 1)
+      backwards_shift(index! + 1)
 
       pair.value
     }, false: {
@@ -319,7 +319,7 @@ object Table!(K: Hash + Equal, V) {
   def backwards_shift(mut index: Integer) {
     let mut pair = @buckets[index]
 
-    { pair.and { (*pair).distance.positive? } }.while_true {
+    { pair.and { pair!.distance.positive? } }.while_true {
       @buckets[index - 1] = pair
       @buckets[index] = Nil
 
@@ -336,7 +336,7 @@ impl Index!(K, V) for Table!(K, V) {
     let index = bucket_index(key)
 
     index.if true: {
-      @buckets[*index].value
+      @buckets[index!].value
     }, false: {
       Nil
     }
@@ -545,9 +545,7 @@ impl Equal for HashMap!(K, V) {
         return False
       }
 
-      # We use `(*...)` here as otherwise the parser won't parse this code
-      # properly.
-      value == (*other[key])
+      value == other[key]!
         .if_false {
           return False
         }
@@ -665,7 +663,7 @@ def from_array!(K: Hash + Equal, V)(
         return map
       }
 
-    map[key] = *values[index]
+    map[key] = values[index]!
   }
 
   map

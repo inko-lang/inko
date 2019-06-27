@@ -316,7 +316,7 @@ impl IpAddress for Ipv6Address {
   ##     Ipv6Address.new(0xff01).multicast? # => True
   ##     Ipv6Address.new(0, 1).multicast? # => False
   def multicast? -> Boolean {
-    *@segments[0] & 0xff00 == 0xff00
+    @segments[0]! & 0xff00 == 0xff00
   }
 
   ## Returns `True` if `self` is the special "unspecified" address (::).
@@ -545,7 +545,7 @@ impl IpAddress for Ipv4Address {
   ##     Ipv4Address.new(244, 254, 0, 0).multicast? # => True
   ##     Ipv4Address.new(127, 0, 0, 1).multicast? # => False
   def multicast? -> Boolean {
-    let first = *@segments[0]
+    let first = @segments[0]!
 
     first >= 224
       .and { first <= 239 }
@@ -574,8 +574,8 @@ impl IpAddress for Ipv4Address {
       }
 
     @segments[0] == 172
-      .and { *@segments[1] >= 16 }
-      .and { *@segments[1] <= 31 }
+      .and { @segments[1]! >= 16 }
+      .and { @segments[1]! <= 31 }
       .if_true {
         return True
       }
@@ -619,8 +619,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       0,
-      _octets_to_hextet(*@segments[0], *@segments[1]),
-      _octets_to_hextet(*@segments[2], *@segments[3]),
+      _octets_to_hextet(@segments[0]!, @segments[1]!),
+      _octets_to_hextet(@segments[2]!, @segments[3]!),
     )
   }
 
@@ -633,8 +633,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       _IPV6_HEXTET_MAXIMUM,
-      _octets_to_hextet(*@segments[0], *@segments[1]),
-      _octets_to_hextet(*@segments[2], *@segments[3]),
+      _octets_to_hextet(@segments[0]!, @segments[1]!),
+      _octets_to_hextet(@segments[2]!, @segments[3]!),
     )
   }
 }
@@ -667,7 +667,7 @@ def parse_ipv4(bytes: ByteArray) !! AddressParseError -> Ipv4Address {
       cursor < max
         .and { bytes[cursor] != _DOT_BYTE }
     }.while_true {
-      segment_bytes.push(*bytes[cursor])
+      segment_bytes.push(bytes[cursor]!)
       cursor += 1
     }
 
@@ -693,7 +693,7 @@ def parse_ipv4(bytes: ByteArray) !! AddressParseError -> Ipv4Address {
       throw AddressParseError.new(bytes)
     }
 
-  Ipv4Address.new(*segments[0], *segments[1], *segments[2], *segments[3])
+  Ipv4Address.new(segments[0]!, segments[1]!, segments[2]!, segments[3]!)
 }
 
 ## Parses an IPv6 address literal.
@@ -737,7 +737,7 @@ def parse_ipv6(bytes: ByteArray) !! AddressParseError -> Ipv6Address {
         .and { byte != _COLON_BYTE }
         .and { byte != _DOT_BYTE }
     }.while_true {
-      segment_bytes.push(*bytes[cursor])
+      segment_bytes.push(bytes[cursor]!)
       cursor += 1
     }
 
@@ -834,8 +834,8 @@ def parse_ipv6(bytes: ByteArray) !! AddressParseError -> Ipv6Address {
 
   ipv4_segments.length == _IPV4_OCTETS
     .if_true {
-      segments[6] = _octets_to_hextet(*ipv4_segments[0], *ipv4_segments[1])
-      segments[7] = _octets_to_hextet(*ipv4_segments[2], *ipv4_segments[3])
+      segments[6] = _octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
+      segments[7] = _octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
     }
 
   segments.length == _IPV6_HEXTETS
@@ -844,14 +844,14 @@ def parse_ipv6(bytes: ByteArray) !! AddressParseError -> Ipv6Address {
     }
 
   Ipv6Address.new(
-    *segments[0],
-    *segments[1],
-    *segments[2],
-    *segments[3],
-    *segments[4],
-    *segments[5],
-    *segments[6],
-    *segments[7],
+    segments[0]!,
+    segments[1]!,
+    segments[2]!,
+    segments[3]!,
+    segments[4]!,
+    segments[5]!,
+    segments[6]!,
+    segments[7]!,
   )
 }
 

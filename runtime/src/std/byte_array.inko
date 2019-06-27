@@ -164,7 +164,7 @@ impl ByteArray {
     { index < max }.while_true {
       let value = self[index]
 
-      block.call(*value)
+      block.call(value!)
 
       index += 1
     }
@@ -248,7 +248,7 @@ impl ByteArray {
       }
 
     { index < until }.while_true {
-      new_array.push(*self[index])
+      new_array.push(self[index]!)
 
       index += 1
     }

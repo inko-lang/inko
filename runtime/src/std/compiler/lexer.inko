@@ -533,8 +533,8 @@ object Lexer {
         let replace_with = replacements[next_byte]
 
         replace_with.if_true {
-          buffer.push(*replace_with)
-          line_buffer.push(*replace_with)
+          buffer.push(replace_with!)
+          line_buffer.push(replace_with!)
 
           @position += 2
 

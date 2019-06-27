@@ -18,7 +18,7 @@ object TestGroup {
 
   ## Registers a new test with a runner.
   def test(name: String, body: lambda) {
-    let location = *debug.stacktrace(skip: 2, limit: 1)[0]
+    let location = debug.stacktrace(skip: 2, limit: 1)[0]!
 
     let test = Test.new(
       name: name,

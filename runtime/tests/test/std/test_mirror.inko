@@ -250,7 +250,7 @@ test.group('std::mirror::BlockMirror.path') do (g) {
 test.group('std::mirror::BlockMirror.line') do (g) {
   g.test('Obtaining the line number of a block') {
     let mirror = BlockMirror.new({})
-    let line = *debug.stacktrace(skip: 1, limit: 1)[0].line - 1
+    let line = debug.stacktrace(skip: 1, limit: 1)[0]!.line - 1
 
     assert.equal(mirror.line, line)
   }
