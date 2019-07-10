@@ -18,9 +18,14 @@ dependency_scanning:
   before_script:
     - cargo --version
     - rustc --version
+    - ruby --version
   script:
-    - ./scripts/audit.sh
+    - ./scripts/audit.rb
   artifacts:
+    when: always
+    expire_in: 1 month
+    reports:
+      dependency_scanning: gl-dependency-scanning-report.json
     paths:
       - gl-dependency-scanning-report.json
   allow_failure: true
