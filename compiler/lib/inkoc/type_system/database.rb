@@ -5,11 +5,9 @@ module Inkoc
     class Database
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :object_type, :hasher_type, :boolean_type,
-                  :read_only_file_type, :write_only_file_type,
-                  :read_write_file_type, :byte_array_type, :library_type,
-                  :function_type, :pointer_type, :process_type,
-                  :socket_type, :unix_socket_type
+                  :object_type, :hasher_type, :boolean_type, :file_type,
+                  :byte_array_type, :library_type, :function_type,
+                  :pointer_type, :process_type, :socket_type, :unix_socket_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -22,9 +20,7 @@ module Inkoc
         @integer_type = new_object_type(Config::INTEGER_CONST)
         @float_type = new_object_type(Config::FLOAT_CONST)
         @string_type = new_object_type(Config::STRING_CONST)
-        @read_only_file_type = new_object_type(Config::READ_ONLY_FILE_CONST)
-        @write_only_file_type = new_object_type(Config::WRITE_ONLY_FILE_CONST)
-        @read_write_file_type = new_object_type(Config::READ_WRITE_FILE_CONST)
+        @file_type = new_object_type(Config::FILE_CONST)
         @hasher_type = new_object_type(Config::HASHER_CONST)
         @byte_array_type = new_object_type(Config::BYTE_ARRAY_CONST)
         @array_type = initialize_array_type

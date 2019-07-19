@@ -171,7 +171,7 @@ pub fn open_file(
     let path = path_ptr.string_value()?;
     let mode = mode_ptr.integer_value()?;
     let open_opts = options_for_integer(mode)?;
-    let prototype = prototype_for_open_mode(&state, mode)?;
+    let prototype = state.file_prototype;
     let file = open_opts.open(path)?;
 
     Ok(process.allocate(object_value::file(file), prototype))
@@ -285,20 +285,6 @@ pub fn options_for_integer(mode: i64) -> Result<OpenOptions, String> {
     };
 
     Ok(open_opts)
-}
-
-pub fn prototype_for_open_mode(
-    state: &RcState,
-    mode: i64,
-) -> Result<ObjectPointer, String> {
-    let proto = match mode {
-        READ => state.read_only_file_prototype,
-        WRITE | APPEND => state.write_only_file_prototype,
-        READ_WRITE | READ_APPEND => state.read_write_file_prototype,
-        _ => file_mode_error!(mode),
-    };
-
-    Ok(proto)
 }
 
 pub fn create_directory(

@@ -120,14 +120,8 @@ pub struct State {
     /// The prototype for processes.
     pub process_prototype: ObjectPointer,
 
-    /// The prototype for read-only files.
-    pub read_only_file_prototype: ObjectPointer,
-
-    /// The prototype for write-only files.
-    pub write_only_file_prototype: ObjectPointer,
-
-    /// The prototype for read-write files.
-    pub read_write_file_prototype: ObjectPointer,
+    /// The prototype for files.
+    pub file_prototype: ObjectPointer,
 
     /// The prototype for byte arrays.
     pub byte_array_prototype: ObjectPointer,
@@ -186,9 +180,7 @@ impl State {
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
-        let read_only_file_prototype = perm_alloc.allocate_empty();
-        let write_only_file_prototype = perm_alloc.allocate_empty();
-        let read_write_file_prototype = perm_alloc.allocate_empty();
+        let file_prototype = perm_alloc.allocate_empty();
         let byte_array_prototype = perm_alloc.allocate_empty();
         let hasher_prototype = perm_alloc.allocate_empty();
         let library_prototype = perm_alloc.allocate_empty();
@@ -211,9 +203,7 @@ impl State {
             true_obj.set_prototype(boolean_proto);
             false_obj.set_prototype(boolean_proto);
 
-            read_only_file_prototype.set_prototype(object_proto);
-            write_only_file_prototype.set_prototype(object_proto);
-            read_write_file_prototype.set_prototype(object_proto);
+            file_prototype.set_prototype(object_proto);
             byte_array_prototype.set_prototype(object_proto);
             hasher_prototype.set_prototype(object_proto);
             library_prototype.set_prototype(object_proto);
@@ -256,9 +246,7 @@ impl State {
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
             default_panic_handler: ObjectPointer::null(),
-            read_only_file_prototype,
-            write_only_file_prototype,
-            read_write_file_prototype,
+            file_prototype,
             byte_array_prototype,
             hasher_prototype,
             library_prototype,

@@ -1336,16 +1336,8 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::BOOLEAN, node, body)
       end
 
-      def on_raw_get_read_only_file_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::READ_ONLY_FILE, node, body)
-      end
-
-      def on_raw_get_write_only_file_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::WRITE_ONLY_FILE, node, body)
-      end
-
-      def on_raw_get_read_write_file_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::READ_WRITE_FILE, node, body)
+      def on_raw_get_file_prototype(node, body)
+        builtin_prototype_instruction(PrototypeID::FILE, node, body)
       end
 
       def on_raw_get_byte_array_prototype(node, body)

@@ -9,9 +9,7 @@ module Inkoc
     ARRAY = 4
     BLOCK = 5
     BOOLEAN = 6
-    READ_ONLY_FILE = 7
-    WRITE_ONLY_FILE = 8
-    READ_WRITE_FILE = 9
+    FILE = 7
     BYTE_ARRAY = 10
     HASHER = 11
     LIBRARY = 12
