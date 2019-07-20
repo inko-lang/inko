@@ -817,10 +817,11 @@ impl Machine {
                 }
                 InstructionType::FileOpen => {
                     let reg = instruction.arg(0);
-                    let path = context.get_register(instruction.arg(1));
-                    let mode = context.get_register(instruction.arg(2));
+                    let proto = context.get_register(instruction.arg(1));
+                    let path = context.get_register(instruction.arg(2));
+                    let mode = context.get_register(instruction.arg(3));
                     let file = try_runtime_error!(
-                        io::open_file(&self.state, process, path, mode),
+                        io::open_file(process, proto, path, mode),
                         self,
                         process,
                         context,
@@ -980,8 +981,10 @@ impl Machine {
                 }
                 InstructionType::ProcessSpawn => {
                     let reg = instruction.arg(0);
-                    let block = context.get_register(instruction.arg(1));
-                    let proc = process::spawn(&self.state, process, block)?;
+                    let proto = context.get_register(instruction.arg(1));
+                    let block = context.get_register(instruction.arg(2));
+                    let proc =
+                        process::spawn(&self.state, process, block, proto)?;
 
                     context.set_register(reg, proc);
                 }
@@ -1022,9 +1025,10 @@ impl Machine {
                 }
                 InstructionType::ProcessCurrent => {
                     let reg = instruction.arg(0);
+                    let proto = context.get_register(instruction.arg(1));
                     let obj = process.allocate(
                         object_value::process(process.clone()),
-                        self.state.process_prototype,
+                        proto,
                     );
 
                     context.set_register(reg, obj);
@@ -1406,9 +1410,10 @@ impl Machine {
                 }
                 InstructionType::HasherNew => {
                     let reg = instruction.arg(0);
-                    let key0 = context.get_register(instruction.arg(1));
-                    let key1 = context.get_register(instruction.arg(2));
-                    let res = hasher::create(&self.state, process, key0, key1)?;
+                    let proto = context.get_register(instruction.arg(1));
+                    let key0 = context.get_register(instruction.arg(2));
+                    let key1 = context.get_register(instruction.arg(3));
+                    let res = hasher::create(process, key0, key1, proto)?;
 
                     context.set_register(reg, res);
                 }
@@ -1707,24 +1712,21 @@ impl Machine {
                 }
                 InstructionType::LibraryOpen => {
                     let reg = instruction.arg(0);
-                    let names = context.get_register(instruction.arg(1));
-                    let res = ffi::open_library(&self.state, process, names)?;
+                    let proto = context.get_register(instruction.arg(1));
+                    let names = context.get_register(instruction.arg(2));
+                    let res = ffi::open_library(process, names, proto)?;
 
                     context.set_register(reg, res);
                 }
                 InstructionType::FunctionAttach => {
                     let reg = instruction.arg(0);
-                    let lib = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-                    let arg_types = context.get_register(instruction.arg(3));
-                    let rtype = context.get_register(instruction.arg(4));
+                    let proto = context.get_register(instruction.arg(1));
+                    let lib = context.get_register(instruction.arg(2));
+                    let name = context.get_register(instruction.arg(3));
+                    let arg_types = context.get_register(instruction.arg(4));
+                    let rtype = context.get_register(instruction.arg(5));
                     let res = ffi::attach_function(
-                        &self.state,
-                        process,
-                        lib,
-                        name,
-                        arg_types,
-                        rtype,
+                        process, lib, name, arg_types, rtype, proto,
                     )?;
 
                     context.set_register(reg, res);
@@ -1733,28 +1735,36 @@ impl Machine {
                     let reg = instruction.arg(0);
                     let func = context.get_register(instruction.arg(1));
                     let args = context.get_register(instruction.arg(2));
-                    let res =
-                        ffi::call_function(&self.state, process, func, args)?;
+                    let ptr_proto = context.get_register(instruction.arg(3));
+                    let res = ffi::call_function(
+                        &self.state,
+                        process,
+                        func,
+                        args,
+                        ptr_proto,
+                    )?;
 
                     context.set_register(reg, res);
                 }
                 InstructionType::PointerAttach => {
                     let reg = instruction.arg(0);
-                    let lib = context.get_register(instruction.arg(1));
-                    let name = context.get_register(instruction.arg(2));
-                    let res =
-                        ffi::attach_pointer(&self.state, process, lib, name)?;
+                    let proto = context.get_register(instruction.arg(1));
+                    let lib = context.get_register(instruction.arg(2));
+                    let name = context.get_register(instruction.arg(3));
+                    let res = ffi::attach_pointer(process, lib, name, proto)?;
 
                     context.set_register(reg, res);
                 }
                 InstructionType::PointerRead => {
                     let reg = instruction.arg(0);
-                    let ptr = context.get_register(instruction.arg(1));
-                    let read_as = context.get_register(instruction.arg(2));
-                    let offset = context.get_register(instruction.arg(3));
+                    let ptr_proto = context.get_register(instruction.arg(1));
+                    let ptr = context.get_register(instruction.arg(2));
+                    let read_as = context.get_register(instruction.arg(3));
+                    let offset = context.get_register(instruction.arg(4));
                     let res = ffi::read_pointer(
                         &self.state,
                         process,
+                        ptr_proto,
                         ptr,
                         read_as,
                         offset,
@@ -1774,9 +1784,9 @@ impl Machine {
                 }
                 InstructionType::PointerFromAddress => {
                     let reg = instruction.arg(0);
-                    let addr = context.get_register(instruction.arg(1));
-                    let res =
-                        ffi::pointer_from_address(&self.state, process, addr)?;
+                    let proto = context.get_register(instruction.arg(1));
+                    let addr = context.get_register(instruction.arg(2));
+                    let res = ffi::pointer_from_address(process, addr, proto)?;
 
                     context.set_register(reg, res);
                 }
@@ -1837,10 +1847,11 @@ impl Machine {
                 }
                 InstructionType::SocketCreate => {
                     let reg = instruction.arg(0);
-                    let domain = context.get_register(instruction.arg(1));
-                    let kind = context.get_register(instruction.arg(2));
+                    let proto = context.get_register(instruction.arg(1));
+                    let domain = context.get_register(instruction.arg(2));
+                    let kind = context.get_register(instruction.arg(3));
                     let res = try_runtime_error!(
-                        socket::create(&self.state, process, domain, kind),
+                        socket::create(process, domain, kind, proto),
                         self,
                         process,
                         context,
@@ -1880,9 +1891,10 @@ impl Machine {
                 }
                 InstructionType::SocketAccept => {
                     let reg = instruction.arg(0);
-                    let sock = context.get_register(instruction.arg(1));
+                    let proto = context.get_register(instruction.arg(1));
+                    let sock = context.get_register(instruction.arg(2));
                     let res = try_runtime_error!(
-                        socket::accept(&self.state, process, sock),
+                        socket::accept(&self.state, process, sock, proto),
                         self,
                         process,
                         context,

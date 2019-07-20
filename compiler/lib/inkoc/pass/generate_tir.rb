@@ -798,6 +798,27 @@ module Inkoc
         )
       end
 
+      def raw_quinary_instruction(name, node, body)
+        register = body.register(node.type)
+        one = process_node(node.arguments.fetch(0), body)
+        two = process_node(node.arguments.fetch(1), body)
+        three = process_node(node.arguments.fetch(2), body)
+        four = process_node(node.arguments.fetch(3), body)
+        five = process_node(node.arguments.fetch(4), body)
+
+        body.instruct(
+          :Quinary,
+          name,
+          register,
+          one,
+          two,
+          three,
+          four,
+          five,
+          node.location
+        )
+      end
+
       def builtin_prototype_instruction(id, node, body)
         id_reg = set_integer(id, body, node.location)
         reg = body.register(node.type)
@@ -1139,7 +1160,7 @@ module Inkoc
       end
 
       def on_raw_process_spawn(node, body)
-        raw_unary_instruction(:ProcessSpawn, node, body)
+        raw_binary_instruction(:ProcessSpawn, node, body)
       end
 
       def on_raw_process_send_message(node, body)
@@ -1151,7 +1172,7 @@ module Inkoc
       end
 
       def on_raw_process_current(node, body)
-        raw_nullary_instruction(:ProcessCurrent, node, body)
+        raw_unary_instruction(:ProcessCurrent, node, body)
       end
 
       def on_raw_process_suspend_current(node, body)
@@ -1191,7 +1212,7 @@ module Inkoc
       end
 
       def on_raw_file_open(node, body)
-        raw_binary_instruction(:FileOpen, node, body)
+        raw_ternary_instruction(:FileOpen, node, body)
       end
 
       def on_raw_file_read(node, body)
@@ -1267,7 +1288,7 @@ module Inkoc
       end
 
       def on_raw_hasher_new(node, body)
-        raw_binary_instruction(:HasherNew, node, body)
+        raw_ternary_instruction(:HasherNew, node, body)
       end
 
       def on_raw_hasher_write(node, body)
@@ -1336,40 +1357,8 @@ module Inkoc
         builtin_prototype_instruction(PrototypeID::BOOLEAN, node, body)
       end
 
-      def on_raw_get_file_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::FILE, node, body)
-      end
-
       def on_raw_get_byte_array_prototype(node, body)
         builtin_prototype_instruction(PrototypeID::BYTE_ARRAY, node, body)
-      end
-
-      def on_raw_get_hasher_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::HASHER, node, body)
-      end
-
-      def on_raw_get_library_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::LIBRARY, node, body)
-      end
-
-      def on_raw_get_function_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::FUNCTION, node, body)
-      end
-
-      def on_raw_get_pointer_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::POINTER, node, body)
-      end
-
-      def on_raw_get_process_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::PROCESS, node, body)
-      end
-
-      def on_raw_get_socket_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::SOCKET, node, body)
-      end
-
-      def on_raw_get_unix_socket_prototype(node, body)
-        builtin_prototype_instruction(PrototypeID::UNIX_SOCKET, node, body)
       end
 
       def on_raw_set_object_name(node, body)
@@ -1446,23 +1435,23 @@ module Inkoc
       end
 
       def on_raw_library_open(node, body)
-        raw_unary_instruction(:LibraryOpen, node, body)
+        raw_binary_instruction(:LibraryOpen, node, body)
       end
 
       def on_raw_function_attach(node, body)
-        raw_quaternary_instruction(:FunctionAttach, node, body)
+        raw_quinary_instruction(:FunctionAttach, node, body)
       end
 
       def on_raw_function_call(node, body)
-        raw_binary_instruction(:FunctionCall, node, body)
+        raw_ternary_instruction(:FunctionCall, node, body)
       end
 
       def on_raw_pointer_attach(node, body)
-        raw_binary_instruction(:PointerAttach, node, body)
+        raw_ternary_instruction(:PointerAttach, node, body)
       end
 
       def on_raw_pointer_read(node, body)
-        raw_ternary_instruction(:PointerRead, node, body)
+        raw_quaternary_instruction(:PointerRead, node, body)
       end
 
       def on_raw_pointer_write(node, body)
@@ -1470,7 +1459,7 @@ module Inkoc
       end
 
       def on_raw_pointer_from_address(node, body)
-        raw_unary_instruction(:PointerFromAddress, node, body)
+        raw_binary_instruction(:PointerFromAddress, node, body)
       end
 
       def on_raw_pointer_address(node, body)
@@ -1498,7 +1487,7 @@ module Inkoc
       end
 
       def on_raw_socket_create(node, body)
-        raw_binary_instruction(:SocketCreate, node, body)
+        raw_ternary_instruction(:SocketCreate, node, body)
       end
 
       def on_raw_socket_write(node, body)
@@ -1510,7 +1499,7 @@ module Inkoc
       end
 
       def on_raw_socket_accept(node, body)
-        raw_unary_instruction(:SocketAccept, node, body)
+        raw_binary_instruction(:SocketAccept, node, body)
       end
 
       def on_raw_socket_receive_from(node, body)

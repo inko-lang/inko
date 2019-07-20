@@ -6,16 +6,16 @@ use crate::process::RcProcess;
 use crate::vm::state::RcState;
 
 pub fn create(
-    state: &RcState,
     process: &RcProcess,
     key0_ptr: ObjectPointer,
     key1_ptr: ObjectPointer,
+    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let key0 = key0_ptr.u64_value()?;
     let key1 = key1_ptr.u64_value()?;
     let hasher = Hasher::new(key0, key1);
 
-    Ok(process.allocate(object_value::hasher(hasher), state.hasher_prototype))
+    Ok(process.allocate(object_value::hasher(hasher), proto_ptr))
 }
 
 pub fn write(

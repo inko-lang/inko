@@ -9,14 +9,6 @@ module Inkoc
     ARRAY = 4
     BLOCK = 5
     BOOLEAN = 6
-    FILE = 7
-    BYTE_ARRAY = 10
-    HASHER = 11
-    LIBRARY = 12
-    FUNCTION = 13
-    POINTER = 14
-    PROCESS = 15
-    SOCKET = 16
-    UNIX_SOCKET = 17
+    BYTE_ARRAY = 7
   end
 end

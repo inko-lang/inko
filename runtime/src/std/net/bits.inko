@@ -102,14 +102,6 @@ def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
   }
 }
 
-def socket(domain: Integer, kind: Integer) !! IoError {
-  try {
-    _INKOC.socket_create(domain, kind)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
-}
-
 def bind(socket, address: String, port: Integer) !! IoError -> Nil {
   try {
     _INKOC.socket_bind(socket, address, port)
@@ -133,14 +125,6 @@ def connect(socket, address: String, port: Integer) !! IoError -> Nil {
 def listen(socket, backlog: Integer) !! IoError -> Integer {
   try {
     _INKOC.socket_listen(socket, backlog)
-  } else (error) {
-    throw IoError.new(error as String)
-  }
-}
-
-def accept(socket) !! IoError {
-  try {
-    _INKOC.socket_accept(socket)
   } else (error) {
     throw IoError.new(error as String)
   }

@@ -163,18 +163,17 @@ pub fn read_file(
 }
 
 pub fn open_file(
-    state: &RcState,
     process: &RcProcess,
+    proto_ptr: ObjectPointer,
     path_ptr: ObjectPointer,
     mode_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let path = path_ptr.string_value()?;
     let mode = mode_ptr.integer_value()?;
     let open_opts = options_for_integer(mode)?;
-    let prototype = state.file_prototype;
     let file = open_opts.open(path)?;
 
-    Ok(process.allocate(object_value::file(file), prototype))
+    Ok(process.allocate(object_value::file(file), proto_ptr))
 }
 
 pub fn file_size(

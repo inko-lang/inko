@@ -117,32 +117,8 @@ pub struct State {
     /// The singleton "nil" object.
     pub nil_object: ObjectPointer,
 
-    /// The prototype for processes.
-    pub process_prototype: ObjectPointer,
-
-    /// The prototype for files.
-    pub file_prototype: ObjectPointer,
-
     /// The prototype for byte arrays.
     pub byte_array_prototype: ObjectPointer,
-
-    /// The prototype for hashers.
-    pub hasher_prototype: ObjectPointer,
-
-    /// The prototype to use for dynamically opened libraries.
-    pub library_prototype: ObjectPointer,
-
-    /// The prototype to use for C functions.
-    pub function_prototype: ObjectPointer,
-
-    /// The prototype to use for pointers to C variables.
-    pub pointer_prototype: ObjectPointer,
-
-    /// The prototype to use for regular sockets.
-    pub socket_prototype: ObjectPointer,
-
-    /// The prototype to use for Unix domain sockets.
-    pub unix_socket_prototype: ObjectPointer,
 
     /// The commandline arguments passed to an Inko program.
     pub arguments: Vec<ObjectPointer>,
@@ -180,15 +156,7 @@ impl State {
         let true_obj = perm_alloc.allocate_empty();
         let false_obj = perm_alloc.allocate_empty();
         let nil_obj = perm_alloc.allocate_empty();
-        let file_prototype = perm_alloc.allocate_empty();
         let byte_array_prototype = perm_alloc.allocate_empty();
-        let hasher_prototype = perm_alloc.allocate_empty();
-        let library_prototype = perm_alloc.allocate_empty();
-        let function_prototype = perm_alloc.allocate_empty();
-        let pointer_prototype = perm_alloc.allocate_empty();
-        let process_prototype = perm_alloc.allocate_empty();
-        let socket_prototype = perm_alloc.allocate_empty();
-        let unix_socket_prototype = perm_alloc.allocate_empty();
 
         {
             top_level.set_prototype(object_proto);
@@ -203,15 +171,7 @@ impl State {
             true_obj.set_prototype(boolean_proto);
             false_obj.set_prototype(boolean_proto);
 
-            file_prototype.set_prototype(object_proto);
             byte_array_prototype.set_prototype(object_proto);
-            hasher_prototype.set_prototype(object_proto);
-            library_prototype.set_prototype(object_proto);
-            function_prototype.set_prototype(object_proto);
-            pointer_prototype.set_prototype(object_proto);
-            process_prototype.set_prototype(object_proto);
-            socket_prototype.set_prototype(object_proto);
-            unix_socket_prototype.set_prototype(object_proto);
         }
 
         let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
@@ -246,15 +206,7 @@ impl State {
             nil_object: nil_obj,
             arguments: Vec::with_capacity(arguments.len()),
             default_panic_handler: ObjectPointer::null(),
-            file_prototype,
             byte_array_prototype,
-            hasher_prototype,
-            library_prototype,
-            function_prototype,
-            pointer_prototype,
-            process_prototype,
-            socket_prototype,
-            unix_socket_prototype,
             network_poller: NetworkPoller::new(),
         };
 

@@ -51,15 +51,7 @@ pub fn prototype_for_identifier(
         4 => state.array_prototype,
         5 => state.block_prototype,
         6 => state.boolean_prototype,
-        7 => state.file_prototype,
-        10 => state.byte_array_prototype,
-        11 => state.hasher_prototype,
-        12 => state.library_prototype,
-        13 => state.function_prototype,
-        14 => state.pointer_prototype,
-        15 => state.process_prototype,
-        16 => state.socket_prototype,
-        17 => state.unix_socket_prototype,
+        7 => state.byte_array_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

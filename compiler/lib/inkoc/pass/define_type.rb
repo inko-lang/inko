@@ -1369,8 +1369,8 @@ module Inkoc
         typedb.integer_type.new_instance
       end
 
-      def on_raw_process_spawn(*)
-        typedb.process_type.new_instance
+      def on_raw_process_spawn(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_process_send_message(node, _)
@@ -1381,8 +1381,8 @@ module Inkoc
         TypeSystem::Dynamic.new
       end
 
-      def on_raw_process_current(*)
-        typedb.process_type.new_instance
+      def on_raw_process_current(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_process_suspend_current(*)
@@ -1428,8 +1428,8 @@ module Inkoc
         typedb.nil_type.new_instance
       end
 
-      def on_raw_file_open(*)
-        typedb.file_type.new_instance
+      def on_raw_file_open(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_file_read(*)
@@ -1496,8 +1496,8 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
-      def on_raw_hasher_new(*)
-        typedb.hasher_type.new_instance
+      def on_raw_hasher_new(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_hasher_write(node, _)
@@ -1566,40 +1566,8 @@ module Inkoc
         typedb.boolean_type.new_instance
       end
 
-      def on_raw_get_file_prototype(*)
-        typedb.file_type.new_instance
-      end
-
       def on_raw_get_byte_array_prototype(*)
         typedb.byte_array_type.new_instance
-      end
-
-      def on_raw_get_hasher_prototype(*)
-        typedb.hasher_type.new_instance
-      end
-
-      def on_raw_get_library_prototype(*)
-        typedb.library_type.new_instance
-      end
-
-      def on_raw_get_function_prototype(*)
-        typedb.function_type.new_instance
-      end
-
-      def on_raw_get_pointer_prototype(*)
-        typedb.pointer_type.new_instance
-      end
-
-      def on_raw_get_process_prototype(*)
-        typedb.process_type.new_instance
-      end
-
-      def on_raw_get_socket_prototype(*)
-        typedb.socket_type.new_instance
-      end
-
-      def on_raw_get_unix_socket_prototype(*)
-        typedb.unix_socket_type.new_instance
       end
 
       def on_raw_set_object_name(*)
@@ -1670,20 +1638,20 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
-      def on_raw_library_open(*)
-        typedb.library_type.new_instance
+      def on_raw_library_open(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
-      def on_raw_function_attach(*)
-        typedb.function_type.new_instance
+      def on_raw_function_attach(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_function_call(*)
         TypeSystem::Dynamic.new
       end
 
-      def on_raw_pointer_attach(*)
-        typedb.pointer_type.new_instance
+      def on_raw_pointer_attach(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_pointer_read(*)
@@ -1694,8 +1662,8 @@ module Inkoc
         TypeSystem::Dynamic.new
       end
 
-      def on_raw_pointer_from_address(*)
-        typedb.pointer_type.new_instance
+      def on_raw_pointer_from_address(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_pointer_address(*)
@@ -1722,8 +1690,8 @@ module Inkoc
         typedb.integer_type.new_instance
       end
 
-      def on_raw_socket_create(*)
-        TypeSystem::Dynamic.new
+      def on_raw_socket_create(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_socket_write(*)
@@ -1734,8 +1702,8 @@ module Inkoc
         typedb.integer_type.new_instance
       end
 
-      def on_raw_socket_accept(*)
-        TypeSystem::Dynamic.new
+      def on_raw_socket_accept(node, _)
+        node.arguments.fetch(0).type.new_instance
       end
 
       def on_raw_socket_receive_from(*)

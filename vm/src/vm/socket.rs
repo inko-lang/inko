@@ -54,21 +54,15 @@ const REUSE_ADDRESS: i64 = 15;
 const REUSE_PORT: i64 = 16;
 
 pub fn create(
-    state: &RcState,
     process: &RcProcess,
     domain_ptr: ObjectPointer,
     kind_ptr: ObjectPointer,
+    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let domain = domain_ptr.u8_value()?;
     let kind = kind_ptr.u8_value()?;
     let socket = Socket::new(domain, kind)?;
-    let proto = if socket.is_unix() {
-        state.unix_socket_prototype
-    } else {
-        state.socket_prototype
-    };
-
-    let socket_ptr = process.allocate(object_value::socket(socket), proto);
+    let socket_ptr = process.allocate(object_value::socket(socket), proto_ptr);
 
     Ok(socket_ptr)
 }
@@ -158,17 +152,12 @@ pub fn accept(
     state: &RcState,
     process: &RcProcess,
     socket_ptr: ObjectPointer,
+    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {
     let sock = socket_ptr.socket_value_mut()?;
-    let proto = if sock.is_unix() {
-        state.unix_socket_prototype
-    } else {
-        state.socket_prototype
-    };
-
     let result = sock
         .accept()
-        .map(|sock| process.allocate(object_value::socket(sock), proto));
+        .map(|sock| process.allocate(object_value::socket(sock), proto_ptr));
 
     socket_result(result, state, process, sock, Interest::Read)
 }

@@ -5,9 +5,7 @@ module Inkoc
     class Database
       attr_reader :top_level, :true_type, :false_type, :nil_type, :block_type,
                   :integer_type, :float_type, :string_type, :array_type,
-                  :object_type, :hasher_type, :boolean_type, :file_type,
-                  :byte_array_type, :library_type, :function_type,
-                  :pointer_type, :process_type, :socket_type, :unix_socket_type
+                  :object_type, :boolean_type, :file_type, :byte_array_type
 
       def initialize
         @object_type = new_object_type(Config::OBJECT_CONST, nil)
@@ -21,15 +19,8 @@ module Inkoc
         @float_type = new_object_type(Config::FLOAT_CONST)
         @string_type = new_object_type(Config::STRING_CONST)
         @file_type = new_object_type(Config::FILE_CONST)
-        @hasher_type = new_object_type(Config::HASHER_CONST)
         @byte_array_type = new_object_type(Config::BYTE_ARRAY_CONST)
         @array_type = initialize_array_type
-        @library_type = new_object_type(Config::LIBRARY_CONST)
-        @function_type = new_object_type(Config::FUNCTION_CONST)
-        @pointer_type = new_object_type(Config::POINTER_CONST)
-        @process_type = new_object_type(Config::PROCESS_CONST)
-        @socket_type = new_object_type(Config::SOCKET_CONST)
-        @unix_socket_type = new_object_type(Config::UNIX_SOCKET_CONST)
         @trait_id = -1
       end
 

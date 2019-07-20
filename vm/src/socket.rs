@@ -362,10 +362,6 @@ impl Socket {
         Ok(decode_sockaddr(sockaddr, self.unix)?)
     }
 
-    pub fn is_unix(&self) -> bool {
-        self.unix
-    }
-
     pub fn shutdown(&self, mode: u8) -> Result<(), RuntimeError> {
         let shutdown = match mode {
             0 => Shutdown::Read,

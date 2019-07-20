@@ -10,6 +10,8 @@ import test::features
 import test::fixtures::(VALID_DIRECTORY, VALID_FILE)
 import test::fixtures::(self, INVALID_TIME, INVALID_DIRECTORY, INVALID_FILE)
 
+object DummyFile {}
+
 def remove(path: ToString) -> Nil {
   try raw.remove(path.to_string) else Nil
 }
@@ -17,13 +19,21 @@ def remove(path: ToString) -> Nil {
 test.group('std::fs::raw.open') do (g) {
   g.test('Opening a valid file') {
     assert.no_panic {
-      try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+      try! raw.open(
+        type: DummyFile,
+        path: VALID_FILE.to_string,
+        mode: READ_ONLY
+      )
     }
   }
 
   g.test('Opening an invalid file') {
     assert.panic {
-      try! raw.open(path: INVALID_FILE.to_string, mode: READ_ONLY)
+      try! raw.open(
+        type: DummyFile,
+        path: INVALID_FILE.to_string,
+        mode: READ_ONLY
+      )
     }
   }
 }
@@ -89,7 +99,7 @@ test.group('std::fs::raw.remove') do (g) {
   g.test('Removing a valid file') {
     let path = fixtures.temporary_file_path.to_string
 
-    try! raw.open(path: path, mode: WRITE_ONLY)
+    try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
     try! raw.remove(path)
 
     assert.false(raw.file?(path))
@@ -218,7 +228,12 @@ features.access_time?.if_true {
 
 test.group('std::fs::raw.read_bytes') do (g) {
   g.test('Reading a valid number of bytes from a file') {
-    let file = try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+    let file = try! raw.open(
+      type: DummyFile,
+      path: VALID_FILE.to_string,
+      mode: READ_ONLY
+    )
+
     let bytes = ByteArray.new
     let read = try! raw.read_bytes(file: file, bytes: bytes, size: 2)
 
@@ -228,7 +243,12 @@ test.group('std::fs::raw.read_bytes') do (g) {
 
   g.test('Reading an invalid number of bytes from a file') {
     assert.panic {
-      let file = try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+      let file = try! raw.open(
+        type: DummyFile,
+        path: VALID_FILE.to_string,
+        mode: READ_ONLY
+      )
+
       let bytes = ByteArray.new
       let read = try! raw.read_bytes(file: file, bytes: bytes, size: -1)
     }
@@ -243,14 +263,19 @@ test.group('std::fs::raw.write_string') do (g) {
       remove(path)
     }
 
-    let file = try! raw.open(path: path, mode: WRITE_ONLY)
+    let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
     let written = try! raw.write_string(file: file, data: 'abc')
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a String to a file that is opened in read-only mode') {
-    let file = try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+    let file = try! raw.open(
+      type: DummyFile,
+      path: VALID_FILE.to_string,
+      mode: READ_ONLY
+    )
+
     let written = try raw.write_string(file: file, data: 'abc') else -1
 
     assert.equal(written, -1)
@@ -265,14 +290,19 @@ test.group('std::fs::raw.write_bytes') do (g) {
       remove(path)
     }
 
-    let file = try! raw.open(path: path, mode: WRITE_ONLY)
+    let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
     let written = try! raw.write_bytes(file: file, bytes: 'abc'.to_byte_array)
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a ByteArray to a file that is opened in read-only mode') {
-    let file = try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+    let file = try! raw.open(
+      type: DummyFile,
+      path: VALID_FILE.to_string,
+      mode: READ_ONLY
+    )
+
     let written = try {
       raw.write_bytes(file: file, bytes: 'abc'.to_byte_array)
     } else {
@@ -292,7 +322,7 @@ test.group('std::fs::raw.flush') do (g) {
         remove(path)
       }
 
-      let file = try! raw.open(path: path, mode: WRITE_ONLY)
+      let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
 
       try! raw.flush(file)
     }
@@ -301,7 +331,12 @@ test.group('std::fs::raw.flush') do (g) {
 
 test.group('std::fs::raw.seek') do (g) {
   g.test('Seeking to a valid position') {
-    let file = try! raw.open(path: VALID_FILE.to_string, mode: READ_ONLY)
+    let file = try! raw.open(
+      type: DummyFile,
+      path: VALID_FILE.to_string,
+      mode: READ_ONLY
+    )
+
     let pos = try! raw.seek(file: file, position: 4)
 
     assert.equal(pos, 4)

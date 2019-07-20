@@ -60,11 +60,7 @@
 import std::conversion::(ToFloat, ToString)
 
 ## A lightweight, isolated process.
-let Process = _INKOC.get_process_prototype
-
-_INKOC.set_object_name(Process, 'Process')
-
-impl Process {
+object Process {
   ## Sends a message to this process, returning the message that was sent.
   ##
   ## # Examples
@@ -138,7 +134,7 @@ def receive(timeout: ToFloat = 0.0) {
 ##       10 # => 10
 ##     }
 def spawn(block: lambda) -> Process {
-  _INKOC.process_spawn(block)
+  _INKOC.process_spawn(Process, block)
 }
 
 ## Returns the currently running process.
@@ -151,7 +147,7 @@ def spawn(block: lambda) -> Process {
 ##
 ##     process.current
 def current -> Process {
-  _INKOC.process_current
+  _INKOC.process_current(Process)
 }
 
 ## Executes the supplied closure in a separate OS thread pool, returning its

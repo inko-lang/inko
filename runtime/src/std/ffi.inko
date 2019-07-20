@@ -112,22 +112,10 @@ import std::string_buffer::StringBuffer
 let NULL_ADDRESS = 0x0
 
 ## A pointer to a value in C.
-let Pointer = _INKOC.get_pointer_prototype
-
-## A dynamically loaded C library.
-let Library = _INKOC.get_library_prototype
-
-## A C function that can be called from Inko.
-let Function = _INKOC.get_function_prototype
-
-_INKOC.set_object_name(Pointer, 'Pointer')
-_INKOC.set_object_name(Library, 'Library')
-_INKOC.set_object_name(Function, 'Function')
-
-impl Pointer {
+object Pointer {
   ## Creates a pointer using the given memory address.
   def new(address: Integer) -> Self {
-    _INKOC.pointer_from_address(address)
+    _INKOC.pointer_from_address(Pointer, address)
   }
 
   ## Returns a NULL `Pointer`.
@@ -151,7 +139,7 @@ impl Pointer {
   ## `offset` argument can be used to specify an offset in bytes (relative to
   ## the pointer) to read from.
   def read(type: Type, offset = 0) {
-    _INKOC.pointer_read(self, type.to_integer, offset)
+    _INKOC.pointer_read(Pointer, self, type.to_integer, offset)
   }
 
   ## Writes a value to the pointer.
@@ -172,7 +160,8 @@ impl Equal for Pointer {
   }
 }
 
-impl Library {
+## A dynamically loaded C library.
+object Library {
   ## Dynamically loads a C library.
   ##
   ## The `names` argument is an `Array` of library names to use for loading the
@@ -182,12 +171,12 @@ impl Library {
   ## The names in this `Array` can either be the library name with extension,
   ## such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
   def new(names: Array!(String)) -> Self {
-    _INKOC.library_open(names)
+    _INKOC.library_open(Library, names)
   }
 
   ## Returns a `Pointer` pointing to the address of the given variable.
   def variable(name: String) -> Pointer {
-    _INKOC.pointer_attach(self, name)
+    _INKOC.pointer_attach(Pointer, self, name)
   }
 }
 
@@ -198,7 +187,8 @@ impl Close for Library {
   }
 }
 
-impl Function {
+## A C function that can be called from Inko.
+object Function {
   ## Attaches a C function to Inko.
   def new(
     library: Library,
@@ -207,6 +197,7 @@ impl Function {
     returns: Type
   ) -> Self {
     let func = _INKOC.function_attach(
+      Function,
       library,
       name,
       arguments.iter.map do (type: Type) { type.to_integer }.to_array,
@@ -248,7 +239,7 @@ impl Function {
   ##
   ## This method will panic if any of the arguments are invalid.
   def call(*arguments) {
-    _INKOC.function_call(self, arguments)
+    _INKOC.function_call(self, arguments, Pointer)
   }
 }
 

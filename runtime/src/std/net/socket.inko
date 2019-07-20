@@ -31,13 +31,6 @@ let SEQPACKET = SOCK_SEQPACKET
 ## The socket type for raw sockets.
 let RAW = SOCK_RAW
 
-## A low-level, non-blocking IPv4 or IPv6 socket.
-##
-## Low-level sockets allow for more fine-grained control over how sockets should
-## be constructed and used, at the cost of a slightly less ergonomic API
-## compared to more high-level types such as `UdpSocket`.
-let Socket = _INKOC.get_socket_prototype
-
 ## An IPv4 or IPv6 socket address.
 object SocketAddress {
   def init(ip: IpAddress, port: Integer) {
@@ -67,33 +60,12 @@ impl Equal for SocketAddress {
   }
 }
 
-## Obtains the local or peer address of a socket.
-def _socket_address(socket: Socket, peer = False) !! IoError -> SocketAddress {
-  let addr = try bits.address(socket: socket, peer: peer)
-  let ip = try! ip.parse(addr[0] as String)
-
-  SocketAddress.new(ip: ip, port: addr[1] as Integer)
-}
-
-## Converts a `ToIpAddress` to a `IpAddress`
-def _to_ip_address(ip: ToIpAddress) !! IoError -> IpAddress {
-  try {
-    ip.to_ip_address
-  } else (error) {
-    throw IoError.new(error.message)
-  }
-}
-
-## Returns the domain (IPV4 or IPV6) to use for an IP address.
-def _domain_for_ip(ip: IpAddress) -> Integer {
-  ip.v6?.if true: {
-    IPV6
-  }, false: {
-    IPV4
-  }
-}
-
-impl Socket {
+## A low-level, non-blocking IPv4 or IPv6 socket.
+##
+## Low-level sockets allow for more fine-grained control over how sockets should
+## be constructed and used, at the cost of a slightly less ergonomic API
+## compared to more high-level types such as `UdpSocket`.
+object Socket {
   ## Creates a new socket.
   ##
   ## # Examples
@@ -104,7 +76,11 @@ impl Socket {
   ##
   ##     try! Socket.new(domain: IPV4, kind: DGRAM)
   def new(domain: Integer, kind: Integer) !! IoError -> Self {
-    try { bits.socket(domain: domain, kind: kind) } as Socket
+    try {
+      _INKOC.socket_create(Socket, domain, kind)
+    } else (error) {
+      throw IoError.new(error as String)
+    }
   }
 
   ## Binds this socket to the specified address.
@@ -184,7 +160,11 @@ impl Socket {
   ##
   ##     try! client.read_string(4) # => 'ping'
   def accept !! IoError -> Socket {
-    try { bits.accept(socket: self) } as Socket
+    try {
+      _INKOC.socket_accept(Socket, self)
+    } else (error) {
+      throw IoError.new(error as String)
+    }
   }
 
   ## Sends a message to the given address.
@@ -390,7 +370,8 @@ impl Socket {
 
   ## Returns the value of the `IP_MULTICAST_IF` option.
   def ipv4_multicast_interface !! IoError -> Ipv4Address {
-    let address_string = try bits.get_socket_option!(String)(self, MULTICAST_IF_V4)
+    let address_string =
+      try bits.get_socket_option!(String)(self, MULTICAST_IF_V4)
 
     # This will only panic if the VM hands out an incorrect IPv4 address, which
     # would be a bug.
@@ -803,5 +784,31 @@ object TcpListener {
 impl Close for TcpListener {
   def close -> Nil {
     @socket.close
+  }
+}
+
+## Obtains the local or peer address of a socket.
+def _socket_address(socket: Socket, peer = False) !! IoError -> SocketAddress {
+  let addr = try bits.address(socket: socket, peer: peer)
+  let ip = try! ip.parse(addr[0] as String)
+
+  SocketAddress.new(ip: ip, port: addr[1] as Integer)
+}
+
+## Converts a `ToIpAddress` to a `IpAddress`
+def _to_ip_address(ip: ToIpAddress) !! IoError -> IpAddress {
+  try {
+    ip.to_ip_address
+  } else (error) {
+    throw IoError.new(error.message)
+  }
+}
+
+## Returns the domain (IPV4 or IPV6) to use for an IP address.
+def _domain_for_ip(ip: IpAddress) -> Integer {
+  ip.v6?.if true: {
+    IPV6
+  }, false: {
+    IPV4
   }
 }

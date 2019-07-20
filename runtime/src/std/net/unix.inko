@@ -25,13 +25,6 @@ let SEQPACKET = SOCK_SEQPACKET
 ## The socket type for Unix raw sockets.
 let RAW = SOCK_RAW
 
-## A low-level, non-blocking Unix domain socket.
-##
-## Low-level Unix domain sockets allow for more fine-grained control over how
-## sockets should be constructed and used, at the cost of a slightly less
-## ergonomic API compared to more high-level types such as `UnixDatagram`.
-let Socket = _INKOC.get_unix_socket_prototype
-
 ## A Unix domain socket address.
 object SocketAddress {
   ## Creates a new `SocketAddress` from the given path or name.
@@ -135,7 +128,12 @@ impl ToString for SocketAddress {
   }
 }
 
-impl Socket {
+## A low-level, non-blocking Unix domain socket.
+##
+## Low-level Unix domain sockets allow for more fine-grained control over how
+## sockets should be constructed and used, at the cost of a slightly less
+## ergonomic API compared to more high-level types such as `UnixDatagram`.
+object Socket {
   ## Creates a new Unix domain socket.
   ##
   ## # Examples
@@ -146,7 +144,11 @@ impl Socket {
   ##
   ##     try! Socket.new(DGRAM)
   def new(kind: Integer) !! IoError -> Socket {
-    try { bits.socket(domain: UNIX, kind: kind) } as Socket
+    try {
+      _INKOC.socket_create(Socket, UNIX, kind)
+    } else (error) {
+      throw IoError.new(error as String)
+    }
   }
 
   ## Binds this socket to the specified path or abstract address.
@@ -223,7 +225,11 @@ impl Socket {
   ##
   ##     try! client.read_string(4) # => 'ping'
   def accept !! IoError -> Socket {
-    try { bits.accept(self) } as Socket
+    try {
+      _INKOC.socket_accept(Socket, self)
+    } else (error) {
+      throw IoError.new(error as String)
+    }
   }
 
   ## Sends a message to the given address.

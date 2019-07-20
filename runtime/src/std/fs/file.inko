@@ -11,7 +11,7 @@
 import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
-import std::fs::raw::(self, File, READ_ONLY)
+import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
 
@@ -40,28 +40,27 @@ object ReadOnlyFile {
   ##     let handle = try! ReadOnlyFile.new('/dev/null')
   def new(path: ToPath) !! IOError -> Self {
     let conv_path = path.to_path
-    let raw_file = try raw.open(path: conv_path.to_string, mode: READ_ONLY)
-    let instance = _INKOC.set_object(False, self)
+    let instance =
+      try raw.open(type: self, path: conv_path.to_string, mode: READ_ONLY)
 
-    instance.init(file: raw_file, path: conv_path)
+    instance.init(conv_path)
     instance
   }
 
-  def init(file: File, path: Path) {
-    let @file = file
+  def init(path: Path) {
     let @path = path
   }
 }
 
 impl Read for ReadOnlyFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
-    try raw.read_bytes(file: @file, bytes: bytes, size: size)
+    try raw.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
 
 impl Seek for ReadOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: @file, position: position)
+    try raw.seek(file: self, position: position)
   }
 }
 
@@ -79,7 +78,7 @@ impl FilePath for ReadOnlyFile {
 
 impl Close for ReadOnlyFile {
   def close -> Nil {
-    _INKOC.drop(@file)
+    _INKOC.drop(self)
   }
 }
 
@@ -97,36 +96,35 @@ object WriteOnlyFile {
   def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_write(append)
     let conv_path = path.to_path
-    let raw_file = try raw.open(path: conv_path.to_string, mode: mode)
-    let instance = _INKOC.set_object(False, self)
+    let instance =
+      try raw.open(type: self, path: conv_path.to_string, mode: mode)
 
-    instance.init(file: raw_file, path: conv_path)
+    instance.init(conv_path)
     instance
   }
 
-  def init(file: File, path: Path) {
-    let @file = file
+  def init(path: Path) {
     let @path = path
   }
 }
 
 impl Write for WriteOnlyFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
-    try raw.write_bytes(file: @file, bytes: bytes)
+    try raw.write_bytes(file: self, bytes: bytes)
   }
 
   def write_string(data: ToString) !! IOError -> Integer {
-    try raw.write_string(file: @file, data: data.to_string)
+    try raw.write_string(file: self, data: data.to_string)
   }
 
   def flush !! IOError -> Nil {
-    try raw.flush(@file)
+    try raw.flush(self)
   }
 }
 
 impl Seek for WriteOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: @file, position: position)
+    try raw.seek(file: self, position: position)
   }
 }
 
@@ -144,7 +142,7 @@ impl FilePath for WriteOnlyFile {
 
 impl Close for WriteOnlyFile {
   def close -> Nil {
-    _INKOC.drop(@file)
+    _INKOC.drop(self)
   }
 }
 
@@ -168,42 +166,41 @@ object ReadWriteFile {
   def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_read_write(append)
     let conv_path = path.to_path
-    let raw_file = try raw.open(path: conv_path.to_string, mode: mode)
-    let instance = _INKOC.set_object(False, self)
+    let instance =
+      try raw.open(type: self, path: conv_path.to_string, mode: mode)
 
-    instance.init(file: raw_file, path: conv_path)
+    instance.init(conv_path)
     instance
   }
 
-  def init(file: File, path: Path) {
-    let @file = file
+  def init(path: Path) {
     let @path = path
   }
 }
 
 impl Read for ReadWriteFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
-    try raw.read_bytes(file: @file, bytes: bytes, size: size)
+    try raw.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
 
 impl Write for ReadWriteFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
-    try raw.write_bytes(file: @file, bytes: bytes)
+    try raw.write_bytes(file: self, bytes: bytes)
   }
 
   def write_string(data: ToString) !! IOError -> Integer {
-    try raw.write_string(file: @file, data: data.to_string)
+    try raw.write_string(file: self, data: data.to_string)
   }
 
   def flush !! IOError -> Nil {
-    try raw.flush(@file)
+    try raw.flush(self)
   }
 }
 
 impl Seek for ReadWriteFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: @file, position: position)
+    try raw.seek(file: self, position: position)
   }
 }
 
@@ -221,7 +218,7 @@ impl FilePath for ReadWriteFile {
 
 impl Close for ReadWriteFile {
   def close -> Nil {
-    _INKOC.drop(@file)
+    _INKOC.drop(self)
   }
 }
 

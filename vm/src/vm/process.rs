@@ -30,6 +30,7 @@ pub fn spawn(
     state: &RcState,
     current_process: &RcProcess,
     block_ptr: ObjectPointer,
+    proto_ptr: ObjectPointer,
 ) -> Result<ObjectPointer, String> {
     let block = block_ptr.block_value()?;
     let new_proc = allocate(&state, &block);
@@ -38,8 +39,8 @@ pub fn spawn(
     // allocation below (which may require requesting a new block) to finish.
     state.scheduler.schedule(new_proc.clone());
 
-    let new_proc_ptr = current_process
-        .allocate(object_value::process(new_proc), state.process_prototype);
+    let new_proc_ptr =
+        current_process.allocate(object_value::process(new_proc), proto_ptr);
 
     Ok(new_proc_ptr)
 }
