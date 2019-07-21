@@ -701,7 +701,11 @@ module Inkoc
         body.instruct(:LocalExists, register, symbol, location)
       end
 
-      def on_define_attribute(variable, value, body)
+      def on_define_attribute(node, body)
+        # Defining attributes does not generate any code.
+      end
+
+      def on_reassign_attribute(variable, value, body)
         loc = variable.location
         name = variable.name
         receiver = get_self(body, loc)
@@ -736,8 +740,6 @@ module Inkoc
           set_local(symbol, value, body, loc)
         end
       end
-
-      alias on_reassign_attribute on_define_attribute
 
       def on_raw_instruction(node, body)
         callback = node.raw_instruction_visitor_method

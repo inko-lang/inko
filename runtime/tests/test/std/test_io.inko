@@ -23,8 +23,10 @@ impl Read for Reader {
 }
 
 object Writer {
+  @buffer: Array!(String)
+
   def init {
-    let @buffer: Array!(String) = []
+    @buffer = []
   }
 
   def buffer -> Array!(String) {

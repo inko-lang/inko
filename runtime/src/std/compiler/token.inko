@@ -31,14 +31,23 @@ trait Token: Inspect {
 
 ## A regular token used for a variety of inputs.
 object RegularToken {
+  ## The type of the token.
+  @type: String
+
+  ## The value of the token.
+  @value: String
+
+  ## The location of the token.
+  @location: SourceLocation
+
   def init(
     type: String,
     value: String,
     location: SourceLocation,
   ) {
-    let @type = type
-    let @value = value
-    let @location = location
+    @type = type
+    @value = value
+    @location = location
   }
 }
 
@@ -61,12 +70,15 @@ impl Token for RegularToken {
 
 ## A token used for keywords.
 object KeywordToken {
-  def init(
-    keyword: String,
-    location: SourceLocation,
-  ) {
-    let @keyword = keyword
-    let @location = location
+  ## The keyword of this token.
+  @keyword: String
+
+  ## The location of the token.
+  @location: SourceLocation
+
+  def init(keyword: String, location: SourceLocation) {
+    @keyword = keyword
+    @location = location
   }
 }
 
@@ -94,9 +106,15 @@ impl Token for KeywordToken {
 
 ## A token used for invalid input values.
 object InvalidToken {
+  ## The value of the token.
+  @value: String
+
+  ## The location of the token.
+  @location: SourceLocation
+
   def init(value: String, location: SourceLocation) {
-    let @value = value
-    let @location = location
+    @value = value
+    @location = location
   }
 }
 
@@ -129,8 +147,11 @@ impl Token for InvalidToken {
 
 ## A token used for indicating a lexer has consumed all input.
 object NullToken {
+  ## The location of the token.
+  @location: SourceLocation
+
   def init(location: SourceLocation) {
-    let @location = location
+    @location = location
   }
 }
 

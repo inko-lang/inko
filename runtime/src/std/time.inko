@@ -14,6 +14,33 @@ import std::time::duration::Duration
 ## leap seconds. If you need a monotonically increasing clock you should use
 ## `Instant` instead.
 object SystemTime {
+  ## The year of this `SystemTime`.
+  @year: Integer
+
+  ## The month of this `SystemTime`, from `1` to `12`.
+  @month: Integer
+
+  ## The day of this `SystemTime`, from `1` to `31`.
+  @day: Integer
+
+  ## The hour of this `SystemTime`, from `0` to `23`.
+  @hour: Integer
+
+  ## The minute of this `SystemTime`, from `0` to `59`.
+  @minute: Integer
+
+  ## The second of this `SystemTime`, from `0` to `59`.
+  @second: Integer
+
+  ## The sub seconds of this `SystemTime`.
+  @sub_second: Float
+
+  ## The UTC offset (in hours) of this `SystemTime`.
+  @utc_offset: Integer
+
+  ## A boolean indicating that Daylight Saving Time (DST) is active.
+  @dst: Boolean
+
   def init(
     year = 0,
     month = 1,
@@ -25,15 +52,15 @@ object SystemTime {
     utc_offset = 0,
     dst = False,
   ) {
-    let @year = year
-    let @month = month
-    let @day = day
-    let @hour = hour
-    let @minute = minute
-    let @second = second
-    let @sub_second = sub_second
-    let @utc_offset = utc_offset
-    let @dst = dst
+    @year = year
+    @month = month
+    @day = day
+    @hour = hour
+    @minute = minute
+    @second = second
+    @sub_second = sub_second
+    @utc_offset = utc_offset
+    @dst = dst
   }
 
   ## Returns the hour of the day from 0 to 23.
@@ -364,8 +391,11 @@ impl Equal for SystemTime {
 ## epoch. Unlike a system clock a monotonic clock never decreases, making it
 ## useful for tasks such as measuring the execution time of a block of code.
 object Instant {
+  ## The (internal) timestamp of this `Instant`.
+  @time: Float
+
   def init(time = _INKOC.time_monotonic) {
-    let @time = time
+    @time = time
   }
 
   ## Returns a `Duration` measuring the time elapsed since the point in time

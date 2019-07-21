@@ -30,12 +30,15 @@ let FAILURE_EXIT_STATUS = 1
 
 ## The internal state of a `Runner`.
 object RunnerState {
-  def init {
-    ## All the tests registered with this runner.
-    let @tests: Array!(Test) = []
+  ## All the tests registered with this runner.
+  @tests: Array!(Test)
 
-    ## The configuration details for this runner.
-    let @configuration = Configuration.new
+  ## The configuration details for this runner.
+  @configuration: Configuration
+
+  def init {
+    @tests = []
+    @configuration = Configuration.new
   }
 
   ## Adds a new `Test` to this `Runner`.
@@ -72,13 +75,16 @@ trait Command {
 
 ## A Command for setting configuration options of a `Runner`.
 object ConfigureRunner {
-  def init(option: String, value) {
-    ## The name of the option to set.
-    let @option = option
+  ## The name of the option to set.
+  @option: String
 
-    ## The value to set the option to. The type of this value is Dynamic and can
-    ## vary based on the name of the option.
-    let @value = value
+  ## The value to set the option to. The type of this value is Dynamic and can
+  ## vary based on the name of the option.
+  @value: Dynamic
+
+  def init(option: String, value) {
+    @option = option
+    @value = value
   }
 }
 
@@ -90,9 +96,11 @@ impl Command for ConfigureRunner {
 
 ## A command for adding a new test to a runner.
 object AddTest {
+  ## The test to add.
+  @test: Test
+
   def init(test: Test) {
-    ## The test to add.
-    let @test = test
+    @test = test
   }
 }
 
@@ -104,9 +112,11 @@ impl Command for AddTest {
 
 ## A command for running all tests currently registered with a `Runner`.
 object RunTests {
+  ## The `Process` to notify once all tests have been completed.
+  @notify: Process
+
   def init(notify: Process) {
-    ## The `Process` to notify once all tests have been completed.
-    let @notify = notify
+    @notify = notify
   }
 
   def notify_client(failures: Boolean) {
@@ -174,12 +184,15 @@ impl Command for RunTests {
 ## A message sent by a `Runner` to inform a process that the `Runner` has
 ## finished.
 object RunnerFinished {
-  def init(runner: Process, failures: Boolean) {
-    ## The runner `Process` that sent the message.
-    let @runner = runner
+  ## The runner `Process` that sent the message.
+  @runner: Process
 
-    ## A boolean indicating if there were any test failures.
-    let @failures = failures
+  ## A boolean indicating if there were any test failures.
+  @failures: Boolean
+
+  def init(runner: Process, failures: Boolean) {
+    @runner = runner
+    @failures = failures
   }
 
   ## Returns the `Process` of the `Runner` that sent the message.
@@ -200,9 +213,11 @@ object RunnerFinished {
 ## `Runner`), and one or more clients (instances of `Client`). The state of a
 ## `Runner` is stored in a separate `RunnerState` instance.
 object Runner {
+  ## The internal state of a Runner.
+  @state: RunnerState
+
   def init {
-    ## The internal state of a Runner.
-    let @state = RunnerState.new
+    @state = RunnerState.new
   }
 
   ## Starts the runner.
@@ -220,12 +235,15 @@ object Runner {
 
 ## A client that communicates with a certain `Runner`.
 object Client {
-  def init(runner: Process) {
-    ## The `Process` to use for communicating with the `Runner`.
-    let @runner = runner
+  ## The `Process` to use for communicating with the `Runner`.
+  @runner: Process
 
-    ## A boolean indicating if the test suite is running or not.
-    let mut @running = False
+  ## A boolean indicating if the test suite is running or not.
+  @running: Boolean
+
+  def init(runner: Process) {
+    @runner = runner
+    @running = False
   }
 
   ## Returns the jrocess of the `Runner`.

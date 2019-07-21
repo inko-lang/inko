@@ -37,8 +37,11 @@ import std::length::Length
 ## literals, and one for the resulting `String` returned by
 ## `StringBuffer.to_string`.
 object StringBuffer {
+  ## The `String` objects that have been buffered so far.
+  @strings: Array!(String)
+
   def init(strings: Array!(String) = []) {
-    let @strings = strings
+    @strings = strings
   }
 
   ## Adds the given `String` to the buffer.

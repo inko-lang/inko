@@ -7,7 +7,7 @@ import std::compiler::keywords
 import std::compiler::source_location::SourceLocation
 import std::compiler::token::*
 import std::conversion::ToString
-import std::fs::path::ToPath
+import std::fs::path::(ToPath, Path)
 import std::iterator::Iterator
 
 let INTEGER_DIGIT_RANGE = 48..57
@@ -89,15 +89,31 @@ let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[
 ##     token.type  # => 'integer'
 ##     token.value # => '10'
 object Lexer {
+  ## The byte stream to lex.
+  @input: ByteArray
+
+  ## The file path that produced the byte stream.
+  @file: Path
+
+  ## The maximum byte position in the input stream.
+  @max_position: Integer
+
+  ## The current byte position in the input stream.
+  @position: Integer
+
+  ## The current line number.
+  @line: Integer
+
+  ## The current column number.
+  @column: Integer
+
   def init(input: ToByteArray, file: ToPath) {
-    let @input = input.to_byte_array
-    let @file = file.to_path
-
-    let @max_position = @input.length
-    let mut @position = 0
-
-    let mut @line = 1
-    let mut @column = 1
+    @input = input.to_byte_array
+    @file = file.to_path
+    @max_position = @input.length
+    @position = 0
+    @line = 1
+    @column = 1
   }
 
   def next_non_whitespace_token -> ?Token {

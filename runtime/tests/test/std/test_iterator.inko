@@ -15,9 +15,12 @@ impl Iterator!(Integer) for EmptyIterator {
 }
 
 object SimpleIterator {
+  @values: Array!(Integer)
+  @index: Integer
+
   def init {
-    let @values = [10, 20, 30]
-    let mut @index = 0
+    @values = [10, 20, 30]
+    @index = 0
   }
 }
 

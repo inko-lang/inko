@@ -52,9 +52,12 @@
 #!     # kind of cursor that we can use to determine where we are in this
 #!     # process.
 #!     object LimitedIterator!(T) {
+#!       @array: Array!(T)
+#!       @index: Integer
+#!
 #!       def init(array: Array!(T)) {
-#!         let @array = array
-#!         let mut @index = 0
+#!         @array = array
+#!         @index = 0
 #!       }
 #!     }
 #!
@@ -270,6 +273,12 @@ trait Iterator!(T) {
 ## capture any variables you may need for the iterator's internal state, without
 ## having to expose these using methods.
 object Enumerator!(T) {
+  ## The block to call to determine if a new value should be produced.
+  @while: do -> Boolean
+
+  ## The block to call to produce a new value.
+  @yield: do -> ?T
+
   ## Returns a new `Enumerator` that produces values of type `T`.
   ##
   ## The `while` block must return a `Boolean` that indicates if the iterator
@@ -278,8 +287,8 @@ object Enumerator!(T) {
   ## The `yield` block must return a value the iterator has produced, or `Nil`
   ## if there are no more values.
   def init(while: do -> Boolean, yield: do -> ?T) {
-    let @while = while
-    let @yield = yield
+    @while = while
+    @yield = yield
   }
 }
 

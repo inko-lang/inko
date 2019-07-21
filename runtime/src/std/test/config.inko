@@ -40,12 +40,15 @@ let DEFAULT_CONCURRENCY = 32
 ##
 ##     config.concurrency # => 16
 object Configuration {
-  def init {
-    ## The number of tests to execute concurrently.
-    let mut @concurrency = DEFAULT_CONCURRENCY
+  ## The number of tests to execute concurrently.
+  @concurrency: Integer
 
-    ## The formatter to use.
-    let mut @formatter: Formatter = ProgressFormatter.new
+  ## The formatter to use.
+  @formatter: Formatter
+
+  def init {
+    @concurrency = DEFAULT_CONCURRENCY
+    @formatter = ProgressFormatter.new
   }
 
   ## Returns the number of tests to execute concurrently.

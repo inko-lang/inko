@@ -16,9 +16,15 @@ import std::successor::Successor
 ## 1. They are both of the same type.
 ## 2. Both implement the `Successor` and `SmallerOrEqual` traits.
 object Range!(T: Successor + SmallerOrEqual) {
+  ## The start value of the range.
+  @start: T
+
+  ## The (inclusive) end value of the range.
+  @end: T
+
   def init(start: T, end: T) {
-    let @start = start
-    let @end = end
+    @start = start
+    @end = end
   }
 
   ## Returns the start value of the range.

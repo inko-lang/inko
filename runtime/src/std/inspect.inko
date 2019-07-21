@@ -14,14 +14,17 @@ impl Inspect for Object {
   ##
   ## Inspecting a simple object:
   ##
-  ##     Object.new.inspect  # => 'Object}'
+  ##     Object.new.inspect  # => 'Object'
   ##
   ## Inspecting an object with attributes:
   ##
   ##     object Person {
+  ##       @name: String
+  ##       @age: Integer
+  ##
   ##       def init(name: String, age: Integer) {
-  ##         let @name = name
-  ##         let @age = age
+  ##         @name = name
+  ##         @age = age
   ##       }
   ##     }
   ##

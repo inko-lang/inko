@@ -25,9 +25,15 @@ trait Formatter: ToString {
 
 ## The default formatter to use when formatting an object.
 object DefaultFormatter {
+  ## The buffer to use for the formatting output.
+  @buffer: StringBuffer
+
+  ## Integer keeping track of how many nested objects we are formatting.
+  @nesting: Integer
+
   def init {
-    let @buffer = StringBuffer.new
-    let mut @nesting = 0
+    @buffer = StringBuffer.new
+    @nesting = 0
   }
 }
 

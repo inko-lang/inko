@@ -63,9 +63,15 @@ impl Hasher for DefaultHasher {
 ## produce the same hash values for the same input values. However, hashers
 ## created from different `RandomState` objects will produce different hashes.
 object RandomState {
+  ## The first randomly generated key to use for the hashing algorithm.
+  @key0: Integer
+
+  ## The second randomly generated key to use for the hashing algorithm.
+  @key1: Integer
+
   def init {
-    let @key0 = random.incremental_integer
-    let @key1 = random.incremental_integer
+    @key0 = random.incremental_integer
+    @key1 = random.incremental_integer
   }
 
   ## Creates a new `DefaultHasher`.
@@ -76,18 +82,23 @@ object RandomState {
 
 ## A single key-value pair
 object Pair!(K: Hash + Equal, V) {
+  ## The key that was hashed.
+  @key: K
+
+  ## The value of the key.
+  @value: V
+
+  ## The hash value of the key.
+  @hash: Integer
+
+  ## The distance of this pair relative to its desired index.
+  @distance: Integer
+
   def init(key: K, value: V, hash: Integer) {
-    ## The key that was hashed.
-    let @key = key
-
-    ## The value of our key.
-    let @value = value
-
-    ## The hash value of our key.
-    let @hash = hash
-
-    ## The distance of this pair relative to its desired index.
-    let mut @distance = 0
+    @key = key
+    @value = value
+    @hash = hash
+    @distance = 0
   }
 
   def distance -> Integer {
@@ -136,24 +147,30 @@ object Pair!(K: Hash + Equal, V) {
 ## * http://codecapsule.com/2013/11/17/robin-hood-hashing-backward-shift-deletion/
 ## * https://www.sebastiansylvan.com/post/robin-hood-hashing-should-be-your-default-hash-table-implementation/
 object Table!(K: Hash + Equal, V) {
+  ## The state to use for creating hashers.
+  @random_state: RandomState
+
+  ## The buckets to store pairs in. Each bucket can only contain a single
+  ## pair.
+  @buckets: Array!(?Pair!(K, V))
+
+  ## The number of key-value pairs stored in this table.
+  @length: Integer
+
+  ## The number of values that can be stored before resizing.
+  @capacity: Integer
+
+  ## The number of values to store before a resize is necessary.
+  ## We store this value explicitly so we don't have to allocate floats every
+  ## time we want to check if we need to resize.
+  @resize_threshold: Integer
+
   def init {
-    ## The state to use for creating hashers.
-    let @random_state = RandomState.new
-
-    ## The buckets to store pairs in. Each bucket can only contain a single
-    ## pair.
-    let mut @buckets: Array!(?Pair!(K, V)) = []
-
-    ## The number of key-value pairs stored in this table.
-    let mut @length = 0
-
-    ## The number of values that can be stored before resizing.
-    let mut @capacity = 1
-
-    ## The number of values to store before a resize is necessary.
-    ## We store this value explicitly so we don't have to allocate floats every
-    ## time we want to check if we need to resize.
-    let mut @resize_threshold = 1
+    @random_state = RandomState.new
+    @buckets = []
+    @length = 0
+    @capacity = 1
+    @resize_threshold = 1
   }
 
   ## Returns the buckets in this table.
@@ -360,9 +377,11 @@ impl SetIndex!(K, V) for Table!(K, V) {
 ## A `HashMap` is unordered, meaning that keys can be returned in a (seemingly)
 ## random order.
 object HashMap!(K: Hash + Equal, V) {
+  @table: Table!(K, V)
+
   ## Creates a new, empty `HashMap`.
   def init {
-    let mut @table = Table.new
+    @table = Table.new
   }
 
   ## Removes the given key, returning its value if the key was present in the

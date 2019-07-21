@@ -21,13 +21,16 @@ let TIME_IN_SECONDS_THRESHOLD = 1.0
 ## Passed tests are displayed as a ".", while failed tests are displayed as "F".
 ## All output is written to STDOUT.
 object ProgressFormatter {
-  def init(colors = True) {
-    ## The number of failed tests.
-    let mut @failed = 0
+  ## The number of failed tests.
+  @failed: Integer
 
-    ## When set to `True`, certain parts of the output will be wrapped in ANSI
-    ## escape sequences.
-    let @colors = colors
+  ## When set to `True`, certain parts of the output will be wrapped in ANSI
+  ## escape sequences.
+  @colors: Boolean
+
+  def init(colors = True) {
+    @failed = 0
+    @colors = colors
   }
 
   ## Returns the title to use for a failed test.

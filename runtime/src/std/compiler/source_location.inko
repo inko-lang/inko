@@ -4,19 +4,23 @@ import std::fs::path::(Path, ToPath)
 
 ## The location of a single Inko expression.
 object SourceLocation {
+  ## The file path of the expression.
+  @file: Path
+
+  ## The line range of the expression.
+  @line_range: Range!(Integer)
+
+  ## The start column of the expression.
+  @column: Integer
+
   def init(
     file: ToPath,
     line_range: Range!(Integer),
     column: Integer
   ) {
-    ## The file path of the expression.
-    let @file = file.to_path
-
-    ## The line range of the expression.
-    let @line_range = line_range
-
-    ## The start column of the expression.
-    let @column = column
+    @file = file.to_path
+    @line_range = line_range
+    @column = column
   }
 
   ## Returns the file path of the expression.

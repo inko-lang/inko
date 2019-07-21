@@ -12,8 +12,11 @@ trait Error: ToString {
 ## The `StandardError` is a simple `Error` object suitable for cases where you
 ## only want to provide the developer with a human-readable error message.
 object StandardError {
+  ## The error message of this error.
+  @message: String
+
   def init(message: String) {
-    let @message = message
+    @message = message
   }
 }
 

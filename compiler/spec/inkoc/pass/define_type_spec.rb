@@ -2090,59 +2090,6 @@ describe Inkoc::Pass::DefineType do
       end
     end
 
-    context 'with an instance attribute' do
-      let(:object_type_scope) do
-        self_type = state.typedb.new_object_type('Person')
-
-        block_type = Inkoc::TypeSystem::Block
-          .named_method(Inkoc::Config::INIT_MESSAGE, state.typedb.block_type)
-
-        Inkoc::TypeScope.new(
-          self_type,
-          block_type,
-          tir_module,
-          locals: Inkoc::SymbolTable.new
-        )
-      end
-
-      it 'defines the attribute' do
-        type = expression_type('let @x = 10', object_type_scope)
-
-        expect(type).to be_type_instance_of(state.typedb.integer_type)
-
-        attr = object_type_scope.self_type.attributes['@x']
-
-        expect(attr.type).to eq(type)
-      end
-
-      it 'defines a mutable attribute' do
-        expression_type('let mut @x = 10', object_type_scope)
-
-        attr = object_type_scope.self_type.attributes['@x']
-
-        expect(attr).to be_mutable
-      end
-
-      it 'errors if the attribute already exists' do
-        object_type_scope
-          .self_type
-          .define_attribute('@a', state.typedb.integer_type)
-
-        type = expression_type('let @a = 10', object_type_scope)
-
-        expect(type).to be_error
-        expect(state.diagnostics.errors?).to eq(true)
-      end
-
-      it 'errors if used outside of a constructor method' do
-        type = expression_type('let @x = 10')
-
-        expect(type).to be_error
-        expect(type_scope.self_type.attributes['@x'].type).to be_error
-        expect(state.diagnostics.errors?).to eq(true)
-      end
-    end
-
     context 'with a constant' do
       it 'defines the constant' do
         type = expression_type('let X = 10')
@@ -2222,57 +2169,6 @@ describe Inkoc::Pass::DefineType do
           .to be_type_instance_of(state.typedb.integer_type)
 
         expect(state.typedb.array_type.type_parameter_instances).to be_empty
-      end
-    end
-
-    context 'with an instance attribute' do
-      let(:object_type_scope) do
-        self_type = state.typedb.new_object_type('Person')
-
-        block_type = Inkoc::TypeSystem::Block
-          .named_method(Inkoc::Config::INIT_MESSAGE, state.typedb.block_type)
-
-        Inkoc::TypeScope.new(
-          self_type,
-          block_type,
-          tir_module,
-          locals: Inkoc::SymbolTable.new
-        )
-      end
-
-      it 'defines the attribute' do
-        type = expression_type('let @x: Dynamic = 10', object_type_scope)
-
-        expect(type).to be_dynamic
-
-        attr = object_type_scope.self_type.attributes['@x']
-
-        expect(attr).to be_any
-        expect(attr.type).to eq(type)
-      end
-
-      it 'errors if the value and explicit type are not compatible' do
-        type_scope
-          .module_type
-          .define_attribute('Float', state.typedb.float_type)
-
-        type = expression_type('let @x: Float = 10', object_type_scope)
-
-        expect(type).to be_error
-        expect(object_type_scope.self_type.attributes['@x'].type).to be_error
-        expect(state.diagnostics.errors?).to eq(true)
-      end
-
-      it 'errors if used outside of a constructor method' do
-        type_scope
-          .self_type
-          .define_attribute('Integer', state.typedb.integer_type)
-
-        type = expression_type('let @x: Integer = 10')
-
-        expect(type).to be_error
-        expect(type_scope.self_type.attributes['@x'].type).to be_error
-        expect(state.diagnostics.errors?).to eq(true)
       end
     end
 

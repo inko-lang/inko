@@ -33,12 +33,15 @@ let RAW = SOCK_RAW
 
 ## An IPv4 or IPv6 socket address.
 object SocketAddress {
-  def init(ip: IpAddress, port: Integer) {
-    ## The IPv4/IPv6 address of this socket address.
-    let @ip = ip
+  ## The IPv4/IPv6 address of this socket address.
+  @ip: IpAddress
 
-    ## The port number of this socket address.
-    let @port = port
+  ## The port number of this socket address.
+  @port: Integer
+
+  def init(ip: IpAddress, port: Integer) {
+    @ip = ip
+    @port = port
   }
 
   ## Returns the IPv4/IPv6 address associated with `self`.
@@ -478,6 +481,9 @@ impl Close for Socket {
 ## address and a port. Optionally a `UdpSocket` can be connected to another
 ## socket using `UdpSocket::connect`.
 object UdpSocket {
+  ## The raw `Socket` wrapped by this `UdpSocket`.
+  @socket: Socket
+
   ## Creates a new `UdpSocket`, bound to the given address.
   ##
   ## The domain to use for the underlying socket (`AF_INET` or `AF_INET6`) is
@@ -500,7 +506,8 @@ object UdpSocket {
   def init(ip: ToIpAddress, port: Integer) !! IoError {
     let ip_addr = try _to_ip_address(ip)
     let domain = _domain_for_ip(ip_addr)
-    let @socket = try Socket.new(domain: domain, kind: DGRAM)
+
+    @socket = try Socket.new(domain: domain, kind: DGRAM)
 
     try @socket.bind(ip: ip_addr, port: port)
   }
@@ -601,6 +608,9 @@ impl Close for UdpSocket {
 
 ## A TCP socket connected to another TCP socket.
 object TcpStream {
+  ## The raw `Socket` wrapped by this `TcpStream`.
+  @socket: Socket
+
   ## Creates a new `TcpStream` that is connected to the TCP socket at the given
   ## IP address and port.
   ##
@@ -616,7 +626,8 @@ object TcpStream {
   def init(ip: ToIpAddress, port: Integer) !! IoError {
     let ip_addr = try _to_ip_address(ip)
     let domain = _domain_for_ip(ip_addr)
-    let @socket = try Socket.new(domain: domain, kind: STREAM)
+
+    @socket = try Socket.new(domain: domain, kind: STREAM)
 
     try @socket.connect(ip: ip_addr, port: port)
   }
@@ -687,6 +698,9 @@ impl Close for TcpStream {
 
 ## A TCP socket server that can accept incoming connections.
 object TcpListener {
+  ## The raw `Socket` wrapped by this `TcpListener`.
+  @socket: Socket
+
   ## Creates a new `TcpListener` bound to and listening on the given IP address
   ## and port.
   ##
@@ -726,7 +740,8 @@ object TcpListener {
   ) !! IoError {
     let ip_addr = try _to_ip_address(ip)
     let domain = _domain_for_ip(ip_addr)
-    let @socket = try Socket.new(domain: domain, kind: STREAM)
+
+    @socket = try Socket.new(domain: domain, kind: STREAM)
 
     # The IPV6_V6ONLY can't be set at all (even to False) for IPv4 sockets.
     ip_addr.v6?.and { only_ipv6 }.if_true {

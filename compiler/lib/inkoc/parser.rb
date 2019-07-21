@@ -1029,19 +1029,25 @@ module Inkoc
       AST::DefineVariable.new(name, value, vtype, mutable, start.location)
     end
 
+    def def_attribute(start)
+      advance_and_expect!(:colon)
+
+      vtype = type(advance!)
+
+      AST::DefineAttribute.new(start.value, vtype, start.location)
+    end
+
     # Parses the name of a variable definition.
     def variable_name
       start = advance!
 
       case start.type
       when :identifier then identifier_from_token(start)
-      when :attribute then attribute_from_token(start)
       when :constant then constant_from_token(start)
       else
         raise(
           ParseError,
-          "Unexpected #{start.type}, expected an identifier, " \
-            'constant or attribute'
+          "Unexpected #{start.type}, expected an identifier or constant "
         )
       end
     end
@@ -1084,7 +1090,16 @@ module Inkoc
       nodes = []
 
       while (token = @lexer.advance) && token.valid_but_not?(:curly_close)
-        nodes << expression(token)
+        node =
+          case token.type
+          when :define then def_method(token)
+          when :attribute then def_attribute(token)
+          when :documentation then documentation(token)
+          else
+            raise ParseError, "A #{token.type.inspect} is not valid here"
+          end
+
+        nodes << node
       end
 
       AST::Body.new(nodes, start.location)
@@ -1109,9 +1124,19 @@ module Inkoc
           []
         end
 
-      body = object_body(advance_and_expect!(:curly_open))
+      body = trait_body(advance_and_expect!(:curly_open))
 
       AST::Trait.new(name.value, targs, required_traits, body, start.location)
+    end
+
+    def trait_body(start)
+      nodes = []
+
+      while (token = @lexer.advance) && token.valid_but_not?(:curly_close)
+        nodes << expression(token)
+      end
+
+      AST::Body.new(nodes, start.location)
     end
 
     # Parses a list of traits that must be implemented by whatever implements

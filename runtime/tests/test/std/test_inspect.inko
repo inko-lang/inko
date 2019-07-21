@@ -3,21 +3,28 @@ import std::test
 import std::test::assert
 
 object OneAttribute {
+  @number: Integer
+
   def init {
-    let @number = 10
+    @number = 10
   }
 }
 
 object TwoAttributes {
+  @first: String
+  @second: Integer
+
   def init {
-    let @first = 'first'
-    let @second = 10
+    @first = 'first'
+    @second = 10
   }
 }
 
 object NestedObject {
+  @child: OneAttribute
+
   def init {
-    let @child = OneAttribute.new
+    @child = OneAttribute.new
   }
 }
 

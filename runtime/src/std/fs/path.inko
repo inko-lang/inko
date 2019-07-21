@@ -72,8 +72,11 @@ let SEPARATOR = os.windows?.if true: {
 ##
 ##     '/tmp/hello.txt'.to_path
 object Path {
+  ## The raw file path.
+  @path: String
+
   def init(path: String) {
-    let @path = path
+    @path = path
   }
 
   ## Returns `True` if the path points to a file.

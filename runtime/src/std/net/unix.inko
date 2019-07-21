@@ -27,6 +27,12 @@ let RAW = SOCK_RAW
 
 ## A Unix domain socket address.
 object SocketAddress {
+  ## The path or name of the address.
+  ##
+  ## This is a `String` since using a `Path` does not make sense for abstract
+  ## and unnamed addresses.
+  @address: String
+
   ## Creates a new `SocketAddress` from the given path or name.
   ##
   ## # Examples
@@ -49,11 +55,7 @@ object SocketAddress {
   ##
   ##     SocketAddress.new("\0example")
   def init(address: ToString = '') {
-    ## The path or name of the address.
-    ##
-    ## This is a `String` since using a `Path` does not make sense for abstract
-    ## and unnamed addresses.
-    let @address = address.to_string
+    @address = address.to_string
   }
 
   ## Returns the path of this address.
@@ -367,6 +369,9 @@ impl Close for Socket {
 
 ## A Unix datagram socket.
 object UnixDatagram {
+  ## The raw `Socket` wrapped by this `UnixDatagram`.
+  @socket: Socket
+
   ## Creates a new Unix datagram socket bound to the given address.
   ##
   ## # Examples
@@ -377,7 +382,7 @@ object UnixDatagram {
   ##
   ##     try! UnixDatagram.new('/tmp/test.sock')
   def init(address: ToString) !! IoError {
-    let @socket = try Socket.new(DGRAM)
+    @socket = try Socket.new(DGRAM)
 
     try @socket.bind(address)
   }
@@ -474,6 +479,9 @@ impl Close for UnixDatagram {
 
 ## A Unix stream socket connected to another Unix socket.
 object UnixStream {
+  ## The raw `Socket` wrapped by this `UnixStream`.
+  @socket: Socket
+
   ## Creates a new `UnixStream` that is connected to the given address.
   ##
   ## # Examples
@@ -486,7 +494,7 @@ object UnixStream {
   ##
   ##     try! UnixStream.new('/tmp/test.sock')
   def init(address: ToString) !! IoError {
-    let @socket = try Socket.new(STREAM)
+    @socket = try Socket.new(STREAM)
 
     try @socket.connect(address)
   }
@@ -557,6 +565,9 @@ impl Close for UnixStream {
 
 ## A Unix socket server that can accept incoming connections.
 object UnixListener {
+  ## The raw `Socket` wrapped by this `UnixListener`.
+  @socket: Socket
+
   ## Creates a new `UnixListener` bound to and listening on the given address.
   ##
   ## The `backlog` argument can be used to set the listen backlog.
@@ -575,7 +586,7 @@ object UnixListener {
   ##
   ##     try! TcpListener.new('/tmp/test.sock')
   def init(address: ToString, backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError {
-    let @socket = try Socket.new(STREAM)
+    @socket = try Socket.new(STREAM)
 
     try @socket.bind(address)
     try @socket.listen(backlog)

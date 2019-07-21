@@ -7,9 +7,11 @@ import std::conversion::ToInteger
 ## instead of a regular `Integer` makes it a little more difficult to use
 ## incorrect type identifiers when attaching C functions.
 object Type {
+  ## The numeric identifier of this type.
+  @id: Integer
+
   def init(id: Integer) {
-    ## The numeric identifier of this type.
-    let @id = id
+    @id = id
   }
 
   ## Returns the size of this type in bytes.

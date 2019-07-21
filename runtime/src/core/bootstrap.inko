@@ -65,6 +65,12 @@ object Modules {}
 ## `std::mirror` module to obtain module information such as its name or file
 ## path.
 object Module {
+  ## The full name of the module.
+  @name: String
+
+  ## The file path of the module.
+  @path: String
+
   def new(name: String, path: String) -> Self {
     # Modules are always global objects, so we create them as such right away.
     let obj = _INKOC.set_object(True, self)
@@ -75,8 +81,8 @@ object Module {
   }
 
   def init(name: String, path: String) {
-    let @name = name
-    let @path = path
+    @name = name
+    @path = path
   }
 }
 

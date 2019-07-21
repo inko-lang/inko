@@ -8,12 +8,15 @@ import std::debug::CallFrame
 ## Each `TestFailure` is given a message describing the failure, and a
 ## `CallFrame` that points to the location of the failure.
 object TestFailure {
-  def init(message: String, location: CallFrame) {
-    ## A message describing the assertion failure.
-    let @message = message
+  ## A message describing the assertion failure.
+  @message: String
 
-    ## The location of the assertion failure.
-    let @location = location
+  ## The location of the assertion failure.
+  @location: CallFrame
+
+  def init(message: String, location: CallFrame) {
+    @message = message
+    @location = location
   }
 
   ## Returns the location of the failure.

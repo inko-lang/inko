@@ -57,8 +57,10 @@
 #!     import std::mirror
 #!
 #!     object Person {
+#!       @name: String
+#!
 #!       def init(name: String) {
-#!         let @name = name
+#!         @name = name
 #!       }
 #!     }
 #!
@@ -83,8 +85,11 @@ let OBJECT_NAME_ATTRIBUTE = '@_object_name'
 
 ## A generic mirror for a regular object.
 object ObjectMirror {
+  ## The object that is being mirrored.
+  @subject: Object
+
   def init(subject: Object) {
-    let @subject = subject
+    @subject = subject
   }
 
   ## Returns the object reflected upon.
@@ -176,8 +181,10 @@ object ObjectMirror {
   ##     import std::mirror
   ##
   ##     object Person {
+  ##       @name: String
+  ##
   ##       def init(name: String) {
-  ##         let @name = name
+  ##         @name = name
   ##       }
   ##     }
   ##
@@ -197,8 +204,10 @@ object ObjectMirror {
   ##     import std::mirror
   ##
   ##     object Person {
+  ##       @name: String
+  ##
   ##       def init(name: String) {
-  ##         let @name = name
+  ##         @name = name
   ##       }
   ##     }
   ##
@@ -342,8 +351,11 @@ object ObjectMirror {
 
 ## A mirror for a `Block`.
 object BlockMirror {
+  ## The block that is being mirrored.
+  @subject: Block
+
   def init(subject: Block) {
-    let @subject = subject
+    @subject = subject
   }
 
   ## Returns the name of the block.
@@ -447,8 +459,11 @@ object BlockMirror {
 
 ## A mirror for a `Module`.
 object ModuleMirror {
+  ## The mirror to use for obtaining generic object information.
+  @mirror: ObjectMirror
+
   def init(subject: Module) {
-    let @mirror = ObjectMirror.new(subject)
+    @mirror = ObjectMirror.new(subject)
   }
 
   ## Returns the name of the module.

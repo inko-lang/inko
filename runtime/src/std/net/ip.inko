@@ -41,8 +41,11 @@ def _octets_to_hextet(first: Integer, second: Integer) -> Integer {
 
 ## An error thrown when attempting to parse an invalid IPv4 or IPv6 address.
 object AddressParseError {
+  ## The address that could not be parsed.
+  @address: String
+
   def init(address: ToString) {
-    let @address = address.to_string
+    @address = address.to_string
   }
 }
 
@@ -91,6 +94,9 @@ trait IpAddress: Equal + ToString + ToIpAddress {
 }
 
 object Ipv6Address {
+  ## The segments/hextets of this IPv6 address.
+  @segments: Array!(Integer)
+
   def init(
     a = 0,
     b = 0,
@@ -101,7 +107,7 @@ object Ipv6Address {
     g = 0,
     h = 0
   ) {
-    let @segments = [a, b, c, d, e, f, g, h]
+    @segments = [a, b, c, d, e, f, g, h]
   }
 }
 
@@ -376,8 +382,11 @@ impl IpAddress for Ipv6Address {
 }
 
 object Ipv4Address {
+  ## The segments/octets of this IPv4 address.
+  @segments: Array!(Integer)
+
   def init(a = 0, b = 0, c = 0, d = 0) {
-    let @segments = [a, b, c, d]
+    @segments = [a, b, c, d]
   }
 }
 

@@ -29,6 +29,9 @@ trait Remove {
 
 ## A file that can only be used for read operations.
 object ReadOnlyFile {
+  ## The path of the opened file.
+  @path: Path
+
   ## Returns a new `ReadOnlyFile`.
   ##
   ## # Examples
@@ -48,7 +51,7 @@ object ReadOnlyFile {
   }
 
   def init(path: Path) {
-    let @path = path
+    @path = path
   }
 }
 
@@ -84,6 +87,9 @@ impl Close for ReadOnlyFile {
 
 ## A file that can only be used for write (or append) operations.
 object WriteOnlyFile {
+  ## The path of the opened file.
+  @path: Path
+
   ## Returns a new `WriteOnlyFile`.
   ##
   ## # Examples
@@ -104,7 +110,7 @@ object WriteOnlyFile {
   }
 
   def init(path: Path) {
-    let @path = path
+    @path = path
   }
 }
 
@@ -154,6 +160,9 @@ impl Remove for WriteOnlyFile {
 
 ## A file that can be used for both read and write operations.
 object ReadWriteFile {
+  ## The path of the opened file.
+  @path: Path
+
   ## Returns a new `ReadWriteFile`.
   ##
   ## # Examples
@@ -174,7 +183,7 @@ object ReadWriteFile {
   }
 
   def init(path: Path) {
-    let @path = path
+    @path = path
   }
 }
 

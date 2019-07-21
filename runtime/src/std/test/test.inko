@@ -11,6 +11,24 @@ import std::test::error::TestFailure
 ## A test defined by the user, including details such as the name and the
 ## location it was defined at.
 object Test {
+  ## The name of this test.
+  @name: String
+
+  ## The name of the group this test belongs to.
+  @group_name: String
+
+  ## A CallFrame pointing to the location the test was defined on by the user.
+  @location: CallFrame
+
+  ## The runner process this test belongs.
+  @runner: Process
+
+  ## The failure of this test, if any.
+  @failure: ?TestFailure
+
+  ## The test body to execute.
+  @body: lambda
+
   def init(
     name: String,
     group_name: String,
@@ -18,23 +36,12 @@ object Test {
     location: CallFrame,
     body: lambda,
   ) {
-    ## The name of this test.
-    let @name = name
-
-    ## The name of the group this test belongs to.
-    let @group_name = group_name
-
-    ## A CallFrame pointing to the location the test was defined on by the user.
-    let @location = location
-
-    ## The runner process this test belongs.
-    let @runner = runner
-
-    ## The failure of this test, if any.
-    let mut @failure: ?TestFailure = Nil
-
-    ## The test body to execute.
-    let @body = body
+    @name = name
+    @group_name = group_name
+    @location = location
+    @runner = runner
+    @failure = Nil
+    @body = body
   }
 
   ## Returns the name of this test.

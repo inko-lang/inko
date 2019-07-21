@@ -189,6 +189,15 @@ impl Close for Library {
 
 ## A C function that can be called from Inko.
 object Function {
+  ## The name of this function.
+  @name: String
+
+  ## The argument types of this function.
+  @arguments: Array!(Type)
+
+  ## The return type of this function.
+  @returns: Type
+
   ## Attaches a C function to Inko.
   def new(
     library: Library,
@@ -210,14 +219,9 @@ object Function {
   }
 
   def init(name: String, arguments: Array!(Type), returns: Type) {
-    ## The name of this function.
-    let @name = name
-
-    ## The argument types of this function.
-    let @arguments = arguments
-
-    ## The return type of this function.
-    let @returns = returns
+    @name = name
+    @arguments = arguments
+    @returns = returns
   }
 
   ## Returns the name of this function.
@@ -261,15 +265,19 @@ impl Library {
 
 ## A member in a structure.
 object Member {
+  ## The name of this `Member`.
+  @name: String
+
+  ## The C `Type` of this `Member`.
+  @type: Type
+
+  ## The offset of this `Member`, relative to the start of the struct.
+  @offset: Integer
+
   def init(name: String, type: Type, offset: Integer) {
-    ## The name of this `Member`.
-    let @name = name
-
-    ## The C `Type` of this `Member`.
-    let @type = type
-
-    ## The offset of this `Member`, relative to the start of the struct.
-    let @offset = offset
+    @name = name
+    @type = type
+    @offset = offset
   }
 
   ## Returns the name of this `Member`.
@@ -291,20 +299,24 @@ object Member {
 ## The members, alignment, and other information used for building a C
 ## structure.
 object Layout {
+  ## The members of this layout, mapped to their names.
+  @members: HashMap!(String, Member)
+
+  ## The size (in bytes) of this layout.
+  @size: Integer
+
+  ## The alignment to use for all fields. This equals the alignment of the
+  ## largest field.
+  @alignment: Integer
+
   def init(
     members: HashMap!(String, Member),
     alignment: Integer,
     size: Integer
   ) {
-    ## The members of this layout, mapped to their names.
-    let @members: HashMap!(String, Member) = members
-
-    ## The size (in bytes) of this layout.
-    let @size = size
-
-    ## The alignment to use for all fields. This equals the alignment of the
-    ## largest field.
-    let @alignment = alignment
+    @members = members
+    @size = size
+    @alignment = alignment
   }
 
   ## Returns the alignment of the members in this `Struct`.
@@ -333,12 +345,15 @@ object Layout {
 
 ## A C structure.
 object Struct {
-  def init(pointer: Pointer, layout: Layout) {
-    ## The pointer to the C address that contains the structure.
-    let @pointer = pointer
+  ## The pointer to the C address that contains the structure.
+  @pointer: Pointer
 
-    ## The `Layout` of this structure.
-    let @layout = layout
+  ## The `Layout` of this structure.
+  @layout: Layout
+
+  def init(pointer: Pointer, layout: Layout) {
+    @pointer = pointer
+    @layout = layout
   }
 
   ## Returns the size in bytes of this `Struct`.
@@ -386,21 +401,27 @@ impl Layout {
 
 ## An object used for constructing an immutable `Layout`.
 object LayoutBuilder {
+  ## The names of all members, in the order they are defined in.
+  @members: Array!(String)
+
+  ## The types of all members, in the order they are defined in.
+  @types: Array!(Type)
+
+  ## A HashMap that tracks which members have already been defined.
+  @existing: HashMap!(String, Boolean)
+
+  ## The alignment of the largest field.
+  @alignment: Integer
+
+  ## A boolean indicating if members should be padded or not.
+  @padding: Boolean
+
   def init {
-    ## The names of all members, in the order they are defined in.
-    let @members: Array!(String) = []
-
-    ## The types of all members, in the order they are defined in.
-    let @types: Array!(Type) = []
-
-    ## A HashMap that tracks which members have already been defined.
-    let @existing: HashMap!(String, Boolean) = %[]
-
-    ## The alignment of the largest field.
-    let mut @alignment = 0
-
-    ## A boolean indicating if members should be padded or not.
-    let mut @padding = True
+    @members = []
+    @types = []
+    @existing = %[]
+    @alignment = 0
+    @padding = True
   }
 
   ## Disables the padding of members.

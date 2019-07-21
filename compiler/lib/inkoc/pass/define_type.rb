@@ -893,22 +893,18 @@ module Inkoc
         value_type
       end
 
-      def on_define_attribute(node, value_type, scope, mutable = false)
+      def on_define_attribute(node, scope)
         name = node.name
-
-        unless scope.constructor?
-          value_type = diagnostics
-            .define_instance_attribute_error(name, node.location)
-        end
+        vtype = define_type_instance(node.value_type, scope)
 
         if scope.self_type.lookup_attribute(name).any?
-          value_type = diagnostics
+          diagnostics
             .redefine_existing_attribute_error(name, node.location)
         else
-          scope.self_type.define_attribute(name, value_type, mutable)
-        end
+          scope.self_type.define_attribute(name, vtype, true)
 
-        value_type
+          vtype
+        end
       end
 
       def on_define_constant(node, value_type, scope, _)

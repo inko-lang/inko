@@ -14,9 +14,12 @@ trait Trait1 {}
 trait Trait2 {}
 
 object Dummy {
+  @name: String
+  @age: Integer
+
   def init {
-    let @name = 'Alice'
-    let @age = 28
+    @name = 'Alice'
+    @age = 28
   }
 }
 

@@ -10,8 +10,11 @@ import std::time::constants::*
 ## about casting the time to different scales yourself. A `Duration` can be
 ## created using various scales such as seconds and milliseconds.
 object Duration {
+  ## The number of seconds (including fractional seconds) of this `Duration`.
+  @seconds: Float
+
   def init(seconds: Float) {
-    let @seconds = seconds
+    @seconds = seconds
   }
 
   ## Returns the duration in seconds.

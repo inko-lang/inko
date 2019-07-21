@@ -15,12 +15,15 @@ import std::string_buffer::StringBuffer
 
 ## The result of a PanicTest.
 object PanicResult {
-  def init(panicked: Boolean, error: ?String = Nil) {
-    ## A `Boolean` that indicates if a block panicked or not.
-    let @panicked = panicked
+  ## A `Boolean` that indicates if a block panicked or not.
+  @panicked: Boolean
 
-    ## A `String` containing the panic error message, if a panic happened.
-    let @error = error
+  ## A `String` containing the panic error message, if a panic happened.
+  @error: ?String
+
+  def init(panicked: Boolean, error: ?String = Nil) {
+    @panicked = panicked
+    @error = error
   }
 
   def panicked? -> Boolean {
@@ -34,12 +37,15 @@ object PanicResult {
 
 ## A test to verify if a block will panic or not.
 object PanicTest {
-  def init(owner: Process, block: lambda) {
-    ## The process that owns the test.
-    let @owner = owner
+  ## The process that owns the test.
+  @owner: Process
 
-    ## The `Block` to run.
-    let @block = block
+  ## The `Block` to run.
+  @block: lambda
+
+  def init(owner: Process, block: lambda) {
+    @owner = owner
+    @block = block
   }
 
   def run {

@@ -8,10 +8,19 @@ import std::string_buffer::StringBuffer
 
 ## Details of a single call frame in a call stack.
 object CallFrame {
+  ## The path of the file the frame belongs to.
+  @path: Path
+
+  ## The name of the block of code the frame belongs to.
+  @name: String
+
+  ## The line number the call frame originates from.
+  @line: Integer
+
   def init(path: ToPath, name: String, line: Integer) {
-    let @path = path.to_path
-    let @name = name
-    let @line = line
+    @path = path.to_path
+    @name = name
+    @line = line
   }
 
   ## Returns the path of the file the frame belongs to.

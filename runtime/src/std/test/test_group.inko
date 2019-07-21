@@ -8,12 +8,15 @@ import std::test::test::Test
 
 ## A collection of tests that all belong to the same group.
 object TestGroup {
-  def init(name: String, client: Client) {
-    ## The name of the group.
-    let @name = name
+  ## The name of the group.
+  @name: String
 
-    ## The `Client` to use for communicating with a `Runner`.
-    let @client = client
+  ## The `Client` to use for communicating with a `Runner`.
+  @client: Client
+
+  def init(name: String, client: Client) {
+    @name = name
+    @client = client
   }
 
   ## Registers a new test with a runner.
