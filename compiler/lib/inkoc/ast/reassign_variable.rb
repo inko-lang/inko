@@ -21,6 +21,10 @@ module Inkoc
       def visitor_method
         :on_reassign_variable
       end
+
+      def reassign_attribute?
+        variable.attribute?
+      end
     end
   end
 end

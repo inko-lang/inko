@@ -396,5 +396,12 @@ module Inkoc
 
       TypeSystem::Error.new
     end
+
+    def unassigned_attribute(name, location)
+      error(
+        "The #{name.inspect} attribute must be assigned a value in this method",
+        location
+      )
+    end
   end
 end

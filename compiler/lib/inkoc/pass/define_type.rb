@@ -808,6 +808,25 @@ module Inkoc
 
       def on_deferred_method(node, scope)
         define_type(node.body, scope)
+
+        verify_unassigned_attributes(node, scope) if node.name == 'init'
+      end
+
+      def verify_unassigned_attributes(node, scope)
+        assigned = node
+          .body
+          .expressions
+          .select(&:reassign_attribute?)
+          .map { |node| node.variable.name }
+          .to_set
+
+        scope.self_type.attributes.each do |attr|
+          next unless attr.name.start_with?('@')
+          next if attr.name.start_with?('@_')
+          next if assigned.include?(attr.name)
+
+          diagnostics.unassigned_attribute(attr.name, node.location)
+        end
       end
 
       def store_type(type, scope, location)

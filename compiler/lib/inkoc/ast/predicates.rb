@@ -110,6 +110,14 @@ module Inkoc
       def object?
         false
       end
+
+      def reassign_attribute?
+        false
+      end
+
+      def attribute?
+        false
+      end
     end
   end
 end
