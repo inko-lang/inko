@@ -585,6 +585,7 @@ module Inkoc
       when :bracket_open then array(start)
       when :hash_open then hash(start)
       when :define then def_method(start)
+      when :static then def_static_method(start)
       when :do, :lambda then block(start, start.type)
       when :let then let_define(start)
       when :return then return_value(start)
@@ -840,6 +841,14 @@ module Inkoc
       )
     end
 
+    def def_static_method(start)
+      def_start = advance_and_expect!(:define)
+
+      def_method(def_start).tap do |method|
+        method.static = true
+      end
+    end
+
     # Parses a list of argument definitions.
     # rubocop: disable Metrics/CyclomaticComplexity
     def def_arguments
@@ -1093,6 +1102,7 @@ module Inkoc
         node =
           case token.type
           when :define then def_method(token)
+          when :static then def_static_method(token)
           when :attribute then def_attribute(token)
           when :documentation then documentation(token)
           else

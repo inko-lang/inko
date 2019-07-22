@@ -114,7 +114,7 @@ let NULL_ADDRESS = 0x0
 ## A pointer to a value in C.
 object Pointer {
   ## Creates a pointer using the given memory address.
-  def new(address: Integer) -> Self {
+  static def new(address: Integer) -> Self {
     _INKOC.pointer_from_address(Pointer, address)
   }
 
@@ -170,7 +170,7 @@ object Library {
   ##
   ## The names in this `Array` can either be the library name with extension,
   ## such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
-  def new(names: Array!(String)) -> Self {
+  static def new(names: Array!(String)) -> Self {
     _INKOC.library_open(Library, names)
   }
 
@@ -199,7 +199,7 @@ object Function {
   @returns: Type
 
   ## Attaches a C function to Inko.
-  def new(
+  static def new(
     library: Library,
     name: String,
     arguments: Array!(Type),

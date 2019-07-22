@@ -24,7 +24,7 @@ impl Nil {
   ## Sending `new` to a `Nil` produces a new `Nil`:
   ##
   ##     Nil.new # => Nil
-  def new -> Self {
+  static def new -> Self {
     self
   }
 }

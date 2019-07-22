@@ -46,7 +46,7 @@ impl ByteArray {
   ##     import std::byte_array::ByteArray
   ##
   ##     ByteArray.new([10, 20, 30])
-  def new(bytes: Array!(Integer) = []) -> Self {
+  static def new(bytes: Array!(Integer) = []) -> Self {
     _INKOC.byte_array_from_array(bytes) as ByteArray
   }
 

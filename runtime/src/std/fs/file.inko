@@ -41,7 +41,7 @@ object ReadOnlyFile {
   ##     import std::fs::file::ReadOnlyFile
   ##
   ##     let handle = try! ReadOnlyFile.new('/dev/null')
-  def new(path: ToPath) !! IOError -> Self {
+  static def new(path: ToPath) !! IOError -> Self {
     let conv_path = path.to_path
     let instance =
       try raw.open(type: self, path: conv_path.to_string, mode: READ_ONLY)
@@ -99,7 +99,7 @@ object WriteOnlyFile {
   ##     import std::fs::file::WriteOnlyFile
   ##
   ##     let handle = try! WriteOnlyFile.new('/dev/null')
-  def new(path: ToPath, append = False) !! IOError -> Self {
+  static def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_write(append)
     let conv_path = path.to_path
     let instance =
@@ -172,7 +172,7 @@ object ReadWriteFile {
   ##     import std::fs::file::ReadWriteFile
   ##
   ##     let handle = try! ReadWriteFile.new('/dev/null')
-  def new(path: ToPath, append = False) !! IOError -> Self {
+  static def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_read_write(append)
     let conv_path = path.to_path
     let instance =

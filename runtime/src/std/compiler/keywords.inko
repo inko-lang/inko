@@ -10,59 +10,58 @@ import std::byte_array::ByteArray
 
 ## The associated values for the first and second bytes in a keyword.
 let ASSOCIATED_VALUES = [
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20,  5, 11, 20,
-  13,  0, 13, 20,  6,  2, 20, 20,  0,  2,
-  20,  2, 20, 20,  0,  5,  2, 10, 20,  3,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-  20, 20, 20, 20, 20, 20
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22,  0,  0, 22,
+   0,  0,  0, 22,  7,  4, 22, 22,  6,  3,
+  22, 15, 22, 22,  0,  0,  2, 10, 22,  3,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
+  22, 22, 22, 22, 22, 22
 ]
 
 ## All available keywords, as ByteArray instances.
-##
-## The first three empty values are necessary and produced by gperf. Removing
-## these may produce unexpected results.
 let WORD_LIST = [
- ''.to_byte_array,
- ''.to_byte_array,
- ''.to_byte_array,
- 'let'.to_byte_array,
- 'else'.to_byte_array,
- 'try'.to_byte_array,
- 'return'.to_byte_array,
- 'trait'.to_byte_array,
- 'impl'.to_byte_array,
- 'self'.to_byte_array,
- 'import'.to_byte_array,
- 'lambda'.to_byte_array,
- 'as'.to_byte_array,
- 'throw'.to_byte_array,
- 'where'.to_byte_array,
- 'mut'.to_byte_array,
- 'def'.to_byte_array,
- 'do'.to_byte_array,
- 'for'.to_byte_array,
- 'object'.to_byte_array
+  ''.to_byte_array,
+  ''.to_byte_array,
+  'as'.to_byte_array,
+  'def'.to_byte_array,
+  'self'.to_byte_array,
+  'try'.to_byte_array,
+  'return'.to_byte_array,
+  'trait'.to_byte_array,
+  'static'.to_byte_array,
+  'let'.to_byte_array,
+  'else'.to_byte_array,
+  'impl'.to_byte_array,
+  'lambda'.to_byte_array,
+  'import'.to_byte_array,
+  'throw'.to_byte_array,
+  'where'.to_byte_array,
+  'mut'.to_byte_array,
+  'do'.to_byte_array,
+  'for'.to_byte_array,
+  ''.to_byte_array,
+  ''.to_byte_array,
+  'object'.to_byte_array
 ]
 
 ## Input values with a length outside of this `Range` definitely can not be a
@@ -71,7 +70,7 @@ let WORD_LENGTH = 2..6
 
 ## The maximum possible hash value. If a hash value is greater, the input is
 ## definitely not a keyword.
-let MAX_HASH_VALUE = 19
+let MAX_HASH_VALUE = 21
 
 ## Returns `True` if the given `ByteArray` is a valid Inko keyword.
 def keyword?(bytes: ByteArray) -> Boolean {

@@ -39,7 +39,7 @@ impl Array!(T) {
   ## Creating an Array with values:
   ##
   ##     Array.new(10, 20, 30) # => [10, 20, 30]
-  def new!(V)(*values: V) -> Array!(V) {
+  static def new!(V)(*values: V) -> Array!(V) {
     values
   }
 

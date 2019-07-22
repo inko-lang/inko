@@ -145,7 +145,7 @@ object Socket {
   ##     import std::net::unix::(DGRAM, Socket)
   ##
   ##     try! Socket.new(DGRAM)
-  def new(kind: Integer) !! IoError -> Socket {
+  static def new(kind: Integer) !! IoError -> Socket {
     try {
       _INKOC.socket_create(Socket, UNIX, kind)
     } else (error) {

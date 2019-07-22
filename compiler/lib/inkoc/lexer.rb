@@ -22,7 +22,8 @@ module Inkoc
       'impl' => :impl,
       'for' => :for,
       'lambda' => :lambda,
-      'where' => :where
+      'where' => :where,
+      'static' => :static
     }.freeze
 
     SPECIALS = Set.new(

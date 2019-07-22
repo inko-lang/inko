@@ -78,7 +78,7 @@ object Socket {
   ##     import std::net::socket::(IPV4, DGRAM, Socket)
   ##
   ##     try! Socket.new(domain: IPV4, kind: DGRAM)
-  def new(domain: Integer, kind: Integer) !! IoError -> Self {
+  static def new(domain: Integer, kind: Integer) !! IoError -> Self {
     try {
       _INKOC.socket_create(Socket, domain, kind)
     } else (error) {

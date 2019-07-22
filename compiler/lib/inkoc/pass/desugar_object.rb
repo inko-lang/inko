@@ -40,6 +40,8 @@ module Inkoc
             default_new(node.location)
           end
 
+        method.static = true
+
         node.body.expressions.push(method)
         process_node(node.body)
       end

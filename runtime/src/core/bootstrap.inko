@@ -38,7 +38,7 @@ _INKOC.set_object_name(Block, 'Block')
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow
 # creating of modules.
 impl Object {
-  def new -> Self {
+  static def new -> Self {
     let obj = _INKOC.set_object(False, self)
 
     obj.init
@@ -71,7 +71,7 @@ object Module {
   ## The file path of the module.
   @path: String
 
-  def new(name: String, path: String) -> Self {
+  static def new(name: String, path: String) -> Self {
     # Modules are always global objects, so we create them as such right away.
     let obj = _INKOC.set_object(True, self)
 

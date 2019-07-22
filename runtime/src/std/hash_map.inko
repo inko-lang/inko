@@ -26,7 +26,7 @@ object DefaultHasher {
   ## # Panics
   ##
   ## This method will panic if any of the provided keys are below zero.
-  def new(key0: Integer, key1: Integer) -> Self {
+  static def new(key0: Integer, key1: Integer) -> Self {
     _INKOC.hasher_new(DefaultHasher, key0, key1)
   }
 }

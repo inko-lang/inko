@@ -71,6 +71,10 @@ test.group('std::compiler::keywords.keyword?') do (g) {
     assert.true(keywords.keyword?('object'.to_byte_array))
   }
 
+  g.test('Checking if "static" is a keyword') {
+    assert.true(keywords.keyword?('static'.to_byte_array))
+  }
+
   g.test('Checking if an invalid identifier is a keyword') {
     assert.false(keywords.keyword?('foo'.to_byte_array))
     assert.false(keywords.keyword?('bar'.to_byte_array))

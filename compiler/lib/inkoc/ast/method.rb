@@ -10,6 +10,8 @@ module Inkoc
       attr_reader :name, :arguments, :type_parameters, :returns, :throws,
                   :method_bounds, :body, :location
 
+      attr_accessor :static
+
       # name - The name of the method.
       # args - The arguments of the method.
       # returns - The return type of the method.
@@ -39,6 +41,7 @@ module Inkoc
         @location = loc
         @required = required
         @type = nil
+        @static = false
       end
 
       def required?
