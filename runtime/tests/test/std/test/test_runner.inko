@@ -9,7 +9,7 @@ import std::test::runner::(
   AddTest, Client, ConfigureRunner, RunTests, RunnerFinished, RunnerState
 )
 import std::test::test::Test
-import std::time::duration
+import std::time::Duration
 
 def example_test -> Test {
   let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
@@ -186,7 +186,7 @@ test.group('std::test::runner::Client.wait_for_tests') do (g) {
 
     # If the client never stops waiting for tests, this receive will time out
     # causing the below assertion to fail.
-    let finished = process.receive(duration.from_seconds(5)) as ?Boolean
+    let finished = process.receive(Duration.from_seconds(5)) as ?Boolean
 
     assert.true(finished)
   }

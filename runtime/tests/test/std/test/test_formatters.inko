@@ -6,7 +6,7 @@ import std::test::assert
 import std::test::error::TestFailure
 import std::test::formatters::ProgressFormatter
 import std::test::test::Test
-import std::time::duration
+import std::time::Duration
 
 def example_test -> Test {
   let frame = CallFrame.new(path: 'test.inko', name: 'test', line: 1)
@@ -42,12 +42,12 @@ test.group('std::test::formatters::ProgressFormatter.test_suite_duration_unit') 
     let fmt = ProgressFormatter.new
 
     assert.equal(
-      fmt.test_suite_duration_unit(duration.from_milliseconds(5)),
+      fmt.test_suite_duration_unit(Duration.from_milliseconds(5)),
       'milliseconds'
     )
 
     assert.equal(
-      fmt.test_suite_duration_unit(duration.from_seconds(5)),
+      fmt.test_suite_duration_unit(Duration.from_seconds(5)),
       'seconds'
     )
   }

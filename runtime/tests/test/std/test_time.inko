@@ -1,11 +1,210 @@
 import std::process
 import std::test
 import std::test::assert
-import std::time::(self, Instant, SystemTime)
-import std::time::duration
+import std::time::(self, Duration, Instant, SystemTime)
 
 let MIN_UTC_OFFSET = -12 * 3600
 let MAX_UTC_OFFSET = 14 * 3600
+
+test.group('std::time::duration::Duration.as_seconds') do (g) {
+  g.test('Converting a Duration to seconds') {
+    assert.equal(Duration.new(1.2).as_seconds, 1.2)
+  }
+}
+
+test.group('std::time::duration::Duration.as_milliseconds') do (g) {
+  g.test('Converting a Duration to milliseconds') {
+    assert.equal(Duration.new(1.2).as_milliseconds, 1200.0)
+  }
+}
+
+test.group('std::time::duration::Duration.as_microseconds') do (g) {
+  g.test('Converting a Duration to microseconds') {
+    assert.equal(Duration.new(1.2).as_microseconds, 1_200_000.0)
+  }
+}
+
+test.group('std::time::duration::Duration.as_nanoseconds') do (g) {
+  g.test('Converting a Duration to nanoseconds') {
+    assert.equal(Duration.new(1.2).as_nanoseconds, 1_200_000_000.0)
+  }
+}
+
+test.group('std::time::duration::Duration.to_integer') do (g) {
+  g.test('Converting a Duration to an Integer') {
+    assert.equal(Duration.new(1.2).to_integer, 1)
+  }
+}
+
+test.group('std::time::duration::Duration.to_float') do (g) {
+  g.test('Converting a Duration to a Float') {
+    assert.equal(Duration.new(1.2).to_float, 1.2)
+  }
+}
+
+test.group('std::time::duration::Duration.+') do (g) {
+  g.test('Adding two Durations together') {
+    let duration = Duration.new(1.0) + Duration.new(2.0)
+
+    assert.equal(duration.as_seconds, 3.0)
+  }
+}
+
+test.group('std::time::duration::Duration.-') do (g) {
+  g.test('Subtracting a Duration from another Duration') {
+    let duration = Duration.new(2.0) - Duration.new(0.5)
+
+    assert.equal(duration.as_seconds, 1.5)
+  }
+}
+
+test.group('std::time::duration::Duration.<') do (g) {
+  g.test('Checking if on Duration is shorter than another Duration') {
+    assert.true(Duration.new(1.0) < Duration.new(2.0))
+    assert.false(Duration.new(2.0) < Duration.new(1.0))
+  }
+}
+
+test.group('std::time::duration::Duration.>') do (g) {
+  g.test('Checking if on Duration is longer than another Duration') {
+    assert.true(Duration.new(2.0) > Duration.new(1.0))
+    assert.false(Duration.new(1.0) > Duration.new(2.0))
+  }
+}
+
+test.group('std::time::duration::Duration.<=') do (g) {
+  g.test('Checking if on Duration is shorter than or equal to another Duration') {
+    assert.true(Duration.new(1.0) <= Duration.new(2.0))
+    assert.true(Duration.new(1.0) <= Duration.new(1.0))
+    assert.false(Duration.new(2.0) <= Duration.new(1.0))
+  }
+}
+
+test.group('std::time::duration::Duration.>=') do (g) {
+  g.test('Checking if on Duration is longer than or equal to another Duration') {
+    assert.true(Duration.new(2.0) >= Duration.new(1.0))
+    assert.true(Duration.new(2.0) >= Duration.new(2.0))
+    assert.false(Duration.new(1.0) >= Duration.new(2.0))
+  }
+}
+
+test.group('std::time::Duration.from_seconds') do (g) {
+  g.test('Creating a Duration using seconds as the unit of time') {
+    assert.equal(Duration.from_seconds(5.0).as_seconds, 5.0)
+  }
+}
+
+test.group('std::time::Duration.from_milliseconds') do (g) {
+  g.test('Creating a Duration using milliseconds as the unit of time') {
+    assert.equal(Duration.from_milliseconds(500).as_seconds, 0.5)
+  }
+}
+
+test.group('std::time::Duration.from_nanoseconds') do (g) {
+  g.test('Creating a Duration using nanoseconds as the unit of time') {
+    assert.equal(Duration.from_nanoseconds(5_00_000_000).as_seconds, 0.5)
+  }
+}
+
+test.group('std::time::SystemTime.now') do (g) {
+  g.test('Obtaining a SystemTime for the current local time') {
+    assert.true(SystemTime.now > SystemTime.new)
+  }
+}
+
+test.group('std::time::SystemTime.utc') do (g) {
+  g.test('Obtaining a SystemTime using UTC') {
+    let utc = SystemTime.utc
+
+    assert.true(utc > SystemTime.new)
+    assert.equal(utc.utc_offset, 0)
+  }
+}
+
+test.group('std::time::SystemTime.from_timestamp') do (g) {
+  g.test("Creating a SystemTime using the local clock's UTC offset") {
+    assert.equal(SystemTime.from_timestamp(0).utc_offset, time.utc_offset)
+  }
+
+  # For all the following tests we use a fixed UTC offset of 0, ensuring the
+  # tests do not fail if the test environment uses a different UTC offset.
+  g.test('Creating a SystemTime using the Unix timestamp 0') {
+    assert.equal(
+      SystemTime.from_timestamp(time: 0, utc_offset: 0),
+      SystemTime.new(year: 1970)
+    )
+  }
+
+  g.test('Creating a SystemTime using a positive Unix timestamp') {
+    assert.equal(
+      SystemTime.from_timestamp(5, utc_offset: 0),
+      SystemTime.new(year: 1970, hour: 0, second: 5)
+    )
+
+    assert.equal(
+      SystemTime.from_timestamp(1_545_698_530, utc_offset: 0),
+      SystemTime.new(
+        year: 2018,
+        month: 12,
+        day: 25,
+        hour: 0,
+        minute: 42,
+        second: 10
+      )
+    )
+  }
+
+  g.test('Creating a SystemTime using a negative Unix timestamp') {
+    assert.equal(
+      SystemTime.from_timestamp(-5, utc_offset: 0),
+      SystemTime.new(
+        year: 1969,
+        month: 12,
+        day: 31,
+        hour: 23,
+        minute: 59,
+        second: 55
+      )
+    )
+
+    assert.equal(
+      SystemTime.from_timestamp(-1_545_698_530, utc_offset: 0),
+      SystemTime.new(
+        year: 1921,
+        month: 1,
+        day: 7,
+        hour: 23,
+        minute: 17,
+        second: 50
+      )
+    )
+  }
+}
+
+test.group('std::time::SystemTime.from_utc_timestamp') do (g) {
+  g.test('Creating a SystemTime using a positive Unix timestamp') {
+    assert.equal(SystemTime.from_utc_timestamp(0), SystemTime.new(year: 1970))
+
+    assert.equal(
+      SystemTime.from_utc_timestamp(5),
+      SystemTime.new(year: 1970, second: 5)
+    )
+  }
+
+  g.test('Creating a SystemTime using a negative Unix timestamp') {
+    assert.equal(
+      SystemTime.from_utc_timestamp(-5),
+      SystemTime.new(
+        year: 1969,
+        month: 12,
+        day: 31,
+        hour: 23,
+        minute: 59,
+        second: 55
+      )
+    )
+  }
+}
 
 test.group('std::time::SystemTime.hour') do (g) {
   g.test('Obtaining the hour') {
@@ -244,14 +443,14 @@ test.group('std::time::SystemTime.to_float') do (g) {
 
 test.group('std::time::SystemTime.+') do (g) {
   g.test('Adding a Duration to a SystemTime using UTC') {
-    let time = SystemTime.new(year: 1970) + duration.from_seconds(3600)
+    let time = SystemTime.new(year: 1970) + Duration.from_seconds(3600)
 
     assert.equal(time, SystemTime.new(year: 1970, hour: 1))
   }
 
   g.test('Adding a Duration to a SystemTime using local time') {
     let time = SystemTime.new(year: 1970, utc_offset: 3600)
-      + duration.from_seconds(3600)
+      + Duration.from_seconds(3600)
 
     assert.equal(time, SystemTime.new(year: 1970, hour: 1, utc_offset: 3600))
   }
@@ -259,14 +458,14 @@ test.group('std::time::SystemTime.+') do (g) {
 
 test.group('std::time::SystemTime.-') do (g) {
   g.test('Subtracting a Duration to a SystemTime using UTC') {
-    let time = SystemTime.new(year: 1970, hour: 1) - duration.from_seconds(3600)
+    let time = SystemTime.new(year: 1970, hour: 1) - Duration.from_seconds(3600)
 
     assert.equal(time, SystemTime.new(year: 1970))
   }
 
   g.test('Subtracting a Duration to a SystemTime using local time') {
     let time = SystemTime.new(year: 1970, hour: 1, utc_offset: 3600)
-      - duration.from_seconds(3600)
+      - Duration.from_seconds(3600)
 
     assert.equal(time, SystemTime.new(year: 1970, utc_offset: 3600))
   }
@@ -372,6 +571,12 @@ test.group('std::time::SystemTime.==') do (g) {
   }
 }
 
+test.group('std::time::Instant.new') do (g) {
+  g.test('Obtaining the current monotonic time') {
+    assert.true(Instant.new.to_float > 0.0)
+  }
+}
+
 test.group('std::time::Instant.to_integer') do (g) {
   g.test('Converting a Instant to an Integer') {
     assert.true(Instant.new.to_integer >= 0)
@@ -388,7 +593,7 @@ test.group('std::time::Instant.to_float') do (g) {
 
 test.group('std::time::Instant.+') do (g) {
   g.test('Adding a Duration to a Instant') {
-    let time = Instant.new(1.0) + duration.from_seconds(1.0)
+    let time = Instant.new(1.0) + Duration.from_seconds(1.0)
 
     assert.equal(time, Instant.new(2.0))
   }
@@ -396,7 +601,7 @@ test.group('std::time::Instant.+') do (g) {
 
 test.group('std::time::Instant.-') do (g) {
   g.test('Subtracting a Duration from a Instant') {
-    let time = Instant.new(3.0) - duration.from_seconds(1.0)
+    let time = Instant.new(3.0) - Duration.from_seconds(1.0)
 
     assert.equal(time, Instant.new(2.0))
   }
@@ -462,7 +667,7 @@ test.group('std::time::Instant.elapsed') do (g) {
   g.test('Obtaining the elapsed time since a Instant') {
     let time = Instant.new
 
-    process.suspend(duration.from_milliseconds(10))
+    process.suspend(Duration.from_milliseconds(10))
 
     # Due to the use of floats, the exact time might be slightly smaller than
     # 10.0 (e.g. 9.9999994).
@@ -494,111 +699,5 @@ test.group('std::time.dst?') do (g) {
     # There is no consistent, platform independent way of testing the DST flag.
     # As a resutl, we'll just check if it actually returns a proper boolean.
     assert.true([True, False].contains?(time.dst?))
-  }
-}
-
-test.group('std::time.now') do (g) {
-  g.test('Obtaining a SystemTime for the current local time') {
-    assert.true(time.now > SystemTime.new)
-  }
-}
-
-test.group('std::time.utc') do (g) {
-  g.test('Obtaining a SystemTime using UTC') {
-    let utc = time.utc
-
-    assert.true(utc > SystemTime.new)
-    assert.equal(utc.utc_offset, 0)
-  }
-}
-
-test.group('std::time.instant') do (g) {
-  g.test('Obtaining the current monotonic time') {
-    assert.true(time.instant.to_float > 0.0)
-  }
-}
-
-test.group('std::time.from_timestamp') do (g) {
-  g.test("Creating a SystemTime using the local clock's UTC offset") {
-    assert.equal(time.from_timestamp(0).utc_offset, time.utc_offset)
-  }
-
-  # For all the following tests we use a fixed UTC offset of 0, ensuring the
-  # tests do not fail if the test environment uses a different UTC offset.
-  g.test('Creating a SystemTime using the Unix timestamp 0') {
-    assert.equal(
-      time.from_timestamp(time: 0, utc_offset: 0),
-      SystemTime.new(year: 1970)
-    )
-  }
-
-  g.test('Creating a SystemTime using a positive Unix timestamp') {
-    assert.equal(
-      time.from_timestamp(5, utc_offset: 0),
-      SystemTime.new(year: 1970, hour: 0, second: 5)
-    )
-
-    assert.equal(
-      time.from_timestamp(1_545_698_530, utc_offset: 0),
-      SystemTime.new(
-        year: 2018,
-        month: 12,
-        day: 25,
-        hour: 0,
-        minute: 42,
-        second: 10
-      )
-    )
-  }
-
-  g.test('Creating a SystemTime using a negative Unix timestamp') {
-    assert.equal(
-      time.from_timestamp(-5, utc_offset: 0),
-      SystemTime.new(
-        year: 1969,
-        month: 12,
-        day: 31,
-        hour: 23,
-        minute: 59,
-        second: 55
-      )
-    )
-
-    assert.equal(
-      time.from_timestamp(-1_545_698_530, utc_offset: 0),
-      SystemTime.new(
-        year: 1921,
-        month: 1,
-        day: 7,
-        hour: 23,
-        minute: 17,
-        second: 50
-      )
-    )
-  }
-}
-
-test.group('std::time.from_utc_timestamp') do (g) {
-  g.test('Creating a SystemTime using a positive Unix timestamp') {
-    assert.equal(time.from_utc_timestamp(0), SystemTime.new(year: 1970))
-
-    assert.equal(
-      time.from_utc_timestamp(5),
-      SystemTime.new(year: 1970, second: 5)
-    )
-  }
-
-  g.test('Creating a SystemTime using a negative Unix timestamp') {
-    assert.equal(
-      time.from_utc_timestamp(-5),
-      SystemTime.new(
-        year: 1969,
-        month: 12,
-        day: 31,
-        hour: 23,
-        minute: 59,
-        second: 55
-      )
-    )
   }
 }

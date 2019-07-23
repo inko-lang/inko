@@ -3,7 +3,7 @@
 #! The `Formatter` trait is used by a `Runner` to display test results as they
 #! finish, and to display a summary once all tests have been executed.
 import std::test::test::Test
-import std::time::duration::Duration
+import std::time::Duration
 
 ## A type for formatting the results of tests.
 trait Formatter {

@@ -5,7 +5,7 @@ import std::test::config::(Configuration, DEFAULT_CONCURRENCY)
 import std::test::formatter::Formatter
 import std::test::formatters::ProgressFormatter
 import std::test::test::Test
-import std::time::duration::Duration
+import std::time::Duration
 
 object DummyFormatter {}
 

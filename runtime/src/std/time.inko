@@ -4,7 +4,250 @@ import std::operators::(
   Add, Equal, Greater, GreaterOrEqual, Smaller, SmallerOrEqual, Subtract
 )
 import std::time::constants::*
-import std::time::duration::Duration
+
+## Returns the UTC offset of the system's local time.
+def utc_offset -> Integer {
+  _INKOC.time_system_offset
+}
+
+## Returns `True` if Daylight Saving SystemTime is in effect in the system's
+## timezone.
+def dst? -> Boolean {
+  _INKOC.time_system_dst
+}
+
+## A span of time measured in seconds.
+##
+## A `Duration` can be used to measure the span of time without having to worry
+## about casting the time to different scales yourself. A `Duration` can be
+## created using various scales such as seconds and milliseconds.
+object Duration {
+  ## The number of seconds (including fractional seconds) of this `Duration`.
+  @seconds: Float
+
+  ## Creates a new `Duration` from the given number of seconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(10.5)
+  static def from_seconds(seconds: ToFloat) -> Duration {
+    new(seconds.to_float)
+  }
+
+  ## Creates a new `Duration` from the given number of milliseconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_milliseconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_milliseconds(10.5)
+  static def from_milliseconds(milliseconds: ToFloat) -> Duration {
+    new(milliseconds.to_float / MILLISEC_TO_SEC)
+  }
+
+  ## Creates a new `Duration` from the given number of nanoseconds.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `Duration` using an `Integer`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_nanoseconds(10)
+  ##
+  ## Creating a `Duration` using a `Float`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_nanoseconds(10.5)
+  static def from_nanoseconds(nanoseconds: ToFloat) -> Duration {
+    new(nanoseconds.to_float / NANOSEC_TO_SEC)
+  }
+
+  def init(seconds: Float) {
+    @seconds = seconds
+  }
+
+  ## Returns the duration in seconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the seconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5).as_seconds # => 5.0
+  def as_seconds -> Float {
+    @seconds
+  }
+
+  ## Returns the duration in milliseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the milliseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5).as_milliseconds # => 5000.0
+  def as_milliseconds -> Float {
+    @seconds * MILLISEC_TO_SEC
+  }
+
+  ## Returns the duration in microseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the microseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5).as_microseconds # => 5000000.0
+  def as_microseconds -> Float {
+    @seconds * MICROSEC_TO_SEC
+  }
+
+  ## Returns the duration in nanoseconds.
+  ##
+  ## # Examples
+  ##
+  ## Getting the nanoseconds in a `Duration`:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5).as_nanoseconds # => 5000000000.0
+  def as_nanoseconds -> Float {
+    @seconds * NANOSEC_TO_SEC
+  }
+}
+
+impl ToInteger for Duration {
+  ## Returns the number of seconds in the `Duration`.
+  def to_integer -> Integer {
+    @seconds.to_integer
+  }
+}
+
+impl ToFloat for Duration {
+  ## Returns the number of seconds in the `Duration`.
+  def to_float -> Float {
+    @seconds
+  }
+}
+
+impl Add!(Self) for Duration {
+  ## Adds two `Duration` objects together.
+  ##
+  ## # Examples
+  ##
+  ## Adding two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let sum = Duration.from_seconds(5) + Duration.from_seconds(2)
+  ##
+  ##     sum.as_seconds # => 7.0
+  def +(other: Self) -> Self {
+    Duration.new(@seconds + other.as_seconds)
+  }
+}
+
+impl Subtract!(Self) for Duration {
+  ## Subtracts the given `Duration` from `self`.
+  ##
+  ## # Examples
+  ##
+  ## Subtracting a `Duration` from another `Duration`
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     let diff = Duration.from_seconds(5) - Duration.from_seconds(2)
+  ##
+  ##     diff.as_seconds # => 3.0
+  def -(other: Self) -> Self {
+    Duration.new(@seconds - other.as_seconds)
+  }
+}
+
+impl Smaller for Duration {
+  ## Returns `True` if `self` is smaller than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) < Duration.from_seconds(10) # => True
+  def <(other: Self) -> Boolean {
+    @seconds < other.as_seconds
+  }
+}
+
+impl Greater for Duration {
+  ## Returns `True` if `self` is greater than the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) > Duration.from_seconds(10) # => False
+  def >(other: Self) -> Boolean {
+    @seconds > other.as_seconds
+  }
+}
+
+impl SmallerOrEqual for Duration {
+  ## Returns `True` if `self` is smaller than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) <= Duration.from_seconds(10) # => True
+  ##     Duration.from_seconds(5) <= Duration.from_seconds(5)  # => True
+  def <=(other: Self) -> Boolean {
+    @seconds <= other.as_seconds
+  }
+}
+
+impl GreaterOrEqual for Duration {
+  ## Returns `True` if `self` is greater than or equal to the given `Duration`.
+  ##
+  ## # Examples
+  ##
+  ## Comparing two `Duration` objects:
+  ##
+  ##     import std::time::Duration
+  ##
+  ##     Duration.from_seconds(5) >= Duration.from_seconds(10) # => False
+  ##     Duration.from_seconds(5) >= Duration.from_seconds(5)  # => True
+  def >=(other: Self) -> Boolean {
+    @seconds >= other.as_seconds
+  }
+}
 
 ## An object representing the current system time.
 ##
@@ -40,6 +283,189 @@ object SystemTime {
 
   ## A boolean indicating that Daylight Saving Time (DST) is active.
   @dst: Boolean
+
+  ## Returns a new `SystemTime` representing the current time using the local
+  ## timezone.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::SystemTime
+  ##
+  ##     SystemTime.now
+  static def now -> SystemTime {
+    from_timestamp(_INKOC.time_system)
+  }
+
+  ## Returns a new `SystemTime` representing the current time using UTC as the
+  ## timezone.
+  ##
+  ## # Examples
+  ##
+  ## Getting the current time:
+  ##
+  ##     import std::time::SystemTime
+  ##
+  ##     SystemTime.utc
+  static def utc -> SystemTime {
+    from_utc_timestamp(_INKOC.time_system)
+  }
+
+  ## Returns a new `SystemTime` from a Unix timestamp.
+  ##
+  ## This method defaults to using the system's local timezone unless an
+  ## explicit offset is given. When specifying a custom offset also make sure to
+  ## explicitly specify if DST is in effect, otherwise this will be based on the
+  ## system's local time.
+  static def from_timestamp(
+    time: ToFloat,
+    utc_offset = ThisModule.utc_offset,
+    dst = ThisModule.dst?
+  ) -> SystemTime {
+    # The algorithm below is based on the following code from the musl standard
+    # library: http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c.
+    # Notable changes compared to the original algorithm:
+    #
+    # * Overflow checking has been removed because this is not necessary in
+    #   Inko.
+    # * Checking for negative results produced by the `%` has been removed
+    #   because in Inko this operator is the modulo operator and not the
+    #   remainder operator, thus it won't produce negative values in the code
+    #   below.
+    # * Calculating the day of the week and the year of the day has been removed
+    #   because we don't explicitly store this anywhere.
+    # * Documentation has been added in various places and variables have more
+    #   human friendly names.
+    #
+    # When looking at the code keep in mind that the algorithm uses March 1st,
+    # 2000 UTC as the epoch and _not_ January 1st, 1970 UTC. Using March 1st
+    # simplifies some of the calculations, especially when dealing with leap
+    # years. This epoch is internal and not exposed to the public API.
+    #
+    # Because musl is licensed under the MIT license we include a copy of the
+    # license here:
+    #
+    #     Copyright © 2005-2014 Rich Felker, et al.
+    #
+    #     Permission is hereby granted, free of charge, to any person obtaining
+    #     a copy of this software and associated documentation files (the
+    #     "Software"), to deal in the Software without restriction, including
+    #     without limitation the rights to use, copy, modify, merge, publish,
+    #     distribute, sublicense, and/or sell copies of the Software, and to
+    #     permit persons to whom the Software is furnished to do so, subject to
+    #     the following conditions:
+    #
+    #     The above copyright notice and this permission notice shall be
+    #     included in all copies or substantial portions of the Software.
+    #
+    #     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    #     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    #     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    #     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    #     CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    #     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    #     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+    # Unix timestamps are in UTC. Thus if we want to correctly calculate the
+    # _local_ time we need to add the offset to the timestamp before we
+    # decompose it.
+    let local_time = time.to_float + utc_offset.to_float
+    let local_time_int = local_time.to_integer
+
+    let mut year = 0
+    let mut month = 0
+    let mut day = 0
+    let mut hour = 0
+    let mut minute = 0
+    let mut second = 0
+    let mut sub_second = local_time.fractional
+
+    let secs = local_time_int - EPOCH
+    let days = secs / SECS_PER_DAY
+    let rem_secs = secs % SECS_PER_DAY
+    let quadrennial_century_cycles = days / DAYS_PER_400Y
+    let mut rem_days = days % DAYS_PER_400Y
+    let mut century_cycles = rem_days / DAYS_PER_100Y
+
+    century_cycles == 4
+      .if_true {
+        century_cycles -= 1
+      }
+
+    rem_days -= century_cycles * DAYS_PER_100Y
+
+    let mut quadrennial_cycles = rem_days / DAYS_PER_4Y
+
+    # 25 cycles == 100 years
+    quadrennial_cycles == 25
+      .if_true {
+        quadrennial_cycles -= 1
+      }
+
+    rem_days -= quadrennial_cycles * DAYS_PER_4Y
+
+    let mut rem_years = rem_days / DAYS_PER_NORMAL_YEAR
+
+    rem_years == 4
+      .if_true {
+        rem_years -= 1
+      }
+
+    rem_days -= rem_years * DAYS_PER_NORMAL_YEAR
+
+    # Calculate the number of years since 2000, then convert this to the current
+    # year (e.g. 2018 instead of 18).
+    let years = (rem_years + (4 * quadrennial_cycles))
+      + (100 * century_cycles)
+      + (400 * quadrennial_century_cycles)
+      + EPOCH_YEAR
+
+    let mut months = 0
+
+    { DAYS_IN_MONTH[months] <= rem_days }.while_true {
+      rem_days -= DAYS_IN_MONTH[months]!
+      months += 1
+    }
+
+    year = years
+
+    # We add two to adjust for January and February (since our epoch starts in
+    # March).
+    month = months + 2
+
+    month >= MONTHS_PER_YEAR
+      .if_true {
+        month = month - MONTHS_PER_YEAR
+        year = year + 1
+      }
+
+    # Per ISO 8601 the first month of the year is 1, and so is the first day of
+    # the month.
+    month = month + 1
+    day = rem_days + 1
+
+    hour = rem_secs / SECS_PER_HOUR
+    minute = rem_secs / SECS_PER_MIN % SECS_PER_MIN
+    second = rem_secs % SECS_PER_MIN
+
+    new(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      sub_second: sub_second,
+      utc_offset: utc_offset,
+      dst: dst
+    )
+  }
+
+  ## Returns a new `SystemTime` from a Unix timestamp using UTC as the timezone.
+  static def from_utc_timestamp(time: ToFloat) -> SystemTime {
+    from_timestamp(time, utc_offset: 0, dst: False)
+  }
 
   def init(
     year = 0,
@@ -226,7 +652,7 @@ object SystemTime {
   ## Converts the `SystemTime` to another `SystemTime` that uses UTC as the
   ## timezone.
   def to_utc -> Self {
-    ThisModule.from_utc_timestamp(to_float)
+    SystemTime.from_utc_timestamp(to_float)
   }
 }
 
@@ -253,17 +679,16 @@ impl Add!(Duration) for SystemTime {
   ##
   ## Adding a `Duration` to a `SystemTime`:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, SystemTime)
   ##
-  ##     time.now + duration.from_seconds(5)
+  ##     SystemTime.now + Duration.from_seconds(5)
   def +(other: Duration) -> Self {
     let timestamp = to_float + other.to_float
 
     utc?.if true: {
-      ThisModule.from_utc_timestamp(timestamp)
+      SystemTime.from_utc_timestamp(timestamp)
     }, false: {
-      ThisModule.from_timestamp(timestamp)
+      SystemTime.from_timestamp(timestamp)
     }
   }
 }
@@ -276,17 +701,16 @@ impl Subtract!(Duration) for SystemTime {
   ##
   ## Subtracting a `Duration` from a `SystemTime`:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, SystemTime)
   ##
-  ##     time.now - duration.from_seconds(5)
+  ##     SystemTime.now - Duration.from_seconds(5)
   def -(other: Duration) -> Self {
     let timestamp = to_float - other.to_float
 
     utc?.if true: {
-      ThisModule.from_utc_timestamp(timestamp)
+      SystemTime.from_utc_timestamp(timestamp)
     }, false: {
-      ThisModule.from_timestamp(timestamp)
+      SystemTime.from_timestamp(timestamp)
     }
   }
 }
@@ -298,9 +722,9 @@ impl Smaller for SystemTime {
   ##
   ## Comparing two `SystemTime` objects:
   ##
-  ##     import std::time
+  ##     import std::time::SystemTime
   ##
-  ##     let before = time.now
+  ##     let before = SystemTime.now
   ##     let after = before + 5
   ##
   ##     before < after # => True
@@ -317,9 +741,9 @@ impl SmallerOrEqual for SystemTime {
   ##
   ## Comparing two `SystemTime` objects:
   ##
-  ##     import std::time
+  ##     import std::time::SystemTime
   ##
-  ##     let before = time.now
+  ##     let before = SystemTime.now
   ##     let after = before + 5
   ##
   ##     before <= after  # => True
@@ -336,9 +760,9 @@ impl Greater for SystemTime {
   ##
   ## Comparing two `SystemTime` objects:
   ##
-  ##     import std::time
+  ##     import std::time::SystemTime
   ##
-  ##     let before = time.now
+  ##     let before = SystemTime.now
   ##     let after = before + 5
   ##
   ##     after > before # => True
@@ -355,9 +779,9 @@ impl GreaterOrEqual for SystemTime {
   ##
   ## Comparing two `SystemTime` objects:
   ##
-  ##     import std::time
+  ##     import std::time::SystemTime
   ##
-  ##     let before = time.now
+  ##     let before = SystemTime.now
   ##     let after = before + 5
   ##
   ##     after >= before # => True
@@ -375,9 +799,9 @@ impl Equal for SystemTime {
   ##
   ## Comparing two `SystemTime` objects:
   ##
-  ##     import std::time
+  ##     import std::time::SystemTime
   ##
-  ##     let now = time.now
+  ##     let now = SystemTime.now
   ##
   ##     now == now # => True
   def ==(other: Self) -> Boolean {
@@ -406,12 +830,11 @@ object Instant {
   ## Obtaining the time elapsed:
   ##
   ##     import std::process
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     let start = time.instant
+  ##     let start = Instant.new
   ##
-  ##     process.suspend(duration.from_seconds(1))
+  ##     process.suspend(Duration.from_seconds(1))
   ##
   ##     start.elapsed.to_integer # => 1
   def elapsed -> Duration {
@@ -441,10 +864,9 @@ impl Add!(Duration) for Instant {
   ##
   ## Adding a `Duration` to a `Instant`:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     time.instant + duration.from_seconds(5)
+  ##     Instant.new + Duration.from_seconds(5)
   def +(other: Duration) -> Self {
     Instant.new(@time + other.to_float)
   }
@@ -456,10 +878,9 @@ impl Subtract!(Duration) for Instant {
   ##
   ## Subtracting a `Duration` from a `Instant`:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     time.instant - duration.from_seconds(5)
+  ##     Instant.new - Duration.from_seconds(5)
   def -(other: Duration) -> Self {
     Instant.new(@time - other.to_float)
   }
@@ -472,11 +893,10 @@ impl Smaller for Instant {
   ##
   ## Comparing two `Instant` objects:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
+  ##     let before = Instant.new
+  ##     let after = before + Duration.from_seconds(5)
   ##
   ##     before < after # => True
   def <(other: Self) -> Boolean {
@@ -492,11 +912,10 @@ impl SmallerOrEqual for Instant {
   ##
   ## Comparing two `Instant` objects:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
+  ##     let before = Instant.new
+  ##     let after = before + Duration.from_seconds(5)
   ##
   ##     before <= after  # => True
   ##     before <= before # => True
@@ -512,11 +931,10 @@ impl Greater for Instant {
   ##
   ## Comparing two `Instant` objects:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
+  ##     let before = Instant.new
+  ##     let after = before + Duration.from_seconds(5)
   ##
   ##     after > before # => True
   def >(other: Self) -> Boolean {
@@ -532,11 +950,10 @@ impl GreaterOrEqual for Instant {
   ##
   ## Comparing two `Instant` objects:
   ##
-  ##     import std::time
-  ##     import std::time::duration
+  ##     import std::time::(Duration, Instant)
   ##
-  ##     let before = time.instant
-  ##     let after = before + duration.from_seconds(5)
+  ##     let before = Instant.new
+  ##     let after = before + Duration.from_seconds(5)
   ##
   ##     after >= before # => True
   ##     after >= after  # => True
@@ -559,210 +976,4 @@ impl Equal  for Instant {
   def ==(other: Self) -> Boolean {
     @time == other.to_float
   }
-}
-
-## Returns the UTC offset of the system's local time.
-def utc_offset -> Integer {
-  _INKOC.time_system_offset
-}
-
-## Returns `True` if Daylight Saving SystemTime is in effect in the system's
-## timezone.
-def dst? -> Boolean {
-  _INKOC.time_system_dst
-}
-
-## Returns a new `SystemTime` representing the current time using the local
-## timezone.
-##
-## # Examples
-##
-## Getting the current time:
-##
-##     import std::time
-##
-##     time.now
-def now -> SystemTime {
-  from_timestamp(_INKOC.time_system)
-}
-
-## Returns a new `SystemTime` representing the current time using UTC as the
-## timezone.
-##
-## # Examples
-##
-## Getting the current time:
-##
-##     import std::time
-##
-##     time.utc
-def utc -> SystemTime {
-  from_utc_timestamp(_INKOC.time_system)
-}
-
-## Returns a new `Instant`.
-##
-## # Examples
-##
-## Creating a new `Instant`:
-##
-##     import std::time
-##
-##     time.instant
-def instant -> Instant {
-  Instant.new
-}
-
-## Returns a new `SystemTime` from a Unix timestamp.
-##
-## This method defaults to using the system's local timezone unless an explicit
-## offset is given. When specifying a custom offset also make sure to explicitly
-## specify if DST is in effect, otherwise this will be based on the system's
-## local time.
-def from_timestamp(
-  time: ToFloat,
-  utc_offset = ThisModule.utc_offset,
-  dst = ThisModule.dst?
-) -> SystemTime {
-  # The algorithm below is based on the following code from the musl standard
-  # library: http://git.musl-libc.org/cgit/musl/tree/src/time/__secs_to_tm.c.
-  # Notable changes compared to the original algorithm:
-  #
-  # * Overflow checking has been removed because this is not necessary in
-  #   Inko.
-  # * Checking for negative results produced by the `%` has been removed
-  #   because in Inko this operator is the modulo operator and not the remainder
-  #   operator, thus it won't produce negative values in the code below.
-  # * Calculating the day of the week and the year of the day has been removed
-  #   because we don't explicitly store this anywhere.
-  # * Documentation has been added in various places and variables have more
-  #   human friendly names.
-  #
-  # When looking at the code keep in mind that the algorithm uses March 1st,
-  # 2000 UTC as the epoch and _not_ January 1st, 1970 UTC. Using March 1st
-  # simplifies some of the calculations, especially when dealing with leap
-  # years. This epoch is internal and not exposed to the public API.
-  #
-  # Because musl is licensed under the MIT license we include a copy of the
-  # license here:
-  #
-  #     Copyright © 2005-2014 Rich Felker, et al.
-  #
-  #     Permission is hereby granted, free of charge, to any person obtaining
-  #     a copy of this software and associated documentation files (the
-  #     "Software"), to deal in the Software without restriction, including
-  #     without limitation the rights to use, copy, modify, merge, publish,
-  #     distribute, sublicense, and/or sell copies of the Software, and to
-  #     permit persons to whom the Software is furnished to do so, subject to
-  #     the following conditions:
-  #
-  #     The above copyright notice and this permission notice shall be
-  #     included in all copies or substantial portions of the Software.
-  #
-  #     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-  #     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-  #     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-  #     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-  #     CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-  #     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-  #     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-  # Unix timestamps are in UTC. Thus if we want to correctly calculate the
-  # _local_ time we need to add the offset to the timestamp before we decompose
-  # it.
-  let local_time = time.to_float + utc_offset.to_float
-  let local_time_int = local_time.to_integer
-
-  let mut year = 0
-  let mut month = 0
-  let mut day = 0
-  let mut hour = 0
-  let mut minute = 0
-  let mut second = 0
-  let mut sub_second = local_time.fractional
-
-  let secs = local_time_int - EPOCH
-  let days = secs / SECS_PER_DAY
-  let rem_secs = secs % SECS_PER_DAY
-  let quadrennial_century_cycles = days / DAYS_PER_400Y
-  let mut rem_days = days % DAYS_PER_400Y
-  let mut century_cycles = rem_days / DAYS_PER_100Y
-
-  century_cycles == 4
-    .if_true {
-      century_cycles -= 1
-    }
-
-  rem_days -= century_cycles * DAYS_PER_100Y
-
-  let mut quadrennial_cycles = rem_days / DAYS_PER_4Y
-
-  # 25 cycles == 100 years
-  quadrennial_cycles == 25
-    .if_true {
-      quadrennial_cycles -= 1
-    }
-
-  rem_days -= quadrennial_cycles * DAYS_PER_4Y
-
-  let mut rem_years = rem_days / DAYS_PER_NORMAL_YEAR
-
-  rem_years == 4
-    .if_true {
-      rem_years -= 1
-    }
-
-  rem_days -= rem_years * DAYS_PER_NORMAL_YEAR
-
-  # Calculate the number of years since 2000, then convert this to the current
-  # year (e.g. 2018 instead of 18).
-  let years = (rem_years + (4 * quadrennial_cycles))
-    + (100 * century_cycles)
-    + (400 * quadrennial_century_cycles)
-    + EPOCH_YEAR
-
-  let mut months = 0
-
-  { DAYS_IN_MONTH[months] <= rem_days }.while_true {
-    rem_days -= DAYS_IN_MONTH[months]!
-    months += 1
-  }
-
-  year = years
-
-  # We add two to adjust for January and February (since our epoch starts in
-  # March).
-  month = months + 2
-
-  month >= MONTHS_PER_YEAR
-    .if_true {
-      month = month - MONTHS_PER_YEAR
-      year = year + 1
-    }
-
-  # Per ISO 8601 the first month of the year is 1, and so is the first day of
-  # the month.
-  month = month + 1
-  day = rem_days + 1
-
-  hour = rem_secs / SECS_PER_HOUR
-  minute = rem_secs / SECS_PER_MIN % SECS_PER_MIN
-  second = rem_secs % SECS_PER_MIN
-
-  SystemTime.new(
-    year: year,
-    month: month,
-    day: day,
-    hour: hour,
-    minute: minute,
-    second: second,
-    sub_second: sub_second,
-    utc_offset: utc_offset,
-    dst: dst
-  )
-}
-
-## Returns a new `SystemTime` from a Unix timestamp using UTC as the timezone.
-def from_utc_timestamp(time: ToFloat) -> SystemTime {
-  from_timestamp(time, utc_offset: 0, dst: False)
 }

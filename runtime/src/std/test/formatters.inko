@@ -6,7 +6,7 @@ import std::string_buffer::StringBuffer
 import std::test::error::TestFailure
 import std::test::formatter::Formatter
 import std::test::test::Test
-import std::time::duration::Duration
+import std::time::Duration
 
 ## The minimum amount of time (in seconds) the test suite should run, before
 ## displaying the execution time in seconds.

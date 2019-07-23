@@ -21,8 +21,7 @@ import std::process::(self, Process)
 import std::test::config::Configuration
 import std::test::formatter::Formatter
 import std::test::test::Test
-import std::time
-import std::time::duration
+import std::time::Instant
 import std::vm
 
 ## The exit status to use if one or more tests failed to run.
@@ -134,7 +133,7 @@ impl Command for RunTests {
   ## Once this method has been called, no new tests can be registered.
   def run(state: RunnerState) {
     let mut pending = 0
-    let start_time = time.instant
+    let start_time = Instant.new
     let last_index = state.tests.length - 1
     let executed = []
     let failed = []

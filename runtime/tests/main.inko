@@ -51,6 +51,5 @@ import test::std::test_string
 import test::std::test_string_buffer
 import test::std::test_time
 import test::std::test_trait
-import test::std::time::test_duration
 
 test.run
