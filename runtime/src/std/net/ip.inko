@@ -1,7 +1,6 @@
 import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::error::Error
-import std::integer
 import std::operators::Equal
 import std::string_buffer::StringBuffer
 
@@ -681,7 +680,7 @@ def parse_ipv4(bytes: ByteArray) !! AddressParseError -> Ipv4Address {
     }
 
     let int = try {
-      integer.parse(segment_bytes.drain_to_string)
+      Integer.parse(segment_bytes.drain_to_string)
     } else (error) {
       throw AddressParseError.new(bytes)
     }
@@ -766,7 +765,7 @@ def parse_ipv6(bytes: ByteArray) !! AddressParseError -> Ipv6Address {
     # buffer is empty.
     segment_bytes.empty?.if_false {
       let int = try {
-        integer.parse(string: segment_bytes.drain_to_string, radix: radix)
+        Integer.parse(string: segment_bytes.drain_to_string, radix: radix)
       } else (error) {
         throw AddressParseError.new(bytes)
       }

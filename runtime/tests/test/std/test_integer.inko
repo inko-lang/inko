@@ -1,5 +1,4 @@
 import std::hash_map::DefaultHasher
-import std::integer
 import std::test
 import std::test::assert
 
@@ -218,55 +217,55 @@ test.group('std::integer::Integer.successor') do (g) {
   }
 }
 
-test.group('std::integer.parse') do (g) {
+test.group('std::integer::Integer.parse') do (g) {
   g.test('Parsing a base 2 Integer') {
-    assert.equal(try! integer.parse(string: '11', radix: 2), 3)
+    assert.equal(try! Integer.parse(string: '11', radix: 2), 3)
   }
 
   g.test('Parsing an Integer with leading whitespace') {
     assert.panic {
-      try! integer.parse(' 1')
+      try! Integer.parse(' 1')
     }
   }
 
   g.test('Parsing an Integer with trailing whitespace') {
     assert.panic {
-      try! integer.parse('1 ')
+      try! Integer.parse('1 ')
     }
   }
 
   g.test('Parsing a base 8 Integer') {
-    assert.equal(try! integer.parse(string: '52', radix: 8), 42)
+    assert.equal(try! Integer.parse(string: '52', radix: 8), 42)
   }
 
   g.test('Parsing a base 10 Integer') {
-    assert.equal(try! integer.parse(string: '12', radix: 10), 12)
+    assert.equal(try! Integer.parse(string: '12', radix: 10), 12)
   }
 
   g.test('Parsing a base 12 Integer') {
-    assert.equal(try! integer.parse(string: '10', radix: 12), 12)
+    assert.equal(try! Integer.parse(string: '10', radix: 12), 12)
   }
 
   g.test('Parsing a base 16 Integer') {
-    assert.equal(try! integer.parse(string: 'F', radix: 16), 15)
+    assert.equal(try! Integer.parse(string: 'F', radix: 16), 15)
   }
 
   g.test('Parsing a base 20 Integer') {
-    assert.equal(try! integer.parse(string: 'H', radix: 20), 17)
+    assert.equal(try! Integer.parse(string: 'H', radix: 20), 17)
   }
 
   g.test('Parsing a negative base 10 Integer') {
-    assert.equal(try! integer.parse(string: '-5', radix: 10), -5)
+    assert.equal(try! Integer.parse(string: '-5', radix: 10), -5)
   }
 
   g.test('Parsing an invalid Integer') {
     assert.panic {
-      try! integer.parse(string: 'Z', radix: 16)
+      try! Integer.parse(string: 'Z', radix: 16)
     }
   }
 
   g.test('Parsing a large base 10 Integer') {
-    let integer = try! integer.parse(
+    let integer = try! Integer.parse(
       '123456789123456789123456789123456789123456789123456789123456789123456789123456789'
     )
 

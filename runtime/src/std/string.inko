@@ -6,7 +6,6 @@
 import std::conversion::(ToFloat, ToInteger, ToString)
 import std::float
 import std::hash::(Hasher, Hash)
-import std::integer
 import std::length::Length
 import std::operators::(Equal, Add)
 
@@ -149,7 +148,7 @@ impl ToInteger for String {
   ##     '10'.to_integer # => 10
   ##     'a'.to_integer  # => 0
   def to_integer -> Integer {
-    try integer.parse(self, 10) else (_) 0
+    try Integer.parse(self, 10) else (_) 0
   }
 }
 
