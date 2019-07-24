@@ -462,7 +462,7 @@ module Inkoc
         if node.name == Config::NEW_MESSAGE
           define_type_instance(node.receiver, scope)
         elsif node.hash_map_literal?
-          @state.module(Config::HASH_MAP_MODULE).type
+          @module.lookup_global(Config::HASH_MAP_CONST)
         else
           define_type(node.receiver, scope)
         end

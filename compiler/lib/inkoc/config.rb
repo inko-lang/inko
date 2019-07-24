@@ -35,7 +35,6 @@ module Inkoc
     HASH_MAP_LITERAL_RECEIVER = '_inkoc_hash_map_literal'
 
     MARKER_MODULE = 'std::marker'
-    HASH_MAP_MODULE = 'std::hash_map'
 
     INKO_CONST = 'Inko'
     OBJECT_CONST = 'Object'

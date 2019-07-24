@@ -379,6 +379,56 @@ impl SetIndex!(K, V) for Table!(K, V) {
 object HashMap!(K: Hash + Equal, V) {
   @table: Table!(K, V)
 
+  ## Returns a `HashMap` using two arrays: one containing the keys and one
+  ## containing the values.
+  ##
+  ## Using this method is semantically equivalent to creating a `HashMap` using
+  ## `HashMap.new` and sending `[]=` to the `HashMap` for every key-value pair.
+  ## In other words, this:
+  ##
+  ##     %['name': 'Alice']
+  ##
+  ## Is the same as this:
+  ##
+  ##     let mut map = HashMap.new
+  ##
+  ##     map['name'] = 'Alice'
+  ##
+  ## # Compiler optimisation
+  ##
+  ## To remove the need for allocating two arrays for `HashMap` literals, the
+  ## compiler may decide to optimise this method into separate `[]=` message
+  ## sends as illustrated above.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `HashMap` from two arrays:
+  ##
+  ##     HashMap.from_array(['name'], ['Alice']) # => %['name': 'Alice']
+  static def from_array!(K: Hash + Equal, V)(
+    keys: Array!(K),
+    values: Array!(V)
+  ) -> HashMap!(K, V) {
+    let mut map = HashMap.new
+    let max_index = values.length - 1
+
+    keys.length == values.length
+      .if_false {
+        process.panic('An equal number of keys and values must be specified')
+      }
+
+    keys.each_with_index do (key: K, index: Integer) {
+      index > max_index
+        .if_true {
+          return map
+        }
+
+      map[key] = values[index]!
+    }
+
+    map
+  }
+
   ## Creates a new, empty `HashMap`.
   def init {
     @table = Table.new
@@ -630,56 +680,4 @@ impl Length for HashMap!(K, V) {
   def length -> Integer {
     @table.length
   }
-}
-
-## Returns a `HashMap` using two arrays: one containing the keys and one
-## containing the values.
-##
-## Using this method is semantically equivalent to creating a `HashMap` using
-## `HashMap.new` and sending `[]=` to the `HashMap` for every key-value pair.
-## In other words, this:
-##
-##     %['name': 'Alice']
-##
-## Is the same as this:
-##
-##     let mut map = HashMap.new
-##
-##     map['name'] = 'Alice'
-##
-## # Compiler optimisation
-##
-## To remove the need for allocating two arrays for `HashMap` literals, the
-## compiler may decide to optimise this method into separate `[]=` message sends
-## as illustrated above.
-##
-## # Examples
-##
-## Creating a `HashMap` from two arrays:
-##
-##     import std::hash_map
-##
-##     hash_map.from_array(['name'], ['Alice']) # => %['name': 'Alice']
-def from_array!(K: Hash + Equal, V)(
-  keys: Array!(K),
-  values: Array!(V)
-) -> HashMap!(K, V) {
-  let mut map = HashMap.new
-  let max_index = values.length - 1
-
-  keys.length == values.length
-    .if_false {
-      process.panic('An equal number of keys and values must be specified')
-    }
-
-  keys.each_with_index do (key: K, index: Integer) {
-    index > max_index
-      .if_true {
-        return map
-      }
-
-    map[key] = values[index]!
-  }
-
-  map
 }

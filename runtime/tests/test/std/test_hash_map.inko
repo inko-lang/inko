@@ -477,27 +477,6 @@ test.group('std::hash_map::Table.[]=') do (g) {
   }
 }
 
-test.group('std::hash_map.from_array') do (g) {
-  g.test('Creating a HashMap without any keys and values') {
-    let map = hash_map.from_array([], [])
-
-    assert.equal(map, %[])
-  }
-
-  g.test('Creating a HashMap with keys but without values') {
-    assert.panic {
-      hash_map.from_array(['name'], [])
-    }
-  }
-
-  g.test('Creating a HashMap with an equal number of keys and values') {
-    let map = hash_map.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
-
-    assert.equal(map['name'], 'Alice')
-    assert.equal(map['city'], 'Amsterdam')
-  }
-}
-
 test.group('HashMap literals') do (g) {
   g.test('Creating an empty HashMap') {
     assert.equal(%[], HashMap.new)
@@ -510,6 +489,27 @@ test.group('HashMap literals') do (g) {
     expected['city'] = 'Amsterdam'
 
     assert.equal(%['name': 'Alice', 'city': 'Amsterdam'], expected)
+  }
+}
+
+test.group('std::hash_map::HashMap.from_array') do (g) {
+  g.test('Creating a HashMap without any keys and values') {
+    let map = HashMap.from_array([], [])
+
+    assert.equal(map, %[])
+  }
+
+  g.test('Creating a HashMap with keys but without values') {
+    assert.panic {
+      HashMap.from_array(['name'], [])
+    }
+  }
+
+  g.test('Creating a HashMap with an equal number of keys and values') {
+    let map = HashMap.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
+
+    assert.equal(map['name'], 'Alice')
+    assert.equal(map['city'], 'Amsterdam')
   }
 }
 
