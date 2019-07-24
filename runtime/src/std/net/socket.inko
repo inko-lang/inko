@@ -378,7 +378,7 @@ object Socket {
 
     # This will only panic if the VM hands out an incorrect IPv4 address, which
     # would be a bug.
-    try! ip.parse_ipv4(address_string.to_byte_array)
+    try! Ipv4Address.parse(address_string.to_byte_array)
   }
 
   ## Sets the value of the `IP_MULTICAST_IF` option.

@@ -1,4 +1,4 @@
-import std::byte_array::ByteArray
+import std::byte_array::(ByteArray, ToByteArray)
 import std::conversion::ToString
 import std::error::Error
 import std::operators::Equal
@@ -70,6 +70,9 @@ trait ToIpAddress {
 }
 
 trait IpAddress: Equal + ToString + ToIpAddress {
+  ## Parses an IP address.
+  static def parse(input: ToByteArray) !! AddressParseError -> Self
+
   ## Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean
 
@@ -257,6 +260,166 @@ impl ToIpAddress for Ipv6Address {
 }
 
 impl IpAddress for Ipv6Address {
+  ## Parses an IPv6 address literal.
+  ##
+  ## This method _only_ supports IPv6 _addresses_. Port numbers, zones, and CIDR
+  ## masks are not supported.
+  ##
+  ## # Examples
+  ##
+  ## Parsing an IPv6 address:
+  ##
+  ##     import std::net::ip::Ipv6Address
+  ##
+  ##     let addr = try! Ipv6Address.parse('::1')
+  ##
+  ##     addr.v6? # => True
+  static def parse(input: ToByteArray) !! AddressParseError -> Self {
+    let bytes = input.to_byte_array
+    let mut cursor = 0
+    let max = bytes.length
+    let segments = []
+    let ipv4_segments = []
+    let segment_bytes = ByteArray.new
+    let mut compressed = False
+    let mut ipv4_mode = False
+    let mut max_hextet_value = _IPV6_HEXTET_MAXIMUM
+    let mut radix = 16
+
+    # No point in parsing the input if we're certain it's not a valid address.
+    max > _IPV6_STRING_MAXIMUM_LENGTH
+      .if_true {
+        throw AddressParseError.new(bytes)
+      }
+
+    { cursor < max }.while_true {
+      {
+        let byte = bytes[cursor]
+
+        # IPv6 addresses can embed IPv4 addresses, so instead of reading until
+        # we encounter a ":" we will also stop reading when running into a ".".
+        cursor < max
+          .and { byte != _COLON_BYTE }
+          .and { byte != _DOT_BYTE }
+      }.while_true {
+        segment_bytes.push(bytes[cursor]!)
+        cursor += 1
+      }
+
+      # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
+      # mode until we reach the end of the input, as embedded IPv4 addresses
+      # must be at the end of an IPv6 address.
+      ipv4_mode
+        .not
+        .and { bytes[cursor] == _DOT_BYTE }
+        .if_true {
+          ipv4_mode = True
+          radix = 10
+          max_hextet_value = _IPV4_OCTET_MAXIMUM
+        }
+
+      # When the IP starts with a "::" we won't be able to read input, so the
+      # byte buffer is empty.
+      segment_bytes.empty?.if_false {
+        let int = try {
+          Integer.parse(string: segment_bytes.drain_to_string, radix: radix)
+        } else (error) {
+          throw AddressParseError.new(bytes)
+        }
+
+        int < _IP_MINIMUM_VALUE
+          .or { int > max_hextet_value }
+          .if_true {
+            throw AddressParseError.new(bytes)
+          }
+
+        ipv4_mode.if true: {
+          ipv4_segments.push(int)
+        }, false: {
+          segments.push(int)
+        }
+      }
+
+      cursor += 1
+
+      # We have reached another ":", which is used to compress one or more empty
+      # groups together.
+      bytes[cursor] == _COLON_BYTE
+        .if_true {
+          # Zero compression can only be applied once.
+          compressed.if true: {
+            throw AddressParseError.new(bytes)
+          }, false: {
+            compressed = True
+          }
+
+          let mut pad = _IPV6_HEXTETS - segments.length
+          let mut pad_cursor = cursor
+          let mut ipv4_padded = False
+          let look_ahead = cursor + 1 < max
+
+          # Scan ahead in the input to determine how many empty hextets we need
+          # to add, based on the remaining number of hextets.
+          #
+          # When the compression is at the end of the input (e.g. "1::") there
+          # is no point in looking ahead, so we don't.
+          {
+            look_ahead.and { pad_cursor < max }
+          }.while_true {
+            let byte = bytes[pad_cursor]
+
+            byte == _COLON_BYTE
+              .if_true {
+                pad -= 1
+              }
+
+            # Two IPv4 octets can be stored in a single IPv6 hextet, meaning
+            # we'd have to reduce padding by two. Since we already skip padding
+            # for the ":" that preceeds the IPv4 address, we only reduce the
+            # padding by one.
+            ipv4_padded
+              .not
+              .and { byte == _DOT_BYTE }
+              .if_true {
+                ipv4_padded = True
+                pad -= 1
+              }
+
+            pad_cursor += 1
+          }
+
+          { pad.positive? }.while_true {
+            segments.push(0)
+            pad -= 1
+          }
+
+          cursor += 1
+        }
+    }
+
+    ipv4_segments.length == _IPV4_OCTETS
+      .if_true {
+        segments[6] = _octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
+        segments[7] = _octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
+      }
+
+    segments.length == _IPV6_HEXTETS
+      .if_false {
+        throw AddressParseError.new(bytes)
+      }
+
+    Ipv6Address.new(
+      segments[0]!,
+      segments[1]!,
+      segments[2]!,
+      segments[3]!,
+      segments[4]!,
+      segments[5]!,
+      segments[6]!,
+      segments[7]!,
+    )
+  }
+
   ## Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     False
@@ -443,6 +606,63 @@ impl ToIpAddress for Ipv4Address {
 }
 
 impl IpAddress for Ipv4Address {
+  ## Parses an IPv4 address literal (e.g. 1.2.3.4).
+  ##
+  ## # Examples
+  ##
+  ## Parsing an IPv4 address:
+  ##
+  ##     import std::net::ip::Ipv4Address
+  ##
+  ##     let addr = try! Ipv4Address.parse('1.2.3.4')
+  ##
+  ##     addr.v4? # => True
+  static def parse(input: ToByteArray) !! AddressParseError -> Self {
+    let bytes = input.to_byte_array
+    let mut cursor = 0
+    let max = bytes.length
+    let segments = []
+    let segment_bytes = ByteArray.new
+
+    # No IPv4 address can be longer than 15 characters (255.255.255.255).
+    max > 15
+      .if_true {
+        throw AddressParseError.new(bytes)
+      }
+
+    { cursor < max }.while_true {
+      {
+        cursor < max
+          .and { bytes[cursor] != _DOT_BYTE }
+      }.while_true {
+        segment_bytes.push(bytes[cursor]!)
+        cursor += 1
+      }
+
+      let int = try {
+        Integer.parse(segment_bytes.drain_to_string)
+      } else (error) {
+        throw AddressParseError.new(bytes)
+      }
+
+      int < _IP_MINIMUM_VALUE
+        .or { int > _IPV4_OCTET_MAXIMUM }
+        .if_true {
+          throw AddressParseError.new(bytes)
+        }
+
+      segments.push(int)
+
+      cursor += 1
+    }
+
+    segments.length == _IPV4_OCTETS
+      .if_false {
+        throw AddressParseError.new(bytes)
+      }
+
+    Ipv4Address.new(segments[0]!, segments[1]!, segments[2]!, segments[3]!)
+  }
   ## Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     True
@@ -647,222 +867,6 @@ impl IpAddress for Ipv4Address {
   }
 }
 
-## Parses an IPv4 address literal (e.g. 1.2.3.4).
-##
-## # Examples
-##
-## Parsing an IPv4 address:
-##
-##     import std::net::ip
-##
-##     let addr = try! ip.parse_ipv4('1.2.3.4'.to_byte_array)
-##
-##     addr.v4? # => True
-def parse_ipv4(bytes: ByteArray) !! AddressParseError -> Ipv4Address {
-  let mut cursor = 0
-  let max = bytes.length
-  let segments = []
-  let segment_bytes = ByteArray.new
-
-  # No IPv4 address can be longer than 15 characters (255.255.255.255).
-  max > 15
-    .if_true {
-      throw AddressParseError.new(bytes)
-    }
-
-  { cursor < max }.while_true {
-    {
-      cursor < max
-        .and { bytes[cursor] != _DOT_BYTE }
-    }.while_true {
-      segment_bytes.push(bytes[cursor]!)
-      cursor += 1
-    }
-
-    let int = try {
-      Integer.parse(segment_bytes.drain_to_string)
-    } else (error) {
-      throw AddressParseError.new(bytes)
-    }
-
-    int < _IP_MINIMUM_VALUE
-      .or { int > _IPV4_OCTET_MAXIMUM }
-      .if_true {
-        throw AddressParseError.new(bytes)
-      }
-
-    segments.push(int)
-
-    cursor += 1
-  }
-
-  segments.length == _IPV4_OCTETS
-    .if_false {
-      throw AddressParseError.new(bytes)
-    }
-
-  Ipv4Address.new(segments[0]!, segments[1]!, segments[2]!, segments[3]!)
-}
-
-## Parses an IPv6 address literal.
-##
-## This method _only_ supports IPv6 _addresses_. Port numbers, zones, and CIDR
-## masks are not supported.
-##
-## # Examples
-##
-## Parsing an IPv6 address:
-##
-##     import std::net::ip
-##
-##     let addr = try! ip.parse_ipv6('::1'.to_byte_array)
-##
-##     addr.v6? # => True
-def parse_ipv6(bytes: ByteArray) !! AddressParseError -> Ipv6Address {
-  let mut cursor = 0
-  let max = bytes.length
-  let segments = []
-  let ipv4_segments = []
-  let segment_bytes = ByteArray.new
-  let mut compressed = False
-  let mut ipv4_mode = False
-  let mut max_hextet_value = _IPV6_HEXTET_MAXIMUM
-  let mut radix = 16
-
-  # No point in parsing the input if we're certain it's not a valid address.
-  max > _IPV6_STRING_MAXIMUM_LENGTH
-    .if_true {
-      throw AddressParseError.new(bytes)
-    }
-
-  { cursor < max }.while_true {
-    {
-      let byte = bytes[cursor]
-
-      # IPv6 addresses can embed IPv4 addresses, so instead of reading until we
-      # encounter a ":" we will also stop reading when running into a ".".
-      cursor < max
-        .and { byte != _COLON_BYTE }
-        .and { byte != _DOT_BYTE }
-    }.while_true {
-      segment_bytes.push(bytes[cursor]!)
-      cursor += 1
-    }
-
-    # The moment we encounter a dot we'll enter IPv4 mode, and remain in this
-    # mode until we reach the end of the input, as embedded IPv4 addresses must
-    # be at the end of an IPv6 address.
-    ipv4_mode
-      .not
-      .and { bytes[cursor] == _DOT_BYTE }
-      .if_true {
-        ipv4_mode = True
-        radix = 10
-        max_hextet_value = _IPV4_OCTET_MAXIMUM
-      }
-
-    # When the IP starts with a "::" we won't be able to read input, so the byte
-    # buffer is empty.
-    segment_bytes.empty?.if_false {
-      let int = try {
-        Integer.parse(string: segment_bytes.drain_to_string, radix: radix)
-      } else (error) {
-        throw AddressParseError.new(bytes)
-      }
-
-      int < _IP_MINIMUM_VALUE
-        .or { int > max_hextet_value }
-        .if_true {
-          throw AddressParseError.new(bytes)
-        }
-
-      ipv4_mode.if true: {
-        ipv4_segments.push(int)
-      }, false: {
-        segments.push(int)
-      }
-    }
-
-    cursor += 1
-
-    # We have reached another ":", which is used to compress one or more empty
-    # groups together.
-    bytes[cursor] == _COLON_BYTE
-      .if_true {
-        # Zero compression can only be applied once.
-        compressed.if true: {
-          throw AddressParseError.new(bytes)
-        }, false: {
-          compressed = True
-        }
-
-        let mut pad = _IPV6_HEXTETS - segments.length
-        let mut pad_cursor = cursor
-        let mut ipv4_padded = False
-        let look_ahead = cursor + 1 < max
-
-        # Scan ahead in the input to determine how many empty hextets we need to
-        # add, based on the remaining number of hextets.
-        #
-        # When the compression is at the end of the input (e.g. "1::") there is
-        # no point in looking ahead, so we don't.
-        {
-          look_ahead.and { pad_cursor < max }
-        }.while_true {
-          let byte = bytes[pad_cursor]
-
-          byte == _COLON_BYTE
-            .if_true {
-              pad -= 1
-            }
-
-          # Two IPv4 octets can be stored in a single IPv6 hextet, meaning we'd
-          # have to reduce padding by two. Since we already skip padding for
-          # the ":" that preceeds the IPv4 address, we only reduce the padding
-          # by one.
-          ipv4_padded
-            .not
-            .and { byte == _DOT_BYTE }
-            .if_true {
-              ipv4_padded = True
-              pad -= 1
-            }
-
-          pad_cursor += 1
-        }
-
-        { pad.positive? }.while_true {
-          segments.push(0)
-          pad -= 1
-        }
-
-        cursor += 1
-      }
-  }
-
-  ipv4_segments.length == _IPV4_OCTETS
-    .if_true {
-      segments[6] = _octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
-      segments[7] = _octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
-    }
-
-  segments.length == _IPV6_HEXTETS
-    .if_false {
-      throw AddressParseError.new(bytes)
-    }
-
-  Ipv6Address.new(
-    segments[0]!,
-    segments[1]!,
-    segments[2]!,
-    segments[3]!,
-    segments[4]!,
-    segments[5]!,
-    segments[6]!,
-    segments[7]!,
-  )
-}
-
 ## Parses an IPv4 or IPv6 address literal.
 ##
 ## The returned object is either an `Ipv4Address` or an `Ipv6Address`.
@@ -899,12 +903,12 @@ def parse(address: String) !! AddressParseError -> IpAddress {
   bytes.each do (byte) {
     byte == _DOT_BYTE
       .if_true {
-        return try parse_ipv4(bytes)
+        return try Ipv4Address.parse(bytes)
       }
 
     byte == _COLON_BYTE
       .if_true {
-        return try parse_ipv6(bytes)
+        return try Ipv6Address.parse(bytes)
       }
   }
 

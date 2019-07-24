@@ -2,201 +2,6 @@ import std::net::ip::(self, Ipv4Address, Ipv6Address)
 import std::test
 import std::test::assert
 
-test.group('std::net::ip.parse_ipv4') do (g) {
-  g.test('Parsing a valid IPv4 address') {
-    let parsed = try! ip.parse_ipv4('1.2.3.4'.to_byte_array)
-
-    assert.equal(parsed, Ipv4Address.new(1, 2, 3, 4))
-  }
-
-  g.test('Parsing an IPv4 address that is too short') {
-    assert.panic {
-      try! ip.parse_ipv4('1.2'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address that is too long') {
-    assert.panic {
-      try! ip.parse_ipv4('255.255.255.255.255.255'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address containing invalid characters') {
-    assert.panic {
-      try! ip.parse_ipv4('1.f.4.a'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address that does not contain any dots') {
-    assert.panic {
-      try! ip.parse_ipv4('1234'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address containing out of bounds octets') {
-    assert.panic {
-      try! ip.parse_ipv4('300.0.0.0'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address containing a port') {
-    assert.panic {
-      try! ip.parse_ipv4('1.2.3.4:80'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address containing a CIDR mask') {
-    assert.panic {
-      try! ip.parse_ipv4('1.2.3.4/24'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address that starts with dot') {
-    assert.panic {
-      try! ip.parse_ipv4('.2.3.4'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv4 address that is just a single dot') {
-    assert.panic {
-      try! ip.parse_ipv4('.'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an empty String') {
-    assert.panic {
-      try! ip.parse_ipv4(''.to_byte_array)
-    }
-  }
-}
-
-test.group('std::net::ip.parse_ipv6') do (g) {
-  g.test('Parsing a valid IPv6 address') {
-    assert.equal(
-      try! ip.parse_ipv6('2001:db8:0:0:1:0:0:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6('2001:0db8:0:0:1:0:0:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0x0db8, 0, 0, 1, 0, 0, 1)
-    )
-  }
-
-  g.test('Parsing an IPv6 address with leading zero compression') {
-    assert.equal(
-      try! ip.parse_ipv6('::1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6('::1:1:1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1)
-    )
-  }
-
-  g.test('Parsing an IPv6 address with trailing zero compression') {
-    assert.equal(try! ip.parse_ipv6('1::'.to_byte_array), Ipv6Address.new(1))
-  }
-
-  g.test('Parsing an IPv6 address with zero compression') {
-    assert.equal(
-      try! ip.parse_ipv6('2001:DB8:0:0:1::1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6('2001:DB8:0:0::1:1'.to_byte_array),
-      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 1, 1)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6('1::1'.to_byte_array),
-      Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1)
-    )
-  }
-
-  g.test('Parsing an IPv6 address with an embedded IPv4 address') {
-    assert.equal(
-      try! ip.parse_ipv6(
-        '0000:0000:0000:0000:0000:ffff:192.168.1.1'.to_byte_array
-      ),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x101)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6(
-        '0000:0000:0000:0000:0000:c0a8:192.168.1.1'.to_byte_array
-      ),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0xc0a8, 0xc0a8, 0x101)
-    )
-
-    assert.equal(
-      try! ip.parse_ipv6('::1:192.168.1.1'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 1, 0xc0a8, 0x101)
-    )
-  }
-
-  g.test('Parsing an embedded IPv4 address with leading compression') {
-    assert.equal(
-      try! ip.parse_ipv6('::1.2.3.4'.to_byte_array),
-      Ipv6Address.new(0, 0, 0, 0, 0, 0, 258, 772)
-    )
-  }
-
-  g.test('Parsing an IPv6 address that is too long') {
-    assert.panic {
-      try! ip.parse_ipv6(
-        '0000:0000:0000:0000:0000:0000:0000:0000:0000'.to_byte_array
-      )
-    }
-  }
-
-  g.test('Parsing an IPv6 address that is too short') {
-    assert.panic {
-      try! ip.parse_ipv6('0000'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv6 address that compresses zeroes more than once') {
-    assert.panic {
-      try! ip.parse_ipv6('::1::1'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv6 address that contains too many colons') {
-    assert.panic {
-      try! ip.parse_ipv6('1:::1'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv6 address containing invalid hextets') {
-    assert.panic {
-      try! ip.parse_ipv6('0000:0000:0000:0000:0000:0000:zzzz'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv6 address embedding an invalid IPv4 address') {
-    assert.panic {
-      try! ip.parse_ipv6('::1:300.168.1.1'.to_byte_array)
-    }
-
-    assert.panic {
-      try! ip.parse_ipv6('::1:300.168:1.1'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an IPv6 address containing a CIDR mask') {
-    assert.panic {
-      try! ip.parse_ipv6('::1/24'.to_byte_array)
-    }
-  }
-
-  g.test('Parsing an empty IPv6 address') {
-    assert.equal(try! ip.parse_ipv6('::'.to_byte_array), Ipv6Address.new)
-  }
-}
-
 test.group('std::net::ip.parse') do (g) {
   g.test('Parsing an IPv4 address') {
     assert.equal(
@@ -225,6 +30,74 @@ test.group('std::net::ip.parse') do (g) {
 
     assert.panic {
       try! ip.parse('foo')
+    }
+  }
+}
+
+test.group('std::net::ip.Ipv4Address.parse') do (g) {
+  g.test('Parsing a valid IPv4 address') {
+    let parsed = try! Ipv4Address.parse('1.2.3.4'.to_byte_array)
+
+    assert.equal(parsed, Ipv4Address.new(1, 2, 3, 4))
+  }
+
+  g.test('Parsing an IPv4 address that is too short') {
+    assert.panic {
+      try! Ipv4Address.parse('1.2'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address that is too long') {
+    assert.panic {
+      try! Ipv4Address.parse('255.255.255.255.255.255'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address containing invalid characters') {
+    assert.panic {
+      try! Ipv4Address.parse('1.f.4.a'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address that does not contain any dots') {
+    assert.panic {
+      try! Ipv4Address.parse('1234'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address containing out of bounds octets') {
+    assert.panic {
+      try! Ipv4Address.parse('300.0.0.0'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address containing a port') {
+    assert.panic {
+      try! Ipv4Address.parse('1.2.3.4:80'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address containing a CIDR mask') {
+    assert.panic {
+      try! Ipv4Address.parse('1.2.3.4/24'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address that starts with dot') {
+    assert.panic {
+      try! Ipv4Address.parse('.2.3.4'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv4 address that is just a single dot') {
+    assert.panic {
+      try! Ipv4Address.parse('.'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an empty String') {
+    assert.panic {
+      try! Ipv4Address.parse(''.to_byte_array)
     }
   }
 }
@@ -402,6 +275,133 @@ test.group('std::net::ip::Ipv6Address.ipv4_mapped?') do (g) {
     assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0, 0).ipv4_mapped?)
     assert.true(Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_mapped?)
     assert.false(Ipv6Address.new(0, 0, 0, 0, 0, 0xff, 1, 1).ipv4_mapped?)
+  }
+}
+
+test.group('std::net::ip::Ipv6Address.parse') do (g) {
+  g.test('Parsing a valid IPv6 address') {
+    assert.equal(
+      try! Ipv6Address.parse('2001:db8:0:0:1:0:0:1'.to_byte_array),
+      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse('2001:0db8:0:0:1:0:0:1'.to_byte_array),
+      Ipv6Address.new(0x2001, 0x0db8, 0, 0, 1, 0, 0, 1)
+    )
+  }
+
+  g.test('Parsing an IPv6 address with leading zero compression') {
+    assert.equal(
+      try! Ipv6Address.parse('::1'.to_byte_array),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse('::1:1:1'.to_byte_array),
+      Ipv6Address.new(0, 0, 0, 0, 0, 1, 1, 1)
+    )
+  }
+
+  g.test('Parsing an IPv6 address with trailing zero compression') {
+    assert.equal(try! Ipv6Address.parse('1::'.to_byte_array), Ipv6Address.new(1))
+  }
+
+  g.test('Parsing an IPv6 address with zero compression') {
+    assert.equal(
+      try! Ipv6Address.parse('2001:DB8:0:0:1::1'.to_byte_array),
+      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse('2001:DB8:0:0::1:1'.to_byte_array),
+      Ipv6Address.new(0x2001, 0xdb8, 0, 0, 0, 0, 1, 1)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse('1::1'.to_byte_array),
+      Ipv6Address.new(1, 0, 0, 0, 0, 0, 0, 1)
+    )
+  }
+
+  g.test('Parsing an IPv6 address with an embedded IPv4 address') {
+    assert.equal(
+      try! Ipv6Address.parse(
+        '0000:0000:0000:0000:0000:ffff:192.168.1.1'.to_byte_array
+      ),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 0xc0a8, 0x101)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse(
+        '0000:0000:0000:0000:0000:c0a8:192.168.1.1'.to_byte_array
+      ),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0xc0a8, 0xc0a8, 0x101)
+    )
+
+    assert.equal(
+      try! Ipv6Address.parse('::1:192.168.1.1'.to_byte_array),
+      Ipv6Address.new(0, 0, 0, 0, 0, 1, 0xc0a8, 0x101)
+    )
+  }
+
+  g.test('Parsing an embedded IPv4 address with leading compression') {
+    assert.equal(
+      try! Ipv6Address.parse('::1.2.3.4'.to_byte_array),
+      Ipv6Address.new(0, 0, 0, 0, 0, 0, 258, 772)
+    )
+  }
+
+  g.test('Parsing an IPv6 address that is too long') {
+    assert.panic {
+      try! Ipv6Address.parse(
+        '0000:0000:0000:0000:0000:0000:0000:0000:0000'.to_byte_array
+      )
+    }
+  }
+
+  g.test('Parsing an IPv6 address that is too short') {
+    assert.panic {
+      try! Ipv6Address.parse('0000'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv6 address that compresses zeroes more than once') {
+    assert.panic {
+      try! Ipv6Address.parse('::1::1'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv6 address that contains too many colons') {
+    assert.panic {
+      try! Ipv6Address.parse('1:::1'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv6 address containing invalid hextets') {
+    assert.panic {
+      try! Ipv6Address.parse('0000:0000:0000:0000:0000:0000:zzzz'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv6 address embedding an invalid IPv4 address') {
+    assert.panic {
+      try! Ipv6Address.parse('::1:300.168.1.1'.to_byte_array)
+    }
+
+    assert.panic {
+      try! Ipv6Address.parse('::1:300.168:1.1'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an IPv6 address containing a CIDR mask') {
+    assert.panic {
+      try! Ipv6Address.parse('::1/24'.to_byte_array)
+    }
+  }
+
+  g.test('Parsing an empty IPv6 address') {
+    assert.equal(try! Ipv6Address.parse('::'.to_byte_array), Ipv6Address.new)
   }
 }
 
