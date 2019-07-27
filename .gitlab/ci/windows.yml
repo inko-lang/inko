@@ -1,0 +1,70 @@
+---
+test:compiler:windows:
+  stage: test
+  tags:
+    - windows
+  before_script:
+    - cd compiler
+    - ruby --version
+    - gem --version
+    - bundle --version
+    - bundle install --path vendor --retry=3
+  script:
+    - C:/msys make test
+  cache:
+    key: windows
+    paths:
+      - compiler/vendor/ruby
+
+test:ivm:windows:
+  image: windows:1809
+  stage: test
+  tags:
+    - windows
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - C:/msys make test
+  cache:
+    key: windows
+    paths:
+      - .cargo
+      - vm/target
+
+test:runtime:windows:
+  stage: test-runtime
+  tags:
+    - windows
+  before_script:
+    - ruby --version
+    - rustc --version
+    - cargo --version
+  script:
+    - C:/msys make -C vm release
+    - ruby -I ./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm.exe
+  cache:
+    key: windows
+    paths:
+      - .cargo
+      - vm/target
+
+release:compiled:windows:
+  stage: release
+  tags:
+    - windows
+  before_script:
+    - ruby --version
+    - rustc --version
+    - cargo --version
+    - C:/msys aws --version
+  script:
+    - C:/msys make release-compiled
+  only:
+    - tags
+  cache:
+    key: windows
+    paths:
+      - .cargo
+      - vm/target

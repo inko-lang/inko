@@ -1,0 +1,69 @@
+---
+test:compiler:macos:
+  stage: test
+  tags:
+    - macos
+  before_script:
+    - cd compiler
+    - ruby --version
+    - gem --version
+    - bundle --version
+    - bundle install --path vendor --retry=3
+  script:
+    - gmake test
+  cache:
+    key: macos
+    paths:
+      - compiler/vendor/ruby
+
+test:ivm:macos:
+  stage: test
+  tags:
+    - macos
+  before_script:
+    - cd vm
+    - rustc --version
+    - cargo --version
+  script:
+    - gmake test
+  cache:
+    key: macos
+    paths:
+      - .cargo
+      - vm/target
+
+test:runtime:macos:
+  stage: test-runtime
+  tags:
+    - macos
+  before_script:
+    - ruby --version
+    - rustc --version
+    - cargo --version
+  script:
+    - gmake -C vm release
+    - env RUBYLIB=./compiler/lib ./compiler/bin/inko-test -d runtime --vm ./vm/target/release/ivm
+  cache:
+    key: macos
+    paths:
+      - .cargo
+      - vm/target
+
+release:compiled:macos:
+  stage: release
+  tags:
+    - macos
+  before_script:
+    - ruby --version
+    - rustc --version
+    - cargo --version
+    - aws --version
+  script:
+    - gmake release-compiled SHA256SUM=gsha256sum
+  only:
+    - tags
+  cache:
+    key: macos
+    paths:
+      - .cargo
+      - vm/target

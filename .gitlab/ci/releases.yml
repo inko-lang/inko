@@ -1,0 +1,16 @@
+---
+release:source:
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
+  stage: release
+  script:
+    - make release-source
+  only:
+    - tags
+
+post-release:manifest:
+  image: registry.gitlab.com/inko-lang/development-docker-images:alpine
+  stage: post-release
+  script:
+    - make rebuild-manifest
+  only:
+    - tags
