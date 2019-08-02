@@ -1,4 +1,4 @@
-import std::hash_map::(self, DefaultHasher, Pair, RandomState, Table)
+import std::hash_map::(self, DefaultHasher, Pair, RandomState)
 import std::test
 import std::test::assert
 
@@ -173,307 +173,130 @@ test.group('std::hash_map::Pair.hash') do (g) {
   }
 }
 
-test.group('std::hash_map::Table.buckets') do (g) {
-  g.test('Obtaining the buckets in a Table') {
-    let table = Table.new
+test.group('std::hash_map::HashMap.rehash') do (g) {
+  g.test('Rehashing an empty HashMap') {
+    let map = HashMap.new
 
-    assert.equal(table.buckets, [])
-  }
-}
+    assert.equal(map.buckets, [])
 
-test.group('std::hash_map::Table.length') do (g) {
-  g.test('Obtaining the number of pairs in a Table') {
-    let table = Table.new
-    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+    map.rehash
 
-    table.insert_pair(pair)
-
-    assert.equal(table.length, 1)
-  }
-}
-
-test.group('std::hash_map::Table.resize') do (g) {
-  g.test('Resizing a Table') {
-    let table = Table.new
-
-    assert.equal(table.buckets, [])
-
-    table.resize
-
-    assert.equal(table.buckets, [Nil, Nil])
+    assert.equal(map.buckets, [Nil, Nil])
   }
 
-  g.test('Rehashing a Table') {
-    let table = Table.new
+  g.test('Rehashing a HashMap with pairs') {
+    let map = HashMap.new
     let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'value', hash: 1)
 
-    table.resize
-    table.insert_pair(pair: pair1)
-    table.insert_pair(pair: pair2)
+    map.rehash
+    map._insert_pair(pair: pair1)
+    map._insert_pair(pair: pair2)
 
     # Moving the pair to a bucket it shouldn't be in allows us to test if
     # `resize` ends up moving pairs or not.
     pair2.increase_distance
 
-    table.buckets[1] = Nil
-    table.buckets[2] = pair2
+    map.buckets[1] = Nil
+    map.buckets[2] = pair2
 
-    table.resize
+    map.rehash
 
     assert.equal(pair1.distance, 0)
     assert.equal(pair2.distance, 0)
 
-    assert.equal(table.buckets[0], pair1)
-    assert.equal(table.buckets[1], pair2)
-    assert.equal(table.buckets[2], Nil)
+    assert.equal(map.buckets[0], pair1)
+    assert.equal(map.buckets[1], pair2)
+    assert.equal(map.buckets[2], Nil)
   }
 }
 
-test.group('std::hash_map::Table.resize?') do (g) {
-  g.test('Checking if a table needs to be resized') {
-    let table = Table.new
-    let pair = Pair.new(key: 'a', value: 'value', hash: 0)
-
-    assert.false(table.resize?)
-
-    table.insert_pair(pair)
-
-    assert.true(table.resize?)
-  }
-}
-
-test.group('std::hash_map::Table.hash_key') do (g) {
-  g.test("Hashing a key using the Table's hasher") {
-    let table = Table.new
-
-    # We can't really maky any guarantees about the exact value returned, all we
-    # can guarantee is that the same key should produce the same hash.
-    let hash1 = table.hash_key('foo')
-    let hash2 = table.hash_key('foo')
-    let hash3 = table.hash_key('bar')
-
-    assert.equal(hash1, hash2)
-    assert.not_equal(hash1, hash3)
-  }
-}
-
-test.group('std::hash_map::Table.desired_bucket') do (g) {
-  g.test('Obtaining the desired bucket index of a hash') {
-    let table = Table.new
-
-    table.resize
-
-    assert.equal(table.desired_bucket(0), 0)
-    assert.equal(table.desired_bucket(1), 1)
-    assert.equal(table.desired_bucket(5), 1)
-  }
-}
-
-test.group('std::hash_map::Table.insert_pair') do (g) {
-  g.test('Inserting a Pair into a Table') {
-    let table = Table.new
+test.group('std::hash_map::HashMap._insert_pair') do (g) {
+  g.test('Inserting a Pair into a HashMap') {
+    let map = HashMap.new
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
-    table.insert_pair(pair)
+    map._insert_pair(pair)
 
-    assert.equal(table.length, 1)
-    assert.equal(table.buckets[0], pair)
+    assert.equal(map.length, 1)
+    assert.equal(map.buckets[0], pair)
   }
 
-  g.test('Inserting a Pair into an existing bucket in a Table') {
-    let table = Table.new
+  g.test('Inserting a Pair into an existing bucket in a HashMap') {
+    let map = HashMap.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
-    table.resize
-    table.insert_pair(pair1)
-    table.insert_pair(pair2)
+    map.rehash
+    map._insert_pair(pair1)
+    map._insert_pair(pair2)
 
-    assert.equal(table.buckets[0], pair1)
-    assert.equal(table.buckets[1], pair2)
+    assert.equal(map.buckets[0], pair1)
+    assert.equal(map.buckets[1], pair2)
 
     assert.equal(pair1.distance, 0)
     assert.equal(pair2.distance, 1)
   }
 
   g.test('Inserting a Pair using an already used key') {
-    let table = Table.new
+    let map = HashMap.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'a', value: 'b', hash: 0)
 
-    table.resize
-    table.insert_pair(pair1)
-    table.insert_pair(pair2)
+    map.rehash
+    map._insert_pair(pair1)
+    map._insert_pair(pair2)
 
-    assert.equal(table.buckets[0], pair2)
+    assert.equal(map.buckets[0], pair2)
   }
 
   g.test('Inserting a Pair after an unused bucket') {
-    let table = Table.new
+    let map = HashMap.new
     let pair1 = Pair.new(key: 'one', value: 1, hash: 4764096362064740795)
     let pair2 = Pair.new(key: 'two', value: 2, hash: -9161411174267222279)
     let pair3 = Pair.new(key: 'three', value: 3, hash: 902578265635837404)
 
-    table.insert_pair(pair1)
-    table.resize
+    map._insert_pair(pair1)
+    map.rehash
 
-    table.insert_pair(pair2)
-    table.resize
+    map._insert_pair(pair2)
+    map.rehash
 
-    table.insert_pair(pair3)
+    map._insert_pair(pair3)
 
-    assert.equal(table.buckets[0], pair3)
-    assert.equal(table.buckets[1], pair2)
-    assert.equal(table.buckets[2], Nil)
-    assert.equal(table.buckets[3], pair1)
+    assert.equal(map.buckets[0], pair3)
+    assert.equal(map.buckets[1], pair2)
+    assert.equal(map.buckets[2], Nil)
+    assert.equal(map.buckets[3], pair1)
   }
 }
 
-test.group('std::hash_map::Table.rehash_pair') do (g) {
-  g.test('Rehashing a Pair') {
-    let table = Table.new
-    let pair = Pair.new(key: 'key', value: 'value', hash: 0)
+test.group('std::hash_map::HashMap.remove') do (g) {
+  g.test('Removing an existing key from a HashMap') {
+    let map = %['a': 'b']
 
-    table.rehash_pair(pair)
-
-    assert.equal(table.buckets[0], pair)
+    assert.equal(map.remove('a'), 'b')
+    assert.equal(map.buckets[0], Nil)
   }
 
-  g.test('Rehashing a Pair into an existing bucket in a Table') {
-    let table = Table.new
-    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
-    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
+  g.test('Removing a non-existing key from a HashMap') {
+    let map: HashMap!(String, String) = HashMap.new
 
-    table.resize
-    table.rehash_pair(pair1)
-    table.rehash_pair(pair2)
-
-    assert.equal(table.buckets[0], pair1)
-    assert.equal(table.buckets[1], pair2)
-
-    assert.equal(pair1.distance, 0)
-    assert.equal(pair2.distance, 1)
-  }
-}
-
-test.group('std::hash_map::Table.bucket_index') do (g) {
-  g.test('Obtaining the bucket index of an existing key') {
-    let table = Table.new
-    let pair = Pair.new(key: 'a', value: 'a', hash: 0)
-
-    table.insert_pair(pair)
-
-    assert.equal(table.bucket_index('a'), 0)
-  }
-
-  g.test('Obtaining the bucket index of a non existing key') {
-    let table = Table.new
-
-    assert.equal(table.bucket_index('a'), Nil)
-  }
-}
-
-test.group('std::hash_map::Table.remove') do (g) {
-  g.test('Removing an existing key from a Table') {
-    let table = Table.new
-    let pair = Pair.new(key: 'a', value: 'a', hash: 0)
-
-    table.insert_pair(pair)
-
-    assert.equal(table.remove(pair.key), 'a')
-    assert.equal(table.buckets[0], Nil)
-  }
-
-  g.test('Removing a non-existing key from a Table') {
-    let table: Table!(String, String) = Table.new
-
-    assert.equal(table.remove('a'), Nil)
+    assert.equal(map.remove('a'), Nil)
   }
 
   g.test('Backwards shifting Pairs that follow the removed Pair') {
-    let table = Table.new
+    let map = HashMap.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
-    table.resize
-    table.insert_pair(pair1)
-    table.insert_pair(pair2)
-    table.remove(pair1.key)
+    map.rehash
+    map._insert_pair(pair1)
+    map._insert_pair(pair2)
+    map.remove(pair1.key)
 
-    assert.equal(table.buckets[0], pair2)
+    assert.equal(map.buckets[0], pair2)
     assert.equal(pair2.distance, 0)
-  }
-}
-
-test.group('std::hash_map::Table.backwards_shift') do (g) {
-  g.test('Performing a backwards shift starting at a particular bucket') {
-    let table = Table.new
-    let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
-    let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
-    let pair3 = Pair.new(key: 'c', value: 'c', hash: 0)
-
-    table.resize
-    table.resize
-
-    table.insert_pair(pair1)
-    table.insert_pair(pair2)
-    table.insert_pair(pair3)
-
-    table.backwards_shift(index: 1)
-
-    assert.equal(table.buckets[0], pair2)
-    assert.equal(table.buckets[1], pair3)
-    assert.equal(table.buckets[2], Nil)
-
-    assert.equal(pair2.distance, 0)
-    assert.equal(pair3.distance, 1)
-  }
-}
-
-test.group('std::hash_map::Table.[]') do (g) {
-  g.test('Obtaining the value of a Pair by its key') {
-    let table = Table.new
-    let pair = Pair.new(key: 'a', value: 'b', hash: 0)
-
-    table.insert_pair(pair)
-
-    assert.equal(table['a'], 'b')
-  }
-
-  g.test('Obtaining the value of a Pair using a non-existing key') {
-    let table: Table!(String, String) = Table.new
-
-    assert.equal(table['a'], Nil)
-  }
-}
-
-test.group('std::hash_map::Table.[]=') do (g) {
-  g.test('Creating an inserting a Pair') {
-    let table = Table.new
-
-    let val1 = table['a'] = 'foo'
-    let val2 = table['b'] = 'bar'
-
-    assert.equal(val1, 'foo')
-    assert.equal(val2, 'bar')
-
-    assert.equal(table['a'], 'foo')
-    assert.equal(table['b'], 'bar')
-    assert.equal(table.length, 2)
-  }
-
-  g.test('Overwriting an existing Pair') {
-    let table = Table.new
-
-    let val1 = table['a'] = 'foo'
-    let val2 = table['a'] = 'bar'
-
-    assert.equal(val1, 'foo')
-    assert.equal(val2, 'bar')
-
-    assert.equal(table['a'], 'bar')
-    assert.equal(table.length, 1)
   }
 }
 
