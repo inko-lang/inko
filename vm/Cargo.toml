@@ -43,7 +43,7 @@ version = "^0.2"
 features = ["rand"]
 
 [dependencies.socket2]
-version = "^0.3.9"
+version = "=0.3.9"
 features = ["unix", "reuseport"]
 
 [target.'cfg(not(windows))'.dependencies]
