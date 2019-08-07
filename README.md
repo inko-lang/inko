@@ -27,10 +27,10 @@ website](https://inko-lang.org/about/).
 
 [![CI sponsored by MacStadium](macstadium.png)](https://www.macstadium.com/)
 
-Inko supports any Unix-like platform, such as Linux, Mac OS, or BSD. Technically
-Inko also works on Windows, but installing from source requires a Linux
-compatibility layer such as [MSYS2](http://www.msys2.org/) or [Linux for
-Windows](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+Inko officially supports Linux, Mac OS, and Windows (when compiled with a MingW
+toolchain such as [MSYS2](http://www.msys2.org/)). Other Unix-like platforms
+such as the various BSDs should also work, but are not officially supported at
+this time.
 
 ## Requirements
 
