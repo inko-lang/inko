@@ -40,7 +40,7 @@ module Inkoc
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
-    HASH_MAP_CONST = 'HashMap'
+    HASH_MAP_CONST = 'Map'
     BLOCK_CONST = 'Block'
     INTEGER_CONST = 'Integer'
     FLOAT_CONST = 'Float'

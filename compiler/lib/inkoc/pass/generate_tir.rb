@@ -522,7 +522,7 @@ module Inkoc
       end
 
       def on_send(node, body)
-        # HashMap literals need to be optimised before we process their
+        # Map literals need to be optimised before we process their
         # arguments.
         if node.hash_map_literal?
           return on_hash_map_literal(node, body)
@@ -543,7 +543,7 @@ module Inkoc
         )
       end
 
-      # Optimises a HashMap literal.
+      # Optimises a Map literal.
       #
       # This method will turn this:
       #
@@ -551,7 +551,7 @@ module Inkoc
       #
       # Into (effectively) the following:
       #
-      #     let hash_map = HashMap.new
+      #     let hash_map = Map.new
       #
       #     hash_map['a'] = 10
       #     hash_map['b'] = 20
@@ -568,7 +568,7 @@ module Inkoc
         new_method = hash_map_type.lookup_method(Config::NEW_MESSAGE).type
         set_method = hash_map_type.lookup_method(Config::SET_INDEX_MESSAGE).type
 
-        # Initialise an empty HashMap.
+        # Initialise an empty Map.
         hash_map_reg = send_object_message(
           hash_map_global_reg,
           new_method.name,

@@ -1,8 +1,8 @@
-import std::hash_map::(self, DefaultHasher, Pair, RandomState)
+import std::map::(self, DefaultHasher, Pair, RandomState)
 import std::test
 import std::test::assert
 
-test.group('std::hash_map::DefaultHasher.write_integer') do (g) {
+test.group('std::map::DefaultHasher.write_integer') do (g) {
   g.test('Hashing an Integer') {
     let hasher = DefaultHasher.new(1, 2)
 
@@ -19,7 +19,7 @@ test.group('std::hash_map::DefaultHasher.write_integer') do (g) {
   }
 }
 
-test.group('std::hash_map::DefaultHasher.write_float') do (g) {
+test.group('std::map::DefaultHasher.write_float') do (g) {
   g.test('Hashing an Float') {
     let hasher = DefaultHasher.new(1, 2)
 
@@ -36,7 +36,7 @@ test.group('std::hash_map::DefaultHasher.write_float') do (g) {
   }
 }
 
-test.group('std::hash_map::DefaultHasher.write_string') do (g) {
+test.group('std::map::DefaultHasher.write_string') do (g) {
   g.test('Hashing a String') {
     let hasher = DefaultHasher.new(1, 2)
 
@@ -53,7 +53,7 @@ test.group('std::hash_map::DefaultHasher.write_string') do (g) {
   }
 }
 
-test.group('std::hash_map::DefaultHasher.write_boolean') do (g) {
+test.group('std::map::DefaultHasher.write_boolean') do (g) {
   g.test('Hashing a Boolean') {
     let hasher = DefaultHasher.new(1, 2)
 
@@ -70,7 +70,7 @@ test.group('std::hash_map::DefaultHasher.write_boolean') do (g) {
   }
 }
 
-test.group('std::hash_map::DefaultHasher.reset') do (g) {
+test.group('std::map::DefaultHasher.reset') do (g) {
   g.test('Resetting the internal state of a hasher') {
     let hasher = DefaultHasher.new(1, 2)
     let hash1 = hasher.to_hash
@@ -84,7 +84,7 @@ test.group('std::hash_map::DefaultHasher.reset') do (g) {
   }
 }
 
-test.group('std::hash_map::RandomState.to_hasher') do (g) {
+test.group('std::map::RandomState.to_hasher') do (g) {
   g.test('Creating a DefaultHasher') {
     let state = RandomState.new
     let hasher1 = state.to_hasher
@@ -97,7 +97,7 @@ test.group('std::hash_map::RandomState.to_hasher') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.distance') do (g) {
+test.group('std::map::Pair.distance') do (g) {
   g.test('Obtaining the distance of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -105,7 +105,7 @@ test.group('std::hash_map::Pair.distance') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.replace_with?') do (g) {
+test.group('std::map::Pair.replace_with?') do (g) {
   g.test('Checking if a Pair should be replaced with another Pair') {
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
@@ -117,7 +117,7 @@ test.group('std::hash_map::Pair.replace_with?') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.reset_distance') do (g) {
+test.group('std::map::Pair.reset_distance') do (g) {
   g.test('Resetting the distance of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -128,7 +128,7 @@ test.group('std::hash_map::Pair.reset_distance') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.increase_distance') do (g) {
+test.group('std::map::Pair.increase_distance') do (g) {
   g.test('Increasing the distance of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -138,7 +138,7 @@ test.group('std::hash_map::Pair.increase_distance') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.reduce_distance') do (g) {
+test.group('std::map::Pair.reduce_distance') do (g) {
   g.test('Reducing the distance of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -149,7 +149,7 @@ test.group('std::hash_map::Pair.reduce_distance') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.key') do (g) {
+test.group('std::map::Pair.key') do (g) {
   g.test('Obtaining the key of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -157,7 +157,7 @@ test.group('std::hash_map::Pair.key') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.value') do (g) {
+test.group('std::map::Pair.value') do (g) {
   g.test('Obtaining the value of a Pair') {
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
@@ -165,7 +165,7 @@ test.group('std::hash_map::Pair.value') do (g) {
   }
 }
 
-test.group('std::hash_map::Pair.hash') do (g) {
+test.group('std::map::Pair.hash') do (g) {
   g.test('Obtaining the hash of a Pair') {
     let pair = Pair.new('key', 'value', 123)
 
@@ -173,9 +173,9 @@ test.group('std::hash_map::Pair.hash') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.rehash') do (g) {
-  g.test('Rehashing an empty HashMap') {
-    let map = HashMap.new
+test.group('std::map::Map.rehash') do (g) {
+  g.test('Rehashing an empty Map') {
+    let map = Map.new
 
     assert.equal(map.buckets, [])
 
@@ -184,8 +184,8 @@ test.group('std::hash_map::HashMap.rehash') do (g) {
     assert.equal(map.buckets, [Nil, Nil])
   }
 
-  g.test('Rehashing a HashMap with pairs') {
-    let map = HashMap.new
+  g.test('Rehashing a Map with pairs') {
+    let map = Map.new
     let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'value', hash: 1)
 
@@ -211,9 +211,9 @@ test.group('std::hash_map::HashMap.rehash') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap._insert_pair') do (g) {
-  g.test('Inserting a Pair into a HashMap') {
-    let map = HashMap.new
+test.group('std::map::Map._insert_pair') do (g) {
+  g.test('Inserting a Pair into a Map') {
+    let map = Map.new
     let pair = Pair.new(key: 'key', value: 'value', hash: 0)
 
     map._insert_pair(pair)
@@ -222,8 +222,8 @@ test.group('std::hash_map::HashMap._insert_pair') do (g) {
     assert.equal(map.buckets[0], pair)
   }
 
-  g.test('Inserting a Pair into an existing bucket in a HashMap') {
-    let map = HashMap.new
+  g.test('Inserting a Pair into an existing bucket in a Map') {
+    let map = Map.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
@@ -239,7 +239,7 @@ test.group('std::hash_map::HashMap._insert_pair') do (g) {
   }
 
   g.test('Inserting a Pair using an already used key') {
-    let map = HashMap.new
+    let map = Map.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'a', value: 'b', hash: 0)
 
@@ -251,7 +251,7 @@ test.group('std::hash_map::HashMap._insert_pair') do (g) {
   }
 
   g.test('Inserting a Pair after an unused bucket') {
-    let map = HashMap.new
+    let map = Map.new
     let pair1 = Pair.new(key: 'one', value: 1, hash: 4764096362064740795)
     let pair2 = Pair.new(key: 'two', value: 2, hash: -9161411174267222279)
     let pair3 = Pair.new(key: 'three', value: 3, hash: 902578265635837404)
@@ -271,22 +271,22 @@ test.group('std::hash_map::HashMap._insert_pair') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.remove') do (g) {
-  g.test('Removing an existing key from a HashMap') {
+test.group('std::map::Map.remove') do (g) {
+  g.test('Removing an existing key from a Map') {
     let map = %['a': 'b']
 
     assert.equal(map.remove('a'), 'b')
     assert.equal(map.buckets[0], Nil)
   }
 
-  g.test('Removing a non-existing key from a HashMap') {
-    let map: HashMap!(String, String) = HashMap.new
+  g.test('Removing a non-existing key from a Map') {
+    let map: Map!(String, String) = Map.new
 
     assert.equal(map.remove('a'), Nil)
   }
 
   g.test('Backwards shifting Pairs that follow the removed Pair') {
-    let map = HashMap.new
+    let map = Map.new
     let pair1 = Pair.new(key: 'a', value: 'a', hash: 0)
     let pair2 = Pair.new(key: 'b', value: 'b', hash: 0)
 
@@ -300,13 +300,13 @@ test.group('std::hash_map::HashMap.remove') do (g) {
   }
 }
 
-test.group('HashMap literals') do (g) {
-  g.test('Creating an empty HashMap') {
-    assert.equal(%[], HashMap.new)
+test.group('Map literals') do (g) {
+  g.test('Creating an empty Map') {
+    assert.equal(%[], Map.new)
   }
 
-  g.test('Creating a HashMap with keys and values') {
-    let expected = HashMap.new
+  g.test('Creating a Map with keys and values') {
+    let expected = Map.new
 
     expected['name'] = 'Alice'
     expected['city'] = 'Amsterdam'
@@ -315,36 +315,36 @@ test.group('HashMap literals') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.from_array') do (g) {
-  g.test('Creating a HashMap without any keys and values') {
-    let map = HashMap.from_array([], [])
+test.group('std::map::Map.from_array') do (g) {
+  g.test('Creating a Map without any keys and values') {
+    let map = Map.from_array([], [])
 
     assert.equal(map, %[])
   }
 
-  g.test('Creating a HashMap with keys but without values') {
+  g.test('Creating a Map with keys but without values') {
     assert.panic {
-      HashMap.from_array(['name'], [])
+      Map.from_array(['name'], [])
     }
   }
 
-  g.test('Creating a HashMap with an equal number of keys and values') {
-    let map = HashMap.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
+  g.test('Creating a Map with an equal number of keys and values') {
+    let map = Map.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
 
     assert.equal(map['name'], 'Alice')
     assert.equal(map['city'], 'Amsterdam')
   }
 }
 
-test.group('std::hash_map::HashMap.empty?') do (g) {
-  g.test('Checking if a HashMap is empty') {
+test.group('std::map::Map.empty?') do (g) {
+  g.test('Checking if a Map is empty') {
     assert.true(%[].empty?)
     assert.false(%['a': 'b'].empty?)
   }
 }
 
-test.group('std::hash_map::HashMap.each') do (g) {
-  g.test('Iterating over the key-value pairs of an empty HashMap') {
+test.group('std::map::Map.each') do (g) {
+  g.test('Iterating over the key-value pairs of an empty Map') {
     let mut iters = 0
 
     %[].each do (_, _) {
@@ -354,7 +354,7 @@ test.group('std::hash_map::HashMap.each') do (g) {
     assert.equal(iters, 0)
   }
 
-  g.test('Iterating over the key-value pairs of a non-empty HashMap') {
+  g.test('Iterating over the key-value pairs of a non-empty Map') {
     let mut key_total = 0
     let mut val_total = 0
 
@@ -368,8 +368,8 @@ test.group('std::hash_map::HashMap.each') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.iter') do (g) {
-  g.test('Creating an Iterator for an empty HashMap') {
+test.group('std::map::Map.iter') do (g) {
+  g.test('Creating an Iterator for an empty Map') {
     let map = %[]
     let iter = map.iter
 
@@ -377,7 +377,7 @@ test.group('std::hash_map::HashMap.iter') do (g) {
     assert.equal(iter.next, Nil)
   }
 
-  g.test('Creating an Iterator for a HashMap with key-value pairs') {
+  g.test('Creating an Iterator for a Map with key-value pairs') {
     let map = %['name': 'Alice']
     let iter = map.iter
 
@@ -390,16 +390,16 @@ test.group('std::hash_map::HashMap.iter') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.keys') do (g) {
-  g.test('Creating a Keys Iterator for an empty HashMap') {
-    let map: HashMap!(String, String) = %[]
+test.group('std::map::Map.keys') do (g) {
+  g.test('Creating a Keys Iterator for an empty Map') {
+    let map: Map!(String, String) = %[]
     let iter = map.keys
 
     assert.false(iter.next?)
     assert.equal(iter.next, Nil)
   }
 
-  g.test('Creating a Keys Iterator for a HashMap with key-value pairs') {
+  g.test('Creating a Keys Iterator for a Map with key-value pairs') {
     let map = %['name': 'Alice']
     let iter = map.keys
 
@@ -409,16 +409,16 @@ test.group('std::hash_map::HashMap.keys') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.values') do (g) {
-  g.test('Creating a Values Iterator for an empty HashMap') {
-    let map: HashMap!(String, String) = %[]
+test.group('std::map::Map.values') do (g) {
+  g.test('Creating a Values Iterator for an empty Map') {
+    let map: Map!(String, String) = %[]
     let iter = map.values
 
     assert.false(iter.next?)
     assert.equal(iter.next, Nil)
   }
 
-  g.test('Creating a Values Iterator for a HashMap with key-value pairs') {
+  g.test('Creating a Values Iterator for a Map with key-value pairs') {
     let map = %['name': 'Alice']
     let iter = map.values
 
@@ -428,19 +428,19 @@ test.group('std::hash_map::HashMap.values') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.==') do (g) {
-  g.test('Comparing two identical HashMap instances') {
+test.group('std::map::Map.==') do (g) {
+  g.test('Comparing two identical Map instances') {
     assert.equal(%['name': 'Alice'], %['name': 'Alice'])
   }
 
-  g.test('Comparing two different HashMap instances') {
+  g.test('Comparing two different Map instances') {
     assert.not_equal(%[], %['name': 'Alice'])
     assert.not_equal(%['foo': 'bar'], %['name': 'Alice'])
   }
 }
 
-test.group('std::hash_map::HashMap.key?') do (g) {
-  g.test('Checking if a HashMap defines a key') {
+test.group('std::map::Map.key?') do (g) {
+  g.test('Checking if a Map defines a key') {
     let map = %['name': 'Alice']
 
     assert.true(map.key?('name'))
@@ -448,7 +448,7 @@ test.group('std::hash_map::HashMap.key?') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.[]') do (g) {
+test.group('std::map::Map.[]') do (g) {
   g.test('Obtaining the value of a non-existing key') {
     let map = %['name': 'Alice']
 
@@ -462,7 +462,7 @@ test.group('std::hash_map::HashMap.[]') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.[]=') do (g) {
+test.group('std::map::Map.[]=') do (g) {
   g.test('Setting the value of a non-existing key') {
     let map = %['name': 'Alice']
 
@@ -478,12 +478,12 @@ test.group('std::hash_map::HashMap.[]=') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.length') do (g) {
-  g.test('Obtaining the length of an empty HashMap') {
+test.group('std::map::Map.length') do (g) {
+  g.test('Obtaining the length of an empty Map') {
     assert.equal(%[].length, 0)
   }
 
-  g.test('Obtaining the length of a HashMap with key-value pairs') {
+  g.test('Obtaining the length of a Map with key-value pairs') {
     assert.equal(%['name': 'Alice'].length, 1)
     assert.equal(%['name': 'Alice', 'city': 'Amsterdam'].length, 2)
   }

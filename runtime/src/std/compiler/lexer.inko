@@ -485,7 +485,7 @@ object Lexer {
 
   def string(
     quote: Integer,
-    replacements: HashMap!(Integer, Integer)
+    replacements: Map!(Integer, Integer)
   ) -> Token {
     # Advance 1 for the opening quote.
     @position += 1
@@ -540,7 +540,7 @@ object Lexer {
   def append_string_byte(
     buffer: ByteArray,
     line_buffer: ByteArray,
-    replacements: HashMap!(Integer, Integer)
+    replacements: Map!(Integer, Integer)
   ) -> Boolean {
     let current = current_byte
 

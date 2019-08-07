@@ -4,7 +4,7 @@
 #! can't implement this earlier in modules such as `std::boolean`.
 import std::conversion::ToString
 import std::format::(self, Formatter, Inspect)
-import std::hash_map::HashMap
+import std::map::Map
 import std::mirror
 
 impl Inspect for Object {
@@ -179,12 +179,12 @@ impl Inspect for Array!(T) {
   }
 }
 
-impl Inspect for HashMap!(K, V) {
-  ## Returns a human-readable representation of this `HashMap`.
+impl Inspect for Map!(K, V) {
+  ## Returns a human-readable representation of this `Map`.
   ##
   ## # Examples
   ##
-  ## Inspecting a `HashMap`:
+  ## Inspecting a `Map`:
   ##
   ##     let map = %['name': 'Alice', 'address': 'Foo Street']
   ##
@@ -193,7 +193,7 @@ impl Inspect for HashMap!(K, V) {
     ::format.inspect(self)
   }
 
-  ## Formats this `HashMap` into a human-readable representation.
+  ## Formats this `Map` into a human-readable representation.
   def format_for_inspect(formatter: Formatter) where K: Inspect, V: Inspect {
     let last = length - 1
     let mut index = 0

@@ -128,12 +128,12 @@ test.group('std::array::Array.inspect') do (g) {
   }
 }
 
-test.group('std::hash_map::HashMap.inspect') do (g) {
-  g.test('Inspecting an empty HashMap') {
+test.group('std::map::Map.inspect') do (g) {
+  g.test('Inspecting an empty Map') {
     assert.equal(%[].inspect, '%[]')
   }
 
-  g.test('Inspecting a non-empty HashMap') {
+  g.test('Inspecting a non-empty Map') {
     assert.equal(%['key': 10].inspect, '%["key": 10]')
   }
 }

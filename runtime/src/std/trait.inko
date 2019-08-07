@@ -41,7 +41,7 @@ def implement(implement_for: Object, to_implement: Trait) -> Trait {
 
   # This marks the Trait as implemented by storing the Trait as an attribute,
   # with its value set to True. We can not use other data structures such as
-  # `std::hash_map::HashMap`, since they may not yet exist when this method is
+  # `std::map::Map`, since they may not yet exist when this method is
   # used.
   _INKOC.set_attribute(traits, to_implement, True)
 

@@ -300,7 +300,7 @@ object Member {
 ## structure.
 object Layout {
   ## The members of this layout, mapped to their names.
-  @members: HashMap!(String, Member)
+  @members: Map!(String, Member)
 
   ## The size (in bytes) of this layout.
   @size: Integer
@@ -310,7 +310,7 @@ object Layout {
   @alignment: Integer
 
   def init(
-    members: HashMap!(String, Member),
+    members: Map!(String, Member),
     alignment: Integer,
     size: Integer
   ) {
@@ -407,8 +407,8 @@ object LayoutBuilder {
   ## The types of all members, in the order they are defined in.
   @types: Array!(Type)
 
-  ## A HashMap that tracks which members have already been defined.
-  @existing: HashMap!(String, Boolean)
+  ## A Map that tracks which members have already been defined.
+  @existing: Map!(String, Boolean)
 
   ## The alignment of the largest field.
   @alignment: Integer

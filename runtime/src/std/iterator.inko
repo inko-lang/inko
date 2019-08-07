@@ -1,7 +1,7 @@
 #! External and internal iteration for collections.
 #!
 #! Iterators are objects that can be used to traverse collections such as an
-#! `Array` or a `HashMap`. Typically iterators are implemented in one of two
+#! `Array` or a `Map`. Typically iterators are implemented in one of two
 #! ways:
 #!
 #! 1. Internal iterators: these kind of iterators take care of the iteration

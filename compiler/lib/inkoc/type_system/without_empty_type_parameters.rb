@@ -48,7 +48,7 @@ module Inkoc
               #     def map!(T: Equal)(
               #       keys: Array!(T),
               #       values: Array!(T)
-              #     ) -> HashMap!(T, T) {
+              #     ) -> Map!(T, T) {
               #       ...
               #     }
               #
@@ -56,17 +56,17 @@ module Inkoc
               #
               # Without this logic, the return type would be:
               #
-              #     HashMap!(K -> Equal, V -> Equal)
+              #     Map!(K -> Equal, V -> Equal)
               #
               # This would then prevent us from doing the following, because
               # `Equal` is not compatible with `String`:
               #
-              #     let mapping: HashMap!(String, String) = map([], [])
+              #     let mapping: Map!(String, String) = map([], [])
               #
               # By removing the uninitialised type parameters, we essentially
               # produce the following type in this example:
               #
-              #     HashMap!(K -> ?, V -> ?)
+              #     Map!(K -> ?, V -> ?)
               #
               # This then allows the compiler to infer the proper type in the
               # `let` above, instead of producing an error.
