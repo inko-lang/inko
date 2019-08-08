@@ -186,9 +186,12 @@ impl Inspect for Map!(K, V) {
   ##
   ## Inspecting a `Map`:
   ##
-  ##     let map = %['name': 'Alice', 'address': 'Foo Street']
+  ##     let map = Map.new
   ##
-  ##     map.inspect # => '%["name": "Alice", "address": "Foo Street"]'
+  ##     map['name'] = 'Alice'
+  ##     map['address'] = 'Foo Street'
+  ##
+  ##     map.inspect # => 'Map { "name": "Alice", "address": "Foo Street" }'
   def inspect -> String where K: Inspect, V: Inspect {
     ::format.inspect(self)
   }
@@ -198,7 +201,13 @@ impl Inspect for Map!(K, V) {
     let last = length - 1
     let mut index = 0
 
-    formatter.push('%[')
+    formatter.push('Map')
+
+    empty?.if_true {
+      return
+    }
+
+    formatter.push(' { ')
 
     each do (key, value) {
       formatter.descend {
@@ -219,6 +228,6 @@ impl Inspect for Map!(K, V) {
       index += 1
     }
 
-    formatter.push(']')
+    formatter.push(' }')
   }
 }

@@ -80,7 +80,7 @@ object RandomState {
   }
 }
 
-## A single key-value pair
+## A key-value pair with a pre-computed hash.
 object Pair!(K: Hash + Equal, V) {
   ## The key that was hashed.
   @key: K
@@ -172,29 +172,11 @@ object Map!(K: Hash + Equal, V) {
   ## Returns a `Map` using two arrays: one containing the keys and one
   ## containing the values.
   ##
-  ## Using this method is semantically equivalent to creating a `Map` using
-  ## `Map.new` and sending `[]=` to the `Map` for every key-value pair.
-  ## In other words, this:
-  ##
-  ##     %['name': 'Alice']
-  ##
-  ## Is the same as this:
-  ##
-  ##     let mut map = Map.new
-  ##
-  ##     map['name'] = 'Alice'
-  ##
-  ## # Compiler optimisation
-  ##
-  ## To remove the need for allocating two arrays for `Map` literals, the
-  ## compiler may decide to optimise this method into separate `[]=` message
-  ## sends as illustrated above.
-  ##
   ## # Examples
   ##
   ## Creating a `Map` from two arrays:
   ##
-  ##     Map.from_array(['name'], ['Alice']) # => %['name': 'Alice']
+  ##     Map.from_array(['name'], ['Alice'])
   static def from_array!(K: Hash + Equal, V)(
     keys: Array!(K),
     values: Array!(V)
@@ -219,7 +201,6 @@ object Map!(K: Hash + Equal, V) {
     map
   }
 
-  ## Creates a new, empty `Map`.
   def init {
     @random_state = RandomState.new
     @buckets = []
@@ -368,7 +349,9 @@ object Map!(K: Hash + Equal, V) {
   ##
   ## Checking if a `Map` defines a key:
   ##
-  ##     let map = %['name': 'Alice']
+  ##     let map = Map.new
+  ##
+  ##     map['name'] = 'Alice'
   ##
   ##     map.key?('name') # => True
   ##     map.key?('city') # => False
@@ -378,6 +361,27 @@ object Map!(K: Hash + Equal, V) {
     }, false: {
       False
     }
+  }
+
+  ## Inserts the key and value in this `Map`, returning the `Map` itself.
+  ##
+  ## This method makes it possible to create a `Map` and store many key-value
+  ## pairs, all in a single message chain.
+  ##
+  ## # Examples
+  ##
+  ## Inserting multiple key-value pairs:
+  ##
+  ##     let map = Map.new.set('a', 10).set('b', 20)
+  def set(key: K, value: V) -> Self {
+    @length >= @resize_threshold
+      .if_true {
+        rehash
+      }
+
+    _insert_pair(Pair.new(key: key, value: value, hash: _hash_key(key)))
+
+    self
   }
 
   ## Resizes and rehashes `self`.
@@ -529,7 +533,13 @@ impl Equal for Map!(K, V) {
   ##
   ## Comparing two `Map` instances:
   ##
-  ##     %w['name': 'Alice'] == %w['name': 'Alice'] # => True
+  ##     let map1 = Map.new
+  ##     let map2 = Map.new
+  ##
+  ##     map1['name'] = 'Alice'
+  ##     map2['name'] = 'Alice'
+  ##
+  ##     map1 == map2 # => True
   def ==(other: Self) -> Boolean where V: Equal {
     length == other.length
       .if_false {
@@ -581,8 +591,7 @@ impl Index!(K, V) for Map!(K, V) {
 }
 
 impl SetIndex!(K, V) for Map!(K, V) {
-  ## Inserts the given key and value into this map, returning the inserted
-  ## value.
+  ## Inserts the key and value in this `Map`, returning the inserted value.
   ##
   ## # Examples
   ##
@@ -592,13 +601,7 @@ impl SetIndex!(K, V) for Map!(K, V) {
   ##
   ##     map['name'] = 'Alice' # => 'Alice'
   def []=(key: K, value: V) -> V {
-    @length >= @resize_threshold
-      .if_true {
-        rehash
-      }
-
-    _insert_pair(Pair.new(key: key, value: value, hash: _hash_key(key)))
-
+    set(key: key, value: value)
     value
   }
 }

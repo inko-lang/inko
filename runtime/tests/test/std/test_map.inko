@@ -273,7 +273,9 @@ test.group('std::map::Map._insert_pair') do (g) {
 
 test.group('std::map::Map.remove') do (g) {
   g.test('Removing an existing key from a Map') {
-    let map = %['a': 'b']
+    let map = Map.new
+
+    map['a'] = 'b'
 
     assert.equal(map.remove('a'), 'b')
     assert.equal(map.buckets[0], Nil)
@@ -300,26 +302,11 @@ test.group('std::map::Map.remove') do (g) {
   }
 }
 
-test.group('Map literals') do (g) {
-  g.test('Creating an empty Map') {
-    assert.equal(%[], Map.new)
-  }
-
-  g.test('Creating a Map with keys and values') {
-    let expected = Map.new
-
-    expected['name'] = 'Alice'
-    expected['city'] = 'Amsterdam'
-
-    assert.equal(%['name': 'Alice', 'city': 'Amsterdam'], expected)
-  }
-}
-
 test.group('std::map::Map.from_array') do (g) {
   g.test('Creating a Map without any keys and values') {
     let map = Map.from_array([], [])
 
-    assert.equal(map, %[])
+    assert.equal(map, Map.new)
   }
 
   g.test('Creating a Map with keys but without values') {
@@ -338,8 +325,13 @@ test.group('std::map::Map.from_array') do (g) {
 
 test.group('std::map::Map.empty?') do (g) {
   g.test('Checking if a Map is empty') {
-    assert.true(%[].empty?)
-    assert.false(%['a': 'b'].empty?)
+    let map = Map.new
+
+    assert.true(map.empty?)
+
+    map['a'] = 'b'
+
+    assert.false(map.empty?)
   }
 }
 
@@ -347,7 +339,7 @@ test.group('std::map::Map.each') do (g) {
   g.test('Iterating over the key-value pairs of an empty Map') {
     let mut iters = 0
 
-    %[].each do (_, _) {
+    Map.new.each do (_, _) {
       iters += 1
     }
 
@@ -357,8 +349,12 @@ test.group('std::map::Map.each') do (g) {
   g.test('Iterating over the key-value pairs of a non-empty Map') {
     let mut key_total = 0
     let mut val_total = 0
+    let map = Map.new
 
-    %[1: 10, 2: 20].each do (key, val) {
+    map[1] = 10
+    map[2] = 20
+
+    map.each do (key, val) {
       key_total += key
       val_total += val
     }
@@ -370,7 +366,7 @@ test.group('std::map::Map.each') do (g) {
 
 test.group('std::map::Map.iter') do (g) {
   g.test('Creating an Iterator for an empty Map') {
-    let map = %[]
+    let map = Map.new
     let iter = map.iter
 
     assert.false(iter.next?)
@@ -378,7 +374,10 @@ test.group('std::map::Map.iter') do (g) {
   }
 
   g.test('Creating an Iterator for a Map with key-value pairs') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
+
     let iter = map.iter
 
     assert.true(iter.next?)
@@ -392,7 +391,7 @@ test.group('std::map::Map.iter') do (g) {
 
 test.group('std::map::Map.keys') do (g) {
   g.test('Creating a Keys Iterator for an empty Map') {
-    let map: Map!(String, String) = %[]
+    let map: Map!(String, String) = Map.new
     let iter = map.keys
 
     assert.false(iter.next?)
@@ -400,7 +399,10 @@ test.group('std::map::Map.keys') do (g) {
   }
 
   g.test('Creating a Keys Iterator for a Map with key-value pairs') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
+
     let iter = map.keys
 
     assert.true(iter.next?)
@@ -411,7 +413,7 @@ test.group('std::map::Map.keys') do (g) {
 
 test.group('std::map::Map.values') do (g) {
   g.test('Creating a Values Iterator for an empty Map') {
-    let map: Map!(String, String) = %[]
+    let map: Map!(String, String) = Map.new
     let iter = map.values
 
     assert.false(iter.next?)
@@ -419,7 +421,10 @@ test.group('std::map::Map.values') do (g) {
   }
 
   g.test('Creating a Values Iterator for a Map with key-value pairs') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
+
     let iter = map.values
 
     assert.true(iter.next?)
@@ -430,33 +435,70 @@ test.group('std::map::Map.values') do (g) {
 
 test.group('std::map::Map.==') do (g) {
   g.test('Comparing two identical Map instances') {
-    assert.equal(%['name': 'Alice'], %['name': 'Alice'])
+    let map1 = Map.new
+    let map2 = Map.new
+
+    map1['name'] = 'Alice'
+    map2['name'] = 'Alice'
+
+    assert.equal(map1, map2)
   }
 
   g.test('Comparing two different Map instances') {
-    assert.not_equal(%[], %['name': 'Alice'])
-    assert.not_equal(%['foo': 'bar'], %['name': 'Alice'])
+    let map1 = Map.new
+    let map2 = Map.new
+    let map3 = Map.new
+
+    map2['name'] = 'Alice'
+    map3['foo'] = 'bar'
+
+    assert.not_equal(map1, map2)
+    assert.not_equal(map2, map3)
   }
 }
 
 test.group('std::map::Map.key?') do (g) {
   g.test('Checking if a Map defines a key') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
 
     assert.true(map.key?('name'))
     assert.false(map.key?('city'))
   }
 }
 
+test.group('std::map::Map.set') do (g) {
+  g.test('Setting the value of a non-existing key') {
+    let map = Map.new
+
+    assert.equal(map.set('city', 'Amsterdam'), map)
+    assert.equal(map['city'], 'Amsterdam')
+  }
+
+  g.test('Setting the value of an existing key') {
+    let map = Map.new
+
+    map.set('name', 'Alice')
+    map.set('name', 'Bob')
+
+    assert.equal(map['name'], 'Bob')
+  }
+}
+
 test.group('std::map::Map.[]') do (g) {
   g.test('Obtaining the value of a non-existing key') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
 
     assert.equal(map['city'], Nil)
   }
 
   g.test('Obtaining the value of an existing key') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
 
     assert.equal(map['name'], 'Alice')
   }
@@ -464,14 +506,18 @@ test.group('std::map::Map.[]') do (g) {
 
 test.group('std::map::Map.[]=') do (g) {
   g.test('Setting the value of a non-existing key') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
 
     assert.equal(map['city'] = 'Amsterdam', 'Amsterdam')
     assert.equal(map['city'], 'Amsterdam')
   }
 
   g.test('Setting the value of an existing key') {
-    let map = %['name': 'Alice']
+    let map = Map.new
+
+    map['name'] = 'Alice'
 
     assert.equal(map['name'] = 'Bob', 'Bob')
     assert.equal(map['name'], 'Bob')
@@ -480,11 +526,18 @@ test.group('std::map::Map.[]=') do (g) {
 
 test.group('std::map::Map.length') do (g) {
   g.test('Obtaining the length of an empty Map') {
-    assert.equal(%[].length, 0)
+    assert.equal(Map.new.length, 0)
   }
 
   g.test('Obtaining the length of a Map with key-value pairs') {
-    assert.equal(%['name': 'Alice'].length, 1)
-    assert.equal(%['name': 'Alice', 'city': 'Amsterdam'].length, 2)
+    let map1 = Map.new
+    let map2 = Map.new
+
+    map1['name'] = 'Alice'
+    map2['name'] = 'Alice'
+    map2['city'] = 'Amsterdam'
+
+    assert.equal(map1.length, 1)
+    assert.equal(map2.length, 2)
   }
 }

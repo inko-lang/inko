@@ -419,7 +419,7 @@ object LayoutBuilder {
   def init {
     @members = []
     @types = []
-    @existing = %[]
+    @existing = Map.new
     @alignment = 0
     @padding = True
   }
@@ -441,7 +441,7 @@ object LayoutBuilder {
 
   ## Creates a `Layout` that automatically applies padding.
   def layout_with_padding -> Layout {
-    let members = %[]
+    let members = Map.new
     let mut size = 0
     let mut offset = 0
     let mut remaining_in_hole = @alignment
@@ -479,7 +479,7 @@ object LayoutBuilder {
 
   ## Creates a `Layout` that does not use any padding.
   def layout_without_padding -> Layout {
-    let members = %[]
+    let members = Map.new
     let mut offset = 0
 
     @members.each_with_index do (name, index) {

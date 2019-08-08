@@ -461,8 +461,6 @@ module Inkoc
       def receiver_type_for_send_with_receiver(node, scope)
         if node.name == Config::NEW_MESSAGE
           define_type_instance(node.receiver, scope)
-        elsif node.hash_map_literal?
-          @module.lookup_global(Config::HASH_MAP_CONST)
         else
           define_type(node.receiver, scope)
         end

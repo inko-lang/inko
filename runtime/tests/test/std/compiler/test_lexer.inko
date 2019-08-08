@@ -592,16 +592,6 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
-  g.test('Lexing the hash open operator') {
-    let token = lex('%[')
-
-    assert.equal(token.type, 'hash_open')
-    assert.equal(token.value, '%[')
-
-    assert.equal(token.location.column, 1)
-    assert.equal(token.location.line_range, 1..1)
-  }
-
   g.test('Lexing the XOR operator') {
     let token = lex('^')
 

@@ -522,12 +522,6 @@ module Inkoc
       end
 
       def on_send(node, body)
-        # Map literals need to be optimised before we process their
-        # arguments.
-        if node.hash_map_literal?
-          return on_hash_map_literal(node, body)
-        end
-
         receiver = receiver_for_send(node, body)
         args, kwargs = split_send_arguments(node.arguments, body)
 
@@ -541,64 +535,6 @@ module Inkoc
           body,
           node.location
         )
-      end
-
-      # Optimises a Map literal.
-      #
-      # This method will turn this:
-      #
-      #     let x = %['a': 10, 'b': 20]
-      #
-      # Into (effectively) the following:
-      #
-      #     let hash_map = Map.new
-      #
-      #     hash_map['a'] = 10
-      #     hash_map['b'] = 20
-      #
-      #     let x = hash_map
-      #
-      # While the example above uses a local variable `hash_map`, the generated
-      # code only uses registers.
-      def on_hash_map_literal(node, body)
-        hash_map_global_reg =
-          get_global(Config::HASH_MAP_CONST, body, node.location)
-
-        hash_map_type = hash_map_global_reg.type
-        new_method = hash_map_type.lookup_method(Config::NEW_MESSAGE).type
-        set_method = hash_map_type.lookup_method(Config::SET_INDEX_MESSAGE).type
-
-        # Initialise an empty Map.
-        hash_map_reg = send_object_message(
-          hash_map_global_reg,
-          new_method.name,
-          [],
-          [],
-          new_method,
-          node.type,
-          body,
-          node.location
-        )
-
-        keys = node.arguments[0].arguments
-        vals = node.arguments[1].arguments
-
-        # Every key-value pair is compiled into a `hash[key] = value`
-        # expression.
-        keys.zip(vals).each do |(knode, vnode)|
-          send_object_message(
-            hash_map_reg,
-            set_method.name,
-            [process_node(knode, body), process_node(vnode, body)],
-            [],
-            set_method,
-            vnode.type,
-            body,
-            knode.location
-          )
-        end
-
-        hash_map_reg
       end
 
       def split_send_arguments(arguments, body)

@@ -428,7 +428,7 @@ test.group('std::ffi::Member.offset') do (g) {
 
 test.group('std::ffi::Layout.alignment') do (g) {
   g.test('Obtaining the alignment of a Layout') {
-    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
 
     assert.equal(layout.alignment, 8)
   }
@@ -436,7 +436,7 @@ test.group('std::ffi::Layout.alignment') do (g) {
 
 test.group('std::ffi::Layout.size') do (g) {
   g.test('Obtaining the size of a Layout') {
-    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
 
     assert.equal(layout.size, 4)
   }
@@ -445,14 +445,18 @@ test.group('std::ffi::Layout.size') do (g) {
 test.group('std::ffi::Layout.[]') do (g) {
   g.test('Obtaining a Member using a valid name') {
     let member = Member.new(name: 'tm_sec', type: types.i32, offset: 0)
-    let layout = Layout.new(members: %['tm_sec': member], alignment: 8, size: 4)
+    let members = Map.new
+
+    members['tm_sec'] = member
+
+    let layout = Layout.new(members: members, alignment: 8, size: 4)
 
     assert.equal(layout['tm_sec'], member)
   }
 
   g.test('Obtaining a Member using an invalid name') {
     assert.panic {
-      let layout = Layout.new(members: %[], alignment: 8, size: 4)
+      let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
 
       layout['tm_sec']
     }
@@ -472,7 +476,7 @@ test.group('std::ffi::Layout.from_pointer') do (g) {
 
 test.group('std::ffi::Struct.size') do (g) {
   g.test('Obtaining the size of a Struct') {
-    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
     let struct = Struct.new(pointer: Pointer.null, layout: layout)
 
     assert.equal(struct.size, 4)
@@ -481,7 +485,7 @@ test.group('std::ffi::Struct.size') do (g) {
 
 test.group('std::ffi::Struct.alignment') do (g) {
   g.test('Obtaining the alignment of a Struct') {
-    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
     let struct = Struct.new(pointer: Pointer.null, layout: layout)
 
     assert.equal(struct.alignment, 8)
@@ -490,7 +494,7 @@ test.group('std::ffi::Struct.alignment') do (g) {
 
 test.group('std::ffi::Struct.pointer') do (g) {
   g.test('Obtaining the alignment of a Struct') {
-    let layout = Layout.new(members: %[], alignment: 8, size: 4)
+    let layout = Layout.new(members: Map.new, alignment: 8, size: 4)
     let struct = Struct.new(pointer: Pointer.null, layout: layout)
 
     assert.equal(struct.pointer, Pointer.null)

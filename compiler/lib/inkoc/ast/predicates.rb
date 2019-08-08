@@ -99,10 +99,6 @@ module Inkoc
         false
       end
 
-      def hash_map_literal?
-        false
-      end
-
       def global?
         false
       end

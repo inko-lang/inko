@@ -59,7 +59,6 @@ module Inkoc
         define
         do
         float
-        hash_open
         identifier
         impl
         integer
@@ -583,7 +582,6 @@ module Inkoc
       when :constant then constant(start)
       when :curly_open then block_without_arguments(start)
       when :bracket_open then array(start)
-      when :hash_open then hash(start)
       when :define then def_method(start)
       when :static then def_static_method(start)
       when :do, :lambda then block(start, start.type)
@@ -762,42 +760,6 @@ module Inkoc
       end
 
       new_array(values, start)
-    end
-
-    # Parses a hash map literal
-    #
-    # Example:
-    #
-    #     %['key': 'value']
-    def hash(start)
-      keys = []
-      vals = []
-
-      while (key_tok = @lexer.advance) && key_tok.valid_but_not?(:bracket_close)
-        key = expression(key_tok)
-
-        advance_and_expect!(:colon)
-
-        value = expression(advance!)
-
-        keys << key
-        vals << value
-
-        break if comma_or_break_on(:bracket_close)
-      end
-
-      location = start.location
-      receiver = AST::Global.new(Config::HASH_MAP_LITERAL_RECEIVER, location)
-      keys_array = new_array(keys, start)
-      vals_array = new_array(vals, start)
-
-      AST::Send.new(
-        Config::FROM_ARRAY_MESSAGE,
-        receiver,
-        [],
-        [keys_array, vals_array],
-        location
-      )
     end
 
     # Parses a method definition.

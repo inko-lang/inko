@@ -32,7 +32,6 @@ module Inkoc
     TRAIT_MODULE = 'trait'
 
     INTERNAL_TRAIT_IMPORT = '_inkoc_std_trait'
-    HASH_MAP_LITERAL_RECEIVER = '_inkoc_hash_map_literal'
 
     MARKER_MODULE = 'std::marker'
 
@@ -40,7 +39,6 @@ module Inkoc
     OBJECT_CONST = 'Object'
     TRAIT_CONST = 'Trait'
     ARRAY_CONST = 'Array'
-    HASH_MAP_CONST = 'Map'
     BLOCK_CONST = 'Block'
     INTEGER_CONST = 'Integer'
     FLOAT_CONST = 'Float'
@@ -66,7 +64,6 @@ module Inkoc
     UNKNOWN_MESSAGE_MESSAGE = 'unknown_message'
     UNKNOWN_MESSAGE_TRAIT = 'UnknownMessage'
     UNKNOWN_MESSAGE_MODULE = 'std::unknown_message'
-    FROM_ARRAY_MESSAGE = 'from_array'
     SET_INDEX_MESSAGE = '[]='
     MODULE_GLOBAL = 'ThisModule'
     CALL_MESSAGE = 'call'

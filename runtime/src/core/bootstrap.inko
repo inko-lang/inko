@@ -38,6 +38,7 @@ _INKOC.set_object_name(Block, 'Block')
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow
 # creating of modules.
 impl Object {
+  ## Creates a new instance of `self` and sends `init` to the instance.
   static def new -> Self {
     let obj = _INKOC.set_object(False, self)
 

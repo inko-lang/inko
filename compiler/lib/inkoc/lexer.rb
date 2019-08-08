@@ -106,7 +106,7 @@ module Inkoc
         when '"' then return double_string
         when ':' then return colons
         when '/' then return div
-        when '%' then return modulo_or_hash_open
+        when '%' then return modulo
         when '^' then return bitwise_xor
         when '&' then return bitwise_and_or_boolean_and
         when '|' then return bitwise_or_or_boolean_or
@@ -436,20 +436,8 @@ module Inkoc
       new_token(token_type, start, @position)
     end
 
-    def modulo_or_hash_open
-      start = @position
-      token_type = :mod
-
-      case @input[@position += 1]
-      when '['
-        token_type = :hash_open
-        @position += 1
-      when '='
-        token_type = :mod_assign
-        @position += 1
-      end
-
-      new_token(token_type, start, @position)
+    def modulo
+      operator(1, :mod, :mod_assign)
     end
 
     def bitwise_xor

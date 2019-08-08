@@ -130,10 +130,20 @@ test.group('std::array::Array.inspect') do (g) {
 
 test.group('std::map::Map.inspect') do (g) {
   g.test('Inspecting an empty Map') {
-    assert.equal(%[].inspect, '%[]')
+    assert.equal(Map.new.inspect, 'Map')
   }
 
   g.test('Inspecting a non-empty Map') {
-    assert.equal(%['key': 10].inspect, '%["key": 10]')
+    let map = Map.new
+
+    map['foo'] = 10
+    map['bar'] = 20
+
+    let ins = map.inspect
+    let valid =
+      ins == 'Map { "foo": 10, "bar": 20 }'
+        .or { ins == 'Map { "bar": 20, "foo": 10 }' }
+
+    assert.true(valid)
   }
 }

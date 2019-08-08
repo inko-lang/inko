@@ -61,18 +61,20 @@ let CURLY_CLOSE = 125
 
 ## The escape sequence literals supported by a single quoted string, and their
 ## replacement bytes.
-let SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[SINGLE_QUOTE: SINGLE_QUOTE]
+let SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES =
+  Map.new.set(SINGLE_QUOTE, SINGLE_QUOTE)
 
 ## The escape sequence literals supported by a double quoted string, and their
 ## replacement bytes.
-let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES = %[
-  DOUBLE_QUOTE: DOUBLE_QUOTE,
-  LOWER_N: NEWLINE,
-  LOWER_T: TAB,
-  ZERO: NULL,
-  LOWER_E: ESCAPE,
-  LOWER_R: CARRIAGE_RETURN
-]
+let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES =
+  Map
+    .new
+    .set(DOUBLE_QUOTE, DOUBLE_QUOTE)
+    .set(LOWER_N, NEWLINE)
+    .set(LOWER_T, TAB)
+    .set(ZERO, NULL)
+    .set(LOWER_E, ESCAPE)
+    .set(LOWER_R, CARRIAGE_RETURN)
 
 ## A `Lexer` is used for turning Inko source code into a sequence of tokens.
 ## These tokens in turn can be used by a parser to produce an Abstract Syntax
@@ -590,20 +592,7 @@ object Lexer {
   }
 
   def percent -> Token {
-    next_byte == BRACKET_OPEN
-      .if_true {
-        return hash_open
-      }
-
     operator(type: 'mod', assign_type: 'mod_assign')
-  }
-
-  def hash_open -> Token {
-    let start = @position
-
-    @position += 2
-
-    token(type: 'hash_open', start: start, line: @line)
   }
 
   def minus -> Token {

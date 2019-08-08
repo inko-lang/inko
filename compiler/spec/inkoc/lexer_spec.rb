@@ -445,26 +445,18 @@ describe Inkoc::Lexer do
     end
   end
 
-  describe '#modulo_or_hash_open' do
+  describe '#modulo' do
     it 'tokenizes the modulo operator' do
       lexer = described_class.new('%')
-      token = lexer.modulo_or_hash_open
+      token = lexer.modulo
 
       expect(token.type).to eq(:mod)
       expect(token.value).to eq('%')
     end
 
-    it 'tokenizes the hash-open token' do
-      lexer = described_class.new('%[')
-      token = lexer.modulo_or_hash_open
-
-      expect(token.type).to eq(:hash_open)
-      expect(token.value).to eq('%[')
-    end
-
     it 'tokenizes the module-assign operator' do
       lexer = described_class.new('%=')
-      token = lexer.modulo_or_hash_open
+      token = lexer.modulo
 
       expect(token.type).to eq(:mod_assign)
       expect(token.value).to eq('%=')
