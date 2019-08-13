@@ -29,6 +29,6 @@ test.group('std::trait.implement') do (g) {
 
     trait_mod.implement(implement_for: obj, to_implement: Example)
 
-    assert.equal(obj_mirror.implemented_traits, [Example])
+    assert.equal(obj_mirror.implemented_traits, Array.new(Example))
   }
 }

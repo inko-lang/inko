@@ -176,7 +176,7 @@ object Map!(K: Hash + Equal, V) {
   ##
   ## Creating a `Map` from two arrays:
   ##
-  ##     Map.from_array(['name'], ['Alice'])
+  ##     Map.from_array(Array.new('name'), Array.new('Alice'))
   static def from_array!(K: Hash + Equal, V)(
     keys: Array!(K),
     values: Array!(V)
@@ -203,7 +203,7 @@ object Map!(K: Hash + Equal, V) {
 
   def init {
     @random_state = RandomState.new
-    @buckets = []
+    @buckets = Array.new
     @length = 0
     @capacity = 1
     @resize_threshold = 1
@@ -390,7 +390,7 @@ object Map!(K: Hash + Equal, V) {
 
     @capacity = @capacity * 2
     @resize_threshold = (LOAD_FACTOR * @capacity.to_float).to_integer
-    @buckets = []
+    @buckets = Array.new
     @buckets[@capacity - 1] = Nil
 
     old_buckets.each_with_index do (pair, index) {

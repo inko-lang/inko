@@ -2,7 +2,7 @@ import std::os::(self, NEWLINE)
 import std::test
 import std::test::assert
 
-let VALID_PLATFORMS = [
+let VALID_PLATFORMS = Array.new(
   'android',
   'bitrig',
   'dragonfly',
@@ -15,7 +15,7 @@ let VALID_PLATFORMS = [
   'unix',
   'unknown',
   'windows'
-]
+)
 
 test.group('std::os.platform') do (g) {
   g.test('Obtaining the name of the underlying platform') {

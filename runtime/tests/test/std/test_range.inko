@@ -38,19 +38,19 @@ test.group('std::range::Range.to_array') do (g) {
   g.test('Converting a Range with the same start and end to an Array') {
     let range = Range.new(start: 1, end: 1)
 
-    assert.equal(range.to_array, [1])
+    assert.equal(range.to_array, Array.new(1))
   }
 
   g.test('Converting a Range with a different start and end to an Array') {
     let range = Range.new(start: 1, end: 3)
 
-    assert.equal(range.to_array, [1, 2, 3])
+    assert.equal(range.to_array, Array.new(1, 2, 3))
   }
 
   g.test('Converting a Range with a smaller end to an Array') {
     let range = Range.new(start: 1, end: -5)
 
-    assert.equal(range.to_array, [])
+    assert.equal(range.to_array, Array.new)
   }
 }
 

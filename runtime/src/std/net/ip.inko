@@ -109,7 +109,7 @@ object Ipv6Address {
     g = 0,
     h = 0
   ) {
-    @segments = [a, b, c, d, e, f, g, h]
+    @segments = Array.new(a, b, c, d, e, f, g, h)
   }
 }
 
@@ -166,7 +166,7 @@ impl ToString for Ipv6Address {
       let hextet_to_octet_modulo = _IPV4_OCTET_MAXIMUM + 1
 
       let ipv4_address = StringBuffer
-        .new([
+        .new(
           @segments[6] >> _IPV4_TO_IPV6_SHIFT
             .to_string,
           '.',
@@ -178,7 +178,7 @@ impl ToString for Ipv6Address {
           '.',
           @segments[7] % hextet_to_octet_modulo
             .to_string
-        ])
+        )
         .to_string
 
       ipv4_compatible.if true: {
@@ -278,8 +278,8 @@ impl IpAddress for Ipv6Address {
     let bytes = input.to_byte_array
     let mut cursor = 0
     let max = bytes.length
-    let segments = []
-    let ipv4_segments = []
+    let segments = Array.new
+    let ipv4_segments = Array.new
     let segment_bytes = ByteArray.new
     let mut compressed = False
     let mut ipv4_mode = False
@@ -548,7 +548,7 @@ object Ipv4Address {
   @segments: Array!(Integer)
 
   def init(a = 0, b = 0, c = 0, d = 0) {
-    @segments = [a, b, c, d]
+    @segments = Array.new(a, b, c, d)
   }
 }
 
@@ -585,7 +585,7 @@ impl ToString for Ipv4Address {
   ##     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
   def to_string -> String {
     StringBuffer
-      .new([
+      .new(
         @segments[0].to_string,
         '.',
         @segments[1].to_string,
@@ -593,7 +593,7 @@ impl ToString for Ipv4Address {
         @segments[2].to_string,
         '.',
         @segments[3].to_string
-      ])
+      )
       .to_string
   }
 }
@@ -621,7 +621,7 @@ impl IpAddress for Ipv4Address {
     let bytes = input.to_byte_array
     let mut cursor = 0
     let max = bytes.length
-    let segments = []
+    let segments = Array.new
     let segment_bytes = ByteArray.new
 
     # No IPv4 address can be longer than 15 characters (255.255.255.255).
@@ -838,7 +838,7 @@ impl IpAddress for Ipv4Address {
   ##     let ipv4 = Ipv4Address.new(192, 0, 2, 255)
   ##     let ipv6 = ipv4.to_ipv6_compatible
   ##
-  ##     ipv6.segments # => [0, 0, 0, 0, 0, 0, 0xc000, 0x2ff]
+  ##     ipv6.segments # => Array.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff)
   def to_ipv6_compatible -> Ipv6Address {
     Ipv6Address.new(
       0,

@@ -60,7 +60,7 @@ panicking lambda (error) {
   # multiple times. This ensures the output does not get messed up by other
   # processes writing to STDERR concurrently.
   let output = StringBuffer
-    .new(['Stack trace (the most recent call comes last):'])
+    .new('Stack trace (the most recent call comes last):')
 
   let module_path = mirror.reflect_module(ThisModule).path
 

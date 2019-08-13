@@ -33,7 +33,7 @@
 #!     import std::ffi::types
 #!     import std::process
 #!
-#!     let libc = Library.new(['libc.so.6'])
+#!     let libc = Library.new(Array.new('libc.so.6'))
 #!
 #!     process.pinned {
 #!       let errno = libc.variable('errno')
@@ -56,7 +56,7 @@
 #!     import std::ffi::Library
 #!     import std::ffi::types
 #!
-#!     let libc = Library.new(['libc.so.6'])
+#!     let libc = Library.new(Array.new('libc.so.6'))
 #!
 #! `Library.new` takes an `Array!(String)` to use for searching libraries. The
 #! values can be library file names, relative paths, or absolute paths. If
@@ -67,7 +67,7 @@
 #!     import std::ffi::Library
 #!     import std::ffi::types
 #!
-#!     let libc = Library.new(['libc.so', 'libc.so.6', 'libSystem.dylib'])
+#!     let libc = Library.new(Array.new('libc.so', 'libc.so.6', 'libSystem.dylib'))
 #!
 #! Once the library has been loaded, we can attach functions by sending the
 #! `function` message to the library:
@@ -75,19 +75,19 @@
 #!     import std::ffi::Library
 #!     import std::ffi::types
 #!
-#!     let libc = Library.new(['libc.so.6'])
-#!     let puts = libc.function('puts', [types.string], types.i32)
+#!     let libc = Library.new(Array.new('libc.so.6'))
+#!     let puts = libc.function('puts', Array.new(types.string), types.i32)
 #!
 #! Here we attach the `puts` function. The arguments we defined are
-#! `[types.string]`, with the return type being `types.i32`.
+#! `Array.new(types.string)`, with the return type being `types.i32`.
 #!
 #! We can call our function by sending `call` to it:
 #!
 #!     import std::ffi::Library
 #!     import std::ffi::types
 #!
-#!     let libc = Library.new(['libc.so.6'])
-#!     let puts = libc.function('puts', [types.string], types.i32)
+#!     let libc = Library.new(Array.new('libc.so.6'))
+#!     let puts = libc.function('puts', Array.new(types.string), types.i32)
 #!
 #!     puts.call('hello')
 #!
@@ -96,7 +96,7 @@
 #!     import std::ffi::Library
 #!     import std::ffi::types
 #!
-#!     let libc = Library.new(['libc.so.6'])
+#!     let libc = Library.new(Array.new('libc.so.6'))
 #!     let errno = libc.variable('errno')
 #!
 #!     errno.read(types.i32) # => 0
@@ -417,8 +417,8 @@ object LayoutBuilder {
   @padding: Boolean
 
   def init {
-    @members = []
-    @types = []
+    @members = Array.new
+    @types = Array.new
     @existing = Map.new
     @alignment = 0
     @padding = True
@@ -501,7 +501,7 @@ impl SetIndex!(String, Type) for LayoutBuilder {
   def []=(name: String, type: Type) -> Type {
     @existing[name].if_true {
       let error = StringBuffer
-        .new(['The member ', name.inspect, ' has already been defined'])
+        .new('The member ', name.inspect, ' has already been defined')
 
       process.panic(error)
     }

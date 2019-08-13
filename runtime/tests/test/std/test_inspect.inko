@@ -42,10 +42,10 @@ test.group('std::object::Object.inspect') do (g) {
   g.test('Inspecting an Object with multiple attributes') {
     let obj = TwoAttributes.new
 
-    let possible = [
+    let possible = Array.new(
       'TwoAttributes { @first = "first", @second = 10 }',
       'TwoAttributes { @second = 10, @first = "first" }'
-    ]
+    )
 
     # The order of attributes is not guaranteed, so we can't perform an equality
     # comparison as such a test would randomly fail.
@@ -120,11 +120,12 @@ test.group('std::string::String.inspect') do (g) {
 
 test.group('std::array::Array.inspect') do (g) {
   g.test('Inspecting an empty Array') {
-    assert.equal([].inspect, '[]')
+    assert.equal(Array.new.inspect, 'Array')
   }
 
   g.test('Inspecting a non-empty Array') {
-    assert.equal([10, 20].inspect, '[10, 20]')
+    assert.equal(Array.new(10).inspect, 'Array { 10 }')
+    assert.equal(Array.new(10, 20).inspect, 'Array { 10, 20 }')
   }
 }
 

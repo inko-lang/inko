@@ -145,15 +145,15 @@ impl Inspect for Array!(T) {
   ##
   ## Converting an empty `Array`:
   ##
-  ##     [].inspect # => '[]'
+  ##     Array.new.inspect # => 'Array'
   ##
   ## Converting an `Array` with one value:
   ##
-  ##     [10].inspect # => '[10]'
+  ##     Array.new(10).inspect # => 'Array { 10 }'
   ##
   ## Converting an `Array` containing multiple values:
   ##
-  ##     [10, 20, 30].inspect # => '[10, 20, 30]'
+  ##     Array.new(10, 20, 30).inspect # => 'Array { 10, 20, 30 }'
   def inspect -> String where T: Inspect {
     ::format.inspect(self)
   }
@@ -162,7 +162,13 @@ impl Inspect for Array!(T) {
   def format_for_inspect(formatter: Formatter) where T: Inspect {
     let last = length - 1
 
-    formatter.push('[')
+    formatter.push('Array')
+
+    empty?.if_true {
+      return
+    }
+
+    formatter.push(' { ')
 
     each_with_index do (value, index) {
       formatter.descend {
@@ -175,7 +181,7 @@ impl Inspect for Array!(T) {
         }
     }
 
-    formatter.push(']')
+    formatter.push(' }')
   }
 }
 

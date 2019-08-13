@@ -698,6 +698,6 @@ test.group('std::time.dst?') do (g) {
   g.test('Checking if Daylight Savings Time is active') {
     # There is no consistent, platform independent way of testing the DST flag.
     # As a resutl, we'll just check if it actually returns a proper boolean.
-    assert.true([True, False].contains?(time.dst?))
+    assert.true(Array.new(True, False).contains?(time.dst?))
   }
 }

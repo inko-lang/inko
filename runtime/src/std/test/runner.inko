@@ -36,7 +36,7 @@ object RunnerState {
   @configuration: Configuration
 
   def init {
-    @tests = []
+    @tests = Array.new
     @configuration = Configuration.new
   }
 
@@ -135,8 +135,8 @@ impl Command for RunTests {
     let mut pending = 0
     let start_time = Instant.new
     let last_index = state.tests.length - 1
-    let executed = []
-    let failed = []
+    let executed = Array.new
+    let failed = Array.new
 
     state.tests.each_with_index do (test, index) {
       let proc = process.spawn {

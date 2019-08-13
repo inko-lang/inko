@@ -9,7 +9,7 @@
 import std::byte_array::ByteArray
 
 ## The associated values for the first and second bytes in a keyword.
-let ASSOCIATED_VALUES = [
+let ASSOCIATED_VALUES = Array.new(
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
@@ -36,10 +36,10 @@ let ASSOCIATED_VALUES = [
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
   22, 22, 22, 22, 22, 22
-]
+)
 
 ## All available keywords, as ByteArray instances.
-let WORD_LIST = [
+let WORD_LIST = Array.new(
   ''.to_byte_array,
   ''.to_byte_array,
   'as'.to_byte_array,
@@ -62,7 +62,7 @@ let WORD_LIST = [
   ''.to_byte_array,
   ''.to_byte_array,
   'object'.to_byte_array
-]
+)
 
 ## Input values with a length outside of this `Range` definitely can not be a
 ## keyword.

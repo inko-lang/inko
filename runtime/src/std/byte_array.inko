@@ -28,10 +28,10 @@ trait ToByteArray {
 }
 
 impl ByteArray {
-  ## Creates a new `ByteArray` from the given `Array` of `Integer` values.
+  ## Creates a new `ByteArray`.
   ##
-  ## This method will panic if any of the integers in the `bytes` array are not
-  ## in the range `0..256`.
+  ## This method will panic if any of the `Integer` values passed to this method
+  ## are not in the range `0..256`.
   ##
   ## # Examples
   ##
@@ -41,13 +41,13 @@ impl ByteArray {
   ##
   ##     ByteArray.new
   ##
-  ## Creating a `ByteArray` from a list of `Integer` values:
+  ## Creating a `ByteArray` with values:
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     ByteArray.new([10, 20, 30])
-  static def new(bytes: Array!(Integer) = []) -> Self {
-    _INKOC.byte_array_from_array(bytes) as ByteArray
+  ##     ByteArray.new(10, 20, 30)
+  static def new(*bytes: Integer) -> Self {
+    _INKOC.byte_array_from_array(bytes)
   }
 
   ## Removes all values from this `ByteArray`.
@@ -58,7 +58,7 @@ impl ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10, 20, 30])
+  ##     let bytes = ByteArray.new(10, 20, 30)
   ##
   ##     bytes.clear
   ##     bytes.length # => 0
@@ -94,7 +94,7 @@ impl ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10])
+  ##     let bytes = ByteArray.new(10)
   ##
   ##     bytes.pop    # => 10
   ##     bytes.length # => 0
@@ -124,7 +124,7 @@ impl ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10])
+  ##     let bytes = ByteArray.new(10)
   ##
   ##     bytes.remove_at(0) # => 10
   ##     bytes.length       # => 0
@@ -154,7 +154,7 @@ impl ByteArray {
   ##     import std::stdio::stdout
   ##     import std::byte_array::ByteArray
   ##
-  ##     ByteArray.new([10, 20, 30]).each do (byte) {
+  ##     ByteArray.new(10, 20, 30).each do (byte) {
   ##       stdout.print(byte)
   ##     }
   def each(block: do (Integer)) {
@@ -180,7 +180,7 @@ impl ByteArray {
   ##     import std::stdio::stdout
   ##     import std::byte_array::ByteArray
   ##
-  ##     ByteArray.new([10, 20, 30]).each_with_index do (byte, index) {
+  ##     ByteArray.new(10, 20, 30).each_with_index do (byte, index) {
   ##       stdout.print(index) # => 0, 1, 2
   ##     }
   def each_with_index(block: do (Integer, Integer)) {
@@ -205,7 +205,7 @@ impl ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##     let bytes = ByteArray.new(105, 110, 107, 111)
   ##
   ##     bytes.drain_to_string # => 'inko'
   ##     bytes.empty?          # => True
@@ -225,7 +225,7 @@ impl ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([1, 2, 3, 4])
+  ##     let bytes = ByteArray.new(1, 2, 3, 4)
   ##     let sliced = bytes.slice(start: 1, length: 2)
   ##
   ##     sliced[0] # => 2
@@ -266,7 +266,7 @@ impl Index!(Integer, Integer) for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10, 20])
+  ##     let bytes = ByteArray.new(10, 20)
   ##
   ##     bytes[0] # => 10
   ##
@@ -274,7 +274,7 @@ impl Index!(Integer, Integer) for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10, 20])
+  ##     let bytes = ByteArray.new(10, 20)
   ##
   ##     bytes[5] # => Nil
   def [](index: Integer) -> ?Integer {
@@ -300,7 +300,7 @@ impl SetIndex!(Integer, Integer) for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([10, 20])
+  ##     let bytes = ByteArray.new(10, 20)
   ##
   ##     bytes[0] = 30 # => 30
   ##     bytes[0]      # => 30
@@ -321,7 +321,7 @@ impl ToString for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##     let bytes = ByteArray.new(105, 110, 107, 111)
   ##
   ##     bytes.to_string # => 'inko'
   def to_string -> String {
@@ -342,11 +342,11 @@ impl ToArray!(Integer) for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     let bytes = ByteArray.new([105, 110, 107, 111])
+  ##     let bytes = ByteArray.new(105, 110, 107, 111)
   ##
-  ##     bytes.to_array # => [105, 110, 107, 111]
+  ##     bytes.to_array # => Array.new(105, 110, 107, 111)
   def to_array -> Array!(Integer) {
-    let integers = []
+    let integers = Array.new
 
     length.positive?.if_true {
       # This fills up the Array with zeroes, removing the need for reallocating
@@ -374,8 +374,8 @@ impl Equal for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     ByteArray.new([10]) == ByteArray.new([10]) # => True
-  ##     ByteArray.new([10]) == ByteArray.new([20]) # => False
+  ##     ByteArray.new(10) == ByteArray.new(10) # => True
+  ##     ByteArray.new(10) == ByteArray.new(20) # => False
   def ==(other: ByteArray) -> Boolean {
     _INKOC.byte_array_equals(self, other)
   }
@@ -390,8 +390,8 @@ impl Length for ByteArray {
   ##
   ##     import std::byte_array::ByteArray
   ##
-  ##     ByteArray.new.length       # => 0
-  ##     ByteArray.new([10]).length # => 1
+  ##     ByteArray.new.length     # => 0
+  ##     ByteArray.new(10).length # => 1
   def length -> Integer {
     _INKOC.byte_array_length(self)
   }

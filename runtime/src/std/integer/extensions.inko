@@ -8,11 +8,11 @@ import std::string_buffer::StringBuffer
 ##
 ## The order of values in this `Array` must remain as-is, as re-ordering values
 ## will break the code that uses this `Array`.
-let INTEGER_RADIX_DIGITS = [
+let INTEGER_RADIX_DIGITS = Array.new(
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
   'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
   'u', 'v', 'w', 'x', 'y', 'z'
-]
+)
 
 impl Integer {
   ## Formats `self` as a `String` using the given base/radix.
@@ -37,7 +37,7 @@ impl Integer {
       return '0'
     }
 
-    let characters = []
+    let characters = Array.new
     let mut integer = absolute
 
     negative?.if_true {
@@ -68,6 +68,6 @@ impl Integer {
       new_index += 1
     }
 
-    StringBuffer.new(characters).to_string
+    StringBuffer.from_array(characters).to_string
   }
 }

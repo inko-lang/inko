@@ -48,6 +48,6 @@ test.group('std::format::DefaultFormatter.descend') do (g) {
 
 test.group('std::format.inspect') do (g) {
   g.test('Inspecting an object') {
-    assert.equal(::format.inspect([10]), '[10]')
+    assert.equal(::format.inspect(Array.new(10)), 'Array { 10 }')
   }
 }

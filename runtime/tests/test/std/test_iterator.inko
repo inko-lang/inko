@@ -19,7 +19,7 @@ object SimpleIterator {
   @index: Integer
 
   def init {
-    @values = [10, 20, 30]
+    @values = Array.new(10, 20, 30)
     @index = 0
   }
 }
@@ -39,7 +39,7 @@ impl Iterator!(Integer) for SimpleIterator {
 }
 
 def integer_enumerator -> Iterator!(Integer) {
-  let array = [10, 20, 30]
+  let array = Array.new(10, 20, 30)
   let mut index = 0
 
   Enumerator.new(
@@ -57,24 +57,24 @@ def integer_enumerator -> Iterator!(Integer) {
 test.group('std::iterator::Iterator.each') do (g) {
   g.test('Iterating over the values in an Iterator') {
     let iter = SimpleIterator.new
-    let values = []
+    let values = Array.new
 
     iter.each do (value) {
       values.push(value)
     }
 
-    assert.equal(values, [10, 20, 30])
+    assert.equal(values, Array.new(10, 20, 30))
   }
 
   g.test('Iterating over the values in an empty Iterator') {
     let iter = EmptyIterator.new
-    let values = []
+    let values = Array.new
 
     iter.each do (value) {
       values.push(value)
     }
 
-    assert.equal(values, [])
+    assert.equal(values, Array.new)
   }
 }
 
@@ -97,13 +97,13 @@ test.group('std::iterator::Iterator.find') do (g) {
 test.group('std::iterator::Iterator.map') do (g) {
   g.test('Mapping the values of an Iterator to a different value') {
     let iter = SimpleIterator.new.map do (val) { val * 2 }
-    let values = []
+    let values = Array.new
 
     iter.each do (value) {
       values.push(value)
     }
 
-    assert.equal(values, [20, 40, 60])
+    assert.equal(values, Array.new(20, 40, 60))
   }
 }
 
@@ -112,7 +112,7 @@ test.group('std::iterator::Iterator.to_array') do (g) {
     let iter = SimpleIterator.new
     let vals = iter.to_array
 
-    assert.equal(vals, [10, 20, 30])
+    assert.equal(vals, Array.new(10, 20, 30))
   }
 }
 
@@ -146,7 +146,7 @@ test.group('std::iterator::Enumerator.next?') do (g) {
 
 test.group('std::iterator.index_enumerator') do (g) {
   g.test('Iterating over an Array') {
-    let numbers = [10, 20, 30]
+    let numbers = Array.new(10, 20, 30)
     let enum: Enumerator!(Integer) =
       iterator.index_enumerator(numbers.length) do (index) {
         numbers[index]

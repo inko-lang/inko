@@ -2,6 +2,26 @@ import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
+test.group('std::string_buffer::StringBuffer.new') do (g) {
+  g.test('Creating an empty StringBuffer') {
+    assert.true(StringBuffer.new.empty?)
+  }
+
+  g.test('Creating a StringBuffer with values') {
+    assert.equal(StringBuffer.new('foo').length, 1)
+  }
+}
+
+test.group('std::string_buffer::StringBuffer.from_array') do (g) {
+  g.test('Creating a StringBuffer from an empty Array') {
+    assert.true(StringBuffer.from_array(Array.new).empty?)
+  }
+
+  g.test('Creating a StringBuffer from an Array with values') {
+    assert.equal(StringBuffer.from_array(Array.new('foo')).length, 1)
+  }
+}
+
 test.group('std::string_buffer::StringBuffer.push') do (g) {
   g.test('Pushing a String into a StringBuffer') {
     let buffer = StringBuffer.new
@@ -30,6 +50,6 @@ test.group('std::string_buffer::StringBuffer.length') do (g) {
   }
 
   g.test('Obtaining the length of a non-empty StringBuffer') {
-    assert.equal(StringBuffer.new(['foo']).length, 1)
+    assert.equal(StringBuffer.new('foo').length, 1)
   }
 }

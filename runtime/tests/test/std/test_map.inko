@@ -177,11 +177,11 @@ test.group('std::map::Map.rehash') do (g) {
   g.test('Rehashing an empty Map') {
     let map = Map.new
 
-    assert.equal(map.buckets, [])
+    assert.equal(map.buckets, Array.new)
 
     map.rehash
 
-    assert.equal(map.buckets, [Nil, Nil])
+    assert.equal(map.buckets, Array.new(Nil, Nil))
   }
 
   g.test('Rehashing a Map with pairs') {
@@ -304,19 +304,22 @@ test.group('std::map::Map.remove') do (g) {
 
 test.group('std::map::Map.from_array') do (g) {
   g.test('Creating a Map without any keys and values') {
-    let map = Map.from_array([], [])
+    let map = Map.from_array(Array.new, Array.new)
 
     assert.equal(map, Map.new)
   }
 
   g.test('Creating a Map with keys but without values') {
     assert.panic {
-      Map.from_array(['name'], [])
+      Map.from_array(Array.new('name'), Array.new)
     }
   }
 
   g.test('Creating a Map with an equal number of keys and values') {
-    let map = Map.from_array(['name', 'city'], ['Alice', 'Amsterdam'])
+    let map = Map.from_array(
+      Array.new('name', 'city'),
+      Array.new('Alice', 'Amsterdam')
+    )
 
     assert.equal(map['name'], 'Alice')
     assert.equal(map['city'], 'Amsterdam')

@@ -8,7 +8,7 @@ object Reader {}
 
 impl Read for Reader {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) -> Integer {
-    let input = [105, 110, 107, 111]
+    let input = Array.new(105, 110, 107, 111)
     let max = size.if true: { size! }, false: { input.length }
     let mut index = 0
 
@@ -26,7 +26,7 @@ object Writer {
   @buffer: Array!(String)
 
   def init {
-    @buffer = []
+    @buffer = Array.new
   }
 
   def buffer -> Array!(String) {
@@ -72,6 +72,6 @@ test.group('std::io::Write.print') do (g) {
     let written = try! writer.print('inko')
 
     assert.equal(written, NEWLINE.length + 4)
-    assert.equal(writer.buffer, ['inko', NEWLINE])
+    assert.equal(writer.buffer, Array.new('inko', NEWLINE))
   }
 }

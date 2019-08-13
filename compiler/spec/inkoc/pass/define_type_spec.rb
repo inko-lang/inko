@@ -2156,7 +2156,7 @@ describe Inkoc::Pass::DefineType do
           .self_type
           .define_attribute('Integer', state.typedb.integer_type)
 
-        type = expression_type('let x: Array!(Integer) = [10]')
+        type = expression_type('let x: Array!(Integer) = Array.new(10)')
 
         param = state
           .typedb
@@ -2894,7 +2894,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'returns the type of an empty Array' do
-      type = expression_type('[]')
+      type = expression_type('Array.new')
       array_type = state.typedb.array_type
 
       param =
@@ -2905,7 +2905,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'returns the type of an Array of Strings' do
-      type = expression_type('["hello"]')
+      type = expression_type('Array.new("hello")')
 
       array_type = state.typedb.array_type
 
@@ -2919,7 +2919,7 @@ describe Inkoc::Pass::DefineType do
     end
 
     it 'returns the type of an Array of Integers' do
-      type = expression_type('[10]')
+      type = expression_type('Array.new(10)')
 
       array_type = state.typedb.array_type
 

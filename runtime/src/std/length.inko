@@ -14,11 +14,11 @@ trait Length {
   ##
   ## Using an empty `Array`:
   ##
-  ##     [].empty? # => True
+  ##     Array.new.empty? # => True
   ##
   ## Using a non-empty `Array`:
   ##
-  ##     [10].empty? # => False
+  ##     Array.new(10).empty? # => False
   def empty? -> Boolean {
     length.zero?
   }

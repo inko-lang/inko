@@ -22,12 +22,12 @@ let INVALID_TIME = SystemTime.new
 
 def temporary_file_path -> Path {
   let path = StringBuffer
-    .new([
+    .new(
       env.temporary_directory.to_string,
       SEPARATOR,
       'inko-temporary-file-path-',
       process.current.identifier,
-    ])
+    )
     .to_string
 
   Path.new(path)

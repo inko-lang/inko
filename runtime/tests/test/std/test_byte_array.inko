@@ -5,19 +5,19 @@ import std::test::assert
 
 test.group('std::byte_array::ByteArray.new') do (g) {
   g.test('Creating a new ByteArray') {
-    let bytes = ByteArray.new([10])
+    let bytes = ByteArray.new(10)
 
     assert.equal(bytes.length, 1)
   }
 
   g.test('Creating a ByteArray with invalid bytes') {
-    assert.panic { ByteArray.new([300]) }
+    assert.panic { ByteArray.new(300) }
   }
 }
 
 test.group('std::byte_array::ByteArray.clear') do (g) {
   g.test('Removing all values from a ByteArray') {
-    let bytes = ByteArray.new([10, 20, 30])
+    let bytes = ByteArray.new(10, 20, 30)
 
     assert.equal(bytes.clear, ByteArray.new)
     assert.equal(bytes, ByteArray.new)
@@ -31,16 +31,16 @@ test.group('std::byte_array::ByteArray.push') do (g) {
     bytes.push(10)
     bytes.push(20)
 
-    assert.equal(bytes, ByteArray.new([10, 20]))
+    assert.equal(bytes, ByteArray.new(10, 20))
   }
 }
 
 test.group('std::byte_array::ByteArray.pop') do (g) {
   g.test('Removing a value from the end of a ByteArray') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     assert.equal(bytes.pop, 20)
-    assert.equal(bytes, ByteArray.new([10]))
+    assert.equal(bytes, ByteArray.new(10))
 
     assert.equal(bytes.pop, 10)
     assert.equal(bytes, ByteArray.new)
@@ -51,72 +51,72 @@ test.group('std::byte_array::ByteArray.pop') do (g) {
 
 test.group('std::byte_array::ByteArray.remove_at') do (g) {
   g.test('Removing the value of an existing index') {
-    let bytes = ByteArray.new([10])
+    let bytes = ByteArray.new(10)
 
     assert.equal(bytes.remove_at(0), 10)
     assert.equal(bytes, ByteArray.new)
   }
 
   g.test('Removing the value of an out-of-bounds index') {
-    let bytes = ByteArray.new([10])
+    let bytes = ByteArray.new(10)
 
     assert.equal(bytes.remove_at(5), Nil)
-    assert.equal(bytes, ByteArray.new([10]))
+    assert.equal(bytes, ByteArray.new(10))
   }
 
   g.test('Removing the value of a negative index') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     assert.equal(bytes.remove_at(-2), 10)
-    assert.equal(bytes, ByteArray.new([20]))
+    assert.equal(bytes, ByteArray.new(20))
   }
 }
 
 test.group('std::byte_array::ByteArray.each') do (g) {
   g.test('Iterating over the values in a ByteArray') {
-    let input = ByteArray.new([10, 20, 30])
-    let output = []
+    let input = ByteArray.new(10, 20, 30)
+    let output = Array.new
 
     input.each do (byte) {
       output.push(byte)
     }
 
-    assert.equal(output, [10, 20, 30])
+    assert.equal(output, Array.new(10, 20, 30))
   }
 }
 
 test.group('std::byte_array::ByteArray.each_with_index') do (g) {
   g.test('Iterating over the values and indexes in a ByteArray') {
-    let input = ByteArray.new([10, 20, 30])
-    let values = []
-    let indexes = []
+    let input = ByteArray.new(10, 20, 30)
+    let values = Array.new
+    let indexes = Array.new
 
     input.each_with_index do (byte, index) {
       values.push(byte)
       indexes.push(index)
     }
 
-    assert.equal(values, [10, 20, 30])
-    assert.equal(indexes, [0, 1, 2])
+    assert.equal(values, Array.new(10, 20, 30))
+    assert.equal(indexes, Array.new(0, 1, 2))
   }
 }
 
 test.group('std::byte_array::ByteArray.[]') do (g) {
   g.test('Returning the value of an existing index') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     assert.equal(bytes[0], 10)
     assert.equal(bytes[1], 20)
   }
 
   g.test('Returning the value of a non-existing index') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     assert.equal(bytes[3], Nil)
   }
 
   g.test('Returning the value of a negative index') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     assert.equal(bytes[-1], 20)
     assert.equal(bytes[-2], 10)
@@ -126,29 +126,29 @@ test.group('std::byte_array::ByteArray.[]') do (g) {
 
 test.group('std::byte_array::ByteArray.[]=') do (g) {
   g.test('Setting the value of a valid index') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
 
     bytes[0] = 30
     bytes[1] = 40
 
-    assert.equal(bytes, ByteArray.new([30, 40]))
+    assert.equal(bytes, ByteArray.new(30, 40))
   }
 
   g.test('Setting the value of an invalid index') {
-    assert.panic { ByteArray.new([10])[4] = 1 }
+    assert.panic { ByteArray.new(10)[4] = 1 }
   }
 }
 
 test.group('std::byte_array::ByteArray.to_string') do (g) {
   g.test('Converting a ByteArray to a String') {
-    let bytes = ByteArray.new([105, 110, 107, 111])
+    let bytes = ByteArray.new(105, 110, 107, 111)
 
     assert.equal(bytes.to_string, 'inko')
   }
 
   g.test('Converting a ByteArray with invalid UTF-8 sequences to a String') {
     let bytes = ByteArray
-      .new([72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108, 100])
+      .new(72, 101, 108, 108, 111, 32, 240, 144, 128, 87, 111, 114, 108, 100)
 
     assert.equal(bytes.to_string, "Hello �World")
   }
@@ -156,7 +156,7 @@ test.group('std::byte_array::ByteArray.to_string') do (g) {
 
 test.group('std::byte_array::ByteArray.drain_to_string') do (g) {
   g.test('Draining a ByteArray into a String') {
-    let bytes = ByteArray.new([105, 110, 107, 111])
+    let bytes = ByteArray.new(105, 110, 107, 111)
 
     assert.equal(bytes.drain_to_string, 'inko')
     assert.equal(bytes, ByteArray.new)
@@ -165,25 +165,25 @@ test.group('std::byte_array::ByteArray.drain_to_string') do (g) {
 
 test.group('std::byte_array::ByteArray.to_array') do (g) {
   g.test('Converting a ByteArray to an Array') {
-    let bytes = ByteArray.new([105, 110, 107, 111])
+    let bytes = ByteArray.new(105, 110, 107, 111)
 
-    assert.equal(bytes.to_array, [105, 110, 107, 111])
+    assert.equal(bytes.to_array, Array.new(105, 110, 107, 111))
   }
 }
 
 test.group('std::byte_array::ByteArray.==') do (g) {
   g.test('Comparing two identical ByteArrays') {
-    assert.equal(ByteArray.new([10]), ByteArray.new([10]))
+    assert.equal(ByteArray.new(10), ByteArray.new(10))
   }
 
   g.test('Comparing two ByteArrays with a different length') {
-    assert.not_equal(ByteArray.new, ByteArray.new([10]))
+    assert.not_equal(ByteArray.new, ByteArray.new(10))
   }
 }
 
 test.group('std::byte_array::ByteArray.length') do (g) {
   g.test('Obtaining the number of bytes in a ByteArray') {
-    let bytes = ByteArray.new([10, 20, 30])
+    let bytes = ByteArray.new(10, 20, 30)
 
     assert.equal(bytes.length, 3)
   }
@@ -191,7 +191,7 @@ test.group('std::byte_array::ByteArray.length') do (g) {
 
 test.group('std::byte_array::ByteArray.inspect') do (g) {
   g.test('Inspecting a ByteArray') {
-    let bytes = ByteArray.new([10, 20, 30])
+    let bytes = ByteArray.new(10, 20, 30)
 
     assert.equal(bytes.inspect, 'ByteArray { 3 bytes }')
   }
@@ -200,7 +200,7 @@ test.group('std::byte_array::ByteArray.inspect') do (g) {
 test.group('std::byte_array::ByteArray.format') do (g) {
   g.test('Formatting a ByteArray') {
     let formatter = DefaultFormatter.new
-    let bytes = ByteArray.new([10, 20, 30])
+    let bytes = ByteArray.new(10, 20, 30)
 
     bytes.format_for_inspect(formatter)
 
@@ -210,7 +210,7 @@ test.group('std::byte_array::ByteArray.format') do (g) {
 
 test.group('std::byte_array::ByteArray.iter') do (g) {
   g.test('Iterating over the bytes in a ByteArray') {
-    let bytes = ByteArray.new([10, 20])
+    let bytes = ByteArray.new(10, 20)
     let iter = bytes.iter
 
     assert.equal(iter.next, 10)

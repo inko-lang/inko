@@ -1544,7 +1544,7 @@ module Inkoc
       end
 
       def on_raw_byte_array_from_array(*)
-        TypeSystem::Dynamic.new
+        typedb.byte_array_type.new_instance
       end
 
       def on_raw_byte_array_set(*)

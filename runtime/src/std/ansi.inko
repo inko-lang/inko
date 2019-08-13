@@ -36,7 +36,7 @@ let YELLOW = '33'
 
 ## Wraps a `ToString` in an ANSI escape sequence.
 def wrap(string: ToString, code: String) -> String {
-  StringBuffer.new([START, code, 'm', string.to_string, RESET]).to_string
+  StringBuffer.new(START, code, 'm', string.to_string, RESET).to_string
 }
 
 ## Makes the `ToString` bold.

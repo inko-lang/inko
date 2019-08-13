@@ -12,7 +12,7 @@ impl Array!(T) {
   ##
   ## Iterating over an `Array`:
   ##
-  ##     let numbers = [10, 20, 30]
+  ##     let numbers = Array.new(10, 20, 30)
   ##     let iter = numbers.iter
   ##
   ##     iter.next # => 10
