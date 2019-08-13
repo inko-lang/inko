@@ -36,11 +36,51 @@ import std::length::Length
 ## This would only allocate four `String` objects: three for the `String`
 ## literals, and one for the resulting `String` returned by
 ## `StringBuffer.to_string`.
+##
+## You can also create a `StringBuffer` and feed it values right away:
+##
+##     import std::string_buffer::StringBuffer
+##
+##     let buffer = StringBuffer.new('foo', 'bar', 'baz')
+##
+##     buffer.to_string # => 'foobarbaz'
 object StringBuffer {
   ## The `String` objects that have been buffered so far.
   @strings: Array!(String)
 
-  def init(strings: Array!(String) = []) {
+  ## Creates a new `StringBuffer`.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `StringBuffer`:
+  ##
+  ##     import std::string_buffer::StringBuffer
+  ##
+  ##     StringBuffer.new('foo', 'bar').to_string # => 'foobar'
+  static def new(*strings: String) -> Self {
+    from_array(strings)
+  }
+
+  ## Creates a new `StringBuffer` from an existing `Array`.
+  ##
+  ## # Examples
+  ##
+  ## Creating a `StringBuffer` from an `Array`:
+  ##
+  ##     import std::string_buffer::StringBuffer
+  ##
+  ##     let strings = Array.new('foo', 'bar')
+  ##
+  ##     StringBuffer.from_array(strings).to_string # => 'foobar'
+  static def from_array(strings: Array!(String)) -> Self {
+    let buffer = allocate
+
+    buffer.init(strings)
+
+    buffer
+  }
+
+  def init(strings = Array.new!(String)) {
     @strings = strings
   }
 

@@ -77,7 +77,7 @@
 #!     }
 #!
 #!     # With the iterator in place we can use it as follows:
-#!     let mut iterator = LimitedIterator.new([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+#!     let mut iterator = LimitedIterator.new(Array.new(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
 #!
 #!     iterator.next? # => True
 #!     iterator.next  # => 1
@@ -121,7 +121,7 @@
 #!       )
 #!     }
 #!
-#!     let enum = to_enum([1, 2, 3, 4, 5, 6, 7])
+#!     let enum = to_enum(Array.new(1, 2, 3, 4, 5, 6, 7))
 #!
 #!     enum.next # => 1
 #!     enum.next # => 2
@@ -162,7 +162,7 @@ trait Iterator!(T) {
   ##
   ## Returning the next value in an `Iterator`:
   ##
-  ##     let numbers = [10, 20, 30]
+  ##     let numbers = Array.new(10, 20, 30)
   ##     let mut iter = numbers.iter
   ##
   ##     iter.next # => 10
@@ -178,7 +178,7 @@ trait Iterator!(T) {
   ##
   ## Checking if there are any remaining values in an iterator:
   ##
-  ##     let numbers = [10]
+  ##     let numbers = Array.new(10)
   ##     let mut iter = numbers.iter
   ##
   ##     iter.next? # => True
@@ -193,11 +193,11 @@ trait Iterator!(T) {
   ##
   ## Multiplying the numbers in an `Array`:
   ##
-  ##     let mut iter = [1, 2, 3]
+  ##     let mut iter = Array.new(1, 2, 3)
   ##       .iter
   ##       .map do (number) { number * 2 }
   ##
-  ##     iter.to_array # => [2, 4, 6]
+  ##     iter.to_array # => Array.new(2, 4, 6)
   def map!(R)(block: do (T) -> R) -> Iterator!(R) {
     Enumerator.new(
       while: { next? },
@@ -215,7 +215,7 @@ trait Iterator!(T) {
   ##
   ##     import std::stdio::stdout
   ##
-  ##     [10, 20, 30].iter.each do (number) {
+  ##     Array.new(10, 20, 30).iter.each do (number) {
   ##       stdout.print(number)
   ##     }
   def each(block: do (T)) {
@@ -233,7 +233,7 @@ trait Iterator!(T) {
   ##
   ## Finding the first number greated than 50 in an `Array`:
   ##
-  ##     let numbers = [10, 20, 50, 80]
+  ##     let numbers = Array.new(10, 20, 50, 80)
   ##
   ##     numbers.iter.find do (number) { number > 50 } # => 80
   def find(block: do (T) -> Boolean) -> ?T {
@@ -254,11 +254,11 @@ trait Iterator!(T) {
   ##
   ## Transforming an `Iterator` back into an `Array`:
   ##
-  ##     [1, 2, 3].iter.to_array # => [1, 2, 3]
+  ##     Array.new(1, 2, 3).iter.to_array # => Array.new(1, 2, 3)
   def to_array -> Array!(T) {
-    let mut values = [] as Array!(T)
+    let mut values = Array.new
 
-    each do (value: T) {
+    each do (value) {
       values.push(value)
     }
 
@@ -326,7 +326,7 @@ impl Iterator!(T) for Enumerator!(T) {
 ##
 ##     import std::iterator::(self, Enumerator)
 ##
-##     let numbers = [10, 20, 30]
+##     let numbers = Array.new(10, 20, 30)
 ##     let enum: Enumerator!(Integer) =
 ##       iterator.index_enumerator(numbers.length) do (index) {
 ##         numbers[index]

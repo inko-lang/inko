@@ -191,7 +191,7 @@ object ObjectMirror {
   ##     let person = Person.new('Alice')
   ##     let mirror = ::mirror.reflect_object(person)
   ##
-  ##     mirror.attributes # => ['@name']
+  ##     mirror.attributes # => Array.new('@name')
   def attributes -> Array!(String) {
     _INKOC.get_attribute_names(@subject)
   }
@@ -213,10 +213,10 @@ object ObjectMirror {
   ##
   ##     let person = Person.new('Alice')
   ##
-  ##     ::mirror.reflect_object(person).attributes # => ['@name']
-  ##     ::mirror.reflect_object(Person).attributes # => ['@_object_name']
+  ##     ::mirror.reflect_object(person).attributes # => Array.new('@name')
+  ##     ::mirror.reflect_object(Person).attributes # => Array.new('@_object_name')
   def instance_attributes -> Array!(String) {
-    let mut instance_attributes = []
+    let mut instance_attributes = Array.new
 
     attributes.each do (attribute) {
       attribute.starts_with?('@').if_true {
@@ -337,14 +337,14 @@ object ObjectMirror {
   ##       }
   ##     }
   ##
-  ##     mirror.reflect_object(Person).implemented_traits # => [ToString]
+  ##     mirror.reflect_object(Person).implemented_traits # => Array.new(ToString)
   def implemented_traits -> Array!(Trait) {
     let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Object
 
     impl_set.if true: {
       _INKOC.get_attribute_names(impl_set) as Dynamic as Array!(Trait)
     }, false: {
-      []
+      Array.new
     }
   }
 }
@@ -419,7 +419,7 @@ object BlockMirror {
   ##     let method = def example(number) {}
   ##     let mirror = ::mirror.reflect_block(method)
   ##
-  ##     mirror.argument_names # => ['@subject', 'number']
+  ##     mirror.argument_names # => Array.new('@subject', 'number')
   def argument_names -> Array!(String) {
     _INKOC.block_metadata(@subject, 3) as Array!(String)
   }

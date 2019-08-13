@@ -201,7 +201,7 @@ test.group('std::fs::file::WriteOnlyFile.new') do (g) {
 test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
   g.test('Writing a number of bytes') {
     write_only_file do (file) {
-      let written = try! file.write_bytes(ByteArray.new([105, 110, 107, 111]))
+      let written = try! file.write_bytes(ByteArray.new(105, 110, 107, 111))
 
       assert.equal(written, 4)
     }
@@ -209,7 +209,7 @@ test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
 
   g.test('Appending a number of bytes') {
     write_only_file do (file) {
-      try! file.write_bytes(ByteArray.new([105, 110]))
+      try! file.write_bytes(ByteArray.new(105, 110))
 
       let append = try! WriteOnlyFile
         .new(path: fixtures.temporary_file_path, append: True)
@@ -218,7 +218,7 @@ test.group('std::fs::file::WriteOnlyFile.write_bytes') do (g) {
         close_and_remove_file(append)
       }
 
-      try! append.write_bytes(ByteArray.new([107, 111]))
+      try! append.write_bytes(ByteArray.new(107, 111))
       try! append.flush
 
       assert.equal(read_string(append.path), 'inko')
@@ -346,7 +346,7 @@ test.group('std::fs::file::ReadWriteFile.read_bytes') do (g) {
       try! file.seek(0)
       try! file.read_bytes(bytes)
 
-      assert.equal(bytes, ByteArray.new([105, 110, 107, 111]))
+      assert.equal(bytes, ByteArray.new(105, 110, 107, 111))
     }
   }
 }
@@ -365,7 +365,7 @@ test.group('std::fs::file::ReadWriteFile.read_string') do (g) {
 test.group('std::fs::file::ReadWriteFile.write_bytes') do (g) {
   g.test('Writing a number of bytes') {
     read_write_file do (file) {
-      try! file.write_bytes(ByteArray.new([97, 98]))
+      try! file.write_bytes(ByteArray.new(97, 98))
 
       assert.equal(try! file.size, 2)
     }

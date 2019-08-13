@@ -581,7 +581,6 @@ module Inkoc
       when :identifier then identifier_or_reassign(start)
       when :constant then constant(start)
       when :curly_open then block_without_arguments(start)
-      when :bracket_open then array(start)
       when :define then def_method(start)
       when :static then def_static_method(start)
       when :do, :lambda then block(start, start.type)
@@ -743,23 +742,6 @@ module Inkoc
       end
 
       AST::Body.new(nodes, start.location)
-    end
-
-    # Parses an array literal
-    #
-    # Example:
-    #
-    #     [10, 20, 30]
-    def array(start)
-      values = []
-
-      while (token = @lexer.advance) && token.valid_but_not?(:bracket_close)
-        values << expression(token)
-
-        break if comma_or_break_on(:bracket_close)
-      end
-
-      new_array(values, start)
     end
 
     # Parses a method definition.
@@ -1497,12 +1479,6 @@ module Inkoc
           "Unexpected #{token.type}, expected a comma or #{break_on}"
         )
       end
-    end
-
-    def new_array(values, start)
-      receiver = AST::Global.new(Config::ARRAY_CONST, start.location)
-
-      AST::Send.new('new', receiver, [], values, start.location)
     end
   end
   # rubocop: enable Metrics/ClassLength

@@ -11,9 +11,9 @@ import std::stdio::stdout
 ## The path of the base temporary directory, such as /tmp on Linux.
 let TEMP = env.temporary_directory.to_string
 
-def temp_dir(components: Array!(String) = []) -> String {
+def temp_dir(components = Array.new!(String)) -> String {
   let buffer = StringBuffer
-    .new([TEMP, SEPARATOR, 'inko-test-' + process.current.identifier])
+    .new(TEMP, SEPARATOR, 'inko-test-' + process.current.identifier)
 
   components.each do (component) {
     buffer.push(SEPARATOR)
@@ -23,7 +23,7 @@ def temp_dir(components: Array!(String) = []) -> String {
   buffer.to_string
 }
 
-def with_temp_dir(components: Array!(String) = [], block: do (String)) {
+def with_temp_dir(components = Array.new!(String), block: do (String)) {
   let root = temp_dir
   let path = temp_dir(components)
 
@@ -42,7 +42,7 @@ def with_temp_dir(components: Array!(String) = [], block: do (String)) {
 
 test.group('std::fs::dir.create') do (g) {
   g.test('Creating a valid directory') {
-    with_temp_dir(['foo']) do (path) {
+    with_temp_dir(Array.new('foo')) do (path) {
       try! dir.create(path)
 
       assert.true(fs.directory?(path))
@@ -51,7 +51,7 @@ test.group('std::fs::dir.create') do (g) {
 
   g.test('Creating an already existing directory') {
     assert.panic {
-      with_temp_dir(['foo']) do (path) {
+      with_temp_dir(Array.new('foo')) do (path) {
         try! dir.create(path)
         try! dir.create(path)
       }
@@ -59,7 +59,7 @@ test.group('std::fs::dir.create') do (g) {
   }
 
   g.test('Creating a directory recursively') {
-    with_temp_dir(['foo', 'bar']) do (path) {
+    with_temp_dir(Array.new('foo', 'bar')) do (path) {
       try! dir.create(path: path, recursive: True)
 
       assert.true(fs.directory?(path))
@@ -68,7 +68,7 @@ test.group('std::fs::dir.create') do (g) {
 
   g.test('Creating an existing directory recursively') {
     assert.no_panic {
-      with_temp_dir(['foo', 'bar']) do (path) {
+      with_temp_dir(Array.new('foo', 'bar')) do (path) {
         try! dir.create(path: path, recursive: True)
         try! dir.create(path: path, recursive: True)
       }
@@ -78,7 +78,7 @@ test.group('std::fs::dir.create') do (g) {
 
 test.group('std::fs::dir.remove') do (g) {
   g.test('Removing an empty directory') {
-    with_temp_dir(['foo']) do (path) {
+    with_temp_dir(Array.new('foo')) do (path) {
       try! dir.create(path)
       try! dir.remove(path)
 
@@ -88,7 +88,7 @@ test.group('std::fs::dir.remove') do (g) {
 
   g.test('Removing a non-empty directory') {
     assert.panic {
-      with_temp_dir(['foo', 'bar']) do (path) {
+      with_temp_dir(Array.new('foo', 'bar')) do (path) {
         try! dir.create(path: path, recursive: True)
         try! dir.remove(temp_dir)
       }
@@ -96,7 +96,7 @@ test.group('std::fs::dir.remove') do (g) {
   }
 
   g.test('Removing an empty directory recursively') {
-    with_temp_dir(['foo', 'bar']) do (path) {
+    with_temp_dir(Array.new('foo', 'bar')) do (path) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: path, recursive: True)
 
@@ -107,7 +107,7 @@ test.group('std::fs::dir.remove') do (g) {
   g.test('Removing a non-empty directory recursively') {
     let root = temp_dir
 
-    with_temp_dir(['foo', 'bar']) do (path) {
+    with_temp_dir(Array.new('foo', 'bar')) do (path) {
       try! dir.create(path: path, recursive: True)
       try! dir.remove(path: root, recursive: True)
 
@@ -118,16 +118,16 @@ test.group('std::fs::dir.remove') do (g) {
 
 test.group('std::fs::dir.list') do (g) {
   g.test('Listing the contents of an empty directory') {
-    with_temp_dir([]) do (path) {
+    with_temp_dir(Array.new) do (path) {
       let contents = try! dir.list(path)
 
-      assert.equal(contents, [])
+      assert.equal(contents, Array.new)
     }
   }
 
   g.test('Listing the contents of a non-existing directory') {
     assert.panic {
-      with_temp_dir(['foo']) do (path) {
+      with_temp_dir(Array.new('foo')) do (path) {
         try! dir.list(path)
       }
     }
@@ -136,7 +136,7 @@ test.group('std::fs::dir.list') do (g) {
   g.test('Listing the contents of a non-empty directory') {
     let root = temp_dir
 
-    with_temp_dir(['foo']) do (path) {
+    with_temp_dir(Array.new('foo')) do (path) {
       try! dir.create(path)
 
       let contents = try! dir.list(root)

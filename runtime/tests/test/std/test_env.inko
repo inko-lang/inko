@@ -129,7 +129,7 @@ test.group('std::env.working_directory=') do (g) {
 
 test.group('std::env.arguments') do (g) {
   g.test('Obtaining the commandline arguments') {
-    assert.equal(env.arguments, ['dummy'])
+    assert.equal(env.arguments, Array.new('dummy'))
   }
 
   g.test('Every call results in a new Array being returned') {
@@ -146,7 +146,7 @@ test.group('std::env.arguments') do (g) {
 
     let args2 = env.arguments
 
-    assert.equal(args1, ['dummy', 'bar'])
-    assert.equal(args2, ['dummy'])
+    assert.equal(args1, Array.new('dummy', 'bar'))
+    assert.equal(args2, Array.new('dummy'))
   }
 }

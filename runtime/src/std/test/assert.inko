@@ -70,12 +70,12 @@ def equal!(T: Inspect + Equal)(given: T, expected: T) {
       return
     }
 
-  let error = StringBuffer.new([
+  let error = StringBuffer.new(
     'Expected ',
     given.inspect,
     ' to equal ',
     expected.inspect,
-  ])
+  )
 
   process.panic(error)
 }
@@ -87,12 +87,12 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
       return
     }
 
-  let error = StringBuffer.new([
+  let error = StringBuffer.new(
     'Expected ',
     given.inspect,
     ' not to equal ',
     expected.inspect,
-  ])
+  )
 
   process.panic(error)
 }
@@ -104,12 +104,12 @@ def greater!(T: Inspect + Greater)(given: T, minimum: T) {
       return
     }
 
-  let error = StringBuffer.new([
+  let error = StringBuffer.new(
     'Expected ',
     given.inspect,
     ' to be greater than ',
     minimum.inspect,
-  ])
+  )
 
   process.panic(error)
 }
@@ -161,11 +161,7 @@ def true!(T: Inspect + Conditional)(value: T) {
     return
   }
 
-  let error = StringBuffer.new([
-    'Expected ',
-    value.inspect,
-    ' to be truthy',
-  ])
+  let error = StringBuffer.new('Expected ', value.inspect, ' to be truthy')
 
   process.panic(error)
 }
@@ -179,11 +175,7 @@ def false!(T: Inspect + Conditional)(value: T) {
     return
   }
 
-  let error = StringBuffer.new([
-    'Expected ',
-    value.inspect,
-    ' to be falsy',
-  ])
+  let error = StringBuffer.new('Expected ', value.inspect, ' to be falsy')
 
   process.panic(error)
 }

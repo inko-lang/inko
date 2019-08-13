@@ -58,7 +58,7 @@ test.group('std::test::formatters::ProgressFormatter.test_suite_statistics') do 
     let fmt = ProgressFormatter.new(colors: False)
 
     assert.equal(
-      fmt.test_suite_statistics([example_test]),
+      fmt.test_suite_statistics(Array.new(example_test)),
       '1 tests, 0 failures '
     )
   }
@@ -75,7 +75,7 @@ test.group('std::test::formatters::ProgressFormatter.green') do (g) {
 
   g.test('Generating a normal string when colors are disabled using a StringBuffer') {
     assert.equal(
-      ProgressFormatter.new(colors: False).green(StringBuffer.new(['hello'])),
+      ProgressFormatter.new(colors: False).green(StringBuffer.new('hello')),
       'hello'
     )
   }
@@ -92,7 +92,7 @@ test.group('std::test::formatters::ProgressFormatter.red') do (g) {
 
   g.test('Generating a normal string when colors are disabled using a StringBuffer') {
     assert.equal(
-      ProgressFormatter.new(colors: False).red(StringBuffer.new(['hello'])),
+      ProgressFormatter.new(colors: False).red(StringBuffer.new('hello')),
       'hello'
     )
   }
@@ -109,7 +109,7 @@ test.group('std::test::formatters::ProgressFormatter.cyan') do (g) {
 
   g.test('Generating a normal string when colors are disabled using a StringBuffer') {
     assert.equal(
-      ProgressFormatter.new(colors: False).cyan(StringBuffer.new(['hello'])),
+      ProgressFormatter.new(colors: False).cyan(StringBuffer.new('hello')),
       'hello'
     )
   }
@@ -126,7 +126,7 @@ test.group('std::test::formatters::ProgressFormatter.bold') do (g) {
 
   g.test('Generating a normal string when colors are disabled using a StringBuffer') {
     assert.equal(
-      ProgressFormatter.new(colors: False).bold(StringBuffer.new(['hello'])),
+      ProgressFormatter.new(colors: False).bold(StringBuffer.new('hello')),
       'hello'
     )
   }

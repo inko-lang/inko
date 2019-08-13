@@ -8,7 +8,7 @@ import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
-let LIBC_PATHS = [
+let LIBC_PATHS = Array.new(
   # Linux, sometimes a GNU ld script
   'libc.so',
 
@@ -23,14 +23,14 @@ let LIBC_PATHS = [
 
   # Windows
   'msvcrt.dll'
-]
+)
 
 let LIBC = Library.new(LIBC_PATHS)
 
 let CALLOC =
-  LIBC.function('calloc', [types.size_t, types.size_t], types.pointer)
+  LIBC.function('calloc', Array.new(types.size_t, types.size_t), types.pointer)
 
-let FREE = LIBC.function('free', [types.pointer], types.void)
+let FREE = LIBC.function('free', Array.new(types.pointer), types.void)
 
 ## The C `tm` structure, see `man ctime` for more information about this
 ## structure.
@@ -58,7 +58,7 @@ def allocate!(R)(size: Integer, block: do (Pointer) -> R) -> R {
 
   pointer.null?.if_true {
     let error = StringBuffer
-      .new(['calloc() failed to allocate ', size.to_string, ' bytes of memory'])
+      .new('calloc() failed to allocate ', size.to_string, ' bytes of memory')
 
     process.panic(error)
   }
@@ -263,13 +263,13 @@ test.group('std::ffi::Pointer.==') do (g) {
 test.group('std::ffi::Library.new') do (g) {
   g.test('Opening a non existing library') {
     assert.panic {
-      Library.new(['does-not-exist.so'])
+      Library.new(Array.new('does-not-exist.so'))
     }
   }
 
   g.test('Opening a non existing library, with an existing as a fallback') {
     assert.no_panic {
-      let paths = ['does-not-exist.so'].append(LIBC_PATHS)
+      let paths = Array.new('does-not-exist.so').append(LIBC_PATHS)
 
       Library.new(paths)
     }
@@ -309,7 +309,7 @@ test.group('std::ffi::Library.function') do (g) {
     assert.no_panic {
       LIBC.function(
         name: 'malloc',
-        arguments: [types.size_t],
+        arguments: Array.new(types.size_t),
         returns: types.pointer
       )
     }
@@ -317,7 +317,11 @@ test.group('std::ffi::Library.function') do (g) {
 
   g.test('Obtaining a Function using a non existing function name') {
     assert.panic {
-      LIBC.function(name: 'kittens', arguments: [], returns: types.pointer)
+      LIBC.function(
+        name: 'kittens',
+        arguments: Array.new,
+        returns: types.pointer
+      )
     }
   }
 }
@@ -328,7 +332,7 @@ test.group('std::ffi::Function.new') do (g) {
       Function.new(
         library: LIBC,
         name: 'malloc',
-        arguments: [types.size_t],
+        arguments: Array.new(types.size_t),
         returns: types.pointer
       )
     }
@@ -339,7 +343,7 @@ test.group('std::ffi::Function.new') do (g) {
       Function.new(
         library: LIBC,
         name: 'kittens',
-        arguments: [],
+        arguments: Array.new,
         returns: types.pointer
       )
     }
@@ -351,7 +355,7 @@ test.group('std::ffi::Function.name') do (g) {
     let func = Function.new(
       library: LIBC,
       name: 'malloc',
-      arguments: [types.size_t],
+      arguments: Array.new(types.size_t),
       returns: types.pointer
     )
 
@@ -364,11 +368,11 @@ test.group('std::ffi::Function.arguments') do (g) {
     let func = Function.new(
       library: LIBC,
       name: 'malloc',
-      arguments: [types.size_t],
+      arguments: Array.new(types.size_t),
       returns: types.pointer
     )
 
-    assert.equal(func.arguments, [types.size_t])
+    assert.equal(func.arguments, Array.new(types.size_t))
   }
 }
 
@@ -377,7 +381,7 @@ test.group('std::ffi::Function.returns') do (g) {
     let func = Function.new(
       library: LIBC,
       name: 'malloc',
-      arguments: [types.size_t],
+      arguments: Array.new(types.size_t),
       returns: types.pointer
     )
 
@@ -387,7 +391,7 @@ test.group('std::ffi::Function.returns') do (g) {
 
 test.group('std::ffi::Function.call') do (g) {
   g.test('Calling a function with a valid number of arguments') {
-    let time_func = LIBC.function('time', [types.pointer], types.i64)
+    let time_func = LIBC.function('time', Array.new(types.pointer), types.i64)
     let timestamp = time_func.call(Pointer.null) as Integer
 
     assert.true(timestamp.positive?)
@@ -395,7 +399,7 @@ test.group('std::ffi::Function.call') do (g) {
 
   g.test('Calling a Function with an invalid number of arguments') {
     assert.panic {
-      let time_func = LIBC.function('time', [types.pointer], types.i64)
+      let time_func = LIBC.function('time', Array.new(types.pointer), types.i64)
 
       time_func.call
     }

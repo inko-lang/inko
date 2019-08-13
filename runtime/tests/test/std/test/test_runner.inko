@@ -30,7 +30,7 @@ test.group('std::test::runner::RunnerState.add_test') do (g) {
 
     state.add_test(test)
 
-    assert.equal(state.tests, [test])
+    assert.equal(state.tests, Array.new(test))
   }
 }
 
@@ -78,7 +78,7 @@ test.group('std::test::runner::AddTest.run') do (g) {
 
     command.run(state)
 
-    assert.equal(state.tests, [test])
+    assert.equal(state.tests, Array.new(test))
   }
 }
 
@@ -139,7 +139,7 @@ test.group('std::test::runner::Client.add_test') do (g) {
 
     (process.receive as AddTest).run(state)
 
-    assert.equal(state.tests, [test])
+    assert.equal(state.tests, Array.new(test))
   }
 
   g.test('Adding a test to a test runner that is running') {

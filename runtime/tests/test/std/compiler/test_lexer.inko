@@ -1148,7 +1148,7 @@ world\n" "hello"'
     let token = lexer.next
 
     assert.equal(token.type, 'invalid')
-    assert.equal(token.value, ByteArray.new([195]).to_string)
+    assert.equal(token.value, ByteArray.new(195).to_string)
     assert.false(lexer.next?)
   }
 

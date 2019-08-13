@@ -211,13 +211,13 @@ test.group('std::mirror::ObjectMirror.implemented_traits') do (g) {
   g.test('Obtaining the traits implemented by an object') {
     let traits = ObjectMirror.new(Dummy).implemented_traits
 
-    assert.equal(traits, [Trait1])
+    assert.equal(traits, Array.new(Trait1))
   }
 
   g.test('Obtaining the traits implemented by an object instance') {
     let traits = ObjectMirror.new(Dummy.new).implemented_traits
 
-    assert.equal(traits, [Trait1])
+    assert.equal(traits, Array.new(Trait1))
   }
 }
 
@@ -263,7 +263,7 @@ test.group('std::mirror::BlockMirror.argument_names') do (g) {
   g.test('Obtaining the argument names of a block') {
     let mirror = BlockMirror.new(do (foo, bar) {})
 
-    assert.equal(mirror.argument_names, ['foo', 'bar'])
+    assert.equal(mirror.argument_names, Array.new('foo', 'bar'))
   }
 }
 
