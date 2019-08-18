@@ -58,8 +58,7 @@ impl Equal for Boolean {
 
   ## Returns `True` if the given `Boolean` does not equal `self`.
   def !=(other: Self) -> Boolean {
-    self == other
-      .not
+    (self == other).not
   }
 }
 

@@ -56,16 +56,15 @@ impl Formatter for DefaultFormatter {
   ## If nesting _is_ too great, a placeholder value is added to the buffer, and
   ## the supplied block is not executed.
   def descend(block: do) {
-    @nesting >= MAX_DEPTH
-      .if true: {
-        push(PLACEHOLDER)
-      }, false: {
-        @nesting += 1
+    (@nesting >= MAX_DEPTH).if true: {
+      push(PLACEHOLDER)
+    }, false: {
+      @nesting += 1
 
-        block.call
+      block.call
 
-        @nesting -= 1
-      }
+      @nesting -= 1
+    }
   }
 }
 

@@ -46,8 +46,7 @@ object Range!(T: Successor + SmallerOrEqual) {
   ##     (1..10).cover?(5)  # => True
   ##     (1..10).cover?(15) # => False
   def cover?(value: T) -> Boolean {
-    @start <= value
-      .and { value <= @end }
+    (@start <= value).and { value <= @end }
   }
 }
 
@@ -64,8 +63,7 @@ impl Equal for Range!(T) {
   ##
   ##     1..10 == 1..5 # => False
   def ==(other: Self) -> Boolean {
-    start == other.start
-      .and { end == other.end }
+    (start == other.start).and { end == other.end }
   }
 }
 

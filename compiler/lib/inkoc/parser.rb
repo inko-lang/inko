@@ -280,25 +280,8 @@ module Inkoc
 
       while BINARY_OPERATORS.include?(@lexer.peek.type)
         operator = @lexer.advance
-        rhs = send_chain(@lexer.advance, require_same_line: true)
+        rhs = send_chain(@lexer.advance)
         node = AST::Send.new(operator.value, node, [], [rhs], operator.location)
-      end
-
-      # This allows us to parse code such as this:
-      #
-      #     x == y
-      #       .if_true {
-      #
-      #       }
-      #
-      # Into this:
-      #
-      #     (x == y).if_true {
-      #
-      #     }
-      if @lexer.next_type_is?(:dot)
-        skip_one
-        node = send_chain_with_receiver(node)
       end
 
       node
@@ -395,14 +378,12 @@ module Inkoc
     end
 
     # Parses a chain of messages being sent to a receiver.
-    def send_chain(start, require_same_line: false)
+    def send_chain(start)
       node = value(start)
 
       loop do
         case @lexer.peek.type
         when :dot
-          break if require_same_line && @lexer.peek.line != start.line
-
           skip_one
           node = send_chain_with_receiver(node)
         when :bracket_open

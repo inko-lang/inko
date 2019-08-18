@@ -149,23 +149,21 @@ impl Command for RunTests {
 
       pending += 1
 
-      pending == state.concurrency
-        .or { index == last_index }
-        .if_true {
-          { pending > 0 }.while_true {
-            let finished_test = process.receive as Test
+      (pending == state.concurrency).or { index == last_index }.if_true {
+        { pending > 0 }.while_true {
+          let finished_test = process.receive as Test
 
-            state.formatter.test(finished_test)
+          state.formatter.test(finished_test)
 
-            finished_test.passed?.if_false {
-              failed.push(finished_test)
-            }
-
-            executed.push(finished_test)
-
-            pending -= 1
+          finished_test.passed?.if_false {
+            failed.push(finished_test)
           }
+
+          executed.push(finished_test)
+
+          pending -= 1
         }
+      }
     }
 
     let duration = start_time.elapsed

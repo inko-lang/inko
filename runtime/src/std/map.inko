@@ -184,16 +184,14 @@ object Map!(K: Hash + Equal, V) {
     let mut map = Map.new
     let max_index = values.length - 1
 
-    keys.length == values.length
-      .if_false {
-        process.panic('An equal number of keys and values must be specified')
-      }
+    (keys.length == values.length).if_false {
+      process.panic('An equal number of keys and values must be specified')
+    }
 
     keys.each_with_index do (key: K, index: Integer) {
-      index > max_index
-        .if_true {
-          return map
-        }
+      (index > max_index).if_true {
+        return map
+      }
 
       map[key] = values[index]!
     }
@@ -297,8 +295,7 @@ object Map!(K: Hash + Equal, V) {
         let mut found: ?Pair!(K, V) = Nil
 
         {
-          index < max
-            .and { found == Nil }
+          (index < max).and { found == Nil }
         }.while_true {
           found = @buckets[index]
           index += 1
@@ -374,10 +371,9 @@ object Map!(K: Hash + Equal, V) {
   ##
   ##     let map = Map.new.set('a', 10).set('b', 20)
   def set(key: K, value: V) -> Self {
-    @length >= @resize_threshold
-      .if_true {
-        rehash
-      }
+    (@length >= @resize_threshold).if_true {
+      rehash
+    }
 
     _insert_pair(Pair.new(key: key, value: value, hash: _hash_key(key)))
 
@@ -421,12 +417,11 @@ object Map!(K: Hash + Equal, V) {
       let existing = @buckets[index]
 
       existing.if true: {
-        existing.key == pair.key
-          .if_true {
-            @buckets[index] = pair
+        (existing.key == pair.key).if_true {
+          @buckets[index] = pair
 
-            return
-          }
+          return
+        }
 
         existing.replace_with?(pair).if_true {
           @buckets[index] = pair
@@ -490,18 +485,16 @@ object Map!(K: Hash + Equal, V) {
       #
       # This early return ensures we don't iterate over all buckets if we are
       # certain we won't be able to find the key.
-      pair == Nil
-        .if_true {
-          return
-        }
+      (pair == Nil).if_true {
+        return
+      }
 
       index = _desired_bucket(index + 1)
 
-      index == desired
-        .if_true {
-          # We cycled through all buckets but didn't find a matching pair.
-          return
-        }
+      (index == desired).if_true {
+        # We cycled through all buckets but didn't find a matching pair.
+        return
+      }
 
       pair = @buckets[index]
     }
@@ -541,20 +534,18 @@ impl Equal for Map!(K, V) {
   ##
   ##     map1 == map2 # => True
   def ==(other: Self) -> Boolean where V: Equal {
-    length == other.length
-      .if_false {
-        return False
-      }
+    (length == other.length).if_false {
+      return False
+    }
 
     each do (key, value) {
       other.key?(key).if_false {
         return False
       }
 
-      value == other[key]!
-        .if_false {
-          return False
-        }
+      (value == other[key]!).if_false {
+        return False
+      }
     }
 
     True

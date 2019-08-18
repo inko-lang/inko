@@ -27,11 +27,9 @@ impl Integer {
   ##
   ##     0x2ff.format(radix: 16) # => '2ff'
   def format(radix = 10) -> String {
-    radix < 2
-      .or { radix > 36 }
-      .if_true {
-        process.panic('The radix argument must be between 2 and 36')
-      }
+    (radix < 2).or { radix > 36 }.if_true {
+      process.panic('The radix argument must be between 2 and 36')
+    }
 
     zero?.if_true {
       return '0'

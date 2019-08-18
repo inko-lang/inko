@@ -60,10 +60,9 @@ impl Inspect for Object {
         value.format_for_inspect(formatter)
       }
 
-      index < last_index
-        .if_true {
-          formatter.push(',')
-        }
+      (index < last_index).if_true {
+        formatter.push(',')
+      }
     }
 
     formatter.push(' }')
@@ -175,10 +174,9 @@ impl Inspect for Array!(T) {
         value.format_for_inspect(formatter)
       }
 
-      index < last
-        .if_true {
-          formatter.push(', ')
-        }
+      (index < last).if_true {
+        formatter.push(', ')
+      }
     }
 
     formatter.push(' }')
@@ -226,10 +224,9 @@ impl Inspect for Map!(K, V) {
         value.format_for_inspect(formatter)
       }
 
-      index < last
-        .if_true {
-          formatter.push(', ')
-        }
+      (index < last).if_true {
+        formatter.push(', ')
+      }
 
       index += 1
     }
