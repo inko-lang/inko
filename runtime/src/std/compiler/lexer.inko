@@ -125,141 +125,115 @@ object Lexer {
       return number
     }
 
-    current == AT_SIGN
-      .if_true {
-        return attribute
-      }
+    (current == AT_SIGN).if_true {
+      return attribute
+    }
 
-    current == HASH
-      .if_true {
-        return comment
-      }
+    (current == HASH).if_true {
+      return comment
+    }
 
-    current == CURLY_OPEN
-      .if_true {
-        return single_character_token('curly_open')
-      }
+    (current == CURLY_OPEN).if_true {
+      return single_character_token('curly_open')
+    }
 
-    current == CURLY_CLOSE
-      .if_true {
-        return single_character_token('curly_close')
-      }
+    (current == CURLY_CLOSE).if_true {
+      return single_character_token('curly_close')
+    }
 
-    current == PAREN_OPEN
-      .if_true {
-        return single_character_token('paren_open')
-      }
+    (current == PAREN_OPEN).if_true {
+      return single_character_token('paren_open')
+    }
 
-    current == PAREN_CLOSE
-      .if_true {
-        return single_character_token('paren_close')
-      }
+    (current == PAREN_CLOSE).if_true {
+      return single_character_token('paren_close')
+    }
 
-    current == SINGLE_QUOTE
-      .if_true {
-        return string(
-          quote: SINGLE_QUOTE,
-          replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
-        )
-      }
+    (current == SINGLE_QUOTE).if_true {
+      return string(
+        quote: SINGLE_QUOTE,
+        replacements: SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES
+      )
+    }
 
-    current == DOUBLE_QUOTE
-      .if_true {
-        return string(
-          quote: DOUBLE_QUOTE,
-          replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
-        )
-      }
+    (current == DOUBLE_QUOTE).if_true {
+      return string(
+        quote: DOUBLE_QUOTE,
+        replacements: DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES
+      )
+    }
 
-    current == COLON
-      .if_true {
-        return colon
-      }
+    (current == COLON).if_true {
+      return colon
+    }
 
-    current == SLASH
-      .if_true {
-        return operator(type: 'div', assign_type: 'div_assign')
-      }
+    (current == SLASH).if_true {
+      return operator(type: 'div', assign_type: 'div_assign')
+    }
 
-    current == PERCENT
-      .if_true {
-        return percent
-      }
+    (current == PERCENT).if_true {
+      return percent
+    }
 
-    current == CARET
-      .if_true {
-        return operator(type: 'xor', assign_type: 'xor_assign')
-      }
+    (current == CARET).if_true {
+      return operator(type: 'xor', assign_type: 'xor_assign')
+    }
 
-    current == AMPERSAND
-      .if_true {
-        return operator(type: 'and', assign_type: 'and_assign')
-      }
+    (current == AMPERSAND).if_true {
+      return operator(type: 'and', assign_type: 'and_assign')
+    }
 
-    current == PIPE
-      .if_true {
-        return operator(type: 'or', assign_type: 'or_assign')
-      }
+    (current == PIPE).if_true {
+      return operator(type: 'or', assign_type: 'or_assign')
+    }
 
-    current == STAR
-      .if_true {
-        return operator(type: 'mul', assign_type: 'mul_assign')
-      }
+    (current == STAR).if_true {
+      return operator(type: 'mul', assign_type: 'mul_assign')
+    }
 
-    current == MINUS
-      .if_true {
-        return minus
-      }
+    (current == MINUS).if_true {
+      return minus
+    }
 
-    current == PLUS
-      .if_true {
-        return operator(type: 'add', assign_type: 'add_assign')
-      }
+    (current == PLUS).if_true {
+      return operator(type: 'add', assign_type: 'add_assign')
+    }
 
-    current == EQUAL
-      .if_true {
-        return operator(type: 'assign', assign_type: 'equal')
-      }
+    (current == EQUAL).if_true {
+      return operator(type: 'assign', assign_type: 'equal')
+    }
 
-    current == LOWER
-      .if_true {
-        return lower
-      }
+    (current == LOWER).if_true {
+      return lower
+    }
 
-    current == GREATER
-      .if_true {
-        return greater
-      }
+    (current == GREATER).if_true {
+      return greater
+    }
 
-    current == BRACKET_OPEN
-      .if_true {
-        return single_character_token('bracket_open')
-      }
+    (current == BRACKET_OPEN).if_true {
+      return single_character_token('bracket_open')
+    }
 
-    current == BRACKET_CLOSE
-      .if_true {
-        return single_character_token('bracket_close')
-      }
+    (current == BRACKET_CLOSE).if_true {
+      return single_character_token('bracket_close')
+    }
 
-    current == EXCLAMATION
-      .if_true {
-        return exclamation
-      }
+    (current == EXCLAMATION).if_true {
+      return exclamation
+    }
 
-    current == DOT
-      .if_true {
-        return dot
-      }
+    (current == DOT).if_true {
+      return dot
+    }
 
-    current == COMMA
-      .if_true {
-        return single_character_token('comma')
-      }
+    (current == COMMA).if_true {
+      return single_character_token('comma')
+    }
 
-    current == QUESTION
-      .if_true {
-        return single_character_token('question')
-      }
+    (current == QUESTION).if_true {
+      return single_character_token('question')
+    }
 
     lowercase?.if_true {
       return identifier_or_keyword
@@ -269,10 +243,9 @@ object Lexer {
       return constant
     }
 
-    current == UNDERSCORE
-      .if_true {
-        return underscore
-      }
+    (current == UNDERSCORE).if_true {
+      return underscore
+    }
 
     next?.if true: {
       invalid
@@ -294,11 +267,8 @@ object Lexer {
     }
 
     # "0x" is only valid at the start of an integer.
-    INTEGER_DIGIT_RANGE.start == current
-      .and {
-        next == LOWER_X
-          .or { next == UPPER_X }
-      }
+    (INTEGER_DIGIT_RANGE.start == current)
+      .and { (next == LOWER_X).or { next == UPPER_X } }
       .if true: {
         hexadecimal_integer(skip_after_start)
       }, false: {
@@ -321,24 +291,19 @@ object Lexer {
       INTEGER_DIGIT_RANGE.cover?(byte)
         .or { byte == UNDERSCORE }
         .or {
-          let float_digit =
-            byte == LOWER_E
-              .or { byte == UPPER_E }
-              .if true: {
-                let next = next_byte
+          let float_digit = (byte == LOWER_E).or { byte == UPPER_E }.if true: {
+            let next = next_byte
 
-                # '-' and '+' are only allowed directly after the exponent sign
-                # (e/E).
-                next == PLUS
-                  .or { next == MINUS }
-                  .if_true {
-                    @position += 1
-                  }
+            # '-' and '+' are only allowed directly after the exponent sign
+            # (e/E).
+            (next == PLUS).or { next == MINUS }.if_true {
+              @position += 1
+            }
 
-                True
-              }, false: {
-                byte == DOT
-              }
+            True
+          }, false: {
+            byte == DOT
+          }
 
           float_digit.if_true {
             type = 'float'
@@ -379,15 +344,13 @@ object Lexer {
   }
 
   def comment -> Token {
-    next_byte == HASH
-      .if_true {
-        return documentation_comment
-      }
+    (next_byte == HASH).if_true {
+      return documentation_comment
+    }
 
-    next_byte == EXCLAMATION
-      .if_true {
-        return module_comment
-      }
+    (next_byte == EXCLAMATION).if_true {
+      return module_comment
+    }
 
     regular_comment
   }
@@ -470,17 +433,15 @@ object Lexer {
       @position += 1
     }
 
-    let token_type =
-      next_byte == EQUAL
-        .if true: {
-          @position += 2
+    let token_type = (next_byte == EQUAL).if true: {
+      @position += 2
 
-          assign_type
-        }, false: {
-          @position += 1
+      assign_type
+    }, false: {
+      @position += 1
 
-          type
-        }
+      type
+    }
 
     token(type: token_type, start: start, line: @line)
   }
@@ -524,15 +485,13 @@ object Lexer {
     #
     # To prevent allocating an additional String, we only use the line buffer is
     # needed.
-    let advance_column_by =
-      @line > start_line
-        .if true: {
-          # We subtract 1 for the opening quote padding, since that only applies
-          # to the first line.
-          line_buffer.drain_to_string.length - 1
-        }, false: {
-          value.length
-        }
+    let advance_column_by = (@line > start_line).if true: {
+      # We subtract 1 for the opening quote padding, since that only applies to
+      # the first line.
+      line_buffer.drain_to_string.length - 1
+    }, false: {
+      value.length
+    }
 
     @column += advance_column_by + padding
 
@@ -546,19 +505,18 @@ object Lexer {
   ) -> Boolean {
     let current = current_byte
 
-    current == BACKSLASH
-      .if_true {
-        let replace_with = replacements[next_byte]
+    (current == BACKSLASH).if_true {
+      let replace_with = replacements[next_byte]
 
-        replace_with.if_true {
-          buffer.push(replace_with!)
-          line_buffer.push(replace_with!)
+      replace_with.if_true {
+        buffer.push(replace_with!)
+        line_buffer.push(replace_with!)
 
-          @position += 2
+        @position += 2
 
-          return True
-        }
+        return True
       }
+    }
 
     buffer.push(current)
     line_buffer.push(current)
@@ -575,18 +533,15 @@ object Lexer {
 
   def colon -> Token {
     let start = @position
+    let type = (next_byte == COLON).if true: {
+      @position += 2
 
-    let type =
-      next_byte == COLON
-        .if true: {
-          @position += 2
+      'colon_colon'
+    }, false: {
+      @position += 1
 
-          'colon_colon'
-        }, false: {
-          @position += 1
-
-          'colon'
-        }
+      'colon'
+    }
 
     token(type: type, start: start, @line)
   }
@@ -602,38 +557,35 @@ object Lexer {
       return number(skip_after_start: True)
     }
 
-    next == GREATER
-      .if true: {
-        arrow
-      }, false: {
-        operator(type: 'sub', assign_type: 'sub_assign')
-      }
+    (next == GREATER).if true: {
+      arrow
+    }, false: {
+      operator(type: 'sub', assign_type: 'sub_assign')
+    }
   }
 
   def lower -> Token {
-    next_byte == LOWER
-      .if true: {
-        operator(
-          type: 'shift_left',
-          assign_type: 'shift_left_assign',
-          skip_after_start: True
-        )
-      }, false: {
-        operator(type: 'lower', assign_type: 'lower_equal')
-      }
+    (next_byte == LOWER).if true: {
+      operator(
+        type: 'shift_left',
+        assign_type: 'shift_left_assign',
+        skip_after_start: True
+      )
+    }, false: {
+      operator(type: 'lower', assign_type: 'lower_equal')
+    }
   }
 
   def greater -> Token {
-    next_byte == GREATER
-      .if true: {
-        operator(
-          type: 'shift_right',
-          assign_type: 'shift_right_assign',
-          skip_after_start: True
-        )
-      }, false: {
-        operator(type: 'greater', assign_type: 'greater_equal')
-      }
+    (next_byte == GREATER).if true: {
+      operator(
+        type: 'shift_right',
+        assign_type: 'shift_right_assign',
+        skip_after_start: True
+      )
+    }, false: {
+      operator(type: 'greater', assign_type: 'greater_equal')
+    }
   }
 
   def arrow -> Token {
@@ -647,20 +599,17 @@ object Lexer {
   def exclamation -> Token {
     let next = next_byte
 
-    next == EQUAL
-      .if_true {
-        return two_character_token('not_equal')
-      }
+    (next == EQUAL).if_true {
+      return two_character_token('not_equal')
+    }
 
-    next == PAREN_OPEN
-      .if_true {
-        return two_character_token('type_args_open')
-      }
+    (next == PAREN_OPEN).if_true {
+      return two_character_token('type_args_open')
+    }
 
-    next == EXCLAMATION
-      .if_true {
-        return two_character_token('throws')
-      }
+    (next == EXCLAMATION).if_true {
+      return two_character_token('throws')
+    }
 
     single_character_token('exclamation')
   }
@@ -670,20 +619,17 @@ object Lexer {
 
     @position += 1
 
-    current_byte == DOT
-      .and { next_byte == DOT }
-      .if_true {
-        @position += 2
+    (current_byte == DOT).and { next_byte == DOT }.if_true {
+      @position += 2
 
-        return token(type: 'exclusive_range', start: start, line: @line)
-      }
+      return token(type: 'exclusive_range', start: start, line: @line)
+    }
 
-    current_byte == DOT
-      .if_true {
-        @position += 1
+    (current_byte == DOT).if_true {
+      @position += 1
 
-        return token(type: 'inclusive_range', start: start, line: @line)
-      }
+      return token(type: 'inclusive_range', start: start, line: @line)
+    }
 
     token(type: 'dot', start: start, line: @line)
   }
@@ -839,7 +785,7 @@ object Lexer {
   def whitespace? -> Boolean {
     let current = current_byte
 
-    current == NEWLINE
+    (current == NEWLINE)
       .or { current == SPACE }
       .or { current == TAB }
       .or { current == CARRIAGE_RETURN }

@@ -58,8 +58,7 @@ object SocketAddress {
 impl Equal for SocketAddress {
   ## Returns `True` if `self` and `other` are the same.
   def ==(other: Self) -> Boolean {
-    @ip == other.ip
-      .and { @port == other.port }
+    (@ip == other.ip).and { @port == other.port }
   }
 }
 

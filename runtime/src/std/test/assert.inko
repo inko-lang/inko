@@ -65,10 +65,9 @@ object PanicTest {
 
 ## Asserts that the given arguments are equal to each other.
 def equal!(T: Inspect + Equal)(given: T, expected: T) {
-  given == expected
-    .if_true {
-      return
-    }
+  (given == expected).if_true {
+    return
+  }
 
   let error = StringBuffer.new(
     'Expected ',
@@ -82,10 +81,9 @@ def equal!(T: Inspect + Equal)(given: T, expected: T) {
 
 ## Asserts that the given arguments are not equal to each other.
 def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
-  given == expected
-    .if_false {
-      return
-    }
+  (given == expected).if_false {
+    return
+  }
 
   let error = StringBuffer.new(
     'Expected ',
@@ -99,10 +97,9 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
 
 ## Asserts that the first argument is greater than the second argument.
 def greater!(T: Inspect + Greater)(given: T, minimum: T) {
-  given > minimum
-    .if_true {
-      return
-    }
+  (given > minimum).if_true {
+    return
+  }
 
   let error = StringBuffer.new(
     'Expected ',

@@ -452,15 +452,14 @@ object LayoutBuilder {
 
       # If the value is too great to fit into the current hole, we need to add
       # padding to the current hole, then start over at the next hole.
-      type_align > remaining_in_hole
-        .if_true {
-          let padding = @alignment - remaining_in_hole
+      (type_align > remaining_in_hole).if_true {
+        let padding = @alignment - remaining_in_hole
 
-          size += padding
-          offset += padding
+        size += padding
+        offset += padding
 
-          remaining_in_hole = @alignment
-        }
+        remaining_in_hole = @alignment
+      }
 
       members[name] = Member.new(name: name, type: type, offset: offset)
 

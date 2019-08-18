@@ -77,17 +77,15 @@ impl SetIndex!(String, Dynamic) for Configuration {
   ##
   ##     config['concurrency'] = 64 # => 64
   def []=(key: String, value: Dynamic) -> Dynamic {
-    key == 'concurrency'
-      .if_true {
-        @concurrency = value as Integer
-        return
-      }
+    (key == 'concurrency').if_true {
+      @concurrency = value as Integer
+      return
+    }
 
-    key == 'formatter'
-      .if_true {
-        @formatter = value as Formatter
-        return
-      }
+    (key == 'formatter').if_true {
+      @formatter = value as Formatter
+      return
+    }
 
     process.panic(key.inspect + ' is not a valid configuration option')
   }

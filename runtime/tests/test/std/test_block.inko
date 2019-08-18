@@ -9,10 +9,9 @@ def test_loop -> Integer {
   let mut number = 0
 
   {
-    number == 100
-      .if_true {
-        return number
-      }
+    (number == 100).if_true {
+      return number
+    }
 
     number += 1
   }.loop
