@@ -49,6 +49,9 @@ test:runtime:windows:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:compiler:windows
+    - test:ivm:windows
 
 release:compiled:windows:
   stage: release
@@ -68,3 +71,5 @@ release:compiled:windows:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:runtime:windows

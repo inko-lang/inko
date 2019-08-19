@@ -48,6 +48,9 @@ test:runtime:macos:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:compiler:macos
+    - test:ivm:macos
 
 release:compiled:macos:
   stage: release
@@ -67,3 +70,5 @@ release:compiled:macos:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:runtime:macos

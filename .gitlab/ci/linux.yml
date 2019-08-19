@@ -42,6 +42,9 @@ test:runtime:linux:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:compiler:linux
+    - test:ivm:linux
 
 release:compiled:linux-gnu:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
@@ -59,3 +62,5 @@ release:compiled:linux-gnu:
     paths:
       - .cargo
       - vm/target
+  needs:
+    - test:runtime:linux
