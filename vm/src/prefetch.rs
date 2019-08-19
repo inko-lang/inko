@@ -35,8 +35,6 @@ pub fn prefetch_read<T>(pointer: *const T) {
                 arch_impl::_MM_HINT_NTA,
             );
         }
-
-        return;
     }
 }
 

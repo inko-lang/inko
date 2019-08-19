@@ -35,7 +35,7 @@ macro_rules! file_mode_error {
 pub fn io_read(
     state: &RcState,
     process: &RcProcess,
-    stream: &mut Read,
+    stream: &mut dyn Read,
     buffer: &mut Vec<u8>,
     amount: ObjectPointer,
 ) -> Result<ObjectPointer, RuntimeError> {

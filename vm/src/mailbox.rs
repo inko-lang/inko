@@ -72,7 +72,7 @@ impl Mailbox {
         if let Some(pointer) = self.internal.pop_front() {
             self.amount.fetch_sub(1, Ordering::AcqRel);
 
-            return (pointer.is_mailbox(), Some(pointer));
+            (pointer.is_mailbox(), Some(pointer))
         } else {
             (false, None)
         }
