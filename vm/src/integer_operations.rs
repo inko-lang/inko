@@ -114,30 +114,19 @@ macro_rules! invert_shift {
     }};
 }
 
-/// Converts an integer or a bigint to a String.
-macro_rules! format_integer {
-    ($pointer:expr) => {{
-        if $pointer.is_bigint() {
-            $pointer.bigint_value()?.to_string()
-        } else {
-            $pointer.integer_value()?.to_string()
-        }
-    }};
-}
-
 /// Generates an error message to display in the event of a shift error.
 macro_rules! shift_error {
     ($to_shift:expr, $shift_with:expr) => {{
         if $shift_with.is_integer() || $shift_with.is_bigint() {
             format!(
                 "Can't shift integer {} with {} as the operand is too big",
-                format_integer!($to_shift),
-                format_integer!($shift_with)
+                $to_shift.integer_to_string()?,
+                $shift_with.integer_to_string()?
             )
         } else {
             format!(
                 "Can't shift integer {} because the operand is not an integer",
-                format_integer!($to_shift),
+                $to_shift.integer_to_string()?,
             )
         }
     }};

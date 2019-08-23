@@ -631,6 +631,16 @@ impl ObjectPointer {
             raw: TaggedPointer::new(self.raw.atomic_load()),
         }
     }
+
+    pub fn integer_to_string(&self) -> Result<String, String> {
+        let string = if self.is_bigint() {
+            self.bigint_value()?.to_string()
+        } else {
+            self.integer_value()?.to_string()
+        };
+
+        Ok(string)
+    }
 }
 
 impl ObjectPointerPointer {
