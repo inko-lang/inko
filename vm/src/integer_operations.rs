@@ -44,7 +44,7 @@ macro_rules! shift_integer {
                     to_shift_big.$op(shift_with as usize)
                 }
             } else {
-                return Err(shift_error!($to_shift, $shift_with));
+                return Err(shift_error($to_shift, $shift_with)?);
             };
 
             $process.allocate(object_value::bigint(bigint), $proto)
@@ -114,24 +114,6 @@ macro_rules! invert_shift {
     }};
 }
 
-/// Generates an error message to display in the event of a shift error.
-macro_rules! shift_error {
-    ($to_shift:expr, $shift_with:expr) => {{
-        if $shift_with.is_integer() || $shift_with.is_bigint() {
-            format!(
-                "Can't shift integer {} with {} as the operand is too big",
-                $to_shift.integer_to_string()?,
-                $shift_with.integer_to_string()?
-            )
-        } else {
-            format!(
-                "Can't shift integer {} because the operand is not an integer",
-                $to_shift.integer_to_string()?,
-            )
-        }
-    }};
-}
-
 pub fn invert_integer_for_shift(
     process: &RcProcess,
     integer: ObjectPointer,
@@ -179,7 +161,7 @@ pub fn integer_shift_left(
             integer_shift_right
         )
     } else {
-        Err(shift_error!(to_shift_ptr, shift_with_ptr))
+        Err(shift_error(to_shift_ptr, shift_with_ptr)?)
     }
 }
 
@@ -211,7 +193,7 @@ pub fn integer_shift_right(
             integer_shift_left
         )
     } else {
-        Err(shift_error!(to_shift_ptr, shift_with_ptr))
+        Err(shift_error(to_shift_ptr, shift_with_ptr)?)
     }
 }
 
@@ -241,7 +223,7 @@ pub fn bigint_shift_left(
             bigint_shift_right
         )
     } else {
-        Err(shift_error!(to_shift_ptr, shift_with_ptr))
+        Err(shift_error(to_shift_ptr, shift_with_ptr)?)
     }
 }
 
@@ -271,6 +253,27 @@ pub fn bigint_shift_right(
             bigint_shift_left
         )
     } else {
-        Err(shift_error!(to_shift_ptr, shift_with_ptr))
+        Err(shift_error(to_shift_ptr, shift_with_ptr)?)
     }
+}
+
+/// Generates an error message to display in the event of a shift error.
+fn shift_error(
+    to_shift: ObjectPointer,
+    shift_with: ObjectPointer,
+) -> Result<String, String> {
+    let message = if shift_with.is_integer() || shift_with.is_bigint() {
+        format!(
+            "Can't shift integer {} with {} as the operand is too big",
+            to_shift.integer_to_string()?,
+            shift_with.integer_to_string()?
+        )
+    } else {
+        format!(
+            "Can't shift integer {} because the operand is not an integer",
+            to_shift.integer_to_string()?,
+        )
+    };
+
+    Ok(message)
 }
