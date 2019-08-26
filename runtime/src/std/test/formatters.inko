@@ -1,6 +1,7 @@
 #! Built-in formatters for test suites.
 import std::ansi::(self, BOLD, CYAN, GREEN, RED)
 import std::conversion::ToString
+import std::debug::CallFrame
 import std::stdio::stdout
 import std::string_buffer::StringBuffer
 import std::test::error::TestFailure
@@ -33,15 +34,8 @@ object ProgressFormatter {
     @colors = colors
   }
 
-  ## Returns the title to use for a failed test.
-  def failure_title(test: Test) -> String {
-    StringBuffer.new(test.group_name, ' ', test.name).to_string
-  }
-
   ## Returns the location of a test failure.
-  def failure_location(failure: TestFailure) -> String {
-    let location = failure.location
-
+  def format_location(location: CallFrame) -> String {
     StringBuffer
       .new(location.path.to_string, ':', location.line.to_string)
       .to_string
@@ -128,18 +122,24 @@ impl Formatter for ProgressFormatter {
   def failures(tests: Array!(Test)) {
     stdout.write_string("\n\nFailures:")
 
-    tests.each do (test) {
+    tests.each_with_index do (test, index) {
       let failure = test.failure!
 
       let buffer = StringBuffer.new(
         "\n\n",
-        '  Test: ',
-        bold(failure_title(test)),
+        '  Group:            ',
+        test.group_name,
         "\n",
-        '  Location: ',
-        cyan(failure_location(failure)),
-        "\n\n",
-        '  ',
+        '  Test:             ',
+        bold(test.name),
+        "\n",
+        '  Test location:    ',
+        cyan(format_location(test.location)),
+        "\n",
+        '  Failure location: ',
+        cyan(format_location(failure.location)),
+        "\n",
+        '  Failure:          ',
         red(failure.message),
       )
 
