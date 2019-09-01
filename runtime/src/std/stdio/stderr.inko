@@ -59,8 +59,8 @@ impl Write for ThisModule {
   ##     stderr.print # => Nil
   def print(data: ?ToString = Nil) -> Integer {
     process.blocking {
-      write_string(data.to_string) +
-        write_string(NEWLINE)
+      let written = try _INKOC.stderr_write(data.to_string) else return 0
+      written + _INKOC.stderr_write(NEWLINE)
     }
   }
 
