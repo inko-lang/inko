@@ -60,8 +60,8 @@ impl Write for ThisModule {
   ##     stdout.print # => Nil
   def print(data: ?ToString = Nil) -> Integer {
     process.blocking {
-      (try _INKOC.stdout_write(data.to_string) else 0) +
-        (try _INKOC.stdout_write(NEWLINE) else 0)
+      let written = try _INKOC.stdout_write(data.to_string) else return 0
+      written + _INKOC.stdout_write(NEWLINE)
     }
   }
 
