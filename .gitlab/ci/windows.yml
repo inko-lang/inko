@@ -1,5 +1,11 @@
 ---
+.only-source-repository:
+  only:
+    - branches@inko-lang/inko
+    - tags@inko-lang/inko
+
 test:compiler:windows:
+  extends: .only-source-repository
   stage: test
   tags:
     - windows
@@ -17,6 +23,7 @@ test:compiler:windows:
       - compiler/vendor/ruby
 
 test:ivm:windows:
+  extends: .only-source-repository
   image: windows:1809
   stage: test
   tags:
@@ -34,6 +41,7 @@ test:ivm:windows:
       - vm/target
 
 test:runtime:windows:
+  extends: .only-source-repository
   stage: test-runtime
   tags:
     - windows
@@ -54,6 +62,7 @@ test:runtime:windows:
     - test:ivm:windows
 
 release:compiled:windows:
+  extends: .only-source-repository
   stage: release
   tags:
     - windows
