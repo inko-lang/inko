@@ -1,5 +1,11 @@
 ---
+.only-source-repository:
+  only:
+    - branches@inko-lang/inko
+    - tags@inko-lang/inko
+
 test:compiler:macos:
+  extends: .only-source-repository
   stage: test
   tags:
     - macos
@@ -17,6 +23,7 @@ test:compiler:macos:
       - compiler/vendor/ruby
 
 test:ivm:macos:
+  extends: .only-source-repository
   stage: test
   tags:
     - macos
@@ -33,6 +40,7 @@ test:ivm:macos:
       - vm/target
 
 test:runtime:macos:
+  extends: .only-source-repository
   stage: test-runtime
   tags:
     - macos
@@ -53,6 +61,7 @@ test:runtime:macos:
     - test:ivm:macos
 
 release:compiled:macos:
+  extends: .only-source-repository
   stage: release
   tags:
     - macos
