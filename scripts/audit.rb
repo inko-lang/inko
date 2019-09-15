@@ -7,7 +7,6 @@ require 'open3'
 
 stdout, _, _ = Open3.capture3('cargo audit -f vm/Cargo.lock --json')
 json = stdout.strip
-status = 0
 
 report = {
   version: '2.1',
@@ -17,7 +16,6 @@ report = {
 
 unless json.empty?
   raw_report = JSON.parse(json)
-  status = 1
 
   raw_report['vulnerabilities']['list'].each do |vuln|
     advisory = vuln['advisory']
@@ -69,5 +67,3 @@ end
 File.open('gl-dependency-scanning-report.json', 'w') do |handle|
   handle.write(JSON.pretty_generate(report))
 end
-
-exit(status)
