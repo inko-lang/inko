@@ -1,24 +1,24 @@
-#! Assertions for writing unit tests.
-#!
-#! Assertions can be used to define requirements that must be met for a unit
-#! test to pass. For example, the `equal` method can be used to assert that two
-#! values must be equal to each other.
-#!
-#! Assertions will throw in the event of a failure, requiring the use of the
-#! `try` keyword. The use of `try!` is discouraged as it will result in the
-#! entire test suite terminating in the event of an assertion failing.
+# Assertions for writing unit tests.
+#
+# Assertions can be used to define requirements that must be met for a unit
+# test to pass. For example, the `equal` method can be used to assert that two
+# values must be equal to each other.
+#
+# Assertions will throw in the event of a failure, requiring the use of the
+# `try` keyword. The use of `try!` is discouraged as it will result in the
+# entire test suite terminating in the event of an assertion failing.
 import std::conditional::Conditional
 import std::format::Inspect
 import std::operators::(Equal, Greater)
 import std::process::(self, Process)
 import std::string_buffer::StringBuffer
 
-## The result of a PanicTest.
+# The result of a PanicTest.
 object PanicResult {
-  ## A `Boolean` that indicates if a block panicked or not.
+  # A `Boolean` that indicates if a block panicked or not.
   @panicked: Boolean
 
-  ## A `String` containing the panic error message, if a panic happened.
+  # A `String` containing the panic error message, if a panic happened.
   @error: ?String
 
   def init(panicked: Boolean, error: ?String = Nil) {
@@ -35,12 +35,12 @@ object PanicResult {
   }
 }
 
-## A test to verify if a block will panic or not.
+# A test to verify if a block will panic or not.
 object PanicTest {
-  ## The process that owns the test.
+  # The process that owns the test.
   @owner: Process
 
-  ## The `Block` to run.
+  # The `Block` to run.
   @block: lambda
 
   def init(owner: Process, block: lambda) {
@@ -63,7 +63,7 @@ object PanicTest {
   }
 }
 
-## Asserts that the given arguments are equal to each other.
+# Asserts that the given arguments are equal to each other.
 def equal!(T: Inspect + Equal)(given: T, expected: T) {
   (given == expected).if_true {
     return
@@ -79,7 +79,7 @@ def equal!(T: Inspect + Equal)(given: T, expected: T) {
   process.panic(error)
 }
 
-## Asserts that the given arguments are not equal to each other.
+# Asserts that the given arguments are not equal to each other.
 def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
   (given == expected).if_false {
     return
@@ -95,7 +95,7 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
   process.panic(error)
 }
 
-## Asserts that the first argument is greater than the second argument.
+# Asserts that the first argument is greater than the second argument.
 def greater!(T: Inspect + Greater)(given: T, minimum: T) {
   (given > minimum).if_true {
     return
@@ -111,7 +111,7 @@ def greater!(T: Inspect + Greater)(given: T, minimum: T) {
   process.panic(error)
 }
 
-## Asserts that the given lambda panics.
+# Asserts that the given lambda panics.
 def panic(block: lambda) {
   let proc = process.spawn {
     let test = process.receive as PanicTest
@@ -130,7 +130,7 @@ def panic(block: lambda) {
   process.panic('The provided block did not panic')
 }
 
-## Asserts that the given lambda does not panic.
+# Asserts that the given lambda does not panic.
 def no_panic(block: lambda) {
   let proc = process.spawn {
     let test = process.receive as PanicTest
@@ -149,10 +149,10 @@ def no_panic(block: lambda) {
   process.panic('The provided block panicked: ' + result.error.to_string)
 }
 
-## Asserts that the given value is something that evaluates to be truthy.
-##
-## Something is considered to be truthy when its implementation of `if_true`
-## calls the supplied block.
+# Asserts that the given value is something that evaluates to be truthy.
+#
+# Something is considered to be truthy when its implementation of `if_true`
+# calls the supplied block.
 def true!(T: Inspect + Conditional)(value: T) {
   value.if_true {
     return
@@ -163,10 +163,10 @@ def true!(T: Inspect + Conditional)(value: T) {
   process.panic(error)
 }
 
-## Asserts that the given value is something that evaluates to be falsy.
-##
-## Something is considered to be falsy when its implementation of `if_false`
-## calls the supplied block.
+# Asserts that the given value is something that evaluates to be falsy.
+#
+# Something is considered to be falsy when its implementation of `if_false`
+# calls the supplied block.
 def false!(T: Inspect + Conditional)(value: T) {
   value.if_false {
     return

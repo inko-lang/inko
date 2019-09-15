@@ -1,43 +1,43 @@
-#! Types, constants and methods reused by IP and Unix sockets.
-#!
-#! This module should not be used directly, instead one should use
-#! `std::net::socket` and `std::net::unix`.
+# Types, constants and methods reused by IP and Unix sockets.
+#
+# This module should not be used directly, instead one should use
+# `std::net::socket` and `std::net::unix`.
 import std::byte_array::ByteArray
 import std::io::(Error as IoError)
 
-## A marker trait used for values that can be directly sent across a socket.
+# A marker trait used for values that can be directly sent across a socket.
 trait SocketValue {}
 
 impl SocketValue for ByteArray {}
 impl SocketValue for String {}
 
-## The domain for IPv4 sockets.
+# The domain for IPv4 sockets.
 let AF_INET = 0
 
-## The domain for IPv6 sockets.
+# The domain for IPv6 sockets.
 let AF_INET6 = 1
 
-## The domain for Unix sockets.
+# The domain for Unix sockets.
 let AF_UNIX = 2
 
-## The socket type for socket streams.
+# The socket type for socket streams.
 let SOCK_STREAM = 0
 
-## The socket type for datagram sockets.
+# The socket type for datagram sockets.
 let SOCK_DGRAM = 1
 
-## The socket type for sequential packet sockets.
+# The socket type for sequential packet sockets.
 let SOCK_SEQPACKET = 2
 
-## The socket type for raw sockets.
+# The socket type for raw sockets.
 let SOCK_RAW = 3
 
-## The maximum value valid for a listen() call.
-##
-## Linux and FreeBSD do not allow for values greater than this as they
-## internally use an u16, so we'll limit the backlog to this value. We don't use
-## SOMAXCONN because it might be hardcoded. This means that setting
-## `net.core.somaxconn` on Linux (for example) would have no effect.
+# The maximum value valid for a listen() call.
+#
+# Linux and FreeBSD do not allow for values greater than this as they
+# internally use an u16, so we'll limit the backlog to this value. We don't use
+# SOMAXCONN because it might be hardcoded. This means that setting
+# `net.core.somaxconn` on Linux (for example) would have no effect.
 let MAXIMUM_LISTEN_BACKLOG = 65_535
 
 let TTL = 0
@@ -65,9 +65,9 @@ let SHUTDOWN_READ = 0
 let SHUTDOWN_WRITE = 1
 let SHUTDOWN_BOTH = 2
 
-## Sets a socket option to the given value.
-##
-## The allowed value `value` differs based on the value passed to `option`.
+# Sets a socket option to the given value.
+#
+# The allowed value `value` differs based on the value passed to `option`.
 def set_socket_option!(T)(
   socket,
   option: Integer,
@@ -80,9 +80,9 @@ def set_socket_option!(T)(
   }
 }
 
-## Retrieves the value of a socket option.
-##
-## The type of the returned value depends on the `option` argument.
+# Retrieves the value of a socket option.
+#
+# The type of the returned value depends on the `option` argument.
 def get_socket_option!(T)(socket, option: Integer) !! IoError -> T {
   try {
     _INKOC.socket_get_option(socket, option) as T
@@ -91,9 +91,9 @@ def get_socket_option!(T)(socket, option: Integer) !! IoError -> T {
   }
 }
 
-## Obtains the local or peer address of a socket.
+# Obtains the local or peer address of a socket.
 def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
-  let kind = peer.if true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS }
+  let kind = peer.if(true: { PEER_ADDRESS }, false: { LOCAL_ADDRESS })
 
   try {
     _INKOC.socket_address(socket, kind)

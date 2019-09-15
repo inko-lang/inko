@@ -1,16 +1,16 @@
-#! Methods for writing to STDERR.
-#!
-#! This module provides various methods for writing to STDERR. For example,
-#! printing a message to STDERR can be done as follows:
-#!
-#!     import std::stdio::stderr
-#!
-#!     stderr.print('Hello world!') # => Nil
-#!
-#! Unlike other IO methods the methods in this module will not throw any errors,
-#! instead they will swallow them silently. This is done to make writing to
-#! STDERR more convenient as in almost all (if not all) cases a developer
-#! doesn't care if a write to STDERR succeeds or not.
+# Methods for writing to STDERR.
+#
+# This module provides various methods for writing to STDERR. For example,
+# printing a message to STDERR can be done as follows:
+#
+#     import std::stdio::stderr
+#
+#     stderr.print('Hello world!') # => Nil
+#
+# Unlike other IO methods the methods in this module will not throw any errors,
+# instead they will swallow them silently. This is done to make writing to
+# STDERR more convenient as in almost all (if not all) cases a developer
+# doesn't care if a write to STDERR succeeds or not.
 
 import std::byte_array::ByteArray
 import std::conversion::ToString
@@ -19,44 +19,44 @@ import std::os::NEWLINE
 import std::process
 
 impl Write for ThisModule {
-  ## Writes a `ByteArray` to STDERR, returning the number of bytes written.
+  # Writes a `ByteArray` to STDERR, returning the number of bytes written.
   def write_bytes(bytes: ByteArray) -> Integer {
     process.blocking {
       try _INKOC.stderr_write(bytes) else 0
     }
   }
 
-  ## Writes a `ToString` to STDERR, returning the number of bytes written.
-  ##
-  ## # Examples
-  ##
-  ## Writing to STDERR:
-  ##
-  ##     import std::stdio::stderr
-  ##
-  ##     stderr.write_string('hello') # => 5
+  # Writes a `ToString` to STDERR, returning the number of bytes written.
+  #
+  # # Examples
+  #
+  # Writing to STDERR:
+  #
+  #     import std::stdio::stderr
+  #
+  #     stderr.write_string('hello') # => 5
   def write_string(data: ToString) -> Integer {
     process.blocking {
       try _INKOC.stderr_write(data.to_string) else 0
     }
   }
 
-  ## Writes the given string-like object to STDERR, followed by a newline.
-  ##
-  ## # Examples
-  ##
-  ## Writing to STDERR:
-  ##
-  ##     import std::stdio::stderr
-  ##
-  ##     stderr.print('hello') # => Nil
-  ##
-  ## You can also leave out a message to write, in which case only a newline is
-  ## written:
-  ##
-  ##     import std::stdio::stderr
-  ##
-  ##     stderr.print # => Nil
+  # Writes the given string-like object to STDERR, followed by a newline.
+  #
+  # # Examples
+  #
+  # Writing to STDERR:
+  #
+  #     import std::stdio::stderr
+  #
+  #     stderr.print('hello') # => Nil
+  #
+  # You can also leave out a message to write, in which case only a newline is
+  # written:
+  #
+  #     import std::stdio::stderr
+  #
+  #     stderr.print # => Nil
   def print(data: ?ToString = Nil) -> Integer {
     process.blocking {
       let written = try _INKOC.stderr_write(data.to_string) else return 0

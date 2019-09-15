@@ -1,34 +1,34 @@
 import std::conversion::ToString
 import std::string_buffer::StringBuffer
 
-## The value to use for objects if the nesting is too great.
+# The value to use for objects if the nesting is too great.
 let PLACEHOLDER = '...'
 
-## The maximum number of objects to recurse into when formatting an object,
-## before returning a placeholder.
+# The maximum number of objects to recurse into when formatting an object,
+# before returning a placeholder.
 let MAX_DEPTH = 31
 
-## A Formatter can be used to format an object for debugging purposes.
+# A Formatter can be used to format an object for debugging purposes.
 trait Formatter: ToString {
-  ## Pushes the given `String` into the underlying buffer.
+  # Pushes the given `String` into the underlying buffer.
   def push(string: String)
 
-  ## Descends into a child object, running the supplied block if the object
-  ## should be formatted.
-  ##
-  ## This method can be used to produce a placeholder when formatting an object
-  ## that is too deeply nested.
+  # Descends into a child object, running the supplied block if the object
+  # should be formatted.
+  #
+  # This method can be used to produce a placeholder when formatting an object
+  # that is too deeply nested.
   def descend(block: do) {
     block.call
   }
 }
 
-## The default formatter to use when formatting an object.
+# The default formatter to use when formatting an object.
 object DefaultFormatter {
-  ## The buffer to use for the formatting output.
+  # The buffer to use for the formatting output.
   @buffer: StringBuffer
 
-  ## Integer keeping track of how many nested objects we are formatting.
+  # Integer keeping track of how many nested objects we are formatting.
   @nesting: Integer
 
   def init {
@@ -38,54 +38,57 @@ object DefaultFormatter {
 }
 
 impl ToString for DefaultFormatter {
-  ## Returns a `String` containing the data pushed into this buffer so far.
+  # Returns a `String` containing the data pushed into this buffer so far.
   def to_string -> String {
     @buffer.to_string
   }
 }
 
 impl Formatter for DefaultFormatter {
-  ## Pushes a new `String` into the underlying buffer.
+  # Pushes a new `String` into the underlying buffer.
   def push(string: String) {
     @buffer.push(string)
   }
 
-  ## Descends into a child object, running the supplied block if our nesting is
-  ## not too great.
-  ##
-  ## If nesting _is_ too great, a placeholder value is added to the buffer, and
-  ## the supplied block is not executed.
+  # Descends into a child object, running the supplied block if our nesting is
+  # not too great.
+  #
+  # If nesting _is_ too great, a placeholder value is added to the buffer, and
+  # the supplied block is not executed.
   def descend(block: do) {
-    (@nesting >= MAX_DEPTH).if true: {
-      push(PLACEHOLDER)
-    }, false: {
-      @nesting += 1
+    (@nesting >= MAX_DEPTH).if(
+      true: {
+        push(PLACEHOLDER)
+      },
+      false: {
+        @nesting += 1
 
-      block.call
+        block.call
 
-      @nesting -= 1
-    }
+        @nesting -= 1
+      }
+    )
   }
 }
 
-## A Trait that can be implemented to format an object for debugging purposes.
+# A Trait that can be implemented to format an object for debugging purposes.
 trait Inspect {
-  ## Returns a human-readable representation of the object.
+  # Returns a human-readable representation of the object.
   def inspect -> String {
     ThisModule.inspect(self)
   }
 
-  ## Formats an object using the given formatter.
-  ##
-  ## Objects implementing this method should push their values into the given
-  ## `Formatter`, instead of immediately returning a `String`.
+  # Formats an object using the given formatter.
+  #
+  # Objects implementing this method should push their values into the given
+  # `Formatter`, instead of immediately returning a `String`.
   def format_for_inspect(formatter: Formatter)
 }
 
-## Returns a human-readable representation of the object.
-##
-## This method provides a default implementation of "inspect", allowing objects
-## to redefine this method, without having to redefine all logic from scratch.
+# Returns a human-readable representation of the object.
+#
+# This method provides a default implementation of "inspect", allowing objects
+# to redefine this method, without having to redefine all logic from scratch.
 def inspect(value: Inspect) -> String {
   let formatter = DefaultFormatter.new
 

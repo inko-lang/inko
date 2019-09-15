@@ -1,20 +1,20 @@
-#! Runtime debugging functionality
-#!
-#! This module provides various facilities for debugging programs during
-#! runtime, such as obtaining stack traces.
+# Runtime debugging functionality
+#
+# This module provides various facilities for debugging programs during
+# runtime, such as obtaining stack traces.
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::string_buffer::StringBuffer
 
-## Details of a single call frame in a call stack.
+# Details of a single call frame in a call stack.
 object CallFrame {
-  ## The path of the file the frame belongs to.
+  # The path of the file the frame belongs to.
   @path: Path
 
-  ## The name of the block of code the frame belongs to.
+  # The name of the block of code the frame belongs to.
   @name: String
 
-  ## The line number the call frame originates from.
+  # The line number the call frame originates from.
   @line: Integer
 
   def init(path: ToPath, name: String, line: Integer) {
@@ -23,24 +23,24 @@ object CallFrame {
     @line = line
   }
 
-  ## Returns the path of the file the frame belongs to.
+  # Returns the path of the file the frame belongs to.
   def path -> Path {
     @path
   }
 
-  ## Returns the name of the block of code the frame belongs to.
+  # Returns the name of the block of code the frame belongs to.
   def name -> String {
     @name
   }
 
-  ## Returns the line number of the frame.
+  # Returns the line number of the frame.
   def line -> Integer {
     @line
   }
 }
 
 impl ToString for CallFrame {
-  ## Formats the CallFrame as a String
+  # Formats the CallFrame as a String
   def to_string -> String {
     let buffer = StringBuffer.new(
       @path.to_string.inspect,
@@ -54,40 +54,40 @@ impl ToString for CallFrame {
   }
 }
 
-## Returns a stack trace leading up to the line that called this method.
-##
-## The stack trace is returned in reverse order. This means that the most recent
-## call frame is the last value in the returned `Array`.
-##
-## The returned stack trace does not include the frame for this method itself.
-##
-## # Skipping
-##
-## The `skip` argument can be set to an integer to skip a number of call frames.
-## By default this is set to skip the first frame, ensuring that this method
-## itself does not appear in the returned stack.
-##
-## # Limit
-##
-## An optional limit can be specified to limit the number of call frames to the
-## given number, starting with the most recent call frame.
-##
-## # Example
-##
-## Returning the trace of a method call:
-##
-##     import std::debug::(self, CallFrame)
-##
-##     def first -> CallFrame {
-##       second
-##     }
-##
-##     def second -> CallFrame {
-##       debug.stacktrace[-1]
-##     }
-##
-##     first.name # => 'second'
-##     first.line # => 8
+# Returns a stack trace leading up to the line that called this method.
+#
+# The stack trace is returned in reverse order. This means that the most recent
+# call frame is the last value in the returned `Array`.
+#
+# The returned stack trace does not include the frame for this method itself.
+#
+# # Skipping
+#
+# The `skip` argument can be set to an integer to skip a number of call frames.
+# By default this is set to skip the first frame, ensuring that this method
+# itself does not appear in the returned stack.
+#
+# # Limit
+#
+# An optional limit can be specified to limit the number of call frames to the
+# given number, starting with the most recent call frame.
+#
+# # Example
+#
+# Returning the trace of a method call:
+#
+#     import std::debug::(self, CallFrame)
+#
+#     def first -> CallFrame {
+#       second
+#     }
+#
+#     def second -> CallFrame {
+#       debug.stacktrace[-1]
+#     }
+#
+#     first.name # => 'second'
+#     first.line # => 8
 def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   let mut raw_frames = _INKOC.stacktrace(limit, skip)
   let mut frames = Array.new
@@ -109,13 +109,13 @@ def stacktrace(skip = 1, limit: ?Integer = Nil) -> Array!(CallFrame) {
   frames
 }
 
-## Returns the last `CallFrame` originating from the given `Path`.
-##
-## # Examples
-##
-## Obtaining the last `CallFrame` from a given file:
-##
-##     import std::debug
+# Returns the last `CallFrame` originating from the given `Path`.
+#
+# # Examples
+#
+# Obtaining the last `CallFrame` from a given file:
+#
+#     import std::debug
 def last_call_frame_in(file: ToPath) -> CallFrame {
   let frames = stacktrace(skip: 1)
   let default = frames[-1]!

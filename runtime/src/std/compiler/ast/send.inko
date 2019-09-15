@@ -1,0 +1,96 @@
+# AST types message sends.
+import std::compiler::ast::node::Node
+import std::compiler::ast::variables::*
+import std::compiler::source_location::SourceLocation
+
+# A keyword argument and its value.
+object KeywordArgument {
+  # The name of the keyword argument.
+  @name: Identifier
+
+  # The value of the argument.
+  @value: Node
+
+  # The source location of the send operation.
+  @location: SourceLocation
+
+  def init(name: Identifier, value: Node, location: SourceLocation) {
+    @name = name
+    @value = value
+    @location = location
+  }
+
+  # Returns the name of the keyword argument.
+  def name -> Identifier {
+    @name
+  }
+
+  # Returns the value of the keyword argument.
+  def value -> Node {
+    @value
+  }
+}
+
+impl Node for KeywordArgument {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A message sent to a receiver.
+object Send {
+  # The name of the message that is sent.
+  @message: String
+
+  # The receiver the message is sent to.
+  @receiver: Node
+
+  # The arguments passed with the message.
+  @arguments: Array!(Node)
+
+  # Any type arguments used to initialise type parameters.
+  @type_arguments: Array!(Node)
+
+  # The source location of the send operation.
+  @location: SourceLocation
+
+  def init(
+    message: String,
+    receiver: Node,
+    arguments: Array!(Node),
+    type_arguments: Array!(Node),
+    location: SourceLocation
+  ) {
+    @message = message
+    @receiver = receiver
+    @arguments = arguments
+    @type_arguments = type_arguments
+    @location = location
+  }
+
+  # Returns the message that is sent.
+  def message -> String {
+    @message
+  }
+
+  # Returns the receiver the message is sent to.
+  def receiver -> Node {
+    @receiver
+  }
+
+  # Returns the arguments for the message.
+  def arguments -> Array!(Node) {
+    @arguments
+  }
+
+  # Returns the type arguments used to initialise any type parameters.
+  def type_arguments -> Array!(Node) {
+    @type_arguments
+  }
+}
+
+impl Node for Send {
+  def location -> SourceLocation {
+    @location
+  }
+}

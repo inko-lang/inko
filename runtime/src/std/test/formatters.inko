@@ -1,4 +1,4 @@
-#! Built-in formatters for test suites.
+# Built-in formatters for test suites.
 import std::ansi::(self, BOLD, CYAN, GREEN, RED)
 import std::conversion::ToString
 import std::debug::CallFrame
@@ -9,24 +9,24 @@ import std::test::formatter::Formatter
 import std::test::test::Test
 import std::time::Duration
 
-## The minimum amount of time (in seconds) the test suite should run, before
-## displaying the execution time in seconds.
+# The minimum amount of time (in seconds) the test suite should run, before
+# displaying the execution time in seconds.
 let TIME_IN_SECONDS_THRESHOLD = 1.0
 
-## A formatter that displays tests similar to a progress bar.
-##
-#! The produced output is inspired by existing test frameworks such as RSpec and
-#! ExUnit. Output is colorised using ANSI escape sequences, though this can be
-#! disabled if necessary.
-##
-## Passed tests are displayed as a ".", while failed tests are displayed as "F".
-## All output is written to STDOUT.
+# A formatter that displays tests similar to a progress bar.
+#
+# The produced output is inspired by existing test frameworks such as RSpec and
+# ExUnit. Output is colorised using ANSI escape sequences, though this can be
+# disabled if necessary.
+#
+# Passed tests are displayed as a ".", while failed tests are displayed as "F".
+# All output is written to STDOUT.
 object ProgressFormatter {
-  ## The number of failed tests.
+  # The number of failed tests.
   @failed: Integer
 
-  ## When set to `True`, certain parts of the output will be wrapped in ANSI
-  ## escape sequences.
+  # When set to `True`, certain parts of the output will be wrapped in ANSI
+  # escape sequences.
   @colors: Boolean
 
   def init(colors = True) {
@@ -34,39 +34,33 @@ object ProgressFormatter {
     @colors = colors
   }
 
-  ## Returns the location of a test failure.
+  # Returns the location of a test failure.
   def format_location(location: CallFrame) -> String {
     StringBuffer
       .new(location.path.to_string, ':', location.line.to_string)
       .to_string
   }
 
-  ## Returns the unit of time to use for displaying the test suite execution
-  ## time.
+  # Returns the unit of time to use for displaying the test suite execution
+  # time.
   def test_suite_duration_unit(duration: Duration) -> String {
-    (duration.as_seconds > TIME_IN_SECONDS_THRESHOLD).if true: {
-      'seconds'
-    }, false: {
-      'milliseconds'
-    }
+    (duration.as_seconds > TIME_IN_SECONDS_THRESHOLD)
+      .if(true: { 'seconds' }, false: { 'milliseconds' })
   }
 
-  ## Returns the duration of the test suite as a Float.
-  ##
-  ## If the test suite took more than 1 second to execute, then the returned
-  ## value is in seconds. If the suite took less than 1 second, then the value
-  ## is in milliseconds instead.
+  # Returns the duration of the test suite as a Float.
+  #
+  # If the test suite took more than 1 second to execute, then the returned
+  # value is in seconds. If the suite took less than 1 second, then the value
+  # is in milliseconds instead.
   def test_suite_duration_time(duration: Duration) -> Float {
     let time = duration.as_seconds
 
-    (time > TIME_IN_SECONDS_THRESHOLD).if true: {
-      time
-    }, false: {
-      duration.as_milliseconds
-    }
+    (time > TIME_IN_SECONDS_THRESHOLD)
+      .if(true: { time }, false: { duration.as_milliseconds })
   }
 
-  ## Returns a `String` containing some statistics about the test suite.
+  # Returns a `String` containing some statistics about the test suite.
   def test_suite_statistics(tests: Array!(Test)) -> String {
     let statistics = StringBuffer.new(
       tests.length.to_string,
@@ -75,11 +69,9 @@ object ProgressFormatter {
       ' failures ',
     )
 
-    @failed.positive?.if true: {
-      red(statistics)
-    }, false: {
-      green(statistics)
-    }
+    @failed
+      .positive?
+      .if(true: { red(statistics) }, false: { green(statistics) })
   }
 
   def green(string: ToString) -> String {
@@ -99,11 +91,10 @@ object ProgressFormatter {
   }
 
   def color(string: ToString, code: String) -> String {
-    @colors.if true: {
-      ansi.wrap(string: string, code: code)
-    }, false: {
-      string.to_string
-    }
+    @colors.if(
+      true: { ansi.wrap(string: string, code: code) },
+      false: { string.to_string }
+    )
   }
 }
 
@@ -118,7 +109,7 @@ impl Formatter for ProgressFormatter {
     stdout.write_string(red('F'))
   }
 
-  ## Displays a list of all the failed tests.
+  # Displays a list of all the failed tests.
   def failures(tests: Array!(Test)) {
     stdout.write_string("\n\nFailures:")
 
@@ -147,7 +138,7 @@ impl Formatter for ProgressFormatter {
     }
   }
 
-  ## Displays a summary of the test suite, once the suite has finished running.
+  # Displays a summary of the test suite, once the suite has finished running.
   def summary(tests: Array!(Test), duration: Duration) {
     let buffer = StringBuffer.new(
       "\n\nFinished running in ",

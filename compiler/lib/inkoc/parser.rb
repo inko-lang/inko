@@ -182,7 +182,7 @@ module Inkoc
 
       loop do
         case step.type
-        when :identifier, :object, :trait
+        when :identifier, :object, :trait, :return
           steps << identifier_from_token(step)
         when :constant
           symbol = import_symbol_from_token(step)

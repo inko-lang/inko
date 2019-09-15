@@ -1,0 +1,113 @@
+# AST types for import statements.
+import std::compiler::ast::node::Node
+import std::compiler::ast::variables::Identifier
+import std::compiler::source_location::SourceLocation
+
+# The alias to import a symbol under.
+object ImportAlias {
+  # The name of the alias.
+  @name: String
+
+  # The source location of the import alias.
+  @location: SourceLocation
+
+  def init(name: String, location: SourceLocation) {
+    @name = name
+    @location = location
+  }
+
+  # Returns the name of the alias.
+  def name -> String {
+    @name
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A symbol to import, with an optional alias.
+object ImportSymbol {
+  # The name of the symbol to import.
+  @name: String
+
+  # The alias to use for the symbol, if any.
+  @alias: ?ImportAlias
+
+  # The source location of the symbol that is imported.
+  @location: SourceLocation
+
+  def init(name: String, location: SourceLocation, alias: ?ImportAlias = Nil) {
+    @name = name
+    @location = location
+    @alias = alias
+  }
+
+  # Returns the alias of the imported symbol.
+  def alias -> ?ImportAlias {
+    @alias
+  }
+
+  # Returns the name of the symbol being imported.
+  def name -> String {
+    @name
+  }
+
+  # Returns `True` if the module itself is being imported.
+  def import_self? -> Boolean {
+    @name == 'self'
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A single import statement, containing a list of symbols to import.
+object Import {
+  # The path to the module to import.
+  @path: Array!(Identifier)
+
+  # The symbols to import.
+  @symbols: Array!(ImportSymbol)
+
+  # The source location of the import.
+  @location: SourceLocation
+
+  # A boolean indicating if all symbols should be imported (True), instead of a
+  # specific list.
+  @import_all: Boolean
+
+  def init(
+    path: Array!(Identifier),
+    symbols: Array!(ImportSymbol),
+    import_all: Boolean,
+    location: SourceLocation
+  ) {
+    @path = path
+    @symbols = symbols
+    @import_all = import_all
+    @location = location
+  }
+
+  # Returns the import path, consisting out of one or more identifiers.
+  def path -> Array!(Identifier) {
+    @path
+  }
+
+  # Returns the symbols to import, if any.
+  def symbols -> Array!(ImportSymbol) {
+    @symbols
+  }
+
+  ## Returns `True` if all symbols should be imported from the module.
+  def import_all? -> Boolean {
+    @import_all
+  }
+}
+
+impl Node for Import {
+  def location -> SourceLocation {
+    @location
+  }
+}

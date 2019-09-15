@@ -1,7 +1,7 @@
-#! Types for core IO functionality.
-#!
-#! The IO module provides the basic building blocks for IO operations such as
-#! reading from and writing to a file.
+# Types for core IO functionality.
+#
+# The IO module provides the basic building blocks for IO operations such as
+# reading from and writing to a file.
 
 import std::byte_array::ByteArray
 import std::conversion::ToString
@@ -9,39 +9,39 @@ import std::error::StandardError
 import std::os::NEWLINE
 import std::string
 
-## The object to use when throwing IO related errors.
-##
-## This is simply a re-exported `StandardError` so code using this type doesn't
-## have to be changed if we ever decide to use a custom object for errors.
+# The object to use when throwing IO related errors.
+#
+# This is simply a re-exported `StandardError` so code using this type doesn't
+# have to be changed if we ever decide to use a custom object for errors.
 let Error = StandardError
 
-## A trait for closing streams, such as files and sockets.
+# A trait for closing streams, such as files and sockets.
 trait Close {
-  ## Closes the stream.
-  ##
-  ## After a stream is closed, any reads or writes might panic.
+  # Closes the stream.
+  #
+  # After a stream is closed, any reads or writes might panic.
   def close -> Nil
 }
 
-## Trait for retrieving the size of an IO object.
+# Trait for retrieving the size of an IO object.
 trait Size {
   def size !! Error -> Integer
 }
 
-## Trait for reading from a stream.
+# Trait for reading from a stream.
 trait Read {
-  ## Reads bytes from a stream into a `ByteArray`.
-  ##
-  ## The return value is the number of bytes read.
-  ##
-  ## If no argument is given, all remaining data is to be read. If the `size`
-  ## argument is given, up to `size` bytes will be read from the stream.
+  # Reads bytes from a stream into a `ByteArray`.
+  #
+  # The return value is the number of bytes read.
+  #
+  # If no argument is given, all remaining data is to be read. If the `size`
+  # argument is given, up to `size` bytes will be read from the stream.
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! Error -> Integer
 
-  ## Reads data from a stream into a `String`.
-  ##
-  ## If no argument is given, all remaining data is to be read. If the `size`
-  ## argument is given, up to `size` bytes will be read from the stream.
+  # Reads data from a stream into a `String`.
+  #
+  # If no argument is given, all remaining data is to be read. If the `size`
+  # argument is given, up to `size` bytes will be read from the stream.
   def read_string(size: ?Integer = Nil) !! Error -> String {
     let bytes = ByteArray.new
 
@@ -51,28 +51,28 @@ trait Read {
   }
 }
 
-## Trait for writing to a stream.
+# Trait for writing to a stream.
 trait Write {
-  ## Writes an `Array` of bytes to the stream, returning the number of bytes
-  ## written.
+  # Writes an `Array` of bytes to the stream, returning the number of bytes
+  # written.
   def write_bytes(bytes: ByteArray) !! Error -> Integer
 
-  ## Writes a `ToString` to the stream, returning the number of bytes written.
+  # Writes a `ToString` to the stream, returning the number of bytes written.
   def write_string(string: ToString) !! Error -> Integer
 
-  ## Flushes any pending writes.
+  # Flushes any pending writes.
   def flush !! Error -> Nil
 
-  ## Writes the given `String` to the stream, followed by a line separator.
-  ##
-  ## The return value is the number of bytes written to the stream.
+  # Writes the given `String` to the stream, followed by a line separator.
+  #
+  # The return value is the number of bytes written to the stream.
   def print(data: ?ToString = Nil) !! Error -> Integer {
     ( try write_string(data.to_string) ) + ( try write_string(NEWLINE) )
   }
 }
 
-## Trait for seeking to a given offset in a stream of bytes.
+# Trait for seeking to a given offset in a stream of bytes.
 trait Seek {
-  ## Seeks to the given byte offset, returning the new offset.
+  # Seeks to the given byte offset, returning the new offset.
   def seek(position: Integer) !! Error -> Integer
 }

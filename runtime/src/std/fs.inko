@@ -1,49 +1,49 @@
-#! Types and methods for manipulating the filesystem.
+# Types and methods for manipulating the filesystem.
 
 import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, CREATED_AT, MODIFIED_AT, ACCESSED_AT)
 import std::io::(Error as IOError)
 import std::time::SystemTime
 
-## Returns the file size (in bytes) of the given path.
-##
-## # Examples
-##
-## Getting the size of a path:
-##
-##     import std::fs
-##
-##     try! fs.size('/dev/null') # => 0
+# Returns the file size (in bytes) of the given path.
+#
+# # Examples
+#
+# Getting the size of a path:
+#
+#     import std::fs
+#
+#     try! fs.size('/dev/null') # => 0
 def size(path: ToPath) !! IOError -> Integer {
   try raw.size(path.to_path.to_string)
 }
 
-## Returns the creation time of a path.
+# Returns the creation time of a path.
 def created_at(path: ToPath) !! IOError -> SystemTime {
   try raw.created_at(path.to_path.to_string)
 }
 
-## Returns the modification time of a path.
+# Returns the modification time of a path.
 def modified_at(path: ToPath) !! IOError -> SystemTime {
   try raw.modified_at(path.to_path.to_string)
 }
 
-## Returns the access time of a path.
+# Returns the access time of a path.
 def accessed_at(path: ToPath) !! IOError -> SystemTime {
   try raw.accessed_at(path.to_path.to_string)
 }
 
-## Returns `True` if the path points to a file.
+# Returns `True` if the path points to a file.
 def file?(path: ToPath) -> Boolean {
   raw.file?(path.to_path.to_string)
 }
 
-## Returns `True` if the path points to a directory.
+# Returns `True` if the path points to a directory.
 def directory?(path: ToPath) -> Boolean {
   raw.directory?(path.to_path.to_string)
 }
 
-## Returns `True` if the path points to an existing file or directory.
+# Returns `True` if the path points to an existing file or directory.
 def exists?(path: ToPath) -> Boolean {
   raw.exists?(path.to_path.to_string)
 }

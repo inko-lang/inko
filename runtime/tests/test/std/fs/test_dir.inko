@@ -8,7 +8,7 @@ import std::test
 import std::test::assert
 import std::stdio::stdout
 
-## The path of the base temporary directory, such as /tmp on Linux.
+# The path of the base temporary directory, such as /tmp on Linux.
 let TEMP = env.temporary_directory.to_string
 
 def temp_dir(components = Array.new!(String)) -> String {

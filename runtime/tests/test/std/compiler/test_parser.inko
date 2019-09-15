@@ -1,0 +1,1722 @@
+import std::compiler::ast::blocks::*
+import std::compiler::ast::comments::*
+import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::imports::Import
+import std::compiler::ast::literals::*
+import std::compiler::ast::node::Node
+import std::compiler::ast::objects::*
+import std::compiler::ast::operators::*
+import std::compiler::ast::control_flow::*
+import std::compiler::ast::send::*
+import std::compiler::ast::types::*
+import std::compiler::ast::variables::*
+import std::compiler::parser::Parser
+import std::conversion::ToString
+import std::mirror
+import std::string_buffer::StringBuffer
+import std::test
+import std::test::assert
+
+def instance_of(node: Node, instance_of: Node) -> Boolean {
+  mirror.reflect_object(node).instance_of?(instance_of)
+}
+
+def assert_instance_of(node: Node, instance_of: Node) {
+  assert.true(instance_of(node, instance_of))
+}
+
+def parse(input: String) -> Expressions {
+  let parser = Parser.new(input: input, file: 'test.inko')
+
+  try! parser.parse
+}
+
+def parse_as!(T: Node)(input: ToString, type: T) -> T {
+  let parser = Parser.new(input: input.to_string, file: 'test.inko')
+  let nodes = try! parser.parse
+  let node = nodes.children[0]!
+
+  assert_instance_of(node, type)
+
+  node as T
+}
+
+def binary_send(operator: String) {
+  let node = parse_as(input: StringBuffer.new('1 ', operator, ' 2'), type: Send)
+
+  assert.equal(node.message, operator)
+  assert.equal(node.arguments.length, 1)
+
+  let rec = node.receiver as IntegerLiteral
+  let arg = node.arguments[0]! as IntegerLiteral
+
+  assert.equal(rec.value, '1')
+  assert.equal(arg.value, '2')
+}
+
+def binary_assign_local(operator: String, message: String) {
+  let input = StringBuffer.new('foo', operator, '10').to_string
+  let node = parse_as(input: input, type: Assign)
+
+  assert_instance_of(node.value, Send)
+
+  let send = node.value as Send
+
+  assert.equal(send.message, message)
+  assert.equal(send.arguments.length, 1)
+
+  assert_instance_of(send.receiver, Identifier)
+  assert.equal((send.receiver as Identifier).name, 'foo')
+
+  assert_instance_of(send.arguments[0]!, IntegerLiteral)
+  assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
+}
+
+def binary_assign_attribute(operator: String, message: String) {
+  let input = StringBuffer.new('@foo', operator, '10').to_string
+  let node = parse_as(input: input, type: Assign)
+
+  assert_instance_of(node.value, Send)
+
+  let send = node.value as Send
+
+  assert.equal(send.message, message)
+  assert.equal(send.arguments.length, 1)
+
+  assert_instance_of(send.receiver, Attribute)
+  assert.equal((send.receiver as Attribute).name, '@foo')
+
+  assert_instance_of(send.arguments[0]!, IntegerLiteral)
+  assert.equal((send.arguments[0] as IntegerLiteral).value, '10')
+}
+
+test.group('Parsing import expressions') do (g) {
+  g.test('Importing a module') {
+    let node = parse_as(input: 'import foo', type: Import)
+
+    assert.equal(node.location.column, 1)
+
+    assert.equal(node.path[0].name, 'foo')
+    assert.equal(node.path[0].location.column, 8)
+  }
+
+  g.test('Importing a child module') {
+    let node = parse_as(input: 'import foo::bar', type: Import)
+
+    assert.equal(node.path[0].name, 'foo')
+    assert.equal(node.path[0].location.column, 8)
+
+    assert.equal(node.path[1].name, 'bar')
+    assert.equal(node.path[1].location.column, 13)
+  }
+
+  g.test('Importing a module that uses the same name as a keyword') {
+    let node = parse_as(input: 'import import::where', type: Import)
+
+    assert.equal(node.path[0].name, 'import')
+    assert.equal(node.path[0].location.column, 8)
+
+    assert.equal(node.path[1].name, 'where')
+    assert.equal(node.path[1].location.column, 16)
+  }
+
+  g.test('Importing a single symbol') {
+    let node = parse_as(input: 'import std::foo::(bar)', type: Import)
+
+    assert.equal(node.symbols[0].name, 'bar')
+    assert.false(node.symbols[0].import_self?)
+    assert.equal(node.symbols[0].location.column, 19)
+  }
+
+  g.test('Importing a single symbol with an alias') {
+    let node = parse_as(input: 'import std::foo::(bar as baz)', type: Import)
+
+    assert.equal(node.symbols[0].name, 'bar')
+    assert.false(node.symbols[0].import_self?)
+    assert.equal(node.symbols[0].location.column, 19)
+
+    assert.equal(node.symbols[0].alias.name, 'baz')
+    assert.equal(node.symbols[0].alias.location.column, 26)
+  }
+
+  g.test('Importing multiple symbols') {
+    let node = parse_as(input: 'import std::foo::(bar, baz)', type: Import)
+
+    assert.equal(node.symbols[0].name, 'bar')
+    assert.equal(node.symbols[0].location.column, 19)
+
+    assert.equal(node.symbols[1].name, 'baz')
+    assert.equal(node.symbols[1].location.column, 24)
+  }
+
+  g.test('Importing a module using the self keyword') {
+    let node = parse_as(input: 'import std::(self)', type: Import)
+
+    assert.equal(node.symbols[0].name, 'self')
+    assert.equal(node.symbols[0].location.column, 14)
+    assert.true(node.symbols[0].import_self?)
+  }
+
+  g.test('Importing a single symbol with a trailing comma') {
+    let node = parse_as(input: 'import std::foo::(bar,)', type: Import)
+
+    assert.equal(node.symbols[0].name, 'bar')
+    assert.false(node.symbols[0].import_self?)
+    assert.equal(node.symbols[0].location.column, 19)
+  }
+
+  g.test('Importing a wildcard') {
+    let node = parse_as(input: 'import std::foo::*', type: Import)
+
+    assert.true(node.import_all?)
+    assert.true(node.symbols.empty?)
+  }
+
+  g.test('Importing a wildcard and specific symbols') {
+    assert.panic {
+      parse('import foo::(*, bar)')
+    }
+  }
+
+  g.test('Importing a module using an invalid import path') {
+    assert.panic {
+      parse('import foo::')
+    }
+
+    assert.panic {
+      parse('import foo::10')
+    }
+  }
+
+  g.test('Importing a module with an invalid symbol list') {
+    assert.panic {
+      parse('import foo::(bar baz)')
+    }
+  }
+
+  g.test('Importing a module with a symbol alias that is missing a name') {
+    assert.panic {
+      parse('import foo::(bar as)')
+    }
+  }
+}
+
+test.group('Parsing literls') do (g) {
+  g.test('Parsing an integer literal') {
+    let node = parse_as(input: '10', type: IntegerLiteral)
+
+    assert.equal(node.value, '10')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Parsing a float literal') {
+    let node = parse_as(input: '10.5', type: FloatLiteral)
+
+    assert.equal(node.value, '10.5')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Parsing a string literal') {
+    let node = parse_as(input: '"hello"', type: StringLiteral)
+
+    assert.equal(node.value, 'hello')
+    assert.equal(node.location.column, 1)
+  }
+}
+
+test.group('Parsing object definitions') do (g) {
+  g.test('Parsing an empty body') {
+    let node = parse_as(input: 'object A {}', type: ObjectDefinition)
+
+    assert.equal(node.name.name, 'A')
+    assert.equal(node.name.location.column, 8)
+
+    assert.true(node.body.children.empty?)
+    assert.equal(node.body.location.column, 10)
+  }
+
+  g.test('Parsing an object definition with type parameters') {
+    let node = parse_as(
+      input: 'object A!(One: A, Two: B + C) {}',
+      type: ObjectDefinition
+    )
+
+    let params = node.type_parameters
+
+    assert.equal(params.length, 2)
+
+    assert.equal(params[0].name, 'One')
+    assert.equal(params[0].location.column, 11)
+
+    assert.equal(params[0].required_traits[0].name, 'A')
+    assert.equal(params[0].required_traits[0].location.column, 16)
+
+    assert.equal(params[1].name, 'Two')
+    assert.equal(params[1].location.column, 19)
+
+    assert.equal(params[1].required_traits[0].name, 'B')
+    assert.equal(params[1].required_traits[0].location.column, 24)
+
+    assert.equal(params[1].required_traits[1].name, 'C')
+    assert.equal(params[1].required_traits[1].location.column, 28)
+  }
+
+  g.test('Parsing an invalid list of type parameters') {
+    assert.panic {
+      parse('object A!(Foo, {}')
+    }
+  }
+
+  g.test('Parsing an object body without a closing curly brace') {
+    assert.panic {
+      parse('object A {')
+    }
+  }
+
+  g.test('Parsing an object body with invalid child nodes') {
+    assert.panic {
+      parse('object A { 10 }')
+    }
+  }
+
+  g.test('Parsing an object without a name') {
+    assert.panic {
+      parse('object {}')
+    }
+  }
+
+  g.test('Parsing an object containing a method') {
+    let node =
+      parse_as(input: 'object A { def foo {} }', type: ObjectDefinition)
+
+    assert_instance_of(node.body.children[0]!, MethodDefinition)
+  }
+
+  g.test('Parsing an object containing attribute definitions') {
+    let node =
+      parse_as(input: 'object A { @a: A @b: B }', type: ObjectDefinition)
+
+    assert.equal(node.body.children.length, 2)
+
+    let attr1 = node.body.children[0] as AttributeDefinition
+    let attr2 = node.body.children[1] as AttributeDefinition
+
+    assert.equal(attr1.name, '@a')
+    assert.equal((attr1.type as Constant).name, 'A')
+
+    assert.equal(attr2.name, '@b')
+    assert.equal((attr2.type as Constant).name, 'B')
+  }
+}
+
+test.group('Parsing trait definitions') do (g) {
+  g.test('Parsing an empty body') {
+    let node = parse_as(input: 'trait A {}', type: TraitDefinition)
+
+    assert.equal(node.name.name, 'A')
+    assert.equal(node.name.location.column, 7)
+
+    assert.true(node.body.children.empty?)
+    assert.equal(node.body.location.column, 9)
+  }
+
+  g.test('Parsing a trait definition with type parameters') {
+    let node = parse_as(
+      input: 'trait A!(One: A, Two: B + C) {}',
+      type: TraitDefinition
+    )
+
+    let params = node.type_parameters
+
+    assert.equal(params.length, 2)
+
+    assert.equal(params[0].name, 'One')
+    assert.equal(params[0].location.column, 10)
+
+    assert.equal(params[0].required_traits[0].name, 'A')
+    assert.equal(params[0].required_traits[0].location.column, 15)
+
+    assert.equal(params[1].name, 'Two')
+    assert.equal(params[1].location.column, 18)
+
+    assert.equal(params[1].required_traits[0].name, 'B')
+    assert.equal(params[1].required_traits[0].location.column, 23)
+
+    assert.equal(params[1].required_traits[1].name, 'C')
+    assert.equal(params[1].required_traits[1].location.column, 27)
+  }
+
+  g.test('Parsing a list of required traits') {
+    let node = parse_as(input: 'trait A: B + C {}', type: TraitDefinition)
+
+    let traits = node.required_traits
+
+    assert.equal(traits.length, 2)
+
+    assert.equal(traits[0].name, 'B')
+    assert.equal(traits[0].location.column, 10)
+
+    assert.equal(traits[1].name, 'C')
+    assert.equal(traits[1].location.column, 14)
+  }
+
+  g.test('Parsing an invalid list of type parameters') {
+    assert.panic {
+      parse('trait A!(Foo, {}')
+    }
+  }
+
+  g.test('Parsing a trait body without a closing curly brace') {
+    assert.panic {
+      parse('trait A {')
+    }
+  }
+
+  g.test('Parsing a trait body with invalid child nodes') {
+    assert.panic {
+      parse('trait A { 10 }')
+    }
+  }
+
+  g.test('Parsing a trait without a name') {
+    assert.panic {
+      parse('trait {}')
+    }
+  }
+
+  g.test('Parsing a trait containing a method') {
+    let node =
+      parse_as(input: 'trait A { def foo {} }', type: TraitDefinition)
+
+    assert_instance_of(node.body.children[0]!, MethodDefinition)
+  }
+
+  g.test('Parsing a trait with a required method') {
+    let node = parse_as(
+      input: 'trait A { def foo(a: A) !! B -> C }',
+      type: TraitDefinition
+    )
+
+    let method = node.body.children[0]! as RequiredMethodDefinition
+
+    assert_instance_of(method, RequiredMethodDefinition)
+    assert.equal(method.name, 'foo')
+
+    assert.equal(method.arguments.length, 1)
+    assert.equal(method.arguments[0].name, 'a')
+    assert.equal((method.arguments[0].value_type as Constant).name, 'A')
+
+    assert.equal((method.throw_type as Constant).name, 'B')
+    assert.equal((method.return_type as Constant).name, 'C')
+  }
+}
+
+test.group('Parsing implementation blocks') do (g) {
+  g.test('Reopening an object without type parameters') {
+    let node = parse_as(input: 'impl A {}', type: ReopenObject)
+
+    assert.equal(node.name.name, 'A')
+    assert.equal(node.name.location.column, 6)
+
+    assert.true(node.body.children.empty?)
+  }
+
+  g.test('Reopening an object with type arguments') {
+    let node = parse_as(input: 'impl A!(B, C) {}', type: ReopenObject)
+    let params = node.name.type_arguments
+
+    assert.equal(params.length, 2)
+    assert.equal((params[0] as Constant).name, 'B')
+    assert.equal((params[1] as Constant).name, 'C')
+  }
+
+  g.test('Implementing a trait') {
+    let node = parse_as(input: 'impl A for B {}', type: ImplementTrait)
+
+    assert.equal(node.trait_name.name, 'A')
+    assert.equal(node.trait_name.location.column, 6)
+
+    assert.equal(node.object_name.name, 'B')
+    assert.equal(node.object_name.location.column, 12)
+  }
+
+  g.test('Implementing a trait with type arguments') {
+    let node = parse_as(input: 'impl A!(C) for B!(D) {}', type: ImplementTrait)
+
+    assert.equal(node.trait_name.name, 'A')
+    assert.equal((node.trait_name.type_arguments[0] as Constant).name, 'C')
+
+    assert.equal(node.object_name.name, 'B')
+    assert.equal((node.object_name.type_arguments[0] as Constant).name, 'D')
+  }
+
+  g.test('Implementing a trait with trait bounds') {
+    let node =
+      parse_as(input: 'impl A for B!(C) where C: D, E: F {}', type: ImplementTrait)
+
+    let bounds = node.trait_bounds
+
+    assert.equal(bounds[0].name, 'C')
+    assert.equal(bounds[0].required_traits[0].name, 'D')
+
+    assert.equal(bounds[1].name, 'E')
+    assert.equal(bounds[1].required_traits[0].name, 'F')
+  }
+
+  g.test('Reopening an object without closing the body') {
+    assert.panic {
+      parse('impl Foo {')
+    }
+  }
+
+  g.test('Reopening an object with an invalid name') {
+    assert.panic {
+      parse('impl foo {}')
+    }
+  }
+
+  g.test('Implementing a trait without closing the body') {
+    assert.panic {
+      parse('impl A for B {')
+    }
+  }
+
+  g.test('Implementing a trait with an invalid name') {
+    assert.panic {
+      parse('impl a for B {}')
+    }
+  }
+
+  g.test('Implementing a trait for an object with an invalid name') {
+    assert.panic {
+      parse('impl A for b {}')
+    }
+  }
+
+  g.test('Implementing a trait with invalid trait bounds') {
+    assert.panic {
+      parse('impl A for B where C: {}')
+    }
+  }
+
+  g.test('Parsing an implementation block containing a method') {
+    let node =
+      parse_as(input: 'impl A { def foo {} }', type: ReopenObject)
+
+    assert_instance_of(node.body.children[0]!, MethodDefinition)
+  }
+}
+
+test.group('Parsing comments') do (g) {
+  g.test('Parsing comments with the comments option disabled') {
+    let parser = Parser.new(input: '# Foo', file: 'test.inko')
+    let node = try parser.parse
+
+    assert.true(node.children.empty?)
+    assert.true(parser.comments.empty?)
+  }
+
+  g.test('Parsing a comment') {
+    let parser =
+      Parser.new(input: '# Foo', file: 'test.inko', parse_comments: True)
+
+    let node = try parser.parse
+
+    assert.true(node.children.empty?)
+    assert.equal(parser.comments.length, 1)
+
+    let comment = parser.comments[0]!
+
+    assert.equal(comment.text, ' Foo')
+    assert.equal(comment.location.column, 1)
+    assert.equal(comment.location.line_range, 1..1)
+  }
+
+  g.test('Parsing a comment inside a list of message arguments') {
+    let parser = Parser.new(
+      input: "foo(\n# bar\n10)",
+      file: 'test.inko',
+      parse_comments: True
+    )
+
+    let exprs = try! parser.parse
+    let send = exprs.children[0] as Send
+
+    assert_instance_of(send, Send)
+    assert_instance_of(send.arguments[0]!, IntegerLiteral)
+    assert.equal(send.arguments.length, 1)
+
+    let comment = parser.comments[0]!
+
+    assert.equal(comment.text, ' bar')
+    assert.equal(comment.location.column, 1)
+    assert.equal(comment.location.line_range, 2..2)
+  }
+}
+
+test.group('Parsing binary expressions') do (g) {
+  g.test('Parsing an OR expression') {
+    binary_send(operator: '|')
+  }
+
+  g.test('Parsing an AND expression') {
+    binary_send(operator: '&')
+  }
+
+  g.test('Parsing an XOR expression') {
+    binary_send(operator: '^')
+  }
+
+  g.test('Parsing an addition expression') {
+    binary_send(operator: '+')
+  }
+
+  g.test('Parsing an division expression') {
+    binary_send(operator: '/')
+  }
+
+  g.test('Parsing a modulo expression') {
+    binary_send(operator: '%')
+  }
+
+  g.test('Parsing a multiplication expression') {
+    binary_send(operator: '*')
+  }
+
+  g.test('Parsing a power expression') {
+    binary_send(operator: '**')
+  }
+
+  g.test('Parsing a subtraction expression') {
+    binary_send(operator: '-')
+  }
+
+  g.test('Parsing an equality expression') {
+    binary_send(operator: '==')
+  }
+
+  g.test('Parsing an unequality expression') {
+    binary_send(operator: '!=')
+  }
+
+  g.test('Parsing a lower-than expression') {
+    binary_send(operator: '<')
+  }
+
+  g.test('Parsing a lower-than-or-equal-to expression') {
+    binary_send(operator: '<=')
+  }
+
+  g.test('Parsing a greater-than expression') {
+    binary_send(operator: '>')
+  }
+
+  g.test('Parsing a greater-than-or-equal-to expression') {
+    binary_send(operator: '>=')
+  }
+
+  g.test('Parsing a shift-left expression') {
+    binary_send(operator: '<<')
+  }
+
+  g.test('Parsing a shift-right expression') {
+    binary_send(operator: '>>')
+  }
+
+  g.test('Parsing an inclusive range') {
+    binary_send(operator: '..')
+  }
+
+  g.test('Parsing an exclusive range') {
+    binary_send(operator: '..')
+  }
+
+  g.test('Parsing a type cast expression') {
+    let node = parse_as(input: '10 as B', type: TypeCast)
+    let expr = node.expression as IntegerLiteral
+
+    assert.equal(expr.value, '10')
+    assert.equal((node.cast_to as Constant).name, 'B')
+  }
+
+  g.test('Parsing a type cast chain') {
+    let cast1 = parse_as(input: '10 as B as C', type: TypeCast)
+    let cast2 = cast1.expression as TypeCast
+    let expr = cast2.expression as IntegerLiteral
+
+    assert.equal(expr.value, '10')
+    assert.equal((cast1.cast_to as Constant).name, 'C')
+    assert.equal((cast2.cast_to as Constant).name, 'B')
+  }
+}
+
+test.group('Parsing message send chains') do (g) {
+  g.test('Sending a message to a receiver') {
+    let node = parse_as(input: '10.foo', type: Send)
+    let receiver = node.receiver as IntegerLiteral
+
+    assert.equal(receiver.value, '10')
+    assert.equal(node.message, 'foo')
+    assert.true(node.arguments.empty?)
+  }
+
+  g.test('Sending a chain of messages') {
+    let node = parse_as(input: '10.foo.bar', type: Send)
+    let receiver = node.receiver as Send
+
+    assert.equal(receiver.message, 'foo')
+    assert.equal(node.message, 'bar')
+    assert.true(node.arguments.empty?)
+
+    assert.equal((receiver.receiver as IntegerLiteral).value, '10')
+  }
+
+  g.test('Sending a message with arguments') {
+    let node = parse_as(input: '10.foo(20, 30)', type: Send)
+
+    assert.equal(node.arguments.length, 2)
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '20')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '30')
+  }
+
+  g.test('Sending a message with arguments followed by another message') {
+    let node = parse_as(input: '10.foo(20, 30).bar', type: Send)
+
+    assert.equal(node.message, 'bar')
+    assert.equal(node.arguments.length, 0)
+  }
+
+  g.test('Sending a message with type arguments') {
+    let node = parse_as(input: '10.foo!(A)', type: Send)
+
+    assert.true(node.arguments.empty?)
+    assert.equal(node.type_arguments.length, 1)
+    assert.equal((node.type_arguments[0] as Constant).name, 'A')
+  }
+
+  g.test('Sending a message with a closure as the type argument') {
+    let node = parse_as(input: '10.foo!(do (A, B) !! A -> B)', type: Send)
+
+    assert.equal(node.type_arguments.length, 1)
+
+    let closure = node.type_arguments[0] as ClosureType
+
+    assert.equal(closure.arguments.length, 2)
+    assert.equal((closure.arguments[0] as Constant).name, 'A')
+    assert.equal((closure.arguments[1] as Constant).name, 'B')
+
+    assert.equal((closure.throw_type as Constant).name, 'A')
+    assert.equal((closure.return_type as Constant).name, 'B')
+  }
+
+  g.test('Sending a message with a lambda as the type argument') {
+    let node = parse_as(input: '10.foo!(lambda (A, B) !! A -> B)', type: Send)
+
+    assert.equal(node.type_arguments.length, 1)
+
+    let closure = node.type_arguments[0] as LambdaType
+
+    assert.equal(closure.arguments.length, 2)
+    assert.equal((closure.arguments[0] as Constant).name, 'A')
+    assert.equal((closure.arguments[1] as Constant).name, 'B')
+
+    assert.equal((closure.throw_type as Constant).name, 'A')
+    assert.equal((closure.return_type as Constant).name, 'B')
+  }
+
+  g.test('Sending a message with an optional type arguments') {
+    let node = parse_as(input: '10.foo!(?A)', type: Send)
+
+    assert.equal(node.type_arguments.length, 1)
+
+    let arg = node.type_arguments[0] as OptionalType
+
+    assert.equal((arg.type as Constant).name, 'A')
+    assert.equal(arg.location.column, 9)
+  }
+
+  g.test('Sending a message with type arguments and normal arguments') {
+    let node = parse_as(input: '10.foo!(A)(20, 30)', type: Send)
+
+    assert.equal(node.type_arguments.length, 1)
+    assert.equal((node.type_arguments[0] as Constant).name, 'A')
+
+    assert.equal(node.arguments.length, 2)
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '20')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '30')
+  }
+
+  g.test('Using a binary operator as a message') {
+    let node = parse_as(input: '10.<(20)', type: Send)
+
+    assert.equal(node.message, '<')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Using a keyword as a message') {
+    let node = parse_as(input: '10.object(20)', type: Send)
+
+    assert.equal(node.message, 'object')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Using a constant as a message') {
+    let node = parse_as(input: '10.Foo(20)', type: Send)
+
+    assert.equal(node.message, 'Foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Using [] as a message') {
+    let node = parse_as(input: '10.[](20)', type: Send)
+
+    assert.equal(node.message, '[]')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Using []= as a message') {
+    let node = parse_as(input: '10.[]=(20)', type: Send)
+
+    assert.equal(node.message, '[]=')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Parsing a message chain with parentheses separated by whitespace') {
+    let node = parse_as(input: '10.foo (20)', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing a message chain using a keyword argument') {
+    let node = parse_as(input: '10.foo(a: 20, 30)', type: Send)
+
+    assert.equal(node.arguments.length, 2)
+
+    let arg1 = node.arguments[0] as KeywordArgument
+    let arg2 = node.arguments[1] as IntegerLiteral
+
+    assert.equal(arg1.name.name, 'a')
+    assert.equal((arg1.value as IntegerLiteral).value, '20')
+    assert.equal(arg2.value, '30')
+  }
+
+  g.test('Parsing a message chain followed by parentheses on a new line') {
+    let nodes = parse(input: "10.foo\n(30)").children
+    let send = nodes[0] as Send
+
+    assert.equal(nodes.length, 2)
+    assert.equal(send.message, 'foo')
+    assert.true(send.arguments.empty?)
+  }
+
+  g.test('Parsing a message send chain that sets an attribute') {
+    let node = parse_as(input: '10.foo.bar = 20', type: Send)
+    let receiver = node.receiver as Send
+
+    assert.equal(node.message, 'bar=')
+    assert.equal(node.arguments.length, 1)
+    assert.equal(receiver.message, 'foo')
+
+    let argument = node.arguments[0] as IntegerLiteral
+
+    assert.equal(argument.value, '20')
+  }
+
+  g.test('Parsing a message chain with a basic closure outside parentheses') {
+    let node = parse_as(input: '10.foo() {}', type: Send)
+
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, BasicClosure)
+  }
+
+  g.test('Parsing a message chain with a closure outside parentheses') {
+    let node = parse_as(input: '10.foo() do {}', type: Send)
+
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, Closure)
+  }
+
+  g.test('Parsing a message chain with a lambda outside parentheses') {
+    let node = parse_as(input: '10.foo() lambda {}', type: Send)
+
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, Lambda)
+  }
+
+  g.test('Parsing a message chain with parenthesis followed by a closure on a separate line') {
+    let nodes = parse("10.foo()\n{}").children
+
+    assert.equal(nodes.length, 2)
+    assert.true((nodes[0] as Send).arguments.empty?)
+  }
+
+  g.test('Parsing a message chain followed by a comma') {
+    assert.panic {
+      parse('10.foo ,')
+    }
+  }
+
+  g.test('Running out of input when parsing message names') {
+    assert.panic {
+      parse('10.')
+    }
+  }
+
+  g.test('Parsing an invalid message name') {
+    assert.panic {
+      parse('10.=')
+    }
+  }
+}
+
+test.group('Parsing message send chains without parentheses') do (g) {
+  g.test('Sending a message with a bare closure argument') {
+    let node = parse_as(input: '10.foo { 20 }', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Sending a message with a closure argument') {
+    let node = parse_as(input: '10.foo do { 20 }', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Sending a message with a lambda argument') {
+    let node = parse_as(input: '10.foo lambda { 20 }', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Sending a message with a block on a new line') {
+    let nodes = parse("10.foo\n{ 20 }").children
+
+    assert.equal(nodes.length, 2)
+
+    let send = nodes[0] as Send
+
+    assert.equal(send.message, 'foo')
+    assert.equal(send.arguments.length, 0)
+  }
+
+  g.test('Sending a message followed by an integer literal') {
+    let node = parse_as(input: '10.foo 20', type: Send)
+
+    assert.true(node.arguments.empty?)
+  }
+
+  g.test('Sending a message followed by a binary operator') {
+    assert.panic {
+      parse('10.foo -')
+    }
+  }
+}
+
+test.group('Parsing grouped expressions') do (g) {
+  g.test('Parsing a simple group') {
+    let node = parse_as(input: '(10)', type: IntegerLiteral)
+
+    assert.equal(node.value, '10')
+    assert.equal(node.location.column, 2)
+  }
+
+  g.test('Parsing an invalid group') {
+    assert.panic {
+      parse('(10')
+    }
+  }
+}
+
+test.group('Parsing the not-nil postfix operator') do (g) {
+  g.test('Using the not-nil operator with an Integer') {
+    let node = parse_as(input: '10!', type: NotNil)
+    let expr = node.expression as IntegerLiteral
+
+    assert.equal(expr.value, '10')
+  }
+
+  g.test('Using the not-nil operator with a message chain') {
+    let node = parse_as(input: '10.foo!', type: NotNil)
+    let expr = node.expression as Send
+
+    assert.equal(expr.message, 'foo')
+  }
+}
+
+test.group('Parsing closures') do (g) {
+  g.test('Parsing a basic closure') {
+    let node = parse_as(input: '{ 10 }', type: BasicClosure)
+
+    assert.equal(node.body.children.length, 1)
+
+    let integer = node.body.children[0] as IntegerLiteral
+
+    assert.equal(integer.value, '10')
+    assert.equal(integer.location.column, 3)
+  }
+
+  g.test('Parsing a closure') {
+    let node = parse_as(input: 'do { 10 }', type: Closure)
+
+    assert.equal(node.body.children.length, 1)
+    assert.true(node.arguments.empty?)
+    assert.true(node.return_type == Nil)
+    assert.true(node.throw_type == Nil)
+  }
+
+  g.test('Parsing a closure with dynamically typed arguments') {
+    let node = parse_as(input: 'do (a, b) {}', type: Closure)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].value_type == Nil)
+    assert.true(node.arguments[0].default_value == Nil)
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.true(node.arguments[1].value_type == Nil)
+    assert.true(node.arguments[1].default_value == Nil)
+  }
+
+  g.test('Parsing a closure with statically typed arguments') {
+    let node = parse_as(input: 'do (a: A, b: B) {}', type: Closure)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.equal((node.arguments[0].value_type as Constant).name, 'A')
+    assert.true(node.arguments[0].default_value == Nil)
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.equal((node.arguments[1].value_type as Constant).name, 'B')
+    assert.true(node.arguments[1].default_value == Nil)
+  }
+
+  g.test('Parsing a closure with a constant as the return type') {
+    let node = parse_as(input: 'do -> A {}', type: Closure)
+
+    assert.equal((node.return_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a closure with a closure as the return type') {
+    let node = parse_as(input: 'do -> do -> A {}', type: Closure)
+    let rtype = node.return_type as ClosureType
+
+    assert.equal((rtype.return_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a closure with an optional type as the return type') {
+    let node = parse_as(input: 'do -> ?A {}', type: Closure)
+    let rtype = node.return_type as OptionalType
+
+    assert.equal((rtype.type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a closure with a constant as the throw type') {
+    let node = parse_as(input: 'do !! A {}', type: Closure)
+
+    assert.equal((node.throw_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a closure with a closure as the throw type') {
+    let node = parse_as(input: 'do !! do !! A {}', type: Closure)
+    let rtype = node.throw_type as ClosureType
+
+    assert.equal((rtype.throw_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a closure with an optional type as the throw type') {
+    let node = parse_as(input: 'do !! ?A {}', type: Closure)
+    let rtype = node.throw_type as OptionalType
+
+    assert.equal((rtype.type as Constant).name, 'A')
+  }
+}
+
+test.group('Parsing lambdas') do (g) {
+  g.test('Parsing a lambda') {
+    let node = parse_as(input: 'lambda { 10 }', type: Lambda)
+
+    assert.equal(node.body.children.length, 1)
+    assert.true(node.arguments.empty?)
+    assert.true(node.return_type == Nil)
+    assert.true(node.throw_type == Nil)
+  }
+
+  g.test('Parsing a lambda with dynamically typed arguments') {
+    let node = parse_as(input: 'lambda (a, b) {}', type: Lambda)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].value_type == Nil)
+    assert.true(node.arguments[0].default_value == Nil)
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.true(node.arguments[1].value_type == Nil)
+    assert.true(node.arguments[1].default_value == Nil)
+  }
+
+  g.test('Parsing a lambda with statically typed arguments') {
+    let node = parse_as(input: 'lambda (a: A, b: B) {}', type: Lambda)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.equal((node.arguments[0].value_type as Constant).name, 'A')
+    assert.true(node.arguments[0].default_value == Nil)
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.equal((node.arguments[1].value_type as Constant).name, 'B')
+    assert.true(node.arguments[1].default_value == Nil)
+  }
+
+  g.test('Parsing a lambda with a constant as the return type') {
+    let node = parse_as(input: 'lambda -> A {}', type: Lambda)
+
+    assert.equal((node.return_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a lambda with a lambda as the return type') {
+    let node = parse_as(input: 'lambda -> lambda -> A {}', type: Lambda)
+    let rtype = node.return_type as LambdaType
+
+    assert.equal((rtype.return_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a lambda with an optional type as the return type') {
+    let node = parse_as(input: 'lambda -> ?A {}', type: Lambda)
+    let rtype = node.return_type as OptionalType
+
+    assert.equal((rtype.type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a lambda with a constant as the throw type') {
+    let node = parse_as(input: 'lambda !! A {}', type: Lambda)
+
+    assert.equal((node.throw_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a lambda with a lambda as the throw type') {
+    let node = parse_as(input: 'lambda !! lambda !! A {}', type: Lambda)
+    let rtype = node.throw_type as LambdaType
+
+    assert.equal((rtype.throw_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a lambda with an optional type as the throw type') {
+    let node = parse_as(input: 'lambda !! ?A {}', type: Lambda)
+    let rtype = node.throw_type as OptionalType
+
+    assert.equal((rtype.type as Constant).name, 'A')
+  }
+}
+
+test.group('Parsing attributes') do (g) {
+  g.test('Parsing an attribute') {
+    let node = parse_as(input: '@foo', type: Attribute)
+
+    assert.equal(node.name, '@foo')
+  }
+
+  g.test('Re-assigning an attribute') {
+    let node = parse_as(input: '@foo = 10', type: Assign)
+
+    assert.equal((node.variable as Attribute).name, '@foo')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Assigning an attribute variable using +=') {
+    binary_assign_attribute(operator: '+=', message: '+')
+  }
+
+  g.test('Assigning an attribute variable using &=') {
+    binary_assign_attribute(operator: '&=', message: '&')
+  }
+
+  g.test('Assigning an attribute variable using /=') {
+    binary_assign_attribute(operator: '/=', message: '/')
+  }
+
+  g.test('Assigning an attribute variable using %=') {
+    binary_assign_attribute(operator: '%=', message: '%')
+  }
+
+  g.test('Assigning an attribute variable using *=') {
+    binary_assign_attribute(operator: '*=', message: '*')
+  }
+
+  g.test('Assigning an attribute variable using |=') {
+    binary_assign_attribute(operator: '|=', message: '|')
+  }
+
+  g.test('Assigning an attribute variable using **=') {
+    binary_assign_attribute(operator: '**=', message: '**')
+  }
+
+  g.test('Assigning an attribute variable using <<=') {
+    binary_assign_attribute(operator: '<<=', message: '<<')
+  }
+
+  g.test('Assigning an attribute variable using >>=') {
+    binary_assign_attribute(operator: '>>=', message: '>>')
+  }
+
+  g.test('Assigning an attribute variable using -=') {
+    binary_assign_attribute(operator: '-=', message: '-')
+  }
+
+  g.test('Assigning an attribute variable using ^=') {
+    binary_assign_attribute(operator: '^=', message: '^')
+  }
+}
+
+test.group('Parsing constants') do (g) {
+  g.test('Parsing a constant') {
+    let node = parse_as(input: 'Foo', type: Constant)
+
+    assert.equal(node.name, 'Foo')
+    assert.equal(node.receiver, Nil)
+  }
+
+  g.test('Parsing a constant with a receiver') {
+    let node = parse_as(input: 'A::B', type: Constant)
+
+    assert.equal(node.name, 'B')
+    assert.equal(node.receiver.name, 'A')
+    assert.equal(node.receiver.receiver, Nil)
+    assert.equal(node.location.column, 4)
+  }
+
+  g.test('Parsing a constant with type arguments') {
+    let node = parse_as(input: 'A::B!(C)', type: Constant)
+
+    assert.equal(node.type_arguments.length, 1)
+    assert.equal((node.type_arguments[0] as Constant).name, 'C')
+  }
+}
+
+test.group('Parsing global variables') do (g) {
+  g.test('Parsing a global identifier') {
+    let node = parse_as(input: '::foo', type: Global)
+
+    assert.equal(node.name, 'foo')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Parsing a global constant') {
+    let node = parse_as(input: '::Foo', type: Global)
+
+    assert.equal(node.name, 'Foo')
+    assert.equal(node.location.column, 1)
+  }
+}
+
+test.group('Parsing variable definitions') do (g) {
+  g.test('Defining an immutable local variable') {
+    let node = parse_as(input: 'let number = 10', type: DefineVariable)
+
+    assert_instance_of(node.name, Identifier)
+    assert.true(node.value_type == Nil)
+    assert.false(node.mutable?)
+
+    assert.equal((node.name as Identifier).name, 'number')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Defining an immutable constant variable') {
+    let node = parse_as(input: 'let Number = 10', type: DefineVariable)
+
+    assert_instance_of(node.name, Constant)
+    assert.true(node.value_type == Nil)
+    assert.false(node.mutable?)
+
+    assert.equal((node.name as Constant).name, 'Number')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+    assert.equal(node.location.column, 1)
+  }
+
+  g.test('Defining a mutable local variable') {
+    let node = parse_as(input: 'let mut number = 10', type: DefineVariable)
+
+    assert_instance_of(node.name, Identifier)
+    assert.true(node.value_type == Nil)
+    assert.true(node.mutable?)
+
+    assert.equal((node.name as Identifier).name, 'number')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+  }
+
+  g.test('Defining a mutable constant') {
+    let node = parse_as(input: 'let mut Number = 10', type: DefineVariable)
+
+    assert_instance_of(node.name, Constant)
+    assert.true(node.value_type == Nil)
+    assert.true(node.mutable?)
+
+    assert.equal((node.name as Constant).name, 'Number')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+  }
+
+  g.test('Defining a local variable with an explicit value type') {
+    let node = parse_as(input: 'let number: A = 10', type: DefineVariable)
+
+    assert_instance_of(node.value_type!, Constant)
+    assert.equal((node.value_type as Constant).name, 'A')
+  }
+
+  g.test('Defining a constant with an explicit value type') {
+    let node = parse_as(input: 'let Number: A = 10', type: DefineVariable)
+
+    assert_instance_of(node.value_type!, Constant)
+    assert.equal((node.value_type as Constant).name, 'A')
+  }
+
+  g.test('Defining a local variable without a value') {
+    assert.panic {
+      parse('let number =')
+    }
+  }
+}
+
+test.group('Parsing method definitions') do (g) {
+  g.test('Parsing a simple method') {
+    let node = parse_as(input: 'def foo { 10 }', type: MethodDefinition)
+
+    assert.equal(node.name, 'foo')
+    assert.equal(node.body.children.length, 1)
+    assert.false(node.static_method?)
+
+    assert.true(node.arguments.empty?)
+    assert.true(node.type_parameters.empty?)
+
+    assert.true(node.return_type == Nil)
+    assert.true(node.throw_type == Nil)
+  }
+
+  g.test('Parsing a method with dynamically typed arguments') {
+    let node = parse_as(input: 'def foo(a, b) {}', type: MethodDefinition)
+
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].value_type == Nil)
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.true(node.arguments[1].value_type == Nil)
+  }
+
+  g.test('Parsing a method with statically typed arguments') {
+    let node = parse_as(input: 'def foo(a: A, b: B) {}', type: MethodDefinition)
+
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.equal((node.arguments[0].value_type as Constant).name, 'A')
+
+    assert.equal(node.arguments[1].name, 'b')
+    assert.equal((node.arguments[1].value_type as Constant).name, 'B')
+  }
+
+  g.test('Parsing a method with a throw type') {
+    let node = parse_as(input: 'def foo !! A {}', type: MethodDefinition)
+
+    assert.equal((node.throw_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a method with a return type') {
+    let node = parse_as(input: 'def foo -> A {}', type: MethodDefinition)
+
+    assert.equal((node.return_type as Constant).name, 'A')
+  }
+
+  g.test('Parsing a method with a throw and return type') {
+    let node = parse_as(input: 'def foo !! A -> B {}', type: MethodDefinition)
+
+    assert.equal((node.throw_type as Constant).name, 'A')
+    assert.equal((node.return_type as Constant).name, 'B')
+  }
+
+  g.test('Parsing a method with type parameters') {
+    let node = parse_as(input: 'def foo!(A, B) {}', type: MethodDefinition)
+
+    assert.equal(node.type_parameters.length, 2)
+    assert.equal(node.type_parameters[0].name, 'A')
+    assert.equal(node.type_parameters[1].name, 'B')
+  }
+
+  g.test('Parsing a static method') {
+    let node = parse_as(input: 'static def foo {}', type: MethodDefinition)
+
+    assert.equal(node.name, 'foo')
+    assert.true(node.static_method?)
+  }
+
+  g.test('Parsing a method with a mutable argument') {
+    let node = parse_as(input: 'def foo(mut a) {}', type: MethodDefinition)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].mutable?)
+  }
+
+  g.test('Parsing a method with a rest argument') {
+    let node = parse_as(input: 'def foo(*a) {}', type: MethodDefinition)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].rest?)
+  }
+
+  g.test('Parsing a method with a mutable rest argument') {
+    let node = parse_as(input: 'def foo(mut *a) {}', type: MethodDefinition)
+
+    assert.equal(node.arguments[0].name, 'a')
+    assert.true(node.arguments[0].rest?)
+    assert.true(node.arguments[0].mutable?)
+  }
+}
+
+test.group('Reading and writing the index of of a value') do (g) {
+  g.test('Accessing an index of a constant') {
+    let node = parse_as(input: 'A[10]', type: Send)
+
+    assert.equal(node.message, '[]')
+    assert.equal(node.arguments.length, 1)
+
+    assert.equal((node.receiver as Constant).name, 'A')
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+  }
+
+  g.test('Accessing an index of a message chain') {
+    let node = parse_as(input: '10.bar[10]', type: Send)
+
+    assert.equal(node.message, '[]')
+    assert.equal(node.arguments.length, 1)
+
+    assert.equal((node.receiver as Send).message, 'bar')
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+  }
+
+  g.test('Setting the value of an index of a constant') {
+    let node = parse_as(input: 'A[10] = 20', type: Send)
+
+    assert.equal(node.message, '[]=')
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal((node.receiver as Constant).name, 'A')
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Setting the value of an index of a message chain') {
+    let node = parse_as(input: '10.bar[10] = 20', type: Send)
+
+    assert.equal(node.message, '[]=')
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal((node.receiver as Send).message, 'bar')
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Setting the value of an index to the result of a message chain') {
+    let node = parse_as(input: '10.bar[10] = 20.foo', type: Send)
+
+    assert.equal(node.message, '[]=')
+
+    assert_instance_of(node.arguments[1]!, Send)
+
+    assert.equal((node.arguments[1] as Send).message, 'foo')
+  }
+}
+
+test.group('Parsing return expressions') do (g) {
+  g.test('Parsing a return without a value') {
+    let node = parse_as(input: 'return', type: Return)
+
+    assert.true(node.expression == Nil)
+  }
+
+  g.test('Parsing a return with a value') {
+    let node = parse_as(input: 'return 10', type: Return)
+
+    assert_instance_of(node.expression!, IntegerLiteral)
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+  }
+
+  g.test('Parsing a return followed by a value on a separate line') {
+    let nodes = parse("return\n10").children
+
+    assert.equal(nodes.length, 2)
+    assert.true((nodes[0] as Return).expression == Nil)
+  }
+
+  g.test('Parsing a return followed by a closing curly brace') {
+    let node = parse_as(input: '{ return }', type: BasicClosure)
+
+    assert.equal(node.body.children.length, 1)
+    assert_instance_of(node.body.children[0]!, Return)
+  }
+
+  g.test('Parsing a return followed by a closing parenthesis') {
+    let node = parse_as(input: '(return)', type: Return)
+
+    assert.true(node.expression == Nil)
+  }
+
+  g.test('Parsing a return followed by a comment') {
+    let nodes = parse('return # foo').children
+
+    assert.equal(nodes.length, 1)
+    assert.true((nodes[0] as Return).expression == Nil)
+  }
+
+  g.test('Parsing a return followed by a documentation comment') {
+    let nodes = parse('return # foo').children
+
+    assert.equal(nodes.length, 1)
+    assert.true((nodes[0] as Return).expression == Nil)
+  }
+
+  g.test('Parsing a return expression inside an index access expression') {
+    let node = parse_as(input: '10[return]', type: Send)
+
+    assert.equal(node.message, '[]')
+
+    assert_instance_of(node.arguments[0]!, Return)
+
+    assert.true((node.arguments[0] as Return).expression == Nil)
+  }
+
+  g.test('Parsing a return expression that returns self') {
+    let node = parse_as(input: 'return self', type: Return)
+
+    assert_instance_of(node.expression!, SelfObject)
+  }
+
+  g.test('Parsing a return followed by a dot') {
+    assert.panic {
+      parse('return .')
+    }
+  }
+
+  g.test('Parsing a return followed by a binary operator') {
+    assert.panic {
+      parse('return +')
+    }
+  }
+}
+
+test.group('Parsing the self expression') do (g) {
+  g.test('Parsing "self"') {
+    let node = parse_as(input: 'self', type: SelfObject)
+
+    assert.equal(node.location.column, 1)
+  }
+}
+
+test.group('Parsing throw expressions') do (g) {
+  g.test('Parsing a throw expression') {
+    let node = parse_as(input: 'throw 10', type: Throw)
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+  }
+}
+
+test.group('Parsing try expressions') do (g) {
+  g.test('Parsing a try without an else expression') {
+    let node = parse_as(input: 'try 10', type: Try)
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+
+    assert.equal(node.error_variable, Nil)
+    assert.true(node.else_expression.children.empty?)
+  }
+
+  g.test('Parsing a try with an else expression') {
+    let node = parse_as(input: 'try 10 else 20', type: Try)
+    let else_expr = node.else_expression
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+    assert.equal((else_expr.children[0] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing a try with a multi-line else expression') {
+    let node = parse_as(input: "try 10 else { 10\n20 }", type: Try)
+    let else_expr = node.else_expression
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+
+    assert.equal((else_expr.children[0] as IntegerLiteral).value, '10')
+    assert.equal((else_expr.children[1] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing a try with an error argument') {
+    let node = parse_as(input: 'try 10 else (error) 20', type: Try)
+    let else_expr = node.else_expression
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+    assert.equal(node.error_variable!, 'error')
+    assert.equal((else_expr.children[0] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing a try with multiple error arguments') {
+    assert.panic {
+      parse('try 10 else (a, b) 20')
+    }
+  }
+}
+
+test.group('Parsing try! expressions') do (g) {
+  g.test('Parsing a try!') {
+    let node = parse_as(input: 'try! 10', type: TryPanic)
+
+    assert.equal((node.expression as IntegerLiteral).value, '10')
+  }
+}
+
+test.group('Parsing identifiers') do (g) {
+  g.test('Parsing an identifier') {
+    let node = parse_as(input: 'foo', type: Identifier)
+
+    assert.equal(node.name, 'foo')
+  }
+
+  g.test('Parsing an identifier with a basic closure argument') {
+    let node = parse_as(input: 'foo {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Parsing an identifier with a closure argument') {
+    let node = parse_as(input: 'foo do {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Parsing an identifier with a lambda argument') {
+    let node = parse_as(input: 'foo lambda {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Parsing an identifier followed by parentheses') {
+    let node = parse_as(input: 'foo(10, 20)', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing an identifier with type arguments') {
+    let node = parse_as(input: 'foo!(A, B)', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.type_arguments.length, 2)
+
+    assert.equal((node.type_arguments[0] as Constant).name, 'A')
+    assert.equal((node.type_arguments[1] as Constant).name, 'B')
+  }
+
+  g.test('Parsing an identifier with type arguments and regular arguments') {
+    let node = parse_as(input: 'foo!(A, B)(10, 20)', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.type_arguments.length, 2)
+    assert.equal(node.arguments.length, 2)
+
+    assert.equal((node.type_arguments[0] as Constant).name, 'A')
+    assert.equal((node.type_arguments[1] as Constant).name, 'B')
+
+    assert.equal((node.arguments[0] as IntegerLiteral).value, '10')
+    assert.equal((node.arguments[1] as IntegerLiteral).value, '20')
+  }
+
+  g.test('Parsing an identifier with a basic closure argument outside parentheses') {
+    let node = parse_as(input: 'foo() {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, BasicClosure)
+  }
+
+  g.test('Parsing an identifier with a closure argument outside parentheses') {
+    let node = parse_as(input: 'foo() do {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, Closure)
+  }
+
+  g.test('Parsing an identifier with a lambda argument outside parentheses') {
+    let node = parse_as(input: 'foo() lambda {}', type: Send)
+
+    assert.equal(node.message, 'foo')
+    assert.equal(node.arguments.length, 1)
+    assert_instance_of(node.arguments[0]!, Lambda)
+  }
+
+  g.test('Parsing an identifier with parenthesis followed by a closure on a separate line') {
+    let nodes = parse("foo()\n{}").children
+
+    assert.equal(nodes.length, 2)
+    assert.true((nodes[0] as Send).arguments.empty?)
+  }
+
+  g.test('Assigning a local variable to a new value') {
+    let node = parse_as(input: 'foo = 10', type: Assign)
+
+    assert_instance_of(node.variable, Identifier)
+    assert_instance_of(node.value, IntegerLiteral)
+
+    assert.equal((node.variable as Identifier).name, 'foo')
+    assert.equal((node.value as IntegerLiteral).value, '10')
+  }
+
+  g.test('Assigning a local variable using +=') {
+    binary_assign_local(operator: '+=', message: '+')
+  }
+
+  g.test('Assigning a local variable using &=') {
+    binary_assign_local(operator: '&=', message: '&')
+  }
+
+  g.test('Assigning a local variable using /=') {
+    binary_assign_local(operator: '/=', message: '/')
+  }
+
+  g.test('Assigning a local variable using %=') {
+    binary_assign_local(operator: '%=', message: '%')
+  }
+
+  g.test('Assigning a local variable using *=') {
+    binary_assign_local(operator: '*=', message: '*')
+  }
+
+  g.test('Assigning a local variable using |=') {
+    binary_assign_local(operator: '|=', message: '|')
+  }
+
+  g.test('Assigning a local variable using **=') {
+    binary_assign_local(operator: '**=', message: '**')
+  }
+
+  g.test('Assigning a local variable using <<=') {
+    binary_assign_local(operator: '<<=', message: '<<')
+  }
+
+  g.test('Assigning a local variable using >>=') {
+    binary_assign_local(operator: '>>=', message: '>>')
+  }
+
+  g.test('Assigning a local variable using -=') {
+    binary_assign_local(operator: '-=', message: '-')
+  }
+
+  g.test('Assigning a local variable using ^=') {
+    binary_assign_local(operator: '^=', message: '^')
+  }
+}

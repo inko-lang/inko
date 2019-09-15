@@ -1,0 +1,28 @@
+# AST types for comments.
+import std::compiler::ast::node::Node
+import std::compiler::source_location::SourceLocation
+
+# A source code comment.
+object Comment {
+  # The text of the comment, excluding the comment character (`#`).
+  @text: String
+
+  # The source location of the comment.
+  @location: SourceLocation
+
+  def init(text: String, location: SourceLocation) {
+    @text = text
+    @location = location
+  }
+
+  # Returns the text of the comment.
+  def text -> String {
+    @text
+  }
+}
+
+impl Node for Comment {
+  def location -> SourceLocation {
+    @location
+  }
+}

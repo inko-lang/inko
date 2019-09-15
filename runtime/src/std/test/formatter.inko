@@ -1,36 +1,32 @@
-#! Types for formatting test results.
-#!
-#! The `Formatter` trait is used by a `Runner` to display test results as they
-#! finish, and to display a summary once all tests have been executed.
+# Types for formatting test results.
+#
+# The `Formatter` trait is used by a `Runner` to display test results as they
+# finish, and to display a summary once all tests have been executed.
 import std::test::test::Test
 import std::time::Duration
 
-## A type for formatting the results of tests.
+# A type for formatting the results of tests.
 trait Formatter {
-  ## Displays the result of a single test.
+  # Displays the result of a single test.
   def test(test: Test) {
-    test.passed?.if true: {
-      passed(test)
-    }, false: {
-      failed(test)
-    }
+    test.passed?.if(true: { passed(test) }, false: { failed(test) })
   }
 
-  ## Displays the result of a passed test.
+  # Displays the result of a passed test.
   def passed(test: Test)
 
-  ## Displays the result of a failed test.
+  # Displays the result of a failed test.
   def failed(test: Test)
 
-  ## Displays all of the failed tests after the test suite has finished.
-  ##
-  ## The `tests` argument will be passed an `Array` of `Test` objects that
-  ## did not pass.
+  # Displays all of the failed tests after the test suite has finished.
+  #
+  # The `tests` argument will be passed an `Array` of `Test` objects that
+  # did not pass.
   def failures(tests: Array!(Test))
 
-  ## Displays a summary of all the tests that have been executed.
-  ##
-  ## The `tests` argument will be passed an `Array` of all `Test` objects
-  ## (including failed tests) that were executed.
+  # Displays a summary of all the tests that have been executed.
+  #
+  # The `tests` argument will be passed an `Array` of all `Test` objects
+  # (including failed tests) that were executed.
   def summary(tests: Array!(Test), duration: Duration)
 }

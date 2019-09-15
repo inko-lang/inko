@@ -1,105 +1,105 @@
-#! Foreign function interface for interfacing with C code.
-#!
-#! This module provides various types and methods for calling C code from Inko
-#! code.
-#!
-#! # Supported features
-#!
-#! * Calling C functions with a fixed number of arguments.
-#! * Reading from and writing to pointers to C data (e.g. `errno` from libc).
-#! * Converting various types from Inko to C and back.
-#!
-#! # Limitations
-#!
-#! * The use of callback functions (= passing an Inko block as a C callback)
-#!   is currently not supported.
-#! * Only a limited number of Inko objects can be converted to C values.
-#!   Converting custom objects is not supported.
-#! * The garbage collector does not automatically free any resources allocated
-#!   in C, instead this must be done manually (e.g. using `free` from libc).
-#! * Variadic arguments are not supported at this time.
-#!
-#! # Thread-local storage
-#!
-#! Inko using pre-emptive scheduling can result in a process being moved between
-#! OS threads. This means that if a C function reads or writes to thread-local
-#! storage, any following calls to C functions may execute on a different thread
-#! and thus not have access to the same thread-local data.
-#!
-#! To prevent this from happening, you should wrap FFI code that relies on
-#! thread-local storage in a `process.pinned` block. For example:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!     import std::process
-#!
-#!     let libc = Library.new(Array.new('libc.so.6'))
-#!
-#!     process.pinned {
-#!       let errno = libc.variable('errno')
-#!
-#!       errno.write(types.i32, 1)
-#!       errno.read(types.i32) # => 1
-#!     }
-#!
-#! # Usage
-#!
-#! The first step is two import the symbols we need:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#! The `Library` object will be used for loading libraries. The
-#! `std::ffi::types` module will be used for defining functions. Let's start by
-#! loading libc:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#!     let libc = Library.new(Array.new('libc.so.6'))
-#!
-#! `Library.new` takes an `Array!(String)` to use for searching libraries. The
-#! values can be library file names, relative paths, or absolute paths. If
-#! multiple values are given, `Library.new` will try to load them in order,
-#! stopping when it finds a library. This allows us to provide alternative
-#! paths, should the first one not be available:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#!     let libc = Library.new(Array.new('libc.so', 'libc.so.6', 'libSystem.dylib'))
-#!
-#! Once the library has been loaded, we can attach functions by sending the
-#! `function` message to the library:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#!     let libc = Library.new(Array.new('libc.so.6'))
-#!     let puts = libc.function('puts', Array.new(types.string), types.i32)
-#!
-#! Here we attach the `puts` function. The arguments we defined are
-#! `Array.new(types.string)`, with the return type being `types.i32`.
-#!
-#! We can call our function by sending `call` to it:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#!     let libc = Library.new(Array.new('libc.so.6'))
-#!     let puts = libc.function('puts', Array.new(types.string), types.i32)
-#!
-#!     puts.call('hello')
-#!
-#! We can also attach variables by sending `variable` to a `Library`:
-#!
-#!     import std::ffi::Library
-#!     import std::ffi::types
-#!
-#!     let libc = Library.new(Array.new('libc.so.6'))
-#!     let errno = libc.variable('errno')
-#!
-#!     errno.read(types.i32) # => 0
+# Foreign function interface for interfacing with C code.
+#
+# This module provides various types and methods for calling C code from Inko
+# code.
+#
+# # Supported features
+#
+# * Calling C functions with a fixed number of arguments.
+# * Reading from and writing to pointers to C data (e.g. `errno` from libc).
+# * Converting various types from Inko to C and back.
+#
+# # Limitations
+#
+# * The use of callback functions (= passing an Inko block as a C callback)
+#   is currently not supported.
+# * Only a limited number of Inko objects can be converted to C values.
+#   Converting custom objects is not supported.
+# * The garbage collector does not automatically free any resources allocated
+#   in C, instead this must be done manually (e.g. using `free` from libc).
+# * Variadic arguments are not supported at this time.
+#
+# # Thread-local storage
+#
+# Inko using pre-emptive scheduling can result in a process being moved between
+# OS threads. This means that if a C function reads or writes to thread-local
+# storage, any following calls to C functions may execute on a different thread
+# and thus not have access to the same thread-local data.
+#
+# To prevent this from happening, you should wrap FFI code that relies on
+# thread-local storage in a `process.pinned` block. For example:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#     import std::process
+#
+#     let libc = Library.new(Array.new('libc.so.6'))
+#
+#     process.pinned {
+#       let errno = libc.variable('errno')
+#
+#       errno.write(types.i32, 1)
+#       errno.read(types.i32) # => 1
+#     }
+#
+# # Usage
+#
+# The first step is two import the symbols we need:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+# The `Library` object will be used for loading libraries. The
+# `std::ffi::types` module will be used for defining functions. Let's start by
+# loading libc:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+#     let libc = Library.new(Array.new('libc.so.6'))
+#
+# `Library.new` takes an `Array!(String)` to use for searching libraries. The
+# values can be library file names, relative paths, or absolute paths. If
+# multiple values are given, `Library.new` will try to load them in order,
+# stopping when it finds a library. This allows us to provide alternative
+# paths, should the first one not be available:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+#     let libc = Library.new(Array.new('libc.so', 'libc.so.6', 'libSystem.dylib'))
+#
+# Once the library has been loaded, we can attach functions by sending the
+# `function` message to the library:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+#     let libc = Library.new(Array.new('libc.so.6'))
+#     let puts = libc.function('puts', Array.new(types.string), types.i32)
+#
+# Here we attach the `puts` function. The arguments we defined are
+# `Array.new(types.string)`, with the return type being `types.i32`.
+#
+# We can call our function by sending `call` to it:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+#     let libc = Library.new(Array.new('libc.so.6'))
+#     let puts = libc.function('puts', Array.new(types.string), types.i32)
+#
+#     puts.call('hello')
+#
+# We can also attach variables by sending `variable` to a `Library`:
+#
+#     import std::ffi::Library
+#     import std::ffi::types
+#
+#     let libc = Library.new(Array.new('libc.so.6'))
+#     let errno = libc.variable('errno')
+#
+#     errno.read(types.i32) # => 0
 import std::byte_array::ByteArray
 import std::ffi::types::Type
 import std::index::(Index, SetIndex)
@@ -108,97 +108,97 @@ import std::operators::Equal
 import std::process
 import std::string_buffer::StringBuffer
 
-## The address used for NULL pointers.
+# The address used for NULL pointers.
 let NULL_ADDRESS = 0x0
 
-## A pointer to a value in C.
+# A pointer to a value in C.
 object Pointer {
-  ## Creates a pointer using the given memory address.
+  # Creates a pointer using the given memory address.
   static def new(address: Integer) -> Self {
     _INKOC.pointer_from_address(Pointer, address)
   }
 
-  ## Returns a NULL `Pointer`.
+  # Returns a NULL `Pointer`.
   def null -> Self {
     new(NULL_ADDRESS)
   }
 
-  ## Returns `True` if this `Pointer` is a NULL pointer.
+  # Returns `True` if this `Pointer` is a NULL pointer.
   def null? -> Boolean {
     address == NULL_ADDRESS
   }
 
-  ## Returns the address of this `Pointer`.
+  # Returns the address of this `Pointer`.
   def address -> Integer {
     _INKOC.pointer_address(self)
   }
 
-  ## Reads the value of a pointer into a certain type.
-  ##
-  ## The `type` argument specifies the `Type` of data that is being read. The
-  ## `offset` argument can be used to specify an offset in bytes (relative to
-  ## the pointer) to read from.
+  # Reads the value of a pointer into a certain type.
+  #
+  # The `type` argument specifies the `Type` of data that is being read. The
+  # `offset` argument can be used to specify an offset in bytes (relative to
+  # the pointer) to read from.
   def read(type: Type, offset = 0) {
     _INKOC.pointer_read(Pointer, self, type.to_integer, offset)
   }
 
-  ## Writes a value to the pointer.
-  ##
-  ## The `type` argument specifies the `Type` of data that is being written. The
-  ## `offset` argument can be used to specify an offset in bytes (relative to
-  ## the pointer) to write to.
+  # Writes a value to the pointer.
+  #
+  # The `type` argument specifies the `Type` of data that is being written. The
+  # `offset` argument can be used to specify an offset in bytes (relative to
+  # the pointer) to write to.
   def write!(T)(type: Type, value: T, offset = 0) -> T {
     _INKOC.pointer_write(self, type.to_integer, value, offset)
   }
 }
 
 impl Equal for Pointer {
-  ## Returns `True` if `self` and the given `Pointer` point to the same memory
-  ## address.
+  # Returns `True` if `self` and the given `Pointer` point to the same memory
+  # address.
   def ==(other: Self) -> Boolean {
     address == other.address
   }
 }
 
-## A dynamically loaded C library.
+# A dynamically loaded C library.
 object Library {
-  ## Dynamically loads a C library.
-  ##
-  ## The `names` argument is an `Array` of library names to use for loading the
-  ## library. These names are used in order to find the corresponding library.
-  ## This method will panic if the library could not be found.
-  ##
-  ## The names in this `Array` can either be the library name with extension,
-  ## such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
+  # Dynamically loads a C library.
+  #
+  # The `names` argument is an `Array` of library names to use for loading the
+  # library. These names are used in order to find the corresponding library.
+  # This method will panic if the library could not be found.
+  #
+  # The names in this `Array` can either be the library name with extension,
+  # such as `'libc.so.6'`, or absolute paths such as `'/usr/lib/libc.so.6'`.
   static def new(names: Array!(String)) -> Self {
     _INKOC.library_open(Library, names)
   }
 
-  ## Returns a `Pointer` pointing to the address of the given variable.
+  # Returns a `Pointer` pointing to the address of the given variable.
   def variable(name: String) -> Pointer {
     _INKOC.pointer_attach(Pointer, self, name)
   }
 }
 
 impl Close for Library {
-  ## Disposes of the current library.
+  # Disposes of the current library.
   def close -> Nil {
     _INKOC.drop(self)
   }
 }
 
-## A C function that can be called from Inko.
+# A C function that can be called from Inko.
 object Function {
-  ## The name of this function.
+  # The name of this function.
   @name: String
 
-  ## The argument types of this function.
+  # The argument types of this function.
   @arguments: Array!(Type)
 
-  ## The return type of this function.
+  # The return type of this function.
   @returns: Type
 
-  ## Attaches a C function to Inko.
+  # Attaches a C function to Inko.
   static def new(
     library: Library,
     name: String,
@@ -224,24 +224,24 @@ object Function {
     @returns = returns
   }
 
-  ## Returns the name of this function.
+  # Returns the name of this function.
   def name -> String {
     @name
   }
 
-  ## Returns the argument types of this function.
+  # Returns the argument types of this function.
   def arguments -> Array!(Type) {
     @arguments
   }
 
-  ## Returns the return type of this function.
+  # Returns the return type of this function.
   def returns -> Type {
     @returns
   }
 
-  ## Calls the function with the given arguments.
-  ##
-  ## This method will panic if any of the arguments are invalid.
+  # Calls the function with the given arguments.
+  #
+  # This method will panic if any of the arguments are invalid.
   def call(*arguments) {
     _INKOC.function_call(self, arguments, Pointer)
   }
@@ -250,9 +250,9 @@ object Function {
 # Now that `Function` has been defined, we can define `Library.function` to make
 # it a bit easier to attach functions.
 impl Library {
-  ## Attaches a function from the current library to Inko.
-  ##
-  ## See `Function.new` for more information.
+  # Attaches a function from the current library to Inko.
+  #
+  # See `Function.new` for more information.
   def function(
     name: String,
     arguments: Array!(Type),
@@ -263,15 +263,15 @@ impl Library {
   }
 }
 
-## A member in a structure.
+# A member in a structure.
 object Member {
-  ## The name of this `Member`.
+  # The name of this `Member`.
   @name: String
 
-  ## The C `Type` of this `Member`.
+  # The C `Type` of this `Member`.
   @type: Type
 
-  ## The offset of this `Member`, relative to the start of the struct.
+  # The offset of this `Member`, relative to the start of the struct.
   @offset: Integer
 
   def init(name: String, type: Type, offset: Integer) {
@@ -280,33 +280,33 @@ object Member {
     @offset = offset
   }
 
-  ## Returns the name of this `Member`.
+  # Returns the name of this `Member`.
   def name -> String {
     @name
   }
 
-  ## Returns the C `Type` of this `Member`.
+  # Returns the C `Type` of this `Member`.
   def type -> Type {
     @type
   }
 
-  ## Returns the offset of this `Member`.
+  # Returns the offset of this `Member`.
   def offset -> Integer {
     @offset
   }
 }
 
-## The members, alignment, and other information used for building a C
-## structure.
+# The members, alignment, and other information used for building a C
+# structure.
 object Layout {
-  ## The members of this layout, mapped to their names.
+  # The members of this layout, mapped to their names.
   @members: Map!(String, Member)
 
-  ## The size (in bytes) of this layout.
+  # The size (in bytes) of this layout.
   @size: Integer
 
-  ## The alignment to use for all fields. This equals the alignment of the
-  ## largest field.
+  # The alignment to use for all fields. This equals the alignment of the
+  # largest field.
   @alignment: Integer
 
   def init(
@@ -319,36 +319,36 @@ object Layout {
     @alignment = alignment
   }
 
-  ## Returns the alignment of the members in this `Struct`.
+  # Returns the alignment of the members in this `Struct`.
   def alignment -> Integer {
     @alignment
   }
 
-  ## Returns the size in bytes of this `Layout`.
+  # Returns the size in bytes of this `Layout`.
   def size -> Integer {
     @size
   }
 
-  ## Returns the `Member` for the given name.
-  ##
-  ## This method will panic if no member is defined for the given name.
+  # Returns the `Member` for the given name.
+  #
+  # This method will panic if no member is defined for the given name.
   def [](name: String) -> Member {
     let member = @members[name]
 
-    member.if true: {
-      member!
-    }, false: {
+    member.if_false {
       process.panic('Undefined struct member: ' + name)
     }
+
+    member!
   }
 }
 
-## A C structure.
+# A C structure.
 object Struct {
-  ## The pointer to the C address that contains the structure.
+  # The pointer to the C address that contains the structure.
   @pointer: Pointer
 
-  ## The `Layout` of this structure.
+  # The `Layout` of this structure.
   @layout: Layout
 
   def init(pointer: Pointer, layout: Layout) {
@@ -356,31 +356,31 @@ object Struct {
     @layout = layout
   }
 
-  ## Returns the size in bytes of this `Struct`.
+  # Returns the size in bytes of this `Struct`.
   def size -> Integer {
     @layout.size
   }
 
-  ## Returns the alignment of the members in this `Struct`.
+  # Returns the alignment of the members in this `Struct`.
   def alignment -> Integer {
     @layout.alignment
   }
 
-  ## Returns the pointer to the C structure.
+  # Returns the pointer to the C structure.
   def pointer -> Pointer {
     @pointer
   }
 
-  ## Reads the value of the given struct member.
-  ##
-  ## This method will panic if the given member does not exist.
+  # Reads the value of the given struct member.
+  #
+  # This method will panic if the given member does not exist.
   def [](name: String) {
     let member = @layout[name]
 
     @pointer.read(type: member.type, offset: member.offset)
   }
 
-  ## Writes a value to a struct member.
+  # Writes a value to a struct member.
   def []=!(T)(name: String, value: T) -> T {
     let member = @layout[name]
 
@@ -390,30 +390,30 @@ object Struct {
 
 # These methods require that `Struct` is defined first.
 impl Layout {
-  ## Creates a new `Struct` using this layout.
-  ##
-  ## The given argument is a `Pointer` pointing to the memory in C that contains
-  ## the structure's data.
+  # Creates a new `Struct` using this layout.
+  #
+  # The given argument is a `Pointer` pointing to the memory in C that contains
+  # the structure's data.
   def from_pointer(pointer: Pointer) -> Struct {
     Struct.new(pointer: pointer, layout: self)
   }
 }
 
-## An object used for constructing an immutable `Layout`.
+# An object used for constructing an immutable `Layout`.
 object LayoutBuilder {
-  ## The names of all members, in the order they are defined in.
+  # The names of all members, in the order they are defined in.
   @members: Array!(String)
 
-  ## The types of all members, in the order they are defined in.
+  # The types of all members, in the order they are defined in.
   @types: Array!(Type)
 
-  ## A Map that tracks which members have already been defined.
+  # A Map that tracks which members have already been defined.
   @existing: Map!(String, Boolean)
 
-  ## The alignment of the largest field.
+  # The alignment of the largest field.
   @alignment: Integer
 
-  ## A boolean indicating if members should be padded or not.
+  # A boolean indicating if members should be padded or not.
   @padding: Boolean
 
   def init {
@@ -424,22 +424,22 @@ object LayoutBuilder {
     @padding = True
   }
 
-  ## Disables the padding of members.
+  # Disables the padding of members.
   def disable_padding {
     @padding = False
     @alignment = 1
   }
 
-  ## Creates a new `Layout` based on the current state of this builder.
+  # Creates a new `Layout` based on the current state of this builder.
   def to_layout -> Layout {
-    @padding.if true: {
-      layout_with_padding
-    }, false: {
-      layout_without_padding
+    @padding.if_true {
+      return layout_with_padding
     }
+
+    layout_without_padding
   }
 
-  ## Creates a `Layout` that automatically applies padding.
+  # Creates a `Layout` that automatically applies padding.
   def layout_with_padding -> Layout {
     let members = Map.new
     let mut size = 0
@@ -476,7 +476,7 @@ object LayoutBuilder {
     Layout.new(members: members, alignment: @alignment, size: size)
   }
 
-  ## Creates a `Layout` that does not use any padding.
+  # Creates a `Layout` that does not use any padding.
   def layout_without_padding -> Layout {
     let members = Map.new
     let mut offset = 0
@@ -494,9 +494,9 @@ object LayoutBuilder {
 }
 
 impl SetIndex!(String, Type) for LayoutBuilder {
-  ## Defines a new member.
-  ##
-  ## Trying to redefine a member will result in a panic.
+  # Defines a new member.
+  #
+  # Trying to redefine a member will result in a panic.
   def []=(name: String, type: Type) -> Type {
     @existing[name].if_true {
       let error = StringBuffer
@@ -522,14 +522,14 @@ impl SetIndex!(String, Type) for LayoutBuilder {
   }
 }
 
-## Builds a new structure `Layout`.
-##
-## This method can be used to build the layout of a structure, without having to
-## explicitly import any additional types.
-##
-## Despite its name, this method returns a `Layout` and not a `Struct`. The name
-## "struct" was chosen because it leads to a more pleasant AP, compared to
-## calling the method `layout`.
+# Builds a new structure `Layout`.
+#
+# This method can be used to build the layout of a structure, without having to
+# explicitly import any additional types.
+#
+# Despite its name, this method returns a `Layout` and not a `Struct`. The name
+# "struct" was chosen because it leads to a more pleasant AP, compared to
+# calling the method `layout`.
 def struct(block: do (LayoutBuilder)) -> Layout {
   let builder = LayoutBuilder.new
 

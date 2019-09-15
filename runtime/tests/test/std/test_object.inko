@@ -65,7 +65,7 @@ test.group('std::object::Object.if_false') do (g) {
 test.group('std::object::Object.if') do (g) {
   g.test('The block passed to the true: argument is always executed') {
     let obj = Object.new
-    let res = obj.if true: { 10 }, false: { 20 }
+    let res = obj.if(true: { 10 }, false: { 20 })
 
     assert.equal(res, 10)
   }

@@ -1,17 +1,17 @@
-#! Types for defining groups of unit tests.
-#!
-#! A `TestGroup` can be used to define multiple, related unit tests. Test groups
-#! are typically defined by sending `group` to the `std::test` module.
+# Types for defining groups of unit tests.
+#
+# A `TestGroup` can be used to define multiple, related unit tests. Test groups
+# are typically defined by sending `group` to the `std::test` module.
 import std::debug
 import std::test::runner::Client
 import std::test::test::Test
 
-## A collection of tests that all belong to the same group.
+# A collection of tests that all belong to the same group.
 object TestGroup {
-  ## The name of the group.
+  # The name of the group.
   @name: String
 
-  ## The `Client` to use for communicating with a `Runner`.
+  # The `Client` to use for communicating with a `Runner`.
   @client: Client
 
   def init(name: String, client: Client) {
@@ -19,7 +19,7 @@ object TestGroup {
     @client = client
   }
 
-  ## Registers a new test with a runner.
+  # Registers a new test with a runner.
   def test(name: String, body: lambda) {
     let location = debug.stacktrace(skip: 2, limit: 1)[0]!
 

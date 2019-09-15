@@ -1,0 +1,144 @@
+# AST types for type Inko types, such as optional types.
+import std::compiler::ast::node::Node
+import std::compiler::ast::type_parameter::TypeParameter
+import std::compiler::source_location::SourceLocation
+
+# A type that is either `T` or `Nil`.
+object OptionalType {
+  # The source location of the constant.
+  @location: SourceLocation
+
+  # The type that is made optional.
+  @type: Node
+
+  def init(type: Node, location: SourceLocation) {
+    @type = type
+    @location = location
+  }
+
+  def type -> Node {
+    @type
+  }
+}
+
+impl Node for OptionalType {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A closure type created using the `do` keyword.
+object ClosureType {
+  # The argument types of this closure.
+  @arguments: Array!(Node)
+
+  # The type parameters of this closure.
+  @type_parameters: Array!(TypeParameter)
+
+  # The type of the value this closure might throw.
+  @throw_type: ?Node
+
+  # The return type of this closure.
+  @return_type: ?Node
+
+  # The source location of the constant.
+  @location: SourceLocation
+
+  def init(
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Node),
+    throw_type: ?Node,
+    return_type: ?Node,
+    location: SourceLocation
+  ) {
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @throw_type = throw_type
+    @return_type = return_type
+    @location = location
+  }
+
+  # Returns the argument types of this closure.
+  def arguments -> Array!(Node) {
+    @arguments
+  }
+
+  # Returns the type parameters of this closure.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the return type of this closure.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this closure.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+}
+
+impl Node for ClosureType {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A lambda type created using the `lambda` keyword.
+object LambdaType {
+  # The argument types of this lambda.
+  @arguments: Array!(Node)
+
+  # The type parameters of this lambda.
+  @type_parameters: Array!(TypeParameter)
+
+  # The type of the value this lambda might throw.
+  @throw_type: ?Node
+
+  # The return type of this lambda.
+  @return_type: ?Node
+
+  # The source location of the constant.
+  @location: SourceLocation
+
+  def init(
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Node),
+    throw_type: ?Node,
+    return_type: ?Node,
+    location: SourceLocation
+  ) {
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @throw_type = throw_type
+    @return_type = return_type
+    @location = location
+  }
+
+  # Returns the argument types of this lambda.
+  def arguments -> Array!(Node) {
+    @arguments
+  }
+
+  # Returns the type parameters of this lambda.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the return type of this lambda.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this lambda.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+}
+
+impl Node for LambdaType {
+  def location -> SourceLocation {
+    @location
+  }
+}

@@ -49,7 +49,7 @@ test.group('std::os.mac?') do (g) {
 
 test.group('std::os::NEWLINE') do (g) {
   g.test('Obtaining the newline separator for the underlying platform') {
-    let expected = os.windows?.if true: { "\r\n" }, false: { "\n" }
+    let expected = os.windows?.if(true: { "\r\n" }, false: { "\n" })
 
     assert.equal(NEWLINE, expected)
   }

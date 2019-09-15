@@ -1,14 +1,19 @@
-#! Detection of Inko keywords using perfect hashing.
-#!
-#! The code in this module was originally generated using gperf using the
-#! `-m100` option. The generated C code was then ported to Inko by hand.
-#!
-#! Since this code is based on generated code, changing it may produce
-#! unexpected results. For example, the various lookup tables in this module
-#! should not have their order changed.
+# Detection of Inko keywords using perfect hashing.
+#
+# The code in this module was originally generated using gperf using the
+# following command:
+#
+#     gperf -m100 keywords.txt
+#
+# Here `keywords.txt` contains a sorted list of all the keywords of Inko. The
+# generated C code was then ported to Inko by hand.
+#
+# Since this code is based on generated code, changing it may produce
+# unexpected results. For example, the various lookup tables in this module
+# should not have their order changed.
 import std::byte_array::ByteArray
 
-## The associated values for the first and second bytes in a keyword.
+# The associated values for the first and second bytes in a keyword.
 let ASSOCIATED_VALUES = Array.new(
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
   22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
@@ -38,7 +43,7 @@ let ASSOCIATED_VALUES = Array.new(
   22, 22, 22, 22, 22, 22
 )
 
-## All available keywords, as ByteArray instances.
+# All available keywords, as ByteArray instances.
 let WORD_LIST = Array.new(
   ''.to_byte_array,
   ''.to_byte_array,
@@ -64,15 +69,15 @@ let WORD_LIST = Array.new(
   'object'.to_byte_array
 )
 
-## Input values with a length outside of this `Range` definitely can not be a
-## keyword.
+# Input values with a length outside of this `Range` definitely can not be a
+# keyword.
 let WORD_LENGTH = 2..6
 
-## The maximum possible hash value. If a hash value is greater, the input is
-## definitely not a keyword.
+# The maximum possible hash value. If a hash value is greater, the input is
+# definitely not a keyword.
 let MAX_HASH_VALUE = 21
 
-## Returns `True` if the given `ByteArray` is a valid Inko keyword.
+# Returns `True` if the given `ByteArray` is a valid Inko keyword.
 def keyword?(bytes: ByteArray) -> Boolean {
   let length = bytes.length
 

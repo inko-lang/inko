@@ -1,6 +1,6 @@
-#! Types for retrieving the successor of an object.
+# Types for retrieving the successor of an object.
 
 trait Successor {
-  ## Returns the successor of `self`.
+  # Returns the successor of `self`.
   def successor -> Self
 }

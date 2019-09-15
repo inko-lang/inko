@@ -1,37 +1,37 @@
-#! Types and methods for hashing data.
+# Types and methods for hashing data.
 import std::operators::Equal
 
-## Trait for hashing integers.
-##
-## A `Hasher` is a streaming hasher: instead of feeding it a single value and
-## receiving a hash right away you write individual values to the `Hasher`. Once
-## you're done you send the `finish` message to the `Hasher` to obtain the final
-## hashed value. This approach makes it easier to hash multiple values together
-## such as the bytes in a `String`.
+# Trait for hashing integers.
+#
+# A `Hasher` is a streaming hasher: instead of feeding it a single value and
+# receiving a hash right away you write individual values to the `Hasher`. Once
+# you're done you send the `finish` message to the `Hasher` to obtain the final
+# hashed value. This approach makes it easier to hash multiple values together
+# such as the bytes in a `String`.
 trait Hasher {
-  ## Writes the given `Integer` into this hasher.
+  # Writes the given `Integer` into this hasher.
   def write_integer(value: Integer) -> Integer
 
-  ## Writes the given `Float` into this hasher.
+  # Writes the given `Float` into this hasher.
   def write_float(value: Float) -> Float
 
-  ## Writes the given `String` into this hasher.
+  # Writes the given `String` into this hasher.
   def write_string(value: String) -> String
 
-  ## Writes the given `Boolean` into this hasher.
+  # Writes the given `Boolean` into this hasher.
   def write_boolean(value: Boolean) -> Boolean
 
-  ## Returns the hash for the values written so far.
-  ##
-  ## This method should not reset the internal state of the `Hasher`.
+  # Returns the hash for the values written so far.
+  #
+  # This method should not reset the internal state of the `Hasher`.
   def to_hash -> Integer
 
-  ## Resets the internal state of `self`.
+  # Resets the internal state of `self`.
   def reset -> Self
 }
 
-## A value that can be hashed.
+# A value that can be hashed.
 trait Hash: Equal {
-  ## Writes the hash for `self` into the given `Hasher`.
+  # Writes the hash for `self` into the given `Hasher`.
   def hash(hasher: Hasher)
 }

@@ -1,222 +1,214 @@
-#! Blocks of code that can be executed.
-#!
-#! A Block is a collection of instructions to be executed by the VM. A Block may
-#! optionally take 1 or more arguments.
-#!
-#! # Different types of blocks
-#!
-#! Inko has 3 different kinds of blocks: methods, closures, and lambdas; all
-#! using the same type: `Block`. These different blocks have different purposes.
-#!
-#! Methods are blocks bound to a name and stored in an object, and they can't
-#! capture any local variables from the scope the method is defined in.
-#!
-#! Closures are blocks without a name that can capture local variables defined
-#! in the scope the closure was created in.
-#!
-#! Lambdas in turn are blocks without a name that _can't_ capture any variables,
-#! including `self`. This means that in these blocks `self` always refers to the
-#! module the lambda was defined in, regardless of what `self` refers to in the
-#! lambda's outer scope.
-#!
-#! # Closures
-#!
-#! A closure is created using the `do` keyword:
-#!
-#!     do { 10 }
-#!
-#! You can also leave out the `do` keyword to create a closure that doesn't take
-#! any arguments:
-#!
-#!     { 10 }
-#!
-#! The `do` keyword is required when a closure accepts arguments or specifies
-#! the value it may return or throw. For example, we can define a closure with a
-#! required argument as follows:
-#!
-#!     do (number) { number }
-#!
-#! If we leave out the type signature of the argument its type will be inferred
-#! based on how the closure is used. We can also specify a type explicitly:
-#!
-#!     do (number: Integer) { number }
-#!
-#! We can do the same for the return and throw types. The return type is
-#! specified using the `->` symbol, while throw types are specified using `!!`.
-#! For example, this closure would return an integer:
-#!
-#!     do -> Integer { 10 }
-#!
-#! This closure in turn will throw an integer:
-#!
-#!     do !! Integer { 10 }
-#!
-#! Just like argument types the return and throw types are inferred. In most
-#! cases it should not be necessary to specify these types explicitly and so we
-#! recommend you to leave them unspecified unless necessary.
-#!
-#! If a closure does not take any arguments it is recommended to omit the `do`
-#! keyword.
-#!
-#! # Lambdas
-#!
-#! Lambdas are created using the exact same syntax except instead of using `do`
-#! you have to use the `lambda` keyword.
-#!
-#! When passing a closure created using just curly braces (e.g. `{ 10 }`) to a
-#! method that accepts a lambda the closure will instead be treated as a lambda.
-#! For example:
-#!
-#!     def example(block: lambda) {
-#!       block.call
-#!     }
-#!
-#!     example { 10 } # => 10
-#!
-#! This is valid because the closure is passed directly as an argument, thus the
-#! compiler is able to instead treat it as a lambda. This however does _not_
-#! work if you first assign the block:
-#!
-#!     def example(block: lambda) {
-#!       block.call
-#!     }
-#!
-#!     let block = { 10 }
-#!
-#!     example(block) # => type error!
-#!
-#! # Methods
-#!
-#! Methods can be defined using the `def` keyword instead of the `do` keyword,
-#! but the rest of the syntax is the same. For example, to define a method
-#! `example` that returns `'Hello'` we'd write the following:
-#!
-#!     def example {
-#!       'Hello'
-#!     }
-#!
-#! Unlike closures the argument, return, and throw types of methods _are not_
-#! inferred. Argument and return types default to `Dynamic`, the throw type is
-#! not set unless specified explicitly.
-#!
-#! By defaulting argument and return types to `Dynamic` you can write dynamic
-#! methods without having to explicitly annotate types as `Dynamic`. This means
-#! that the following code is perfectly valid:
-#!
-#!     def number_or_string(number) {
-#!       (number > 0).if true: {
-#!         'Hello!'
-#!       }, false: {
-#!         42
-#!       }
-#!     }
-#!
-#!     number_or_string(10) # => 'Hello'
-#!     number_or_string(-5) # => 42
-#!
-#! If we don't want `Dynamic` types we can instead explicitly specify the types
-#! we want instead:
-#!
-#!     def only_numbers(number: Integer) -> Integer {
-#!       (number > 0).if true: {
-#!         number
-#!       }, false: {
-#!         42
-#!       }
-#!     }
-#!
-#!     only_numbers(10) # => 10
-#!     only_numbers(-5) # => -42
-#!
-#! Just like closures we can specify the throw type using `!!`:
-#!
-#!     def this_may_throw !! Integer {
-#!       throw 10
-#!     }
+# Blocks of code that can be executed.
+#
+# A Block is a collection of instructions to be executed by the VM. A Block may
+# optionally take 1 or more arguments.
+#
+# # Different types of blocks
+#
+# Inko has 3 different kinds of blocks: methods, closures, and lambdas; all
+# using the same type: `Block`. These different blocks have different purposes.
+#
+# Methods are blocks bound to a name and stored in an object, and they can't
+# capture any local variables from the scope the method is defined in.
+#
+# Closures are blocks without a name that can capture local variables defined
+# in the scope the closure was created in.
+#
+# Lambdas in turn are blocks without a name that _can't_ capture any variables,
+# including `self`. This means that in these blocks `self` always refers to the
+# module the lambda was defined in, regardless of what `self` refers to in the
+# lambda's outer scope.
+#
+# # Closures
+#
+# A closure is created using the `do` keyword:
+#
+#     do { 10 }
+#
+# You can also leave out the `do` keyword to create a closure that doesn't take
+# any arguments:
+#
+#     { 10 }
+#
+# The `do` keyword is required when a closure accepts arguments or specifies
+# the value it may return or throw. For example, we can define a closure with a
+# required argument as follows:
+#
+#     do (number) { number }
+#
+# If we leave out the type signature of the argument its type will be inferred
+# based on how the closure is used. We can also specify a type explicitly:
+#
+#     do (number: Integer) { number }
+#
+# We can do the same for the return and throw types. The return type is
+# specified using the `->` symbol, while throw types are specified using `!!`.
+# For example, this closure would return an integer:
+#
+#     do -> Integer { 10 }
+#
+# This closure in turn will throw an integer:
+#
+#     do !! Integer { 10 }
+#
+# Just like argument types the return and throw types are inferred. In most
+# cases it should not be necessary to specify these types explicitly and so we
+# recommend you to leave them unspecified unless necessary.
+#
+# If a closure does not take any arguments it is recommended to omit the `do`
+# keyword.
+#
+# # Lambdas
+#
+# Lambdas are created using the exact same syntax except instead of using `do`
+# you have to use the `lambda` keyword.
+#
+# When passing a closure created using just curly braces (e.g. `{ 10 }`) to a
+# method that accepts a lambda the closure will instead be treated as a lambda.
+# For example:
+#
+#     def example(block: lambda) {
+#       block.call
+#     }
+#
+#     example { 10 } # => 10
+#
+# This is valid because the closure is passed directly as an argument, thus the
+# compiler is able to instead treat it as a lambda. This however does _not_
+# work if you first assign the block:
+#
+#     def example(block: lambda) {
+#       block.call
+#     }
+#
+#     let block = { 10 }
+#
+#     example(block) # => type error!
+#
+# # Methods
+#
+# Methods can be defined using the `def` keyword instead of the `do` keyword,
+# but the rest of the syntax is the same. For example, to define a method
+# `example` that returns `'Hello'` we'd write the following:
+#
+#     def example {
+#       'Hello'
+#     }
+#
+# Unlike closures the argument, return, and throw types of methods _are not_
+# inferred. Argument and return types default to `Dynamic`, the throw type is
+# not set unless specified explicitly.
+#
+# By defaulting argument and return types to `Dynamic` you can write dynamic
+# methods without having to explicitly annotate types as `Dynamic`. This means
+# that the following code is perfectly valid:
+#
+#     def number_or_string(number) {
+#       (number > 0).if(true: { 'Hello!' }, false: { 42 })
+#     }
+#
+#     number_or_string(10) # => 'Hello'
+#     number_or_string(-5) # => 42
+#
+# If we don't want `Dynamic` types we can instead explicitly specify the types
+# we want instead:
+#
+#     def only_numbers(number: Integer) -> Integer {
+#       (number > 0).if(true: { number }, false: { 42 })
+#     }
+#
+#     only_numbers(10) # => 10
+#     only_numbers(-5) # => -42
+#
+# Just like closures we can specify the throw type using `!!`:
+#
+#     def this_may_throw !! Integer {
+#       throw 10
+#     }
 
 impl Block {
-  ## Executes the current block, passing the given arguments to the block.
-  ##
-  ## The return type of this method is `Dynamic` because it can not be inferred
-  ## when this method gets compiled. To work around this the compiler will
-  ## optimise sending `call` to a `Block` in such a way that it is able to
-  ## figure out what arguments the `Block` takes and what its return type is.
-  ##
-  ## # Examples
-  ##
-  ## Executing a block without arguments:
-  ##
-  ##     let block = { 10 }
-  ##
-  ##     block.call # => 10
-  ##
-  ## Executing a block with arguments:
-  ##
-  ##     let block = do (number) { number }
-  ##
-  ##     block.call(10) # => 10
+  # Executes the current block, passing the given arguments to the block.
+  #
+  # The return type of this method is `Dynamic` because it can not be inferred
+  # when this method gets compiled. To work around this the compiler will
+  # optimise sending `call` to a `Block` in such a way that it is able to
+  # figure out what arguments the `Block` takes and what its return type is.
+  #
+  # # Examples
+  #
+  # Executing a block without arguments:
+  #
+  #     let block = { 10 }
+  #
+  #     block.call # => 10
+  #
+  # Executing a block with arguments:
+  #
+  #     let block = do (number) { number }
+  #
+  #     block.call(10) # => 10
   def call {
     _INKOC.run_block(self)
   }
 
-  ## Executes the given `Block` as long as the receiving `Block` evaluates to
-  ## `False`.
-  ##
-  ## # Examples
-  ##
-  ## Decrementing a number:
-  ##
-  ##     let mut number = 10
-  ##
-  ##     { number == 0 }.while_false {
-  ##       number -= 1
-  ##     }
-  ##
-  ##     number # => 0
+  # Executes the given `Block` as long as the receiving `Block` evaluates to
+  # `False`.
+  #
+  # # Examples
+  #
+  # Decrementing a number:
+  #
+  #     let mut number = 10
+  #
+  #     { number == 0 }.while_false {
+  #       number -= 1
+  #     }
+  #
+  #     number # => 0
   def while_false(block: do) -> Nil {
     call.if_true { return }
     block.call
     while_false(block)
   }
 
-  ## Executes the given `Block` as long as the receiving `Block` evaluates to
-  ## `True`.
-  ##
-  ## # Examples
-  ##
-  ## Incrementing a number:
-  ##
-  ##     let mut number = 0
-  ##
-  ##     { number < 10 }.while_true {
-  ##       number += 1
-  ##     }
-  ##
-  ##     number # => 10
+  # Executes the given `Block` as long as the receiving `Block` evaluates to
+  # `True`.
+  #
+  # # Examples
+  #
+  # Incrementing a number:
+  #
+  #     let mut number = 0
+  #
+  #     { number < 10 }.while_true {
+  #       number += 1
+  #     }
+  #
+  #     number # => 10
   def while_true(block: do) -> Nil {
     call.if_false { return }
     block.call
     while_true(block)
   }
 
-  ## Repeatedly executes `self`.
-  ##
-  ## This method will never return on its own.
-  ##
-  ## # Examples
-  ##
-  ## Executing a block until we break out of it explicitly:
-  ##
-  ##     let mut number = 0
-  ##
-  ##     {
-  ##       number == 100
-  ##         .if_true {
-  ##           return
-  ##         }
-  ##
-  ##       number += 1
-  ##     }.loop
+  # Repeatedly executes `self`.
+  #
+  # This method will never return on its own.
+  #
+  # # Examples
+  #
+  # Executing a block until we break out of it explicitly:
+  #
+  #     let mut number = 0
+  #
+  #     {
+  #       number == 100
+  #         .if_true {
+  #           return
+  #         }
+  #
+  #       number += 1
+  #     }.loop
   def loop -> Void {
     call
     loop

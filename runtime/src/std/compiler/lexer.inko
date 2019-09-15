@@ -1,7 +1,7 @@
-#! Lexing of Inko source code into tokens.
-#!
-#! The types and methods of this module are not part of the public API at this
-#! time, meaning they can change at any time.
+# Lexing of Inko source code into tokens.
+#
+# The types and methods of this module are not part of the public API at this
+# time, meaning they can change at any time.
 import std::byte_array::(ByteArray, ToByteArray)
 import std::compiler::keywords
 import std::compiler::source_location::SourceLocation
@@ -59,13 +59,16 @@ let CURLY_OPEN = 123
 let PIPE = 124
 let CURLY_CLOSE = 125
 
-## The escape sequence literals supported by a single quoted string, and their
-## replacement bytes.
+# The escape sequence literals supported by a single quoted string, and their
+# replacement bytes.
 let SINGLE_QUOTED_STRING_ESCAPE_SEQUENCES =
-  Map.new.set(SINGLE_QUOTE, SINGLE_QUOTE)
+  Map
+    .new
+    .set(SINGLE_QUOTE, SINGLE_QUOTE)
+    .set(BACKSLASH, BACKSLASH)
 
-## The escape sequence literals supported by a double quoted string, and their
-## replacement bytes.
+# The escape sequence literals supported by a double quoted string, and their
+# replacement bytes.
 let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES =
   Map
     .new
@@ -75,38 +78,39 @@ let DOUBLE_QUOTED_STRING_ESCAPE_SEQUENCES =
     .set(ZERO, NULL)
     .set(LOWER_E, ESCAPE)
     .set(LOWER_R, CARRIAGE_RETURN)
+    .set(BACKSLASH, BACKSLASH)
 
-## A `Lexer` is used for turning Inko source code into a sequence of tokens.
-## These tokens in turn can be used by a parser to produce an Abstract Syntax
-## Tree.
-##
-## A `Lexer` is an `Iterator`, and tokens are obtained by sending `next` to a
-## `Lexer`:
-##
-##     import std::compiler::lexer::Lexer
-##
-##     let lexer = Lexer.new('10')
-##     let token = lexer.next
-##
-##     token.type  # => 'integer'
-##     token.value # => '10'
+# A `Lexer` is used for turning Inko source code into a sequence of tokens.
+# These tokens in turn can be used by a parser to produce an Abstract Syntax
+# Tree.
+#
+# A `Lexer` is an `Iterator`, and tokens are obtained by sending `next` to a
+# `Lexer`:
+#
+#     import std::compiler::lexer::Lexer
+#
+#     let lexer = Lexer.new('10')
+#     let token = lexer.next
+#
+#     token.type  # => 'integer'
+#     token.value # => '10'
 object Lexer {
-  ## The byte stream to lex.
+  # The byte stream to lex.
   @input: ByteArray
 
-  ## The file path that produced the byte stream.
+  # The file path that produced the byte stream.
   @file: Path
 
-  ## The maximum byte position in the input stream.
+  # The maximum byte position in the input stream.
   @max_position: Integer
 
-  ## The current byte position in the input stream.
+  # The current byte position in the input stream.
   @position: Integer
 
-  ## The current line number.
+  # The current line number.
   @line: Integer
 
-  ## The current column number.
+  # The current column number.
   @column: Integer
 
   def init(input: ToByteArray, file: ToPath) {
@@ -188,7 +192,7 @@ object Lexer {
     }
 
     (current == STAR).if_true {
-      return operator(type: 'mul', assign_type: 'mul_assign')
+      return star
     }
 
     (current == MINUS).if_true {
@@ -200,7 +204,7 @@ object Lexer {
     }
 
     (current == EQUAL).if_true {
-      return operator(type: 'assign', assign_type: 'equal')
+      return assign
     }
 
     (current == LOWER).if_true {
@@ -247,11 +251,11 @@ object Lexer {
       return underscore
     }
 
-    next?.if true: {
-      invalid
-    }, false: {
-      NullToken.new(current_location)
+    next?.if_true {
+      return invalid
     }
+
+    NullToken.new(current_location)
   }
 
   def number(skip_after_start = False) -> Token {
@@ -269,11 +273,10 @@ object Lexer {
     # "0x" is only valid at the start of an integer.
     (INTEGER_DIGIT_RANGE.start == current)
       .and { (next == LOWER_X).or { next == UPPER_X } }
-      .if true: {
-        hexadecimal_integer(skip_after_start)
-      }, false: {
-        integer_or_float(skip_after_start)
-      }
+      .if(
+        true: { hexadecimal_integer(skip_after_start) },
+        false: { integer_or_float(skip_after_start) }
+      )
   }
 
   def integer_or_float(skip_after_start = False) -> Token {
@@ -291,19 +294,22 @@ object Lexer {
       INTEGER_DIGIT_RANGE.cover?(byte)
         .or { byte == UNDERSCORE }
         .or {
-          let float_digit = (byte == LOWER_E).or { byte == UPPER_E }.if true: {
-            let next = next_byte
+          let float_digit = (byte == LOWER_E).or { byte == UPPER_E }.if(
+            true: {
+              let next = next_byte
 
-            # '-' and '+' are only allowed directly after the exponent sign
-            # (e/E).
-            (next == PLUS).or { next == MINUS }.if_true {
-              @position += 1
+              # '-' and '+' are only allowed directly after the exponent sign
+              # (e/E).
+              (next == PLUS).or { next == MINUS }.if_true {
+                @position += 1
+              }
+
+              True
+            },
+            false: {
+              (byte == DOT).and { INTEGER_DIGIT_RANGE.cover?(next_byte) }
             }
-
-            True
-          }, false: {
-            byte == DOT
-          }
+          )
 
           float_digit.if_true {
             type = 'float'
@@ -344,34 +350,9 @@ object Lexer {
   }
 
   def comment -> Token {
-    (next_byte == HASH).if_true {
-      return documentation_comment
-    }
-
-    (next_byte == EXCLAMATION).if_true {
-      return module_comment
-    }
-
-    regular_comment
-  }
-
-  def documentation_comment -> Token {
-    comment_token(type: 'documentation', padding: 2)
-  }
-
-  def module_comment -> Token {
-    comment_token(type: 'module_documentation', padding: 2)
-  }
-
-  def regular_comment -> Token {
-    comment_token(type: 'comment', padding: 1)
-  }
-
-  def comment_token(type: String, padding: Integer) -> Token {
-    @position += padding
+    @position += 1
 
     let start = @position
-    let line = @line
 
     {
       next?.and { newline?.not }
@@ -379,12 +360,7 @@ object Lexer {
       @position += 1
     }
 
-    let comment = token(
-      type: type,
-      start: start,
-      line: line,
-      padding: padding
-    )
+    let comment = token(type: 'comment', start: start, line: @line, padding: 1)
 
     advance_line
 
@@ -427,23 +403,41 @@ object Lexer {
     skip_after_start = False
   ) -> Token {
     let start = @position
-    let line = @line
 
     skip_after_start.if_true {
       @position += 1
     }
 
-    let token_type = (next_byte == EQUAL).if true: {
-      @position += 2
+    (next_byte == EQUAL).if(
+      true: {
+        @position += 2
 
-      assign_type
-    }, false: {
-      @position += 1
+        binary_assign_token(type: assign_type, start: start, line: @line)
+      },
+      false: {
+        @position += 1
 
-      type
-    }
+        binary_token(type: type, start: start, line: @line)
+      }
+    )
+  }
 
-    token(type: token_type, start: start, line: @line)
+  def binary_operator(type: String, equality_type: String) -> Token {
+    let start = @position
+    let token_type = (next_byte == EQUAL).if(
+      true: {
+        @position += 2
+
+        equality_type
+      },
+      false: {
+        @position += 1
+
+        type
+      }
+    )
+
+    binary_token(type: token_type, start: start, line: @line)
   }
 
   def string(
@@ -485,13 +479,12 @@ object Lexer {
     #
     # To prevent allocating an additional String, we only use the line buffer is
     # needed.
-    let advance_column_by = (@line > start_line).if true: {
+    let advance_column_by = (@line > start_line).if(
       # We subtract 1 for the opening quote padding, since that only applies to
       # the first line.
-      line_buffer.drain_to_string.length - 1
-    }, false: {
-      value.length
-    }
+      true: { line_buffer.drain_to_string.length - 1 },
+      false: { value.length }
+    )
 
     @column += advance_column_by + padding
 
@@ -521,33 +514,48 @@ object Lexer {
     buffer.push(current)
     line_buffer.push(current)
 
-    newline?.if true: {
-      advance_line
-      line_buffer.clear
-    }, false: {
-      @position += 1
-    }
+    newline?.if(
+      true: {
+        advance_line
+        line_buffer.clear
+      },
+      false: {
+        @position += 1
+      }
+    )
 
     False
   }
 
   def colon -> Token {
     let start = @position
-    let type = (next_byte == COLON).if true: {
-      @position += 2
+    let type = (next_byte == COLON).if(
+      true: {
+        @position += 2
 
-      'colon_colon'
-    }, false: {
-      @position += 1
+        'colon_colon'
+      },
+      false: {
+        @position += 1
 
-      'colon'
-    }
+        'colon'
+      }
+    )
 
     token(type: type, start: start, @line)
   }
 
   def percent -> Token {
     operator(type: 'mod', assign_type: 'mod_assign')
+  }
+
+  def star -> Token {
+    (next_byte == STAR).if(
+      true: {
+        operator(type: 'pow', assign_type: 'pow_assign', skip_after_start: True)
+      },
+      false: { operator(type: 'mul', assign_type: 'mul_assign') }
+    )
   }
 
   def minus -> Token {
@@ -557,35 +565,63 @@ object Lexer {
       return number(skip_after_start: True)
     }
 
-    (next == GREATER).if true: {
-      arrow
-    }, false: {
-      operator(type: 'sub', assign_type: 'sub_assign')
-    }
+    (next == GREATER).if(
+      true: { arrow },
+      false: { operator(type: 'sub', assign_type: 'sub_assign') }
+    )
+  }
+
+  def assign -> Token {
+    let start = @position
+
+    (next_byte == EQUAL).if(
+      true: {
+        @position += 2
+
+        binary_token(type: 'equal', start: start, line: @line)
+      },
+      false: {
+        @position += 1
+
+        token(type: 'assign', start: start, line: @line)
+      }
+    )
   }
 
   def lower -> Token {
-    (next_byte == LOWER).if true: {
-      operator(
-        type: 'shift_left',
-        assign_type: 'shift_left_assign',
-        skip_after_start: True
-      )
-    }, false: {
-      operator(type: 'lower', assign_type: 'lower_equal')
-    }
+    (next_byte == LOWER).if(
+      true: {
+        operator(
+          type: 'shift_left',
+          assign_type: 'shift_left_assign',
+          skip_after_start: True
+        )
+      },
+      false: { binary_operator(type: 'lower', equality_type: 'lower_equal') }
+    )
   }
 
   def greater -> Token {
-    (next_byte == GREATER).if true: {
-      operator(
-        type: 'shift_right',
-        assign_type: 'shift_right_assign',
-        skip_after_start: True
-      )
-    }, false: {
-      operator(type: 'greater', assign_type: 'greater_equal')
-    }
+    (next_byte == GREATER).if(
+      true: {
+        operator(
+          type: 'shift_right',
+          assign_type: 'shift_right_assign',
+          skip_after_start: True
+        )
+      },
+      false: {
+        binary_operator(type: 'greater', equality_type: 'greater_equal')
+      }
+    )
+  }
+
+  def not_equal -> Token {
+    let start = @position
+
+    @position += 2
+
+    binary_token(type: 'not_equal', start: start, line: @line)
   }
 
   def arrow -> Token {
@@ -600,7 +636,7 @@ object Lexer {
     let next = next_byte
 
     (next == EQUAL).if_true {
-      return two_character_token('not_equal')
+      return not_equal
     }
 
     (next == PAREN_OPEN).if_true {
@@ -622,13 +658,13 @@ object Lexer {
     (current_byte == DOT).and { next_byte == DOT }.if_true {
       @position += 2
 
-      return token(type: 'exclusive_range', start: start, line: @line)
+      return binary_token(type: 'exclusive_range', start: start, line: @line)
     }
 
     (current_byte == DOT).if_true {
       @position += 1
 
-      return token(type: 'inclusive_range', start: start, line: @line)
+      return binary_token(type: 'inclusive_range', start: start, line: @line)
     }
 
     token(type: 'dot', start: start, line: @line)
@@ -662,11 +698,11 @@ object Lexer {
 
     @column += string.length
 
-    keywords.keyword?(bytes).if true: {
-      KeywordToken.new(keyword: string, location: location)
-    }, false: {
-      RegularToken.new(type: 'identifier', value: string, location: location)
+    keywords.keyword?(bytes).if_true {
+      return KeywordToken.new(keyword: string, location: location)
     }
+
+    RegularToken.new(type: 'identifier', value: string, location: location)
   }
 
   def constant -> Token {
@@ -700,6 +736,24 @@ object Lexer {
     RegularToken.new(type: type, value: value, location: location)
   }
 
+  def binary_token(type: String, start: Integer, line: Integer) -> Token {
+    let value = slice_string(start: start, stop: @position)
+    let location = source_location(line)
+
+    @column += value.length
+
+    BinaryToken.new(type: type, value: value, location: location)
+  }
+
+  def binary_assign_token(type: String, start: Integer, line: Integer) -> Token {
+    let value = slice_string(start: start, stop: @position)
+    let location = source_location(line)
+
+    @column += value.length
+
+    BinaryAssignToken.new(type: type, value: value, location: location)
+  }
+
   def invalid -> Token {
     let value = slice_string(start: @position, stop: @position + 1)
     let location = source_location(@line)
@@ -725,12 +779,13 @@ object Lexer {
       return
     }
 
-    newline?.if true: {
-      advance_line
-    }, false: {
-      @position += 1
-      @column += 1
-    }
+    newline?.if(
+      true: { advance_line },
+      false: {
+        @position += 1
+        @column += 1
+      }
+    )
 
     consume_whitespace
   }
@@ -739,6 +794,11 @@ object Lexer {
     @position += 1
     @column = 1
     @line += 1
+  }
+
+  def advance_one_byte {
+    @position += 1
+    @column += 1
   }
 
   def slice_string(start: Integer, stop: Integer) -> String {
@@ -768,6 +828,7 @@ object Lexer {
       .or { uppercase? }
       .or { INTEGER_DIGIT_RANGE.cover?(current) }
       .or { current == UNDERSCORE }
+      .or { current == QUESTION }
   }
 
   def lowercase? -> Boolean {
@@ -797,12 +858,12 @@ object Lexer {
 }
 
 impl Iterator!(Token) for Lexer {
-  ## Returns `True` if there is remaining input to lex.
+  # Returns `True` if there is remaining input to lex.
   def next? -> Boolean {
     @position < @max_position
   }
 
-  ## Returns the next `Token` available, if any.
+  # Returns the next `Token` available, if any.
   def next -> ?Token {
     consume_whitespace
 

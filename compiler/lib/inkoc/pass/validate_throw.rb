@@ -176,6 +176,7 @@ module Inkoc
 
       def error_for_undefined_throw(throw_type, block_type, location)
         return if block_type.throw_type
+        return unless throw_type
 
         diagnostics.throw_without_throw_defined_error(throw_type, location)
       end

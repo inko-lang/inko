@@ -2,24 +2,24 @@ import std::fs
 import test::fixtures::VALID_FILE
 
 
-## Returns `True` if the current platform supports obtaining creation/birth
-## timings of files.
+# Returns `True` if the current platform supports obtaining creation/birth
+# timings of files.
 def creation_time? -> Boolean {
   try fs.created_at(VALID_FILE) else return False
 
   True
 }
 
-## Returns `True` if the current platform supports obtaining the modification
-## time of a file.
+# Returns `True` if the current platform supports obtaining the modification
+# time of a file.
 def modification_time? -> Boolean {
   try fs.modified_at(VALID_FILE) else return False
 
   True
 }
 
-## Returns `True` if the current platform supports obtaining the access time of
-## a file.
+# Returns `True` if the current platform supports obtaining the access time of
+# a file.
 def access_time? -> Boolean {
   try fs.accessed_at(VALID_FILE) else return False
 

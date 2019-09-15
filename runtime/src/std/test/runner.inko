@@ -1,22 +1,22 @@
-#! Registering and running of unit tests
-#!
-#! This module provides various types and methods for working with test runners.
-#! A runner is an object that manages a list of tests, executes them, and
-#! displays the results using a `std::test::formatter::Formatter`.
-#!
-#! A runner is made out of three components:
-#!
-#! 1. A `RunnerState` object, which stores the state of a `Runner`.
-#! 2. A `Runner` object, which runs in a separate process and is responsible for
-#!    executing tests.
-#! 3. A `Client` object, which sends messages to a `Runner`. A `Client` can be
-#!    copied to other processes, but each `Client` always belongs to a single
-#!    `Runner`.
-#!
-#! A `Client` communicates with a `Runner` by sending it objects that implement
-#! the `Command` trait. A `Runner` in turn will send the `run` message to these
-#! objects, passing its instance of `RunnerState`. This allows for type-safe
-#! message passing, without the need for pattern matching.
+# Registering and running of unit tests
+#
+# This module provides various types and methods for working with test runners.
+# A runner is an object that manages a list of tests, executes them, and
+# displays the results using a `std::test::formatter::Formatter`.
+#
+# A runner is made out of three components:
+#
+# 1. A `RunnerState` object, which stores the state of a `Runner`.
+# 2. A `Runner` object, which runs in a separate process and is responsible for
+#    executing tests.
+# 3. A `Client` object, which sends messages to a `Runner`. A `Client` can be
+#    copied to other processes, but each `Client` always belongs to a single
+#    `Runner`.
+#
+# A `Client` communicates with a `Runner` by sending it objects that implement
+# the `Command` trait. A `Runner` in turn will send the `run` message to these
+# objects, passing its instance of `RunnerState`. This allows for type-safe
+# message passing, without the need for pattern matching.
 import std::process::(self, Process)
 import std::test::config::Configuration
 import std::test::formatter::Formatter
@@ -24,15 +24,15 @@ import std::test::test::Test
 import std::time::Instant
 import std::vm
 
-## The exit status to use if one or more tests failed to run.
+# The exit status to use if one or more tests failed to run.
 let FAILURE_EXIT_STATUS = 1
 
-## The internal state of a `Runner`.
+# The internal state of a `Runner`.
 object RunnerState {
-  ## All the tests registered with this runner.
+  # All the tests registered with this runner.
   @tests: Array!(Test)
 
-  ## The configuration details for this runner.
+  # The configuration details for this runner.
   @configuration: Configuration
 
   def init {
@@ -40,45 +40,45 @@ object RunnerState {
     @configuration = Configuration.new
   }
 
-  ## Adds a new `Test` to this `Runner`.
+  # Adds a new `Test` to this `Runner`.
   def add_test(test: Test) {
     @tests.push(test)
   }
 
-  ## Returns all the currently registered tests.
+  # Returns all the currently registered tests.
   def tests -> Array!(Test) {
     @tests
   }
 
-  ## Returns the `Configuration` of a `Runner`.
+  # Returns the `Configuration` of a `Runner`.
   def configuration -> Configuration {
     @configuration
   }
 
-  ## Returns the number of tests to be executed concurrently
+  # Returns the number of tests to be executed concurrently
   def concurrency -> Integer {
     @configuration.concurrency
   }
 
-  ## Returns the `Formatter` to use for formatting test results.
+  # Returns the `Formatter` to use for formatting test results.
   def formatter -> Formatter {
     @configuration.formatter
   }
 }
 
-## A command sent from a runner client to the server.
+# A command sent from a runner client to the server.
 trait Command {
-  ## Runs the command.
+  # Runs the command.
   def run(state: RunnerState)
 }
 
-## A Command for setting configuration options of a `Runner`.
+# A Command for setting configuration options of a `Runner`.
 object ConfigureRunner {
-  ## The name of the option to set.
+  # The name of the option to set.
   @option: String
 
-  ## The value to set the option to. The type of this value is Dynamic and can
-  ## vary based on the name of the option.
+  # The value to set the option to. The type of this value is Dynamic and can
+  # vary based on the name of the option.
   @value: Dynamic
 
   def init(option: String, value) {
@@ -93,9 +93,9 @@ impl Command for ConfigureRunner {
   }
 }
 
-## A command for adding a new test to a runner.
+# A command for adding a new test to a runner.
 object AddTest {
-  ## The test to add.
+  # The test to add.
   @test: Test
 
   def init(test: Test) {
@@ -109,9 +109,9 @@ impl Command for AddTest {
   }
 }
 
-## A command for running all tests currently registered with a `Runner`.
+# A command for running all tests currently registered with a `Runner`.
 object RunTests {
-  ## The `Process` to notify once all tests have been completed.
+  # The `Process` to notify once all tests have been completed.
   @notify: Process
 
   def init(notify: Process) {
@@ -127,10 +127,10 @@ object RunTests {
 }
 
 impl Command for RunTests {
-  ## Runs all the tests currently registered, returning once they have been
-  ## completed.
-  ##
-  ## Once this method has been called, no new tests can be registered.
+  # Runs all the tests currently registered, returning once they have been
+  # completed.
+  #
+  # Once this method has been called, no new tests can be registered.
   def run(state: RunnerState) {
     let mut pending = 0
     let start_time = Instant.new
@@ -178,13 +178,13 @@ impl Command for RunTests {
   }
 }
 
-## A message sent by a `Runner` to inform a process that the `Runner` has
-## finished.
+# A message sent by a `Runner` to inform a process that the `Runner` has
+# finished.
 object RunnerFinished {
-  ## The runner `Process` that sent the message.
+  # The runner `Process` that sent the message.
   @runner: Process
 
-  ## A boolean indicating if there were any test failures.
+  # A boolean indicating if there were any test failures.
   @failures: Boolean
 
   def init(runner: Process, failures: Boolean) {
@@ -192,35 +192,35 @@ object RunnerFinished {
     @failures = failures
   }
 
-  ## Returns the `Process` of the `Runner` that sent the message.
+  # Returns the `Process` of the `Runner` that sent the message.
   def runner -> Process {
     @runner
   }
 
-  ## Returns `True` if one or more tests failed, `False` otherwise.
+  # Returns `True` if one or more tests failed, `False` otherwise.
   def failures? -> Boolean {
     @failures
   }
 }
 
-## An object for executing test commands, such as setting configuring options or
-## running the tests.
-##
-## A test runner consists out of two components: a server (an instance of
-## `Runner`), and one or more clients (instances of `Client`). The state of a
-## `Runner` is stored in a separate `RunnerState` instance.
+# An object for executing test commands, such as setting configuring options or
+# running the tests.
+#
+# A test runner consists out of two components: a server (an instance of
+# `Runner`), and one or more clients (instances of `Client`). The state of a
+# `Runner` is stored in a separate `RunnerState` instance.
 object Runner {
-  ## The internal state of a Runner.
+  # The internal state of a Runner.
   @state: RunnerState
 
   def init {
     @state = RunnerState.new
   }
 
-  ## Starts the runner.
-  ##
-  ## This method will not return until a command has instructed this Runner to
-  ## terminate.
+  # Starts the runner.
+  #
+  # This method will not return until a command has instructed this Runner to
+  # terminate.
   def run {
     let command = process.receive as Command
 
@@ -230,12 +230,12 @@ object Runner {
   }
 }
 
-## A client that communicates with a certain `Runner`.
+# A client that communicates with a certain `Runner`.
 object Client {
-  ## The `Process` to use for communicating with the `Runner`.
+  # The `Process` to use for communicating with the `Runner`.
   @runner: Process
 
-  ## A boolean indicating if the test suite is running or not.
+  # A boolean indicating if the test suite is running or not.
   @running: Boolean
 
   def init(runner: Process) {
@@ -243,12 +243,12 @@ object Client {
     @running = False
   }
 
-  ## Returns the jrocess of the `Runner`.
+  # Returns the jrocess of the `Runner`.
   def runner -> Process {
     @runner
   }
 
-  ## Sets a configuration option to the given value.
+  # Sets a configuration option to the given value.
   def configure(option: String, value: Dynamic) {
     running?.if_true {
       process.panic(
@@ -259,7 +259,7 @@ object Client {
     @runner.send(ConfigureRunner.new(option, value))
   }
 
-  ## Adds a new test to the `Runner`.
+  # Adds a new test to the `Runner`.
   def add_test(test: Test) {
     running?.if_true {
       process.panic('New tests can not be added to a running test suite')
@@ -268,7 +268,7 @@ object Client {
     @runner.send(AddTest.new(test))
   }
 
-  ## Schedules all tests for execution and waits for them to complete.
+  # Schedules all tests for execution and waits for them to complete.
   def run {
     mark_as_running
 
@@ -277,10 +277,10 @@ object Client {
     wait_for_tests
   }
 
-  ## Blocks the current process until all tests have finished running.
-  ##
-  ## If any tests failed to run, this method will terminate the VM with exit
-  ## status code 1.
+  # Blocks the current process until all tests have finished running.
+  #
+  # If any tests failed to run, this method will terminate the VM with exit
+  # status code 1.
   def wait_for_tests {
     let message = process.receive as RunnerFinished
 
@@ -298,7 +298,7 @@ object Client {
   }
 }
 
-## Starts a new `Runner` in a separate process.
+# Starts a new `Runner` in a separate process.
 def start -> Client {
   let proc = process.spawn {
     Runner.new.run

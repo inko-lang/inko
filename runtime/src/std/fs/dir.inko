@@ -1,37 +1,37 @@
-#! Types and methods for manipulating directories on a filesystem.
+# Types and methods for manipulating directories on a filesystem.
 
 import std::fs::path::(Path, ToPath)
 import std::io::(Error as IOError)
 import std::process
 
-## Creates a new empty directory at the given path.
-##
-## # Errors
-##
-## This method may throw if any of the following conditions are met:
-##
-## 1. The user lacks the necessary permissions to create the directory.
-## 2. The directory already exists (unless `recursive` is set to `True`)
-##
-## # Creating directories recursively
-##
-## Setting the `recursive` argument to `True` will result in any missing
-## directories in the given path being created automatically. Existing
-## directories will be skipped in this case.
-##
-## # Examples
-##
-## Creating a directory:
-##
-##     import std::fs::dir
-##
-##     try! dir.create('/tmp/test')
-##
-## Creating a directory recursively:
-##
-##     import std::fs::dir
-##
-##     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
+# Creates a new empty directory at the given path.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to create the directory.
+# 2. The directory already exists (unless `recursive` is set to `True`)
+#
+# # Creating directories recursively
+#
+# Setting the `recursive` argument to `True` will result in any missing
+# directories in the given path being created automatically. Existing
+# directories will be skipped in this case.
+#
+# # Examples
+#
+# Creating a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create('/tmp/test')
+#
+# Creating a directory recursively:
+#
+#     import std::fs::dir
+#
+#     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
 def create(path: ToPath, recursive = False) !! IOError -> Nil {
   process.blocking {
     try {
@@ -42,31 +42,31 @@ def create(path: ToPath, recursive = False) !! IOError -> Nil {
   }
 }
 
-## Removes the directory at the given path.
-##
-## # Errors
-##
-## This method may throw if any of the following conditions are met:
-##
-## 1. The user lacks the necessary permissions to remove the directory.
-## 2. The directory is not empty (unless `recursive` is set to `True`).
-## 3. The directory does not exist.
-##
-## # Examples
-##
-## Removing a directory:
-##
-##     import std::fs::dir
-##
-##     try! dir.create('/tmp/test')
-##     try! dir.remove('/tmp/test')
-##
-## Removing a directory and its contents:
-##
-##     import std::fs::dir
-##
-##     try! dir.create(path: '/tmp/foo/bar', recursive: True)
-##     try! dir.remove(path: '/tmp/foo', recursive: True)
+# Removes the directory at the given path.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to remove the directory.
+# 2. The directory is not empty (unless `recursive` is set to `True`).
+# 3. The directory does not exist.
+#
+# # Examples
+#
+# Removing a directory:
+#
+#     import std::fs::dir
+#
+#     try! dir.create('/tmp/test')
+#     try! dir.remove('/tmp/test')
+#
+# Removing a directory and its contents:
+#
+#     import std::fs::dir
+#
+#     try! dir.create(path: '/tmp/foo/bar', recursive: True)
+#     try! dir.remove(path: '/tmp/foo', recursive: True)
 def remove(path: ToPath, recursive = False) !! IOError -> Nil {
   process.blocking {
     try {
@@ -77,25 +77,25 @@ def remove(path: ToPath, recursive = False) !! IOError -> Nil {
   }
 }
 
-## Returns an `Array` containing the paths to the contents of the directory.
-##
-## # Errors
-##
-## This method may throw if any of the following conditions are met:
-##
-## 1. The user lacks the necessary permissions to read the contents of the
-##    directory.
-## 2. The path does not point to a valid directory.
-##
-## # Examples
-##
-## Listing the contents of a directory:
-##
-##     import std::fs::dir
-##
-##     let paths = try! dir.list('.')
-##
-##     paths[0].to_string # => 'README.md'
+# Returns an `Array` containing the paths to the contents of the directory.
+#
+# # Errors
+#
+# This method may throw if any of the following conditions are met:
+#
+# 1. The user lacks the necessary permissions to read the contents of the
+#    directory.
+# 2. The path does not point to a valid directory.
+#
+# # Examples
+#
+# Listing the contents of a directory:
+#
+#     import std::fs::dir
+#
+#     let paths = try! dir.list('.')
+#
+#     paths[0].to_string # => 'README.md'
 def list(path: ToPath) !! IOError -> Array!(Path) {
   let raw_paths = process.blocking {
     try {

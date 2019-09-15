@@ -1,7 +1,7 @@
-#! The string type
-#!
-#! Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
-#! UTF-8.
+# The string type
+#
+# Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
+# UTF-8.
 
 import std::conversion::(ToFloat, ToInteger, ToString)
 import std::hash::(Hasher, Hash)
@@ -9,87 +9,87 @@ import std::length::Length
 import std::operators::(Equal, Add)
 
 impl String {
-  ## Returns the uppercase equivalent of the current `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` containing only ASCII symbols:
-  ##
-  ##     'hello'.to_uppercase # => 'HELLO'
-  ##
-  ## Converting a `String` containing Unicode symbols:
-  ##
-  ##     'ä'.to_uppercase # => 'Ä'
-  ##
-  ## Converting a `String` containing both ASCII and Unicode symbols:
-  ##
-  ##     'aä'.to_uppercase # => 'AÄ'
+  # Returns the uppercase equivalent of the current `String`.
+  #
+  # # Examples
+  #
+  # Converting a `String` containing only ASCII symbols:
+  #
+  #     'hello'.to_uppercase # => 'HELLO'
+  #
+  # Converting a `String` containing Unicode symbols:
+  #
+  #     'ä'.to_uppercase # => 'Ä'
+  #
+  # Converting a `String` containing both ASCII and Unicode symbols:
+  #
+  #     'aä'.to_uppercase # => 'AÄ'
   def to_uppercase -> String {
     _INKOC.string_to_upper(self)
   }
 
-  ## Returns the lowercase equivalent of the current `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` containing only ASCII symbols:
-  ##
-  ##     'HELLO'.to_lowercase # => 'hello'
-  ##
-  ## Converting a `String` containing Unicode symbols:
-  ##
-  ##     'Ä'.to_lowercase # => 'ä'
-  ##
-  ## Converting a `String` containing both ASCII and Unicode symbols:
-  ##
-  ##     'AÄ'.to_lowercase # => 'aä'
+  # Returns the lowercase equivalent of the current `String`.
+  #
+  # # Examples
+  #
+  # Converting a `String` containing only ASCII symbols:
+  #
+  #     'HELLO'.to_lowercase # => 'hello'
+  #
+  # Converting a `String` containing Unicode symbols:
+  #
+  #     'Ä'.to_lowercase # => 'ä'
+  #
+  # Converting a `String` containing both ASCII and Unicode symbols:
+  #
+  #     'AÄ'.to_lowercase # => 'aä'
   def to_lowercase -> String {
     _INKOC.string_to_lower(self)
   }
 
-  ## Returns the size of the `String` in bytes.
-  ##
-  ## # Examples
-  ##
-  ## Getting the size of a `String`:
-  ##
-  ##     'foo'.bytesize # => 3
+  # Returns the size of the `String` in bytes.
+  #
+  # # Examples
+  #
+  # Getting the size of a `String`:
+  #
+  #     'foo'.bytesize # => 3
   def bytesize -> Integer {
     _INKOC.string_size(self)
   }
 
-  ## Slices `self` into a substring.
-  ##
-  ## Slicing a string allows one to extract a substring by providing a start
-  ## position and the number of _characters_ to include starting at the start
-  ## position.
-  ##
-  ## # Examples
-  ##
-  ## Slicing a `String`:
-  ##
-  ##     'hello_world'.slice(0, 5) # => 'hello'
-  ##
-  ## If the `length` argument is greater than the available amount of characters
-  ## we only include the characters until the end of the `String`:
-  ##
-  ##     'hello_world'.slice(0, 100) # => 'hello_world'
-  ##
-  ## Similar to indexing an `Array` you can use a negative `start` position:
-  ##
-  ##     'hello_world'.slice(-1, 5) # => 'world'
+  # Slices `self` into a substring.
+  #
+  # Slicing a string allows one to extract a substring by providing a start
+  # position and the number of _characters_ to include starting at the start
+  # position.
+  #
+  # # Examples
+  #
+  # Slicing a `String`:
+  #
+  #     'hello_world'.slice(0, 5) # => 'hello'
+  #
+  # If the `length` argument is greater than the available amount of characters
+  # we only include the characters until the end of the `String`:
+  #
+  #     'hello_world'.slice(0, 100) # => 'hello_world'
+  #
+  # Similar to indexing an `Array` you can use a negative `start` position:
+  #
+  #     'hello_world'.slice(-1, 5) # => 'world'
   def slice(start: Integer, length: Integer) -> String {
     _INKOC.string_slice(self, start, length)
   }
 
-  ## Returns `True` if `self` starts with the given `String`.
-  ##
-  ## # Examples
-  ##
-  ## Checking if a `String` starts with another `String`:
-  ##
-  ##     'test_starts_with'.starts_with?('test_') # => True
-  ##     'hello'.starts_with?('test_')            # => False
+  # Returns `True` if `self` starts with the given `String`.
+  #
+  # # Examples
+  #
+  # Checking if a `String` starts with another `String`:
+  #
+  #     'test_starts_with'.starts_with?('test_') # => True
+  #     'hello'.starts_with?('test_')            # => False
   def starts_with?(prefix: String) -> Boolean {
     (prefix.length > length).if_true {
       return False
@@ -98,14 +98,14 @@ impl String {
     slice(0, prefix.length) == prefix
   }
 
-  ## Returns `True` if `self` ends with the given `String`.
-  ##
-  ## # Examples
-  ##
-  ## Checking if a `String` ends with another `String`:
-  ##
-  ##     'hello_world'.ends_with?('world') # => True
-  ##     'hello'.ends_with?('world')       # => False
+  # Returns `True` if `self` ends with the given `String`.
+  #
+  # # Examples
+  #
+  # Checking if a `String` ends with another `String`:
+  #
+  #     'hello_world'.ends_with?('world') # => True
+  #     'hello'.ends_with?('world')       # => False
   def ends_with?(suffix: String) -> Boolean {
     let suffix_len = suffix.length
     let start = length - suffix_len
@@ -121,94 +121,94 @@ impl String {
 }
 
 impl ToString for String {
-  ## Returns the current `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` to a `String`:
-  ##
-  ##     'hello'.to_string # => 'hello'
+  # Returns the current `String`.
+  #
+  # # Examples
+  #
+  # Converting a `String` to a `String`:
+  #
+  #     'hello'.to_string # => 'hello'
   def to_string -> String {
     self
   }
 }
 
 impl ToInteger for String {
-  ## Converts `self` to an `Integer`.
-  ##
-  ## The string is parsed in base 10. If the `String` can not be converted to
-  ## an `Integer`, `0` is returned instead.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` to an `Integer`:
-  ##
-  ##     '10'.to_integer # => 10
-  ##     'a'.to_integer  # => 0
+  # Converts `self` to an `Integer`.
+  #
+  # The string is parsed in base 10. If the `String` can not be converted to
+  # an `Integer`, `0` is returned instead.
+  #
+  # # Examples
+  #
+  # Converting a `String` to an `Integer`:
+  #
+  #     '10'.to_integer # => 10
+  #     'a'.to_integer  # => 0
   def to_integer -> Integer {
     try Integer.parse(self, 10) else (_) 0
   }
 }
 
 impl ToFloat for String {
-  ## Converts `self` to a `Float`.
-  ##
-  ## If the `String` can not be converted to a `Float`, `0.0` is returned
-  ## instead.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` to a `Float`:
-  ##
-  ##     '10.5'.to_float # => 10.5
-  ##     'a'.to_float    # => 0.0
+  # Converts `self` to a `Float`.
+  #
+  # If the `String` can not be converted to a `Float`, `0.0` is returned
+  # instead.
+  #
+  # # Examples
+  #
+  # Converting a `String` to a `Float`:
+  #
+  #     '10.5'.to_float # => 10.5
+  #     'a'.to_float    # => 0.0
   def to_float -> Float {
     try Float.parse(self) else (_) 0.0
   }
 }
 
 impl Length for String {
-  ## Returns the number of characters (_not_ bytes) in this `String`.
-  ##
-  ## # Examples
-  ##
-  ## Getting the length of an ASCII `String`:
-  ##
-  ##     'foo'.length # => 3
-  ##
-  ## Getting the length of a Unicode `String`:
-  ##
-  ##     '쿠키'.length # => 2
+  # Returns the number of characters (_not_ bytes) in this `String`.
+  #
+  # # Examples
+  #
+  # Getting the length of an ASCII `String`:
+  #
+  #     'foo'.length # => 3
+  #
+  # Getting the length of a Unicode `String`:
+  #
+  #     '쿠키'.length # => 2
   def length -> Integer {
     _INKOC.string_length(self)
   }
 }
 
 impl Equal for String {
-  ## Returns `True` if the current `String` and `other` are equal to each other.
-  ##
-  ## ## Examples
-  ##
-  ## Returns `True` if two Strings are equal:
-  ##
-  ##     'foo' == 'foo' # => True
-  ##
-  ## Returns `False` if two Strings are not equal:
-  ##
-  ##     'foo' == 'bar' # => False
+  # Returns `True` if the current `String` and `other` are equal to each other.
+  #
+  # # Examples
+  #
+  # Returns `True` if two Strings are equal:
+  #
+  #     'foo' == 'foo' # => True
+  #
+  # Returns `False` if two Strings are not equal:
+  #
+  #     'foo' == 'bar' # => False
   def ==(other: Self) -> Boolean {
     _INKOC.string_equals(self, other)
   }
 }
 
 impl Add!(String) for String {
-  ## Concatenates `self` and the given `String`, returning a new `String`.
-  ##
-  ## # Examples
-  ##
-  ## Concatenating two `String` objects:
-  ##
-  ##     'hello ' + 'world' # => 'hello world'
+  # Concatenates `self` and the given `String`, returning a new `String`.
+  #
+  # # Examples
+  #
+  # Concatenating two `String` objects:
+  #
+  #     'hello ' + 'world' # => 'hello world'
   def +(other: String) -> Self {
     _INKOC.string_concat(self, other)
   }

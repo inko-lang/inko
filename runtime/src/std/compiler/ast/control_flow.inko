@@ -1,0 +1,126 @@
+# AST types for control flow constructs.
+import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::node::Node
+import std::compiler::source_location::SourceLocation
+
+# A return expression, with an optional value to return.
+object Return {
+  # An expression to return, if any.
+  @expression: ?Node
+
+  # The source location of the return expression.
+  @location: SourceLocation
+
+  def init(expression: ?Node, location: SourceLocation) {
+    @expression = expression
+    @location = location
+  }
+
+  # Returns the expression to return.
+  def expression -> ?Node {
+    @expression
+  }
+}
+
+impl Node for Return {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+object Throw {
+  # The expression to throw.
+  @expression: Node
+
+  # The source location of the throw expression.
+  @location: SourceLocation
+
+  def init(expression: Node, location: SourceLocation) {
+    @expression = expression
+    @location = location
+  }
+
+  # Returns the expression to throw.
+  def expression -> Node {
+    @expression
+  }
+}
+
+impl Node for Throw {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An expression that might throw.
+object Try {
+  # The expression to try to run.
+  @expression: Node
+
+  # The name of the local variable to store the error in.
+  @error_variable: ?String
+
+  # The expression to run when an error is thrown.
+  @else_expression: Expressions
+
+  # The source location of the throw expression.
+  @location: SourceLocation
+
+  def init(
+    expression: Node,
+    error_variable: ?String,
+    else_expression: Expressions,
+    location: SourceLocation
+  ) {
+    @expression = expression
+    @error_variable = error_variable
+    @else_expression = else_expression
+    @location = location
+  }
+
+  # Returns the expression to try to run.
+  def expression -> Node {
+    @expression
+  }
+
+  # Returns the name of the error variable.
+  def error_variable -> ?String {
+    @error_variable
+  }
+
+  # Returns the expression to run when an error is thrown.
+  def else_expression -> Expressions {
+    @else_expression
+  }
+}
+
+impl Node for Try {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An expression that should panic if an error is thrown.
+object TryPanic {
+  # The expression to try to run.
+  @expression: Node
+
+  # The source location of the throw expression.
+  @location: SourceLocation
+
+  def init(expression: Node, location: SourceLocation) {
+    @expression = expression
+    @location = location
+  }
+
+  # Returns the expression to try to run.
+  def expression -> Node {
+    @expression
+  }
+}
+
+impl Node for TryPanic {
+  def location -> SourceLocation {
+    @location
+  }
+}

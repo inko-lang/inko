@@ -1,0 +1,244 @@
+# AST types for variables, such as identifiers and constants.
+import std::compiler::ast::node::Node
+import std::compiler::source_location::SourceLocation
+
+# An identifier, such as a local variable or global variable.
+object Identifier {
+  # The name of the identifier.
+  @name: String
+
+  # The source location of the identifier.
+  @location: SourceLocation
+
+  def init(name: String, location: SourceLocation) {
+    @name = name
+    @location = location
+  }
+
+  # Returns the name of the identifier.
+  def name -> String {
+    @name
+  }
+}
+
+impl Node for Identifier {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A constant such as an attribute or global variable.
+object Constant {
+  # The name of the constant.
+  @name: String
+
+  # The source location of the constant.
+  @location: SourceLocation
+
+  # The receiver of the constant, if any.
+  @receiver: ?Constant
+
+  # The type arguments passed to the constant.
+  @type_arguments: Array!(Node)
+
+  # A boolean indicating if the constant is an optional type or not.
+  @optional: Boolean
+
+  def init(
+    name: String,
+    location: SourceLocation,
+    receiver: ?Constant = Nil
+  ) {
+    @name = name
+    @location = location
+    @receiver = receiver
+    @type_arguments = Array.new
+    @optional = False
+  }
+
+  # Returns the name of the constant.
+  def name -> String {
+    @name
+  }
+
+  # Returns the receiver of this constant.
+  def receiver -> ?Constant {
+    @receiver
+  }
+
+  # Returns the type arguments to use for initialising the constant.
+  def type_arguments -> Array!(Node) {
+    @type_arguments
+  }
+
+  # Returns `True` if this constant is optional.
+  def optional? -> Boolean {
+    @optional
+  }
+
+  # Marks this constant as optional.
+  def optional -> Boolean {
+    @optional = True
+  }
+}
+
+impl Node for Constant {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An instance attribute.
+object Attribute {
+  # The name of the attribute.
+  @name: String
+
+  # The source location of the attribute.
+  @location: SourceLocation
+
+  def init(name: String, location: SourceLocation) {
+    @name = name
+    @location = location
+  }
+
+  # Returns the name of the attribute.
+  def name -> String {
+    @name
+  }
+}
+
+impl Node for Attribute {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A reference to a global variable.
+object Global {
+  # The name of the global.
+  @name: String
+
+  # The source location of the global.
+  @location: SourceLocation
+
+  def init(name: String, location: SourceLocation) {
+    @name = name
+    @location = location
+  }
+
+  # Returns the name of the global.
+  def name -> String {
+    @name
+  }
+}
+
+impl Node for Global {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# The object `self` returns.
+object SelfObject {
+  @location: SourceLocation
+
+  def init(location: SourceLocation) {
+    @location = location
+  }
+}
+
+impl Node for SelfObject {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# The assignment of a variable, such as an attribute.
+object Assign {
+  # The variable to assign the value to.
+  @variable: Node
+
+  # The value to assign to the variable.
+  @value: Node
+
+  def init(variable: Node, value: Node) {
+    @variable = variable
+    @value = value
+  }
+
+  # Returns the variable that the value is assigned to.
+  def variable -> Node {
+    @variable
+  }
+
+  # Returns the value to assign to the variable.
+  def value -> Node {
+    @value
+  }
+}
+
+impl Node for Assign {
+  def location -> SourceLocation {
+    @variable.location
+  }
+}
+
+# Defining of a local variable or constant.
+object DefineVariable {
+  # The name of the variable to define, which can either be a constant or an
+  # identifier.
+  @name: Node
+
+  # The explicitly specified variable type, if any.
+  @value_type: ?Node
+
+  # The value to assign to the variable.
+  @value: Node
+
+  # A boolean indicating if the variable is mutable (True) or immutable
+  # (False).
+  @mutable: Boolean
+
+  # The source location of the variable definition.
+  @location: SourceLocation
+
+  def init(
+    name: Node,
+    value_type: ?Node,
+    value: Node,
+    mutable: Boolean,
+    location: SourceLocation
+  ) {
+    @name = name
+    @value_type = value_type
+    @value = value
+    @mutable = mutable
+    @location = location
+  }
+
+  # Returns the name of the variable that is defined.
+  def name -> Node {
+    @name
+  }
+
+  # Returns the explicitly defined variable type.
+  def value_type -> ?Node {
+    @value_type
+  }
+
+  # Returns the value to assign to the variable.
+  def value -> Node {
+    @value
+  }
+
+  # Returns `True` if the variable defined is mutable.
+  def mutable? -> Boolean {
+    @mutable
+  }
+}
+
+impl Node for DefineVariable {
+  def location -> SourceLocation {
+    @location
+  }
+}

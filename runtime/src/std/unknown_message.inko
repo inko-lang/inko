@@ -1,33 +1,33 @@
-#! Traits for responding to unknown messages sent to objects.
+# Traits for responding to unknown messages sent to objects.
 
 trait UnknownMessage {
-  ## Responds to a message for which no method was defined.
-  ##
-  ## The `name` argument will contain the name of the message that was
-  ## originally sent. `arguments` will be an Array of all positional arguments
-  ## passed when sending the message. Keyword arguments are currently not passed
-  ## to this method.
-  ##
-  ## While the return type of this method is `Dynamic` you are free to return a
-  ## value of any other type, as long as the returned type is compatible with
-  ## `Dynamic`.
-  ##
-  ## # Examples
-  ##
-  ## A very simple example of using this trait:
-  ##
-  ##     import std::unknown_message::UnknownMessage
-  ##
-  ##     object Thing {}
-  ##
-  ##     impl UnknownMessage for Thing {
-  ##       def unknown_message(name: String, *arguments) -> Integer {
-  ##         10
-  ##       }
-  ##     }
-  ##
-  ##     let thing = Thing.new
-  ##
-  ##     thing.example # => 10
+  # Responds to a message for which no method was defined.
+  #
+  # The `name` argument will contain the name of the message that was
+  # originally sent. `arguments` will be an Array of all positional arguments
+  # passed when sending the message. Keyword arguments are currently not passed
+  # to this method.
+  #
+  # While the return type of this method is `Dynamic` you are free to return a
+  # value of any other type, as long as the returned type is compatible with
+  # `Dynamic`.
+  #
+  # # Examples
+  #
+  # A very simple example of using this trait:
+  #
+  #     import std::unknown_message::UnknownMessage
+  #
+  #     object Thing {}
+  #
+  #     impl UnknownMessage for Thing {
+  #       def unknown_message(name: String, *arguments) -> Integer {
+  #         10
+  #       }
+  #     }
+  #
+  #     let thing = Thing.new
+  #
+  #     thing.example # => 10
   def unknown_message(name: String, *arguments)
 }

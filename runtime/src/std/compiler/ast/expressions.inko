@@ -1,0 +1,28 @@
+# AST types for collections of expressions.
+import std::compiler::ast::node::Node
+import std::compiler::source_location::SourceLocation
+
+# A collection of different expressions.
+object Expressions {
+  # The nodes stored in this collection of expressions.
+  @children: Array!(Node)
+
+  # The source location of the start of the collection of expressions.
+  @location: SourceLocation
+
+  def init(children: Array!(Node), location: SourceLocation) {
+    @children = children
+    @location = location
+  }
+
+  # Returns the nodes stored in this collection.
+  def children -> Array!(Node) {
+    @children
+  }
+}
+
+impl Node for Expressions {
+  def location -> SourceLocation {
+    @location
+  }
+}

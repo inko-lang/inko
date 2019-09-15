@@ -199,58 +199,6 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
     assert.equal(tokens[1].location.column, 1)
   }
 
-  g.test('Lexing a single-line documentation comment') {
-    let token = lex('## hello')
-
-    assert.equal(token.type, 'documentation')
-    assert.equal(token.value, ' hello')
-
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
-
-  g.test('Lexing a multiple documentation comments') {
-    let tokens = lex_all("## hello\n## world")
-
-    assert.equal(tokens[0].type, 'documentation')
-    assert.equal(tokens[0].value, ' hello')
-
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'documentation')
-    assert.equal(tokens[1].value, ' world')
-
-    assert.equal(tokens[1].location.line_range, 2..2)
-    assert.equal(tokens[1].location.column, 1)
-  }
-
-  g.test('Lexing a single-line module comment') {
-    let token = lex('#! hello')
-
-    assert.equal(token.type, 'module_documentation')
-    assert.equal(token.value, ' hello')
-
-    assert.equal(token.location.line_range, 1..1)
-    assert.equal(token.location.column, 1)
-  }
-
-  g.test('Lexing a multiple module comments') {
-    let tokens = lex_all("#! hello\n#! world")
-
-    assert.equal(tokens[0].type, 'module_documentation')
-    assert.equal(tokens[0].value, " hello")
-
-    assert.equal(tokens[0].location.line_range, 1..1)
-    assert.equal(tokens[0].location.column, 1)
-
-    assert.equal(tokens[1].type, 'module_documentation')
-    assert.equal(tokens[1].value, " world")
-
-    assert.equal(tokens[1].location.line_range, 2..2)
-    assert.equal(tokens[1].location.column, 1)
-  }
-
   g.test('Lexing an identifier') {
     let token = lex('@foo')
 
@@ -276,6 +224,16 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
 
     assert.equal(token.type, 'attribute')
     assert.equal(token.value, '@foo')
+
+    assert.equal(token.location.line_range, 1..1)
+    assert.equal(token.location.column, 1)
+  }
+
+  g.test('Lexing an identifier ending in a question mark') {
+    let token = lex('foo?')
+
+    assert.equal(token.type, 'identifier')
+    assert.equal(token.value, 'foo?')
 
     assert.equal(token.location.line_range, 1..1)
     assert.equal(token.location.column, 1)
@@ -389,6 +347,18 @@ test.group('std::compiler::lexer::Lexer.next') do (g) {
 
     assert.equal(token.location.line_range, 1..1)
     assert.equal(token.location.column, 1)
+  }
+
+  g.test('Lexing a string containing an escaped backslash followed by more tokens') {
+    let tokens = lex_all("'\\\\' 10")
+
+    assert.equal(tokens.length, 2)
+
+    assert.equal(tokens[0].type, 'string')
+    assert.equal(tokens[0].value, '\\')
+
+    assert.equal(tokens[1].type, 'integer')
+    assert.equal(tokens[1].value, '10')
   }
 
   g.test('Lexing a double quoted string') {
@@ -555,6 +525,7 @@ world\n" "hello"'
   g.test('Lexing the division operator') {
     let token = lex('/')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'div')
     assert.equal(token.value, '/')
 
@@ -565,6 +536,8 @@ world\n" "hello"'
   g.test('Lexing the division-assign operator') {
     let token = lex('/=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'div_assign')
     assert.equal(token.value, '/=')
 
@@ -575,6 +548,7 @@ world\n" "hello"'
   g.test('Lexing the modulo operator') {
     let token = lex('%')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'mod')
     assert.equal(token.value, '%')
 
@@ -585,6 +559,8 @@ world\n" "hello"'
   g.test('Lexing the modulo-assign operator') {
     let token = lex('%=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'mod_assign')
     assert.equal(token.value, '%=')
 
@@ -595,6 +571,7 @@ world\n" "hello"'
   g.test('Lexing the XOR operator') {
     let token = lex('^')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'xor')
     assert.equal(token.value, '^')
 
@@ -605,6 +582,8 @@ world\n" "hello"'
   g.test('Lexing the XOR-assign operator') {
     let token = lex('^=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'xor_assign')
     assert.equal(token.value, '^=')
 
@@ -615,6 +594,7 @@ world\n" "hello"'
   g.test('Lexing the AND operator') {
     let token = lex('&')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'and')
     assert.equal(token.value, '&')
 
@@ -625,6 +605,8 @@ world\n" "hello"'
   g.test('Lexing the AND-assign operator') {
     let token = lex('&=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'and_assign')
     assert.equal(token.value, '&=')
 
@@ -635,6 +617,7 @@ world\n" "hello"'
   g.test('Lexing the OR operator') {
     let token = lex('|')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'or')
     assert.equal(token.value, '|')
 
@@ -645,6 +628,8 @@ world\n" "hello"'
   g.test('Lexing the OR-assign operator') {
     let token = lex('|=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'or_assign')
     assert.equal(token.value, '|=')
 
@@ -655,8 +640,20 @@ world\n" "hello"'
   g.test('Lexing the multiplication operator') {
     let token = lex('*')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'mul')
     assert.equal(token.value, '*')
+
+    assert.equal(token.location.column, 1)
+    assert.equal(token.location.line_range, 1..1)
+  }
+
+  g.test('Lexing the power operator') {
+    let token = lex('**')
+
+    assert.true(token.binary?)
+    assert.equal(token.type, 'pow')
+    assert.equal(token.value, '**')
 
     assert.equal(token.location.column, 1)
     assert.equal(token.location.line_range, 1..1)
@@ -665,6 +662,8 @@ world\n" "hello"'
   g.test('Lexing the multiplication-assign operator') {
     let token = lex('*=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'mul_assign')
     assert.equal(token.value, '*=')
 
@@ -702,6 +701,49 @@ world\n" "hello"'
     assert.equal(token.location.line_range, 1..1)
   }
 
+  g.test('Lexing an integer followed by a dot') {
+    let tokens = lex_all('10.')
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+
+    assert.equal(tokens[1].type, 'dot')
+    assert.equal(tokens[1].value, '.')
+  }
+
+  g.test('Lexing an integer followed by a dot and an identifier') {
+    let tokens = lex_all('10.foo')
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+
+    assert.equal(tokens[1].type, 'dot')
+    assert.equal(tokens[1].value, '.')
+
+    assert.equal(tokens[2].type, 'identifier')
+    assert.equal(tokens[2].value, 'foo')
+  }
+
+  g.test('Lexing an integer followed by the inclusive range operator') {
+    let tokens = lex_all('10..')
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+
+    assert.equal(tokens[1].type, 'inclusive_range')
+    assert.equal(tokens[1].value, '..')
+  }
+
+  g.test('Lexing an integer followed by the exclusive range operator') {
+    let tokens = lex_all('10...')
+
+    assert.equal(tokens[0].type, 'integer')
+    assert.equal(tokens[0].value, '10')
+
+    assert.equal(tokens[1].type, 'exclusive_range')
+    assert.equal(tokens[1].value, '...')
+  }
+
   g.test('Lexing the arrow operator') {
     let token = lex('->')
 
@@ -715,6 +757,7 @@ world\n" "hello"'
   g.test('Lexing the subtraction operator') {
     let token = lex('-')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'sub')
     assert.equal(token.value, '-')
 
@@ -725,6 +768,8 @@ world\n" "hello"'
   g.test('Lexing the subtraction-assign operator') {
     let token = lex('-=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'sub_assign')
     assert.equal(token.value, '-=')
 
@@ -735,6 +780,7 @@ world\n" "hello"'
   g.test('Lexing the addition operator') {
     let token = lex('+')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'add')
     assert.equal(token.value, '+')
 
@@ -745,6 +791,8 @@ world\n" "hello"'
   g.test('Lexing the addition-assign operator') {
     let token = lex('+=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'add_assign')
     assert.equal(token.value, '+=')
 
@@ -755,6 +803,7 @@ world\n" "hello"'
   g.test('Lexing the assign operator') {
     let token = lex('=')
 
+    assert.false(token.binary?)
     assert.equal(token.type, 'assign')
     assert.equal(token.value, '=')
 
@@ -765,6 +814,8 @@ world\n" "hello"'
   g.test('Lexing the equals operator') {
     let token = lex('==')
 
+    assert.true(token.binary?)
+    assert.false(token.binary_assign?)
     assert.equal(token.type, 'equal')
     assert.equal(token.value, '==')
 
@@ -775,6 +826,7 @@ world\n" "hello"'
   g.test('Lexing the lower operator') {
     let token = lex('<')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'lower')
     assert.equal(token.value, '<')
 
@@ -785,6 +837,8 @@ world\n" "hello"'
   g.test('Lexing the lower-equal operator') {
     let token = lex('<=')
 
+    assert.true(token.binary?)
+    assert.false(token.binary_assign?)
     assert.equal(token.type, 'lower_equal')
     assert.equal(token.value, '<=')
 
@@ -795,6 +849,7 @@ world\n" "hello"'
   g.test('Lexing the shift-left operator') {
     let token = lex('<<')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'shift_left')
     assert.equal(token.value, '<<')
 
@@ -805,6 +860,8 @@ world\n" "hello"'
   g.test('Lexing the shift-left-assign operator') {
     let token = lex('<<=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'shift_left_assign')
     assert.equal(token.value, '<<=')
 
@@ -815,6 +872,7 @@ world\n" "hello"'
   g.test('Lexing the greater operator') {
     let token = lex('>')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'greater')
     assert.equal(token.value, '>')
 
@@ -825,6 +883,8 @@ world\n" "hello"'
   g.test('Lexing the greater-equal operator') {
     let token = lex('>=')
 
+    assert.true(token.binary?)
+    assert.false(token.binary_assign?)
     assert.equal(token.type, 'greater_equal')
     assert.equal(token.value, '>=')
 
@@ -835,6 +895,7 @@ world\n" "hello"'
   g.test('Lexing the shift-right operator') {
     let token = lex('>>')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'shift_right')
     assert.equal(token.value, '>>')
 
@@ -845,6 +906,8 @@ world\n" "hello"'
   g.test('Lexing the shift-right-assign operator') {
     let token = lex('>>=')
 
+    assert.false(token.binary?)
+    assert.true(token.binary_assign?)
     assert.equal(token.type, 'shift_right_assign')
     assert.equal(token.value, '>>=')
 
@@ -875,6 +938,8 @@ world\n" "hello"'
   g.test('Lexing the not-equal operator') {
     let token = lex('!=')
 
+    assert.true(token.binary?)
+    assert.false(token.binary_assign?)
     assert.equal(token.type, 'not_equal')
     assert.equal(token.value, '!=')
 
@@ -925,6 +990,7 @@ world\n" "hello"'
   g.test('Lexing the inclusive range operator') {
     let token = lex('..')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'inclusive_range')
     assert.equal(token.value, '..')
 
@@ -935,6 +1001,7 @@ world\n" "hello"'
   g.test('Lexing the exclusive range operator') {
     let token = lex('...')
 
+    assert.true(token.binary?)
     assert.equal(token.type, 'exclusive_range')
     assert.equal(token.value, '...')
 

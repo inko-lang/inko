@@ -205,21 +205,24 @@ test.group('std::net::socket::Socket.receive_from') do (g) {
 
 test.group('std::net::socket::Socket.local_address') do (g) {
   g.test('Obtaining the local address of an unbound socket') {
-    os.windows?.if true: {
-      assert.panic {
+    os.windows?.if(
+      true: {
+        assert.panic {
+          let socket = try! Socket.new(domain: IPV4, kind: DGRAM)
+
+          try! socket.local_address
+        }
+      },
+      false: {
         let socket = try! Socket.new(domain: IPV4, kind: DGRAM)
+        let address = try! socket.local_address
 
-        try! socket.local_address
+        assert.equal(
+          address,
+          SocketAddress.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
+        )
       }
-    }, false: {
-      let socket = try! Socket.new(domain: IPV4, kind: DGRAM)
-      let address = try! socket.local_address
-
-      assert.equal(
-        address,
-        SocketAddress.new(ip: Ipv4Address.new(0, 0, 0, 0), port: 0)
-      )
-    }
+    )
   }
 
   g.test('Obtaining the local address of a bound socket') {
@@ -446,13 +449,12 @@ test.group('std::net::socket::Socket.reuse_port') do (g) {
 
     try! socket.reuse_port = True
 
-    os.windows?.if true: {
+    os.windows?.if(
       # Windows does not support SO_REUSEPORT, so the return value is always
       # `False`.
-      assert.false(try! socket.reuse_port)
-    }, false: {
-      assert.true(try! socket.reuse_port)
-    }
+      true: { assert.false(try! socket.reuse_port) },
+      false: { assert.true(try! socket.reuse_port) }
+    )
   }
 }
 

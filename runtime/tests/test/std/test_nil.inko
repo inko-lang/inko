@@ -33,11 +33,7 @@ test.group('std::nil::Nil.if_false') do (g) {
 
 test.group('std::nil::Nil.if') do (g) {
   g.test('The block passed to the "false" argument is called') {
-    let actual = Nil.if true: {
-      1729
-    }, false: {
-      42
-    }
+    let actual = Nil.if(true: { 1729 }, false: { 42 })
 
     assert.equal(actual, 42)
   }

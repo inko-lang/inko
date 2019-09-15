@@ -1,13 +1,13 @@
-#! Extensions for the `Integer` type that can only be defined later on in the
-#! bootstrapping process.
+# Extensions for the `Integer` type that can only be defined later on in the
+# bootstrapping process.
 import std::process
 import std::string_buffer::StringBuffer
 
-## The digits to use when converting an `Integer` to a `String` using a specific
-## base or radix.
-##
-## The order of values in this `Array` must remain as-is, as re-ordering values
-## will break the code that uses this `Array`.
+# The digits to use when converting an `Integer` to a `String` using a specific
+# base or radix.
+#
+# The order of values in this `Array` must remain as-is, as re-ordering values
+# will break the code that uses this `Array`.
 let INTEGER_RADIX_DIGITS = Array.new(
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
   'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
@@ -15,17 +15,17 @@ let INTEGER_RADIX_DIGITS = Array.new(
 )
 
 impl Integer {
-  ## Formats `self` as a `String` using the given base/radix.
-  ##
-  ## # Panics
-  ##
-  ## This method will panic if `radix` is smaller than 2, or greater than 36.
-  ##
-  ## # Examples
-  ##
-  ## Formatting an integer in base 16 (hexadecimal):
-  ##
-  ##     0x2ff.format(radix: 16) # => '2ff'
+  # Formats `self` as a `String` using the given base/radix.
+  #
+  # # Panics
+  #
+  # This method will panic if `radix` is smaller than 2, or greater than 36.
+  #
+  # # Examples
+  #
+  # Formatting an integer in base 16 (hexadecimal):
+  #
+  #     0x2ff.format(radix: 16) # => '2ff'
   def format(radix = 10) -> String {
     (radix < 2).or { radix > 36 }.if_true {
       process.panic('The radix argument must be between 2 and 36')
@@ -51,7 +51,7 @@ impl Integer {
     # characters being in reverse order. For example, for 0x2ff the `characters`
     # `Array` would be `['f', 'f', '2']`. Below we'll reverse the values
     # in-place.
-    let start_at = negative?.if true: { 1 }, false: { 0 }
+    let start_at = negative?.if(true: { 1 }, false: { 0 })
     let mut old_index = characters.length - 1
     let mut new_index = start_at
 

@@ -4,43 +4,43 @@ import std::error::Error
 import std::operators::Equal
 import std::string_buffer::StringBuffer
 
-## The byte for a single dot (".").
+# The byte for a single dot (".").
 let _DOT_BYTE = 46
 
-## The byte for a single colon (":").
+# The byte for a single colon (":").
 let _COLON_BYTE = 58
 
-## The number of octets in an IPv4 address.
+# The number of octets in an IPv4 address.
 let _IPV4_OCTETS = 4
 
-## The number of hextets in an IPv6 address.
+# The number of hextets in an IPv6 address.
 let _IPV6_HEXTETS = 8
 
-## The minimum value of an IPv4 octet or IPv6 hextet.
+# The minimum value of an IPv4 octet or IPv6 hextet.
 let _IP_MINIMUM_VALUE = 0
 
-## The maximum value of an IPv4 octet.
+# The maximum value of an IPv4 octet.
 let _IPV4_OCTET_MAXIMUM = 0xff
 
-## The maximum value of an IPv6 hextet.
+# The maximum value of an IPv6 hextet.
 let _IPV6_HEXTET_MAXIMUM = 0xffff
 
-## The maximum number of characters that can appear in an IPv6 address stored as
-## a `String`.
+# The maximum number of characters that can appear in an IPv6 address stored as
+# a `String`.
 let _IPV6_STRING_MAXIMUM_LENGTH = 45
 
-## The number of bits to shift for the first and third octets in an IPv4 address
-## when converting them to IPv6 addresses.
+# The number of bits to shift for the first and third octets in an IPv4 address
+# when converting them to IPv6 addresses.
 let _IPV4_TO_IPV6_SHIFT = 8
 
-## Converts a pair of IPv4 octets into a single IPv6 hextet.
+# Converts a pair of IPv4 octets into a single IPv6 hextet.
 def _octets_to_hextet(first: Integer, second: Integer) -> Integer {
   first << _IPV4_TO_IPV6_SHIFT | second
 }
 
-## An error thrown when attempting to parse an invalid IPv4 or IPv6 address.
+# An error thrown when attempting to parse an invalid IPv4 or IPv6 address.
 object AddressParseError {
-  ## The address that could not be parsed.
+  # The address that could not be parsed.
   @address: String
 
   def init(address: ToString) {
@@ -60,43 +60,43 @@ impl Error for AddressParseError {
   }
 }
 
-## An IPv4 or IPv6 address.
+# An IPv4 or IPv6 address.
 trait IpAddress {}
 
-## A type that can be converted to an `IpAddress`.
+# A type that can be converted to an `IpAddress`.
 trait ToIpAddress {
-  ## Converts `self` to an IPv4 or IPv6 address.
+  # Converts `self` to an IPv4 or IPv6 address.
   def to_ip_address !! AddressParseError -> IpAddress
 }
 
 trait IpAddress: Equal + ToString + ToIpAddress {
-  ## Parses an IP address.
+  # Parses an IP address.
   static def parse(input: ToByteArray) !! AddressParseError -> Self
 
-  ## Returns `True` if `self` is an IPv4 address.
+  # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean
 
-  ## Returns `True` if `self` is an IPv6 address.
+  # Returns `True` if `self` is an IPv6 address.
   def v6? -> Boolean
 
-  ## Returns `True` if `self` is in the range designated for documentation.
+  # Returns `True` if `self` is in the range designated for documentation.
   def documentation? -> Boolean
 
-  ## Returns `True` if `self` is a loopback address.
+  # Returns `True` if `self` is a loopback address.
   def loopback? -> Boolean
 
-  ## Returns `True` if `self` is a multicast address.
+  # Returns `True` if `self` is a multicast address.
   def multicast? -> Boolean
 
-  ## Returns `True` if `self` is the special "unspecified" address.
+  # Returns `True` if `self` is the special "unspecified" address.
   def unspecified? -> Boolean
 
-  ## Returns the segments of the IP address.
+  # Returns the segments of the IP address.
   def segments -> Array!(Integer)
 }
 
 object Ipv6Address {
-  ## The segments/hextets of this IPv6 address.
+  # The segments/hextets of this IPv6 address.
   @segments: Array!(Integer)
 
   def init(
@@ -114,39 +114,39 @@ object Ipv6Address {
 }
 
 impl Equal for Ipv6Address {
-  ## Returns `True` if `self` and the given IP address are the same.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two IPv6 addresses:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     let addr1 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-  ##     let addr2 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
-  ##     let addr3 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
-  ##
-  ##     addr1 == addr2 # => True
-  ##     addr1 == addr3 # => False
+  # Returns `True` if `self` and the given IP address are the same.
+  #
+  # # Examples
+  #
+  # Comparing two IPv6 addresses:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     let addr1 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+  #     let addr2 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1)
+  #     let addr3 = Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2)
+  #
+  #     addr1 == addr2 # => True
+  #     addr1 == addr3 # => False
   def ==(other: Self) -> Boolean {
     @segments == other.segments
   }
 }
 
 impl ToString for Ipv6Address {
-  ## Converts `self` to a `String`.
-  ##
-  ## Zero compression is applied to the longest sequence of empty hextets, if
-  ## there are any.
-  ##
-  ## # Examples
-  ##
-  ## Converting an IPv6 address to a `String`:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new.to_string # => '::'
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
+  # Converts `self` to a `String`.
+  #
+  # Zero compression is applied to the longest sequence of empty hextets, if
+  # there are any.
+  #
+  # # Examples
+  #
+  # Converting an IPv6 address to a `String`:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new.to_string # => '::'
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1) # => '::1'
   def to_string -> String {
     unspecified?.if_true {
       return '::'
@@ -177,11 +177,11 @@ impl ToString for Ipv6Address {
         )
         .to_string
 
-      ipv4_compatible.if true: {
+      ipv4_compatible.if_true {
         return '::' + ipv4_address
-      }, false: {
-        return '::ffff:' + ipv4_address
       }
+
+      return '::ffff:' + ipv4_address
     }
 
     let mut compression_start = 0
@@ -192,79 +192,85 @@ impl ToString for Ipv6Address {
     # Find the longest sequence of empty hextets, which we will compress
     # together.
     @segments.each_with_index do (hextet, index) {
-      hextet.zero?.if true: {
-        current_len.zero?.if_true {
-          current_at = index
-        }
+      hextet.zero?.if(
+        true: {
+          current_len.zero?.if_true {
+            current_at = index
+          }
 
-        current_len += 1
+          current_len += 1
 
-        (current_len > compression_len).if_true {
-          compression_len = current_len
-          compression_start = current_at
+          (current_len > compression_len).if_true {
+            compression_len = current_len
+            compression_start = current_at
+          }
+        },
+        false: {
+          current_at = 0
+          current_len = 0
         }
-      }, false: {
-        current_at = 0
-        current_len = 0
-      }
+      )
     }
 
     let buffer = StringBuffer.new
 
-    compression_len.positive?.if true: {
-      let compression_end = compression_start + compression_len
+    compression_len.positive?.if(
+      true: {
+        let compression_end = compression_start + compression_len
 
-      @segments.each_with_index do (hextet, index) {
-        (index == compression_start).if_true {
-          buffer.push(':')
-        }
-
-        (index < compression_start).or { index >= compression_end }.if_true {
-          index.positive?.if_true {
+        @segments.each_with_index do (hextet, index) {
+          (index == compression_start).if_true {
             buffer.push(':')
           }
 
+          (index < compression_start).or { index >= compression_end }.if_true {
+            index.positive?.if_true {
+              buffer.push(':')
+            }
+
+            buffer.push(hextet.format(radix: 16))
+          }
+        }
+
+        buffer.to_string
+      },
+      false: {
+        @segments.each_with_index do (hextet, index) {
           buffer.push(hextet.format(radix: 16))
+
+          (index < 7).if_true {
+            buffer.push(':')
+          }
         }
       }
-
-      buffer.to_string
-    }, false: {
-      @segments.each_with_index do (hextet, index) {
-        buffer.push(hextet.format(radix: 16))
-
-        (index < 7).if_true {
-          buffer.push(':')
-        }
-      }
-    }
+    )
 
     buffer.to_string
   }
 }
 
 impl ToIpAddress for Ipv6Address {
-  ## Always returns `self`.
+  # Always returns `self`.
   def to_ip_address -> IpAddress {
     self
   }
 }
 
 impl IpAddress for Ipv6Address {
-  ## Parses an IPv6 address literal.
-  ##
-  ## This method _only_ supports IPv6 _addresses_. Port numbers, zones, and CIDR
-  ## masks are not supported.
-  ##
-  ## # Examples
-  ##
-  ## Parsing an IPv6 address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     let addr = try! Ipv6Address.parse('::1')
-  ##
-  ##     addr.v6? # => True
+  # Parses an IPv6 address literal.
+  #
+  # This method _only_ supports IPv6 _addresses_. Port numbers, zones, and CIDR
+  # masks are not supported.
+  #
+  # # Examples
+  #
+  # Parsing an IPv6 address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     let addr = try! Ipv6Address.parse('::1')
+  #
+  #     addr.v6? # => True
   static def parse(input: ToByteArray) !! AddressParseError -> Self {
     let bytes = input.to_byte_array
     let mut cursor = 0
@@ -321,11 +327,10 @@ impl IpAddress for Ipv6Address {
           throw AddressParseError.new(bytes)
         }
 
-        ipv4_mode.if true: {
-          ipv4_segments.push(int)
-        }, false: {
-          segments.push(int)
-        }
+        ipv4_mode.if(
+          true: { ipv4_segments.push(int) },
+          false: { segments.push(int) }
+        )
       }
 
       cursor += 1
@@ -334,11 +339,11 @@ impl IpAddress for Ipv6Address {
       # groups together.
       (bytes[cursor] == _COLON_BYTE).if_true {
         # Zero compression can only be applied once.
-        compressed.if true: {
+        compressed.if_true {
           throw AddressParseError.new(bytes)
-        }, false: {
-          compressed = True
         }
+
+        compressed = True
 
         let mut pad = _IPV6_HEXTETS - segments.length
         let mut pad_cursor = cursor
@@ -404,46 +409,46 @@ impl IpAddress for Ipv6Address {
     )
   }
 
-  ## Returns `True` if `self` is an IPv4 address.
+  # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     False
   }
 
-  ## Returns `True` if `self` is an IPv6 address.
+  # Returns `True` if `self` is an IPv6 address.
   def v6? -> Boolean {
     True
   }
 
-  ## Returns the hextets of this IPv4 address.
+  # Returns the hextets of this IPv4 address.
   def segments -> Array!(Integer) {
     @segments
   }
 
-  ## Returns `True` if `self` is in a range designated for documentation.
-  ##
-  ## All addresses in the range 2001:db8::/32 are designated for documentation.
-  ##
-  ## # Examples
-  ##
-  ## Checking if an IPv6 address is a documentation address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0x2001, 0xdb8).documentation # => True
+  # Returns `True` if `self` is in a range designated for documentation.
+  #
+  # All addresses in the range 2001:db8::/32 are designated for documentation.
+  #
+  # # Examples
+  #
+  # Checking if an IPv6 address is a documentation address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0x2001, 0xdb8).documentation # => True
   def documentation? -> Boolean {
     (@segments[0] == 0x2001).and { @segments[1] == 0xdb8 }
   }
 
-  ## Returns `True` if `self` is a loopback address (::1).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is a loopback address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback? # => True
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2).loopback? # => False
+  # Returns `True` if `self` is a loopback address (::1).
+  #
+  # # Examples
+  #
+  # Checking if an address is a loopback address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).loopback? # => True
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 2).loopback? # => False
   def loopback? -> Boolean {
     (@segments[0] == 0)
       .and { @segments[1] == 0 }
@@ -455,29 +460,29 @@ impl IpAddress for Ipv6Address {
       .and { @segments[7] == 1 }
   }
 
-  ## Returns `True` if `self` is a multicast address (ff00::/8).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is a multicast address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0xff00).multicast? # => True
-  ##     Ipv6Address.new(0xff01).multicast? # => True
-  ##     Ipv6Address.new(0, 1).multicast? # => False
+  # Returns `True` if `self` is a multicast address (ff00::/8).
+  #
+  # # Examples
+  #
+  # Checking if an address is a multicast address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0xff00).multicast? # => True
+  #     Ipv6Address.new(0xff01).multicast? # => True
+  #     Ipv6Address.new(0, 1).multicast? # => False
   def multicast? -> Boolean {
     @segments[0]! & 0xff00 == 0xff00
   }
 
-  ## Returns `True` if `self` is the special "unspecified" address (::).
-  ##
-  ## # Examples
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).unspecified? # => True
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified? # => False
+  # Returns `True` if `self` is the special "unspecified" address (::).
+  #
+  # # Examples
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 0).unspecified? # => True
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 0, 1).unspecified? # => False
   def unspecified? -> Boolean {
     (@segments[0] == 0)
       .and { @segments[1] == 0 }
@@ -489,15 +494,15 @@ impl IpAddress for Ipv6Address {
       .and { @segments[7] == 0 }
   }
 
-  ## Returns `True` if `self` is an IPv4-compatible IPv6 address.
-  ##
-  ## # Examples
-  ##
-  ## Checking if an IPv6 address is an IPv4-compatible IPv6 address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible? # => True
+  # Returns `True` if `self` is an IPv4-compatible IPv6 address.
+  #
+  # # Examples
+  #
+  # Checking if an IPv6 address is an IPv4-compatible IPv6 address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0, 1, 1).ipv4_compatible? # => True
   def ipv4_compatible? -> Boolean {
     (@segments[0] == 0)
       .and { @segments[1] == 0 }
@@ -507,15 +512,15 @@ impl IpAddress for Ipv6Address {
       .and { @segments[5] == 0 }
   }
 
-  ## Returns `True` if `self` is an IPv4-mapped IPv6 address.
-  ##
-  ## # Examples
-  ##
-  ## Checking if an IPv6 address is an IPv4-mapped IPv6 address:
-  ##
-  ##     import std::net::ip::Ipv6Address
-  ##
-  ##     Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_compatible? # => True
+  # Returns `True` if `self` is an IPv4-mapped IPv6 address.
+  #
+  # # Examples
+  #
+  # Checking if an IPv6 address is an IPv4-mapped IPv6 address:
+  #
+  #     import std::net::ip::Ipv6Address
+  #
+  #     Ipv6Address.new(0, 0, 0, 0, 0, 0xffff, 1, 1).ipv4_compatible? # => True
   def ipv4_mapped? -> Boolean {
     (@segments[0] == 0)
       .and { @segments[1] == 0 }
@@ -527,7 +532,7 @@ impl IpAddress for Ipv6Address {
 }
 
 object Ipv4Address {
-  ## The segments/octets of this IPv4 address.
+  # The segments/octets of this IPv4 address.
   @segments: Array!(Integer)
 
   def init(a = 0, b = 0, c = 0, d = 0) {
@@ -536,36 +541,36 @@ object Ipv4Address {
 }
 
 impl Equal for Ipv4Address {
-  ## Returns `True` if `self` and the given IP address are the same.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two IPv4 addresses:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     let addr1 = Ipv4Address.new(127, 0, 0, 1)
-  ##     let addr2 = Ipv4Address.new(127, 0, 0, 1)
-  ##     let addr3 = Ipv4Address.new(127, 0, 0, 2)
-  ##
-  ##     addr1 == addr2 # => True
-  ##     addr1 == addr3 # => False
+  # Returns `True` if `self` and the given IP address are the same.
+  #
+  # # Examples
+  #
+  # Comparing two IPv4 addresses:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     let addr1 = Ipv4Address.new(127, 0, 0, 1)
+  #     let addr2 = Ipv4Address.new(127, 0, 0, 1)
+  #     let addr3 = Ipv4Address.new(127, 0, 0, 2)
+  #
+  #     addr1 == addr2 # => True
+  #     addr1 == addr3 # => False
   def ==(other: Self) -> Boolean {
     @segments == other.segments
   }
 }
 
 impl ToString for Ipv4Address {
-  ## Converts `self` to a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting an IPv4 address to a `String`:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new.to_string # => '0.0.0.0'
-  ##     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
+  # Converts `self` to a `String`.
+  #
+  # # Examples
+  #
+  # Converting an IPv4 address to a `String`:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new.to_string # => '0.0.0.0'
+  #     Ipv4Address.new(127, 0, 0, 1) # => '127.0.0.1'
   def to_string -> String {
     StringBuffer
       .new(
@@ -582,24 +587,24 @@ impl ToString for Ipv4Address {
 }
 
 impl ToIpAddress for Ipv4Address {
-  ## Always returns `self`.
+  # Always returns `self`.
   def to_ip_address -> IpAddress {
     self
   }
 }
 
 impl IpAddress for Ipv4Address {
-  ## Parses an IPv4 address literal (e.g. 1.2.3.4).
-  ##
-  ## # Examples
-  ##
-  ## Parsing an IPv4 address:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     let addr = try! Ipv4Address.parse('1.2.3.4')
-  ##
-  ##     addr.v4? # => True
+  # Parses an IPv4 address literal (e.g. 1.2.3.4).
+  #
+  # # Examples
+  #
+  # Parsing an IPv4 address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     let addr = try! Ipv4Address.parse('1.2.3.4')
+  #
+  #     addr.v4? # => True
   static def parse(input: ToByteArray) !! AddressParseError -> Self {
     let bytes = input.to_byte_array
     let mut cursor = 0
@@ -641,31 +646,31 @@ impl IpAddress for Ipv4Address {
 
     Ipv4Address.new(segments[0]!, segments[1]!, segments[2]!, segments[3]!)
   }
-  ## Returns `True` if `self` is an IPv4 address.
+  # Returns `True` if `self` is an IPv4 address.
   def v4? -> Boolean {
     True
   }
 
-  ## Returns `True` if `self` is an IPv6 address.
+  # Returns `True` if `self` is an IPv6 address.
   def v6? -> Boolean {
     False
   }
 
-  ## Returns the octets of this IPv4 address.
+  # Returns the octets of this IPv4 address.
   def segments -> Array!(Integer) {
     @segments
   }
 
-  ## Returns `True` if `self` is a broadcast address (255.255.255.255).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an IPv4 address is a broadcast address:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(127, 0, 0, 1).broadcast? # => False
-  ##     Ipv4Address.new(255, 255, 255, 255).broadcast? # => True
+  # Returns `True` if `self` is a broadcast address (255.255.255.255).
+  #
+  # # Examples
+  #
+  # Checking if an IPv4 address is a broadcast address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(127, 0, 0, 1).broadcast? # => False
+  #     Ipv4Address.new(255, 255, 255, 255).broadcast? # => True
   def broadcast? -> Boolean {
     (@segments[0] == _IPV4_OCTET_MAXIMUM)
       .and { @segments[1] == _IPV4_OCTET_MAXIMUM }
@@ -673,22 +678,22 @@ impl IpAddress for Ipv4Address {
       .and { @segments[3] == _IPV4_OCTET_MAXIMUM }
   }
 
-  ## Returns `True` if `self` is in a range designated for documentation.
-  ##
-  ## The following IPv4 ranges are designated for documentation:
-  ##
-  ## * 192.0.2.0/24 (TEST-NET-1)
-  ## * 198.51.100.0/24 (TEST-NET-2)
-  ## * 203.0.113.0/24 (TEST-NET-3)
-  ##
-  ## # Examples
-  ##
-  ## Checking if an IPv4 address is a documentation address:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(192, 0, 2, 0).documentation? # => True
-  ##     Ipv4Address.new(192, 1, 2, 0).documentation? # => False
+  # Returns `True` if `self` is in a range designated for documentation.
+  #
+  # The following IPv4 ranges are designated for documentation:
+  #
+  # * 192.0.2.0/24 (TEST-NET-1)
+  # * 198.51.100.0/24 (TEST-NET-2)
+  # * 203.0.113.0/24 (TEST-NET-3)
+  #
+  # # Examples
+  #
+  # Checking if an IPv4 address is a documentation address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(192, 0, 2, 0).documentation? # => True
+  #     Ipv4Address.new(192, 1, 2, 0).documentation? # => False
   def documentation? -> Boolean {
     (@segments[0] == 192)
       .and { @segments[1] == 0 }
@@ -709,68 +714,68 @@ impl IpAddress for Ipv4Address {
       .and { @segments[2] == 113 }
   }
 
-  ## Returns `True` if `self` is link-local (169.254.0.0/16).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is link-local:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(169, 254, 0, 0).link_local? # => True
-  ##     Ipv4Address.new(169, 254, 1, 0).link_local? # => True
-  ##     Ipv4Address.new(169, 255, 1, 0).link_local? # => False
+  # Returns `True` if `self` is link-local (169.254.0.0/16).
+  #
+  # # Examples
+  #
+  # Checking if an address is link-local:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(169, 254, 0, 0).link_local? # => True
+  #     Ipv4Address.new(169, 254, 1, 0).link_local? # => True
+  #     Ipv4Address.new(169, 255, 1, 0).link_local? # => False
   def link_local? -> Boolean {
     (@segments[0] == 169).and { @segments[1] == 254 }
   }
 
-  ## Returns `True` if `self` is a loopback address (127.0.0.0/8).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is a loopback address:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(127, 0, 0, 1).loopback? # => True
-  ##     Ipv4Address.new(127, 0, 1, 1).loopback? # => True
-  ##     Ipv4Address.new(255, 0, 0, 0).loopback? # => False
+  # Returns `True` if `self` is a loopback address (127.0.0.0/8).
+  #
+  # # Examples
+  #
+  # Checking if an address is a loopback address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(127, 0, 0, 1).loopback? # => True
+  #     Ipv4Address.new(127, 0, 1, 1).loopback? # => True
+  #     Ipv4Address.new(255, 0, 0, 0).loopback? # => False
   def loopback? -> Boolean {
     @segments[0] == 127
   }
 
-  ## Returns `True` if `self` is a multicast address (244.0.0.0/4).
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is a multicast address:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(244, 254, 0, 0).multicast? # => True
-  ##     Ipv4Address.new(127, 0, 0, 1).multicast? # => False
+  # Returns `True` if `self` is a multicast address (244.0.0.0/4).
+  #
+  # # Examples
+  #
+  # Checking if an address is a multicast address:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(244, 254, 0, 0).multicast? # => True
+  #     Ipv4Address.new(127, 0, 0, 1).multicast? # => False
   def multicast? -> Boolean {
     let first = @segments[0]!
 
     (first >= 224).and { first <= 239 }
   }
 
-  ## Returns `True` if `self` is a private address.
-  ##
-  ## The following ranges are private IPv4 ranges:
-  ##
-  ## * 10.0.0.0/8
-  ## * 172.16.0.0/12
-  ## * 192.168.0.0/16
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is in a private range:
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(10, 0, 0, 1).private? # => True
-  ##     Ipv4Address.new(127, 0, 0, 1).private? # => False
+  # Returns `True` if `self` is a private address.
+  #
+  # The following ranges are private IPv4 ranges:
+  #
+  # * 10.0.0.0/8
+  # * 172.16.0.0/12
+  # * 192.168.0.0/16
+  #
+  # # Examples
+  #
+  # Checking if an address is in a private range:
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(10, 0, 0, 1).private? # => True
+  #     Ipv4Address.new(127, 0, 0, 1).private? # => False
   def private? -> Boolean {
     (@segments[0] == 10).if_true {
       return True
@@ -786,14 +791,14 @@ impl IpAddress for Ipv4Address {
     (@segments[0] == 192).and { @segments[1] == 168 }
   }
 
-  ## Returns `True` if `self` is the special "unspecified" address (0.0.0.0).
-  ##
-  ## # Examples
-  ##
-  ##     import std::net::ip::Ipv4Address
-  ##
-  ##     Ipv4Address.new(0, 0, 0, 0).unspecified? # => True
-  ##     Ipv4Address.new(0, 0, 0, 1).unspecified? # => False
+  # Returns `True` if `self` is the special "unspecified" address (0.0.0.0).
+  #
+  # # Examples
+  #
+  #     import std::net::ip::Ipv4Address
+  #
+  #     Ipv4Address.new(0, 0, 0, 0).unspecified? # => True
+  #     Ipv4Address.new(0, 0, 0, 1).unspecified? # => False
   def unspecified? -> Boolean {
     (@segments[0] == 0)
       .and { @segments[1] == 0 }
@@ -801,18 +806,18 @@ impl IpAddress for Ipv4Address {
       .and { @segments[3] == 0 }
   }
 
-  ## Converts this IP address to an IPv4-compatible IPv6 address.
-  ##
-  ## # Examples
-  ##
-  ## Converting an IPv4 address:
-  ##
-  ##     import std::net::ip::(Ipv4Address, Ipv6Address)
-  ##
-  ##     let ipv4 = Ipv4Address.new(192, 0, 2, 255)
-  ##     let ipv6 = ipv4.to_ipv6_compatible
-  ##
-  ##     ipv6.segments # => Array.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff)
+  # Converts this IP address to an IPv4-compatible IPv6 address.
+  #
+  # # Examples
+  #
+  # Converting an IPv4 address:
+  #
+  #     import std::net::ip::(Ipv4Address, Ipv6Address)
+  #
+  #     let ipv4 = Ipv4Address.new(192, 0, 2, 255)
+  #     let ipv6 = ipv4.to_ipv6_compatible
+  #
+  #     ipv6.segments # => Array.new(0, 0, 0, 0, 0, 0, 0xc000, 0x2ff)
   def to_ipv6_compatible -> Ipv6Address {
     Ipv6Address.new(
       0,
@@ -826,7 +831,7 @@ impl IpAddress for Ipv4Address {
     )
   }
 
-  ## Converts this IP address to an IPv4-mapped IPv6 address.
+  # Converts this IP address to an IPv4-mapped IPv6 address.
   def to_ipv6_mapped -> Ipv6Address {
     Ipv6Address.new(
       0,
@@ -841,30 +846,30 @@ impl IpAddress for Ipv4Address {
   }
 }
 
-## Parses an IPv4 or IPv6 address literal.
-##
-## The returned object is either an `Ipv4Address` or an `Ipv6Address`.
-##
-## This method _only_ supports IPv4 or IPv6 _addresses_. Port numbers, IPv6
-## zones, and CIDR masks are not supported.
-##
-## # Examples
-##
-## Parsing an IPv4 address:
-##
-##     import std::net::ip
-##
-##     let addr = try! ip.parse('1.2.3.4')
-##
-##     addr.v4? # => True
-##
-## Parsing an IPv6 address:
-##
-##     import std::net::ip
-##
-##     let addr = try! ip.parse('::1')
-##
-##     addr.v6? # => True
+# Parses an IPv4 or IPv6 address literal.
+#
+# The returned object is either an `Ipv4Address` or an `Ipv6Address`.
+#
+# This method _only_ supports IPv4 or IPv6 _addresses_. Port numbers, IPv6
+# zones, and CIDR masks are not supported.
+#
+# # Examples
+#
+# Parsing an IPv4 address:
+#
+#     import std::net::ip
+#
+#     let addr = try! ip.parse('1.2.3.4')
+#
+#     addr.v4? # => True
+#
+# Parsing an IPv6 address:
+#
+#     import std::net::ip
+#
+#     let addr = try! ip.parse('::1')
+#
+#     addr.v6? # => True
 def parse(address: String) !! AddressParseError -> IpAddress {
   let bytes = address.to_byte_array
 
@@ -887,15 +892,15 @@ def parse(address: String) !! AddressParseError -> IpAddress {
 }
 
 impl ToIpAddress for String {
-  ## Converts `self` into an IPv4 or IPv6 address.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `String` into an IPv4 address:
-  ##
-  ##     import std::net::ip
-  ##
-  ##     try! '0.0.0.0'.to_ip_address # => Ipv4Address.new(0, 0, 0, 0)
+  # Converts `self` into an IPv4 or IPv6 address.
+  #
+  # # Examples
+  #
+  # Converting a `String` into an IPv4 address:
+  #
+  #     import std::net::ip
+  #
+  #     try! '0.0.0.0'.to_ip_address # => Ipv4Address.new(0, 0, 0, 0)
   def to_ip_address !! AddressParseError -> IpAddress {
     try parse(self)
   }

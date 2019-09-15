@@ -1,0 +1,63 @@
+# AST types for operators.
+import std::compiler::ast::node::Node
+import std::compiler::ast::variables::Constant
+import std::compiler::source_location::SourceLocation
+
+# An expression to cast from `?T` to `T`.
+object NotNil {
+  # The expression to convert to a non-Nil type.
+  @expression: Node
+
+  # The source location of the cast.
+  @location: SourceLocation
+
+  def init(expression: Node, location: SourceLocation) {
+    @expression = expression
+    @location = location
+  }
+
+  # Returns the expression to convert.
+  def expression -> Node {
+    @expression
+  }
+}
+
+impl Node for NotNil {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# An expression that should be casted to a different type.
+object TypeCast {
+  # The expression of which the type should be casted to something else.
+  @expression: Node
+
+  # The type to cast the expression to.
+  @cast_to: Node
+
+  # The source location of the type cast.
+  @location: SourceLocation
+
+  def init(expression: Node, cast_to: Node, location: SourceLocation) {
+    @expression = expression
+    @cast_to = cast_to
+    @location = location
+  }
+
+  # Returns the expression to type cast.
+  def expression -> Node {
+    @expression
+  }
+
+  # Returns the type to cast to.
+  def cast_to -> Node {
+    @cast_to
+  }
+}
+
+impl Node for TypeCast {
+  def location -> SourceLocation {
+    @location
+  }
+}

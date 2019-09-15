@@ -1,7 +1,7 @@
-#! Traits used for defining properties/behaviours of types.
+# Traits used for defining properties/behaviours of types.
 import std::unknown_message::UnknownMessage
 
-## A type that can be safely passed to an optional type, even if the type passed
-## itself is not type compatible. This allows one to pass type `A` to `?B` as
-## long as `A` implements `Optional`.
+# A type that can be safely passed to an optional type, even if the type passed
+# itself is not type compatible. This allows one to pass type `A` to `?B` as
+# long as `A` implements `Optional`.
 trait Optional: UnknownMessage {}

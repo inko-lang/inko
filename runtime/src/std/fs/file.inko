@@ -1,13 +1,13 @@
-#! Types and methods for manipulating files on a filesystem.
-#!
-#! This module contains various types and methods that can be used for operating
-#! on files stored in the local filesystem.
-#!
-#! Unlike many other languages there's no single "File" type to represent a
-#! file, instead there are different types that are used based on the mode a
-#! file is opened in. For example, when opening a file in read-only mode you
-#! will be given a `ReadOnlyFile` object while opening a file in write-only mode
-#! produces a `WriteOnlyFile` object.
+# Types and methods for manipulating files on a filesystem.
+#
+# This module contains various types and methods that can be used for operating
+# on files stored in the local filesystem.
+#
+# Unlike many other languages there's no single "File" type to represent a
+# file, instead there are different types that are used based on the mode a
+# file is opened in. For example, when opening a file in read-only mode you
+# will be given a `ReadOnlyFile` object while opening a file in write-only mode
+# produces a `WriteOnlyFile` object.
 import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
@@ -15,32 +15,32 @@ import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
 
-## Trait for returning the file path of a file object.
+# Trait for returning the file path of a file object.
 trait FilePath {
-  ## Returns the `Path` of the file.
+  # Returns the `Path` of the file.
   def path -> Path
 }
 
-## An object that allows the removal of an associated file on the filesystem.
+# An object that allows the removal of an associated file on the filesystem.
 trait Remove {
-  ## Removes the file from the underlying file system.
+  # Removes the file from the underlying file system.
   def remove !! IOError -> Nil
 }
 
-## A file that can only be used for read operations.
+# A file that can only be used for read operations.
 object ReadOnlyFile {
-  ## The path of the opened file.
+  # The path of the opened file.
   @path: Path
 
-  ## Returns a new `ReadOnlyFile`.
-  ##
-  ## # Examples
-  ##
-  ## Opening a file in read-only mode:
-  ##
-  ##     import std::fs::file::ReadOnlyFile
-  ##
-  ##     let handle = try! ReadOnlyFile.new('/dev/null')
+  # Returns a new `ReadOnlyFile`.
+  #
+  # # Examples
+  #
+  # Opening a file in read-only mode:
+  #
+  #     import std::fs::file::ReadOnlyFile
+  #
+  #     let handle = try! ReadOnlyFile.new('/dev/null')
   static def new(path: ToPath) !! IOError -> Self {
     let conv_path = path.to_path
     let instance =
@@ -85,20 +85,20 @@ impl Close for ReadOnlyFile {
   }
 }
 
-## A file that can only be used for write (or append) operations.
+# A file that can only be used for write (or append) operations.
 object WriteOnlyFile {
-  ## The path of the opened file.
+  # The path of the opened file.
   @path: Path
 
-  ## Returns a new `WriteOnlyFile`.
-  ##
-  ## # Examples
-  ##
-  ## Opening a file in write-only mode:
-  ##
-  ##     import std::fs::file::WriteOnlyFile
-  ##
-  ##     let handle = try! WriteOnlyFile.new('/dev/null')
+  # Returns a new `WriteOnlyFile`.
+  #
+  # # Examples
+  #
+  # Opening a file in write-only mode:
+  #
+  #     import std::fs::file::WriteOnlyFile
+  #
+  #     let handle = try! WriteOnlyFile.new('/dev/null')
   static def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_write(append)
     let conv_path = path.to_path
@@ -158,20 +158,20 @@ impl Remove for WriteOnlyFile {
   }
 }
 
-## A file that can be used for both read and write operations.
+# A file that can be used for both read and write operations.
 object ReadWriteFile {
-  ## The path of the opened file.
+  # The path of the opened file.
   @path: Path
 
-  ## Returns a new `ReadWriteFile`.
-  ##
-  ## # Examples
-  ##
-  ## Opening a file for both reads and writes:
-  ##
-  ##     import std::fs::file::ReadWriteFile
-  ##
-  ##     let handle = try! ReadWriteFile.new('/dev/null')
+  # Returns a new `ReadWriteFile`.
+  #
+  # # Examples
+  #
+  # Opening a file for both reads and writes:
+  #
+  #     import std::fs::file::ReadWriteFile
+  #
+  #     let handle = try! ReadWriteFile.new('/dev/null')
   static def new(path: ToPath, append = False) !! IOError -> Self {
     let mode = raw.mode_for_read_write(append)
     let conv_path = path.to_path
@@ -237,60 +237,60 @@ impl Remove for ReadWriteFile {
   }
 }
 
-## Removes the file for the given file path.
-##
-## # Examples
-##
-## Removing a file:
-##
-##     import std::fs::file
-##
-##     let handle = try! file.write_only('/tmp/test.txt')
-##
-##     try! handle.write('hello')
-##     try! file.remove('/tmp/test.txt') # => Nil
+# Removes the file for the given file path.
+#
+# # Examples
+#
+# Removing a file:
+#
+#     import std::fs::file
+#
+#     let handle = try! file.write_only('/tmp/test.txt')
+#
+#     try! handle.write('hello')
+#     try! file.remove('/tmp/test.txt') # => Nil
 def remove(path: ToPath) !! IOError -> Nil {
   try raw.remove(path.to_path.to_string)
 }
 
-## Copies a file from the source destination to the target destination,
-## returning the number of copied bytes.
-##
-## # Examples
-##
-## Copying a file:
-##
-##     import std::fs::file
-##
-##     let handle = try! file.write_only('/tmp/test.txt')
-##
-##     try! handle.write('hello')
-##     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
+# Copies a file from the source destination to the target destination,
+# returning the number of copied bytes.
+#
+# # Examples
+#
+# Copying a file:
+#
+#     import std::fs::file
+#
+#     let handle = try! file.write_only('/tmp/test.txt')
+#
+#     try! handle.write('hello')
+#     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
 def copy(from: ToPath, to: ToPath) !! IOError -> Integer {
   try raw.copy(from: from.to_path.to_string, to: to.to_path.to_string)
 }
 
-## Opens a file that can only be used for reading data.
+# Opens a file that can only be used for reading data.
 def read_only(path: ToPath) !! IOError -> ReadOnlyFile {
   try ReadOnlyFile.new(path)
 }
 
-## Opens a file that can only be used for writing data.
+# Opens a file that can only be used for writing data.
 def write_only(path: ToPath) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path)
 }
 
-## Opens a file that can only be used for appending data.
+# Opens a file that can only be used for appending data.
 def append_only(path: ToPath) !! IOError -> WriteOnlyFile {
   try WriteOnlyFile.new(path: path, append: True)
 }
 
-## Opens a file that can be used for both reading and writing data.
+# Opens a file that can be used for both reading and writing data.
 def read_write(path: ToPath) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path)
 }
 
-## Opens a file that can be used for both reading and appending data.
+# Opens a file that can be used for both reading and appending data.
 def read_append(path: ToPath) !! IOError -> ReadWriteFile {
   try ReadWriteFile.new(path: path, append: True)
 }

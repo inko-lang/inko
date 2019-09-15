@@ -1,0 +1,82 @@
+# Error types for parsing Inko source code.
+import std::compiler::source_location::SourceLocation
+import std::compiler::token::Token
+import std::conversion::ToString
+import std::error::Error
+import std::string_buffer::StringBuffer
+
+# An error that may occur when parsing source code.
+trait ParseError: Error {
+  # Returns the location at which the invalid syntax was found.
+  def location -> SourceLocation
+}
+
+# A parse error indicating that an unexpected token was found.
+object TokenError {
+  # The error message to display.
+  @message: String
+
+  # The source location of the error.
+  @location: SourceLocation
+
+  def init(token: Token) {
+    @message = token.null?.if(
+      true: { 'More input was expected, but we ran out of input' },
+      false: {
+        StringBuffer
+          .new(token.value.inspect, " can't be used here")
+          .to_string
+      }
+    )
+
+    @location = token.location
+  }
+}
+
+impl ToString for TokenError {
+  def to_string -> String {
+    @message
+  }
+}
+
+impl Error for TokenError {
+  def message -> String {
+    @message
+  }
+}
+
+impl ParseError for TokenError {
+  # Returns the location at which the invalid syntax was found.
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A parse error indicating that input was expected, but we ran out of input.
+object MissingInputError {
+  # The source location of the error.
+  @location: SourceLocation
+
+  def init(location: SourceLocation) {
+    @location = location
+  }
+}
+
+impl ToString for MissingInputError {
+  def to_string -> String {
+    'More input was expected, but we ran out of input'
+  }
+}
+
+impl Error for MissingInputError {
+  def message -> String {
+    to_string
+  }
+}
+
+impl ParseError for MissingInputError {
+  # Returns the location at which the invalid syntax was found.
+  def location -> SourceLocation {
+    @location
+  }
+}

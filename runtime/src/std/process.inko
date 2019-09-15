@@ -1,173 +1,173 @@
-## Lightweight processes, managed by the virtual machine.
-##
-## Processes are lightweight, isolated tasks that can run concurrently. Each
-## process has its own heap, and communication happens using message passing.
-##
-## Processes are spawned using `process.spawn`. Sending messages is done by
-## sending `send` to a `Process`, while receiving messages is done using
-## `process.receive`.`
-##
-## # Lightweight
-##
-## Processes are lightweight, and quick to spawn. This allows one to spawn many
-## processes without having to worry about consuming too much memory. The exact
-## amount of memory necessary to spawn a process depends on the runtime. For
-## example, IVM allocates memory for the heap in 32 KB blocks. This means that
-## once you allocate your first object your process will have at least 32 KB of
-## memory dedicated to itself. This may sound like a lot of memory, but IVM can
-## fit roughly 1020 objects in 32 KB of memory. This means that you can fit
-## roughly 1600 processes (each using up to 32 KB of memory) in 500 MB of
-## memory.
-##
-## # Asynchronous communication
-##
-## Communication between processes is asynchronous. When sending a message the
-## sender will not wait for a confirmation of any kind, instead it will just put
-## the message in the receiver's mailbox and continue running. Receiving a
-## message on the other hand will suspend the process if no message is
-## available. This allows one to write concurrent code easily, without having to
-## use callback functions of some sort.
-##
-## When sending a message to another process, the message will be deep copied.
-## This ensures that two processes can never reference each other's memory
-## directly. Because copying can be expensive, it is recommended to keep the
-## size of messages to a minimum.
-##
-## # Garbage Collection
-##
-## Processes are garbage collected independently from each other. While other
-## processes won't be suspended, the garbage collector may (and in case of IVM
-## will) suspend the process for the duration of garbage collection.
-##
-## When a process terminates cleanly, its memory is cleaned up asynchronously.
-## This ensures that no memory is leaked, and any file handles are closed
-## automatically. Because resource cleanup happens asynchronously there is no
-## guarantee as to when this will happen, and in case of a panic it might not
-## happen at all.
-##
-## # Parallelism
-##
-## The virtual machine is able to execute multiple processes in parallel. The
-## exact number of processes that can run in parallel depends on the number of
-## OS threads used, which in turn can be configured by the user.
-##
-## # Time slices
-##
-## Each process is given a certain amount of work it can perform, before it is
-## suspended. These units of work are called reductions. Each process starts
-## with a given number of reductions, and will be suspended once this value
-## reaches zero.
+# Lightweight processes, managed by the virtual machine.
+#
+# Processes are lightweight, isolated tasks that can run concurrently. Each
+# process has its own heap, and communication happens using message passing.
+#
+# Processes are spawned using `process.spawn`. Sending messages is done by
+# sending `send` to a `Process`, while receiving messages is done using
+# `process.receive`.`
+#
+# # Lightweight
+#
+# Processes are lightweight, and quick to spawn. This allows one to spawn many
+# processes without having to worry about consuming too much memory. The exact
+# amount of memory necessary to spawn a process depends on the runtime. For
+# example, IVM allocates memory for the heap in 32 KB blocks. This means that
+# once you allocate your first object your process will have at least 32 KB of
+# memory dedicated to itself. This may sound like a lot of memory, but IVM can
+# fit roughly 1020 objects in 32 KB of memory. This means that you can fit
+# roughly 1600 processes (each using up to 32 KB of memory) in 500 MB of
+# memory.
+#
+# # Asynchronous communication
+#
+# Communication between processes is asynchronous. When sending a message the
+# sender will not wait for a confirmation of any kind, instead it will just put
+# the message in the receiver's mailbox and continue running. Receiving a
+# message on the other hand will suspend the process if no message is
+# available. This allows one to write concurrent code easily, without having to
+# use callback functions of some sort.
+#
+# When sending a message to another process, the message will be deep copied.
+# This ensures that two processes can never reference each other's memory
+# directly. Because copying can be expensive, it is recommended to keep the
+# size of messages to a minimum.
+#
+# # Garbage Collection
+#
+# Processes are garbage collected independently from each other. While other
+# processes won't be suspended, the garbage collector may (and in case of IVM
+# will) suspend the process for the duration of garbage collection.
+#
+# When a process terminates cleanly, its memory is cleaned up asynchronously.
+# This ensures that no memory is leaked, and any file handles are closed
+# automatically. Because resource cleanup happens asynchronously there is no
+# guarantee as to when this will happen, and in case of a panic it might not
+# happen at all.
+#
+# # Parallelism
+#
+# The virtual machine is able to execute multiple processes in parallel. The
+# exact number of processes that can run in parallel depends on the number of
+# OS threads used, which in turn can be configured by the user.
+#
+# # Time slices
+#
+# Each process is given a certain amount of work it can perform, before it is
+# suspended. These units of work are called reductions. Each process starts
+# with a given number of reductions, and will be suspended once this value
+# reaches zero.
 import std::conversion::(ToFloat, ToString)
 
-## A lightweight, isolated process.
+# A lightweight, isolated process.
 object Process {
-  ## Sends a message to this process, returning the message that was sent.
-  ##
-  ## # Examples
-  ##
-  ## Sending a message:
-  ##
-  ##     import std::process
-  ##
-  ##     let proc = process.spawn {
-  ##       process.receive # => 'hello'
-  ##     }
-  ##
-  ##     proc.send('hello') # => 'hello'
+  # Sends a message to this process, returning the message that was sent.
+  #
+  # # Examples
+  #
+  # Sending a message:
+  #
+  #     import std::process
+  #
+  #     let proc = process.spawn {
+  #       process.receive # => 'hello'
+  #     }
+  #
+  #     proc.send('hello') # => 'hello'
   def send!(T)(message: T) -> T {
     _INKOC.process_send_message(self, message)
   }
 
-  ## Returns the identifier associated with this process.
-  ##
-  ## The identifier is unique for every process, but might be different between
-  ## program invocations even for processes spawned in the same order. The
-  ## format of the identifier is also unspecified, and might change
-  ## unexpectedly. Process identifiers should only be used for debugging
-  ## purposes.
+  # Returns the identifier associated with this process.
+  #
+  # The identifier is unique for every process, but might be different between
+  # program invocations even for processes spawned in the same order. The
+  # format of the identifier is also unspecified, and might change
+  # unexpectedly. Process identifiers should only be used for debugging
+  # purposes.
   def identifier -> String {
     _INKOC.process_identifier(self)
   }
 }
 
-## Receives a process message.
-##
-## Calling this method will block the current process until a message is
-## received.
-##
-## The argument of this method can be used to set a timeout (in seconds). If no
-## message is received and the timeout expires this method will return `Nil`.
-##
-## Messages are received in the same order in which they are sent.
-##
-## # Examples
-##
-## Receiving a message:
-##
-##     import std::process
-##
-##     process.send(process.current, 'hello')
-##
-##     process.receive # => 'hello'
-##
-## Receiving a message with a timeout:
-##
-##     import std::process
-##
-##     process.receive(5) # => Nil
+# Receives a process message.
+#
+# Calling this method will block the current process until a message is
+# received.
+#
+# The argument of this method can be used to set a timeout (in seconds). If no
+# message is received and the timeout expires this method will return `Nil`.
+#
+# Messages are received in the same order in which they are sent.
+#
+# # Examples
+#
+# Receiving a message:
+#
+#     import std::process
+#
+#     process.send(process.current, 'hello')
+#
+#     process.receive # => 'hello'
+#
+# Receiving a message with a timeout:
+#
+#     import std::process
+#
+#     process.receive(5) # => Nil
 def receive(timeout: ToFloat = 0.0) {
   _INKOC.process_receive_message(timeout.to_float)
 }
 
-## Spawns a new process that will execute the given lambda.
-##
-## Processes are completely isolated and as such "self" in the lambda will refer
-## to the module the lambda was created in.
-##
-## # Examples
-##
-## Spawning a process:
-##
-##     import std::process
-##
-##     process.spawn {
-##       10 # => 10
-##     }
+# Spawns a new process that will execute the given lambda.
+#
+# Processes are completely isolated and as such "self" in the lambda will refer
+# to the module the lambda was created in.
+#
+# # Examples
+#
+# Spawning a process:
+#
+#     import std::process
+#
+#     process.spawn {
+#       10 # => 10
+#     }
 def spawn(block: lambda) -> Process {
   _INKOC.process_spawn(Process, block)
 }
 
-## Returns the currently running process.
-##
-## # Examples
-##
-## Obtaining the current process:
-##
-##     import std::process
-##
-##     process.current
+# Returns the currently running process.
+#
+# # Examples
+#
+# Obtaining the current process:
+#
+#     import std::process
+#
+#     process.current
 def current -> Process {
   _INKOC.process_current(Process)
 }
 
-## Executes the supplied closure in a separate OS thread pool, returning its
-## result once it finishes executing.
-##
-## Using this method you can move (potentially) blocking (or otherwise slow)
-## operations out of the primary pool, preventing threads of that pool from
-## getting blocked.
-##
-## # Examples
-##
-## Running a simple operation:
-##
-##     import std::process
-##
-##     let result = process.blocking {
-##       10 + 2
-##     }
-##
-##     result # => 12
+# Executes the supplied closure in a separate OS thread pool, returning its
+# result once it finishes executing.
+#
+# Using this method you can move (potentially) blocking (or otherwise slow)
+# operations out of the primary pool, preventing threads of that pool from
+# getting blocked.
+#
+# # Examples
+#
+# Running a simple operation:
+#
+#     import std::process
+#
+#     let result = process.blocking {
+#       10 + 2
+#     }
+#
+#     result # => 12
 def blocking!(R)(block: do -> R) -> R {
   let moved = _INKOC.set_blocking(True)
 
@@ -195,169 +195,169 @@ def blocking!(R)(block: do -> R) -> R {
   block.call
 }
 
-## Suspends the current process until it is rescheduled.
-##
-## The argument of this method can be used to set a minimum suspension time (in
-## seconds). If no minimum time is specified the process may be rescheduled at
-## any time.
-##
-## # Examples
-##
-## Suspending a process:
-##
-##     import std::process
-##
-##     process.suspend # => Nil
-##
-## Suspending a process for a minimum amount of time:
-##
-##     import std::process
-##
-##     process.suspend(5) # => Nil
+# Suspends the current process until it is rescheduled.
+#
+# The argument of this method can be used to set a minimum suspension time (in
+# seconds). If no minimum time is specified the process may be rescheduled at
+# any time.
+#
+# # Examples
+#
+# Suspending a process:
+#
+#     import std::process
+#
+#     process.suspend # => Nil
+#
+# Suspending a process for a minimum amount of time:
+#
+#     import std::process
+#
+#     process.suspend(5) # => Nil
 def suspend(minimum: ToFloat = 0.0) -> Nil {
   _INKOC.process_suspend_current(minimum.to_float)
   Nil
 }
 
-## Immediately terminates the current process.
-##
-## # Examples
-##
-## Terminating the current process:
-##
-##     import std::process
-##     import std::stdio::stdout
-##
-##     stdout.print('before')
-##
-##     process.terminate
-##
-##     # This code will never run because at this point the process has been
-##     # terminated.
-##     stdout.print('after')
+# Immediately terminates the current process.
+#
+# # Examples
+#
+# Terminating the current process:
+#
+#     import std::process
+#     import std::stdio::stdout
+#
+#     stdout.print('before')
+#
+#     process.terminate
+#
+#     # This code will never run because at this point the process has been
+#     # terminated.
+#     stdout.print('after')
 def terminate -> Void {
   _INKOC.process_terminate_current
 }
 
-## Registers the given block as this process' panic handler.
-##
-## A panic handler is a block to execute when the process panicks. Each process
-## can only have a single handler, and newly registered handlers will overwrite
-## any previous ones.
-##
-## Once the handler returns, the current process will be terminated. If the main
-## process terminates, so does the entire program.
-##
-## The argument passed to the provided block is a `String` containing the panic
-## message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
-## the call stack does not unwind before running the panick handler.
-##
-## # Examples
-##
-## Registering a panic handler:
-##
-##     import std::process
-##     import std::stdio::stderr
-##
-##     process.panicking do (error) {
-##       stderr.print(error)
-##     }
-##
-##     process.panic('This will run the above panick handler')
+# Registers the given block as this process' panic handler.
+#
+# A panic handler is a block to execute when the process panicks. Each process
+# can only have a single handler, and newly registered handlers will overwrite
+# any previous ones.
+#
+# Once the handler returns, the current process will be terminated. If the main
+# process terminates, so does the entire program.
+#
+# The argument passed to the provided block is a `String` containing the panic
+# message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
+# the call stack does not unwind before running the panick handler.
+#
+# # Examples
+#
+# Registering a panic handler:
+#
+#     import std::process
+#     import std::stdio::stderr
+#
+#     process.panicking do (error) {
+#       stderr.print(error)
+#     }
+#
+#     process.panic('This will run the above panick handler')
 def panicking(block: do (String)) -> Nil {
   _INKOC.process_set_panic_handler(block)
   Nil
 }
 
-## Defers execution of the provided block, executing it when the block this
-## method is called from returns.
-##
-## Deferring the execution of a block can be usedul to clean up resources that
-## do not outlive the scope they are defined in. For example, we can open a file
-## and close it using a deferred block:
-##
-##     import std::process
-##     import std::fs::file
-##
-##     def example {
-##       let readme = try! file.read_only('README.md')
-##
-##       process.defer {
-##         readme.close
-##       }
-##
-##       try! readme.read_string
-##     }
-##
-## Here the `ReadOnlyFile` object stored in the `readme` variable would be
-## closed once we return from the `example` method.
-##
-## Deferred blocks are executed even when panicking, but a panic inside a
-## deferred block will terminate the execution of said deferred block. When
-## using `std::vm.exit`, any deferred blocks pending execution will be executed
-## first.
-##
-## The order in which deferred blocks are executed is unspecified, and
-## programs should not assume these blocks are executed in a fixed order.
-##
-## Deferred blocks are free to capture any variables from the enclosing scope,
-## like any other closure. This means that the variables will have their values
-## set to whatever the last assigned value was, prior to a return. Take this
-## code for example:
-##
-##     import std::process
-##     import std::stdio::stdout
-##
-##     let mut number = 10
-##
-##     process.defer {
-##       stdout.print(number)
-##     }
-##
-##     number = 20
-##
-## When the deferred block executes, the value of `number` will be `20`, because
-## that was the value last assigned to `number` before we return from the scope
-## this code is defined in. This means our deferred block will print `20` as
-## well, _not_ `10`.
-##
-## # Examples
-##
-## Closing a file using a deferred block:
-##
-##     import std::process
-##     import std::fs::file
-##
-##     let readme = try! file.read_only('README.md')
-##
-##     process.defer {
-##       readme.close
-##     }
+# Defers execution of the provided block, executing it when the block this
+# method is called from returns.
+#
+# Deferring the execution of a block can be usedul to clean up resources that
+# do not outlive the scope they are defined in. For example, we can open a file
+# and close it using a deferred block:
+#
+#     import std::process
+#     import std::fs::file
+#
+#     def example {
+#       let readme = try! file.read_only('README.md')
+#
+#       process.defer {
+#         readme.close
+#       }
+#
+#       try! readme.read_string
+#     }
+#
+# Here the `ReadOnlyFile` object stored in the `readme` variable would be
+# closed once we return from the `example` method.
+#
+# Deferred blocks are executed even when panicking, but a panic inside a
+# deferred block will terminate the execution of said deferred block. When
+# using `std::vm.exit`, any deferred blocks pending execution will be executed
+# first.
+#
+# The order in which deferred blocks are executed is unspecified, and
+# programs should not assume these blocks are executed in a fixed order.
+#
+# Deferred blocks are free to capture any variables from the enclosing scope,
+# like any other closure. This means that the variables will have their values
+# set to whatever the last assigned value was, prior to a return. Take this
+# code for example:
+#
+#     import std::process
+#     import std::stdio::stdout
+#
+#     let mut number = 10
+#
+#     process.defer {
+#       stdout.print(number)
+#     }
+#
+#     number = 20
+#
+# When the deferred block executes, the value of `number` will be `20`, because
+# that was the value last assigned to `number` before we return from the scope
+# this code is defined in. This means our deferred block will print `20` as
+# well, _not_ `10`.
+#
+# # Examples
+#
+# Closing a file using a deferred block:
+#
+#     import std::process
+#     import std::fs::file
+#
+#     let readme = try! file.read_only('README.md')
+#
+#     process.defer {
+#       readme.close
+#     }
 def defer(block: do) -> Nil {
   _INKOC.process_add_defer_to_caller(block)
   Nil
 }
 
-## Pins the current process to the current OS thread, then runs the supplied
-## `Block`.
-##
-## Once the `Block` returns, the process is unpinned. As long as a process is
-## pinned, it will run on the same OS thread. Until a process unpins itself or
-## terminates, the thread will not run any other processes.
-##
-## Use of this method is best avoided, unless you are interacting with foreign
-## code (e.g. C code) that requires consecutive operations to be performed on
-## the same OS thread.
-##
-## # Examples
-##
-## Running a block while the process is pinned to a thread:
-##
-##     import std::process
-##
-##     process.pinned {
-##       10
-##     } # => 10
+# Pins the current process to the current OS thread, then runs the supplied
+# `Block`.
+#
+# Once the `Block` returns, the process is unpinned. As long as a process is
+# pinned, it will run on the same OS thread. Until a process unpins itself or
+# terminates, the thread will not run any other processes.
+#
+# Use of this method is best avoided, unless you are interacting with foreign
+# code (e.g. C code) that requires consecutive operations to be performed on
+# the same OS thread.
+#
+# # Examples
+#
+# Running a block while the process is pinned to a thread:
+#
+#     import std::process
+#
+#     process.pinned {
+#       10
+#     } # => 10
 def pinned!(T)(block: do -> T) -> T {
   let pinned = _INKOC.process_pin_thread
 
@@ -388,26 +388,26 @@ def pinned!(T)(block: do -> T) -> T {
 }
 
 
-## Triggers a panic, terminating the current process.
-##
-## A panic will result in a stack trace being displayed followed by a custom
-## message. Once printed the process will terminate, executing any registered
-## panic handlers. If no process specific panic handler is installed, the global
-## panic handler (as registered using `std::vm.panicking`) will be executed.
-##
-## A panic should only be triggered as a last resort when no better alternative
-## is available. For errors that may happen regularly (e.g. network timeouts)
-## it's better to throw an error using the `throw` keyword.
-##
-## This method will never return.
-##
-## # Examples
-##
-## Triggering a panic:
-##
-##     import std::process
-##
-##     process.panic('Uh-oh, something bad happened!')
+# Triggers a panic, terminating the current process.
+#
+# A panic will result in a stack trace being displayed followed by a custom
+# message. Once printed the process will terminate, executing any registered
+# panic handlers. If no process specific panic handler is installed, the global
+# panic handler (as registered using `std::vm.panicking`) will be executed.
+#
+# A panic should only be triggered as a last resort when no better alternative
+# is available. For errors that may happen regularly (e.g. network timeouts)
+# it's better to throw an error using the `throw` keyword.
+#
+# This method will never return.
+#
+# # Examples
+#
+# Triggering a panic:
+#
+#     import std::process
+#
+#     process.panic('Uh-oh, something bad happened!')
 def panic(message: ToString) -> Void {
   _INKOC.panic(message.to_string)
 }

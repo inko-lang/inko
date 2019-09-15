@@ -32,8 +32,8 @@ let CALLOC =
 
 let FREE = LIBC.function('free', Array.new(types.pointer), types.void)
 
-## The C `tm` structure, see `man ctime` for more information about this
-## structure.
+# The C `tm` structure, see `man ctime` for more information about this
+# structure.
 let TM_STRUCT = ffi.struct do (struct) {
   struct['tm_sec'] = types.i32
   struct['tm_min'] = types.i32

@@ -1,0 +1,403 @@
+# AST types for closures and lambdas.
+import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::node::Node
+import std::compiler::ast::type_parameter::TypeParameter
+import std::compiler::source_location::SourceLocation
+
+# An argument as defined in a closure, lambda, or method..
+object Argument {
+  # The name of the argument.
+  @name: String
+
+  # The explicit type of the argument, if specified.
+  @value_type: ?Node
+
+  # The default value of the argument, if any.
+  @default_value: ?Node
+
+  # A boolean indicating if the argument is mutable (True) or immutable (False).
+  @mutable: Boolean
+
+  # A boolean indicating if the argument is a rest argument (True) or a regular
+  # argument (False).
+  @rest: Boolean
+
+  # The source location of the argument.
+  @location: SourceLocation
+
+  def init(
+    name: String,
+    value_type: ?Node,
+    default_value: ?Node,
+    mutable: Boolean,
+    rest: Boolean,
+    location: SourceLocation
+  ) {
+    @name = name
+    @value_type = value_type
+    @default_value = default_value
+    @mutable = Boolean
+    @rest = rest
+    @location = location
+  }
+
+  # Returns the name of the argument.
+  def name -> String {
+    @name
+  }
+
+  # Returns the default value of the argument.
+  def default_value -> ?Node {
+    @default_value
+  }
+
+  # Returns the explicit type of the argument.
+  def value_type -> ?Node {
+    @value_type
+  }
+
+  ## Returns `True` if the argument is mutable.
+  def mutable? -> Boolean {
+    @mutable
+  }
+
+  ## Returns `True` if the argument is a rest argument.
+  def rest? -> Boolean {
+    @rest
+  }
+}
+
+impl Node for Argument {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A closure that was created without the `do` or `lambda` keyword.
+object BasicClosure {
+  # The expressions in the block's body.
+  @body: Expressions
+
+  # The source location of the block.
+  @location: SourceLocation
+
+  def init(body: Expressions, location: SourceLocation) {
+    @body = body
+    @location = location
+  }
+
+  # Returns the expressions in the block's body.
+  def body -> Expressions {
+    @body
+  }
+}
+
+impl Node for BasicClosure {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A closure created with the `do` keyword.
+object Closure {
+  # The type parameters of the closure.
+  @type_parameters: Array!(TypeParameter)
+
+  # The arguments of the closure.
+  @arguments: Array!(Argument)
+
+  # The expressions in the closure's body.
+  @body: Expressions
+
+  # The type of the value this closure might throw.
+  @throw_type: ?Node
+
+  # The return type of this closure.
+  @return_type: ?Node
+
+  # The source location of the closure.
+  @location: SourceLocation
+
+  def init(
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Argument),
+    body: Expressions,
+    throw_type: ?Node,
+    return_type: ?Node,
+    location: SourceLocation
+  ) {
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @body = body
+    @throw_type = throw_type
+    @return_type = return_type
+    @location = location
+  }
+
+  # Returns the type parameters of the closure.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the arguments of the closure.
+  def arguments -> Array!(Argument) {
+    @arguments
+  }
+
+  # Returns the expressions in the block's body.
+  def body -> Expressions {
+    @body
+  }
+
+  # Returns the return type of this lambda.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this lambda.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+}
+
+impl Node for Closure {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A lambda created with the `do` keyword.
+object Lambda {
+  # The type parameters of the lambda.
+  @type_parameters: Array!(TypeParameter)
+
+  # The arguments of the lambda.
+  @arguments: Array!(Argument)
+
+  # The expressions in the lambda's body.
+  @body: Expressions
+
+  # The type of the value this lambda might throw.
+  @throw_type: ?Node
+
+  # The return type of this lambda.
+  @return_type: ?Node
+
+  # The source location of the lambda.
+  @location: SourceLocation
+
+  def init(
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Argument),
+    body: Expressions,
+    throw_type: ?Node,
+    return_type: ?Node,
+    location: SourceLocation
+  ) {
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @body = body
+    @throw_type = throw_type
+    @return_type = return_type
+    @location = location
+  }
+
+  # Returns the type parameters of the lambda.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the arguments of the lambda.
+  def arguments -> Array!(Argument) {
+    @arguments
+  }
+
+  # Returns the expressions in the block's body.
+  def body -> Expressions {
+    @body
+  }
+
+  # Returns the return type of this lambda.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this lambda.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+}
+
+impl Node for Lambda {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A method created using the `def` keyword.
+object MethodDefinition {
+  # The name of the method.
+  @name: String
+
+  # The type parameters of the method.
+  @type_parameters: Array!(TypeParameter)
+
+  # The arguments of the method.
+  @arguments: Array!(Argument)
+
+  # The expressions in the method's body.
+  @body: Expressions
+
+  # The type of the value this method might throw.
+  @throw_type: ?Node
+
+  # The return type of this method.
+  @return_type: ?Node
+
+  # The source location of the method.
+  @location: SourceLocation
+
+  # A boolean indicating if the method is a static method (True) or not
+  # (False).
+  @static_method: Boolean
+
+  def init(
+    name: String,
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Argument),
+    throw_type: ?Node,
+    return_type: ?Node,
+    static_method: Boolean,
+    body: Expressions,
+    location: SourceLocation
+  ) {
+    @name = name
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @body = body
+    @throw_type = throw_type
+    @return_type = return_type
+    @static_method = static_method
+    @location = location
+  }
+
+  # Returns the name of the method.
+  def name -> String {
+    @name
+  }
+
+  # Returns the type parameters of the method.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the arguments of the method.
+  def arguments -> Array!(Argument) {
+    @arguments
+  }
+
+  # Returns the expressions in the block's body.
+  def body -> Expressions {
+    @body
+  }
+
+  # Returns the return type of this lambda.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this lambda.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+
+  # Returns `True` if this method is a static method.
+  def static_method? -> Boolean {
+    @static_method
+  }
+}
+
+impl Node for MethodDefinition {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+# A required method created using the `def` keyword.
+object RequiredMethodDefinition {
+  # The name of the method.
+  @name: String
+
+  # The type parameters of the method.
+  @type_parameters: Array!(TypeParameter)
+
+  # The arguments of the method.
+  @arguments: Array!(Argument)
+
+  # The type of the value this method might throw.
+  @throw_type: ?Node
+
+  # The return type of this method.
+  @return_type: ?Node
+
+  # The source location of the method.
+  @location: SourceLocation
+
+  # A boolean indicating if the method is a static method (True) or not
+  # (False).
+  @static_method: Boolean
+
+  def init(
+    name: String,
+    type_parameters: Array!(TypeParameter),
+    arguments: Array!(Argument),
+    throw_type: ?Node,
+    return_type: ?Node,
+    static_method: Boolean,
+    location: SourceLocation
+  ) {
+    @name = name
+    @type_parameters = type_parameters
+    @arguments = arguments
+    @throw_type = throw_type
+    @return_type = return_type
+    @static_method = static_method
+    @location = location
+  }
+
+  # Returns the name of the method.
+  def name -> String {
+    @name
+  }
+
+  # Returns the type parameters of the method.
+  def type_parameters -> Array!(TypeParameter) {
+    @type_parameters
+  }
+
+  # Returns the arguments of the method.
+  def arguments -> Array!(Argument) {
+    @arguments
+  }
+
+  # Returns the return type of this lambda.
+  def return_type -> ?Node {
+    @return_type
+  }
+
+  # Returns the throw type of this lambda.
+  def throw_type -> ?Node {
+    @throw_type
+  }
+
+  # Returns `True` if this method is a static method.
+  def static_method? -> Boolean {
+    @static_method
+  }
+}
+
+impl Node for RequiredMethodDefinition {
+  def location -> SourceLocation {
+    @location
+  }
+}

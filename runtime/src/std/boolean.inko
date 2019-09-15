@@ -1,7 +1,7 @@
-#! Boolean true and false.
-#!
-#! In Inko boolean true is the object `True` and boolean false is the object
-#! `False`. Both are regular objects that are instances of the `Boolean` object.
+# Boolean true and false.
+#
+# In Inko boolean true is the object `True` and boolean false is the object
+# `False`. Both are regular objects that are instances of the `Boolean` object.
 
 import std::conditional::Conditional
 import std::conversion::ToString
@@ -9,7 +9,7 @@ import std::hash::(Hasher, Hash)
 import std::operators::Equal
 
 impl Boolean {
-  ## Returns the `Boolean` that is the opposite of `self`.
+  # Returns the `Boolean` that is the opposite of `self`.
   def not -> Boolean {
     False
   }
@@ -38,25 +38,25 @@ impl Conditional for Boolean {
 }
 
 impl Equal for Boolean {
-  ## Returns `True` if the given `Boolean` equals `self`.
-  ##
-  ## `True` is only equal to `True` itself, and `False` is only equal to `False`
-  ## itself.
-  ##
-  ## # Examples
-  ##
-  ## Checking if two booleans are equal:
-  ##
-  ##     True == True # => True
-  ##
-  ## Checking if two booleans are not equal:
-  ##
-  ##     True == False # => False
+  # Returns `True` if the given `Boolean` equals `self`.
+  #
+  # `True` is only equal to `True` itself, and `False` is only equal to `False`
+  # itself.
+  #
+  # # Examples
+  #
+  # Checking if two booleans are equal:
+  #
+  #     True == True # => True
+  #
+  # Checking if two booleans are not equal:
+  #
+  #     True == False # => False
   def ==(other: Self) -> Boolean {
     _INKOC.object_equals(self, other)
   }
 
-  ## Returns `True` if the given `Boolean` does not equal `self`.
+  # Returns `True` if the given `Boolean` does not equal `self`.
   def !=(other: Self) -> Boolean {
     (self == other).not
   }

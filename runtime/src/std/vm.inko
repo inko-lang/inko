@@ -1,4 +1,4 @@
-#! Methods for interacting with the Inko virtual machine.
+# Methods for interacting with the Inko virtual machine.
 import std::conversion::ToString
 import std::debug
 import std::mirror
@@ -6,45 +6,45 @@ import std::process
 import std::stdio::stderr
 import std::string_buffer::StringBuffer
 
-## Terminates the VM immediately with the given exit status.
-##
-## The exit status can be a number between -2147483648 and 2147483647.
-##
-## While calling this method will result in the VM terminating it is technically
-## possible another process sets the exit status around the same time. In this
-## case the exit status will be set to most recent value.
-##
-## # Examples
-##
-## Terminating the VM:
-##
-##     import std::vm
-##
-##     vm.exit(1)
+# Terminates the VM immediately with the given exit status.
+#
+# The exit status can be a number between -2147483648 and 2147483647.
+#
+# While calling this method will result in the VM terminating it is technically
+# possible another process sets the exit status around the same time. In this
+# case the exit status will be set to most recent value.
+#
+# # Examples
+#
+# Terminating the VM:
+#
+#     import std::vm
+#
+#     vm.exit(1)
 def exit(status: Integer) -> Void {
   _INKOC.exit(status)
 }
 
-## Defines the default panic handler.
-##
-## The provided `lambda` is executed whenever a process panics and doesn't
-## define its own panic handler. Once the block returns, the process will
-## terminate.
-##
-## The argument passed to the provided block is a `String` containing the panic
-## message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
-## the call stack does not unwind before running the panick handler.
-##
-## # Examples
-##
-## Defining a custom default panic handler:
-##
-##     import std::vm
-##     import std::stdio::stderr
-##
-##     vm.panicking lambda (error) {
-##       stderr.print(error)
-##     }
+# Defines the default panic handler.
+#
+# The provided `lambda` is executed whenever a process panics and doesn't
+# define its own panic handler. Once the block returns, the process will
+# terminate.
+#
+# The argument passed to the provided block is a `String` containing the panic
+# message. Obtaining a stacktrace can be done using `std::debug.stacktrace`, as
+# the call stack does not unwind before running the panick handler.
+#
+# # Examples
+#
+# Defining a custom default panic handler:
+#
+#     import std::vm
+#     import std::stdio::stderr
+#
+#     vm.panicking lambda (error) {
+#       stderr.print(error)
+#     }
 def panicking(block: lambda (String)) -> Nil {
   _INKOC.set_default_panic_handler(block)
   Nil

@@ -23,6 +23,21 @@ def null_token -> NullToken {
   NullToken.new(location)
 }
 
+test.group('std::compiler::token::Token.same_line?') do (g) {
+  g.test('Checking if two tokens reside on the same line') {
+    let token1 = regular_token
+    let token2 = regular_token
+    let token3 = RegularToken.new(
+      type: 'paren_open',
+      value: '(',
+      location: SourceLocation.new(file: 'test.inko', line_range: 3..4, column: 4)
+    )
+
+    assert.true(token1.same_line?(token2))
+    assert.false(token1.same_line?(token3))
+  }
+}
+
 test.group('std::compiler::token::RegularToken.type') do (g) {
   g.test('Obtaining the type of a token') {
     assert.equal(regular_token.type, 'identifier')

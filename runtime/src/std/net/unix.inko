@@ -1,4 +1,4 @@
-#! Networking types for Unix domain socket communication.
+# Networking types for Unix domain socket communication.
 import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
@@ -10,141 +10,141 @@ import std::net::bits::(
 )
 import std::operators::Equal
 
-## The domain for Unix sockets.
+# The domain for Unix sockets.
 let UNIX = AF_UNIX
 
-## The socket type for Unix socket streams.
+# The socket type for Unix socket streams.
 let STREAM = SOCK_STREAM
 
-## The socket type for Unix datagram sockets.
+# The socket type for Unix datagram sockets.
 let DGRAM = SOCK_DGRAM
 
-## The socket type for Unix sequential packet sockets.
+# The socket type for Unix sequential packet sockets.
 let SEQPACKET = SOCK_SEQPACKET
 
-## The socket type for Unix raw sockets.
+# The socket type for Unix raw sockets.
 let RAW = SOCK_RAW
 
-## A Unix domain socket address.
+# A Unix domain socket address.
 object SocketAddress {
-  ## The path or name of the address.
-  ##
-  ## This is a `String` since using a `Path` does not make sense for abstract
-  ## and unnamed addresses.
+  # The path or name of the address.
+  #
+  # This is a `String` since using a `Path` does not make sense for abstract
+  # and unnamed addresses.
   @address: String
 
-  ## Creates a new `SocketAddress` from the given path or name.
-  ##
-  ## # Examples
-  ##
-  ## Creating a `SocketAddress` that uses a path:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('/tmp/test.sock')
-  ##
-  ## Creating a `SocketAddress` that uses an unnamed address:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new
-  ##
-  ## Creating a `SocketAddress` that uses an abstract address:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new("\0example")
+  # Creates a new `SocketAddress` from the given path or name.
+  #
+  # # Examples
+  #
+  # Creating a `SocketAddress` that uses a path:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new('/tmp/test.sock')
+  #
+  # Creating a `SocketAddress` that uses an unnamed address:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new
+  #
+  # Creating a `SocketAddress` that uses an abstract address:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new("\0example")
   def init(address: ToString = '') {
     @address = address.to_string
   }
 
-  ## Returns the path of this address.
-  ##
-  ## If the address is unnamed or an abstract address, Nil is returned.
+  # Returns the path of this address.
+  #
+  # If the address is unnamed or an abstract address, Nil is returned.
   def to_path -> ?Path {
-    unnamed?.or { abstract? }.if true: {
-      Nil
-    }, false: {
-      @address.to_path
+    unnamed?.or { abstract? }.if_true {
+      return Nil
     }
+
+    @address.to_path
   }
 
-  ## Returns `True` if `self` is an abstract address.
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is abstract:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('/tmp/test.sock').abstract?    # => False
-  ##     SocketAddress.new("\0example-address").abstract? # => True
+  # Returns `True` if `self` is an abstract address.
+  #
+  # # Examples
+  #
+  # Checking if an address is abstract:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new('/tmp/test.sock').abstract?    # => False
+  #     SocketAddress.new("\0example-address").abstract? # => True
   def abstract? -> Boolean {
     @address.starts_with?("\0")
   }
 
-  ## Returns `True` if `self` is an unnamed address.
-  ##
-  ## # Examples
-  ##
-  ## Checking if an address is unnamed:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('/tmp/test.sock').unnamed? # => False
-  ##     SocketAddress.new.unnamed?                   # => True
+  # Returns `True` if `self` is an unnamed address.
+  #
+  # # Examples
+  #
+  # Checking if an address is unnamed:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new('/tmp/test.sock').unnamed? # => False
+  #     SocketAddress.new.unnamed?                   # => True
   def unnamed? -> Boolean {
     @address.empty?
   }
 }
 
 impl Equal for SocketAddress {
-  ## Returns `True` if `self` and `other` are the same socket addresses.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two `SocketAddress` objects:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('a.sock') == SocketAddress.new('a.sock') # => True
-  ##     SocketAddress.new('a.sock') == SocketAddress.new('b.sock') # => False
+  # Returns `True` if `self` and `other` are the same socket addresses.
+  #
+  # # Examples
+  #
+  # Comparing two `SocketAddress` objects:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new('a.sock') == SocketAddress.new('a.sock') # => True
+  #     SocketAddress.new('a.sock') == SocketAddress.new('b.sock') # => False
   def ==(other: Self) -> Boolean {
     @address == other.to_string
   }
 }
 
 impl ToString for SocketAddress {
-  ## Returns the address name or path as a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `SocketAddress` to a `String`:
-  ##
-  ##     import std::net::unix::SocketAddress
-  ##
-  ##     SocketAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
-  ##     SocketAddress.new("\0example").to_string      # => "\0example"
+  # Returns the address name or path as a `String`.
+  #
+  # # Examples
+  #
+  # Converting a `SocketAddress` to a `String`:
+  #
+  #     import std::net::unix::SocketAddress
+  #
+  #     SocketAddress.new('/tmp/test.sock').to_string # => '/tmp/test.sock'
+  #     SocketAddress.new("\0example").to_string      # => "\0example"
   def to_string -> String {
     @address
   }
 }
 
-## A low-level, non-blocking Unix domain socket.
-##
-## Low-level Unix domain sockets allow for more fine-grained control over how
-## sockets should be constructed and used, at the cost of a slightly less
-## ergonomic API compared to more high-level types such as `UnixDatagram`.
+# A low-level, non-blocking Unix domain socket.
+#
+# Low-level Unix domain sockets allow for more fine-grained control over how
+# sockets should be constructed and used, at the cost of a slightly less
+# ergonomic API compared to more high-level types such as `UnixDatagram`.
 object Socket {
-  ## Creates a new Unix domain socket.
-  ##
-  ## # Examples
-  ##
-  ## Creating a new socket:
-  ##
-  ##     import std::net::unix::(DGRAM, Socket)
-  ##
-  ##     try! Socket.new(DGRAM)
+  # Creates a new Unix domain socket.
+  #
+  # # Examples
+  #
+  # Creating a new socket:
+  #
+  #     import std::net::unix::(DGRAM, Socket)
+  #
+  #     try! Socket.new(DGRAM)
   static def new(kind: Integer) !! IoError -> Socket {
     try {
       _INKOC.socket_create(Socket, UNIX, kind)
@@ -153,79 +153,79 @@ object Socket {
     }
   }
 
-  ## Binds this socket to the specified path or abstract address.
-  ##
-  ## # Examples
-  ##
-  ## Binding a Unix socket to a path:
-  ##
-  ##     import std::net::unix::(DGRAM, Socket)
-  ##
-  ##     let socket = try! Socket.new(DGRAM)
-  ##
-  ##     try! socket.bind('/tmp/test.sock')
+  # Binds this socket to the specified path or abstract address.
+  #
+  # # Examples
+  #
+  # Binding a Unix socket to a path:
+  #
+  #     import std::net::unix::(DGRAM, Socket)
+  #
+  #     let socket = try! Socket.new(DGRAM)
+  #
+  #     try! socket.bind('/tmp/test.sock')
   def bind(path: ToString) !! IoError -> Nil {
     try bits.bind(socket: self, address: path.to_string, port: 0)
   }
 
-  ## Connects this socket to the specified address.
-  ##
-  ## # Examples
-  ##
-  ## Connecting a Unix socket:
-  ##
-  ##     import std::net::unix::(STREAM, Socket)
-  ##
-  ##     let listener = try! Socket.new(STREAM)
-  ##     let stream = try! Socket.new(STREAM)
-  ##
-  ##     try! listener.bind('/tmp/test.sock')
-  ##     try! listener.listen
-  ##
-  ##     try! stream.connect('/tmp/test.sock')
+  # Connects this socket to the specified address.
+  #
+  # # Examples
+  #
+  # Connecting a Unix socket:
+  #
+  #     import std::net::unix::(STREAM, Socket)
+  #
+  #     let listener = try! Socket.new(STREAM)
+  #     let stream = try! Socket.new(STREAM)
+  #
+  #     try! listener.bind('/tmp/test.sock')
+  #     try! listener.listen
+  #
+  #     try! stream.connect('/tmp/test.sock')
   def connect(path: ToString) !! IoError -> Nil {
     try bits.connect(socket: self, address: path.to_string, port: 0)
   }
 
-  ## Marks this socket as being ready to accept incoming connections using
-  ## `accept()`.
-  ##
-  ## # Examples
-  ##
-  ## Marking a socket as a listener:
-  ##
-  ##     import std::net::unix::(Socket, STREAM)
-  ##
-  ##     let socket = try! Socket.new(STREAM)
-  ##
-  ##     try! socket.bind('/tmp/test.sock')
-  ##     try! socket.listen
+  # Marks this socket as being ready to accept incoming connections using
+  # `accept()`.
+  #
+  # # Examples
+  #
+  # Marking a socket as a listener:
+  #
+  #     import std::net::unix::(Socket, STREAM)
+  #
+  #     let socket = try! Socket.new(STREAM)
+  #
+  #     try! socket.bind('/tmp/test.sock')
+  #     try! socket.listen
   def listen(backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError -> Integer {
     try bits.listen(socket: self, backlog: backlog)
   }
 
-  ## Accepts a new incoming connection from this socket.
-  ##
-  ## This method will not return until a connection is available.
-  ##
-  ## # Examples
-  ##
-  ## Accepting a connection and reading data from the connection:
-  ##
-  ##     import std::net::unix::(Socket, STREAM)
-  ##
-  ##     let listener = try! Socket.new(STREAM)
-  ##     let stream = try! Socket.new(STREAM)
-  ##
-  ##     try! listener.bind('/tmp/test.sock')
-  ##     try! listener.listen
-  ##
-  ##     try! stream.connect('/tmp/test.sock')
-  ##     try! stream.write_string('ping')
-  ##
-  ##     let client = try! listener.accept
-  ##
-  ##     try! client.read_string(4) # => 'ping'
+  # Accepts a new incoming connection from this socket.
+  #
+  # This method will not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a connection and reading data from the connection:
+  #
+  #     import std::net::unix::(Socket, STREAM)
+  #
+  #     let listener = try! Socket.new(STREAM)
+  #     let stream = try! Socket.new(STREAM)
+  #
+  #     try! listener.bind('/tmp/test.sock')
+  #     try! listener.listen
+  #
+  #     try! stream.connect('/tmp/test.sock')
+  #     try! stream.write_string('ping')
+  #
+  #     let client = try! listener.accept
+  #
+  #     try! client.read_string(4) # => 'ping'
   def accept !! IoError -> Socket {
     try {
       _INKOC.socket_accept(Socket, self)
@@ -234,22 +234,22 @@ object Socket {
     }
   }
 
-  ## Sends a message to the given address.
-  ##
-  ## The message sent can be a `String` or a `ByteArray`.
-  ##
-  ## The return value is the number of bytes sent.
-  ##
-  ## # Examples
-  ##
-  ## Sending a message to an address:
-  ##
-  ##     import std::net::unix::(Socket, DGRAM)
-  ##
-  ##     let socket = try! Socket.new(DGRAM)
-  ##
-  ##     try! socket.bind('/tmp/test.sock')
-  ##     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
+  # Sends a message to the given address.
+  #
+  # The message sent can be a `String` or a `ByteArray`.
+  #
+  # The return value is the number of bytes sent.
+  #
+  # # Examples
+  #
+  # Sending a message to an address:
+  #
+  #     import std::net::unix::(Socket, DGRAM)
+  #
+  #     let socket = try! Socket.new(DGRAM)
+  #
+  #     try! socket.bind('/tmp/test.sock')
+  #     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
   def send_to(message: SocketValue, address: ToString) !! IoError -> Integer {
     try bits.send_to(
       socket: self,
@@ -259,28 +259,28 @@ object Socket {
     )
   }
 
-  ## Receives a single datagram message on the socket, returning the address the
-  ## message was sent from.
-  ##
-  ## The message is read into the given `ByteArray`, and up to `size` bytes will
-  ## be read.
-  ##
-  ## # Examples
-  ##
-  ## Sending a message to ourselves and receiving it:
-  ##
-  ##     import std::byte_array::ByteArray
-  ##     import std::net::unix::(Socket, DGRAM)
-  ##
-  ##     let socket = try! Socket.new(DGRAM)
-  ##     let bytes = ByteArray.new
-  ##
-  ##     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
-  ##
-  ##     let received_from = try! socket.receive_from(bytes: bytes, size: 5)
-  ##
-  ##     bytes.to_string         # => 'hello'
-  ##     received_from.to_string # => '/tmp/test.sock'
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # The message is read into the given `ByteArray`, and up to `size` bytes will
+  # be read.
+  #
+  # # Examples
+  #
+  # Sending a message to ourselves and receiving it:
+  #
+  #     import std::byte_array::ByteArray
+  #     import std::net::unix::(Socket, DGRAM)
+  #
+  #     let socket = try! Socket.new(DGRAM)
+  #     let bytes = ByteArray.new
+  #
+  #     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
+  #
+  #     let received_from = try! socket.receive_from(bytes: bytes, size: 5)
+  #
+  #     bytes.to_string         # => 'hello'
+  #     received_from.to_string # => '/tmp/test.sock'
   def receive_from(
     bytes: ByteArray,
     size: Integer
@@ -290,51 +290,51 @@ object Socket {
     SocketAddress.new(addr[0] as String)
   }
 
-  ## Returns the local address of this socket.
+  # Returns the local address of this socket.
   def local_address !! IoError -> SocketAddress {
     let addr = try bits.address(socket: self, peer: False)
 
     SocketAddress.new(addr[0] as String)
   }
 
-  ## Returns the peer address of this socket.
+  # Returns the peer address of this socket.
   def peer_address !! IoError -> SocketAddress {
     let addr = try bits.address(socket: self, peer: True)
 
     SocketAddress.new(addr[0] as String)
   }
 
-  ## Returns the value of the `SO_RCVBUF` option.
+  # Returns the value of the `SO_RCVBUF` option.
   def receive_buffer_size !! IoError -> Integer {
     try bits.get_socket_option!(Integer)(self, RECV_SIZE)
   }
 
-  ## Sets the value of the `SO_RCVBUF` option.
+  # Sets the value of the `SO_RCVBUF` option.
   def receive_buffer_size=(value: Integer) !! IoError -> Integer {
     try bits.set_socket_option(self, RECV_SIZE, value)
   }
 
-  ## Returns the value of the `SO_SNDBUF` option.
+  # Returns the value of the `SO_SNDBUF` option.
   def send_buffer_size !! IoError -> Integer {
     try bits.get_socket_option!(Integer)(self, SEND_SIZE)
   }
 
-  ## Sets the value of the `SO_SNDBUF` option.
+  # Sets the value of the `SO_SNDBUF` option.
   def send_buffer_size=(value: Integer) !! IoError -> Integer {
     try bits.set_socket_option(self, SEND_SIZE, value)
   }
 
-  ## Shuts down the reading half of this socket.
+  # Shuts down the reading half of this socket.
   def shutdown_read !! IoError -> Nil {
     try bits.shutdown_read(self)
   }
 
-  ## Shuts down the writing half of this socket.
+  # Shuts down the writing half of this socket.
   def shutdown_write !! IoError -> Nil {
     try bits.shutdown_write(self)
   }
 
-  ## Shuts down both the reading and writing half of this socket.
+  # Shuts down both the reading and writing half of this socket.
   def shutdown !! IoError -> Nil {
     try bits.shutdown(self)
   }
@@ -367,67 +367,67 @@ impl Close for Socket {
   }
 }
 
-## A Unix datagram socket.
+# A Unix datagram socket.
 object UnixDatagram {
-  ## The raw `Socket` wrapped by this `UnixDatagram`.
+  # The raw `Socket` wrapped by this `UnixDatagram`.
   @socket: Socket
 
-  ## Creates a new Unix datagram socket bound to the given address.
-  ##
-  ## # Examples
-  ##
-  ## Creating a new Unix datagram socket:
-  ##
-  ##     import std::net::unix::UnixDatagram
-  ##
-  ##     try! UnixDatagram.new('/tmp/test.sock')
+  # Creates a new Unix datagram socket bound to the given address.
+  #
+  # # Examples
+  #
+  # Creating a new Unix datagram socket:
+  #
+  #     import std::net::unix::UnixDatagram
+  #
+  #     try! UnixDatagram.new('/tmp/test.sock')
   def init(address: ToString) !! IoError {
     @socket = try Socket.new(DGRAM)
 
     try @socket.bind(address)
   }
 
-  ## Connects `self` to the remote addres.s
-  ##
-  ## Connecting a `UnixDatagram` allows sending and receiving data using the
-  ## methods from `std::io::Read` and `std::io::Write`, instead of having to use
-  ## `UnixDatagram.receive_from` and `UnixDatagram.send_to`.
-  ##
-  ## # Examples
-  ##
-  ## Connecting a Unix datagram socket:
-  ##
-  ##     import std::net::unix::UnixDatagram
-  ##
-  ##     let socket1 = try! UnixDatagram.new('/tmp/test1.sock')
-  ##     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
-  ##
-  ##     try! socket1.connect('/tmp/test2.sock')
+  # Connects `self` to the remote addres.s
+  #
+  # Connecting a `UnixDatagram` allows sending and receiving data using the
+  # methods from `std::io::Read` and `std::io::Write`, instead of having to use
+  # `UnixDatagram.receive_from` and `UnixDatagram.send_to`.
+  #
+  # # Examples
+  #
+  # Connecting a Unix datagram socket:
+  #
+  #     import std::net::unix::UnixDatagram
+  #
+  #     let socket1 = try! UnixDatagram.new('/tmp/test1.sock')
+  #     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
+  #
+  #     try! socket1.connect('/tmp/test2.sock')
   def connect(address: ToString) !! IoError -> Nil {
     try @socket.connect(address)
   }
 
-  ## Sends a message to the given address.
-  ##
-  ## See the documentation of `Socket.send_to` for more information.
-  ##
-  ## # Examples
-  ##
-  ## Sending a message to a specific address:
-  ##
-  ##     import std::net::unix::UnixDatagram
-  ##
-  ##     let socket = try! UnixDatagram.new('/tmp/test.sock')
-  ##
-  ##     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
+  # Sends a message to the given address.
+  #
+  # See the documentation of `Socket.send_to` for more information.
+  #
+  # # Examples
+  #
+  # Sending a message to a specific address:
+  #
+  #     import std::net::unix::UnixDatagram
+  #
+  #     let socket = try! UnixDatagram.new('/tmp/test.sock')
+  #
+  #     try! socket.send_to(message: 'hello', address: '/tmp/test.sock')
   def send_to(message: SocketValue, address: ToString) !! IoError -> Integer {
     try @socket.send_to(message: message, address: address)
   }
 
-  ## Receives a single datagram message on the socket, returning the address the
-  ## message was sent from.
-  ##
-  ## See the documentation of `Socket.receive_from` for more information.
+  # Receives a single datagram message on the socket, returning the address the
+  # message was sent from.
+  #
+  # See the documentation of `Socket.receive_from` for more information.
   def receive_from(
     bytes: ByteArray,
     size: Integer
@@ -435,17 +435,17 @@ object UnixDatagram {
     try @socket.receive_from(bytes: bytes, size: size)
   }
 
-  ## Returns the local address of this socket.
-  ##
-  ## See the documentation of `Socket.local_address` for more information.
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
   def local_address !! IoError -> SocketAddress {
     try @socket.local_address
   }
 
-  ## Returns the underlying `Socket` object.
-  ##
-  ## This method can be used to set additional low-level socket options, without
-  ## `UnixDatagram` having to re-define all these methods.
+  # Returns the underlying `Socket` object.
+  #
+  # This method can be used to set additional low-level socket options, without
+  # `UnixDatagram` having to re-define all these methods.
   def socket -> Socket {
     @socket
   }
@@ -477,61 +477,61 @@ impl Close for UnixDatagram {
   }
 }
 
-## A Unix stream socket connected to another Unix socket.
+# A Unix stream socket connected to another Unix socket.
 object UnixStream {
-  ## The raw `Socket` wrapped by this `UnixStream`.
+  # The raw `Socket` wrapped by this `UnixStream`.
   @socket: Socket
 
-  ## Creates a new `UnixStream` that is connected to the given address.
-  ##
-  ## # Examples
-  ##
-  ## Connecting a `UnixStream`:
-  ##
-  ##     import std::net::unix::(UnixListener, UnixStream)
-  ##
-  ##     let listener = try! UnixListener.new('/tmp/test.sock')
-  ##
-  ##     try! UnixStream.new('/tmp/test.sock')
+  # Creates a new `UnixStream` that is connected to the given address.
+  #
+  # # Examples
+  #
+  # Connecting a `UnixStream`:
+  #
+  #     import std::net::unix::(UnixListener, UnixStream)
+  #
+  #     let listener = try! UnixListener.new('/tmp/test.sock')
+  #
+  #     try! UnixStream.new('/tmp/test.sock')
   def init(address: ToString) !! IoError {
     @socket = try Socket.new(STREAM)
 
     try @socket.connect(address)
   }
 
-  ## Returns the local address of this socket.
-  ##
-  ## See the documentation of `Socket.local_address` for more information.
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
   def local_address !! IoError -> SocketAddress {
     try @socket.local_address
   }
 
-  ## Returns the peer address of this socket.
-  ##
-  ## See the documentation of `Socket.peer_address` for more information.
+  # Returns the peer address of this socket.
+  #
+  # See the documentation of `Socket.peer_address` for more information.
   def peer_address !! IoError -> SocketAddress {
     try @socket.peer_address
   }
 
-  ## Returns the underlying `Socket` object.
-  ##
-  ## This method can be used to set additional low-level socket options, without
-  ## `UnixStream` having to re-define all these methods.
+  # Returns the underlying `Socket` object.
+  #
+  # This method can be used to set additional low-level socket options, without
+  # `UnixStream` having to re-define all these methods.
   def socket -> Socket {
     @socket
   }
 
-  ## Shuts down the reading half of this socket.
+  # Shuts down the reading half of this socket.
   def shutdown_read !! IoError -> Nil {
     try @socket.shutdown_read
   }
 
-  ## Shuts down the writing half of this socket.
+  # Shuts down the writing half of this socket.
   def shutdown_write !! IoError -> Nil {
     try @socket.shutdown_write
   }
 
-  ## Shuts down both the reading and writing half of this socket.
+  # Shuts down both the reading and writing half of this socket.
   def shutdown !! IoError -> Nil {
     try @socket.shutdown
   }
@@ -563,28 +563,28 @@ impl Close for UnixStream {
   }
 }
 
-## A Unix socket server that can accept incoming connections.
+# A Unix socket server that can accept incoming connections.
 object UnixListener {
-  ## The raw `Socket` wrapped by this `UnixListener`.
+  # The raw `Socket` wrapped by this `UnixListener`.
   @socket: Socket
 
-  ## Creates a new `UnixListener` bound to and listening on the given address.
-  ##
-  ## The `backlog` argument can be used to set the listen backlog.
-  ##
-  ## # Examples
-  ##
-  ## Creating a `UnixListener`:
-  ##
-  ##     import std::net::unix::UnixListener
-  ##
-  ##     try! UnixListener.new('/tmp/test.sock')
-  ##
-  ## Creating a `UnixListener` with a custom `backlog`:
-  ##
-  ##     import std::net::unix::UnixListener
-  ##
-  ##     try! TcpListener.new('/tmp/test.sock')
+  # Creates a new `UnixListener` bound to and listening on the given address.
+  #
+  # The `backlog` argument can be used to set the listen backlog.
+  #
+  # # Examples
+  #
+  # Creating a `UnixListener`:
+  #
+  #     import std::net::unix::UnixListener
+  #
+  #     try! UnixListener.new('/tmp/test.sock')
+  #
+  # Creating a `UnixListener` with a custom `backlog`:
+  #
+  #     import std::net::unix::UnixListener
+  #
+  #     try! TcpListener.new('/tmp/test.sock')
   def init(address: ToString, backlog = MAXIMUM_LISTEN_BACKLOG) !! IoError {
     @socket = try Socket.new(STREAM)
 
@@ -592,24 +592,24 @@ object UnixListener {
     try @socket.listen(backlog)
   }
 
-  ## Accepts a new incoming connection from `self`.
-  ##
-  ## This method does not return until a connection is available.
-  ##
-  ## # Examples
-  ##
-  ## Accepting a new connection:
-  ##
-  ##     import std::net::unix::(UnixListener, UnixStream)
-  ##
-  ##     let listener = try! UnixListener.new('/tmp/test.sock')
-  ##     let client = try! UnixStream.new('/tmp/test.sock')
-  ##
-  ##     client.write_string('ping')
-  ##
-  ##     let connection = try! listener.accept
-  ##
-  ##     try! connection.read_string(4) # => 'ping'
+  # Accepts a new incoming connection from `self`.
+  #
+  # This method does not return until a connection is available.
+  #
+  # # Examples
+  #
+  # Accepting a new connection:
+  #
+  #     import std::net::unix::(UnixListener, UnixStream)
+  #
+  #     let listener = try! UnixListener.new('/tmp/test.sock')
+  #     let client = try! UnixStream.new('/tmp/test.sock')
+  #
+  #     client.write_string('ping')
+  #
+  #     let connection = try! listener.accept
+  #
+  #     try! connection.read_string(4) # => 'ping'
   def accept !! IoError -> UnixStream {
     bits.to_stream(
       socket: try @socket.accept,
@@ -617,17 +617,17 @@ object UnixListener {
     ) as UnixStream
   }
 
-  ## Returns the local address of this socket.
-  ##
-  ## See the documentation of `Socket.local_address` for more information.
+  # Returns the local address of this socket.
+  #
+  # See the documentation of `Socket.local_address` for more information.
   def local_address !! IoError -> SocketAddress {
     try @socket.local_address
   }
 
-  ## Returns the underlying `Socket` object.
-  ##
-  ## This method can be used to set additional low-level socket options, without
-  ## `UnixListener` having to re-define all these methods.
+  # Returns the underlying `Socket` object.
+  #
+  # This method can be used to set additional low-level socket options, without
+  # `UnixListener` having to re-define all these methods.
   def socket -> Socket {
     @socket
   }

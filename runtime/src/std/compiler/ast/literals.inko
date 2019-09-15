@@ -1,0 +1,87 @@
+# AST types for literal values, such as integers and strings.
+import std::compiler::ast::node::Node
+import std::compiler::source_location::SourceLocation
+
+# A simple literal value, such as an integer or a float.
+trait Literal: Node {
+  # Returns the value of the literal.
+  def value -> String
+}
+
+# AST node for integer literals.
+object IntegerLiteral {
+  # The value of the literal.
+  @value: String
+
+  # The source location of the literal.
+  @location: SourceLocation
+
+  def init(value: String, location: SourceLocation) {
+    @value = value
+    @location = location
+  }
+}
+
+impl Node for IntegerLiteral {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+impl Literal for IntegerLiteral {
+  def value -> String {
+    @value
+  }
+}
+
+# AST node for float literals.
+object FloatLiteral {
+  # The value of the literal.
+  @value: String
+
+  # The source location of the literal.
+  @location: SourceLocation
+
+  def init(value: String, location: SourceLocation) {
+    @value = value
+    @location = location
+  }
+}
+
+impl Node for FloatLiteral {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+impl Literal for FloatLiteral {
+  def value -> String {
+    @value
+  }
+}
+
+# AST node for string literals.
+object StringLiteral {
+  # The value of the literal.
+  @value: String
+
+  # The source location of the literal.
+  @location: SourceLocation
+
+  def init(value: String, location: SourceLocation) {
+    @value = value
+    @location = location
+  }
+}
+
+impl Node for StringLiteral {
+  def location -> SourceLocation {
+    @location
+  }
+}
+
+impl Literal for StringLiteral {
+  def value -> String {
+    @value
+  }
+}

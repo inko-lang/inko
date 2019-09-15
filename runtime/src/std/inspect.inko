@@ -1,41 +1,41 @@
-#! Implementations of the Inspect trait for various core types.
-#!
-#! Implementing Inspect requires various other types to be in place, meaning we
-#! can't implement this earlier in modules such as `std::boolean`.
+# Implementations of the Inspect trait for various core types.
+#
+# Implementing Inspect requires various other types to be in place, meaning we
+# can't implement this earlier in modules such as `std::boolean`.
 import std::conversion::ToString
 import std::format::(self, Formatter, Inspect)
 import std::map::Map
 import std::mirror
 
 impl Inspect for Object {
-  ## Returns a human-readable representation of this object.
-  ##
-  ## # Examples
-  ##
-  ## Inspecting a simple object:
-  ##
-  ##     Object.new.inspect  # => 'Object'
-  ##
-  ## Inspecting an object with attributes:
-  ##
-  ##     object Person {
-  ##       @name: String
-  ##       @age: Integer
-  ##
-  ##       def init(name: String, age: Integer) {
-  ##         @name = name
-  ##         @age = age
-  ##       }
-  ##     }
-  ##
-  ##     let person = Person.new(name: 'Alice', age: 28)
-  ##
-  ##     person.inspect # => 'Person { @name = "Alice", @age = 28 }'
+  # Returns a human-readable representation of this object.
+  #
+  # # Examples
+  #
+  # Inspecting a simple object:
+  #
+  #     Object.new.inspect  # => 'Object'
+  #
+  # Inspecting an object with attributes:
+  #
+  #     object Person {
+  #       @name: String
+  #       @age: Integer
+  #
+  #       def init(name: String, age: Integer) {
+  #         @name = name
+  #         @age = age
+  #       }
+  #     }
+  #
+  #     let person = Person.new(name: 'Alice', age: 28)
+  #
+  #     person.inspect # => 'Person { @name = "Alice", @age = 28 }'
   def inspect -> String {
     ::format.inspect(self)
   }
 
-  ## Formats a human-readable representation of this object.
+  # Formats a human-readable representation of this object.
   def format_for_inspect(formatter: Formatter) {
     let self_mirror = mirror.reflect_object(self)
     let attributes = self_mirror.instance_attributes
@@ -106,58 +106,58 @@ impl Inspect for False {
 }
 
 impl Inspect for String {
-  ## Formats a human-readable representation of this `String`, surrounded by
-  ## quotes.
-  ##
-  ## # Examples
-  ##
-  ## Formatting a `String`:
-  ##
-  ##     import std::format::DefaultFormatter
-  ##
-  ##     let fmt = DefaultFormatter.new
-  ##
-  ##     'hello'.format_for_inspect(fmt)
-  ##
-  ##     fmt.to_string # => '"hello"'
-  ##
-  ## Inspecting and printing a `String`:
-  ##
-  ##     import std::stdio::stdout
-  ##     import std::format::DefaultFormatter
-  ##
-  ##     let fmt = DefaultFormatter.new
-  ##
-  ##     'hello'.format_for_inspect(fmt)
-  ##
-  ##     # This would print "hello" (including quotes) to STDOUT.
-  ##     stdout.print(fmt.to_string)
+  # Formats a human-readable representation of this `String`, surrounded by
+  # quotes.
+  #
+  # # Examples
+  #
+  # Formatting a `String`:
+  #
+  #     import std::format::DefaultFormatter
+  #
+  #     let fmt = DefaultFormatter.new
+  #
+  #     'hello'.format_for_inspect(fmt)
+  #
+  #     fmt.to_string # => '"hello"'
+  #
+  # Inspecting and printing a `String`:
+  #
+  #     import std::stdio::stdout
+  #     import std::format::DefaultFormatter
+  #
+  #     let fmt = DefaultFormatter.new
+  #
+  #     'hello'.format_for_inspect(fmt)
+  #
+  #     # This would print "hello" (including quotes) to STDOUT.
+  #     stdout.print(fmt.to_string)
   def format_for_inspect(formatter: Formatter) {
     formatter.push(_INKOC.string_format_debug(self))
   }
 }
 
 impl Inspect for Array!(T) {
-  ## Returns a human-readable representation of this `Array`.
-  ##
-  ## # Examples
-  ##
-  ## Converting an empty `Array`:
-  ##
-  ##     Array.new.inspect # => 'Array'
-  ##
-  ## Converting an `Array` with one value:
-  ##
-  ##     Array.new(10).inspect # => 'Array { 10 }'
-  ##
-  ## Converting an `Array` containing multiple values:
-  ##
-  ##     Array.new(10, 20, 30).inspect # => 'Array { 10, 20, 30 }'
+  # Returns a human-readable representation of this `Array`.
+  #
+  # # Examples
+  #
+  # Converting an empty `Array`:
+  #
+  #     Array.new.inspect # => 'Array'
+  #
+  # Converting an `Array` with one value:
+  #
+  #     Array.new(10).inspect # => 'Array { 10 }'
+  #
+  # Converting an `Array` containing multiple values:
+  #
+  #     Array.new(10, 20, 30).inspect # => 'Array { 10, 20, 30 }'
   def inspect -> String where T: Inspect {
     ::format.inspect(self)
   }
 
-  ## Formats this `Array` into a human-readable representation.
+  # Formats this `Array` into a human-readable representation.
   def format_for_inspect(formatter: Formatter) where T: Inspect {
     let last = length - 1
 
@@ -184,23 +184,23 @@ impl Inspect for Array!(T) {
 }
 
 impl Inspect for Map!(K, V) {
-  ## Returns a human-readable representation of this `Map`.
-  ##
-  ## # Examples
-  ##
-  ## Inspecting a `Map`:
-  ##
-  ##     let map = Map.new
-  ##
-  ##     map['name'] = 'Alice'
-  ##     map['address'] = 'Foo Street'
-  ##
-  ##     map.inspect # => 'Map { "name": "Alice", "address": "Foo Street" }'
+  # Returns a human-readable representation of this `Map`.
+  #
+  # # Examples
+  #
+  # Inspecting a `Map`:
+  #
+  #     let map = Map.new
+  #
+  #     map['name'] = 'Alice'
+  #     map['address'] = 'Foo Street'
+  #
+  #     map.inspect # => 'Map { "name": "Alice", "address": "Foo Street" }'
   def inspect -> String where K: Inspect, V: Inspect {
     ::format.inspect(self)
   }
 
-  ## Formats this `Map` into a human-readable representation.
+  # Formats this `Map` into a human-readable representation.
   def format_for_inspect(formatter: Formatter) where K: Inspect, V: Inspect {
     let last = length - 1
     let mut index = 0

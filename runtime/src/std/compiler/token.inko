@@ -1,43 +1,61 @@
-#! Types for tokens produced by the lexer.
+# Types for tokens produced by the lexer.
 import std::compiler::source_location::SourceLocation
 import std::format::Inspect
 
-## A single token produced by a `Lexer`.
+# A single token produced by a `Lexer`.
 trait Token: Inspect {
-  ## Returns the type of the token.
+  # Returns the type of the token.
   def type -> String
 
-  ## Returns the value of the token.
+  # Returns the value of the token.
   def value -> String
 
-  ## Returns the source location of this token.
+  # Returns the source location of this token.
   def location -> SourceLocation
 
-  ## Returns a `Boolean` indicating if this token is a keyword.
+  # Returns a `Boolean` indicating if this token is a keyword.
   def keyword? -> Boolean {
     False
   }
 
-  ## Returns a `Boolean` indicating if this token is valid..
+  # Returns a `Boolean` indicating if this token is valid.
   def valid? -> Boolean {
     True
   }
 
-  ## Returns a `Boolean` indicating if this token is a null token..
+  # Returns a `Boolean` indicating if this token is a null token.
   def null? -> Boolean {
     False
   }
+
+  # Returns a `Boolean` indicating if this token is a token for a binary
+  # operator.
+  def binary? -> Boolean {
+    False
+  }
+
+  # Returns a `Boolean` indicating if this token is a token for a binary
+  # assignment such as `+=`.
+  def binary_assign? -> Boolean {
+    False
+  }
+
+  # Returns `True` if `self` and the given `Token` start on the same line
+  # number.
+  def same_line?(token: Self) -> Boolean {
+    location.line_range.start == token.location.line_range.start
+  }
 }
 
-## A regular token used for a variety of inputs.
+# A regular token used for a variety of inputs.
 object RegularToken {
-  ## The type of the token.
+  # The type of the token.
   @type: String
 
-  ## The value of the token.
+  # The value of the token.
   @value: String
 
-  ## The location of the token.
+  # The location of the token.
   @location: SourceLocation
 
   def init(
@@ -52,28 +70,25 @@ object RegularToken {
 }
 
 impl Token for RegularToken {
-  ## Returns the type of token.
   def type -> String {
     @type
   }
 
-  ## Returns the value of this token.
   def value -> String {
     @value
   }
 
-  ## Returns the source location of this token.
   def location -> SourceLocation {
     @location
   }
 }
 
-## A token used for keywords.
+# A token used for keywords.
 object KeywordToken {
-  ## The keyword of this token.
+  # The keyword of this token.
   @keyword: String
 
-  ## The location of the token.
+  # The location of the token.
   @location: SourceLocation
 
   def init(keyword: String, location: SourceLocation) {
@@ -83,33 +98,29 @@ object KeywordToken {
 }
 
 impl Token for KeywordToken {
-  ## Returns the type of token.
   def type -> String {
     @keyword
   }
 
-  ## Returns the value of this token.
   def value -> String {
     @keyword
   }
 
-  ## Returns the source location of this token.
   def location -> SourceLocation {
     @location
   }
 
-  ## Returns `True` if the token is a keyword, such as "import".
   def keyword? -> Boolean {
     True
   }
 }
 
-## A token used for invalid input values.
+# A token used for invalid input values.
 object InvalidToken {
-  ## The value of the token.
+  # The value of the token.
   @value: String
 
-  ## The location of the token.
+  # The location of the token.
   @location: SourceLocation
 
   def init(value: String, location: SourceLocation) {
@@ -119,35 +130,30 @@ object InvalidToken {
 }
 
 impl Token for InvalidToken {
-  ## Returns the type of token.
   def type -> String {
     'invalid'
   }
 
-  ## Returns the value of this token.
   def value -> String {
     @value
   }
 
-  ## Returns the source location of this token.
   def location -> SourceLocation {
     @location
   }
 
-  ## Returns `True` if this token is for a valid value.
   def valid? -> Boolean {
     False
   }
 
-  ## Returns `True` if the token is a keyword, such as "import".
   def keyword? -> Boolean {
     False
   }
 }
 
-## A token used for indicating a lexer has consumed all input.
+# A token used for indicating a lexer has consumed all input.
 object NullToken {
-  ## The location of the token.
+  # The location of the token.
   @location: SourceLocation
 
   def init(location: SourceLocation) {
@@ -156,33 +162,107 @@ object NullToken {
 }
 
 impl Token for NullToken {
-  ## Returns the type of token.
   def type -> String {
     'null'
   }
 
-  ## Returns the value of this token.
   def value -> String {
     ''
   }
 
-  ## Returns the source location of this token.
   def location -> SourceLocation {
     @location
   }
 
-  ## Returns `True` if this token is for a valid value.
   def valid? -> Boolean {
     False
   }
 
-  ## Returns `True` if the token is a keyword, such as "import".
   def keyword? -> Boolean {
     False
   }
 
-  ## Returns a `Boolean` indicating if this token is a null token..
   def null? -> Boolean {
+    True
+  }
+}
+
+# A token used for binary operators.
+object BinaryToken {
+  # The type of the token.
+  @type: String
+
+  # The value of the token.
+  @value: String
+
+  # The location of the token.
+  @location: SourceLocation
+
+  def init(
+    type: String,
+    value: String,
+    location: SourceLocation,
+  ) {
+    @type = type
+    @value = value
+    @location = location
+  }
+}
+
+impl Token for BinaryToken {
+  def type -> String {
+    @type
+  }
+
+  def value -> String {
+    @value
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+
+  def binary? -> Boolean {
+    True
+  }
+}
+
+# A token used for binary assignment operators.
+object BinaryAssignToken {
+  # The type of the token.
+  @type: String
+
+  # The value of the token.
+  @value: String
+
+  # The location of the token.
+  @location: SourceLocation
+
+  def init(
+    type: String,
+    value: String,
+    location: SourceLocation,
+  ) {
+    @type = type
+    @value = value
+    @location = location
+  }
+}
+
+impl Token for BinaryAssignToken {
+  def type -> String {
+    @type
+  }
+
+  def value -> String {
+    @value
+  }
+
+  def location -> SourceLocation {
+    @location
+  }
+
+  def binary_assign? -> Boolean {
     True
   }
 }

@@ -1,7 +1,7 @@
-#! Raw file system operations
-#!
-#! The methods in this module should not be used directly, instead they serve as
-#! building blocks for other modules such as `std::fs::file`.
+# Raw file system operations
+#
+# The methods in this module should not be used directly, instead they serve as
+# building blocks for other modules such as `std::fs::file`.
 import std::byte_array::ByteArray
 import std::io::(Error as IOError)
 import std::process
@@ -21,7 +21,7 @@ let CREATED_AT = 0
 let MODIFIED_AT = 1
 let ACCESSED_AT = 2
 
-## Opens a file in the given mode, returning a raw file object.
+# Opens a file in the given mode, returning a raw file object.
 def open!(T)(type: T, path: String, mode: Integer) !! IOError -> T {
   process.blocking {
     try {
@@ -33,64 +33,56 @@ def open!(T)(type: T, path: String, mode: Integer) !! IOError -> T {
 }
 
 def mode_for_write(append = False) -> Integer {
-  append.if true: {
-    APPEND_ONLY
-  }, false: {
-    WRITE_ONLY
-  }
+  append.if(true: { APPEND_ONLY }, false: { WRITE_ONLY })
 }
 
 def mode_for_read_write(append = False) -> Integer {
-  append.if true: {
-    READ_APPEND
-  }, false: {
-    READ_WRITE
-  }
+  append.if(true: { READ_APPEND }, false: { READ_WRITE })
 }
 
-## Copies a file from the source destination to the target destination
+# Copies a file from the source destination to the target destination
 def copy(from: String, to: String) !! IOError -> Integer {
   process.blocking {
     try _INKOC.file_copy(from, to) else (err) throw IOError.new(err as String)
   }
 }
 
-## Returns the size (in bytes) of the given path.
+# Returns the size (in bytes) of the given path.
 def size(path: String) !! IOError -> Integer {
   process.blocking {
     try _INKOC.file_size(path) else (err) throw IOError.new(err as String)
   }
 }
 
-## Removes the file for the given path.
+# Removes the file for the given path.
 def remove(path: String) !! IOError -> Nil {
   process.blocking {
     try _INKOC.file_remove(path) else (err) throw IOError.new(err as String)
   }
 }
 
-## Returns `True` if the path points to a file.
+# Returns `True` if the path points to a file.
 def file?(path: String) -> Boolean {
   process.blocking {
     _INKOC.file_type(path) == FILE_TYPE
   }
 }
 
-## Returns `True` if the path points to a directory.
+# Returns `True` if the path points to a directory.
 def directory?(path: String) -> Boolean {
   process.blocking {
     _INKOC.file_type(path) == DIRECTORY_TYPE
   }
 }
 
-## Returns `True` if the path points to an existing file or directory.
+# Returns `True` if the path points to an existing file or directory.
 def exists?(path: String) -> Boolean {
   process.blocking {
     _INKOC.file_type(path) > MISSING_TYPE
   }
 }
 
-## Returns the creation, modification or access time of a file path.
+# Returns the creation, modification or access time of a file path.
 def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   process.blocking {
     let timestamp = try {
@@ -103,22 +95,22 @@ def file_time(path: String, kind: Integer) !! IOError -> SystemTime {
   }
 }
 
-## Returns the creation time of a path.
+# Returns the creation time of a path.
 def created_at(path: String) !! IOError -> SystemTime {
   try file_time(path, CREATED_AT)
 }
 
-## Returns the modification time of a path.
+# Returns the modification time of a path.
 def modified_at(path: String) !! IOError -> SystemTime {
   try file_time(path, MODIFIED_AT)
 }
 
-## Returns the access time of a path.
+# Returns the access time of a path.
 def accessed_at(path: String) !! IOError -> SystemTime {
   try file_time(path, ACCESSED_AT)
 }
 
-## Reads a number of bytes from a file into the buffer.
+# Reads a number of bytes from a file into the buffer.
 def read_bytes(
   file,
   bytes: ByteArray,
@@ -133,7 +125,7 @@ def read_bytes(
   }
 }
 
-## Writes a String to a raw file.
+# Writes a String to a raw file.
 def write_string(file, data: String) !! IOError -> Integer {
   process.blocking {
     try {
@@ -144,7 +136,7 @@ def write_string(file, data: String) !! IOError -> Integer {
   }
 }
 
-## Writes a `ByteArray` to a raw file object.
+# Writes a `ByteArray` to a raw file object.
 def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
   process.blocking {
     try {
@@ -155,14 +147,14 @@ def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
   }
 }
 
-## Flushes the contents of a file to disk.
+# Flushes the contents of a file to disk.
 def flush(file) !! IOError -> Nil {
   process.blocking {
     try _INKOC.file_flush(file) else (err) throw IOError.new(err as String)
   }
 }
 
-## Seeks to a given position.
+# Seeks to a given position.
 def seek(file, position: Integer) !! IOError -> Integer {
   process.blocking {
     try {

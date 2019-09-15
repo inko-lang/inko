@@ -1,43 +1,43 @@
-#! Cross-platform paths to files and directories.
-#!
-#! This module provides two types: the `Path` object and the `ToPath` trait. A
-#! `Path` is used for file or directory paths while `ToPath` is used for
-#! converting an object into a `Path`.
-#!
-#! ## Using ToPath for generic path inputs
-#!
-#! Sometimes you may have a method that should accept both a `String` and a
-#! `Path` as the input. Using `ToPath` we can easily implement this as follows:
-#!
-#!     import std::fs::path::ToPath
-#!
-#!     def example_method(input: ToPath) {
-#!       let path = input.to_path
-#!     }
-#!
-#! Here we specify that the input type should be `ToPath` instead of `Path` or
-#! `String`, we then send the `to_path` message to said input object. This
-#! allows you to pass any object to this method as long as it implements the
-#! `ToPath` trait:
-#!
-#!     import std::fs::path::(Path, ToPath)
-#!
-#!     def example_method(input: ToPath) {
-#!       let path = input.to_path
-#!     }
-#!
-#!     example_method('/tmp/hello.txt')
-#!     example_method(Path.new('/tmp/hello.txt'))
-#!
-#! A more realistic example would be the `std::fs::file` module which uses this
-#! technique to support opening files using either a `String` or a `Path`
-#! object:
-#!
-#!     import std::fs::file
-#!     import std::fs::path::Path
-#!
-#!     file.read_only('/dev/urandom')
-#!     file.read_only(Path.new('/dev/urandom'))
+# Cross-platform paths to files and directories.
+#
+# This module provides two types: the `Path` object and the `ToPath` trait. A
+# `Path` is used for file or directory paths while `ToPath` is used for
+# converting an object into a `Path`.
+#
+# # Using ToPath for generic path inputs
+#
+# Sometimes you may have a method that should accept both a `String` and a
+# `Path` as the input. Using `ToPath` we can easily implement this as follows:
+#
+#     import std::fs::path::ToPath
+#
+#     def example_method(input: ToPath) {
+#       let path = input.to_path
+#     }
+#
+# Here we specify that the input type should be `ToPath` instead of `Path` or
+# `String`, we then send the `to_path` message to said input object. This
+# allows you to pass any object to this method as long as it implements the
+# `ToPath` trait:
+#
+#     import std::fs::path::(Path, ToPath)
+#
+#     def example_method(input: ToPath) {
+#       let path = input.to_path
+#     }
+#
+#     example_method('/tmp/hello.txt')
+#     example_method(Path.new('/tmp/hello.txt'))
+#
+# A more realistic example would be the `std::fs::file` module which uses this
+# technique to support opening files using either a `String` or a `Path`
+# object:
+#
+#     import std::fs::file
+#     import std::fs::path::Path
+#
+#     file.read_only('/dev/urandom')
+#     file.read_only(Path.new('/dev/urandom'))
 import std::conversion::ToString
 import std::fs::raw
 import std::io::(Error as IOError, Size)
@@ -45,156 +45,152 @@ import std::operators::Equal
 import std::os
 import std::time::SystemTime
 
-## The primary separator of path components.
-let SEPARATOR = os.windows?.if true: {
-  '\\'
-}, false: {
-  '/'
-}
+# The primary separator of path components.
+let SEPARATOR = os.windows?.if(true: { '\\' }, false: { '/' })
 
-## A path to a file or directory.
-##
-## A `Path` can be used to retrieve information about a path to a file or
-## directory such as the size or file type. `Path` objects can be created by
-## either using `Path.new` or by sending `to_path` to a `String`.
-##
-## # Examples
-##
-## Creating a new `Path` using a `String`:
-##
-##     import std::fs::path::Path
-##
-##     Path.new('/tmp/hello.txt')
-##
-## Converting a `String` to a `Path`:
-##
-##     import std::fs::path::Path
-##
-##     '/tmp/hello.txt'.to_path
+# A path to a file or directory.
+#
+# A `Path` can be used to retrieve information about a path to a file or
+# directory such as the size or file type. `Path` objects can be created by
+# either using `Path.new` or by sending `to_path` to a `String`.
+#
+# # Examples
+#
+# Creating a new `Path` using a `String`:
+#
+#     import std::fs::path::Path
+#
+#     Path.new('/tmp/hello.txt')
+#
+# Converting a `String` to a `Path`:
+#
+#     import std::fs::path::Path
+#
+#     '/tmp/hello.txt'.to_path
 object Path {
-  ## The raw file path.
+  # The raw file path.
   @path: String
 
   def init(path: String) {
     @path = path
   }
 
-  ## Returns `True` if the path points to a file.
+  # Returns `True` if the path points to a file.
   def file? -> Boolean {
     raw.file?(@path)
   }
 
-  ## Returns `True` if the path points to a directory.
+  # Returns `True` if the path points to a directory.
   def directory? -> Boolean {
     raw.directory?(@path)
   }
 
-  ## Returns `True` if the path points to an existing file or directory.
+  # Returns `True` if the path points to an existing file or directory.
   def exists? -> Boolean {
     raw.exists?(@path)
   }
 
-  ## Returns the creation time of `self`.
-  ##
-  ## # Examples
-  ##
-  ## Obtaining the creation time of a `Path`:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('README.md')
-  ##
-  ##     try! path.created_at # => SystemTime { ... }
+  # Returns the creation time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the creation time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.created_at # => SystemTime { ... }
   def created_at !! IOError -> SystemTime {
     try raw.created_at(@path)
   }
 
-  ## Returns the modification time of `self`.
-  ##
-  ## # Examples
-  ##
-  ## Obtaining the modification time of a `Path`:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('README.md')
-  ##
-  ##     try! path.modified_at # => SystemTime { ... }
+  # Returns the modification time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the modification time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.modified_at # => SystemTime { ... }
   def modified_at !! IOError -> SystemTime {
     try raw.modified_at(@path)
   }
 
-  ## Returns the access time of `self`.
-  ##
-  ## # Examples
-  ##
-  ## Obtaining the access time of a `Path`:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('README.md')
-  ##
-  ##     try! path.accessed_at # => SystemTime { ... }
+  # Returns the access time of `self`.
+  #
+  # # Examples
+  #
+  # Obtaining the access time of a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('README.md')
+  #
+  #     try! path.accessed_at # => SystemTime { ... }
   def accessed_at !! IOError -> SystemTime {
     try raw.accessed_at(@path)
   }
 }
 
 impl Equal for Path {
-  ## Returns `True` if `self` is equal to the given `Path`.
-  ##
-  ## # Examples
-  ##
-  ## Comparing two paths:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path1 = Path.new('foo')
-  ##     let path2 = Path.new('foo')
-  ##
-  ##     path1 == path2 # => True
+  # Returns `True` if `self` is equal to the given `Path`.
+  #
+  # # Examples
+  #
+  # Comparing two paths:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path1 = Path.new('foo')
+  #     let path2 = Path.new('foo')
+  #
+  #     path1 == path2 # => True
   def ==(other: Self) -> Boolean {
     to_string == other.to_string
   }
 }
 
 impl ToString for Path {
-  ## Converts a `Path` to a `String`.
-  ##
-  ## # Examples
-  ##
-  ## Converting a `Path`:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('/dev/null')
-  ##
-  ##     path.to_string # => '/dev/null'
+  # Converts a `Path` to a `String`.
+  #
+  # # Examples
+  #
+  # Converting a `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('/dev/null')
+  #
+  #     path.to_string # => '/dev/null'
   def to_string -> String {
     @path
   }
 }
 
 impl Size for Path {
-  ## Returns the size of the path in bytes.
-  ##
-  ## # Examples
-  ##
-  ## Getting the size of a path:
-  ##
-  ##     import std::fs::path::Path
-  ##
-  ##     let path = Path.new('/dev/null')
-  ##
-  ##     try! path.size # => 0
+  # Returns the size of the path in bytes.
+  #
+  # # Examples
+  #
+  # Getting the size of a path:
+  #
+  #     import std::fs::path::Path
+  #
+  #     let path = Path.new('/dev/null')
+  #
+  #     try! path.size # => 0
   def size !! IOError -> Integer {
     try raw.size(@path)
   }
 }
 
-## Trait for converting an object to a `Path`.
+# Trait for converting an object to a `Path`.
 trait ToPath {
-  ## Converts `Self` to a `Path`.
+  # Converts `Self` to a `Path`.
   def to_path -> Path
 }
 

@@ -5,19 +5,19 @@ import std::process
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
-## A `Path` to an existing file.
+# A `Path` to an existing file.
 let VALID_FILE = mirror.reflect_module(ThisModule).path
 
-## A `Path` to an existing directory.
+# A `Path` to an existing directory.
 let VALID_DIRECTORY = env.temporary_directory
 
-## A `Path` to a non-existing file.
+# A `Path` to a non-existing file.
 let INVALID_FILE = Path.new('does_not_exist.inko')
 
-## A `Path` to a non-existing directory.
+# A `Path` to a non-existing directory.
 let INVALID_DIRECTORY = Path.new('does_not_exist')
 
-## A `SystemTime` used to indicate an invalid point in time.
+# A `SystemTime` used to indicate an invalid point in time.
 let INVALID_TIME = SystemTime.new
 
 def temporary_file_path -> Path {

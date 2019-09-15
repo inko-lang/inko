@@ -1,4 +1,4 @@
-#! The integer type.
+# The integer type.
 
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
@@ -129,19 +129,19 @@ impl Numeric for Integer {
   }
 
   def absolute -> Self {
-    negative?.if true: {
-      self - (self * 2)
-    }, false: {
-      self
+    negative?.if_false {
+      return self
     }
+
+    self - (self * 2)
   }
 
   def opposite -> Self {
-    positive?.if true: {
-      0 - self
-    }, false: {
-      self - (self * 2)
+    positive?.if_true {
+      return 0 - self
     }
+
+    self - (self * 2)
   }
 }
 
@@ -152,61 +152,61 @@ impl Hash for Integer {
 }
 
 impl Successor for Integer {
-  ## Returns the successor of `self`.
-  ##
-  ## # Examples
-  ##
-  ## Getting the successor of a positive integer:
-  ##
-  ##     1.successor  # => 2
-  ##     2.successor  # => 3
-  ##
-  ## Getting the successor of a negative integer:
-  ##
-  ##     -5.successor # => -4
+  # Returns the successor of `self`.
+  #
+  # # Examples
+  #
+  # Getting the successor of a positive integer:
+  #
+  #     1.successor  # => 2
+  #     2.successor  # => 3
+  #
+  # Getting the successor of a negative integer:
+  #
+  #     -5.successor # => -4
   def successor -> Self {
     self + 1
   }
 }
 
 impl Integer {
-  ## Parses an `Integer` from a `String` in a given base.
-  ##
-  ## # Error handling
-  ##
-  ## This method will panic if `radix` is not between `2` and `36`. If the input
-  ## `String` is invalid, an error will be thrown instead.
-  ##
-  ## # Format
-  ##
-  ## The `String` is expected to start with an optional `+` or `-` sign,
-  ## followed by one or more digits. Digits are a subset of the following
-  ## ranges, depending on the value of the `radix` argument:
-  ##
-  ## * 0-9
-  ## * a-z
-  ## * A-Z
-  ##
-  ## Leading and/or trailing whitespace is considered to be invalid, and will
-  ## result in an error being thrown.
-  ##
-  ## # Examples
-  ##
-  ## Parsing a `String` into a base 2 `Integer`:
-  ##
-  ##     try! Integer.parse('11', 2) # => 3
-  ##
-  ## Parsing a `String` into a base 8 `Integer`:
-  ##
-  ##     try! Integer.parse('0o52', 8) # => 42
-  ##
-  ## Parsing a `String` into a base 10 `Integer`:
-  ##
-  ##     try! Integer.parse('10') # => 10
-  ##
-  ## Parsing a `String` into a base 16 `Integer`:
-  ##
-  ##     try! Integer.parse('F', 16) # => 15
+  # Parses an `Integer` from a `String` in a given base.
+  #
+  # # Error handling
+  #
+  # This method will panic if `radix` is not between `2` and `36`. If the input
+  # `String` is invalid, an error will be thrown instead.
+  #
+  # # Format
+  #
+  # The `String` is expected to start with an optional `+` or `-` sign,
+  # followed by one or more digits. Digits are a subset of the following
+  # ranges, depending on the value of the `radix` argument:
+  #
+  # * 0-9
+  # * a-z
+  # * A-Z
+  #
+  # Leading and/or trailing whitespace is considered to be invalid, and will
+  # result in an error being thrown.
+  #
+  # # Examples
+  #
+  # Parsing a `String` into a base 2 `Integer`:
+  #
+  #     try! Integer.parse('11', 2) # => 3
+  #
+  # Parsing a `String` into a base 8 `Integer`:
+  #
+  #     try! Integer.parse('0o52', 8) # => 42
+  #
+  # Parsing a `String` into a base 10 `Integer`:
+  #
+  #     try! Integer.parse('10') # => 10
+  #
+  # Parsing a `String` into a base 16 `Integer`:
+  #
+  #     try! Integer.parse('F', 16) # => 15
   static def parse(string: String, radix = 10) !! StandardError -> Integer {
     try {
       _INKOC.string_to_integer(string, radix)

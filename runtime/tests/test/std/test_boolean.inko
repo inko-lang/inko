@@ -32,11 +32,7 @@ test.group('std::boolean::Boolean.if_false') do (g) {
 
 test.group('std::boolean::Boolean.if') do (g) {
   g.test('The Block passed to the "true" argument is always executed') {
-    let number = Boolean.if true: {
-      10
-    }, false: {
-      20
-    }
+    let number = Boolean.if(true: { 10 }, false: { 20 })
 
     assert.equal(number, 10)
   }
@@ -128,11 +124,7 @@ test.group('std::boolean::True.if_false') do (g) {
 
 test.group('std::boolean::True.if') do (g) {
   g.test('The Block passed to the "true" argument is always executed') {
-    let number = True.if true: {
-      10
-    }, false: {
-      20
-    }
+    let number = True.if(true: { 10 }, false: { 20 })
 
     assert.equal(number, 10)
   }
@@ -224,11 +216,7 @@ test.group('std::boolean::False.if_false') do (g) {
 
 test.group('std::boolean::False.if') do (g) {
   g.test('The Block passed to the "false" argument is always executed') {
-    let number = False.if true: {
-      10
-    }, false: {
-      20
-    }
+    let number = False.if(true: { 10 }, false: { 20 })
 
     assert.equal(number, 20)
   }

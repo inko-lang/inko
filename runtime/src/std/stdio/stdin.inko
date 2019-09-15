@@ -1,6 +1,6 @@
-#! Methods for reading from STDIN.
-#!
-#! This module provides various methods for reading data from STDIN.
+# Methods for reading from STDIN.
+#
+# This module provides various methods for reading data from STDIN.
 
 import std::byte_array::ByteArray
 import std::io::(Read, Error as IOError)
