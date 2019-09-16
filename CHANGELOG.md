@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.5.0 - September 16, 2019
+
+* bffdb0c1: Implement Inko's parser in Inko
+* d99f8407: "Short circuit" printing.
+* 6f06114b: Improve output of failed tests
+* a106a003: Use a function for integer shift errors
+* 460e66b5: Reduce use of format!() for VM panics
+* 10a3f29f: Move integer formatting out of a macro
+* 13ff6916: Fix Cargo warnings using latest Rust
+* c5d3b303: Remove support for binary newline sends
+* c94fb713: Remove support for Array literals
+* 94ac7d14: Remove hash map literals
+* 7fe9e24f: Rename HashMap to Map
+* 78bf415a: Merge Table and HashMap together
+* 12fe6648: Move IP parsing methods to the IP objects
+* a638341e: Move std::float.parse to Float.parse
+* 42b9fd21: Move std::integer.parse to Integer.parse
+* bf31fe71: Move hash_map.from_array to HashMap.from_array
+* 563a0ab5: Use static methods for SystemTime and Duration
+* f86eb0b0: Add syntax support for static methods
+* 48dfebed: Require all attributes to be assigned in "init"
+* 5ca42d1a: Define attributes inside object bodies
+* 8554cc3b: Remove non-primitive prototypes from the VM
+* f3270b13: Use a single File type in the VM
+* 48e4213e: Change the syntax for the not-Nil operator
+* 61961924: Use different token types for the lexer
+* 55a58ace: Improve support for passing trait arguments
+* a518c120: Implement Inko's lexer in Inko itself
+* feb8e42e: Fix rehashing of HashMap
+* 6385da73: Don't overwrite attribute types upon reassignments
+* 770bc946: Rework HashMap internals and add RNG support
+* 23f2e7fb: Fix lexing hexadecimal numbers containing "e"
+* 2c96d0dd: Optimise looking up unused HashMap keys
+* e357fd08: Added ToByteArray trait
+* c88ba04f: Remove support for nested objects and traits
+* e6aa5900: Add support for building the VM with jemalloc
+* b513911a: Use AtomicU16 for Immix histograms
+* fc417e39: Add ByteArray.slice
+* ded03aad: Remove support for setting compiler options
+* 53ff6b02: Remove support for `object ... impl` syntax
+* 0b9ccdab: Remove use of `object ... impl` syntax
+* eddffb9f: Add Range.cover?
+* 468a7044: Fix failing Clippy builds
+* da7e3128: Fix two use-after-free bugs regarding sockets
+* 55473d46: Add Enumerator for writing iterators
+
 ## 0.4.1 - May 14, 2019
 
 * 53675b7: Refactor connecting of sockets
