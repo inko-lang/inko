@@ -16,6 +16,8 @@ dependency_scanning:
     paths:
       - gl-dependency-scanning-report.json
   allow_failure: true
+  except:
+    - tags
 
 lint:clippy:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
@@ -30,6 +32,8 @@ lint:clippy:
     paths:
       - .cargo
       - vm/target
+  except:
+    - tags
 
 lint:rustfmt:
   image: registry.gitlab.com/inko-lang/development-docker-images:rust-stable
@@ -41,6 +45,8 @@ lint:rustfmt:
     - rustfmt --version
   script:
     - make rustfmt-check
+  except:
+    - tags
 
 lint:versions:
   image: registry.gitlab.com/inko-lang/development-docker-images:alpine
