@@ -287,21 +287,26 @@ object Map!(K: Hash + Equal, V) {
   #     }
   def iter -> Iterator!(Pair!(K, V)) {
     let mut index = 0
+    let mut found: ?Pair!(K, V) = Nil
     let max = @buckets.length
 
     Enumerator.new(
-      while: { index < max },
-      yield: {
-        let mut found: ?Pair!(K, V) = Nil
-
+      while: {
         {
-          (index < max).and { found == Nil }
+          (index < max).and { found.nil? }
         }.while_true {
           found = @buckets[index]
           index += 1
         }
 
-        found
+        found != Nil
+      },
+      yield: {
+        let pair = found!
+
+        found = Nil
+
+        pair
       }
     )
   }
@@ -481,7 +486,7 @@ object Map!(K: Hash + Equal, V) {
       #
       # This early return ensures we don't iterate over all buckets if we are
       # certain we won't be able to find the key.
-      (pair == Nil).if_true {
+      pair.nil?.if_true {
         return
       }
 

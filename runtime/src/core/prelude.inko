@@ -9,15 +9,14 @@
 # few methods that _must_ exist before we can import any other methods.
 import std::trait
 
+# Next up we import std::object, which defines a few methods other modules
+# depend on.
+import std::object
+
 # The std::boolean module must be imported next since many other modules depend
 # on the methods it defines. This module also refines the "Boolean" trait
 # defined earlier in std::bootstrap.
 import std::boolean
-
-# Next up we import std::object. We do this before all other modules because
-# similar to std::boolean the other modules depend on various methods defined in
-# std::object.
-import std::object
 
 # Now that most of the crucial bits and pieces are in place we can start
 # importing other modules. At this point the order of the imports doesn't matter

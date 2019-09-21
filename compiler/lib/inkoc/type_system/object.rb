@@ -127,6 +127,13 @@ module Inkoc
       end
 
       def implement_trait(trait)
+        # This is a hack due to trait lookups being messy and leading to stack
+        # overflows. In the new Inko compiler we'll have to come up with a sane
+        # way of looking up default methods from a parent object.
+        trait.attributes.each do |symbol|
+          define_attribute(symbol.name, symbol.type) if symbol.type.method?
+        end
+
         implemented_traits[trait.unique_id] = trait
       end
 

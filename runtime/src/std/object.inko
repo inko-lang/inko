@@ -1,66 +1,32 @@
+# Functionality available to all objects.
+#
+# All objects in Inko are an instance of `Object`, and thus all its methods are
+# available to all objects.
 import std::conditional::Conditional
 import std::operators::Equal
 
-impl Object {
-  # Returns `True` if `self` and the given object are identical.
-  #
-  # Two objects are considered identical if they reside at the exact same
-  # memory address. This is also known as referential equality.
-  #
-  # This method should not be redefined by other objects, as doing so can break
-  # various parts of the Inko runtime.
-  def equal?(other: Self) -> Boolean {
-    _INKOC.object_equals(self, other)
-  }
-}
-
 impl Conditional for Object {
-  def if_true!(R)(block: do -> R) -> ?R {
-    block.call
-  }
-
-  def if_false!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
   def if!(R)(true: do -> R, false: do -> R) -> R {
     true.call
-  }
-
-  def and(other: do -> Boolean) -> Boolean {
-    if(true: { other.call }, false: { False })
-  }
-
-  def or(other: do -> Boolean) -> Boolean {
-    if(true: { True }, false: { other.call })
   }
 }
 
 impl Equal for Object {
-  # Returns `True` if `self` and the given object are identical.
-  #
-  # Two objects are considered identical if they reside at the exact same
-  # memory address.
-  #
-  # # Examples
-  #
-  # Checking two equal objects:
-  #
-  #     let obj = Object.new
-  #
-  #     obj == obj # => True
-  #
-  # Checking two objects that are not equal to each other:
-  #
-  #     let obj1 = Object.new
-  #     let obj2 = Object.new
-  #
-  #     obj1 == obj2 # => False
   def ==(other: Self) -> Boolean {
     equal?(other)
   }
+}
 
-  def !=(other: Self) -> Boolean {
-    (self == other).not
+impl Object {
+  # Returns `True` if `self` is `Nil`.`
+  #
+  # # Examples
+  #
+  # Checking if an object is `Nil`:
+  #
+  #     10.nil?  # => False
+  #     Nil.nil? # => True
+  def nil? -> Boolean {
+    _INKOC.object_equals(self, Nil)
   }
 }

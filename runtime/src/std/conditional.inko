@@ -16,14 +16,6 @@
 #     object NullUser {}
 #
 #     impl Conditional for NullUser {
-#       def if_true!(R)(block: do -> R) -> ?R {
-#         Nil
-#       }
-#
-#       def if_false!(R)(block: do -> R) -> ?R {
-#         block.call
-#       }
-#
 #       def if!(R)(true: do -> R, false: do -> R) -> R {
 #         false.call
 #       }
@@ -32,27 +24,35 @@
 #     let user = NullUser.new
 #
 #     user.if(true: { 10 }, false: { 20 }) # => 20
+#
+# When implementing this trait, one should redefine `if` if they want to
+# customise the behaviour. All other methods make use of this method, and will
+# thus follow the new behaviour automatically.
 trait Conditional {
-  # Calls the supplied block if the receiver evaluates to true.
-  #
-  # When the receiver evaluates to True the return value will be whatever the
-  # supplied block returned. When evaluating to False this method will instead
-  # return Nil.
-  def if_true!(R)(block: do -> R) -> ?R
-
-  # Calls the supplied block if the receiver evaluates to false.
-  #
-  # When the receiver evaluates to False the return value will be whatever the
-  # supplied block returned. When evaluating to True this method will instead
-  # return Nil.
-  def if_false!(R)(block: do -> R) -> ?R
-
-  # Calls the `true` block if the receiver evaluates to True, otherwise the
+  # Calls the `true` block if the receiver evaluates to `True`, otherwise the
   # `false` block is called.
   #
   # The return value is whatever the block returned. Both the blocks must
   # return a value of the same type.
   def if!(R)(true: do -> R, false: do -> R) -> R
+
+  # Calls the supplied block if the receiver evaluates to `True`.
+  #
+  # When the receiver evaluates to `True` the return value will be whatever the
+  # supplied block returned. When evaluating to `False` this method will instead
+  # return Nil.
+  def if_true!(R)(block: do -> R) -> ?R {
+    if(true: block, false: { Nil })
+  }
+
+  # Calls the supplied block if the receiver evaluates to `False`.
+  #
+  # When the receiver evaluates to `False` the return value will be whatever the
+  # supplied block returned. When evaluating to `True` this method will instead
+  # return Nil.
+  def if_false!(R)(block: do -> R) -> ?R {
+    if(true: { Nil }, false: block)
+  }
 
   # Returns `True` if `self` and the given object evaluate to `True`.
   #
@@ -65,7 +65,9 @@ trait Conditional {
   # Using and object and `False`:
   #
   #     Object.new.and { False } # => False
-  def and(other: do -> Boolean) -> Boolean
+  def and(other: do -> Boolean) -> Boolean {
+    if(true: { other.call }, false: { False })
+  }
 
   # Returns `True` if `self` or the given object evaluates to `True`.
   #
@@ -78,5 +80,7 @@ trait Conditional {
   # Using an object and `False`:
   #
   #     Object.new.or { False } # => True
-  def or(other: do -> Boolean) -> Boolean
+  def or(other: do -> Boolean) -> Boolean {
+    if(true: { True }, false: { other.call })
+  }
 }
