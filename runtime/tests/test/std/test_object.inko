@@ -86,3 +86,11 @@ test.group('std::object::Object.or') do (g) {
     assert.true(obj.or({ False }))
   }
 }
+
+test.group('std::object::Object.nil?') do (g) {
+  g.test('Checking if an object is Nil') {
+    assert.true(Nil.nil?)
+    assert.false(10.nil?)
+    assert.false(Object.new.nil?)
+  }
+}

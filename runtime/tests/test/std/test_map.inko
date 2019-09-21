@@ -390,6 +390,29 @@ test.group('std::map::Map.iter') do (g) {
     assert.equal(pair.key, 'name')
     assert.equal(pair.value, 'Alice')
   }
+
+  g.test('Iterators will skip trailing empty buckets') {
+    let map = Map.new
+    let pair1 = Pair.new(key: 'a', value: 'value', hash: 0)
+    let pair2 = Pair.new(key: 'b', value: 'value', hash: 1)
+
+    map.rehash
+    map._insert_pair(pair: pair1)
+    map._insert_pair(pair: pair2)
+    map.rehash
+
+    # At this point the bucket layout is: [pair, pair, Nil, Nil]
+    let iter = map.iter
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, pair1)
+
+    assert.true(iter.next?)
+    assert.equal(iter.next, pair2)
+
+    assert.false(iter.next?)
+    assert.equal(iter.next, Nil)
+  }
 }
 
 test.group('std::map::Map.keys') do (g) {

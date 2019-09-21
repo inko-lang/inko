@@ -965,20 +965,20 @@ test.group('Parsing closures') do (g) {
 
     assert.equal(node.body.children.length, 1)
     assert.true(node.arguments.empty?)
-    assert.true(node.return_type == Nil)
-    assert.true(node.throw_type == Nil)
+    assert.true(node.return_type.nil?)
+    assert.true(node.throw_type.nil?)
   }
 
   g.test('Parsing a closure with dynamically typed arguments') {
     let node = parse_as(input: 'do (a, b) {}', type: Closure)
 
     assert.equal(node.arguments[0].name, 'a')
-    assert.true(node.arguments[0].value_type == Nil)
-    assert.true(node.arguments[0].default_value == Nil)
+    assert.true(node.arguments[0].value_type.nil?)
+    assert.true(node.arguments[0].default_value.nil?)
 
     assert.equal(node.arguments[1].name, 'b')
-    assert.true(node.arguments[1].value_type == Nil)
-    assert.true(node.arguments[1].default_value == Nil)
+    assert.true(node.arguments[1].value_type.nil?)
+    assert.true(node.arguments[1].default_value.nil?)
   }
 
   g.test('Parsing a closure with statically typed arguments') {
@@ -986,11 +986,11 @@ test.group('Parsing closures') do (g) {
 
     assert.equal(node.arguments[0].name, 'a')
     assert.equal((node.arguments[0].value_type as Constant).name, 'A')
-    assert.true(node.arguments[0].default_value == Nil)
+    assert.true(node.arguments[0].default_value.nil?)
 
     assert.equal(node.arguments[1].name, 'b')
     assert.equal((node.arguments[1].value_type as Constant).name, 'B')
-    assert.true(node.arguments[1].default_value == Nil)
+    assert.true(node.arguments[1].default_value.nil?)
   }
 
   g.test('Parsing a closure with a constant as the return type') {
@@ -1040,20 +1040,20 @@ test.group('Parsing lambdas') do (g) {
 
     assert.equal(node.body.children.length, 1)
     assert.true(node.arguments.empty?)
-    assert.true(node.return_type == Nil)
-    assert.true(node.throw_type == Nil)
+    assert.true(node.return_type.nil?)
+    assert.true(node.throw_type.nil?)
   }
 
   g.test('Parsing a lambda with dynamically typed arguments') {
     let node = parse_as(input: 'lambda (a, b) {}', type: Lambda)
 
     assert.equal(node.arguments[0].name, 'a')
-    assert.true(node.arguments[0].value_type == Nil)
-    assert.true(node.arguments[0].default_value == Nil)
+    assert.true(node.arguments[0].value_type.nil?)
+    assert.true(node.arguments[0].default_value.nil?)
 
     assert.equal(node.arguments[1].name, 'b')
-    assert.true(node.arguments[1].value_type == Nil)
-    assert.true(node.arguments[1].default_value == Nil)
+    assert.true(node.arguments[1].value_type.nil?)
+    assert.true(node.arguments[1].default_value.nil?)
   }
 
   g.test('Parsing a lambda with statically typed arguments') {
@@ -1061,11 +1061,11 @@ test.group('Parsing lambdas') do (g) {
 
     assert.equal(node.arguments[0].name, 'a')
     assert.equal((node.arguments[0].value_type as Constant).name, 'A')
-    assert.true(node.arguments[0].default_value == Nil)
+    assert.true(node.arguments[0].default_value.nil?)
 
     assert.equal(node.arguments[1].name, 'b')
     assert.equal((node.arguments[1].value_type as Constant).name, 'B')
-    assert.true(node.arguments[1].default_value == Nil)
+    assert.true(node.arguments[1].default_value.nil?)
   }
 
   g.test('Parsing a lambda with a constant as the return type') {
@@ -1215,7 +1215,7 @@ test.group('Parsing variable definitions') do (g) {
     let node = parse_as(input: 'let number = 10', type: DefineVariable)
 
     assert_instance_of(node.name, Identifier)
-    assert.true(node.value_type == Nil)
+    assert.true(node.value_type.nil?)
     assert.false(node.mutable?)
 
     assert.equal((node.name as Identifier).name, 'number')
@@ -1227,7 +1227,7 @@ test.group('Parsing variable definitions') do (g) {
     let node = parse_as(input: 'let Number = 10', type: DefineVariable)
 
     assert_instance_of(node.name, Constant)
-    assert.true(node.value_type == Nil)
+    assert.true(node.value_type.nil?)
     assert.false(node.mutable?)
 
     assert.equal((node.name as Constant).name, 'Number')
@@ -1239,7 +1239,7 @@ test.group('Parsing variable definitions') do (g) {
     let node = parse_as(input: 'let mut number = 10', type: DefineVariable)
 
     assert_instance_of(node.name, Identifier)
-    assert.true(node.value_type == Nil)
+    assert.true(node.value_type.nil?)
     assert.true(node.mutable?)
 
     assert.equal((node.name as Identifier).name, 'number')
@@ -1250,7 +1250,7 @@ test.group('Parsing variable definitions') do (g) {
     let node = parse_as(input: 'let mut Number = 10', type: DefineVariable)
 
     assert_instance_of(node.name, Constant)
-    assert.true(node.value_type == Nil)
+    assert.true(node.value_type.nil?)
     assert.true(node.mutable?)
 
     assert.equal((node.name as Constant).name, 'Number')
@@ -1289,8 +1289,8 @@ test.group('Parsing method definitions') do (g) {
     assert.true(node.arguments.empty?)
     assert.true(node.type_parameters.empty?)
 
-    assert.true(node.return_type == Nil)
-    assert.true(node.throw_type == Nil)
+    assert.true(node.return_type.nil?)
+    assert.true(node.throw_type.nil?)
   }
 
   g.test('Parsing a method with dynamically typed arguments') {
@@ -1299,10 +1299,10 @@ test.group('Parsing method definitions') do (g) {
     assert.equal(node.arguments.length, 2)
 
     assert.equal(node.arguments[0].name, 'a')
-    assert.true(node.arguments[0].value_type == Nil)
+    assert.true(node.arguments[0].value_type.nil?)
 
     assert.equal(node.arguments[1].name, 'b')
-    assert.true(node.arguments[1].value_type == Nil)
+    assert.true(node.arguments[1].value_type.nil?)
   }
 
   g.test('Parsing a method with statically typed arguments') {
@@ -1432,7 +1432,7 @@ test.group('Parsing return expressions') do (g) {
   g.test('Parsing a return without a value') {
     let node = parse_as(input: 'return', type: Return)
 
-    assert.true(node.expression == Nil)
+    assert.true(node.expression.nil?)
   }
 
   g.test('Parsing a return with a value') {
@@ -1446,7 +1446,7 @@ test.group('Parsing return expressions') do (g) {
     let nodes = parse("return\n10").children
 
     assert.equal(nodes.length, 2)
-    assert.true((nodes[0] as Return).expression == Nil)
+    assert.true((nodes[0] as Return).expression.nil?)
   }
 
   g.test('Parsing a return followed by a closing curly brace') {
@@ -1459,21 +1459,21 @@ test.group('Parsing return expressions') do (g) {
   g.test('Parsing a return followed by a closing parenthesis') {
     let node = parse_as(input: '(return)', type: Return)
 
-    assert.true(node.expression == Nil)
+    assert.true(node.expression.nil?)
   }
 
   g.test('Parsing a return followed by a comment') {
     let nodes = parse('return # foo').children
 
     assert.equal(nodes.length, 1)
-    assert.true((nodes[0] as Return).expression == Nil)
+    assert.true((nodes[0] as Return).expression.nil?)
   }
 
   g.test('Parsing a return followed by a documentation comment') {
     let nodes = parse('return # foo').children
 
     assert.equal(nodes.length, 1)
-    assert.true((nodes[0] as Return).expression == Nil)
+    assert.true((nodes[0] as Return).expression.nil?)
   }
 
   g.test('Parsing a return expression inside an index access expression') {
@@ -1483,7 +1483,7 @@ test.group('Parsing return expressions') do (g) {
 
     assert_instance_of(node.arguments[0]!, Return)
 
-    assert.true((node.arguments[0] as Return).expression == Nil)
+    assert.true((node.arguments[0] as Return).expression.nil?)
   }
 
   g.test('Parsing a return expression that returns self') {
