@@ -6,7 +6,7 @@ import std::byte_array::ToByteArray
 import std::compiler::ast::blocks::*
 import std::compiler::ast::comments::*
 import std::compiler::ast::control_flow::*
-import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::body::Body
 import std::compiler::ast::imports::*
 import std::compiler::ast::literals::*
 import std::compiler::ast::node::Node
@@ -82,7 +82,7 @@ object Parser {
   #     let int = ast.children[0]! as IntegerLiteral
   #
   #     int.value # => '10'
-  def parse !! ParseError -> Expressions {
+  def parse !! ParseError -> Body {
     let location = @lexer.current_location
     let children = Array.new
 
@@ -90,7 +90,7 @@ object Parser {
       children.push(try top_level_expression(next_token))
     }
 
-    Expressions.new(children: children, location: location)
+    Body.new(children: children, location: location)
   }
 
   def top_level_expression(token: Token) !! ParseError -> Node {
@@ -380,13 +380,13 @@ object Parser {
 
   }
 
-  def block_body(start: Token) !! ParseError -> Expressions {
+  def block_body(start: Token) !! ParseError -> Body {
     try collect_block_body_nodes(start.location) do (token) {
       try expression(token)
     }
   }
 
-  def restricted_block_body(start: Token) !! ParseError -> Expressions {
+  def restricted_block_body(start: Token) !! ParseError -> Body {
     try collect_block_body_nodes(start.location) do (token) {
       try restricted_block_body_node(token)
     }
@@ -684,26 +684,26 @@ object Parser {
       false: {
         let body = try expression(next_token)
 
-        Expressions.new(children: Array.new(body), location: body.location)
+        Body.new(children: Array.new(body), location: body.location)
       }
     )
 
     Try.new(
       expression: expression,
       error_variable: else_var,
-      else_expression: else_body,
+      else_body: else_body,
       location: token.location
     )
   }
 
   def try_without_else(token: Token, expression: Node) -> Try {
     let else_expr =
-      Expressions.new(children: Array.new, location: token.location)
+      Body.new(children: Array.new, location: token.location)
 
     Try.new(
       expression: expression,
       error_variable: Nil,
-      else_expression: else_expr,
+      else_body: else_expr,
       location: token.location
     )
   }
@@ -1217,11 +1217,11 @@ object Parser {
     try constant(try token_of_type('constant'))
   }
 
-  def next_as_body !! ParseError -> Expressions {
+  def next_as_body !! ParseError -> Body {
     try block_body(try token_of_type('curly_open'))
   }
 
-  def next_as_restricted_body !! ParseError -> Expressions {
+  def next_as_restricted_body !! ParseError -> Body {
     try restricted_block_body(try token_of_type('curly_open'))
   }
 
@@ -1262,14 +1262,14 @@ object Parser {
   def collect_block_body_nodes(
     location: SourceLocation,
     block: do (Token) !! ParseError -> Node
-  ) !! ParseError -> Expressions {
+  ) !! ParseError -> Body {
     let nodes = Array.new
 
     {
       let token = next_token
 
       (token.type == 'curly_close').if_true {
-        return Expressions.new(children: nodes, location: location)
+        return Body.new(children: nodes, location: location)
       }
 
       nodes.push(try block.call(token))

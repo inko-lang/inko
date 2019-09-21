@@ -1,5 +1,5 @@
 # AST types for objects and traits.
-import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::body::Body
 import std::compiler::ast::node::Node
 import std::compiler::ast::type_parameter::TypeParameter
 import std::compiler::ast::variables::Constant
@@ -14,7 +14,7 @@ object ObjectDefinition {
   @type_parameters: Array!(TypeParameter)
 
   # The expressions inside the object body.
-  @body: Expressions
+  @body: Body
 
   # The source location of the definition.
   @location: SourceLocation
@@ -22,7 +22,7 @@ object ObjectDefinition {
   def init(
     name: Constant,
     type_parameters: Array!(TypeParameter),
-    body: Expressions,
+    body: Body,
     location: SourceLocation
   ) {
     @name = name
@@ -42,7 +42,7 @@ object ObjectDefinition {
   }
 
   # Returns the expressions contained in this object definition.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 }
@@ -99,7 +99,7 @@ object TraitDefinition {
   @required_traits: Array!(Constant)
 
   # The expressions inside the trait's body.
-  @body: Expressions
+  @body: Body
 
   # The source location of the trait definition.
   @location: SourceLocation
@@ -108,7 +108,7 @@ object TraitDefinition {
     name: Constant,
     type_parameters: Array!(TypeParameter),
     required_traits: Array!(Constant),
-    body: Expressions,
+    body: Body,
     location: SourceLocation
   ) {
     @name = name
@@ -134,7 +134,7 @@ object TraitDefinition {
   }
 
   # Returns the expressions contained in this object definition.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 }
@@ -158,7 +158,7 @@ object ImplementTrait {
   @trait_bounds: Array!(TypeParameter)
 
   # The expressions contained in the body of the implementation.
-  @body: Expressions
+  @body: Body
 
   # The source location of the implementation.
   @location: SourceLocation
@@ -167,7 +167,7 @@ object ImplementTrait {
     trait_name: Constant,
     object_name: Constant,
     trait_bounds: Array!(TypeParameter),
-    body: Expressions,
+    body: Body,
     location: SourceLocation
   ) {
     @trait_name = trait_name
@@ -193,7 +193,7 @@ object ImplementTrait {
   }
 
   # Returns the expressions contained in this implementation.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 }
@@ -210,16 +210,12 @@ object ReopenObject {
   @name: Constant
 
   # The expressions contained in the body of the object.
-  @body: Expressions
+  @body: Body
 
   # The source location of the implementation.
   @location: SourceLocation
 
-  def init(
-    name: Constant,
-    body: Expressions,
-    location: SourceLocation
-  ) {
+  def init(name: Constant, body: Body, location: SourceLocation) {
     @name = name
     @body = body
     @location = location
@@ -231,7 +227,7 @@ object ReopenObject {
   }
 
   # Returns the body of the `impl` expression.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 }

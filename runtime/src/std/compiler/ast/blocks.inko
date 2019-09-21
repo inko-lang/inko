@@ -1,5 +1,5 @@
 # AST types for closures and lambdas.
-import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::body::Body
 import std::compiler::ast::node::Node
 import std::compiler::ast::type_parameter::TypeParameter
 import std::compiler::source_location::SourceLocation
@@ -76,18 +76,18 @@ impl Node for Argument {
 # A closure that was created without the `do` or `lambda` keyword.
 object BasicClosure {
   # The expressions in the block's body.
-  @body: Expressions
+  @body: Body
 
   # The source location of the block.
   @location: SourceLocation
 
-  def init(body: Expressions, location: SourceLocation) {
+  def init(body: Body, location: SourceLocation) {
     @body = body
     @location = location
   }
 
   # Returns the expressions in the block's body.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 }
@@ -107,7 +107,7 @@ object Closure {
   @arguments: Array!(Argument)
 
   # The expressions in the closure's body.
-  @body: Expressions
+  @body: Body
 
   # The type of the value this closure might throw.
   @throw_type: ?Node
@@ -121,7 +121,7 @@ object Closure {
   def init(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
-    body: Expressions,
+    body: Body,
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
@@ -145,7 +145,7 @@ object Closure {
   }
 
   # Returns the expressions in the block's body.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 
@@ -175,7 +175,7 @@ object Lambda {
   @arguments: Array!(Argument)
 
   # The expressions in the lambda's body.
-  @body: Expressions
+  @body: Body
 
   # The type of the value this lambda might throw.
   @throw_type: ?Node
@@ -189,7 +189,7 @@ object Lambda {
   def init(
     type_parameters: Array!(TypeParameter),
     arguments: Array!(Argument),
-    body: Expressions,
+    body: Body,
     throw_type: ?Node,
     return_type: ?Node,
     location: SourceLocation
@@ -213,7 +213,7 @@ object Lambda {
   }
 
   # Returns the expressions in the block's body.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 
@@ -246,7 +246,7 @@ object MethodDefinition {
   @arguments: Array!(Argument)
 
   # The expressions in the method's body.
-  @body: Expressions
+  @body: Body
 
   # The type of the value this method might throw.
   @throw_type: ?Node
@@ -268,7 +268,7 @@ object MethodDefinition {
     throw_type: ?Node,
     return_type: ?Node,
     static_method: Boolean,
-    body: Expressions,
+    body: Body,
     location: SourceLocation
   ) {
     @name = name
@@ -297,7 +297,7 @@ object MethodDefinition {
   }
 
   # Returns the expressions in the block's body.
-  def body -> Expressions {
+  def body -> Body {
     @body
   }
 

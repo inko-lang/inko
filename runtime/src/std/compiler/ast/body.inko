@@ -3,7 +3,7 @@ import std::compiler::ast::node::Node
 import std::compiler::source_location::SourceLocation
 
 # A collection of different expressions.
-object Expressions {
+object Body {
   # The nodes stored in this collection of expressions.
   @children: Array!(Node)
 
@@ -21,7 +21,7 @@ object Expressions {
   }
 }
 
-impl Node for Expressions {
+impl Node for Body {
   def location -> SourceLocation {
     @location
   }
