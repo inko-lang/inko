@@ -29,4 +29,16 @@ impl Object {
   def nil? -> Boolean {
     _INKOC.object_equals(self, Nil)
   }
+
+  # Returns `True` if `self` is any object other than `Nil`.
+  #
+  # # Examples
+  #
+  # Checking if an object is not `Nil`:
+  #
+  #     10.not_nil?  # => True
+  #     Nil.not_nil? # => False
+  def not_nil? -> Boolean {
+    _INKOC.object_equals(nil?, False)
+  }
 }

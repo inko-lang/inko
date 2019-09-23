@@ -94,3 +94,11 @@ test.group('std::object::Object.nil?') do (g) {
     assert.false(Object.new.nil?)
   }
 }
+
+test.group('std::object::Object.not_nil?') do (g) {
+  g.test('Checking if an object is Nil') {
+    assert.false(Nil.not_nil?)
+    assert.true(10.not_nil?)
+    assert.true(Object.new.not_nil?)
+  }
+}
