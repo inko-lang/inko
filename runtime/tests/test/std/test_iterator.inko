@@ -94,6 +94,15 @@ test.group('std::iterator::Iterator.find') do (g) {
   }
 }
 
+test.group('std::iterator::Iterator.any?') do (g) {
+  g.test('Checking if an Iterator includes a value') {
+    let iter = SimpleIterator.new
+
+    assert.true(iter.any? do (value) { value == 20 })
+    assert.false(iter.any? do (value) { value == 200 })
+  }
+}
+
 test.group('std::iterator::Iterator.map') do (g) {
   g.test('Mapping the values of an Iterator to a different value') {
     let iter = SimpleIterator.new.map do (val) { val * 2 }

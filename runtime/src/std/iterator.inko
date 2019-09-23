@@ -246,6 +246,26 @@ trait Iterator!(T) {
     Nil
   }
 
+  # Returns `True` if `self` contains any value for which the `block` argument
+  # returned `True`.
+  #
+  # This method stops iterating over the values after the first matching value.
+  #
+  # # Examples
+  #
+  # Checking if an `Iterator` contains a value:
+  #
+  #     Array.new(10, 20, 30).iter.any? do (value) { value >= 20 } # => True
+  def any?(block: do (T) -> Boolean) -> Boolean {
+    each do (value) {
+      block.call(value).if_true {
+        return True
+      }
+    }
+
+    False
+  }
+
   # Transforms the `Iterator` into an `Array`.
   #
   # This method will advance the iterator to the end.
