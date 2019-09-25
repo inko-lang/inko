@@ -75,7 +75,8 @@
 # particular a mirror has to be allocated every time you need one. As such we
 # recommend against using reflection in performance critical code.
 import std::fs::path::Path
-import std::trait::IMPLEMENTED_TRAITS_ATTRIBUTE
+import std::module::Module
+import std::trait::(IMPLEMENTED_TRAITS_ATTRIBUTE, Trait)
 
 # The default name to use for objects that don't have an explicit name.
 let DEFAULT_OBJECT_NAME = 'Object'

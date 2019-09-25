@@ -35,6 +35,7 @@ import std::process
 import std::vm
 import std::range::(Range as _Range)
 import std::integer::extensions
+import std::module
 
 # These constants are re-exported so they're available to all modules by
 # default. Core types such as String should be exposed in std::globals instead.
