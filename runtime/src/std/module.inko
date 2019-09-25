@@ -1,0 +1,9 @@
+# Modules of Inko source code.
+
+# A collection of types and methods.
+#
+# A `Module` is an object created for every module of Inko source code, and
+# contains data such as the methods defined in the module.
+#
+# Modules are permanent objects, and are never garbage collected.
+let Module = Inko::Module
