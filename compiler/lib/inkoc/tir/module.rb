@@ -81,10 +81,6 @@ module Inkoc
         name.to_s != Config.core_module_name(Config::BOOTSTRAP_MODULE)
       end
 
-      def import_trait_module?
-        import_prelude?
-      end
-
       def source_code
         location.file.path.read
       end

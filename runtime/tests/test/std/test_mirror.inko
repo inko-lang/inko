@@ -162,7 +162,7 @@ test.group('std::mirror::ObjectMirror.implements_trait?') do (g) {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
 
-    trait_mod.implement(implement_for: obj, to_implement: Trait2)
+    Trait2.implement(obj)
 
     assert.true(mirror.implements_trait?(Trait1))
     assert.true(mirror.implements_trait?(Trait2))

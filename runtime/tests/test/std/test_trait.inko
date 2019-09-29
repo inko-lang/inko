@@ -9,12 +9,12 @@ trait Example {
   }
 }
 
-test.group('std::trait.implement') do (g) {
+test.group('std::trait::Trait.implement') do (g) {
   g.test('Copying the default methods of a Trait to the Object') {
     let obj = Object.new
     let obj_mirror = mirror.reflect_object(obj)
 
-    trait_mod.implement(implement_for: obj, to_implement: Example)
+    Example.implement(obj)
 
     let method_impl = obj_mirror.get_attribute('pass') as Block
     let method_exp =
@@ -27,7 +27,7 @@ test.group('std::trait.implement') do (g) {
     let obj = Object.new
     let obj_mirror = mirror.reflect_object(obj)
 
-    trait_mod.implement(implement_for: obj, to_implement: Example)
+    Example.implement(obj)
 
     assert.equal(obj_mirror.implemented_traits, Array.new(Example))
   }

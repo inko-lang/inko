@@ -470,13 +470,12 @@ module Inkoc
 
       def implement_trait(object, trait, body, location)
         message = Config::IMPLEMENT_TRAIT_MESSAGE
-        trait_mod = get_global(Config::INTERNAL_TRAIT_IMPORT, body, location)
-        method = trait_mod.type.lookup_method(message).type
+        method = trait.type.lookup_method(message).type
 
         send_object_message(
-          trait_mod,
+          trait,
           message,
-          [object, trait],
+          [object],
           [],
           method,
           method.return_type,
