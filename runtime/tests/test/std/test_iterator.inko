@@ -116,6 +116,29 @@ test.group('std::iterator::Iterator.map') do (g) {
   }
 }
 
+test.group('std::iterator::Iterator.select') do (g) {
+  g.test('Selecting values from an empy Iterator') {
+    let iter = EmptyIterator.new
+    let vals = iter.select do (value) { value > 10 }.to_array
+
+    assert.true(vals.empty?)
+  }
+
+  g.test('Selecting values from an Iterator with values') {
+    let iter = SimpleIterator.new
+    let vals = iter.select do (value) { value > 10 }.to_array
+
+    assert.equal(vals, Array.new(20, 30))
+  }
+
+  g.test('Selecting values from an Iterator when no values match') {
+    let iter = SimpleIterator.new
+    let vals = iter.select do (value) { value > 50 }.to_array
+
+    assert.true(vals.empty?)
+  }
+}
+
 test.group('std::iterator::Iterator.to_array') do (g) {
   g.test('Converting an Iterator to an Array') {
     let iter = SimpleIterator.new

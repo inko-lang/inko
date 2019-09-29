@@ -266,6 +266,44 @@ trait Iterator!(T) {
     False
   }
 
+  # Returns an `Iterator` that only produces values for which the supplied block
+  # returned `True`.
+  #
+  # # Examples
+  #
+  # Selecting only certain values in an `Iterator`:
+  #
+  #     Array.new(10, 20, 30)
+  #       .iter
+  #       .select do (value) { value > 10 }
+  #       .to_array # => Array.new(20, 30)
+  def select(block: do (T) -> Boolean) -> Iterator!(T) {
+    let mut found: ?T = Nil
+
+    # The casts to ?Object here are needed until
+    # https://gitlab.com/inko-lang/inko/issues/177 has been implemented.
+    Enumerator.new(
+      while: {
+        { next?.and { (found as ?Object).nil? } }.while_true {
+          let value = next
+
+          block.call(value).if_true {
+            found = value
+          }
+        }
+
+        (found as ?Object).not_nil?
+      },
+      yield: {
+        let yield = found!
+
+        found = Nil
+
+        yield
+      }
+    )
+  }
+
   # Transforms the `Iterator` into an `Array`.
   #
   # This method will advance the iterator to the end.
