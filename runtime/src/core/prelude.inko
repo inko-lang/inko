@@ -27,14 +27,14 @@ import std::nil
 import std::block
 import std::string
 import std::array
-import std::array_iter
+import std::array::extensions::(self as _)
 import std::map::(Map as _Map)
 import std::inspect
 import std::byte_array
 import std::process
 import std::vm
 import std::range::(Range as _Range)
-import std::integer::extensions
+import std::integer::extensions::(self as _)
 import std::module
 
 # These constants are re-exported so they're available to all modules by

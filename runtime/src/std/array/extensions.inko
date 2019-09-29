@@ -1,4 +1,5 @@
-# Iterator types and methods for the `Array` type.
+# Extensions for the `Array` type that can only be defined later on in the
+# bootstrapping process.
 #
 # These types and methods are defined separately as otherwise `std::iterator`
 # would depend on `std::array` while `std::array` would depend on
