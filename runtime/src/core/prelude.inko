@@ -27,6 +27,7 @@ import std::nil
 import std::block
 import std::string
 import std::array
+import std::iterator
 import std::array::extensions::(self as _)
 import std::map::(Map as _Map)
 import std::inspect

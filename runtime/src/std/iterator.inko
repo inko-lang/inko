@@ -150,6 +150,8 @@
 # returns the characters in a `String`.
 
 # A generic iterator over a sequence of values of type `T`.
+import std::pair::Pair
+
 trait Iterator!(T) {
   # Advances the iterator and returns the next value.
   #
@@ -302,6 +304,34 @@ trait Iterator!(T) {
         yield
       }
     )
+  }
+
+  # Partitions the `Iterator` into a `Pair` of two `Array` objects.
+  #
+  # The first value of the `Pair` contains all values for which the supplied
+  # block returned `True`. The second value contains all values for which the
+  # block returned `False`.
+  #
+  # # Examples
+  #
+  # Partitioning an `Iterator`:
+  #
+  #     let values = Array.new(10, 20, 30, 40, 50)
+  #     let pair = values.iter.partition do (value) { value >= 30 }
+  #
+  #     pair.first  # => Array.new(30, 40, 50)
+  #     pair.second # => Array.new(10, 20)
+  def partition(block: do (T) -> Boolean) -> Pair!(Array!(T), Array!(T)) {
+    let true = Array.new
+    let false = Array.new
+
+    each do (value) {
+      block
+        .call(value)
+        .if(true: { true.push(value) }, false: { false.push(value) })
+    }
+
+    Pair.new(true, false)
   }
 
   # Transforms the `Iterator` into an `Array`.
