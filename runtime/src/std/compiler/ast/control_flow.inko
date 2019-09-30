@@ -1,5 +1,5 @@
 # AST types for control flow constructs.
-import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::body::Body
 import std::compiler::ast::node::Node
 import std::compiler::source_location::SourceLocation
 
@@ -60,8 +60,8 @@ object Try {
   # The name of the local variable to store the error in.
   @error_variable: ?String
 
-  # The expression to run when an error is thrown.
-  @else_expression: Expressions
+  # The body to run when an error is thrown.
+  @else_body: Body
 
   # The source location of the throw expression.
   @location: SourceLocation
@@ -69,12 +69,12 @@ object Try {
   def init(
     expression: Node,
     error_variable: ?String,
-    else_expression: Expressions,
+    else_body: Body,
     location: SourceLocation
   ) {
     @expression = expression
     @error_variable = error_variable
-    @else_expression = else_expression
+    @else_body = else_body
     @location = location
   }
 
@@ -89,8 +89,8 @@ object Try {
   }
 
   # Returns the expression to run when an error is thrown.
-  def else_expression -> Expressions {
-    @else_expression
+  def else_body -> Body {
+    @else_body
   }
 }
 

@@ -94,6 +94,15 @@ test.group('std::iterator::Iterator.find') do (g) {
   }
 }
 
+test.group('std::iterator::Iterator.any?') do (g) {
+  g.test('Checking if an Iterator includes a value') {
+    let iter = SimpleIterator.new
+
+    assert.true(iter.any? do (value) { value == 20 })
+    assert.false(iter.any? do (value) { value == 200 })
+  }
+}
+
 test.group('std::iterator::Iterator.map') do (g) {
   g.test('Mapping the values of an Iterator to a different value') {
     let iter = SimpleIterator.new.map do (val) { val * 2 }
@@ -104,6 +113,47 @@ test.group('std::iterator::Iterator.map') do (g) {
     }
 
     assert.equal(values, Array.new(20, 40, 60))
+  }
+}
+
+test.group('std::iterator::Iterator.select') do (g) {
+  g.test('Selecting values from an empy Iterator') {
+    let iter = EmptyIterator.new
+    let vals = iter.select do (value) { value > 10 }.to_array
+
+    assert.true(vals.empty?)
+  }
+
+  g.test('Selecting values from an Iterator with values') {
+    let iter = SimpleIterator.new
+    let vals = iter.select do (value) { value > 10 }.to_array
+
+    assert.equal(vals, Array.new(20, 30))
+  }
+
+  g.test('Selecting values from an Iterator when no values match') {
+    let iter = SimpleIterator.new
+    let vals = iter.select do (value) { value > 50 }.to_array
+
+    assert.true(vals.empty?)
+  }
+}
+
+test.group('std::iterator::Iterator.partition') do (g) {
+  g.test('Partitioning an empty Iterator') {
+    let iter = EmptyIterator.new
+    let pair = iter.partition do (value) { value >= 20 }
+
+    assert.true(pair.first.empty?)
+    assert.true(pair.second.empty?)
+  }
+
+  g.test('Partitioning an Iterator with value') {
+    let iter = SimpleIterator.new
+    let pair = iter.partition do (value) { value >= 20 }
+
+    assert.equal(pair.first, Array.new(20, 30))
+    assert.equal(pair.second, Array.new(10))
   }
 }
 

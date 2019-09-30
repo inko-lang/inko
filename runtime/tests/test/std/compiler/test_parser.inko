@@ -1,12 +1,12 @@
 import std::compiler::ast::blocks::*
+import std::compiler::ast::body::Body
 import std::compiler::ast::comments::*
-import std::compiler::ast::expressions::Expressions
+import std::compiler::ast::control_flow::*
 import std::compiler::ast::imports::Import
 import std::compiler::ast::literals::*
 import std::compiler::ast::node::Node
 import std::compiler::ast::objects::*
 import std::compiler::ast::operators::*
-import std::compiler::ast::control_flow::*
 import std::compiler::ast::send::*
 import std::compiler::ast::types::*
 import std::compiler::ast::variables::*
@@ -25,7 +25,7 @@ def assert_instance_of(node: Node, instance_of: Node) {
   assert.true(instance_of(node, instance_of))
 }
 
-def parse(input: String) -> Expressions {
+def parse(input: String) -> Body {
   let parser = Parser.new(input: input, file: 'test.inko')
 
   try! parser.parse
@@ -1528,12 +1528,12 @@ test.group('Parsing try expressions') do (g) {
     assert.equal((node.expression as IntegerLiteral).value, '10')
 
     assert.equal(node.error_variable, Nil)
-    assert.true(node.else_expression.children.empty?)
+    assert.true(node.else_body.children.empty?)
   }
 
   g.test('Parsing a try with an else expression') {
     let node = parse_as(input: 'try 10 else 20', type: Try)
-    let else_expr = node.else_expression
+    let else_expr = node.else_body
 
     assert.equal((node.expression as IntegerLiteral).value, '10')
     assert.equal((else_expr.children[0] as IntegerLiteral).value, '20')
@@ -1541,7 +1541,7 @@ test.group('Parsing try expressions') do (g) {
 
   g.test('Parsing a try with a multi-line else expression') {
     let node = parse_as(input: "try 10 else { 10\n20 }", type: Try)
-    let else_expr = node.else_expression
+    let else_expr = node.else_body
 
     assert.equal((node.expression as IntegerLiteral).value, '10')
 
@@ -1551,7 +1551,7 @@ test.group('Parsing try expressions') do (g) {
 
   g.test('Parsing a try with an error argument') {
     let node = parse_as(input: 'try 10 else (error) 20', type: Try)
-    let else_expr = node.else_expression
+    let else_expr = node.else_body
 
     assert.equal((node.expression as IntegerLiteral).value, '10')
     assert.equal(node.error_variable!, 'error')

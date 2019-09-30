@@ -1,0 +1,190 @@
+# Types for binary and ternary tuples.
+#
+# This module only offers types for binary and ternary tuples. If you need a
+# combination of more values (e.g. a 4-arity tuple), it's best to define your
+# own type instead.
+import std::format::(Formatter, Inspect)
+import std::hash::*
+import std::operators::Equal
+
+# A pair of two values.
+object Pair!(A, B) {
+  # The first value of this `Pair`.
+  @first: A
+
+  # The second value of this `Pair`.
+  @second: B
+
+  def init(first: A, second: B) {
+    @first = first
+    @second = second
+  }
+
+  # Returns the first value of this `Pair`.
+  #
+  # # Examples
+  #
+  # Obtaining the first value of a `Pair`:
+  #
+  #     import std::pair::Pair
+  #
+  #     let pair = Pair.new(10, 'foo')
+  #
+  #     pair.first # => 10
+  def first -> A {
+    @first
+  }
+
+  # Returns the second value of this `Pair`.
+  #
+  # # Examples
+  #
+  # Obtaining the second value of a `Pair`:
+  #
+  #     import std::pair::Pair
+  #
+  #     let pair = Pair.new(10, 'foo')
+  #
+  #     pair.second # => 'foo'
+  def second -> B {
+    @second
+  }
+}
+
+impl Inspect for Pair!(A, B) {
+  def format_for_inspect(formatter: Formatter) where A: Inspect, B: Inspect {
+    formatter.push('Pair { ')
+
+    formatter.descend {
+      @first.format_for_inspect(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @second.format_for_inspect(formatter)
+    }
+
+    formatter.push(' }')
+  }
+}
+
+impl Equal for Pair!(A, B) {
+  def ==(other: Self) -> Boolean where A: Equal, B: Equal {
+    (@first == other.first).and { @second == other.second }
+  }
+}
+
+impl Hash for Pair!(A, B) {
+  def hash(hasher: Hasher) where A: Hash, B: Hash {
+    @first.hash(hasher)
+    @second.hash(hasher)
+  }
+}
+
+# A pair of three values.
+object Triple!(A, B, C) {
+  # The first value of this `Pair`.
+  @first: A
+
+  # The second value of this `Pair`.
+  @second: B
+
+  # The third value of this `Pair`.
+  @third: C
+
+  def init(first: A, second: B, third: C) {
+    @first = first
+    @second = second
+    @third = third
+  }
+
+  # Returns the first value of this `Triple`.
+  #
+  # # Examples
+  #
+  # Obtaining the first value of a `Triple`:
+  #
+  #     import std::pair::Triple
+  #
+  #     let triple = Triple.new(10, 'foo', 20)
+  #
+  #     triple.first # => 10
+  def first -> A {
+    @first
+  }
+
+  # Returns the second value of this `Triple`.
+  #
+  # # Examples
+  #
+  # Obtaining the second value of a `Triple`:
+  #
+  #     import std::pair::Triple
+  #
+  #     let triple = Triple.new(10, 'foo', 20)
+  #
+  #     triple.second # => 'foo'
+  def second -> B {
+    @second
+  }
+
+  # Returns the third value of this `Triple`.
+  #
+  # # Examples
+  #
+  # Obtaining the second value of a `Triple`:
+  #
+  #     import std::pair::Triple
+  #
+  #     let triple = Triple.new(10, 'foo', 20)
+  #
+  #     triple.third # => 20
+  def third -> C {
+    @third
+  }
+}
+
+
+impl Inspect for Triple!(A, B, C) {
+  def format_for_inspect(
+    formatter: Formatter
+  ) where A: Inspect, B: Inspect, C: Inspect {
+    formatter.push('Triple { ')
+
+    formatter.descend {
+      @first.format_for_inspect(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @second.format_for_inspect(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @third.format_for_inspect(formatter)
+    }
+
+    formatter.push(' }')
+  }
+}
+
+impl Equal for Triple!(A, B, C) {
+  def ==(other: Self) -> Boolean where A: Equal, B: Equal, C: Equal {
+    (@first == other.first)
+      .and { @second == other.second }
+      .and { @third == other.third }
+  }
+}
+
+impl Hash for Triple!(A, B, C) {
+  def hash(hasher: Hasher) where A: Hash, B: Hash, C: Hash {
+    @first.hash(hasher)
+    @second.hash(hasher)
+    @third.hash(hasher)
+  }
+}
+

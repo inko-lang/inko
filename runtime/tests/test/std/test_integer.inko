@@ -345,3 +345,11 @@ test.group('std::integer::Integer.format') do (g) {
     }
   }
 }
+
+test.group('std::ineger::Integer.times') do (g) {
+  g.test('Iterating from 0 up to the value of an Integer') {
+    let values = 4.times.to_array
+
+    assert.equal(values, Array.new(0, 1, 2, 3))
+  }
+}

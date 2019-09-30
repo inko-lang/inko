@@ -187,7 +187,7 @@ module Inkoc
 
           TypeSystem::Error.new
         else
-          symbol.type
+          remap_send_return_type(symbol.type, scope)
         end
       end
 

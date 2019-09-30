@@ -6,47 +6,44 @@ let Trait = Inko::Trait
 # The name of the attribute that stores all the implemented traits.
 let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'
 
-# Implements a `Trait` for an `Object`.
-#
-# Implementing a trait will result in all the trait's methods being copied over
-# to the given object. Once copied, the trait is tracked in an internal object
-# so modules such as `std::mirror` can reflect upon this data during runtime.
-#
-# This method is not really meant for general use, instead it's called by the
-# compiler whenever implementing a trait using the `impl` keyword.
-#
-# # Examples
-#
-# Manually implementing a trait, ignoring any required methods:
-#
-#     # `trait` is a keyword, so we must define a custom alias for the module.
-#     import std::trait::(self as trait_mod)
-#
-#     trait MyTrait {
-#       def number -> Integer {
-#         42
-#       }
-#     }
-#
-#     object Person {}
-#
-#     trait_mod
-#       .implement(implement_for: Person, to_implement: MyTrait) # => MyTrait
-#
-#     Person.new.number # => 42
-def implement(implement_for: Object, to_implement: Trait) -> Trait {
-  # This will look up `@_implemented_traits` if it exists, or create it (then
-  # return it) if it does not.
-  let mut traits =
-    _INKOC.set_attribute_to_object(implement_for, IMPLEMENTED_TRAITS_ATTRIBUTE)
+impl Trait {
+  # Implements a `Trait` for an `Object`.
+  #
+  # Implementing a trait will result in all the trait's methods being copied
+  # over to the given object. Once copied, the trait is tracked in an internal
+  # object so modules such as `std::mirror` can reflect upon this data during
+  # runtime.
+  #
+  # This method is not really meant for general use, instead it's called by the
+  # compiler whenever implementing a trait using the `impl` keyword.
+  #
+  # # Examples
+  #
+  # Manually implementing a trait, ignoring any required methods:
+  #
+  #     trait MyTrait {
+  #       def number -> Integer {
+  #         42
+  #       }
+  #     }
+  #
+  #     object Person {}
+  #
+  #     MyTrait.implement(Person) # => MyTrait
+  #     Person.new.number # => 42
+  static def implement(implement_for: Object) -> Trait {
+    # This will look up `@_implemented_traits` if it exists, or create it (then
+    # return it) if it does not.
+    let traits =
+      _INKOC.set_attribute_to_object(implement_for, IMPLEMENTED_TRAITS_ATTRIBUTE)
 
-  _INKOC.copy_blocks(implement_for, to_implement)
+    _INKOC.copy_blocks(implement_for, self)
 
-  # This marks the Trait as implemented by storing the Trait as an attribute,
-  # with its value set to True. We can not use other data structures such as
-  # `std::map::Map`, since they may not yet exist when this method is
-  # used.
-  _INKOC.set_attribute(traits, to_implement, True)
+    # This marks the Trait as implemented by storing the Trait as an attribute,
+    # with its value set to True. We can not use other data structures such as
+    # `std::map::Map`, since they may not yet exist when this method is used.
+    _INKOC.set_attribute(traits, self, True)
 
-  to_implement
+    self
+  }
 }
