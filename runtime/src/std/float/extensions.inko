@@ -1,0 +1,9 @@
+# Extensions for the `Float` type that can only be defined later on in the
+# bootstrapping process.
+import std::format::(Formatter, Inspect)
+
+impl Inspect for Float {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push(to_string)
+  }
+}

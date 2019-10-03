@@ -353,3 +353,10 @@ test.group('std::ineger::Integer.times') do (g) {
     assert.equal(values, Array.new(0, 1, 2, 3))
   }
 }
+
+test.group('std::integer::Integer.inspect') do (g) {
+  g.test('Inspecting an Integer') {
+    assert.equal(10.inspect, '10')
+    assert.equal(-10.inspect, '-10')
+  }
+}

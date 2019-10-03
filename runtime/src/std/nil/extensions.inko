@@ -1,0 +1,9 @@
+# Extensions for the `Nil` type that can only be defined later on in the
+# bootstrapping process.
+import std::format::(Formatter, Inspect)
+
+impl Inspect for Nil {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push('Nil')
+  }
+}

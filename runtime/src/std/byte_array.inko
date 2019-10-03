@@ -402,13 +402,6 @@ impl ToByteArray for ByteArray {
   }
 }
 
-impl ToByteArray for String {
-  # Returns a `ByteArray` containing the bytes of this `String`.
-  def to_byte_array -> ByteArray {
-    _INKOC.string_to_byte_array(self) as ByteArray
-  }
-}
-
 impl ByteArray {
   # Returns an `Iterator` that iterates over all values in `self`.
   def iter -> Iterator!(Integer) {

@@ -28,15 +28,24 @@ import std::block
 import std::string
 import std::array
 import std::iterator
-import std::array::extensions::(self as _)
-import std::range
-import std::map::(Map as _Map)
-import std::inspect
 import std::byte_array
+
+# Various types can not have their methods defined until other types have been
+# set up. We extend such types using these extensions modules. By importing
+# `self` as `_` we ensure no globals are created in this module, as the names of
+# these globals would conflict.
+import std::boolean::extensions::(self as _)
+import std::integer::extensions::(self as _)
+import std::float::extensions::(self as _)
+import std::nil::extensions::(self as _)
+import std::object::extensions::(self as _)
+import std::string::extensions::(self as _)
+import std::array::extensions::(self as _)
+
+import std::map::(Map as _Map)
+import std::range::(Range as _Range)
 import std::process
 import std::vm
-import std::range::(Range as _Range)
-import std::integer::extensions::(self as _)
 import std::module
 
 # These constants are re-exported so they're available to all modules by

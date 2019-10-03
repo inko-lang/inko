@@ -56,3 +56,9 @@ test.group('std::nil::Nil.an_unknown_message') do (g) {
     assert.equal(Nil.an_unknown_message, Nil)
   }
 }
+
+test.group('std::nil::Nil.inspect') do (g) {
+  g.test('Inspecting Nil') {
+    assert.equal(Nil.inspect, 'Nil')
+  }
+}

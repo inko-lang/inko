@@ -1,7 +1,9 @@
 # Extensions for the `Integer` type that can only be defined later on in the
 # bootstrapping process.
+import std::format::(Formatter, Inspect)
 import std::iterator::(Enumerator, Iterator)
 import std::process
+import std::range::(Range, ToRange)
 import std::string_buffer::StringBuffer
 
 # The digits to use when converting an `Integer` to a `String` using a specific
@@ -82,5 +84,27 @@ impl Integer {
     let max = self - 1
 
     Enumerator.new(while: { index < max }, yield: { index += 1 })
+  }
+}
+
+impl ToRange!(Integer) for Integer {
+  # Returns a `Range` starting at `self` up to (and including) `other`.
+  #
+  # # Examples
+  #
+  # Creating a `Range`:
+  #
+  #     let range = 1..10
+  #
+  #     range.start # => 1
+  #     range.end   # => 10
+  def ..(other: Self) -> Range!(Self) {
+    Range.new(start: self, end: other)
+  }
+}
+
+impl Inspect for Integer {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push(to_string)
   }
 }
