@@ -43,10 +43,17 @@ import std::fs::raw
 import std::io::(Error as IOError, Size)
 import std::operators::Equal
 import std::os
+import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
 # The primary separator of path components.
 let SEPARATOR = os.windows?.if(true: { '\\' }, false: { '/' })
+
+# The byte range for lowercase Windows drive letters (a..z)
+let WINDOWS_LOWER_DRIVE_LETTERS = 97..122
+
+# The byte range for uppercase Windows drive letters (A..Z)
+let WINDOWS_UPPER_DRIVE_LETTERS = 65..90
 
 # A path to a file or directory.
 #
@@ -133,6 +140,88 @@ object Path {
   #     try! path.accessed_at # => SystemTime { ... }
   def accessed_at !! IOError -> SystemTime {
     try raw.accessed_at(@path)
+  }
+
+  # Returns `True` if this `Path` is an absolute path.
+  #
+  # # Examples
+  #
+  # Checking if a `Path` is absolute:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo').absolute?  # => False
+  #     Path.new('/foo').absolute? # => True
+  def absolute? -> Boolean {
+    @path.starts_with?(SEPARATOR).if_true {
+      return True
+    }
+
+    os.windows?.if_false {
+     return False
+    }
+
+    let first_byte = @path.byte(index: 0)
+
+    WINDOWS_LOWER_DRIVE_LETTERS.cover?(first_byte)
+      .or { WINDOWS_UPPER_DRIVE_LETTERS.cover?(first_byte) }
+      .and {
+        # 58 is the byte for ":"
+        @path.byte(index: 1) == 58
+      }
+      .and {
+        # 92 is the byte for "\"
+        @path.byte(index: 2) == 92
+      }
+  }
+
+  # Returns `True` if this `Path` is a relative path.
+  #
+  # # Examples
+  #
+  # Checking if a `Path` is relative:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo').relative?  # => True
+  #     Path.new('../').relative?  # => True
+  #     Path.new('/foo').relative? # => False
+  def relative? -> Boolean {
+    absolute?.not
+  }
+
+  # Joins `self` and the given path together to form a new `Path`.
+  #
+  # # Examples
+  #
+  # Joining a `Path` with a `String`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo/bar').join('baz').to_string # => 'foo/bar/baz'
+  #
+  # Joining a `Path` with another `Path`:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('foo/bar').join(Path.new('bar')).to_string # => 'foo/bar/baz'
+  def join(path: ToString) -> Path {
+    let path_str = path.to_string
+    let join_with = Path.new(path_str)
+
+    join_with.absolute?.if_true {
+      return join_with
+    }
+
+    let buffer = StringBuffer.new(@path)
+
+    @path.ends_with?(SEPARATOR).if_false {
+      buffer.push(SEPARATOR)
+    }
+
+    buffer.push(path_str)
+
+    Path.new(buffer.to_string)
   }
 }
 
