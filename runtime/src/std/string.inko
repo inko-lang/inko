@@ -58,6 +58,22 @@ impl String {
     _INKOC.string_size(self)
   }
 
+  # Returns the byte at the given byte index.
+  #
+  # # Examples
+  #
+  # Obtaining a single byte from a `String`:
+  #
+  #     'inko'.byte(0) # => 105
+  #
+  # You can also use a negative index to access a byte from the back of the
+  # `String`:
+  #
+  #     'inko'.byte(-1) # => 111
+  def byte(index: Integer) -> Integer {
+    _INKOC.string_byte(self, index)
+  }
+
   # Slices `self` into a substring.
   #
   # Slicing a string allows one to extract a substring by providing a start

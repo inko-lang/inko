@@ -1088,6 +1088,10 @@ module Inkoc
         raw_ternary_instruction(:StringSlice, node, body)
       end
 
+      def on_raw_string_byte(node, body)
+        raw_binary_instruction(:StringByte, node, body)
+      end
+
       def on_raw_stdin_read(node, body)
         raw_binary_instruction(:StdinRead, node, body)
       end

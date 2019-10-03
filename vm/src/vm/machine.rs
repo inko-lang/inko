@@ -1838,6 +1838,14 @@ impl Machine {
 
                     context.set_register(reg, value);
                 }
+                InstructionType::StringByte => {
+                    let reg = instruction.arg(0);
+                    let string = context.get_register(instruction.arg(1));
+                    let index = context.get_register(instruction.arg(2));
+                    let res = string::byte(string, index)?;
+
+                    context.set_register(reg, res);
+                }
                 InstructionType::FloatToBits => {
                     let reg = instruction.arg(0);
                     let val = context.get_register(instruction.arg(1));
