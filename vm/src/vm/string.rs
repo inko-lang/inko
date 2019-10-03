@@ -204,3 +204,16 @@ pub fn to_float(
         )))
     }
 }
+
+pub fn byte(
+    str_ptr: ObjectPointer,
+    index_ptr: ObjectPointer,
+) -> Result<ObjectPointer, String> {
+    let string = str_ptr.string_value()?;
+    let index =
+        slicing::index_for_slice(string.len(), index_ptr.integer_value()?);
+
+    let byte = i64::from(string.as_bytes()[index]);
+
+    Ok(ObjectPointer::integer(byte))
+}

@@ -1374,6 +1374,10 @@ module Inkoc
         typedb.string_type.new_instance
       end
 
+      def on_raw_string_byte(*)
+        typedb.integer_type.new_instance
+      end
+
       def on_raw_stdin_read(*)
         typedb.integer_type.new_instance
       end

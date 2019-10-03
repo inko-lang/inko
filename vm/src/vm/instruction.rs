@@ -182,6 +182,7 @@ pub enum InstructionType {
     RandomNumber,
     RandomRange,
     RandomBytes,
+    StringByte,
 }
 
 /// Struct for storing information about a single instruction.

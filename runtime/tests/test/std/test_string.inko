@@ -128,3 +128,17 @@ test.group('std::string::String.hash') do (g) {
     assert.equal(hasher1.to_hash, hasher2.to_hash)
   }
 }
+
+test.group('std::string::String.byte') do (g) {
+  g.test('Obtaining the first byte') {
+    assert.equal('inko'.byte(0), 105)
+  }
+
+  g.test('Obtaining the byte of a positive index') {
+    assert.equal('inko'.byte(1), 110)
+  }
+
+  g.test('Obtaining the byte of a negative index') {
+    assert.equal('inko'.byte(-1), 111)
+  }
+}
