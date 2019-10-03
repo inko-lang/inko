@@ -217,3 +217,14 @@ test.group('std::array::Array.contains?') do (g) {
     assert.true(Array.new(10, 20).contains?(10))
   }
 }
+
+test.group('std::array::Array.inspect') do (g) {
+  g.test('Inspecting an empty Array') {
+    assert.equal(Array.new.inspect, 'Array')
+  }
+
+  g.test('Inspecting a non-empty Array') {
+    assert.equal(Array.new(10).inspect, 'Array { 10 }')
+    assert.equal(Array.new(10, 20).inspect, 'Array { 10, 20 }')
+  }
+}

@@ -1,0 +1,66 @@
+# Extensions for the `Object` type that can only be defined later on in the
+# bootstrapping process.
+import std::format::(self, Formatter, Inspect)
+import std::mirror
+
+impl Inspect for Object {
+  # Returns a human-readable representation of this object.
+  #
+  # # Examples
+  #
+  # Inspecting a simple object:
+  #
+  #     Object.new.inspect  # => 'Object'
+  #
+  # Inspecting an object with attributes:
+  #
+  #     object Person {
+  #       @name: String
+  #       @age: Integer
+  #
+  #       def init(name: String, age: Integer) {
+  #         @name = name
+  #         @age = age
+  #       }
+  #     }
+  #
+  #     let person = Person.new(name: 'Alice', age: 28)
+  #
+  #     person.inspect # => 'Person { @name = "Alice", @age = 28 }'
+  def inspect -> String {
+    ::format.inspect(self)
+  }
+
+  # Formats a human-readable representation of this object.
+  def format_for_inspect(formatter: Formatter) {
+    let self_mirror = mirror.reflect_object(self)
+    let attributes = self_mirror.instance_attributes
+    let last_index = attributes.length - 1
+
+    formatter.push(self_mirror.name)
+
+    attributes.empty?.if_true {
+      return
+    }
+
+    formatter.push(' {')
+
+    attributes.each_with_index do (attr_name, index) {
+      formatter.push(' ')
+      formatter.push(attr_name)
+      formatter.push(' = ')
+
+      formatter.descend {
+        let value = self_mirror.get_attribute(attr_name) as ?Inspect
+
+        value.format_for_inspect(formatter)
+      }
+
+      (index < last_index).if_true {
+        formatter.push(',')
+      }
+    }
+
+    formatter.push(' }')
+  }
+}

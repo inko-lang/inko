@@ -1,0 +1,21 @@
+# Extensions for the `Boolean` types that can only be defined later on in the
+# bootstrapping process.
+import std::format::(self, Formatter, Inspect)
+
+impl Inspect for Boolean {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push('Boolean')
+  }
+}
+
+impl Inspect for True {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push('True')
+  }
+}
+
+impl Inspect for False {
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push('False')
+  }
+}

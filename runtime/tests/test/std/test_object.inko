@@ -1,6 +1,32 @@
 import std::test
 import std::test::assert
 
+object OneAttribute {
+  @number: Integer
+
+  def init {
+    @number = 10
+  }
+}
+
+object TwoAttributes {
+  @first: String
+  @second: Integer
+
+  def init {
+    @first = 'first'
+    @second = 10
+  }
+}
+
+object NestedObject {
+  @child: OneAttribute
+
+  def init {
+    @child = OneAttribute.new
+  }
+}
+
 test.group('std::object::Object.equal?') do (g) {
   g.test('Comparing two objects that do not reside at the same address') {
     let obj1 = Object.new
@@ -100,5 +126,39 @@ test.group('std::object::Object.not_nil?') do (g) {
     assert.false(Nil.not_nil?)
     assert.true(10.not_nil?)
     assert.true(Object.new.not_nil?)
+  }
+}
+
+test.group('std::object::Object.inspect') do (g) {
+  g.test('Inspecting an empty Object') {
+    assert.equal(Object.new.inspect, 'Object')
+  }
+
+  g.test('Inspecting an Object with one attribute') {
+    let obj = OneAttribute.new
+
+    assert.equal(obj.inspect, 'OneAttribute { @number = 10 }')
+  }
+
+  g.test('Inspecting an Object with multiple attributes') {
+    let obj = TwoAttributes.new
+
+    let possible = Array.new(
+      'TwoAttributes { @first = "first", @second = 10 }',
+      'TwoAttributes { @second = 10, @first = "first" }'
+    )
+
+    # The order of attributes is not guaranteed, so we can't perform an equality
+    # comparison as such a test would randomly fail.
+    assert.true(possible.contains?(obj.inspect))
+  }
+
+  g.test('Inspecting an Object containing another Object') {
+    let obj = NestedObject.new
+
+    assert.equal(
+      obj.inspect,
+      'NestedObject { @child = OneAttribute { @number = 10 } }'
+    )
   }
 }

@@ -94,19 +94,3 @@ trait ToRange!(T: Successor + SmallerOrEqual) {
   # Returns a `Range` starting at `self` up to (and including) `other`.
   def ..(other: T) -> Range!(T)
 }
-
-impl ToRange!(Integer) for Integer {
-  # Returns a `Range` starting at `self` up to (and including) `other`.
-  #
-  # # Examples
-  #
-  # Creating a `Range`:
-  #
-  #     let range = 1..10
-  #
-  #     range.start # => 1
-  #     range.end   # => 10
-  def ..(other: Self) -> Range!(Self) {
-    Range.new(start: self, end: other)
-  }
-}

@@ -1,0 +1,43 @@
+# Extensions for the `String` type that can only be defined later on in the
+# bootstrapping process.
+import std::byte_array::(ByteArray, ToByteArray)
+import std::format::(Formatter, Inspect)
+
+impl Inspect for String {
+  # Formats a human-readable representation of this `String`, surrounded by
+  # quotes.
+  #
+  # # Examples
+  #
+  # Formatting a `String`:
+  #
+  #     import std::format::DefaultFormatter
+  #
+  #     let fmt = DefaultFormatter.new
+  #
+  #     'hello'.format_for_inspect(fmt)
+  #
+  #     fmt.to_string # => '"hello"'
+  #
+  # Inspecting and printing a `String`:
+  #
+  #     import std::stdio::stdout
+  #     import std::format::DefaultFormatter
+  #
+  #     let fmt = DefaultFormatter.new
+  #
+  #     'hello'.format_for_inspect(fmt)
+  #
+  #     # This would print "hello" (including quotes) to STDOUT.
+  #     stdout.print(fmt.to_string)
+  def format_for_inspect(formatter: Formatter) {
+    formatter.push(_INKOC.string_format_debug(self))
+  }
+}
+
+impl ToByteArray for String {
+  # Returns a `ByteArray` containing the bytes of this `String`.
+  def to_byte_array -> ByteArray {
+    _INKOC.string_to_byte_array(self) as ByteArray
+  }
+}
