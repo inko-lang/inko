@@ -6,6 +6,7 @@
 use std::cmp;
 use std::mem;
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// The inner value of a pointer.
@@ -21,7 +22,7 @@ pub struct Inner<T> {
 
 /// A thread-safe reference counted pointer.
 pub struct ArcWithoutWeak<T> {
-    inner: *mut Inner<T>,
+    inner: NonNull<Inner<T>>,
 }
 
 unsafe impl<T> Sync for ArcWithoutWeak<T> {}
@@ -38,7 +39,7 @@ impl<T> ArcWithoutWeak<T> {
 
         mem::forget(value);
 
-        raw as *mut T
+        raw.as_ptr() as _
     }
 
     /// Constructs an `ArcWithoutWeak` from a raw pointer.
@@ -48,7 +49,7 @@ impl<T> ArcWithoutWeak<T> {
     /// `ArcWithoutWeak::into_raw()`.
     pub unsafe fn from_raw(value: *mut T) -> Self {
         ArcWithoutWeak {
-            inner: value as *mut Inner<T>,
+            inner: NonNull::new_unchecked(value as *mut Inner<T>),
         }
     }
 
@@ -59,12 +60,14 @@ impl<T> ArcWithoutWeak<T> {
         };
 
         ArcWithoutWeak {
-            inner: Box::into_raw(Box::new(inner)),
+            inner: unsafe {
+                NonNull::new_unchecked(Box::into_raw(Box::new(inner)))
+            },
         }
     }
 
     pub fn inner(&self) -> &Inner<T> {
-        unsafe { &(*self.inner) }
+        unsafe { self.inner.as_ref() }
     }
 
     pub fn references(&self) -> usize {
@@ -72,7 +75,7 @@ impl<T> ArcWithoutWeak<T> {
     }
 
     pub fn as_ptr(&self) -> *mut T {
-        self.inner as *mut T
+        self.inner.as_ptr() as _
     }
 }
 
@@ -86,7 +89,7 @@ impl<T> Deref for ArcWithoutWeak<T> {
 
 impl<T> DerefMut for ArcWithoutWeak<T> {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut (*self.inner).value }
+        unsafe { &mut self.inner.as_mut().value }
     }
 }
 
@@ -102,7 +105,7 @@ impl<T> Drop for ArcWithoutWeak<T> {
     fn drop(&mut self) {
         unsafe {
             if self.inner().references.fetch_sub(1, Ordering::AcqRel) == 1 {
-                let boxed = Box::from_raw(self.inner as *mut Inner<T>);
+                let boxed = Box::from_raw(self.inner.as_mut());
 
                 drop(boxed);
             }
@@ -133,6 +136,7 @@ impl<T: Eq> Eq for ArcWithoutWeak<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
 
     #[test]
     fn test_deref() {
@@ -187,5 +191,10 @@ mod tests {
 
         assert!(foo == foo);
         assert!(foo != bar);
+    }
+
+    #[test]
+    fn test_optional_type_type() {
+        assert_eq!(mem::size_of::<ArcWithoutWeak<()>>(), 8);
     }
 }

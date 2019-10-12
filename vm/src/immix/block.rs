@@ -151,7 +151,7 @@ pub struct Block {
     /// The memory to use for the mark bitmap and allocating objects. The first
     /// 128 bytes of this field are reserved and used for storing a BlockHeader.
     ///
-    /// Memory is aligned to 32 KB.
+    /// Memory is aligned to the block size.
     pub lines: RawObjectPointer,
 
     /// A flag that is set to true when this block is being finalized. This flag
