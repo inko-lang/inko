@@ -43,9 +43,6 @@ pub struct Config {
     /// The number of garbage collector threads to run.
     pub gc_threads: usize,
 
-    /// The number of finalizer threads to run.
-    pub finalizer_threads: usize,
-
     /// The number of threads to use for various generic parallel tasks such as
     /// scanning stack frames during garbage collection.
     pub generic_parallel_threads: usize,
@@ -89,7 +86,6 @@ impl Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
             gc_threads: cpu_count,
-            finalizer_threads: cpu_count,
             blocking_threads: cpu_count,
             generic_parallel_threads: cpu_count,
             reductions: DEFAULT_REDUCTIONS,
@@ -112,7 +108,6 @@ impl Config {
         set_from_env!(self, primary_threads, "CONCURRENCY", usize);
         set_from_env!(self, blocking_threads, "CONCURRENCY", usize);
         set_from_env!(self, gc_threads, "CONCURRENCY", usize);
-        set_from_env!(self, finalizer_threads, "CONCURRENCY", usize);
         set_from_env!(self, generic_parallel_threads, "CONCURRENCY", usize);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);

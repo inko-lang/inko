@@ -5,9 +5,7 @@
 //! etc.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::deref_pointer::DerefPointer;
 use crate::gc::request::Request;
-use crate::immix::block::Block;
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
@@ -42,10 +40,6 @@ macro_rules! intern_string {
             alloc.allocate_with_prototype(value, $state.string_prototype)
         };
 
-        if ptr.is_finalizable() {
-            ptr.mark_for_finalization();
-        }
-
         pool.add(ptr);
 
         ptr
@@ -62,9 +56,6 @@ pub struct State {
 
     /// The pool to use for garbage collection.
     pub gc_pool: GenericPool<Request>,
-
-    /// The pool to use for finalizing objects.
-    pub finalizer_pool: GenericPool<Vec<DerefPointer<Block>>>,
 
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
@@ -176,9 +167,6 @@ impl State {
 
         let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
 
-        let finalizer_pool =
-            GenericPool::new("finalizer".to_string(), config.finalizer_threads);
-
         let mut state = State {
             scheduler: ProcessScheduler::new(
                 config.primary_threads,
@@ -186,7 +174,6 @@ impl State {
             ),
             config,
             gc_pool,
-            finalizer_pool,
             permanent_allocator: Mutex::new(perm_alloc),
             global_allocator: global_alloc,
             string_pool: Mutex::new(StringPool::new()),

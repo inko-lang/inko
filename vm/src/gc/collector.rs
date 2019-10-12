@@ -16,8 +16,6 @@ macro_rules! can_skip_pointer {
 ///
 /// The pointer to promote is updated to point to the new location.
 pub fn promote_mature(process: &RcProcess, pointer: &mut ObjectPointer) {
-    pointer.unmark_for_finalization();
-
     {
         let local_data = process.local_data_mut();
         let old_obj = pointer.get_mut();
@@ -33,8 +31,6 @@ pub fn promote_mature(process: &RcProcess, pointer: &mut ObjectPointer) {
 //
 // The pointer to evacuate is updated to point to the new location.
 pub fn evacuate(process: &RcProcess, pointer: &mut ObjectPointer) {
-    pointer.unmark_for_finalization();
-
     {
         // When evacuating an object we must ensure we evacuate the object into
         // the same bucket.

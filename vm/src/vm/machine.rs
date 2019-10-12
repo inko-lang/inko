@@ -182,7 +182,6 @@ impl Machine {
         self.schedule_main_process(file);
 
         let gc_pool_guard = self.start_gc_threads();
-        let finalizer_pool_guard = self.start_finalizer_threads();
         let secondary_guard = self.start_blocking_threads();
         let timeout_guard = self.start_timeout_worker_thread();
 
@@ -201,7 +200,6 @@ impl Machine {
         if primary_guard.join().is_err()
             || secondary_guard.join().is_err()
             || gc_pool_guard.join().is_err()
-            || finalizer_pool_guard.join().is_err()
             || timeout_guard.join().is_err()
         {
             self.state.set_exit_status(1);
@@ -245,14 +243,6 @@ impl Machine {
             .start(move |_, mut request| request.perform())
     }
 
-    fn start_finalizer_threads(&self) -> JoinList<()> {
-        self.state.finalizer_pool.start(move |_, blocks| {
-            for mut block in blocks {
-                block.finalize_pending();
-            }
-        })
-    }
-
     fn start_timeout_worker_thread(&self) -> thread::JoinHandle<()> {
         let state = self.state.clone();
 
@@ -278,7 +268,6 @@ impl Machine {
     fn terminate(&self) {
         self.state.scheduler.terminate();
         self.state.gc_pool.terminate();
-        self.state.finalizer_pool.terminate();
         self.state.timeout_worker.terminate();
     }
 

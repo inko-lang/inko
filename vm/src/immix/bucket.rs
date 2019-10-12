@@ -9,7 +9,6 @@ use crate::immix::global_allocator::RcGlobalAllocator;
 use crate::immix::histograms::Histograms;
 use crate::object::Object;
 use crate::object_pointer::ObjectPointer;
-use crate::scheduler::pool::Pool;
 use crate::vm::state::RcState;
 use parking_lot::Mutex;
 use rayon::prelude::*;
@@ -234,14 +233,11 @@ impl Bucket {
     /// Recyclable blocks are scheduled for re-use by the allocator, empty
     /// blocks are to be returned to the global pool, and full blocks are kept.
     pub fn reclaim_blocks(&mut self, state: &RcState, histograms: &Histograms) {
-        let to_finalize = self
-            .blocks
+        self.blocks
             .pointers()
             .into_par_iter()
-            .filter_map(|mut block| {
+            .for_each(|mut block| {
                 block.update_line_map();
-
-                let finalize = block.prepare_finalization();
 
                 if block.is_empty() {
                     block.reset();
@@ -257,18 +253,7 @@ impl Bucket {
                         block.recycle();
                     }
                 }
-
-                if finalize {
-                    Some(block)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        if !to_finalize.is_empty() {
-            state.finalizer_pool.schedule(to_finalize);
-        }
+            });
 
         // We partition the blocks in sequence so we don't need to synchronise
         // access to the destination lists.
@@ -339,11 +324,9 @@ use std::ops::Drop;
 #[cfg(test)]
 impl Drop for Bucket {
     fn drop(&mut self) {
-        // To prevent memory leaks in the tests we automatically finalize any
-        // data, removing the need for doing this manually in every test.
-        for mut block in self.blocks.drain() {
-            block.reset_mark_bitmaps();
-            block.finalize();
+        for block in self.blocks.drain() {
+            // Dropping the block also finalises it right away.
+            drop(block);
         }
     }
 }

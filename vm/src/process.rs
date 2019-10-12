@@ -3,7 +3,6 @@ use crate::binding::RcBinding;
 use crate::block::Block;
 use crate::compiled_code::CompiledCodePointer;
 use crate::config::Config;
-use crate::deref_pointer::DerefPointer;
 use crate::execution_context::ExecutionContext;
 use crate::gc::work_list::WorkList;
 use crate::global_scope::GlobalScopePointer;
@@ -14,7 +13,6 @@ use crate::immix::local_allocator::LocalAllocator;
 use crate::mailbox::Mailbox;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
-use crate::scheduler::pool::Pool;
 use crate::scheduler::timeouts::Timeout;
 use crate::tagged_pointer::{self, TaggedPointer};
 use crate::vm::state::RcState;
@@ -508,19 +506,9 @@ impl Process {
     pub fn reclaim_and_finalize(&self, state: &RcState) {
         let mut blocks = self.reclaim_all_blocks();
 
-        let to_finalize = blocks
-            .iter_mut()
-            .map(|block| {
-                block.reset_mark_bitmaps();
-                block.prepare_finalization();
-                block.reset();
-
-                DerefPointer::new(block)
-            })
-            .collect::<Vec<_>>();
-
-        if !to_finalize.is_empty() {
-            state.finalizer_pool.schedule(to_finalize);
+        for block in blocks.iter_mut() {
+            block.reset();
+            block.finalize();
         }
 
         state.global_allocator.add_blocks(&mut blocks);

@@ -34,22 +34,6 @@ use crate::socket::Socket;
 use crate::tagged_pointer::TaggedPointer;
 use crate::vm::state::RcState;
 
-/// Performs a write to an object and tracks it in the write barrier.
-macro_rules! write_object {
-    ($receiver:expr, $process:expr, $action:expr, $value:expr) => {{
-        let track = !$receiver.get().has_attributes();
-        let pointer = *$receiver;
-
-        $action;
-
-        $process.write_barrier(pointer, $value);
-
-        if track && $receiver.is_finalizable() {
-            $receiver.mark_for_finalization();
-        }
-    }};
-}
-
 /// Defines a method for getting the value of an object as a given type.
 macro_rules! def_value_getter {
     ($name: ident, $getter: ident, $as_type: ident, $ok_type: ty) => (
@@ -269,20 +253,6 @@ impl ObjectPointer {
             && self.block().bucket().unwrap().age <= YOUNG_MAX_AGE
     }
 
-    pub fn mark_for_finalization(&self) {
-        let block = self.block_mut();
-        let index = block.object_index_of_pointer(self.raw.untagged());
-
-        block.finalize_bitmap.set(index);
-    }
-
-    pub fn unmark_for_finalization(&self) {
-        let block = self.block_mut();
-        let index = block.object_index_of_pointer(self.raw.untagged());
-
-        block.finalize_bitmap.unset(index);
-    }
-
     /// Marks the current object and its line.
     ///
     /// As this method is called often during collection, this method refers to
@@ -339,6 +309,15 @@ impl ObjectPointer {
         !self.is_tagged_integer() && self.get().is_finalizable()
     }
 
+    /// Finalizes the underlying object, if needed.
+    pub fn finalize(&self) {
+        if !self.is_finalizable() {
+            return;
+        }
+
+        drop(self.get_mut().take());
+    }
+
     /// Adds an attribute to the object this pointer points to.
     pub fn add_attribute(
         &self,
@@ -346,12 +325,9 @@ impl ObjectPointer {
         name: ObjectPointer,
         attr: ObjectPointer,
     ) {
-        write_object!(
-            self,
-            process,
-            self.get_mut().add_attribute(name, attr),
-            attr
-        );
+        self.get_mut().add_attribute(name, attr);
+
+        process.write_barrier(*self, attr);
     }
 
     /// Looks up an attribute.
@@ -1109,8 +1085,6 @@ mod tests {
             .get_mut()
             .add_attribute(name, method);
 
-        state.integer_prototype.mark_for_finalization();
-
         assert!(ptr.lookup_attribute(&state, name).unwrap() == method);
     }
 
@@ -1125,8 +1099,6 @@ mod tests {
             .integer_prototype
             .get_mut()
             .add_attribute(name, method);
-
-        state.integer_prototype.mark_for_finalization();
 
         assert!(ptr.lookup_attribute_in_self(&state, name).unwrap() == method);
     }
@@ -1148,7 +1120,6 @@ mod tests {
         let value = state.permanent_allocator.lock().allocate_empty();
 
         ptr.get_mut().add_attribute(name, value);
-        ptr.mark_for_finalization();
 
         assert!(ptr.lookup_attribute(&state, name).unwrap() == value);
     }

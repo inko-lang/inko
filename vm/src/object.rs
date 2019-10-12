@@ -342,14 +342,15 @@ impl Object {
     }
 
     pub fn write_to(self, raw_pointer: RawObjectPointer) -> ObjectPointer {
-        unsafe {
-            ptr::write(raw_pointer, self);
-        }
-
         let pointer = ObjectPointer::new(raw_pointer);
 
-        if pointer.is_finalizable() {
-            pointer.mark_for_finalization();
+        // Finalize the existing object, if needed. This must be done before we
+        // allocate the new object, otherwise we will leak memory.
+        pointer.finalize();
+
+        // Write the new data to the pointer.
+        unsafe {
+            ptr::write(raw_pointer, self);
         }
 
         pointer
