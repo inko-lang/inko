@@ -1040,7 +1040,7 @@ object Parser {
     {
       let token = next_token
 
-      arguments.push(try expression(token))
+      arguments.push(try value(token))
 
       (peek_token.type == 'comma').if(
         true: { next_token },

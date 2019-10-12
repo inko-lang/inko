@@ -838,6 +838,16 @@ test.group('Parsing message send chains') do (g) {
     assert_instance_of(node.arguments[0]!, Closure)
   }
 
+  g.test('Parsing a message chain using a closure as a receiver') {
+    let node = parse_as(input: 'thing.foo { }.bar', type: Send)
+
+    assert.equal(node.message, 'bar')
+    assert_instance_of(node.receiver, Send)
+
+    assert.equal((node.receiver as Send).message, 'foo')
+    assert.equal((node.receiver as Send).arguments.length, 1)
+  }
+
   g.test('Parsing a message chain with a lambda outside parentheses') {
     let node = parse_as(input: '10.foo() lambda {}', type: Send)
 
@@ -1599,6 +1609,16 @@ test.group('Parsing identifiers') do (g) {
 
     assert.equal(node.message, 'foo')
     assert.equal(node.arguments.length, 1)
+  }
+
+  g.test('Parsing an identifier with a closure as a receiver') {
+    let node = parse_as(input: 'foo { }.bar', type: Send)
+
+    assert.equal(node.message, 'bar')
+    assert_instance_of(node.receiver, Send)
+
+    assert.equal((node.receiver as Send).message, 'foo')
+    assert.equal((node.receiver as Send).arguments.length, 1)
   }
 
   g.test('Parsing an identifier followed by parentheses') {
