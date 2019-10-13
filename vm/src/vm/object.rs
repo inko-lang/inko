@@ -251,10 +251,6 @@ pub fn drop_value(pointer: ObjectPointer) {
 
     if object.value.is_some() {
         drop(object.value.take());
-
-        if !object.has_attributes() {
-            pointer.unmark_for_finalization();
-        }
     }
 }
 

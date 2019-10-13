@@ -163,7 +163,6 @@ pub trait CopyObject: Sized {
         }
 
         to_copy.drop_attributes();
-        to_copy_ptr.unmark_for_finalization();
 
         self.allocate_copy(copy)
     }
@@ -177,7 +176,6 @@ mod tests {
     use crate::config::Config;
     use crate::deref_pointer::DerefPointer;
     use crate::global_scope::{GlobalScope, GlobalScopePointer};
-    use crate::immix::bytemap::Bytemap;
     use crate::immix::global_allocator::GlobalAllocator;
     use crate::immix::local_allocator::LocalAllocator;
     use crate::object::Object;
@@ -239,15 +237,11 @@ mod tests {
         let name = dummy.allocator.allocate_empty();
 
         ptr1.get_mut().add_attribute(name, ptr2);
-        ptr1.mark_for_finalization();
 
         let copy = dummy.copy_object(ptr1);
-        let copy_index =
-            copy.block().object_index_of_pointer(copy.raw.untagged());
 
         assert!(copy.is_finalizable());
         assert!(copy.get().attributes_map().is_some());
-        assert!(copy.block().finalize_bitmap.is_set(copy_index));
     }
 
     #[test]
@@ -411,19 +405,14 @@ mod tests {
         let name = dummy.allocator.allocate_empty();
 
         ptr1.get_mut().add_attribute(name, ptr2);
-        ptr1.mark_for_finalization();
 
         let copy = dummy.move_object(ptr1);
-
-        let copy_index =
-            copy.block().object_index_of_pointer(copy.raw.untagged());
 
         assert_eq!(ptr1.is_finalizable(), false);
         assert!(ptr1.get().attributes_map().is_none());
 
         assert!(copy.is_finalizable());
         assert!(copy.get().attributes_map().is_some());
-        assert!(copy.block().finalize_bitmap.is_set(copy_index));
     }
 
     #[test]

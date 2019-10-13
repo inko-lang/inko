@@ -1,17 +1,14 @@
 //! Permanent Object Allocator
 //!
 //! This allocator allocates objects that are never garbage collected.
-
-use std::ops::Drop;
-
 use crate::immix::bucket::{Bucket, PERMANENT};
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::RcGlobalAllocator;
-
 use crate::object::Object;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
 use crate::object_value::ObjectValue;
+use std::ops::Drop;
 
 pub struct PermanentAllocator {
     global_allocator: RcGlobalAllocator,
@@ -66,18 +63,10 @@ impl CopyObject for PermanentAllocator {
 
 impl Drop for PermanentAllocator {
     fn drop(&mut self) {
-        let blocks = &mut self.bucket.blocks;
-
-        for block in blocks.iter_mut() {
-            block.reset_mark_bitmaps();
-
-            // When dropping the permanent allocator there's no separate thread
-            // to push our work to, thus we finalize pointers right away.
-            block.finalize();
-            block.reset();
+        for block in self.bucket.blocks.drain() {
+            // Dropping the block also finalises it right away.
+            drop(block);
         }
-
-        self.global_allocator.add_blocks(blocks);
     }
 }
 
@@ -135,13 +124,11 @@ mod tests {
     #[test]
     fn test_drop() {
         let mut alloc = permanent_allocator();
-        let global_alloc = alloc.global_allocator.clone();
-        let pointer = alloc.allocate_empty();
 
+        alloc.allocate_empty();
+
+        // This is just a smoke test to make sure the dropping doesn't crash in
+        // any way.
         drop(alloc);
-
-        let block = global_alloc.request_block();
-
-        assert!(&*block as *const _ == pointer.block() as *const _);
     }
 }

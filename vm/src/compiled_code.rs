@@ -4,7 +4,7 @@ use crate::deref_pointer::DerefPointer;
 use crate::object_pointer::ObjectPointer;
 use crate::vm::instruction::Instruction;
 
-/// An immutable, reference counted CompiledCode.
+/// A pointer to a CompiledCode object.
 pub type CompiledCodePointer = DerefPointer<CompiledCode>;
 
 /// Structure for storing compiled code information.
