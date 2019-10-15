@@ -1,14 +1,13 @@
 //! Variable Bindings
 //!
 //! A binding contains the local variables available to a certain scope.
-use std::cell::UnsafeCell;
-
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::block::Block;
 use crate::chunk::Chunk;
 use crate::gc::work_list::WorkList;
 use crate::immix::copy_object::CopyObject;
-use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
+use crate::object_pointer::ObjectPointer;
+use std::cell::UnsafeCell;
 
 pub struct Binding {
     /// The local variables in the current binding.
@@ -22,12 +21,6 @@ pub struct Binding {
 
     /// The parent binding, if any.
     pub parent: Option<RcBinding>,
-}
-
-pub struct PointerIterator<'a> {
-    binding: &'a Binding,
-    local_index: usize,
-    receiver_returned: bool,
 }
 
 pub type RcBinding = ArcWithoutWeak<Binding>;
@@ -101,17 +94,20 @@ impl Binding {
 
     /// Pushes all pointers in this binding into the supplied vector.
     pub fn push_pointers(&self, pointers: &mut WorkList) {
-        for pointer in self.pointers() {
-            pointers.push(pointer);
-        }
-    }
+        let mut current = Some(self);
 
-    /// Returns an iterator for traversing all pointers in this binding.
-    pub fn pointers(&self) -> PointerIterator {
-        PointerIterator {
-            binding: self,
-            local_index: 0,
-            receiver_returned: false,
+        while let Some(binding) = current {
+            pointers.push(binding.receiver.pointer());
+
+            for index in 0..binding.locals().len() {
+                let local = &binding.locals()[index];
+
+                if !local.is_null() {
+                    pointers.push(local.pointer());
+                }
+            }
+
+            current = binding.parent.as_ref().map(|b| &**b);
         }
     }
 
@@ -163,40 +159,6 @@ impl Binding {
         }
 
         self.receiver = heap.move_object(self.receiver);
-    }
-}
-
-impl<'a> Iterator for PointerIterator<'a> {
-    type Item = ObjectPointerPointer;
-
-    fn next(&mut self) -> Option<ObjectPointerPointer> {
-        loop {
-            if !self.receiver_returned {
-                self.receiver_returned = true;
-
-                return Some(self.binding.receiver.pointer());
-            }
-
-            while self.local_index < self.binding.locals().len() {
-                let local = &self.binding.locals()[self.local_index];
-
-                self.local_index += 1;
-
-                if local.is_null() {
-                    continue;
-                }
-
-                return Some(local.pointer());
-            }
-
-            if self.binding.parent.is_some() {
-                self.binding = self.binding.parent.as_ref().unwrap();
-                self.local_index = 0;
-                self.receiver_returned = false;
-            } else {
-                return None;
-            }
-        }
     }
 }
 
@@ -357,40 +319,6 @@ mod tests {
 
         assert!(*pointers.pop().unwrap().get() == receiver);
         assert!(*pointers.pop().unwrap().get() == local1);
-    }
-
-    #[test]
-    fn test_pointers() {
-        let mut alloc =
-            LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
-
-        let b1_local1 = alloc.allocate_empty();
-        let b1_local2 = alloc.allocate_empty();
-        let receiver = alloc.allocate_empty();
-        let mut b1 = Binding::with_rc(2, receiver);
-
-        b1.set_local(0, b1_local1);
-        b1.set_local(1, b1_local2);
-
-        let b2_local1 = alloc.allocate_empty();
-        let b2_local2 = alloc.allocate_empty();
-        let mut b2 = Binding::with_rc(2, receiver);
-
-        b2.parent = Some(b1.clone());
-        b2.set_local(0, b2_local1);
-        b2.set_local(1, b2_local2);
-
-        let mut iterator = b2.pointers();
-
-        assert!(iterator.next().unwrap().get() == &receiver);
-        assert!(iterator.next().unwrap().get() == &b2_local1);
-        assert!(iterator.next().unwrap().get() == &b2_local2);
-
-        assert!(iterator.next().unwrap().get() == &receiver);
-        assert!(iterator.next().unwrap().get() == &b1_local1);
-        assert!(iterator.next().unwrap().get() == &b1_local2);
-
-        assert!(iterator.next().is_none());
     }
 
     #[test]

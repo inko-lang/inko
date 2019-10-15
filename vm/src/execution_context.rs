@@ -178,13 +178,8 @@ impl ExecutionContext {
         //
         // See https://github.com/rust-lang/rust/issues/38038 for more
         // information.
-        for pointer in self.binding.pointers() {
-            pointers.push(pointer);
-        }
-
-        for pointer in self.register.pointers() {
-            pointers.push(pointer);
-        }
+        self.binding.push_pointers(&mut pointers);
+        self.register.push_pointers(&mut pointers);
 
         for pointer in &self.deferred_blocks {
             pointers.push(pointer.pointer());
