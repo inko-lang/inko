@@ -166,6 +166,7 @@ impl Binding {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::gc::work_list::WorkList;
     use crate::immix::global_allocator::GlobalAllocator;
     use crate::immix::local_allocator::LocalAllocator;
     use crate::object_pointer::ObjectPointer;
@@ -319,6 +320,27 @@ mod tests {
 
         assert!(*pointers.pop().unwrap().get() == receiver);
         assert!(*pointers.pop().unwrap().get() == local1);
+    }
+
+    #[test]
+    fn test_push_pointers_and_update() {
+        let mut alloc =
+            LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
+
+        let mut binding = Binding::with_rc(1, alloc.allocate_empty());
+        let mut pointers = WorkList::new();
+
+        binding.set_local(0, alloc.allocate_empty());
+        binding.push_pointers(&mut pointers);
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            let pointer = pointer_pointer.get_mut();
+
+            pointer.raw.raw = 0x4 as _;
+        }
+
+        assert_eq!(binding.get_local(0).raw.raw as usize, 0x4);
+        assert_eq!(binding.receiver.raw.raw as usize, 0x4);
     }
 
     #[test]

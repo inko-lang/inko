@@ -373,9 +373,16 @@ impl Drop for Object {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::binding::Binding;
+    use crate::block::Block as CodeBlock;
+    use crate::compiled_code::CompiledCode;
+    use crate::config::Config;
+    use crate::deref_pointer::DerefPointer;
+    use crate::global_scope::{GlobalScope, GlobalScopePointer};
     use crate::immix::block::Block;
     use crate::object_pointer::{ObjectPointer, RawObjectPointer};
     use crate::object_value::ObjectValue;
+    use crate::vm::state::State;
     use std::mem;
 
     fn fake_pointer() -> ObjectPointer {
@@ -573,16 +580,107 @@ mod tests {
     }
 
     #[test]
-    fn test_object_push_pointers_with_pointers() {
+    fn test_object_push_pointers_with_attributes() {
         let mut obj = new_object();
-        let name = fake_pointer();
         let mut pointers = WorkList::new();
 
-        obj.add_attribute(name, fake_pointer());
+        obj.add_attribute(fake_pointer(), fake_pointer());
+        obj.push_pointers(&mut pointers);
+
+        let pointer_pointer = pointers.pop().unwrap();
+
+        pointer_pointer.get_mut().raw.raw = 0x5 as _;
+
+        let value = obj.attributes()[0];
+
+        assert_eq!(value.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_push_pointers_with_array() {
+        let mut pointers = WorkList::new();
+        let obj =
+            Object::new(ObjectValue::Array(Box::new(vec![fake_pointer()])));
 
         obj.push_pointers(&mut pointers);
 
-        assert!(pointers.pop().is_some());
+        let pointer_pointer = pointers.pop().unwrap();
+
+        pointer_pointer.get_mut().raw.raw = 0x5 as _;
+
+        let value = obj.value.as_array().unwrap()[0];
+
+        assert_eq!(value.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_push_pointers_with_block() {
+        let state = State::with_rc(Config::new(), &[]);
+        let binding = Binding::with_rc(0, fake_pointer());
+        let code = CompiledCode::new(
+            state.intern_string("a".to_string()),
+            state.intern_string("a.inko".to_string()),
+            1,
+            Vec::new(),
+        );
+
+        let scope = GlobalScope::new();
+        let block = CodeBlock::new(
+            DerefPointer::new(&code),
+            Some(binding.clone()),
+            fake_pointer(),
+            GlobalScopePointer::new(&scope),
+        );
+
+        let obj = Object::new(ObjectValue::Block(Box::new(block)));
+        let mut pointers = WorkList::new();
+
+        obj.push_pointers(&mut pointers);
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(
+            obj.value.as_block().unwrap().receiver.raw.raw as usize,
+            0x5
+        );
+
+        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_push_pointers_with_binding() {
+        let mut binding = Binding::with_rc(1, fake_pointer());
+
+        binding.set_local(0, fake_pointer());
+
+        let obj = Object::new(ObjectValue::Binding(binding.clone()));
+        let mut pointers = WorkList::new();
+
+        obj.push_pointers(&mut pointers);
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(binding.get_local(0).raw.raw as usize, 0x5);
+        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_push_pointers_with_prototype() {
+        let mut obj = Object::new(ObjectValue::None);
+        let mut pointers = WorkList::new();
+
+        obj.set_prototype(fake_pointer());
+        obj.push_pointers(&mut pointers);
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(obj.prototype.raw.raw as usize, 0x5);
     }
 
     #[test]
