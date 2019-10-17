@@ -1,24 +1,25 @@
 //! Object And Line Bytemaps
 //!
 //! Bytemaps are used for marking live objects as well as marking which lines
-//! are in use. An ObjectMap is used for marking objects and can hold at most
-//! 1024 entries while a LineMap is used for marking lines and can hold at most
-//! 256 entries.
+//! are in use. An ObjectMap is used for marking objects while tracing.
 use crate::immix::block::{LINES_PER_BLOCK, OBJECTS_PER_BLOCK};
+use std::mem;
+use std::sync::atomic::{AtomicU8, Ordering};
 
+/// A bytemap for marking objects when they are traced.
 pub struct ObjectMap {
-    values: [u8; OBJECTS_PER_BLOCK],
+    values: [AtomicU8; OBJECTS_PER_BLOCK],
 }
 
+/// A bytemap for marking lines when tracing objects.
 pub struct LineMap {
-    values: [u8; LINES_PER_BLOCK],
+    values: [AtomicU8; LINES_PER_BLOCK],
     mark_value: u8,
 }
 
 pub trait Bytemap {
     fn max_entries(&self) -> usize;
-    fn values(&self) -> &[u8];
-    fn values_mut(&mut self) -> &mut [u8];
+    fn values(&self) -> &[AtomicU8];
 
     /// Sets the given index in the bitmap.
     ///
@@ -28,7 +29,7 @@ pub trait Bytemap {
     ///
     ///     bitmap.set(4);
     fn set(&mut self, index: usize) {
-        self.values_mut()[index] = 1;
+        self.values()[index].store(1, Ordering::Release);
     }
 
     /// Unsets the given index in the bitmap.
@@ -40,7 +41,7 @@ pub trait Bytemap {
     ///     bitmap.set(4);
     ///     bitmap.unset(4);
     fn unset(&mut self, index: usize) {
-        self.values_mut()[index] = 0;
+        self.values()[index].store(0, Ordering::Release);
     }
 
     /// Returns `true` if a given index is set.
@@ -55,13 +56,13 @@ pub trait Bytemap {
     ///
     ///     bitmap.is_set(1); // => true
     fn is_set(&self, index: usize) -> bool {
-        self.values()[index] != 0
+        self.values()[index].load(Ordering::Acquire) != 0
     }
 
     /// Returns true if the bitmap is empty.
     fn is_empty(&self) -> bool {
         for value in self.values().iter() {
-            if value != &0 {
+            if value.load(Ordering::Acquire) != 0 {
                 return false;
             }
         }
@@ -81,7 +82,7 @@ pub trait Bytemap {
         let mut count = 0;
 
         for value in self.values().iter() {
-            if value != &0 {
+            if value.load(Ordering::Acquire) != 0 {
                 count += 1;
             }
         }
@@ -93,8 +94,10 @@ pub trait Bytemap {
 impl ObjectMap {
     /// Returns a new, empty object bitmap.
     pub fn new() -> ObjectMap {
+        let values = [0_u8; OBJECTS_PER_BLOCK];
+
         ObjectMap {
-            values: [0; OBJECTS_PER_BLOCK],
+            values: unsafe { mem::transmute(values) },
         }
     }
 }
@@ -102,14 +105,16 @@ impl ObjectMap {
 impl LineMap {
     /// Returns a new, empty line bitmap.
     pub fn new() -> LineMap {
+        let values = [0_u8; LINES_PER_BLOCK];
+
         LineMap {
-            values: [0; LINES_PER_BLOCK],
+            values: unsafe { mem::transmute(values) },
             mark_value: 1,
         }
     }
 
     pub fn set(&mut self, index: usize) {
-        self.values[index] = self.mark_value;
+        self.values[index].store(self.mark_value, Ordering::Release);
     }
 
     pub fn swap_mark_value(&mut self) {
@@ -123,10 +128,10 @@ impl LineMap {
     /// Resets marks from previous marking cycles.
     pub fn reset_previous_marks(&mut self) {
         for index in 0..self.max_entries() {
-            let current = self.values[index];
+            let current = self.values[index].load(Ordering::Acquire);
 
-            if current > 0 && current != self.mark_value {
-                self.values[index] = 0;
+            if current != self.mark_value {
+                self.values[index].store(0, Ordering::Release);
             }
         }
     }
@@ -134,13 +139,8 @@ impl LineMap {
 
 impl Bytemap for ObjectMap {
     #[inline(always)]
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[AtomicU8] {
         &self.values
-    }
-
-    #[inline(always)]
-    fn values_mut(&mut self) -> &mut [u8] {
-        &mut self.values
     }
 
     fn max_entries(&self) -> usize {
@@ -150,13 +150,8 @@ impl Bytemap for ObjectMap {
 
 impl Bytemap for LineMap {
     #[inline(always)]
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[AtomicU8] {
         &self.values
-    }
-
-    #[inline(always)]
-    fn values_mut(&mut self) -> &mut [u8] {
-        &mut self.values
     }
 
     fn max_entries(&self) -> usize {
