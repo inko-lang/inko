@@ -5,7 +5,7 @@
 //! etc.
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::config::Config;
-use crate::gc::request::Request;
+use crate::gc::coordinator::Pool as GcPool;
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::{GlobalAllocator, RcGlobalAllocator};
 use crate::immix::permanent_allocator::PermanentAllocator;
@@ -13,7 +13,6 @@ use crate::immutable_string::ImmutableString;
 use crate::network_poller::NetworkPoller;
 use crate::object_pointer::ObjectPointer;
 use crate::object_value;
-use crate::scheduler::generic_pool::GenericPool;
 use crate::scheduler::process_scheduler::ProcessScheduler;
 use crate::scheduler::timeout_worker::TimeoutWorker;
 use crate::string_pool::StringPool;
@@ -55,7 +54,7 @@ pub struct State {
     pub scheduler: ProcessScheduler,
 
     /// The pool to use for garbage collection.
-    pub gc_pool: GenericPool<Request>,
+    pub gc_pool: GcPool,
 
     /// The permanent memory allocator, used for global data.
     pub permanent_allocator: Mutex<Box<PermanentAllocator>>,
@@ -165,7 +164,7 @@ impl State {
             byte_array_prototype.set_prototype(object_proto);
         }
 
-        let gc_pool = GenericPool::new("GC".to_string(), config.gc_threads);
+        let gc_pool = GcPool::new(config.gc_threads);
 
         let mut state = State {
             scheduler: ProcessScheduler::new(

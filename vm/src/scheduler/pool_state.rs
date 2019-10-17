@@ -85,6 +85,10 @@ impl<T: Send> PoolState<T> {
 
     pub fn terminate(&self) {
         self.alive.store(false, Ordering::Release);
+        self.notify_all();
+    }
+
+    pub fn notify_all(&self) {
         self.park_group.notify_all();
     }
 
@@ -107,7 +111,13 @@ impl<T: Send> PoolState<T> {
 mod tests {
     use super::*;
     use crate::arc_without_weak::ArcWithoutWeak;
+    use std::mem;
     use std::thread;
+
+    #[test]
+    fn test_memory_size() {
+        assert_eq!(mem::size_of::<PoolState<()>>(), 384);
+    }
 
     #[test]
     fn test_new() {

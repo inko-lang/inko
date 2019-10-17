@@ -1,4 +1,5 @@
 //! Configuration for heap generations.
+use crate::config::Config;
 
 pub struct GenerationConfig {
     /// The maximum number of blocks that can be allocated before triggering a
@@ -23,10 +24,10 @@ impl GenerationConfig {
     /// The `blocks` argument should specify the current number of live blocks.
     pub fn should_increase_threshold(
         &self,
-        blocks: u32,
+        blocks: usize,
         growth_threshold: f64,
     ) -> bool {
-        let percentage = f64::from(blocks) / f64::from(self.threshold);
+        let percentage = blocks as f64 / f64::from(self.threshold);
 
         percentage >= growth_threshold
     }
@@ -34,6 +35,24 @@ impl GenerationConfig {
     pub fn increment_threshold(&mut self, growth_factor: f64) {
         self.threshold =
             (f64::from(self.threshold) * growth_factor).ceil() as u32;
+    }
+
+    pub fn update_after_collection(
+        &mut self,
+        config: &Config,
+        blocks: usize,
+    ) -> bool {
+        let max = config.heap_growth_threshold;
+        let factor = config.heap_growth_factor;
+
+        self.block_allocations = 0;
+
+        if self.should_increase_threshold(blocks, max) {
+            self.increment_threshold(factor);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn allocation_threshold_exceeded(&self) -> bool {
@@ -97,5 +116,20 @@ mod tests {
 
         assert_eq!(config.block_allocations, 1);
         assert!(config.allocation_threshold_exceeded());
+    }
+
+    #[test]
+    fn test_update_after_collection() {
+        let mut gen_config = GenerationConfig::new(1);
+        let mut vm_config = Config::new();
+
+        assert_eq!(gen_config.update_after_collection(&vm_config, 0), false);
+
+        vm_config.heap_growth_factor = 2.0;
+        gen_config.threshold = 4;
+        gen_config.block_allocations = 4;
+
+        assert!(gen_config.update_after_collection(&vm_config, 4));
+        assert_eq!(gen_config.threshold, 8);
     }
 }

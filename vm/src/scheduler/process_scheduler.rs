@@ -1,6 +1,5 @@
 //! Scheduling and execution of lightweight Inko processes.
 use crate::process::RcProcess;
-use crate::scheduler::pool::Pool;
 use crate::scheduler::process_pool::ProcessPool;
 
 /// The ID of the queue that is processed by the main thread.

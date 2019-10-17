@@ -4,20 +4,20 @@ use crate::block::Block;
 use crate::compiled_code::CompiledCodePointer;
 use crate::config::Config;
 use crate::execution_context::ExecutionContext;
-use crate::gc::work_list::WorkList;
 use crate::global_scope::GlobalScopePointer;
 use crate::immix::block_list::BlockList;
 use crate::immix::copy_object::CopyObject;
 use crate::immix::global_allocator::RcGlobalAllocator;
 use crate::immix::local_allocator::LocalAllocator;
 use crate::mailbox::Mailbox;
-use crate::object_pointer::ObjectPointer;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::object_value;
 use crate::scheduler::timeouts::Timeout;
 use crate::tagged_pointer::{self, TaggedPointer};
-use crate::vm::state::RcState;
+use crate::vm::state::State;
 use num_bigint::BigInt;
 use num_traits::FromPrimitive;
+use parking_lot::Mutex;
 use std::cell::UnsafeCell;
 use std::i64;
 use std::mem;
@@ -65,13 +65,11 @@ pub struct LocalData {
     /// The process-local memory allocator.
     pub allocator: LocalAllocator,
 
-    /// The mailbox for sending/receiving messages.
+    /// The mailbox of this process.
     ///
-    /// The Mailbox is stored in LocalData as a Mailbox uses internal locking
-    /// while still allowing a receiver to mutate it without a lock. This means
-    /// some operations need a &mut self, which won't be possible if a Mailbox
-    /// is stored directly in a Process.
-    pub mailbox: Mailbox,
+    /// We store this in LocalData so that we can borrow fields from LocalData
+    /// while also borrowing the mailbox.
+    pub mailbox: Mutex<Mailbox>,
 
     // A block to execute in the event of a panic.
     pub panic_handler: ObjectPointer,
@@ -132,11 +130,11 @@ impl Process {
         let local_data = LocalData {
             allocator: LocalAllocator::new(global_allocator.clone(), config),
             context: Box::new(context),
-            mailbox: Mailbox::new(global_allocator, config),
             panic_handler: ObjectPointer::null(),
             blocking: false,
             main: false,
             thread_id: None,
+            mailbox: Mutex::new(Mailbox::new()),
         };
 
         ArcWithoutWeak::new(Process {
@@ -385,37 +383,25 @@ impl Process {
         local_data.allocator.allocate_without_prototype(value)
     }
 
-    pub fn send_message_from_external_process(&self, message: ObjectPointer) {
-        self.local_data_mut().mailbox.send_from_external(message);
+    pub fn send_message_from_external_process(
+        &self,
+        message_to_copy: ObjectPointer,
+    ) {
+        let local_data = self.local_data_mut();
+
+        // The lock must be acquired first, as the receiving process may be
+        // garbage collected at this time.
+        let mut mailbox = local_data.mailbox.lock();
+
+        mailbox.send(local_data.allocator.copy_object(message_to_copy));
     }
 
     pub fn send_message_from_self(&self, message: ObjectPointer) {
-        self.local_data_mut().mailbox.send_from_self(message);
+        self.local_data_mut().mailbox.lock().send(message);
     }
 
-    /// Returns a message from the mailbox.
     pub fn receive_message(&self) -> Option<ObjectPointer> {
-        let local_data = self.local_data_mut();
-        let (should_copy, pointer_opt) = local_data.mailbox.receive();
-
-        if let Some(mailbox_pointer) = pointer_opt {
-            let pointer = if should_copy {
-                // When another process sends us a message, the message will be
-                // copied onto the mailbox heap. We can't directly use such a
-                // pointer, as it might be garbage collected when it no longer
-                // resides in the mailbox (e.g. after a receive).
-                //
-                // To work around this, we move the data from the mailbox heap
-                // into the process' local heap.
-                local_data.allocator.move_object(mailbox_pointer)
-            } else {
-                mailbox_pointer
-            };
-
-            Some(pointer)
-        } else {
-            None
-        }
+        self.local_data_mut().mailbox.lock().receive()
     }
 
     pub fn binding(&self) -> RcBinding {
@@ -440,7 +426,7 @@ impl Process {
     }
 
     pub fn has_messages(&self) -> bool {
-        self.local_data().mailbox.has_messages()
+        self.local_data().mailbox.lock().has_messages()
     }
 
     pub fn should_collect_young_generation(&self) -> bool {
@@ -451,16 +437,8 @@ impl Process {
         self.local_data().allocator.should_collect_mature()
     }
 
-    pub fn should_collect_mailbox(&self) -> bool {
-        self.local_data().mailbox.allocator.should_collect()
-    }
-
     pub fn contexts(&self) -> Vec<&ExecutionContext> {
         self.context().contexts().collect()
-    }
-
-    pub fn has_remembered_objects(&self) -> bool {
-        self.local_data().allocator.has_remembered_objects()
     }
 
     /// Write barrier for tracking cross generation writes.
@@ -483,7 +461,7 @@ impl Process {
             .prepare_for_collection(mature)
     }
 
-    pub fn reclaim_blocks(&self, state: &RcState, mature: bool) {
+    pub fn reclaim_blocks(&self, state: &State, mature: bool) {
         self.local_data_mut()
             .allocator
             .reclaim_blocks(state, mature);
@@ -498,12 +476,11 @@ impl Process {
         }
 
         blocks.append(&mut local_data.allocator.mature_generation.blocks);
-        blocks.append(&mut local_data.mailbox.allocator.bucket.blocks);
 
         blocks
     }
 
-    pub fn reclaim_and_finalize(&self, state: &RcState) {
+    pub fn reclaim_and_finalize(&self, state: &State) {
         let mut blocks = self.reclaim_all_blocks();
 
         for block in blocks.iter_mut() {
@@ -512,23 +489,6 @@ impl Process {
         }
 
         state.global_allocator.add_blocks(&mut blocks);
-    }
-
-    pub fn update_collection_statistics(&self, config: &Config, mature: bool) {
-        let local_data = self.local_data_mut();
-
-        local_data
-            .allocator
-            .update_collection_statistics(config, mature);
-    }
-
-    pub fn update_mailbox_collection_statistics(&self, config: &Config) {
-        let local_data = self.local_data_mut();
-
-        local_data
-            .mailbox
-            .allocator
-            .update_collection_statistics(config);
     }
 
     pub fn panic_handler(&self) -> Option<&ObjectPointer> {
@@ -545,14 +505,30 @@ impl Process {
         self.local_data_mut().panic_handler = handler;
     }
 
-    pub fn global_pointers_to_trace(&self) -> WorkList {
-        let mut pointers = WorkList::new();
-
+    pub fn each_global_pointer<F>(&self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
         if let Some(handler) = self.panic_handler() {
-            pointers.push(handler.pointer());
+            callback(handler.pointer());
         }
+    }
 
-        pointers
+    pub fn each_remembered_pointer<F>(&self, callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
+        self.local_data_mut()
+            .allocator
+            .each_remembered_pointer(callback);
+    }
+
+    pub fn prune_remembered_set(&self) {
+        self.local_data_mut().allocator.prune_remembered_objects();
+    }
+
+    pub fn remember_object(&self, pointer: ObjectPointer) {
+        self.local_data_mut().allocator.remember_object(pointer);
     }
 
     pub fn waiting_for_message(&self) {
@@ -610,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_collection_statistics_without_mature() {
+    fn test_reclaim_blocks_without_mature() {
         let (machine, _block, process) = setup();
 
         {
@@ -620,7 +596,7 @@ mod tests {
             local_data.allocator.mature_config.increment_allocations();
         }
 
-        process.update_collection_statistics(&machine.state.config, false);
+        process.reclaim_blocks(&machine.state, false);
 
         let local_data = process.local_data();
 
@@ -629,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_collection_statistics_with_mature() {
+    fn test_reclaim_blocks_with_mature() {
         let (machine, _block, process) = setup();
 
         {
@@ -639,7 +615,7 @@ mod tests {
             local_data.allocator.mature_config.increment_allocations();
         }
 
-        process.update_collection_statistics(&machine.state.config, true);
+        process.reclaim_blocks(&machine.state, true);
 
         let local_data = process.local_data();
 
@@ -648,28 +624,9 @@ mod tests {
     }
 
     #[test]
-    fn test_update_mailbox_collection_statistics() {
-        let (machine, _block, process) = setup();
-
-        process
-            .local_data_mut()
-            .mailbox
-            .allocator
-            .config
-            .increment_allocations();
-
-        process.update_mailbox_collection_statistics(&machine.state.config);
-
-        let local_data = process.local_data();
-
-        assert_eq!(local_data.mailbox.allocator.config.block_allocations, 0);
-    }
-
-    #[test]
     fn test_receive_message() {
         let (machine, _block, process) = setup();
 
-        // Simulate sending a message from an external process.
         let input_message = process
             .allocate(object_value::integer(14), process.allocate_empty());
 
@@ -677,10 +634,7 @@ mod tests {
 
         input_message.add_attribute(&process, attr, attr);
 
-        process
-            .local_data_mut()
-            .mailbox
-            .send_from_external(input_message);
+        process.send_message_from_external_process(input_message);
 
         let received = process.receive_message().unwrap();
 
@@ -689,6 +643,7 @@ mod tests {
         assert!(received.get().prototype().is_some());
         assert!(received.get().attributes_map().is_some());
         assert!(received.is_finalizable());
+        assert!(received.raw.raw != input_message.raw.raw);
     }
 
     #[test]
@@ -761,11 +716,9 @@ mod tests {
 
     #[test]
     fn test_process_type_size() {
-        let size = mem::size_of::<Process>();
-
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert!(size <= 448);
+        assert_eq!(mem::size_of::<Process>(), 328);
     }
 
     #[test]
@@ -788,5 +741,18 @@ mod tests {
         let (_machine, _block, process) = setup();
 
         assert!(process.identifier() > 0);
+    }
+
+    #[test]
+    fn test_each_global_pointer() {
+        let (_machine, _block, process) = setup();
+
+        process.set_panic_handler(ObjectPointer::integer(5));
+
+        let mut pointers = Vec::new();
+
+        process.each_global_pointer(|ptr| pointers.push(ptr));
+
+        assert_eq!(pointers.len(), 1);
     }
 }

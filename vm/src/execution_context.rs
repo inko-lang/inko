@@ -5,9 +5,8 @@
 use crate::binding::{Binding, RcBinding};
 use crate::block::Block;
 use crate::compiled_code::CompiledCodePointer;
-use crate::gc::work_list::WorkList;
 use crate::global_scope::GlobalScopePointer;
-use crate::object_pointer::ObjectPointer;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::process::RcProcess;
 use crate::register::Register;
 
@@ -168,24 +167,16 @@ impl ExecutionContext {
         }
     }
 
-    /// Returns pointers to all pointers stored in this context.
-    pub fn pointers(&self) -> WorkList {
-        let mut pointers = WorkList::new();
-
-        // We don't use chain() here since it may perform worse than separate
-        // for loops, and we want the garbage collector (which calls this
-        // method) to be as fast as possible.
-        //
-        // See https://github.com/rust-lang/rust/issues/38038 for more
-        // information.
-        self.binding.push_pointers(&mut pointers);
-        self.register.push_pointers(&mut pointers);
+    pub fn each_pointer<F>(&self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
+        self.binding.each_pointer(|ptr| callback(ptr));
+        self.register.each_pointer(|ptr| callback(ptr));
 
         for pointer in &self.deferred_blocks {
-            pointers.push(pointer.pointer());
+            callback(pointer.pointer());
         }
-
-        pointers
     }
 
     /// Returns the top-most parent binding of the current binding.
@@ -376,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pointers() {
+    fn test_each_pointer() {
         let (_machine, block, _) = setup();
         let mut context = ExecutionContext::from_block(&block, None);
         let pointer = ObjectPointer::new(0x1 as RawObjectPointer);
@@ -386,11 +377,18 @@ mod tests {
         context.binding.set_local(0, pointer);
         context.add_defer(deferred);
 
-        let mut pointers = context.pointers();
+        let mut pointer_pointers = Vec::new();
 
-        assert!(pointers.pop().is_some());
-        assert!(pointers.pop().is_some());
-        assert!(pointers.pop().is_some());
+        context.each_pointer(|ptr| pointer_pointers.push(ptr));
+
+        let pointers: Vec<_> =
+            pointer_pointers.into_iter().map(|x| *x.get()).collect();
+
+        assert_eq!(pointers.len(), 4);
+        assert_eq!(pointers.iter().filter(|x| **x == pointer).count(), 2);
+
+        assert!(pointers.contains(&context.binding.receiver));
+        assert!(pointers.contains(&deferred));
     }
 
     #[test]

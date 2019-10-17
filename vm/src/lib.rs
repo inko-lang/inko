@@ -49,5 +49,4 @@ pub mod socket;
 pub mod stacktrace;
 pub mod string_pool;
 pub mod tagged_pointer;
-pub mod timer;
 pub mod vm;

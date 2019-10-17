@@ -4,9 +4,8 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::block::Block;
 use crate::chunk::Chunk;
-use crate::gc::work_list::WorkList;
 use crate::immix::copy_object::CopyObject;
-use crate::object_pointer::ObjectPointer;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use std::cell::UnsafeCell;
 
 pub struct Binding {
@@ -92,18 +91,20 @@ impl Binding {
         unsafe { &mut *self.locals.get() }
     }
 
-    /// Pushes all pointers in this binding into the supplied vector.
-    pub fn push_pointers(&self, pointers: &mut WorkList) {
+    pub fn each_pointer<F>(&self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
         let mut current = Some(self);
 
         while let Some(binding) = current {
-            pointers.push(binding.receiver.pointer());
+            callback(binding.receiver.pointer());
 
             for index in 0..binding.locals().len() {
                 let local = &binding.locals()[index];
 
                 if !local.is_null() {
-                    pointers.push(local.pointer());
+                    callback(local.pointer());
                 }
             }
 
@@ -139,34 +140,12 @@ impl Binding {
             parent,
         })
     }
-
-    // Moves all pointers in this binding to the given heap.
-    pub fn move_pointers_to<H: CopyObject>(&mut self, heap: &mut H) {
-        if let Some(ref mut bind) = self.parent {
-            bind.move_pointers_to(heap);
-        }
-
-        {
-            let locals = self.locals_mut();
-
-            for index in 0..locals.len() {
-                let pointer = locals[index];
-
-                if !pointer.is_null() {
-                    locals[index] = heap.move_object(pointer);
-                }
-            }
-        }
-
-        self.receiver = heap.move_object(self.receiver);
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::gc::work_list::WorkList;
     use crate::immix::global_allocator::GlobalAllocator;
     use crate::immix::local_allocator::LocalAllocator;
     use crate::object_pointer::ObjectPointer;
@@ -295,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_pointers() {
+    fn test_each_pointer() {
         let mut alloc =
             LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
 
@@ -311,27 +290,29 @@ mod tests {
         binding2.parent = Some(binding1.clone());
         binding2.set_local(0, local2);
 
-        let mut pointers = WorkList::new();
+        let mut pointer_pointers = Vec::new();
 
-        binding2.push_pointers(&mut pointers);
+        binding2.each_pointer(|ptr| pointer_pointers.push(ptr));
 
-        assert!(*pointers.pop().unwrap().get() == receiver);
-        assert!(*pointers.pop().unwrap().get() == local2);
+        let pointers: Vec<_> =
+            pointer_pointers.into_iter().map(|x| *x.get()).collect();
 
-        assert!(*pointers.pop().unwrap().get() == receiver);
-        assert!(*pointers.pop().unwrap().get() == local1);
+        assert_eq!(pointers.iter().filter(|x| **x == receiver).count(), 2);
+        assert!(pointers.contains(&local2));
+        assert!(pointers.contains(&local1));
     }
 
     #[test]
-    fn test_push_pointers_and_update() {
+    fn test_each_pointer_and_update() {
         let mut alloc =
             LocalAllocator::new(GlobalAllocator::with_rc(), &Config::new());
 
         let mut binding = Binding::with_rc(1, alloc.allocate_empty());
-        let mut pointers = WorkList::new();
+        let mut pointers = Vec::new();
 
         binding.set_local(0, alloc.allocate_empty());
-        binding.push_pointers(&mut pointers);
+
+        binding.each_pointer(|ptr| pointers.push(ptr));
 
         while let Some(pointer_pointer) = pointers.pop() {
             let pointer = pointer_pointer.get_mut();
@@ -375,34 +356,6 @@ mod tests {
 
         assert_eq!(bind_copy_parent.get_local(0).float_value().unwrap(), 5.0);
         assert_eq!(bind_copy_parent.receiver.float_value().unwrap(), 8.0);
-    }
-
-    #[test]
-    fn test_move_pointers_to() {
-        let galloc = GlobalAllocator::with_rc();
-        let mut alloc1 = LocalAllocator::new(galloc.clone(), &Config::new());
-        let mut alloc2 = LocalAllocator::new(galloc, &Config::new());
-
-        let ptr1 = alloc1.allocate_without_prototype(object_value::float(5.0));
-        let ptr2 = alloc1.allocate_without_prototype(object_value::float(2.0));
-        let ptr3 = alloc1.allocate_without_prototype(object_value::float(8.0));
-
-        let mut src_bind1 = Binding::with_rc(1, ptr3);
-        let mut src_bind2 = Binding::with_rc(1, ptr3);
-
-        src_bind2.parent = Some(src_bind1.clone());
-        src_bind1.set_local(0, ptr1);
-        src_bind2.set_local(0, ptr2);
-        src_bind2.move_pointers_to(&mut alloc2);
-
-        // The original pointers now point to empty objects.
-        assert!(ptr1.get().value.is_none());
-        assert!(ptr2.get().value.is_none());
-        assert!(ptr3.get().value.is_none());
-
-        assert_eq!(src_bind2.get_local(0).float_value().unwrap(), 2.0);
-        assert_eq!(src_bind1.get_local(0).float_value().unwrap(), 5.0);
-        assert_eq!(src_bind1.receiver.float_value().unwrap(), 8.0);
     }
 
     #[test]

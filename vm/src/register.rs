@@ -3,8 +3,7 @@
 //! Registers can be set in any particular order. However, reading from a
 //! register that is not set can lead to bogus data being returned.
 use crate::chunk::Chunk;
-use crate::gc::work_list::WorkList;
-use crate::object_pointer::ObjectPointer;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 
 /// Structure used for storing temporary values of a scope.
 pub struct Register {
@@ -29,13 +28,15 @@ impl Register {
         self.values[register]
     }
 
-    /// Pushes all pointers in this register into the supplied vector.
-    pub fn push_pointers(&self, pointers: &mut WorkList) {
+    pub fn each_pointer<F>(&self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
         for index in 0..self.values.len() {
             let pointer = &self.values[index];
 
             if !pointer.is_null() {
-                pointers.push(pointer.pointer());
+                callback(pointer.pointer());
             }
         }
     }
@@ -59,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push_pointers() {
+    fn test_each_pointer() {
         let mut register = Register::new(2);
 
         let pointer1 = ObjectPointer::new(0x1 as RawObjectPointer);
@@ -68,9 +69,9 @@ mod tests {
         register.set(0, pointer1);
         register.set(1, pointer2);
 
-        let mut pointers = WorkList::new();
+        let mut pointers = Vec::new();
 
-        register.push_pointers(&mut pointers);
+        register.each_pointer(|ptr| pointers.push(ptr));
 
         // The returned pointers should allow updating of what's stored in the
         // register without copying anything.

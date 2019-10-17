@@ -13,7 +13,7 @@ use std::alloc::{self, Layout};
 use std::mem;
 use std::ops::Drop;
 use std::ptr;
-use std::thread;
+use std::sync::atomic::spin_loop_hint;
 
 /// The number of bytes in a block.
 pub const BLOCK_SIZE: usize = 8 * 1024;
@@ -41,7 +41,7 @@ pub const OBJECTS_PER_BLOCK: usize = BLOCK_SIZE / BYTES_PER_OBJECT;
 pub const OBJECTS_PER_LINE: usize = LINE_SIZE / BYTES_PER_OBJECT;
 
 /// The first slot objects can be allocated into. The first 4 slots (a single
-/// line or 128 bytes of memory) are reserved for the mark bitmap.
+/// line or 128 bytes of memory) are reserved for the mark bytemap.
 pub const OBJECT_START_SLOT: usize = LINE_SIZE / BYTES_PER_OBJECT;
 
 /// The first line objects can be allocated into.
@@ -51,11 +51,11 @@ pub const LINE_START_SLOT: usize = 1;
 pub const FIRST_OBJECT_BYTE_OFFSET: usize =
     OBJECT_START_SLOT * BYTES_PER_OBJECT;
 
-/// The mask to apply to go from a pointer to the mark bitmap's start.
-pub const OBJECT_BITMAP_MASK: isize = !(BLOCK_SIZE as isize - 1);
+/// The mask to apply to go from a pointer to the mark bytemap's start.
+pub const OBJECT_BYTEMAP_MASK: isize = !(BLOCK_SIZE as isize - 1);
 
 /// The mask to apply to go from a pointer to the line's start.
-pub const LINE_BITMAP_MASK: isize = !(LINE_SIZE as isize - 1);
+pub const LINE_BYTEMAP_MASK: isize = !(LINE_SIZE as isize - 1);
 
 unsafe fn heap_layout_for_block() -> Layout {
     Layout::from_size_align_unchecked(BLOCK_SIZE, BLOCK_SIZE)
@@ -146,17 +146,17 @@ pub struct Block {
     /// allocated into or beyond this pointer.
     pub end_pointer: DerefPointer<Object>,
 
-    /// The memory to use for the mark bitmap and allocating objects. The first
+    /// The memory to use for the mark bytemap and allocating objects. The first
     /// 128 bytes of this field are reserved and used for storing a BlockHeader.
     ///
     /// Memory is aligned to the block size.
     pub lines: RawObjectPointer,
 
-    /// Bitmap used to track which lines contain one or more reachable objects.
-    pub used_lines_bitmap: LineMap,
+    /// Bytemap used to track which lines contain one or more reachable objects.
+    pub used_lines_bytemap: LineMap,
 
-    /// Bitmap used for tracking which object slots are live.
-    pub marked_objects_bitmap: ObjectMap,
+    /// Bytemap used for tracking which object slots are live.
+    pub marked_objects_bytemap: ObjectMap,
 }
 
 unsafe impl Send for Block {}
@@ -174,8 +174,8 @@ impl Block {
 
         let mut block = Box::new(Block {
             lines,
-            marked_objects_bitmap: ObjectMap::new(),
-            used_lines_bitmap: LineMap::new(),
+            marked_objects_bytemap: ObjectMap::new(),
+            used_lines_bytemap: LineMap::new(),
             free_pointer: DerefPointer::null(),
             end_pointer: DerefPointer::null(),
         });
@@ -192,16 +192,6 @@ impl Block {
         }
 
         block
-    }
-
-    /// Prepares this block for a garbage collection cycle.
-    pub fn prepare_for_collection(&mut self) {
-        self.used_lines_bitmap.swap_mark_value();
-        self.marked_objects_bitmap.reset();
-    }
-
-    pub fn update_line_map(&mut self) {
-        self.used_lines_bitmap.reset_previous_marks();
     }
 
     /// Returns an immutable reference to the header of this block.
@@ -245,6 +235,10 @@ impl Block {
         self.header_mut().fragmented = true;
     }
 
+    pub fn clear_fragmentation_status(&mut self) {
+        self.header_mut().fragmented = false;
+    }
+
     pub fn is_fragmented(&self) -> bool {
         self.header().fragmented
     }
@@ -255,7 +249,7 @@ impl Block {
 
     /// Returns true if all lines in this block are available.
     pub fn is_empty(&self) -> bool {
-        self.used_lines_bitmap.is_empty()
+        self.used_lines_bytemap.is_empty()
     }
 
     /// Returns a pointer to the first address to be used for objects.
@@ -335,7 +329,7 @@ impl Block {
                 // observed as being greater than the end pointer. Since the end
                 // pointer will be updated very soon, we can just spin for a
                 // little while.
-                thread::yield_now();
+                spin_loop_hint();
                 continue;
             }
 
@@ -347,39 +341,9 @@ impl Block {
         }
     }
 
-    /// Requests a new pointer to use for an object allocated by a mutator.
-    ///
-    /// Unlike `Block::request_pointer()`, this method _does not_ use atomic
-    /// operations for bump allocations. This means it _can not_ be used by any
-    /// collector threads.
-    pub unsafe fn request_pointer_for_mutator(
-        &mut self,
-    ) -> Option<RawObjectPointer> {
-        loop {
-            let current = self.free_pointer.pointer;
-            let end = self.end_pointer.pointer;
-
-            if current == end {
-                if current == self.end_address() {
-                    return None;
-                }
-
-                if self.find_available_hole(current, end) {
-                    continue;
-                } else {
-                    return None;
-                }
-            }
-
-            self.free_pointer = DerefPointer::from_pointer(current.offset(1));
-
-            return Some(current);
-        }
-    }
-
     pub fn line_index_of_pointer(&self, pointer: RawObjectPointer) -> usize {
         let first_line = self.lines as usize;
-        let line_addr = (pointer as isize & LINE_BITMAP_MASK) as usize;
+        let line_addr = (pointer as isize & LINE_BYTEMAP_MASK) as usize;
 
         (line_addr - first_line) / LINE_SIZE
     }
@@ -416,12 +380,17 @@ impl Block {
         self.set_free_pointer(start_addr);
         self.set_end_pointer(end_addr);
 
-        self.reset_mark_bitmaps();
+        self.used_lines_bytemap.reset();
+        self.marked_objects_bytemap.reset();
     }
 
-    pub fn reset_mark_bitmaps(&mut self) {
-        self.used_lines_bitmap.reset();
-        self.marked_objects_bitmap.reset();
+    pub fn prepare_for_collection(&mut self) {
+        self.used_lines_bytemap.swap_mark_value();
+        self.marked_objects_bytemap.reset();
+    }
+
+    pub fn update_line_map(&mut self) {
+        self.used_lines_bytemap.reset_previous_marks();
     }
 
     /// Finalizes all unmarked objects right away.
@@ -440,7 +409,7 @@ impl Block {
         let mut holes = 0;
 
         for index in LINE_START_SLOT..LINES_PER_BLOCK {
-            let is_set = self.used_lines_bitmap.is_set(index);
+            let is_set = self.used_lines_bytemap.is_set(index);
 
             if in_hole && is_set {
                 in_hole = false;
@@ -456,12 +425,12 @@ impl Block {
     }
 
     /// Returns the number of marked lines in this block.
-    pub fn marked_lines_count(&self) -> usize {
-        self.used_lines_bitmap.len()
+    pub fn marked_lines_count(&mut self) -> usize {
+        self.used_lines_bytemap.len()
     }
 
     /// Returns the number of available lines in this block.
-    pub fn available_lines_count(&self) -> usize {
+    pub fn available_lines_count(&mut self) -> usize {
         (LINES_PER_BLOCK - 1) - self.marked_lines_count()
     }
 
@@ -483,7 +452,7 @@ impl Block {
 
         // Find the start of the hole.
         while line < LINES_PER_BLOCK {
-            if !self.used_lines_bitmap.is_set(line) {
+            if !self.used_lines_bytemap.is_set(line) {
                 new_free = self.pointer_for_hole_starting_at_line(line);
                 found_hole = true;
 
@@ -495,7 +464,7 @@ impl Block {
 
         // Find the end of the hole.
         while line < LINES_PER_BLOCK {
-            if self.used_lines_bitmap.is_set(line) {
+            if self.used_lines_bytemap.is_set(line) {
                 new_end = self.pointer_for_hole_starting_at_line(line);
                 break;
             }
@@ -551,7 +520,9 @@ mod tests {
 
     #[test]
     fn test_block_header_type_size() {
-        assert!(mem::size_of::<BlockHeader>() <= LINE_SIZE);
+        // Block headers must be smaller than or equal to the size of a single
+        // line.
+        assert_eq!(mem::size_of::<BlockHeader>(), 40);
     }
 
     #[test]
@@ -594,26 +565,14 @@ mod tests {
     }
 
     #[test]
-    fn test_block_prepare_for_collection() {
-        let mut block = Block::boxed();
-
-        block.used_lines_bitmap.set(1);
-        block.marked_objects_bitmap.set(1);
-        block.prepare_for_collection();
-
-        assert!(block.used_lines_bitmap.is_set(1));
-        assert_eq!(block.marked_objects_bitmap.is_set(1), false);
-    }
-
-    #[test]
     fn test_block_update_line_map() {
         let mut block = Block::boxed();
 
-        block.used_lines_bitmap.set(1);
-        block.prepare_for_collection();
+        block.used_lines_bytemap.set(1);
+        block.used_lines_bytemap.swap_mark_value();
         block.update_line_map();
 
-        assert!(block.used_lines_bitmap.is_empty());
+        assert_eq!(block.used_lines_bytemap.is_set(1), false);
     }
 
     #[test]
@@ -650,7 +609,7 @@ mod tests {
 
         assert!(block.is_empty());
 
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
 
         assert_eq!(block.is_empty(), false);
     }
@@ -681,22 +640,11 @@ mod tests {
     }
 
     #[test]
-    fn test_block_request_pointer_for_mutator() {
-        let mut block = Block::boxed();
-
-        assert!(unsafe { block.request_pointer_for_mutator().is_some() });
-
-        assert_eq!(block.free_pointer(), unsafe {
-            block.start_address().offset(1)
-        });
-    }
-
-    #[test]
     fn test_block_request_pointer_advances_hole() {
         let mut block = Block::boxed();
         let start = block.start_address();
 
-        block.used_lines_bitmap.set(2);
+        block.used_lines_bytemap.set(2);
 
         find_available_hole!(block);
 
@@ -710,23 +658,42 @@ mod tests {
     }
 
     #[test]
-    fn test_block_request_pointer_for_mutator_advances_hole() {
+    fn test_request_pointer_after_preparing_collection() {
         let mut block = Block::boxed();
-        let start = block.start_address();
 
-        block.used_lines_bitmap.set(2);
+        // We simulate a block starting with a hole, followed by an empty line,
+        // followed by another hole, that we allocate into. This can happen when
+        // a survivor space is allocated into when it still has recyclable
+        // blocks, such as during evacuation.
+        block.used_lines_bytemap.set(2);
+        block.recycle();
+        block.prepare_for_collection();
 
-        find_available_hole!(block);
+        // At this point line 2 should not be allocated into, because it was
+        // still marked as live.
+        for i in 0..8 {
+            let pointer = ObjectPointer::new(block.request_pointer().unwrap());
 
-        for _ in 0..4 {
-            unsafe {
-                block.request_pointer_for_mutator();
-            }
+            Object::new(ObjectValue::Integer(i)).write_to(pointer.raw.raw);
         }
 
-        assert!(unsafe { block.request_pointer_for_mutator().is_some() });
+        for i in 0..4 {
+            let raw_pointer = unsafe { block.start_address().add(i) };
 
-        assert_eq!(block.free_pointer(), unsafe { start.offset(9) });
+            assert!(ObjectPointer::new(raw_pointer).is_integer());
+        }
+
+        for i in 4..8 {
+            let raw_pointer = unsafe { block.start_address().add(i) };
+
+            assert!(ObjectPointer::new(raw_pointer).get().value.is_none());
+        }
+
+        for i in 8..12 {
+            let raw_pointer = unsafe { block.start_address().add(i) };
+
+            assert!(ObjectPointer::new(raw_pointer).is_integer());
+        }
     }
 
     #[test]
@@ -769,7 +736,7 @@ mod tests {
         let mut block = Block::boxed();
 
         // First line is used
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
         block.recycle();
 
         assert_eq!(block.free_pointer(), unsafe {
@@ -779,8 +746,8 @@ mod tests {
         assert_eq!(block.end_pointer(), block.end_address());
 
         // first line is available, followed by a used line
-        block.used_lines_bitmap.reset();
-        block.used_lines_bitmap.set(2);
+        block.used_lines_bytemap.reset();
+        block.used_lines_bytemap.set(2);
         block.recycle();
 
         assert_eq!(block.free_pointer(), block.start_address());
@@ -797,15 +764,15 @@ mod tests {
         let pointer1 = Object::new(ObjectValue::None)
             .write_to(block.request_pointer().unwrap());
 
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
 
         find_available_hole!(block);
 
         let pointer2 = Object::new(ObjectValue::None)
             .write_to(block.request_pointer().unwrap());
 
-        block.used_lines_bitmap.set(2);
-        block.used_lines_bitmap.set(3);
+        block.used_lines_bytemap.set(2);
+        block.used_lines_bytemap.set(3);
 
         find_available_hole!(block);
 
@@ -822,7 +789,7 @@ mod tests {
         let mut block = Block::boxed();
         let start = block.start_address();
 
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
 
         find_available_hole!(block);
 
@@ -835,8 +802,8 @@ mod tests {
         let mut block = Block::boxed();
         let start = block.start_address();
 
-        block.used_lines_bitmap.set(1);
-        block.used_lines_bitmap.set(3);
+        block.used_lines_bytemap.set(1);
+        block.used_lines_bytemap.set(3);
 
         find_available_hole!(block);
 
@@ -849,7 +816,7 @@ mod tests {
         let mut block = Block::boxed();
 
         for index in 1..LINES_PER_BLOCK {
-            block.used_lines_bitmap.set(index);
+            block.used_lines_bytemap.set(index);
         }
 
         find_available_hole!(block);
@@ -862,9 +829,8 @@ mod tests {
     fn test_block_find_available_hole_recycle() {
         let mut block = Block::boxed();
 
-        block.used_lines_bitmap.set(1);
-        block.used_lines_bitmap.set(2);
-        block.used_lines_bitmap.reset_previous_marks();
+        block.used_lines_bytemap.set(1);
+        block.used_lines_bytemap.set(2);
 
         find_available_hole!(block);
 
@@ -877,9 +843,9 @@ mod tests {
     fn test_block_find_available_hole_pointer_range() {
         let mut block = Block::boxed();
 
-        block.used_lines_bitmap.set(1);
-        block.used_lines_bitmap.set(2);
-        block.used_lines_bitmap.set(LINES_PER_BLOCK - 1);
+        block.used_lines_bytemap.set(1);
+        block.used_lines_bytemap.set(2);
+        block.used_lines_bytemap.set(LINES_PER_BLOCK - 1);
 
         find_available_hole!(block);
 
@@ -909,8 +875,8 @@ mod tests {
         block.set_end_pointer(start_addr);
 
         block.set_bucket(&mut bucket as *mut Bucket);
-        block.used_lines_bitmap.set(1);
-        block.marked_objects_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
+        block.marked_objects_bytemap.set(1);
 
         block.reset();
 
@@ -919,8 +885,8 @@ mod tests {
         assert!(block.free_pointer() == block.start_address());
         assert!(block.end_pointer() == block.end_address());
         assert!(block.bucket().is_none());
-        assert!(block.used_lines_bitmap.is_empty());
-        assert!(block.marked_objects_bitmap.is_empty());
+        assert!(block.used_lines_bytemap.is_empty());
+        assert!(block.marked_objects_bytemap.is_empty());
     }
 
     #[test]
@@ -929,21 +895,29 @@ mod tests {
         let raw_pointer = block.request_pointer().unwrap();
         let pointer = ObjectPointer::new(raw_pointer);
 
-        Object::new(ObjectValue::Float(10.0)).write_to(raw_pointer);
+        {
+            let mut obj = Object::new(ObjectValue::Float(10.0));
 
-        pointer.finalize();
+            obj.add_attribute(pointer, pointer);
+            obj.write_to(raw_pointer);
+        }
 
-        assert!(pointer.get().value.is_none());
-        assert_eq!(pointer.is_finalizable(), false);
+        block.finalize();
+
+        let obj = pointer.get();
+
+        assert!(obj.attributes.is_null());
+        assert!(obj.prototype.is_null());
+        assert!(obj.value.is_none());
     }
 
     #[test]
     fn test_block_update_hole_count() {
         let mut block = Block::boxed();
 
-        block.used_lines_bitmap.set(1);
-        block.used_lines_bitmap.set(3);
-        block.used_lines_bitmap.set(10);
+        block.used_lines_bytemap.set(1);
+        block.used_lines_bytemap.set(3);
+        block.used_lines_bytemap.set(10);
 
         block.update_hole_count();
 
@@ -956,7 +930,7 @@ mod tests {
 
         assert_eq!(block.marked_lines_count(), 0);
 
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
 
         assert_eq!(block.marked_lines_count(), 1);
     }
@@ -967,8 +941,30 @@ mod tests {
 
         assert_eq!(block.available_lines_count(), LINES_PER_BLOCK - 1);
 
-        block.used_lines_bitmap.set(1);
+        block.used_lines_bytemap.set(1);
 
         assert_eq!(block.available_lines_count(), LINES_PER_BLOCK - 2);
+    }
+
+    #[test]
+    fn test_clear_fragmentation_status() {
+        let mut block = Block::boxed();
+
+        block.set_fragmented();
+        block.clear_fragmentation_status();
+
+        assert_eq!(block.is_fragmented(), false);
+    }
+
+    #[test]
+    fn test_prepare_for_collection() {
+        let mut block = Block::boxed();
+
+        block.used_lines_bytemap.set(1);
+        block.marked_objects_bytemap.set(1);
+        block.prepare_for_collection();
+
+        assert!(block.used_lines_bytemap.is_set(1));
+        assert_eq!(block.marked_objects_bytemap.is_set(1), false);
     }
 }

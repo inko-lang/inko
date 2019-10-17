@@ -4,12 +4,14 @@ use crate::process::RcProcess;
 use crate::scheduler::pool_state::PoolState;
 use crate::scheduler::queue::RcQueue;
 use crate::scheduler::worker::Worker;
+use crate::vm::machine::Machine;
 use num_bigint::BigInt;
 use num_bigint::RandBigInt;
 use rand::distributions::uniform::{SampleBorrow, SampleUniform};
 use rand::distributions::{Distribution, Standard};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
+use std::cell::UnsafeCell;
 
 /// The state that a worker is in.
 #[derive(Eq, PartialEq, Debug)]
@@ -43,6 +45,9 @@ pub struct ProcessWorker {
     /// The state of the pool this worker belongs to.
     state: ArcWithoutWeak<PoolState<RcProcess>>,
 
+    /// The Machine to use for running code.
+    machine: UnsafeCell<Machine>,
+
     /// The mode this worker is in.
     mode: Mode,
 }
@@ -53,6 +58,7 @@ impl ProcessWorker {
         id: usize,
         queue: RcQueue<RcProcess>,
         state: ArcWithoutWeak<PoolState<RcProcess>>,
+        machine: Machine,
     ) -> Self {
         ProcessWorker {
             id,
@@ -61,6 +67,7 @@ impl ProcessWorker {
             queue,
             state,
             mode: Mode::Normal,
+            machine: UnsafeCell::new(machine),
         }
     }
 
@@ -130,11 +137,8 @@ impl ProcessWorker {
     }
 
     /// Performs a single iteration of the normal work loop.
-    fn normal_iteration<F>(&mut self, callback: &F)
-    where
-        F: Fn(&mut Self, RcProcess),
-    {
-        if self.process_local_jobs(callback) {
+    fn normal_iteration(&mut self) {
+        if self.process_local_jobs() {
             return;
         }
 
@@ -156,11 +160,8 @@ impl ProcessWorker {
     }
 
     /// Runs a single iteration of an exclusive work loop.
-    fn exclusive_iteration<F>(&mut self, callback: &F)
-    where
-        F: Fn(&mut Self, RcProcess),
-    {
-        if self.process_local_jobs(callback) {
+    fn exclusive_iteration(&mut self) {
+        if self.process_local_jobs() {
             return;
         }
 
@@ -168,7 +169,7 @@ impl ProcessWorker {
         // starving the current worker of pinned jobs. Since only one job can be
         // pinned to a worker, we don't need a loop here.
         if let Some(job) = self.queue.pop_external_job() {
-            callback(self, job);
+            self.process_job(job);
             return;
         }
 
@@ -185,20 +186,28 @@ impl Worker<RcProcess> for ProcessWorker {
         &self.queue
     }
 
-    /// Starts the worker, blocking the calling thread.
-    ///
-    /// This method will not return until our queue or any other queues this
-    /// worker has access to are terminated.
-    fn run<F>(&mut self, callback: F)
-    where
-        F: Fn(&mut Self, RcProcess),
-    {
+    fn run(&mut self) {
         while self.state.is_alive() {
             match self.mode {
-                Mode::Normal => self.normal_iteration(&callback),
-                Mode::Exclusive => self.exclusive_iteration(&callback),
+                Mode::Normal => self.normal_iteration(),
+                Mode::Exclusive => self.exclusive_iteration(),
             };
         }
+    }
+
+    fn process_job(&mut self, job: RcProcess) {
+        // When using a Machine we need both an immutable reference to it (using
+        // `self.machine`), and a mutable reference to pass as an argument.
+        // Rust does not allow this, even though in this case it's perfectly
+        // safe.
+        //
+        // To work around this we use UnsafeCell. We could use RefCell, but
+        // since we know exactly how this code is used (it's only the lines
+        // below that depend on this) the runtime reference counting is not
+        // needed.
+        let machine = unsafe { &*self.machine.get() };
+
+        machine.run_with_error_handling(self, &job);
     }
 }
 
@@ -207,149 +216,99 @@ mod tests {
     use super::*;
     use crate::vm::process;
     use crate::vm::test::setup;
-    use parking_lot::Mutex;
-    use std::collections::HashSet;
 
-    fn pids_set() -> (
-        ArcWithoutWeak<Mutex<HashSet<usize>>>,
-        ArcWithoutWeak<Mutex<HashSet<usize>>>,
-    ) {
-        let orig = ArcWithoutWeak::new(Mutex::new(HashSet::new()));
-        let copy = orig.clone();
+    fn worker(machine: Machine) -> ProcessWorker {
+        let pool_state = machine.state.scheduler.primary_pool.state.clone();
+        let queue = pool_state.queues[0].clone();
 
-        (orig, copy)
-    }
-
-    fn worker() -> ProcessWorker {
-        let state = ArcWithoutWeak::new(PoolState::new(2));
-
-        ProcessWorker::new(0, state.queues[0].clone(), state)
+        ProcessWorker::new(0, queue, pool_state, machine)
     }
 
     #[test]
     fn test_run_global_jobs() {
-        let (pids, pids_copy) = pids_set();
-        let (_machine, _block, process) = setup();
-        let mut worker = worker();
+        let (machine, _block, process) = setup();
+        let mut worker = worker(machine.clone());
 
         worker.state.push_global(process.clone());
+        worker.run();
 
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
-            worker.state.terminate();
-        });
-
-        assert!(pids.lock().contains(&process.identifier()));
-        assert_eq!(worker.state.queues[1].has_local_jobs(), false);
+        assert!(worker.state.pop_global().is_none());
+        assert_eq!(worker.state.queues[0].has_local_jobs(), false);
     }
 
     #[test]
     fn test_run_with_external_jobs() {
-        let (pids, pids_copy) = pids_set();
-        let (_machine, _block, process) = setup();
-        let mut worker = worker();
+        let (machine, _block, process) = setup();
+        let mut worker = worker(machine.clone());
 
         worker.state.queues[0].push_external(process.clone());
+        worker.run();
 
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
-            worker.state.terminate();
-        });
-
-        assert!(pids.lock().contains(&process.identifier()));
+        assert_eq!(worker.state.queues[0].has_external_jobs(), false);
     }
 
     #[test]
     fn test_run_steal_then_terminate() {
-        let (pids, pids_copy) = pids_set();
-        let (_machine, _block, process) = setup();
-        let mut worker = worker();
+        let (machine, _block, process) = setup();
+        let mut worker = worker(machine.clone());
 
         worker.state.queues[1].push_internal(process.clone());
+        worker.run();
 
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
-            worker.state.terminate();
-        });
-
-        assert!(pids.lock().contains(&process.identifier()));
         assert_eq!(worker.state.queues[1].has_local_jobs(), false);
     }
 
     #[test]
-    fn test_run_steal_then_work() {
-        let (pids, pids_copy) = pids_set();
+    fn test_run_work_and_steal() {
         let (machine, block, process) = setup();
         let process2 = process::allocate(&machine.state, &block);
-        let process2_clone = process2.clone();
-        let mut worker = worker();
+        let mut worker = worker(machine.clone());
 
-        process.set_main();
-        worker.state.queues[1].push_internal(process.clone());
+        worker.queue.push_internal(process2);
+        worker.state.queues[1].push_internal(process);
 
         // Here the order of work is:
         //
-        // 1. Steal from other queue
-        // 2. Go back to processing our own queue
+        // 1. Process local job
+        // 2. Steal from other queue
         // 3. Terminate
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
+        worker.run();
 
-            worker.queue.push_internal(process2_clone.clone());
-
-            if !process.is_main() {
-                worker.state.terminate();
-            }
-        });
-
-        assert!(pids.lock().contains(&process.identifier()));
-        assert!(pids.lock().contains(&process2.identifier()));
+        assert_eq!(worker.queue.has_local_jobs(), false);
         assert_eq!(worker.state.queues[1].has_local_jobs(), false);
     }
 
     #[test]
     fn test_run_work_then_terminate_steal_loop() {
-        let (pids, pids_copy) = pids_set();
         let (machine, block, process) = setup();
         let process2 = process::allocate(&machine.state, &block);
-        let mut worker = worker();
+        let mut worker = worker(machine.clone());
 
-        worker.state.queues[0].push_internal(process.clone());
-        worker.state.queues[1].push_internal(process2.clone());
+        worker.state.queues[0].push_internal(process);
+        worker.state.queues[1].push_internal(process2);
+        worker.run();
 
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
-            worker.state.terminate();
-        });
-
-        assert_eq!(pids.lock().contains(&process.identifier()), true);
-        assert_eq!(pids.lock().contains(&process2.identifier()), false);
-
+        assert_eq!(worker.state.queues[0].has_local_jobs(), false);
         assert!(worker.state.queues[1].has_local_jobs());
     }
 
     #[test]
     fn test_run_exclusive_iteration() {
-        let (pids, pids_copy) = pids_set();
-        let (_machine, _block, process) = setup();
-        let mut worker = worker();
+        let (machine, _block, process) = setup();
+        let mut worker = worker(machine.clone());
 
         worker.enter_exclusive_mode();
-        worker.queue.push_external(process.clone());
+        worker.queue.push_external(process);
+        worker.run();
 
-        worker.run(move |worker, process| {
-            pids_copy.lock().insert(process.identifier());
-            worker.state.terminate();
-        });
-
-        assert!(pids.lock().contains(&process.identifier()));
+        assert_eq!(worker.queue.has_external_jobs(), false);
     }
 
     #[test]
     fn test_enter_exclusive_mode() {
-        let mut worker = worker();
         let (machine, block, process) = setup();
         let process2 = process::allocate(&machine.state, &block);
+        let mut worker = worker(machine.clone());
 
         worker.queue.push_internal(process);
         worker.queue.push_external(process2);
@@ -362,7 +321,8 @@ mod tests {
 
     #[test]
     fn test_leave_exclusive_mode() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
 
         worker.enter_exclusive_mode();
         worker.leave_exclusive_mode();
@@ -372,7 +332,8 @@ mod tests {
 
     #[test]
     fn test_random_number() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
 
         // There is no particular way we can test the exact value, so this is
         // just a smoke test to see if the method works or not.
@@ -381,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_random_number_between() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
         let number: u8 = worker.random_number_between(0, 10);
 
         assert!(number <= 10);
@@ -389,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_random_bigint_between() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
         let min = BigInt::from(0);
         let max = BigInt::from(10);
         let number = worker.random_bigint_between(&min, &max);
@@ -399,7 +362,8 @@ mod tests {
 
     #[test]
     fn test_random_incremental_number() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
         let num1 = worker.random_incremental_number();
         let num2 = worker.random_incremental_number();
 
@@ -408,7 +372,8 @@ mod tests {
 
     #[test]
     fn test_random_bytes() {
-        let mut worker = worker();
+        let (machine, _block, _process) = setup();
+        let mut worker = worker(machine.clone());
         let bytes = worker.random_bytes(4).unwrap();
 
         assert_eq!(bytes.len(), 4);

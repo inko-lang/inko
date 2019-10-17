@@ -30,7 +30,7 @@ website](https://inko-lang.org/about/).
 Inko officially supports Linux, Mac OS, and Windows (when compiled with a MingW
 toolchain such as [MSYS2](http://www.msys2.org/)). Other Unix-like platforms
 such as the various BSDs should also work, but are not officially supported at
-this time.
+this time. Inko only supports 64-bits architectures.
 
 ## Requirements
 

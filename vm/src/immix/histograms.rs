@@ -17,8 +17,8 @@ unsafe impl Sync for Histograms {}
 impl Histograms {
     pub fn new() -> Self {
         Self {
-            available: Histogram::new(MAX_HOLES),
-            marked: Histogram::new(LINES_PER_BLOCK),
+            available: Histogram::new(MAX_HOLES + 1),
+            marked: Histogram::new(LINES_PER_BLOCK + 1),
         }
     }
 
