@@ -46,6 +46,12 @@ impl ParkGroup {
         lock_and_notify!(self, notify_one);
     }
 
+    pub fn park(&self) {
+        let mut lock = self.mutex.lock();
+
+        self.cvar.wait(&mut lock);
+    }
+
     /// Parks the current thread as long as the given condition is true.
     pub fn park_while<F>(&self, condition: F)
     where

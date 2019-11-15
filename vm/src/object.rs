@@ -7,8 +7,9 @@ use fnv::FnvHashMap;
 use std::ops::Drop;
 use std::ptr;
 
-use crate::gc::work_list::WorkList;
-use crate::object_pointer::{ObjectPointer, RawObjectPointer};
+use crate::object_pointer::{
+    ObjectPointer, ObjectPointerPointer, RawObjectPointer,
+};
 use crate::object_value::ObjectValue;
 use crate::tagged_pointer::TaggedPointer;
 
@@ -50,6 +51,9 @@ pub const PENDING_FORWARD_BIT: usize = 0;
 /// The bit to set for objects that have been forwarded.
 pub const FORWARDED_BIT: usize = 1;
 
+/// The bit to set for objects stored in a remembered set.
+pub const REMEMBERED_BIT: usize = 2;
+
 /// The mask to apply when installing a forwarding pointer.
 pub const FORWARDING_MASK: usize = 0x3;
 
@@ -62,12 +66,16 @@ pub struct Object {
     /// on-demand and default to a NULL pointer.
     ///
     /// This pointer may be tagged to store extra information. The following
-    /// bits can be set:
+    /// lower bits can be set:
     ///
-    /// * 00: this field contains a regular pointer.
-    /// * 01: this object is in the process of being forwarded.
-    /// * 10: this object has been forwarded, and this field is set to the
-    ///   target object.
+    /// * 000: this field contains a regular pointer.
+    /// * 001: this object is in the process of being forwarded.
+    /// * 010: this object has been forwarded, and this field is set to the
+    ///   target `ObjectPointer`.
+    /// * 100: this object has been remembered in the remembered set.
+    ///
+    /// Multiple bits can be set as well. For example, `101` would mean the
+    /// object is remembered and being forwarded.
     pub attributes: TaggedPointer<AttributesMap>,
 
     /// A native Rust value (e.g. a String) that belongs to this object.
@@ -226,35 +234,37 @@ impl Object {
         self.attributes = TaggedPointer::new(Box::into_raw(Box::new(attrs)));
     }
 
-    /// Pushes all pointers in this object into the given Vec.
-    pub fn push_pointers(&self, pointers: &mut WorkList) {
+    pub fn each_pointer<F>(&self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
         if !self.prototype.is_null() {
-            pointers.push(self.prototype.pointer());
+            callback(self.prototype.pointer());
         }
 
         if let Some(map) = self.attributes_map() {
             // Attribute keys are interned strings, which don't need to be
             // marked.
             for (_, pointer) in map.iter() {
-                pointers.push(pointer.pointer());
+                callback(pointer.pointer());
             }
         }
 
         match self.value {
             ObjectValue::Array(ref array) => {
                 for pointer in array.iter() {
-                    pointers.push(pointer.pointer());
+                    callback(pointer.pointer());
                 }
             }
             ObjectValue::Block(ref block) => {
                 if let Some(captures_from) = block.captures_from.as_ref() {
-                    captures_from.push_pointers(pointers);
+                    captures_from.each_pointer(|v| callback(v));
                 }
 
-                pointers.push(block.receiver.pointer());
+                callback(block.receiver.pointer());
             }
             ObjectValue::Binding(ref binding) => {
-                binding.push_pointers(pointers);
+                binding.each_pointer(|v| callback(v));
             }
             _ => {}
         }
@@ -265,19 +275,12 @@ impl Object {
         let mut new_obj =
             Object::with_prototype(self.value.take(), self.prototype);
 
-        if let Some(attributes) = self.take_attributes() {
-            new_obj.attributes = attributes;
-        }
+        // When taking over the attributes we want to automatically inherit the
+        // "remembered" bit, but not the forwarding bits.
+        let attrs = (self.attributes.raw as usize & !FORWARDING_MASK)
+            as *mut AttributesMap;
 
-        new_obj
-    }
-
-    pub fn take_attributes(&mut self) -> Option<TaggedPointer<AttributesMap>> {
-        if !self.has_attributes() {
-            return None;
-        }
-
-        let attrs = self.attributes.without_tags();
+        new_obj.attributes = TaggedPointer::new(attrs);
 
         // When the object is being forwarded we don't want to lose this status
         // by just setting the attributes to NULL. Doing so could result in
@@ -285,7 +288,7 @@ impl Object {
         self.attributes =
             TaggedPointer::with_bit(0x0 as _, PENDING_FORWARD_BIT);
 
-        Some(attrs)
+        new_obj
     }
 
     /// Tries to mark this object as pending a forward.
@@ -320,6 +323,19 @@ impl Object {
         self.attributes.atomic_store(new_attrs);
     }
 
+    /// Marks this object as being remembered.
+    ///
+    /// This does not use atomic operations and thus should not be called
+    /// concurrently for the same pointer.
+    pub fn mark_as_remembered(&mut self) {
+        self.attributes.set_bit(REMEMBERED_BIT);
+    }
+
+    /// Returns true if this object has been remembered in a remembered set.
+    pub fn is_remembered(&self) -> bool {
+        self.attributes.atomic_bit_is_set(REMEMBERED_BIT)
+    }
+
     /// Returns true if this object is forwarded.
     pub fn is_forwarded(&self) -> bool {
         self.attributes.atomic_bit_is_set(FORWARDED_BIT)
@@ -332,13 +348,21 @@ impl Object {
 
     /// Returns true if an attributes map has been allocated.
     pub fn has_attributes(&self) -> bool {
-        !self.attributes.is_null() && !self.is_forwarded()
+        if self.is_forwarded() {
+            return false;
+        }
+
+        !self.attributes.untagged().is_null()
     }
 
     pub fn drop_attributes(&mut self) {
-        if let Some(attributes) = self.take_attributes() {
-            drop(unsafe { Box::from_raw(attributes.untagged()) });
+        if !self.has_attributes() {
+            return;
         }
+
+        drop(unsafe { Box::from_raw(self.attributes.untagged()) });
+
+        self.attributes = TaggedPointer::null();
     }
 
     pub fn write_to(self, raw_pointer: RawObjectPointer) -> ObjectPointer {
@@ -373,9 +397,16 @@ impl Drop for Object {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::binding::Binding;
+    use crate::block::Block as CodeBlock;
+    use crate::compiled_code::CompiledCode;
+    use crate::config::Config;
+    use crate::deref_pointer::DerefPointer;
+    use crate::global_scope::{GlobalScope, GlobalScopePointer};
     use crate::immix::block::Block;
     use crate::object_pointer::{ObjectPointer, RawObjectPointer};
     use crate::object_value::ObjectValue;
+    use crate::vm::state::State;
     use std::mem;
 
     fn fake_pointer() -> ObjectPointer {
@@ -563,26 +594,117 @@ mod tests {
     }
 
     #[test]
-    fn test_object_push_pointers_without_pointers() {
+    fn test_object_each_pointer_without_pointers() {
         let obj = new_object();
-        let mut pointers = WorkList::new();
+        let mut pointers = Vec::new();
 
-        obj.push_pointers(&mut pointers);
+        obj.each_pointer(|ptr| pointers.push(ptr));
 
-        assert!(pointers.pop().is_none());
+        assert!(pointers.is_empty());
     }
 
     #[test]
-    fn test_object_push_pointers_with_pointers() {
+    fn test_object_each_pointer_with_attributes() {
         let mut obj = new_object();
-        let name = fake_pointer();
-        let mut pointers = WorkList::new();
+        let mut pointers = Vec::new();
 
-        obj.add_attribute(name, fake_pointer());
+        obj.add_attribute(fake_pointer(), fake_pointer());
+        obj.each_pointer(|ptr| pointers.push(ptr));
 
-        obj.push_pointers(&mut pointers);
+        let pointer_pointer = pointers.pop().unwrap();
 
-        assert!(pointers.pop().is_some());
+        pointer_pointer.get_mut().raw.raw = 0x5 as _;
+
+        let value = obj.attributes()[0];
+
+        assert_eq!(value.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_array() {
+        let mut pointers = Vec::new();
+        let obj =
+            Object::new(ObjectValue::Array(Box::new(vec![fake_pointer()])));
+
+        obj.each_pointer(|ptr| pointers.push(ptr));
+
+        let pointer_pointer = pointers.pop().unwrap();
+
+        pointer_pointer.get_mut().raw.raw = 0x5 as _;
+
+        let value = obj.value.as_array().unwrap()[0];
+
+        assert_eq!(value.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_block() {
+        let state = State::with_rc(Config::new(), &[]);
+        let binding = Binding::with_rc(0, fake_pointer());
+        let code = CompiledCode::new(
+            state.intern_string("a".to_string()),
+            state.intern_string("a.inko".to_string()),
+            1,
+            Vec::new(),
+        );
+
+        let scope = GlobalScope::new();
+        let block = CodeBlock::new(
+            DerefPointer::new(&code),
+            Some(binding.clone()),
+            fake_pointer(),
+            GlobalScopePointer::new(&scope),
+        );
+
+        let obj = Object::new(ObjectValue::Block(Box::new(block)));
+        let mut pointers = Vec::new();
+
+        obj.each_pointer(|ptr| pointers.push(ptr));
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(
+            obj.value.as_block().unwrap().receiver.raw.raw as usize,
+            0x5
+        );
+
+        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_binding() {
+        let mut binding = Binding::with_rc(1, fake_pointer());
+
+        binding.set_local(0, fake_pointer());
+
+        let obj = Object::new(ObjectValue::Binding(binding.clone()));
+        let mut pointers = Vec::new();
+
+        obj.each_pointer(|ptr| pointers.push(ptr));
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(binding.get_local(0).raw.raw as usize, 0x5);
+        assert_eq!(binding.receiver.raw.raw as usize, 0x5);
+    }
+
+    #[test]
+    fn test_object_each_pointer_with_prototype() {
+        let mut obj = Object::new(ObjectValue::None);
+        let mut pointers = Vec::new();
+
+        obj.set_prototype(fake_pointer());
+        obj.each_pointer(|ptr| pointers.push(ptr));
+
+        while let Some(pointer_pointer) = pointers.pop() {
+            pointer_pointer.get_mut().raw.raw = 0x5 as _;
+        }
+
+        assert_eq!(obj.prototype.raw.raw as usize, 0x5);
     }
 
     #[test]
@@ -602,21 +724,78 @@ mod tests {
     }
 
     #[test]
-    fn test_object_take_attributes() {
+    fn test_object_take_remembered_object() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+
+        obj.mark_as_remembered();
+
+        let new_obj = obj.take();
+
+        assert_eq!(obj.is_remembered(), false);
+        assert!(new_obj.is_remembered());
+    }
+
+    #[test]
+    fn test_object_has_attributes() {
         let mut obj = Object::new(ObjectValue::Float(10.0));
         let map = AttributesMap::default();
 
         obj.set_attributes_map(map);
 
-        let attr_opt = obj.take_attributes();
+        assert!(obj.has_attributes());
+    }
 
-        assert!(attr_opt.is_some());
+    #[test]
+    fn test_object_has_attributes_forwarded() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+
+        obj.attributes = TaggedPointer::new(0x1 as *mut _);
+        obj.attributes.set_bit(PENDING_FORWARD_BIT);
+        obj.attributes.set_bit(FORWARDED_BIT);
+
+        assert_eq!(obj.has_attributes(), false);
+    }
+
+    #[test]
+    fn test_object_has_attributes_remembered() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+        let map = AttributesMap::default();
+
+        obj.set_attributes_map(map);
+        obj.mark_as_remembered();
+
+        assert!(obj.has_attributes());
+    }
+
+    #[test]
+    fn test_object_mark_as_remembered() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+
+        assert_eq!(obj.is_remembered(), false);
+
+        obj.mark_as_remembered();
+
+        assert!(obj.is_remembered());
+    }
+
+    #[test]
+    fn test_object_mark_as_forwarded_for_remembered_object() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+
+        obj.mark_as_remembered();
+        obj.mark_for_forward();
+
+        assert!(obj.is_remembered());
         assert!(obj.attributes.bit_is_set(PENDING_FORWARD_BIT));
-        assert!(obj.attributes.is_null());
+    }
 
-        unsafe {
-            Box::from_raw(attr_opt.unwrap().untagged());
-        }
+    #[test]
+    fn test_object_has_attributes_remembered_without_attributes() {
+        let mut obj = Object::new(ObjectValue::Float(10.0));
+
+        obj.mark_as_remembered();
+
+        assert_eq!(obj.has_attributes(), false);
     }
 
     #[test]
@@ -627,8 +806,23 @@ mod tests {
         obj.forward_to(object_pointer_for(&target));
 
         assert!(obj.is_forwarded());
-        assert!(!obj.attributes.is_null());
-        assert!(object_pointer_for(&obj).is_forwarded());
+        assert!(obj.attributes.bit_is_set(PENDING_FORWARD_BIT));
+        assert!(obj.attributes.bit_is_set(FORWARDED_BIT));
+    }
+
+    #[test]
+    fn test_object_forward_to_remembered_object() {
+        let mut obj = new_object();
+        let target = new_object();
+
+        obj.mark_as_remembered();
+        obj.forward_to(object_pointer_for(&target));
+
+        assert!(obj.is_forwarded());
+        assert!(obj.attributes.bit_is_set(PENDING_FORWARD_BIT));
+        assert!(obj.attributes.bit_is_set(FORWARDED_BIT));
+
+        assert_eq!(obj.is_remembered(), false);
     }
 
     #[test]

@@ -1,115 +1,155 @@
 //! Object And Line Bytemaps
 //!
 //! Bytemaps are used for marking live objects as well as marking which lines
-//! are in use. An ObjectMap is used for marking objects and can hold at most
-//! 1024 entries while a LineMap is used for marking lines and can hold at most
-//! 256 entries.
+//! are in use. An ObjectMap is used for marking objects while tracing.
 use crate::immix::block::{LINES_PER_BLOCK, OBJECTS_PER_BLOCK};
+use std::mem;
+use std::ptr;
+use std::sync::atomic::{AtomicU8, Ordering};
 
+/// A bytemap for marking objects when they are traced.
 pub struct ObjectMap {
-    values: [u8; OBJECTS_PER_BLOCK],
+    values: [AtomicU8; OBJECTS_PER_BLOCK],
 }
 
+/// A bytemap for marking lines when tracing objects.
+///
+/// Line maps cycle between two different mark values every collection, instead
+/// of always using "1" to mark an entry. This is necessary as during a
+/// collection we want to:
+///
+/// 1. Be able to determine which lines are live _after_ the collection.
+/// 2. Be able to evacuate objects in a bucket _without_ overwriting still live
+///    objects.
+///
+/// Imagine the eden space is collected, survivor space 1 is about half way
+/// through its recyclable blocks, and we need to evacuate objects in survivor
+/// space 1:
+///
+///     X = used object slot
+///     _ = available object slot
+///
+///         1      2      3      4      5      6      7     = line number
+///     +------------------------------------------------+
+///     | XXXX | XXXX | XXXX | XX__ | ____ | XXXX | XXXX |  = block
+///     +------------------------------------------------+
+///                              ^           ^
+///                 A: allocation cursor     B: next full line
+///
+/// Here "A" indicates where the next object will be allocated into, and "B"
+/// indicates the next full line. If we blindly reset the line map, and "B"
+/// includes one or more live objects (that we still have to trace through), we
+/// would end up overwriting those objects.
+///
+/// Toggling the mark value between 1 and 2 allows us to prevent this from
+/// happening. At collection time we first swap the value, then trace through
+/// all objects. At the end of a collection we reset all entries using an old
+/// value to 0, and then check what to do with the block.
+///
+/// We currently store the mark value in the LineMap, which means an additional
+/// byte of space is required. Storing this elsewhere would require passing it
+/// as an argument to a whole bunch of methods. For a 1GB heap the extra byte
+/// (including alignment of 8 bytes) would require 1MB of additional space.
 pub struct LineMap {
-    values: [u8; LINES_PER_BLOCK],
+    values: [AtomicU8; LINES_PER_BLOCK],
     mark_value: u8,
 }
 
 pub trait Bytemap {
-    fn max_entries(&self) -> usize;
-    fn values(&self) -> &[u8];
-    fn values_mut(&mut self) -> &mut [u8];
+    fn values(&self) -> &[AtomicU8];
+    fn values_mut(&mut self) -> &mut [AtomicU8];
 
-    /// Sets the given index in the bitmap.
-    ///
-    /// # Examples
-    ///
-    ///     let mut bitmap = ObjectMap::new();
-    ///
-    ///     bitmap.set(4);
-    fn set(&mut self, index: usize) {
-        self.values_mut()[index] = 1;
+    fn reset(&mut self);
+
+    /// The value to use for marking an entry.
+    fn mark_value(&self) -> u8 {
+        1
     }
 
-    /// Unsets the given index in the bitmap.
-    ///
-    /// # Examples
-    ///
-    ///     let mut bitmap = ObjectMap::new();
-    ///
-    ///     bitmap.set(4);
-    ///     bitmap.unset(4);
+    /// Sets the given index in the bytemap.
+    fn set(&mut self, index: usize) {
+        self.values()[index].store(self.mark_value(), Ordering::Release);
+    }
+
+    /// Unsets the given index in the bytemap.
     fn unset(&mut self, index: usize) {
-        self.values_mut()[index] = 0;
+        self.values()[index].store(0, Ordering::Release);
     }
 
     /// Returns `true` if a given index is set.
-    ///
-    /// # Examples
-    ///
-    ///     let mut bitmap = ObjectMap::new();
-    ///
-    ///     bitmap.is_set(1); // => false
-    ///
-    ///     bitmap.set(1);
-    ///
-    ///     bitmap.is_set(1); // => true
     fn is_set(&self, index: usize) -> bool {
-        self.values()[index] != 0
+        self.values()[index].load(Ordering::Acquire) > 0
     }
 
-    /// Returns true if the bitmap is empty.
+    /// Returns true if the bytemap is empty.
+    ///
+    /// The number of values in a bytemap is a multiple of 2, and thus a
+    /// multiple of the word size of the current architecture. Since we store
+    /// bytes in the bytemap, this allows us to read multiple bytes at once.
+    /// This in turn allows us to greatly speed up checking if a bytemap is
+    /// empty.
+    ///
+    /// The downside of this is that this method can not be used safely while
+    /// the bytemap is also being modified.
+    #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
     fn is_empty(&self) -> bool {
-        for value in self.values().iter() {
-            if value != &0 {
+        let mut offset = 0;
+
+        while offset < self.values().len() {
+            // The cast to *mut usize here is important so that reads read a
+            // single word, not a byte.
+            let value = unsafe {
+                let ptr = self.values().as_ptr().add(offset) as *const usize;
+
+                *ptr
+            };
+
+            if value > 0 {
                 return false;
             }
+
+            offset += mem::size_of::<usize>();
         }
 
         true
     }
 
-    /// Resets the bitmap.
-    fn reset(&mut self) {
-        for index in 0..self.max_entries() {
-            self.unset(index);
-        }
-    }
+    /// Returns the number of indexes set in the bytemap.
+    ///
+    /// This method can not be used if the bytemap is modified concurrently.
+    fn len(&mut self) -> usize {
+        let mut amount = 0;
 
-    /// The number of indexes set in the bitmap.
-    fn len(&self) -> usize {
-        let mut count = 0;
-
-        for value in self.values().iter() {
-            if value != &0 {
-                count += 1;
+        for value in self.values_mut().iter_mut() {
+            if *value.get_mut() > 0 {
+                amount += 1;
             }
         }
 
-        count
+        amount
     }
 }
 
 impl ObjectMap {
-    /// Returns a new, empty object bitmap.
+    /// Returns a new, empty object bytemap.
     pub fn new() -> ObjectMap {
+        let values = [0_u8; OBJECTS_PER_BLOCK];
+
         ObjectMap {
-            values: [0; OBJECTS_PER_BLOCK],
+            values: unsafe { mem::transmute(values) },
         }
     }
 }
 
 impl LineMap {
-    /// Returns a new, empty line bitmap.
+    /// Returns a new, empty line bytemap.
     pub fn new() -> LineMap {
+        let values = [0_u8; LINES_PER_BLOCK];
+
         LineMap {
-            values: [0; LINES_PER_BLOCK],
+            values: unsafe { mem::transmute(values) },
             mark_value: 1,
         }
-    }
-
-    pub fn set(&mut self, index: usize) {
-        self.values[index] = self.mark_value;
     }
 
     pub fn swap_mark_value(&mut self) {
@@ -122,11 +162,11 @@ impl LineMap {
 
     /// Resets marks from previous marking cycles.
     pub fn reset_previous_marks(&mut self) {
-        for index in 0..self.max_entries() {
-            let current = self.values[index];
+        for index in 0..LINES_PER_BLOCK {
+            let current = self.values[index].get_mut();
 
-            if current > 0 && current != self.mark_value {
-                self.values[index] = 0;
+            if *current != self.mark_value {
+                *current = 0;
             }
         }
     }
@@ -134,33 +174,41 @@ impl LineMap {
 
 impl Bytemap for ObjectMap {
     #[inline(always)]
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[AtomicU8] {
         &self.values
     }
 
     #[inline(always)]
-    fn values_mut(&mut self) -> &mut [u8] {
+    fn values_mut(&mut self) -> &mut [AtomicU8] {
         &mut self.values
     }
 
-    fn max_entries(&self) -> usize {
-        OBJECTS_PER_BLOCK
+    fn reset(&mut self) {
+        unsafe {
+            ptr::write_bytes(self.values.as_mut_ptr(), 0, OBJECTS_PER_BLOCK);
+        }
     }
 }
 
 impl Bytemap for LineMap {
     #[inline(always)]
-    fn values(&self) -> &[u8] {
+    fn values(&self) -> &[AtomicU8] {
         &self.values
     }
 
     #[inline(always)]
-    fn values_mut(&mut self) -> &mut [u8] {
+    fn values_mut(&mut self) -> &mut [AtomicU8] {
         &mut self.values
     }
 
-    fn max_entries(&self) -> usize {
-        LINES_PER_BLOCK
+    fn mark_value(&self) -> u8 {
+        self.mark_value
+    }
+
+    fn reset(&mut self) {
+        unsafe {
+            ptr::write_bytes(self.values.as_mut_ptr(), 0, LINES_PER_BLOCK);
+        }
     }
 }
 
@@ -236,18 +284,6 @@ mod tests {
     }
 
     #[test]
-    fn test_line_map_set_swap_marks() {
-        let mut line_map = LineMap::new();
-
-        line_map.set(1);
-        line_map.swap_mark_value();
-        line_map.set(2);
-
-        assert!(line_map.is_set(1));
-        assert!(line_map.is_set(2));
-    }
-
-    #[test]
     fn test_line_map_unset() {
         let mut line_map = LineMap::new();
 
@@ -264,6 +300,11 @@ mod tests {
         assert_eq!(line_map.is_empty(), true);
 
         line_map.set(1);
+
+        assert_eq!(line_map.is_empty(), false);
+
+        line_map.unset(1);
+        line_map.set(60);
 
         assert_eq!(line_map.is_empty(), false);
     }
@@ -293,33 +334,5 @@ mod tests {
         // This test is put in place to ensure the LineMap type doesn't suddenly
         // grow due to some change.
         assert_eq!(size_of::<LineMap>(), LINES_PER_BLOCK + 1);
-    }
-
-    #[test]
-    fn test_line_map_swap_mark_value() {
-        let mut line_map = LineMap::new();
-
-        assert_eq!(line_map.mark_value, 1);
-
-        line_map.swap_mark_value();
-
-        assert_eq!(line_map.mark_value, 2);
-    }
-
-    #[test]
-    fn test_line_map_reset_previous_marks() {
-        let mut line_map = LineMap::new();
-
-        line_map.set(1);
-        line_map.set(2);
-
-        line_map.swap_mark_value();
-
-        line_map.set(3);
-        line_map.reset_previous_marks();
-
-        assert_eq!(line_map.is_set(1), false);
-        assert_eq!(line_map.is_set(2), false);
-        assert_eq!(line_map.is_set(3), true);
     }
 }

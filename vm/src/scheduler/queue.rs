@@ -59,7 +59,9 @@ impl<T: Send> Queue<T> {
     }
 
     pub fn decrement_pending_external(&self) {
-        self.pending_external.fetch_sub(1, Ordering::Release);
+        if self.pending_external() > 0 {
+            self.pending_external.fetch_sub(1, Ordering::Release);
+        }
     }
 
     /// Pushes a job onto the deque.
@@ -105,7 +107,13 @@ impl<T: Send> Queue<T> {
     /// Pops a job from the public channel, without first moving it to the
     /// private Worker.
     pub fn pop_external_job(&self) -> Option<T> {
-        self.receiver.try_recv().ok()
+        let job = self.receiver.try_recv().ok();
+
+        if job.is_some() {
+            self.decrement_pending_external();
+        }
+
+        job
     }
 
     /// Moves all jobs from the public channel into the private Worker, without
@@ -252,6 +260,7 @@ mod tests {
         queue.push_external(10);
 
         assert_eq!(queue.pop_external_job(), Some(10));
+        assert_eq!(queue.pending_external(), 0);
     }
 
     #[test]

@@ -12,6 +12,7 @@ use std::i16;
 use std::i32;
 use std::i64;
 use std::i8;
+use std::ptr;
 use std::u16;
 use std::u32;
 use std::u64;
@@ -80,9 +81,8 @@ pub struct ObjectPointer {
     /// The underlying tagged pointer. This pointer can have the following last
     /// two bits set:
     ///
-    ///     00: the pointer is a regular pointer
-    ///     01: the pointer is a tagged integer
-    ///     10: the pointer is a forwarding pointer
+    /// * 00: the pointer is a regular pointer
+    /// * 01: the pointer is a tagged integer
     pub raw: TaggedPointer<Object>,
 }
 
@@ -106,7 +106,7 @@ pub const INTEGER_BIT: usize = 0;
 fn block_header_of<'a>(
     pointer: RawObjectPointer,
 ) -> &'a mut block::BlockHeader {
-    let addr = (pointer as isize & block::OBJECT_BITMAP_MASK) as usize;
+    let addr = (pointer as isize & block::OBJECT_BYTEMAP_MASK) as usize;
 
     unsafe {
         let ptr = addr as *mut block::BlockHeader;
@@ -175,21 +175,29 @@ impl ObjectPointer {
 
         let block = self.block();
 
-        if block.is_fragmented() {
-            if self.get_mut().mark_for_forward() {
-                ObjectStatus::Evacuate
-            } else {
-                ObjectStatus::PendingMove
-            }
-        } else if block.bucket().unwrap().promote {
-            if self.get_mut().mark_for_forward() {
+        // If an object resides on a fragmented block _and_ needs to be
+        // promoted, we can just promote it right away; instead of first
+        // evacuating it and _then_ promoting it.
+        //
+        // If we instead evacuate such an object it may end up surviving too
+        // many collections before being promoted.
+        if block.bucket().unwrap().age == YOUNG_MAX_AGE {
+            return if self.get_mut().mark_for_forward() {
                 ObjectStatus::Promote
             } else {
                 ObjectStatus::PendingMove
-            }
-        } else {
-            ObjectStatus::OK
+            };
         }
+
+        if block.is_fragmented() {
+            return if self.get_mut().mark_for_forward() {
+                ObjectStatus::Evacuate
+            } else {
+                ObjectStatus::PendingMove
+            };
+        }
+
+        ObjectStatus::OK
     }
 
     /// Replaces the current pointer with a pointer to the forwarded object.
@@ -267,8 +275,21 @@ impl ObjectPointer {
         let object_index = block.object_index_of_pointer(pointer);
         let line_index = block.line_index_of_pointer(pointer);
 
-        block.marked_objects_bitmap.set(object_index);
-        block.used_lines_bitmap.set(line_index);
+        block.marked_objects_bytemap.set(object_index);
+        block.used_lines_bytemap.set(line_index);
+    }
+
+    /// Unmarks the current object.
+    ///
+    /// The line mark state is not changed.
+    pub fn unmark(&self) {
+        let pointer = self.raw.untagged();
+        let header = block_header_of(pointer);
+        let block = header.block_mut();
+
+        let object_index = block.object_index_of_pointer(pointer);
+
+        block.marked_objects_bytemap.unset(object_index);
     }
 
     /// Returns true if the current object is marked.
@@ -288,7 +309,19 @@ impl ObjectPointer {
         let block = header.block_mut();
         let index = block.object_index_of_pointer(pointer);
 
-        block.marked_objects_bitmap.is_set(index)
+        block.marked_objects_bytemap.is_set(index)
+    }
+
+    /// Marks the object this pointer points to as being remembered in a
+    /// remembered set.
+    pub fn mark_as_remembered(&self) {
+        self.get_mut().mark_as_remembered();
+    }
+
+    /// Returns `true` if the object this pointer points to has been remembered
+    /// in a remembered set.
+    pub fn is_remembered(&self) -> bool {
+        self.get().is_remembered()
     }
 
     /// Returns a mutable reference to the block this pointer belongs to.
@@ -315,7 +348,14 @@ impl ObjectPointer {
             return;
         }
 
-        drop(self.get_mut().take());
+        unsafe {
+            ptr::drop_in_place(self.raw.raw);
+
+            // We zero out the memory so future finalize() calls for the same
+            // object (before other allocations take place) don't try to free
+            // the memory again.
+            ptr::write_bytes(self.raw.raw, 0, 1);
+        }
     }
 
     /// Adds an attribute to the object this pointer points to.
@@ -763,8 +803,24 @@ mod tests {
     fn test_object_pointer_status_promote() {
         let mut allocator = local_allocator();
         let mut pointer = allocator.allocate_empty();
+        let bucket = pointer.block_mut().bucket_mut().unwrap();
 
-        pointer.block_mut().bucket_mut().unwrap().promote = true;
+        bucket.increment_age();
+        bucket.increment_age();
+
+        assert_eq!(pointer.status(), ObjectStatus::Promote);
+        assert_eq!(pointer.status(), ObjectStatus::PendingMove);
+    }
+
+    #[test]
+    fn test_object_pointer_status_promote_from_fragmented_block() {
+        let mut allocator = local_allocator();
+        let mut pointer = allocator.allocate_empty();
+        let bucket = pointer.block_mut().bucket_mut().unwrap();
+
+        bucket.increment_age();
+        bucket.increment_age();
+        pointer.block_mut().set_fragmented();
 
         assert_eq!(pointer.status(), ObjectStatus::Promote);
         assert_eq!(pointer.status(), ObjectStatus::PendingMove);
@@ -982,8 +1038,33 @@ mod tests {
 
         pointer.mark();
 
-        assert!(pointer.block().marked_objects_bitmap.is_set(4));
-        assert!(pointer.block().used_lines_bitmap.is_set(1));
+        assert!(pointer.block().marked_objects_bytemap.is_set(4));
+        assert!(pointer.block().used_lines_bytemap.is_set(1));
+    }
+
+    #[test]
+    fn test_object_pointer_unmark() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        pointer.mark();
+        pointer.unmark();
+
+        assert_eq!(pointer.block().marked_objects_bytemap.is_set(4), false);
+
+        assert!(pointer.block().used_lines_bytemap.is_set(1));
+    }
+
+    #[test]
+    fn test_object_pointer_mark_as_remembered() {
+        let mut allocator = local_allocator();
+        let pointer = allocator.allocate_empty();
+
+        assert_eq!(pointer.is_remembered(), false);
+
+        pointer.mark_as_remembered();
+
+        assert!(pointer.is_remembered());
     }
 
     #[test]
@@ -1160,6 +1241,22 @@ mod tests {
 
         assert!(ptr.is_finalizable());
         assert_eq!(ObjectPointer::integer(5).is_finalizable(), false);
+    }
+
+    #[test]
+    fn test_finalize() {
+        let mut allocator = local_allocator();
+        let ptr1 =
+            allocator.allocate_without_prototype(ObjectValue::Integer(10));
+
+        let ptr2 = allocator.allocate_empty();
+
+        ptr1.get_mut().add_attribute(ptr2, ptr2);
+        ptr1.finalize();
+
+        let obj1 = ptr1.get();
+
+        assert!(obj1.attributes.is_null());
     }
 
     #[test]

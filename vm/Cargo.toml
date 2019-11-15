@@ -3,6 +3,7 @@ name = "inko"
 version = "0.5.0" # VERSION
 authors = ["Yorick Peterse <yorickpeterse@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [features]
 default = []
@@ -19,7 +20,6 @@ test = false
 [dependencies]
 getopts = "^0.2"
 num_cpus = "^1.10"
-rayon = "^1.0"
 parking_lot = "^0.7"
 fnv = "^1.0"
 time = "^0.1"
@@ -28,8 +28,7 @@ float-cmp = "^0.4"
 num-traits = "^0.2"
 dirs = "^1.0"
 libloading = "^0.5"
-libffi = "^0.7"
-libffi-sys = "^0.7"
+libffi = "^0.8"
 crossbeam-deque = "^0.7"
 crossbeam-channel = "^0.3"
 crossbeam-queue = "^0.1"

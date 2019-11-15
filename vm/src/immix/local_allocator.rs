@@ -3,18 +3,17 @@
 //! The LocalAllocator lives in a Process and is used for allocating memory on a
 //! process heap.
 use crate::config::Config;
-use crate::gc::work_list::WorkList;
+use crate::gc::remembered_set::RememberedSet;
 use crate::immix::bucket::{Bucket, MATURE};
 use crate::immix::copy_object::CopyObject;
 use crate::immix::generation_config::GenerationConfig;
 use crate::immix::global_allocator::RcGlobalAllocator;
 use crate::immix::histograms::Histograms;
 use crate::object::Object;
-use crate::object_pointer::ObjectPointer;
+use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::object_value;
 use crate::object_value::ObjectValue;
-use crate::vm::state::RcState;
-use fnv::FnvHashSet;
+use crate::vm::state::State;
 
 /// The maximum age of a bucket in the young generation.
 pub const YOUNG_MAX_AGE: i8 = 2;
@@ -35,12 +34,13 @@ pub struct LocalAllocator {
     pub mature_histograms: Histograms,
 
     /// The position of the eden bucket in the young generation.
-    pub eden_index: usize,
+    ///
+    /// This is a u8 to conserve space, as we'll never have more than 255
+    /// buckets to choose from.
+    pub eden_index: u8,
 
-    /// The remembered set of this process. This set is not synchronized via a
-    /// lock of sorts. As such the collector must ensure this process is
-    /// suspended upon examining the remembered set.
-    pub remembered_set: FnvHashSet<ObjectPointer>,
+    /// A collection of mature objects that contain pointers to young objects.
+    pub remembered_set: RememberedSet,
 
     /// The bucket to use for the mature generation.
     pub mature_generation: Bucket,
@@ -50,6 +50,14 @@ pub struct LocalAllocator {
 
     /// The configuration for the mature generation.
     pub mature_config: GenerationConfig,
+
+    /// A boolean indicating if we should evacuate objects in the young
+    /// generation.
+    evacuate_young: bool,
+
+    /// A boolean indicating if we should evacuate objects in the mature
+    /// generation.
+    evacuate_mature: bool,
 }
 
 impl LocalAllocator {
@@ -70,7 +78,9 @@ impl LocalAllocator {
             mature_generation: Bucket::with_age(MATURE),
             young_config: GenerationConfig::new(config.young_threshold),
             mature_config: GenerationConfig::new(config.mature_threshold),
-            remembered_set: FnvHashSet::default(),
+            remembered_set: RememberedSet::new(),
+            evacuate_young: false,
+            evacuate_mature: false,
         }
     }
 
@@ -79,11 +89,11 @@ impl LocalAllocator {
     }
 
     pub fn eden_space(&self) -> &Bucket {
-        &self.young_generation[self.eden_index]
+        &self.young_generation[self.eden_index as usize]
     }
 
     pub fn eden_space_mut(&mut self) -> &mut Bucket {
-        &mut self.young_generation[self.eden_index]
+        &mut self.young_generation[self.eden_index as usize]
     }
 
     pub fn should_collect_young(&self) -> bool {
@@ -98,50 +108,68 @@ impl LocalAllocator {
     ///
     /// Returns true if objects have to be moved around.
     pub fn prepare_for_collection(&mut self, mature: bool) -> bool {
-        let mut move_objects = false;
+        let mut move_objects = self.evacuate_young;
 
         for bucket in &mut self.young_generation {
-            if bucket.prepare_for_collection(&self.young_histograms) {
-                move_objects = true;
-            }
+            bucket.prepare_for_collection(
+                &mut self.young_histograms,
+                self.evacuate_young,
+            );
 
-            if bucket.promote {
+            if bucket.age == YOUNG_MAX_AGE {
                 move_objects = true;
             }
         }
 
         if mature {
-            if self
-                .mature_generation
-                .prepare_for_collection(&self.mature_histograms)
-            {
+            self.mature_generation.prepare_for_collection(
+                &mut self.mature_histograms,
+                self.evacuate_mature,
+            );
+
+            if self.evacuate_mature {
                 move_objects = true;
             }
-        } else if self.has_remembered_objects() {
-            self.prepare_remembered_objects_for_collection();
         }
 
         move_objects
     }
 
     /// Reclaims blocks in the young (and mature) generation.
-    pub fn reclaim_blocks(&mut self, state: &RcState, mature: bool) {
-        self.young_histograms.reset();
-
-        for bucket in &mut self.young_generation {
-            bucket.reclaim_blocks(state, &self.young_histograms);
-        }
+    pub fn reclaim_blocks(&mut self, state: &State, mature: bool) {
+        self.reclaim_young_blocks(&state);
 
         if mature {
-            self.mature_histograms.reset();
-
-            self.mature_generation
-                .reclaim_blocks(state, &self.mature_histograms);
-        } else {
-            for block in self.mature_generation.blocks.iter_mut() {
-                block.update_line_map();
-            }
+            self.reclaim_mature_blocks(&state);
         }
+    }
+
+    fn reclaim_young_blocks(&mut self, state: &State) {
+        self.young_histograms.reset();
+
+        let mut blocks = 0;
+
+        for bucket in &mut self.young_generation {
+            blocks += bucket.reclaim_blocks(state, &mut self.young_histograms);
+        }
+
+        self.increment_young_ages();
+
+        self.evacuate_young = self
+            .young_config
+            .update_after_collection(&state.config, blocks);
+    }
+
+    fn reclaim_mature_blocks(&mut self, state: &State) {
+        self.mature_histograms.reset();
+
+        let blocks = self
+            .mature_generation
+            .reclaim_blocks(state, &mut self.mature_histograms);
+
+        self.evacuate_mature = self
+            .mature_config
+            .update_after_collection(&state.config, blocks);
     }
 
     pub fn allocate_with_prototype(
@@ -169,7 +197,9 @@ impl LocalAllocator {
     }
 
     pub fn allocate_eden(&mut self, object: Object) -> ObjectPointer {
-        let (new_block, pointer) = self.allocate_eden_raw(object);
+        let (new_block, pointer) = self.young_generation
+            [self.eden_index as usize]
+            .allocate(&self.global_allocator, object);
 
         if new_block {
             self.young_config.increment_allocations();
@@ -179,7 +209,9 @@ impl LocalAllocator {
     }
 
     pub fn allocate_mature(&mut self, object: Object) -> ObjectPointer {
-        let (new_block, pointer) = self.allocate_mature_raw(object);
+        let (new_block, pointer) = self
+            .mature_generation
+            .allocate(&self.global_allocator, object);
 
         if new_block {
             self.mature_config.increment_allocations();
@@ -195,103 +227,53 @@ impl LocalAllocator {
                 bucket.reset_age();
             } else {
                 bucket.increment_age();
-                bucket.promote = bucket.age == YOUNG_MAX_AGE;
             }
 
             if bucket.age == 0 {
-                self.eden_index = index;
+                self.eden_index = index as u8;
             }
         }
     }
 
-    pub fn update_collection_statistics(
-        &mut self,
-        config: &Config,
-        mature: bool,
-    ) {
-        self.update_young_collection_statistics(config);
-
-        if mature {
-            self.update_mature_collection_statistics(config);
-        }
-    }
-
-    pub fn update_young_collection_statistics(&mut self, config: &Config) {
-        self.increment_young_ages();
-
-        self.young_config.block_allocations = 0;
-
-        let blocks = self.number_of_young_blocks();
-        let max = config.heap_growth_threshold;
-        let factor = config.heap_growth_factor;
-
-        if self.young_config.should_increase_threshold(blocks, max) {
-            self.young_config.increment_threshold(factor);
-        }
-    }
-
-    pub fn update_mature_collection_statistics(&mut self, config: &Config) {
-        self.update_young_collection_statistics(config);
-
-        self.mature_config.block_allocations = 0;
-
-        let blocks = self.mature_generation.number_of_blocks();
-        let max = config.heap_growth_threshold;
-        let factor = config.heap_growth_factor;
-
-        if self.mature_config.should_increase_threshold(blocks, max) {
-            self.mature_config.increment_threshold(factor);
-        }
-    }
-
-    pub fn number_of_young_blocks(&self) -> u32 {
-        self.young_generation
-            .iter()
-            .map(Bucket::number_of_blocks)
-            .sum()
-    }
-
-    pub fn has_remembered_objects(&self) -> bool {
-        !self.remembered_set.is_empty()
-    }
-
     pub fn remember_object(&mut self, pointer: ObjectPointer) {
-        self.remembered_set.insert(pointer);
+        if pointer.is_remembered() {
+            return;
+        }
+
+        pointer.mark_as_remembered();
+
+        self.remembered_set.remember(pointer);
     }
 
     pub fn prune_remembered_objects(&mut self) {
-        self.remembered_set.retain(ObjectPointer::is_marked);
+        self.remembered_set.prune();
     }
 
-    pub fn prepare_remembered_objects_for_collection(&mut self) {
-        for pointer in &self.remembered_set {
-            // We prepare the entire block because this is simpler than having
-            // to figure out if we can unmark a line or not (since a line may
-            // contain multiple objects).
-            pointer.block_mut().prepare_for_collection();
-        }
-    }
-
-    pub fn remembered_pointers(&self) -> WorkList {
-        let mut pointers = WorkList::new();
-
-        for pointer in &self.remembered_set {
-            pointers.push(pointer.pointer());
+    pub fn each_remembered_pointer<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(ObjectPointerPointer),
+    {
+        if self.remembered_set.is_empty() {
+            return;
         }
 
-        pointers
-    }
+        for pointer in self.remembered_set.iter() {
+            // In a young collection we want to (re-)trace all remembered
+            // objects. Mark values for the mature space are only updated during
+            // a mature collection. We don't care about nested mature objects,
+            // as those will be in the remembered set if they contain any young
+            // pointers.
+            //
+            // Line mark states should remain as-is, so we don't promote mature
+            // objects into already used mature lines.
+            //
+            // Because of this, all we need to do here is unmark the mature
+            // objects we have remembered; ensuring we will trace them for any
+            // young pointers.
+            pointer.unmark();
 
-    fn allocate_eden_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        unsafe {
-            self.young_generation[self.eden_index]
-                .allocate_for_mutator(&self.global_allocator, object)
+            callback(pointer.pointer());
         }
-    }
-
-    fn allocate_mature_raw(&mut self, object: Object) -> (bool, ObjectPointer) {
-        self.mature_generation
-            .allocate(&self.global_allocator, object)
     }
 }
 
@@ -343,9 +325,37 @@ mod tests {
 
         assert_eq!(alloc.prepare_for_collection(true), false);
 
-        alloc.young_generation[0].promote = true;
+        alloc.young_generation[0].increment_age();
+        alloc.young_generation[0].increment_age();
 
-        assert_eq!(alloc.prepare_for_collection(true), true);
+        assert!(alloc.prepare_for_collection(true));
+    }
+
+    #[test]
+    fn test_prepare_for_collection_with_promotion() {
+        let (_, mut alloc) = local_allocator();
+
+        alloc.increment_young_ages();
+        alloc.increment_young_ages();
+        alloc.increment_young_ages();
+
+        assert!(alloc.prepare_for_collection(false));
+    }
+
+    #[test]
+    fn test_each_remembered_pointer() {
+        let (_, mut alloc) = local_allocator();
+        let mature = alloc.allocate_mature(Object::new(object_value::none()));
+
+        alloc.remember_object(mature);
+        mature.mark();
+
+        let mut pointers = Vec::new();
+
+        alloc.each_remembered_pointer(|ptr| pointers.push(ptr));
+
+        assert!(pointers.pop().is_some());
+        assert_eq!(mature.is_marked(), false);
     }
 
     #[test]
@@ -444,7 +454,6 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 2);
         assert_eq!(alloc.young_generation[1].age, 1);
         assert_eq!(alloc.young_generation[2].age, 0);
-        assert_eq!(alloc.young_generation[0].promote, true);
         assert_eq!(alloc.eden_index, 2);
 
         alloc.increment_young_ages();
@@ -452,19 +461,13 @@ mod tests {
         assert_eq!(alloc.young_generation[0].age, 0);
         assert_eq!(alloc.young_generation[1].age, 2);
         assert_eq!(alloc.young_generation[2].age, 1);
-        assert_eq!(alloc.young_generation[1].promote, true);
         assert_eq!(alloc.eden_index, 0);
 
         alloc.increment_young_ages();
 
         assert_eq!(alloc.young_generation[0].age, 1);
-        assert_eq!(alloc.young_generation[0].promote, false);
-
         assert_eq!(alloc.young_generation[1].age, 0);
-        assert_eq!(alloc.young_generation[1].promote, false);
-
         assert_eq!(alloc.young_generation[2].age, 2);
-        assert_eq!(alloc.young_generation[2].promote, true);
         assert_eq!(alloc.eden_index, 1);
 
         alloc.increment_young_ages();
@@ -494,7 +497,19 @@ mod tests {
 
         alloc.remember_object(pointer);
 
-        assert!(alloc.has_remembered_objects());
+        assert_eq!(alloc.remembered_set.is_empty(), false);
+        assert!(pointer.is_remembered());
+    }
+
+    #[test]
+    fn test_remember_object_already_remembered() {
+        let (_, mut alloc) = local_allocator();
+        let pointer = alloc.allocate_empty();
+
+        alloc.remember_object(pointer);
+        alloc.remember_object(pointer);
+
+        assert_eq!(alloc.remembered_set.iter().count(), 1);
     }
 
     #[test]
@@ -509,21 +524,10 @@ mod tests {
         alloc.remember_object(ptr2);
         alloc.prune_remembered_objects();
 
-        assert_eq!(alloc.remembered_set.contains(&ptr1), true);
-        assert_eq!(alloc.remembered_set.contains(&ptr2), false);
-    }
+        let mut iter = alloc.remembered_set.iter();
 
-    #[test]
-    fn test_prepare_remembered_objects_for_collection() {
-        let (_, mut alloc) = local_allocator();
-        let ptr1 = alloc.allocate_empty();
-
-        ptr1.mark();
-
-        alloc.remember_object(ptr1);
-        alloc.prepare_remembered_objects_for_collection();
-
-        assert_eq!(ptr1.is_marked(), false);
+        assert!(iter.next() == Some(&ptr1));
+        assert!(iter.next().is_none());
     }
 
     #[test]

@@ -11,10 +11,22 @@ use crate::vm::state::State;
 
 /// Sets up a VM with a single process.
 pub fn setup() -> (Machine, Block, RcProcess) {
-    let state = State::with_rc(Config::new(), &[]);
+    let mut config = Config::new();
+
+    config.primary_threads = 2;
+    config.blocking_threads = 2;
+    config.gc_threads = 2;
+    config.tracer_threads = 2;
+
+    let state = State::with_rc(config, &[]);
     let name = state.intern_string("a".to_string());
     let machine = Machine::default(state);
-    let mut code = CompiledCode::new(name, name, 1, Vec::new());
+    let mut code = CompiledCode::new(
+        name,
+        name,
+        1,
+        vec![new_instruction(InstructionType::Return, vec![0])],
+    );
 
     // Reserve enough space for registers/locals for most tests.
     code.locals = 32;
@@ -38,6 +50,8 @@ pub fn setup() -> (Machine, Block, RcProcess) {
         let block =
             Block::new(module.code(), None, machine.state.top_level, scope);
         let process = process::allocate(&machine.state, &block);
+
+        process.set_main();
 
         (block, process)
     };

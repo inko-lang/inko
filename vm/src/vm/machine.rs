@@ -1,7 +1,7 @@
 //! Virtual Machine for running instructions
 use crate::compiled_code::CompiledCodePointer;
 use crate::execution_context::ExecutionContext;
-use crate::gc::request::Request as GcRequest;
+use crate::gc::collection::Collection;
 use crate::integer_operations;
 use crate::module_registry::{ModuleRegistry, RcModuleRegistry};
 use crate::network_poller::worker::Worker as NetworkPollerWorker;
@@ -13,7 +13,6 @@ use crate::process::RcProcess;
 use crate::runtime_error::RuntimeError;
 use crate::runtime_panic;
 use crate::scheduler::join_list::JoinList;
-use crate::scheduler::pool::Pool;
 use crate::scheduler::process_worker::ProcessWorker;
 use crate::vm::array;
 use crate::vm::block;
@@ -34,7 +33,6 @@ use crate::vm::state::RcState;
 use crate::vm::string;
 use crate::vm::time;
 use num_bigint::BigInt;
-use rayon::ThreadPoolBuilder;
 use std::i32;
 use std::ops::{Add, Mul, Sub};
 use std::panic;
@@ -178,7 +176,6 @@ impl Machine {
     /// This method returns true if the VM terminated successfully, false
     /// otherwise.
     pub fn start(&self, file: &str) {
-        self.configure_rayon();
         self.schedule_main_process(file);
 
         let gc_pool_guard = self.start_gc_threads();
@@ -206,41 +203,17 @@ impl Machine {
         }
     }
 
-    fn configure_rayon(&self) {
-        ThreadPoolBuilder::new()
-            .thread_name(|idx| format!("rayon {}", idx))
-            .num_threads(self.state.config.generic_parallel_threads)
-            .build_global()
-            .unwrap();
-    }
-
     fn start_primary_threads(&self) -> JoinList<()> {
-        let machine = self.clone();
-
-        self.state
-            .scheduler
-            .primary_pool
-            .start_main(move |worker, process| {
-                machine.run_with_error_handling(worker, &process)
-            })
+        self.state.scheduler.primary_pool.start_main(self.clone())
     }
 
     fn start_blocking_threads(&self) -> JoinList<()> {
-        let machine = self.clone();
-
-        self.state
-            .scheduler
-            .blocking_pool
-            .start(move |worker, process| {
-                machine.run_with_error_handling(worker, &process)
-            })
+        self.state.scheduler.blocking_pool.start(self.clone())
     }
 
     /// Starts the garbage collection threads.
     fn start_gc_threads(&self) -> JoinList<()> {
-        self.state
-            .gc_pool
-            .start(move |_, mut request| request.perform())
+        self.state.gc_pool.start(self.state.clone())
     }
 
     fn start_timeout_worker_thread(&self) -> thread::JoinHandle<()> {
@@ -2081,10 +2054,7 @@ impl Machine {
             worker.leave_exclusive_mode();
         }
 
-        // We must clean up _after_ removing the process from the process table
-        // to prevent a cleanup from happening while the process is still
-        // receiving messages as this could lead to memory not being reclaimed.
-        self.schedule_gc_for_finished_process(&process);
+        process.reclaim_and_finalize(&self.state);
 
         // Terminate once the main process has finished execution.
         if process.is_main() {
@@ -2099,33 +2069,15 @@ impl Machine {
     ///
     /// Returns true if a process should be suspended for garbage collection.
     fn gc_safepoint(&self, process: &RcProcess) -> bool {
-        if process.should_collect_young_generation() {
-            self.schedule_gc_request(GcRequest::heap(
-                self.state.clone(),
-                process.clone(),
-            ));
-
-            true
-        } else if process.should_collect_mailbox() {
-            self.schedule_gc_request(GcRequest::mailbox(
-                self.state.clone(),
-                process.clone(),
-            ));
-
-            true
-        } else {
-            false
+        if !process.should_collect_young_generation() {
+            return false;
         }
-    }
 
-    fn schedule_gc_request(&self, request: GcRequest) {
-        self.state.gc_pool.schedule(request);
-    }
+        self.state
+            .gc_pool
+            .schedule(Collection::new(process.clone()));
 
-    fn schedule_gc_for_finished_process(&self, process: &RcProcess) {
-        let request = GcRequest::finished(self.state.clone(), process.clone());
-
-        self.schedule_gc_request(request);
+        true
     }
 
     #[inline(always)]

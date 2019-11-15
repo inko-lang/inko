@@ -8,6 +8,7 @@
 //! of the VM to easily access these configuration details.
 use crate::immix::block::BLOCK_SIZE;
 use num_cpus;
+use std::cmp::max;
 use std::env;
 use std::path::PathBuf;
 
@@ -24,7 +25,6 @@ macro_rules! set_from_env {
 
 const DEFAULT_YOUNG_THRESHOLD: u32 = (8 * 1024 * 1024) / (BLOCK_SIZE as u32);
 const DEFAULT_MATURE_THRESHOLD: u32 = (16 * 1024 * 1024) / (BLOCK_SIZE as u32);
-const DEFAULT_MAILBOX_THRESHOLD: u32 = 1;
 const DEFAULT_GROWTH_FACTOR: f64 = 1.5;
 const DEFAULT_GROWTH_THRESHOLD: f64 = 0.9;
 const DEFAULT_REDUCTIONS: usize = 1000;
@@ -35,17 +35,25 @@ pub struct Config {
     pub directories: Vec<PathBuf>,
 
     /// The number of primary process threads to run.
+    ///
+    /// This defaults to the number of CPU cores.
     pub primary_threads: usize,
 
     /// The number of blocking process threads to run.
+    ///
+    /// This defaults to the number of CPU cores.
     pub blocking_threads: usize,
 
     /// The number of garbage collector threads to run.
+    ///
+    /// This defaults to half the number of CPU cores, with a minimum of two.
     pub gc_threads: usize,
 
-    /// The number of threads to use for various generic parallel tasks such as
-    /// scanning stack frames during garbage collection.
-    pub generic_parallel_threads: usize,
+    /// The number of threads to run for tracing objects during garbage
+    /// collection.
+    ///
+    /// This defaults to half the number of CPU cores, with a minimum of two.
+    pub tracer_threads: usize,
 
     /// The number of reductions a process can perform before being suspended.
     /// Defaults to 1000.
@@ -66,36 +74,34 @@ pub struct Config {
     /// should be used before increasing the heap size.
     pub heap_growth_threshold: f64,
 
-    /// The number of memory blocks that can be allocated before triggering a
-    /// mailbox collection.
-    pub mailbox_threshold: u32,
-
-    /// The block allocation growth factor for the mailbox heap.
-    pub mailbox_growth_factor: f64,
-
-    /// The percentage of memory in the mailbox heap that should be used before
-    /// increasing the size.
-    pub mailbox_growth_threshold: f64,
+    /// When enabled, GC timings will be printed to STDERR.
+    pub print_gc_timings: bool,
 }
 
 impl Config {
     pub fn new() -> Config {
         let cpu_count = num_cpus::get();
 
+        // GC threads may consume a lot of CPU as they trace through objects. If
+        // we have N cores and spawn N threads, we would end up with many
+        // threads competing over CPU time.
+        //
+        // To keep this somewhat under control we limit both GC control and
+        // tracer threads to half the number of CPU cores.
+        let cpu_half = max(cpu_count / 2, 1);
+
         Config {
             directories: Vec::new(),
             primary_threads: cpu_count,
-            gc_threads: cpu_count,
             blocking_threads: cpu_count,
-            generic_parallel_threads: cpu_count,
+            gc_threads: cpu_half,
+            tracer_threads: cpu_half,
             reductions: DEFAULT_REDUCTIONS,
             young_threshold: DEFAULT_YOUNG_THRESHOLD,
             mature_threshold: DEFAULT_MATURE_THRESHOLD,
             heap_growth_factor: DEFAULT_GROWTH_FACTOR,
             heap_growth_threshold: DEFAULT_GROWTH_THRESHOLD,
-            mailbox_threshold: DEFAULT_MAILBOX_THRESHOLD,
-            mailbox_growth_factor: DEFAULT_GROWTH_FACTOR,
-            mailbox_growth_threshold: DEFAULT_GROWTH_THRESHOLD,
+            print_gc_timings: false,
         }
     }
 
@@ -105,10 +111,10 @@ impl Config {
         allow(cyclomatic_complexity, cognitive_complexity)
     )]
     pub fn populate_from_env(&mut self) {
-        set_from_env!(self, primary_threads, "CONCURRENCY", usize);
-        set_from_env!(self, blocking_threads, "CONCURRENCY", usize);
-        set_from_env!(self, gc_threads, "CONCURRENCY", usize);
-        set_from_env!(self, generic_parallel_threads, "CONCURRENCY", usize);
+        set_from_env!(self, primary_threads, "PRIMARY_THREADS", usize);
+        set_from_env!(self, blocking_threads, "BLOCKING_THREADS", usize);
+        set_from_env!(self, gc_threads, "GC_THREADS", usize);
+        set_from_env!(self, tracer_threads, "TRACER_THREADS", usize);
 
         set_from_env!(self, reductions, "REDUCTIONS", usize);
 
@@ -123,21 +129,7 @@ impl Config {
             f64
         );
 
-        set_from_env!(self, mailbox_threshold, "MAILBOX_THRESHOLD", u32);
-
-        set_from_env!(
-            self,
-            mailbox_growth_factor,
-            "MAILBOX_GROWTH_FACTOR",
-            f64
-        );
-
-        set_from_env!(
-            self,
-            mailbox_growth_threshold,
-            "MAILBOX_GROWTH_THRESHOLD",
-            f64
-        );
+        set_from_env!(self, print_gc_timings, "PRINT_GC_TIMINGS", bool);
     }
 
     pub fn add_directory(&mut self, path: String) {
@@ -162,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_populate_from_env() {
-        env::set_var("INKO_CONCURRENCY", "42");
+        env::set_var("INKO_PRIMARY_THREADS", "42");
         env::set_var("INKO_HEAP_GROWTH_FACTOR", "4.2");
 
         let mut config = Config::new();
@@ -170,7 +162,6 @@ mod tests {
         config.populate_from_env();
 
         // Unset before any assertions may fail.
-        env::remove_var("INKO_CONCURRENCY");
         env::remove_var("INKO_HEAP_GROWTH_FACTOR");
 
         assert_eq!(config.primary_threads, 42);

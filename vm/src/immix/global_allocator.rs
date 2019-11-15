@@ -6,26 +6,26 @@
 use crate::arc_without_weak::ArcWithoutWeak;
 use crate::immix::block::Block;
 use crate::immix::block_list::BlockList;
-use crossbeam_queue::SegQueue;
+use parking_lot::Mutex;
 
 pub type RcGlobalAllocator = ArcWithoutWeak<GlobalAllocator>;
 
 /// Structure used for storing the state of the global allocator.
 pub struct GlobalAllocator {
-    blocks: SegQueue<Box<Block>>,
+    blocks: Mutex<BlockList>,
 }
 
 impl GlobalAllocator {
     /// Creates a new GlobalAllocator with a number of blocks pre-allocated.
     pub fn with_rc() -> RcGlobalAllocator {
         ArcWithoutWeak::new(GlobalAllocator {
-            blocks: SegQueue::new(),
+            blocks: Mutex::new(BlockList::new()),
         })
     }
 
     /// Requests a new free block from the pool
     pub fn request_block(&self) -> Box<Block> {
-        if let Ok(block) = self.blocks.pop() {
+        if let Some(block) = self.blocks.lock().pop_front() {
             block
         } else {
             Block::boxed()
@@ -34,26 +34,27 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        self.blocks.push(block);
+        self.blocks.lock().push_front(block);
     }
 
     /// Adds multiple blocks to the global allocator.
     pub fn add_blocks(&self, to_add: &mut BlockList) {
-        for block in to_add.drain() {
-            self.add_block(block);
-        }
+        let mut blocks = self.blocks.lock();
+
+        blocks.append(to_add);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::immix::block_list::BlockList;
 
     #[test]
     fn test_new() {
         let alloc = GlobalAllocator::with_rc();
 
-        assert!(alloc.blocks.pop().is_err());
+        assert!(alloc.blocks.lock().pop_front().is_none());
     }
 
     #[test]
@@ -64,7 +65,7 @@ mod tests {
         alloc.add_block(block);
         alloc.request_block();
 
-        assert!(alloc.blocks.pop().is_err());
+        assert!(alloc.blocks.lock().pop_front().is_none());
     }
 
     #[test]
@@ -74,6 +75,18 @@ mod tests {
 
         alloc.add_block(block);
 
-        assert!(alloc.blocks.pop().is_ok());
+        assert!(alloc.blocks.lock().pop_front().is_some());
+    }
+
+    #[test]
+    fn test_add_blocks() {
+        let alloc = GlobalAllocator::with_rc();
+        let mut blocks = BlockList::new();
+
+        blocks.push_front(alloc.request_block());
+        blocks.push_front(alloc.request_block());
+        alloc.add_blocks(&mut blocks);
+
+        assert_eq!(alloc.blocks.lock().len(), 2);
     }
 }

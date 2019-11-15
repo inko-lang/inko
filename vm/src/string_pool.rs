@@ -4,6 +4,7 @@
 //! objects. Mapping is done in such a way that the raw string only has to be
 //! stored once.
 use std::collections::HashMap;
+use std::convert::AsRef;
 use std::hash::{Hash, Hasher};
 
 use crate::immutable_string::ImmutableString;
@@ -25,8 +26,10 @@ impl StringPointer {
             raw: pointer as *const ImmutableString,
         }
     }
+}
 
-    pub fn as_ref<'a>(self) -> &'a ImmutableString {
+impl AsRef<ImmutableString> for StringPointer {
+    fn as_ref(&self) -> &ImmutableString {
         unsafe { &*self.raw }
     }
 }

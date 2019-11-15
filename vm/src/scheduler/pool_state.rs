@@ -85,6 +85,10 @@ impl<T: Send> PoolState<T> {
 
     pub fn terminate(&self) {
         self.alive.store(false, Ordering::Release);
+        self.notify_all();
+    }
+
+    pub fn notify_all(&self) {
         self.park_group.notify_all();
     }
 
@@ -107,8 +111,13 @@ impl<T: Send> PoolState<T> {
 mod tests {
     use super::*;
     use crate::arc_without_weak::ArcWithoutWeak;
-    use std::sync::Barrier;
+    use std::mem;
     use std::thread;
+
+    #[test]
+    fn test_memory_size() {
+        assert_eq!(mem::size_of::<PoolState<()>>(), 384);
+    }
 
     #[test]
     fn test_new() {
@@ -203,28 +212,20 @@ mod tests {
     fn test_schedule_onto_queue_wake_up() {
         let state = ArcWithoutWeak::new(PoolState::new(1));
         let state_clone = state.clone();
-        let barrier = ArcWithoutWeak::new(Barrier::new(2));
-        let barrier_clone = barrier.clone();
 
         let handle = thread::spawn(move || {
             let queue = &state_clone.queues[0];
 
-            barrier_clone.wait();
-
             state_clone.park_while(|| !queue.has_external_jobs());
 
-            queue.pop_external_job().unwrap()
+            queue.pop_external_job()
         });
-
-        // This test is always racy, as we can not guarantee the below schedule
-        // runs after the thread has gone to sleep. For example, it might run
-        // _just_ before the above thread parks itself. Using `thread::sleep()`
-        // whould slow down tests, and there's no guarantee the sleep time would
-        // always be enough.
-        barrier.wait();
 
         state.schedule_onto_queue(0, 10);
 
-        assert_eq!(handle.join().unwrap(), 10);
+        let job = handle.join().unwrap();
+
+        assert!(job.is_some());
+        assert_eq!(job.unwrap(), 10);
     }
 }

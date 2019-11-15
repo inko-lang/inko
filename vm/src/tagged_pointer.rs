@@ -8,7 +8,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
 /// The mask to use for untagging a pointer.
-const UNTAG_MASK: usize = (!0x3) as usize;
+const UNTAG_MASK: usize = (!0x7) as usize;
 
 /// Returns true if the pointer has the given bit set to 1.
 pub fn bit_is_set<T>(pointer: *mut T, bit: usize) -> bool {
