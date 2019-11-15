@@ -179,7 +179,9 @@ impl ObjectValue {
     pub fn as_byte_array_mut(&mut self) -> Result<&mut Vec<u8>, String> {
         match *self {
             ObjectValue::ByteArray(ref mut val) => Ok(val),
-            _ => Err("as_byte_array_mut called on a non byte array".to_string()),
+            _ => {
+                Err("as_byte_array_mut called on a non byte array".to_string())
+            }
         }
     }
 

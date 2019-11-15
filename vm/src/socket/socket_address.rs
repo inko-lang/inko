@@ -13,8 +13,12 @@ use libc::{sockaddr_un, AF_INET, AF_INET6};
 use winapi::shared::ws2def::{AF_INET, AF_INET6};
 
 #[cfg(unix)]
+#[cfg_attr(feature = "cargo-clippy", allow(uninit_assumed_init))]
 fn sun_path_offset() -> usize {
-    let addr: libc::sockaddr_un = unsafe { std::mem::uninitialized() };
+    use std::mem::MaybeUninit;
+
+    let addr: libc::sockaddr_un =
+        unsafe { MaybeUninit::uninit().assume_init() };
     let base = &addr as *const _ as usize;
     let path = &addr.sun_path as *const _ as usize;
 
