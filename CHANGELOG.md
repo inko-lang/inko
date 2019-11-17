@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.0 - November 17, 2019
+
+* bdd32f5a: Upgrade some code and dependencies for Rus 1.39
+* 347ade20: Fix various GC bugs and improve GC performance
+* cb17da33: Use AtomicU8 for line and object bytemaps
+* 8652b763: Add some additional tests for tracing objects
+* b4cc7534: Clean up racy scheduler test to not use a barrier
+* 9d2c6ba7: Clean up pushing binding and register pointers
+* c6407a0a: Remove async finalisation of objects
+* bde4250c: Make ArcWithoutWeak NonNull
+* 60d86364: Clean up extending of types in the runtime
+* 3634ceee: Add Pathname.join, .absolute?, and .relative?
+* 7b7165ef: Add String.byte
+* d42a6819: Rename Expressions to Body
+* 486cc3c8: Add Iterator.partition and std::pair
+* 075c7af5: Move std::trait.implement to Trait.implement
+* 457706e1: Move std::array_iter to std::array::extensions
+* 146b462a: Added Integer.times
+* 839916ae: Add Iterator.select
+* d22e281e: Add Iterator.any?
+* b0ccdba1: Add Object.not_nil?
+* 60c47568: Do not expose Trait and Module by default
+* d87be76d: Clean up Object, Conditional, and Boolean
+
 ## 0.5.0 - September 16, 2019
 
 * bffdb0c1: Implement Inko's parser in Inko
