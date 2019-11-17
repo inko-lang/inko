@@ -18,4 +18,4 @@ removed, including this one.
 * [ ] Added documentation
 * [ ] Inko source code follows the [Inko style guide](https://inko-lang.org/manual/style-guide/)
 
-/label ~Feature
+/label ~type::Feature

@@ -17,4 +17,4 @@ removed, including this one.
 * [ ] Added tests
 * [ ] Inko source code follows the [Inko style guide](https://inko-lang.org/manual/style-guide/)
 
-/label ~Bug
+/label ~type::Bug

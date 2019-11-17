@@ -44,4 +44,4 @@ Output of `cargo --version`:
 cargo --version
 ```
 
-/label ~Bug
+/label ~type::Bug
