@@ -48,5 +48,5 @@ features = ["unix", "reuseport"]
 nix = "^0.13"
 
 [target.'cfg(windows)'.dependencies]
-wepoll-binding = "^1.0.2"
+wepoll-binding = "^1.0.5"
 winapi = "^0.3"
