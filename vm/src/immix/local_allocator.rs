@@ -534,6 +534,6 @@ mod tests {
     fn test_type_size() {
         // This test is put in place to ensure that the type size doesn't change
         // unexpectedly.
-        assert!(mem::size_of::<LocalAllocator>() <= 264);
+        assert_eq!(mem::size_of::<LocalAllocator>(), 312);
     }
 }

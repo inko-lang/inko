@@ -5,98 +5,86 @@
 //! header.
 use crate::deref_pointer::DerefPointer;
 use crate::immix::block::Block;
-use std::ops::Drop;
+use std::mem;
 use std::ops::Index;
+use std::slice::IterMut as SliceIterMut;
+use std::vec::IntoIter as VecIntoIter;
 
 /// A linked list of blocks.
+#[cfg_attr(feature = "cargo-clippy", allow(vec_box))]
 pub struct BlockList {
-    /// The first (owned) block in the list, if any.
-    pub head: Option<Box<Block>>,
+    /// The blocks managed by this BlockList. Each Block also has its "next"
+    /// pointer set, allowing allocators to iterate the list while it may be
+    /// modified.
+    blocks: Vec<Box<Block>>,
 }
 
-/// An iterator over immutable block references.
-pub struct BlockIterator<'a> {
-    pub current: Option<&'a Block>,
-}
-
-/// An iterator over mutable block references.
-pub struct BlockIteratorMut<'a> {
-    pub current: Option<&'a mut Block>,
+/// An iterator over block pointers.
+pub struct BlockIterator {
+    current: DerefPointer<Block>,
 }
 
 /// An iterator over owned block pointers.
 pub struct Drain {
-    pub current: Option<Box<Block>>,
+    blocks: VecIntoIter<Box<Block>>,
 }
 
 impl BlockList {
     pub fn new() -> Self {
-        BlockList { head: None }
+        BlockList { blocks: Vec::new() }
     }
 
     /// Pushes a block to the start of the list.
-    pub fn push_front(&mut self, mut block: Box<Block>) {
-        if let Some(head) = self.head.take() {
-            block.header_mut().set_next(head);
+    pub fn push(&mut self, block: Box<Block>) {
+        if let Some(last) = self.blocks.last_mut() {
+            last.header_mut().set_next(DerefPointer::new(&*block));
         }
 
-        self.head = Some(block);
+        self.blocks.push(block);
     }
 
     /// Pops a block from the start of the list.
-    pub fn pop_front(&mut self) -> Option<Box<Block>> {
-        self.head.take().map(|mut block| {
-            self.head = block.header_mut().next.take();
+    pub fn pop(&mut self) -> Option<Box<Block>> {
+        let block = self.blocks.pop();
 
-            block
-        })
+        if let Some(last) = self.blocks.last_mut() {
+            last.header_mut().set_next(DerefPointer::null());
+        }
+
+        block
     }
 
     /// Adds the other list to the end of the current list.
     pub fn append(&mut self, other: &mut Self) {
-        if let Some(head) = other.head.take() {
-            if let Some(last) = self.iter_mut().last() {
-                last.header_mut().set_next(head);
-                return;
-            }
-
-            self.head = Some(head);
+        if let Some(last) = self.blocks.last_mut() {
+            last.header_mut().set_next(other.head());
         }
+
+        self.blocks.append(&mut other.blocks);
     }
 
     /// Counts the number of blocks in this list.
-    ///
-    /// This method will traverse all blocks and as such should not be called in
-    /// a tight loop.
     pub fn len(&self) -> usize {
-        self.iter().count()
+        self.blocks.len()
     }
 
     /// Returns true if the list is empty.
     pub fn is_empty(&self) -> bool {
-        self.head.is_none()
+        self.blocks.is_empty()
     }
 
-    /// Returns a mutable reference to the head of this list.
-    pub fn head_mut(&mut self) -> Option<&mut Block> {
-        self.head.as_mut().map(|block| &mut **block)
-    }
-
-    /// Returns an immutable reference to the head of this list.
-    pub fn head(&self) -> Option<&Block> {
-        self.head.as_ref().map(|block| &**block)
-    }
-
-    pub fn iter(&self) -> BlockIterator {
-        BlockIterator {
-            current: self.head.as_ref().map(|block| &**block),
+    pub fn head(&self) -> DerefPointer<Block> {
+        if let Some(block) = self.blocks.first() {
+            DerefPointer::new(&**block)
+        } else {
+            DerefPointer::null()
         }
     }
 
-    pub fn iter_mut(&mut self) -> BlockIteratorMut {
-        BlockIteratorMut {
-            current: self.head.as_mut().map(|block| &mut **block),
-        }
+    /// Returns an iterator that iterates over the Vec, instead of using the
+    /// "next" pointers of every block.
+    pub fn iter_mut<'a>(&'a mut self) -> SliceIterMut<'a, Box<Block>> {
+        self.blocks.iter_mut()
     }
 
     /// Returns an iterator that yields owned block pointers.
@@ -104,14 +92,13 @@ impl BlockList {
     /// Calling this method will reset the head and tail. The returned iterator
     /// will consume all blocks.
     pub fn drain(&mut self) -> Drain {
-        Drain {
-            current: self.head.take(),
-        }
-    }
+        let mut blocks = Vec::new();
 
-    /// Returns a vector containing pointers to the blocks in this list.
-    pub fn pointers(&self) -> Vec<DerefPointer<Block>> {
-        self.iter().map(|block| DerefPointer::new(block)).collect()
+        mem::swap(&mut blocks, &mut self.blocks);
+
+        Drain {
+            blocks: blocks.into_iter(),
+        }
     }
 }
 
@@ -119,59 +106,37 @@ impl Index<usize> for BlockList {
     type Output = Block;
 
     /// Returns a reference to the block at the given index.
-    ///
-    /// This method will iterate over all blocks in this list, making it quite
-    /// slow.
-    fn index(&self, given_index: usize) -> &Self::Output {
-        for (index, block) in self.iter().enumerate() {
-            if index == given_index {
-                return block;
-            }
-        }
-
-        panic!("can not use out-of-bounds index {}", given_index);
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.blocks[index]
     }
 }
 
-impl<'a> BlockIteratorMut<'a> {
-    /// Creates a new mutable iterator starting at the given block.
-    pub fn starting_at(block: &'a mut Block) -> Self {
-        BlockIteratorMut {
-            current: Some(block),
+impl BlockIterator {
+    /// Creates a new iterator starting at the given block.
+    pub fn starting_at(block: &Block) -> Self {
+        BlockIterator {
+            current: DerefPointer::new(block),
         }
     }
 }
 
-impl<'a> Iterator for BlockIterator<'a> {
-    type Item = &'a Block;
+impl Iterator for BlockIterator {
+    type Item = DerefPointer<Block>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.current.map(|block| {
-            self.current = block.header().next.as_ref().map(|next| &**next);
-            block
-        })
-    }
-}
+        if self.current.is_null() {
+            None
+        } else {
+            let current = Some(self.current);
 
-impl<'a> Iterator for BlockIteratorMut<'a> {
-    type Item = &'a mut Block;
+            // One thread may be iterating (e.g. when allocating into a bucket)
+            // when the other thread is adding a block. When reaching the end of
+            // the list, without an atomic load we may (depending on the
+            // platform) read an impartial or incorrect value.
+            self.current = self.current.header().next.atomic_load();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.current.take().map(|block| {
-            // Rust doesn't like that we need to grab a mutable reference to the
-            // header of this block in order to store the next element. To work
-            // around this we turn "block" into a pointer, then turn this into a
-            // separate mutable reference.
-            let for_next = unsafe { &mut *(block as *mut Block) };
-
-            self.current = for_next
-                .header_mut()
-                .next
-                .as_mut()
-                .map(|block| &mut **block);
-
-            block
-        })
+            current
+        }
     }
 }
 
@@ -179,20 +144,12 @@ impl Iterator for Drain {
     type Item = Box<Block>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.current.take().map(|mut block| {
-            self.current = block.header_mut().next.take();
-            block
-        })
-    }
-}
+        if let Some(mut block) = self.blocks.next() {
+            block.header_mut().set_next(DerefPointer::null());
 
-impl Drop for BlockList {
-    fn drop(&mut self) {
-        // We need to explicitly traverse through all blocks as otherwise Rust
-        // won't drop them due to the "next" pointers being stored in block
-        // headers.
-        for block in self.drain() {
-            drop(block);
+            Some(block)
+        } else {
+            None
         }
     }
 }
@@ -208,54 +165,56 @@ mod tests {
         fn test_new() {
             let list = BlockList::new();
 
-            assert!(list.head.is_none());
+            assert!(list.head().is_null());
         }
 
         #[test]
-        fn test_push_front_with_empty_list() {
+        fn test_push_with_empty_list() {
             let block = Block::boxed();
             let mut list = BlockList::new();
 
-            list.push_front(block);
+            list.push(block);
 
-            assert!(list.head.is_some());
+            assert_eq!(list.head().is_null(), false);
         }
 
         #[test]
-        fn test_push_front_with_existing_items() {
+        fn test_push_with_existing_items() {
             let block1 = Block::boxed();
             let block2 = Block::boxed();
             let mut list = BlockList::new();
 
-            list.push_front(block1);
-            list.push_front(block2);
+            list.push(block1);
+            list.push(block2);
 
-            assert!(list[0].header().next.is_some());
-            assert!(list[1].header().next.is_none());
+            assert_eq!(list[0].header().next.is_null(), false);
+            assert!(list[1].header().next.is_null());
 
             assert!(
-                &**list[0].header().next.as_ref().unwrap() as *const Block
+                &*list[0].header().next as *const Block
                     == &list[1] as *const Block
             );
         }
 
         #[test]
-        fn test_pop_front_with_empty_list() {
+        fn test_pop_with_empty_list() {
             let mut list = BlockList::new();
 
-            assert!(list.pop_front().is_none());
+            assert!(list.pop().is_none());
         }
 
         #[test]
-        fn test_pop_front_with_existing_items() {
+        fn test_pop_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
+            list.push(Block::boxed());
 
-            let block = list.pop_front();
+            let block = list.pop();
 
             assert!(block.is_some());
-            assert!(block.unwrap().header().next.is_none());
+            assert!(block.unwrap().header().next.is_null());
+            assert!(list.blocks[0].header().next.is_null());
         }
 
         #[test]
@@ -265,7 +224,7 @@ mod tests {
 
             list1.append(&mut list2);
 
-            assert!(list1.head.is_none());
+            assert!(list1.head().is_null());
         }
 
         #[test]
@@ -273,14 +232,14 @@ mod tests {
             let mut list1 = BlockList::new();
             let mut list2 = BlockList::new();
 
-            list1.push_front(Block::boxed());
-            list2.push_front(Block::boxed());
+            list1.push(Block::boxed());
+            list2.push(Block::boxed());
             list1.append(&mut list2);
 
-            assert!(list1.head.is_some());
+            assert_eq!(list1.head().is_null(), false);
             assert_eq!(list1.len(), 2);
 
-            assert!(list2.head.is_none());
+            assert!(list2.head().is_null());
             assert_eq!(list2.len(), 0);
         }
 
@@ -293,7 +252,7 @@ mod tests {
         fn test_len_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
 
             assert_eq!(list.len(), 1);
         }
@@ -307,57 +266,23 @@ mod tests {
         fn test_is_empty_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
 
             assert_eq!(list.is_empty(), false);
         }
 
         #[test]
-        fn test_head_mut_with_empty_list() {
-            assert!(BlockList::new().head_mut().is_none());
-        }
-
-        #[test]
-        fn test_head_mut_with_existing_items() {
-            let mut list = BlockList::new();
-
-            list.push_front(Block::boxed());
-
-            assert!(list.head_mut().is_some());
-        }
-
-        #[test]
         fn test_head_with_empty_list() {
-            assert!(BlockList::new().head().is_none());
+            assert!(BlockList::new().head().is_null());
         }
 
         #[test]
         fn test_head_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
 
-            assert!(list.head().is_some());
-        }
-
-        #[test]
-        fn test_iter_with_empty_list() {
-            let list = BlockList::new();
-            let mut iter = list.iter();
-
-            assert!(iter.next().is_none());
-        }
-
-        #[test]
-        fn test_iter_with_existing_items() {
-            let mut list = BlockList::new();
-
-            list.push_front(Block::boxed());
-
-            let mut iter = list.iter();
-
-            assert!(iter.next().is_some());
-            assert!(iter.next().is_none());
+            assert_eq!(list.head().is_null(), false);
         }
 
         #[test]
@@ -372,10 +297,24 @@ mod tests {
         fn test_iter_mut_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
 
             let mut iter = list.iter_mut();
 
+            assert!(iter.next().is_some());
+            assert!(iter.next().is_none());
+        }
+
+        #[test]
+        fn test_iterate_starting_at() {
+            let mut list = BlockList::new();
+
+            list.push(Block::boxed());
+            list.push(Block::boxed());
+
+            let mut iter = BlockIterator::starting_at(&list.blocks[0]);
+
+            assert!(iter.next().is_some());
             assert!(iter.next().is_some());
             assert!(iter.next().is_none());
         }
@@ -392,25 +331,16 @@ mod tests {
         fn test_drain_with_existing_items() {
             let mut list = BlockList::new();
 
-            list.push_front(Block::boxed());
-            list.push_front(Block::boxed());
+            list.push(Block::boxed());
+            list.push(Block::boxed());
 
             let mut drain = list.drain();
 
             let block1 = drain.next().unwrap();
             let block2 = drain.next().unwrap();
 
-            assert!(block1.header().next.is_none());
-            assert!(block2.header().next.is_none());
-        }
-
-        #[test]
-        fn test_pointers() {
-            let mut list = BlockList::new();
-
-            list.push_front(Block::boxed());
-
-            assert_eq!(list.pointers().len(), 1);
+            assert!(block1.header().next.is_null());
+            assert!(block2.header().next.is_null());
         }
     }
 }

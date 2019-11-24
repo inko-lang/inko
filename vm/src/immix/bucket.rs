@@ -94,17 +94,11 @@ impl Bucket {
         block.set_bucket(self as *mut Bucket);
 
         self.set_current_block(DerefPointer::new(&*block));
-        self.blocks.push_front(block);
+        self.blocks.push(block);
     }
 
     pub fn reset_current_block(&mut self) {
-        let new_pointer = if let Some(pointer) = self.blocks.head_mut() {
-            DerefPointer::new(pointer)
-        } else {
-            DerefPointer::null()
-        };
-
-        self.set_current_block(new_pointer);
+        self.set_current_block(self.blocks.head());
     }
 
     /// Allocates an object into this bucket
@@ -124,8 +118,8 @@ impl Bucket {
             let mut advance_block = false;
             let started_at = self.current_block.atomic_load();
 
-            if let Some(mut current) = self.current_block() {
-                for block in current.iter_mut() {
+            if let Some(current) = self.current_block() {
+                for mut block in current.iter() {
                     if block.is_fragmented() {
                         // The block is fragmented, so skip it. The next time we
                         // find an available block we'll set it as the current
@@ -141,8 +135,10 @@ impl Bucket {
 
                             // Only advance the block if another thread didn't
                             // request a new one in the mean time.
-                            self.current_block
-                                .compare_and_swap(started_at.pointer, block);
+                            self.current_block.compare_and_swap(
+                                started_at.pointer,
+                                &mut *block,
+                            );
                         }
 
                         return (new_block, object.write_to(raw_pointer));
@@ -190,7 +186,7 @@ impl Bucket {
 
             if block.is_empty() {
                 block.reset();
-                to_release.push_front(block);
+                to_release.push(block);
             } else {
                 let holes = block.update_hole_count();
 
@@ -213,7 +209,7 @@ impl Bucket {
 
                 amount += 1;
 
-                self.blocks.push_front(block);
+                self.blocks.push(block);
             }
         }
 
@@ -363,26 +359,25 @@ mod tests {
     #[test]
     fn test_add_block() {
         let mut bucket = Bucket::new();
+        let block1 = Block::boxed();
+        let block2 = Block::boxed();
+        let block1_ptr = DerefPointer::new(&*block1);
+        let block2_ptr = DerefPointer::new(&*block2);
 
-        bucket.add_block(Block::boxed());
+        bucket.add_block(block1);
 
         assert_eq!(bucket.blocks.len(), 1);
-        assert_eq!(bucket.current_block.is_null(), false);
-        assert!(bucket.blocks[0].bucket().is_some());
 
-        assert!(
-            bucket.current_block.pointer as *const Block
-                == &*bucket.blocks.head().unwrap() as *const Block
-        );
+        assert!(bucket.current_block == block1_ptr);
+        assert!(bucket.current_block == bucket.blocks.head());
+        assert!(bucket.current_block.bucket().is_some());
 
-        bucket.add_block(Block::boxed());
+        bucket.add_block(block2);
 
         assert_eq!(bucket.blocks.len(), 2);
 
-        assert!(
-            bucket.current_block.pointer as *const Block
-                == &bucket.blocks[0] as *const Block
-        );
+        assert!(bucket.current_block == block2_ptr);
+        assert!(bucket.blocks.head() == block1_ptr);
     }
 
     #[test]
@@ -432,7 +427,7 @@ mod tests {
         assert!(pointer.get().value.is_none());
         assert!(new_pointer.get().value.is_float());
 
-        let head = bucket.blocks.head().unwrap();
+        let head = bucket.blocks.head();
 
         assert!(
             head.free_pointer() == unsafe { head.start_address().offset(5) }

@@ -25,7 +25,7 @@ impl GlobalAllocator {
 
     /// Requests a new free block from the pool
     pub fn request_block(&self) -> Box<Block> {
-        if let Some(block) = self.blocks.lock().pop_front() {
+        if let Some(block) = self.blocks.lock().pop() {
             block
         } else {
             Block::boxed()
@@ -34,7 +34,7 @@ impl GlobalAllocator {
 
     /// Adds a block to the pool so it can be re-used.
     pub fn add_block(&self, block: Box<Block>) {
-        self.blocks.lock().push_front(block);
+        self.blocks.lock().push(block);
     }
 
     /// Adds multiple blocks to the global allocator.
@@ -54,7 +54,7 @@ mod tests {
     fn test_new() {
         let alloc = GlobalAllocator::with_rc();
 
-        assert!(alloc.blocks.lock().pop_front().is_none());
+        assert!(alloc.blocks.lock().pop().is_none());
     }
 
     #[test]
@@ -65,7 +65,7 @@ mod tests {
         alloc.add_block(block);
         alloc.request_block();
 
-        assert!(alloc.blocks.lock().pop_front().is_none());
+        assert!(alloc.blocks.lock().pop().is_none());
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
 
         alloc.add_block(block);
 
-        assert!(alloc.blocks.lock().pop_front().is_some());
+        assert!(alloc.blocks.lock().pop().is_some());
     }
 
     #[test]
@@ -83,8 +83,8 @@ mod tests {
         let alloc = GlobalAllocator::with_rc();
         let mut blocks = BlockList::new();
 
-        blocks.push_front(alloc.request_block());
-        blocks.push_front(alloc.request_block());
+        blocks.push(alloc.request_block());
+        blocks.push(alloc.request_block());
         alloc.add_blocks(&mut blocks);
 
         assert_eq!(alloc.blocks.lock().len(), 2);

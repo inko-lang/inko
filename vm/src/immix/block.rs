@@ -4,7 +4,7 @@
 //! to be exact).
 
 use crate::deref_pointer::DerefPointer;
-use crate::immix::block_list::BlockIteratorMut;
+use crate::immix::block_list::BlockIterator;
 use crate::immix::bucket::Bucket;
 use crate::immix::bytemap::{Bytemap, LineMap, ObjectMap};
 use crate::object::Object;
@@ -78,7 +78,7 @@ pub struct BlockHeader {
     pub holes: usize,
 
     /// The next block in the list this block belongs to.
-    pub next: Option<Box<Block>>,
+    pub next: DerefPointer<Block>,
 
     /// This block is fragmented and objects should be evacuated.
     pub fragmented: bool,
@@ -90,7 +90,7 @@ impl BlockHeader {
             block,
             bucket: ptr::null::<Bucket>() as *mut Bucket,
             holes: 1,
-            next: None,
+            next: DerefPointer::null(),
             fragmented: false,
         }
     }
@@ -123,8 +123,8 @@ impl BlockHeader {
         }
     }
 
-    pub fn set_next(&mut self, block: Box<Block>) {
-        self.next = Some(block);
+    pub fn set_next(&mut self, block: DerefPointer<Block>) {
+        self.next = block;
     }
 
     pub fn reset(&mut self) {
@@ -434,10 +434,9 @@ impl Block {
         (LINES_PER_BLOCK - 1) - self.marked_lines_count()
     }
 
-    /// Returns an iterator over mutable block references, starting at the
-    /// current block.
-    pub fn iter_mut(&mut self) -> BlockIteratorMut {
-        BlockIteratorMut::starting_at(self)
+    /// Returns an iterator over block pointers, starting at the current block.
+    pub fn iter(&self) -> BlockIterator {
+        BlockIterator::starting_at(self)
     }
 
     fn find_available_hole(
