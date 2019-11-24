@@ -5,70 +5,6 @@ use crate::object::ObjectStatus;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::process::RcProcess;
 use crossbeam_deque::{Injector, Steal, Stealer, Worker};
-use std::sync::atomic::{spin_loop_hint, AtomicUsize, Ordering};
-
-/// The raw tracing loop, with the part for actually tracing and marking being
-/// supplied as an argument.
-///
-/// This macro is used to implement the two tracing loops (non-moving and
-/// moving), without having to duplicate the code manually.
-///
-/// The tracing loop terminates automatically once all workers run out of work,
-/// and takes care of not terminating threads prematurely.
-///
-/// Much of the work of this macro is delegated to separate methods, as
-/// otherwise we'd end up with quite a few nested loops; which gets hard to
-/// read.
-macro_rules! trace_loop {
-    ($self: expr, $work: expr) => {
-        loop {
-            $self.steal_from_global();
-
-            $work;
-
-            if $self.has_global_jobs() {
-                continue;
-            }
-
-            $self.set_idle();
-
-            if $self.steal_from_worker() {
-                $self.set_busy();
-                continue;
-            }
-
-            // Depending on how fast a thread runs, a thread may reach this
-            // point while there is still work left to be done. For example, the
-            // following series of events can take place:
-            //
-            // 1. Thread A is working.
-            // 2. Thread B is spinning in the "while" above, trying
-            //    to steal work.
-            // 3. Thread B steals work from A.
-            // 4. Thread A runs out of work.
-            // 5. Thread A enters the "while" loop and observes all
-            //    worker sto be idle.
-            // 6. Thread A reaches this point.
-            // 7. Thread B increments "busy" and restarts its loop,
-            //    processing the work it stole earlier.
-            //
-            // To prevent thread A from terminating when new work may be
-            // produced, we double check both the queue sizes and the number of
-            // busy workers. Just checking the queue sizes is not enough. If a
-            // worker popped a job and is still processing it, its queue might
-            // be empty but new work may still be produced.
-            //
-            // Since the "busy" counter is incremented _before_ a worker starts,
-            // checking both should ensure we never terminate a thread until we
-            // are certain all work has been completed.
-            if $self.should_terminate() {
-                break;
-            }
-
-            $self.set_busy();
-        }
-    };
-}
 
 /// A pool of Tracers all tracing the same process.
 pub struct Pool {
@@ -80,9 +16,6 @@ pub struct Pool {
 
     /// The list of queues we can steal work from.
     stealers: Vec<Stealer<ObjectPointerPointer>>,
-
-    /// An integer storing the number of busy tracers in a pool.
-    busy: AtomicUsize,
 }
 
 impl Pool {
@@ -105,7 +38,6 @@ impl Pool {
             process,
             global_queue: Injector::new(),
             stealers,
-            busy: AtomicUsize::new(threads),
         });
 
         let tracers = workers
@@ -136,6 +68,10 @@ impl Pool {
 /// across CPU cores. Due to the inherent racy nature of work-stealing its
 /// possible one or more tracers don't perform any work. This can happen if
 /// other Tracers steal all work before our Tracer can even begin.
+///
+/// Tracers terminate when they run out of work and can't steal work from other
+/// tracers. Any attempt at implementing a retry mechanism of sorts lead to
+/// worse tracing performance, so we instead just let tracers terminate.
 pub struct Tracer {
     /// The local queue of objects to trace.
     queue: Worker<ObjectPointerPointer>,
@@ -156,24 +92,19 @@ impl Tracer {
     pub fn trace_without_moving(&self) -> TraceStatistics {
         let mut stats = TraceStatistics::new();
 
-        trace_loop!(
-            self,
-            while let Some(pointer_pointer) = self.queue.pop() {
-                let pointer = pointer_pointer.get();
+        while let Some(pointer_pointer) = self.pop_job() {
+            let pointer = pointer_pointer.get();
 
-                if pointer.is_marked() {
-                    continue;
-                }
-
-                pointer.mark();
-
-                stats.marked += 1;
-
-                pointer.get().each_pointer(|child| {
-                    self.queue.push(child);
-                });
+            if pointer.is_marked() {
+                continue;
             }
-        );
+
+            pointer.mark();
+
+            stats.marked += 1;
+
+            self.schedule_child_pointers(*pointer);
+        }
 
         stats
     }
@@ -182,53 +113,52 @@ impl Tracer {
     pub fn trace_with_moving(&self) -> TraceStatistics {
         let mut stats = TraceStatistics::new();
 
-        trace_loop!(
-            self,
-            while let Some(pointer_pointer) = self.queue.pop() {
-                let pointer = pointer_pointer.get_mut();
+        while let Some(pointer_pointer) = self.pop_job() {
+            let pointer = pointer_pointer.get_mut();
 
-                if pointer.is_marked() {
+            if pointer.is_marked() {
+                continue;
+            }
+
+            match pointer.status() {
+                ObjectStatus::Resolve => pointer.resolve_forwarding_pointer(),
+                ObjectStatus::Promote => {
+                    self.promote_mature(pointer);
+
+                    stats.promoted += 1;
+                    stats.marked += 1;
+
+                    pointer.mark();
+
+                    // When promoting an object we already trace it, so we
+                    // don't need to trace it again below.
                     continue;
                 }
+                ObjectStatus::Evacuate => {
+                    self.evacuate(pointer);
 
-                match pointer.status() {
-                    ObjectStatus::Resolve => {
-                        pointer.resolve_forwarding_pointer()
-                    }
-                    ObjectStatus::Promote => {
-                        self.promote_mature(pointer);
-
-                        stats.promoted += 1;
-                        stats.marked += 1;
-
-                        pointer.mark();
-
-                        // When promoting an object we already trace it, so we
-                        // don't need to trace it again below.
-                        continue;
-                    }
-                    ObjectStatus::Evacuate => {
-                        self.evacuate(pointer);
-
-                        stats.evacuated += 1;
-                    }
-                    ObjectStatus::PendingMove => {
-                        self.queue.push(pointer_pointer.clone());
-                        continue;
-                    }
-                    _ => {}
+                    stats.evacuated += 1;
                 }
-
-                pointer.mark();
-                stats.marked += 1;
-
-                pointer.get().each_pointer(|child| {
-                    self.queue.push(child);
-                });
+                ObjectStatus::PendingMove => {
+                    self.queue.push(pointer_pointer.clone());
+                    continue;
+                }
+                _ => {}
             }
-        );
+
+            pointer.mark();
+            stats.marked += 1;
+
+            self.schedule_child_pointers(*pointer);
+        }
 
         stats
+    }
+
+    fn schedule_child_pointers(&self, pointer: ObjectPointer) {
+        pointer.get().each_pointer(|child| {
+            self.queue.push(child);
+        });
     }
 
     /// Traces a promoted object to see if it should be remembered in the
@@ -281,50 +211,42 @@ impl Tracer {
         pointer.resolve_forwarding_pointer();
     }
 
-    fn steal_from_global(&self) {
-        loop {
-            match self.pool.global_queue.steal_batch(&self.queue) {
-                Steal::Empty | Steal::Success(_) => break,
-                Steal::Retry => {}
-            };
-
-            spin_loop_hint();
+    /// Returns the next available job to process.
+    ///
+    /// This method uses a more verbose approach to retrieving jobs instead of
+    /// chaining values using and_then, or_else, etc (e.g. as shown on
+    /// https://docs.rs/crossbeam/0.7.3/crossbeam/deque/index.html). This is
+    /// done for two reasons:
+    ///
+    /// 1. We found the explicit approach to be more readable.
+    /// 2. Measuring the performance of both approaches, we found the explicit
+    ///    (current) approach to be up to 30% faster.
+    fn pop_job(&self) -> Option<ObjectPointerPointer> {
+        if let Some(job) = self.queue.pop() {
+            return Some(job);
         }
-    }
 
-    fn steal_from_worker(&self) -> bool {
-        while self.pool.busy.load(Ordering::Acquire) > 0 {
-            for stealer in self.pool.stealers.iter() {
-                loop {
-                    match stealer.steal_batch(&self.queue) {
-                        Steal::Empty => break,
-                        Steal::Retry => {}
-                        Steal::Success(_) => return true,
-                    }
+        loop {
+            match self.pool.global_queue.steal_batch_and_pop(&self.queue) {
+                Steal::Retry => {}
+                Steal::Empty => break,
+                Steal::Success(job) => return Some(job),
+            };
+        }
+
+        // We don't steal in random order, as we found that stealing in-order
+        // performs better.
+        for stealer in self.pool.stealers.iter() {
+            loop {
+                match stealer.steal_batch_and_pop(&self.queue) {
+                    Steal::Retry => {}
+                    Steal::Empty => break,
+                    Steal::Success(job) => return Some(job),
                 }
             }
-
-            spin_loop_hint();
         }
 
-        false
-    }
-
-    fn should_terminate(&self) -> bool {
-        self.pool.stealers.iter().all(|x| x.is_empty())
-            && self.pool.busy.load(Ordering::Acquire) == 0
-    }
-
-    fn has_global_jobs(&self) -> bool {
-        !self.pool.global_queue.is_empty()
-    }
-
-    fn set_busy(&self) {
-        self.pool.busy.fetch_add(1, Ordering::Release);
-    }
-
-    fn set_idle(&self) {
-        self.pool.busy.fetch_sub(1, Ordering::Release);
+        None
     }
 }
 

@@ -32,7 +32,6 @@ impl Collection {
         let mut mailbox = local_data.mailbox.lock();
         let collect_mature = self.process.should_collect_mature_generation();
         let move_objects = self.process.prepare_for_collection(collect_mature);
-
         let trace_stats = self.trace(
             &mut mailbox,
             move_objects,
