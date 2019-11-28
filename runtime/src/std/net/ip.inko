@@ -34,7 +34,7 @@ let _IPV6_STRING_MAXIMUM_LENGTH = 45
 let _IPV4_TO_IPV6_SHIFT = 8
 
 # Converts a pair of IPv4 octets into a single IPv6 hextet.
-def _octets_to_hextet(first: Integer, second: Integer) -> Integer {
+def octets_to_hextet(first: Integer, second: Integer) -> Integer {
   first << _IPV4_TO_IPV6_SHIFT | second
 }
 
@@ -389,8 +389,8 @@ impl IpAddress for Ipv6Address {
     }
 
     (ipv4_segments.length == _IPV4_OCTETS).if_true {
-      segments[6] = _octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
-      segments[7] = _octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
+      segments[6] = octets_to_hextet(ipv4_segments[0]!, ipv4_segments[1]!)
+      segments[7] = octets_to_hextet(ipv4_segments[2]!, ipv4_segments[3]!)
     }
 
     (segments.length == _IPV6_HEXTETS).if_false {
@@ -826,8 +826,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       0,
-      _octets_to_hextet(@segments[0]!, @segments[1]!),
-      _octets_to_hextet(@segments[2]!, @segments[3]!),
+      octets_to_hextet(@segments[0]!, @segments[1]!),
+      octets_to_hextet(@segments[2]!, @segments[3]!),
     )
   }
 
@@ -840,8 +840,8 @@ impl IpAddress for Ipv4Address {
       0,
       0,
       _IPV6_HEXTET_MAXIMUM,
-      _octets_to_hextet(@segments[0]!, @segments[1]!),
-      _octets_to_hextet(@segments[2]!, @segments[3]!),
+      octets_to_hextet(@segments[0]!, @segments[1]!),
+      octets_to_hextet(@segments[2]!, @segments[3]!),
     )
   }
 }

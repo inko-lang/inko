@@ -232,7 +232,7 @@ object Map!(K: Hash + Equal, V) {
   #
   #     map.remove('name') # => 'Alice'
   def remove(key: K) -> ?V {
-    let index = _bucket_index(key)
+    let index = bucket_index(key)
 
     index.if_false {
       return
@@ -243,7 +243,7 @@ object Map!(K: Hash + Equal, V) {
     @buckets[index!] = Nil
     @length -= 1
 
-    _backwards_shift(index! + 1)
+    backwards_shift(index! + 1)
 
     pair.value
   }
@@ -359,7 +359,7 @@ object Map!(K: Hash + Equal, V) {
   #     map.key?('name') # => True
   #     map.key?('city') # => False
   def key?(key: K) -> Boolean {
-    _bucket_index(key).if(true: { True }, false: { False })
+    bucket_index(key).if(true: { True }, false: { False })
   }
 
   # Inserts the key and value in this `Map`, returning the `Map` itself.
@@ -377,7 +377,7 @@ object Map!(K: Hash + Equal, V) {
       rehash
     }
 
-    _insert_pair(Pair.new(key: key, value: value, hash: _hash_key(key)))
+    insert_pair(Pair.new(key: key, value: value, hash: hash_key(key)))
 
     self
   }
@@ -394,13 +394,13 @@ object Map!(K: Hash + Equal, V) {
     old_buckets.each_with_index do (pair, index) {
       pair.if_true {
         pair.reset_distance
-        _rehash_pair(pair!)
+        rehash_pair(pair!)
       }
     }
   }
 
   # Hashes the supplied key using the internal hasher of this `Map`.
-  def _hash_key(key: K) -> Integer {
+  def hash_key(key: K) -> Integer {
     let hasher = @random_state.to_hasher
 
     key.hash(hasher)
@@ -412,8 +412,8 @@ object Map!(K: Hash + Equal, V) {
   #
   # The `Pair` to insert must be pre-hashed using the `Hasher` used internally
   # by this `Map`, otherwise it might not be retrieved later.
-  def _insert_pair(mut pair: Pair!(K, V)) {
-    let mut index = _desired_bucket(pair.hash)
+  def insert_pair(mut pair: Pair!(K, V)) {
+    let mut index = desired_bucket(pair.hash)
 
     {
       let existing = @buckets[index]
@@ -436,14 +436,14 @@ object Map!(K: Hash + Equal, V) {
         pair = existing!
       }
 
-      index = _desired_bucket(index + 1)
+      index = desired_bucket(index + 1)
       pair.increase_distance
     }.loop
   }
 
   # Rehashes an existing pair into the list of buckets.
-  def _rehash_pair(mut pair: Pair!(K, V)) {
-    let mut index = _desired_bucket(pair.hash)
+  def rehash_pair(mut pair: Pair!(K, V)) {
+    let mut index = desired_bucket(pair.hash)
 
     {
       let existing = @buckets[index]
@@ -459,20 +459,20 @@ object Map!(K: Hash + Equal, V) {
         pair = existing!
       }
 
-      index = _desired_bucket(index + 1)
+      index = desired_bucket(index + 1)
       pair.increase_distance
     }.loop
   }
 
   # Returns the desired bucket index for the given hash.
-  def _desired_bucket(hash: Integer) -> Integer {
+  def desired_bucket(hash: Integer) -> Integer {
     hash % @capacity
   }
 
   # Returns the index of the bucket the key resides in.
-  def _bucket_index(key: K) -> ?Integer {
-    let hash = _hash_key(key)
-    let mut index = _desired_bucket(hash)
+  def bucket_index(key: K) -> ?Integer {
+    let hash = hash_key(key)
+    let mut index = desired_bucket(hash)
     let desired = index
     let mut pair = @buckets[index]
 
@@ -491,7 +491,7 @@ object Map!(K: Hash + Equal, V) {
         return
       }
 
-      index = _desired_bucket(index + 1)
+      index = desired_bucket(index + 1)
 
       (index == desired).if_true {
         # We cycled through all buckets but didn't find a matching pair.
@@ -505,7 +505,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Shifts all pairs to the left starting at the given bucket index.
-  def _backwards_shift(mut index: Integer) {
+  def backwards_shift(mut index: Integer) {
     let mut pair = @buckets[index]
 
     { pair.and { pair!.distance.positive? } }.while_true {
@@ -573,7 +573,7 @@ impl Index!(K, V) for Map!(K, V) {
   #
   #     map['name'] # => 'Alice'
   def [](key: K) -> ?V {
-    let index = _bucket_index(key)
+    let index = bucket_index(key)
 
     index.if(true: { @buckets[index!].value }, false: { Nil })
   }
