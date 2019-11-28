@@ -38,7 +38,6 @@ pub mod object;
 pub mod object_pointer;
 pub mod object_value;
 pub mod platform;
-pub mod prefetch;
 pub mod process;
 pub mod process_status;
 pub mod register;

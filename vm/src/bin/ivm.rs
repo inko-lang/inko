@@ -7,7 +7,6 @@ use std::io::{self, Write};
 use std::process;
 
 use libinko::config::Config;
-use libinko::prefetch;
 use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
@@ -30,7 +29,6 @@ fn run() -> i32 {
     options.parsing_style(ParsingStyle::StopAtFirstFree);
     options.optflag("h", "help", "Shows this help message");
     options.optflag("v", "version", "Prints the version number");
-    options.optflag("f", "features", "Displays the state of various features");
 
     options.optmulti(
         "I",
@@ -55,13 +53,6 @@ fn run() -> i32 {
 
     if matches.opt_present("v") {
         println!("ivm {}", env!("CARGO_PKG_VERSION"));
-        return 0;
-    }
-
-    if matches.opt_present("f") {
-        println!("Prefetching: {:?}", prefetch::ENABLED);
-        println!("SSE: {:?}", cfg!(target_feature = "sse"));
-
         return 0;
     }
 
