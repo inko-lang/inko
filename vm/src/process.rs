@@ -12,6 +12,7 @@ use crate::immix::local_allocator::LocalAllocator;
 use crate::mailbox::Mailbox;
 use crate::object_pointer::{ObjectPointer, ObjectPointerPointer};
 use crate::object_value;
+use crate::process_status::ProcessStatus;
 use crate::scheduler::timeouts::Timeout;
 use crate::tagged_pointer::{self, TaggedPointer};
 use crate::vm::state::State;
@@ -77,16 +78,11 @@ pub struct LocalData {
     /// The current execution context of this process.
     pub context: Box<ExecutionContext>,
 
-    /// A boolean indicating if this process is performing a blocking operation.
-    pub blocking: bool,
-
-    /// A boolean indicating if this process is the main process or not.
-    ///
-    /// When the main process terminates, so does the entire program.
-    pub main: bool,
-
     /// The ID of the thread this process is pinned to.
     pub thread_id: Option<u8>,
+
+    /// The status of the process.
+    status: ProcessStatus,
 }
 
 pub struct Process {
@@ -131,10 +127,9 @@ impl Process {
             allocator: LocalAllocator::new(global_allocator.clone(), config),
             context: Box::new(context),
             panic_handler: ObjectPointer::null(),
-            blocking: false,
-            main: false,
             thread_id: None,
             mailbox: Mutex::new(Mailbox::new()),
+            status: ProcessStatus::new(),
         };
 
         ArcWithoutWeak::new(Process {
@@ -155,19 +150,27 @@ impl Process {
     }
 
     pub fn set_main(&self) {
-        self.local_data_mut().main = true;
+        self.local_data_mut().status.set_main();
     }
 
     pub fn is_main(&self) -> bool {
-        self.local_data().main
+        self.local_data().status.is_main()
     }
 
-    pub fn set_blocking(&self, value: bool) {
-        self.local_data_mut().blocking = value;
+    pub fn set_blocking(&self, enable: bool) {
+        self.local_data_mut().status.set_blocking(enable);
     }
 
     pub fn is_blocking(&self) -> bool {
-        self.local_data().blocking
+        self.local_data().status.is_blocking()
+    }
+
+    pub fn set_terminated(&self) {
+        self.local_data_mut().status.set_terminated();
+    }
+
+    pub fn is_terminated(&self) -> bool {
+        self.local_data().status.is_terminated()
     }
 
     pub fn thread_id(&self) -> Option<u8> {
@@ -393,6 +396,13 @@ impl Process {
         // garbage collected at this time.
         let mut mailbox = local_data.mailbox.lock();
 
+        // When a process terminates it will acquire the mailbox lock first.
+        // Checking the status after acquiring the lock allows us to obtain a
+        // stable view of the status.
+        if self.is_terminated() {
+            return;
+        }
+
         mailbox.send(local_data.allocator.copy_object(message_to_copy));
     }
 
@@ -480,8 +490,19 @@ impl Process {
         blocks
     }
 
-    pub fn reclaim_and_finalize(&self, state: &State) {
+    pub fn terminate(&self, state: &State) {
+        // The mailbox lock _must_ be acquired first, otherwise we may end up
+        // reclaiming blocks while another process is allocating message into
+        // them.
+        let _mailbox = self.local_data_mut().mailbox.lock();
         let mut blocks = self.reclaim_all_blocks();
+
+        // Once terminated we don't want to receive any messages any more, as
+        // they will never be received and thus lead to an increase in memory.
+        // Thus, we mark the process as terminated. We must do this _after_
+        // acquiring the lock to ensure other processes sending messages will
+        // observe the right value.
+        self.set_terminated();
 
         for block in blocks.iter_mut() {
             block.reset();
@@ -644,6 +665,19 @@ mod tests {
         assert!(received.get().attributes_map().is_some());
         assert!(received.is_finalizable());
         assert!(received.raw.raw != input_message.raw.raw);
+    }
+
+    #[test]
+    fn test_send_message_from_external_process_with_closed_mailbox() {
+        let (_machine, _block, process) = setup();
+
+        let message = process
+            .allocate(object_value::integer(14), process.allocate_empty());
+
+        process.set_terminated();
+        process.send_message_from_external_process(message);
+
+        assert!(process.receive_message().is_none());
     }
 
     #[test]

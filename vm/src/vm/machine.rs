@@ -2054,7 +2054,7 @@ impl Machine {
             worker.leave_exclusive_mode();
         }
 
-        process.reclaim_and_finalize(&self.state);
+        process.terminate(&self.state);
 
         // Terminate once the main process has finished execution.
         if process.is_main() {
