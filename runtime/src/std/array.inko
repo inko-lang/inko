@@ -13,7 +13,6 @@
 # indexes, in which case the value will be accessed starting at the back of the
 # Array. This means that -1 will access the last value, -2 the value before
 # that, etc.
-
 import std::conversion::ToArray
 import std::index::(Index, SetIndex)
 import std::length::Length

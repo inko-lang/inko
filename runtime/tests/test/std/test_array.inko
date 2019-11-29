@@ -228,3 +228,25 @@ test.group('std::array::Array.inspect') do (g) {
     assert.equal(Array.new(10, 20).inspect, 'Array { 10, 20 }')
   }
 }
+
+test.group('std::array::Array.join') do (g) {
+  g.test('Joining values in an empty Array') {
+    assert.equal(Array.new.join(','), '')
+  }
+
+  g.test('Joining a single value') {
+    assert.equal(Array.new(10).join(','), '10')
+  }
+
+  g.test('Joining multiple values') {
+    assert.equal(Array.new(10, 20, 30).join(','), '10,20,30')
+  }
+
+  g.test('Joining multiple values using multiple characters as the separator') {
+    assert.equal(Array.new(10, 20, 30).join('::'), '10::20::30')
+  }
+
+  g.test('Joining multiple values using an empty separator') {
+    assert.equal(Array.new(10, 20, 30).join(''), '102030')
+  }
+}

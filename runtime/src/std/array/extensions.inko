@@ -4,8 +4,10 @@
 # These types and methods are defined separately as otherwise `std::iterator`
 # would depend on `std::array` while `std::array` would depend on
 # `std::iterator`.
+import std::conversion::ToString
 import std::format::(self, Formatter, Inspect)
 import std::iterator::(self, Iterator)
+import std::string_buffer::StringBuffer
 
 impl Array!(T) {
   # Returns an `Iterator` that iterates over all values in `self`.
@@ -25,6 +27,31 @@ impl Array!(T) {
     iterator.index_enumerator(length) do (index) {
       self[index]
     }
+  }
+
+  # Joins the values of `self` together using the separator.
+  #
+  # # Examples
+  #
+  # Joining an empty `Array`:
+  #
+  #     Array.new.join(',') # => ''
+  #
+  # Joining an `Array` with multiple values:
+  #
+  #     Array.new(10, 20, 30).join(',') # => '10,20,30'
+  def join(separator: String) -> String where T: ToString {
+    let buffer = StringBuffer.new
+
+    each_with_index do (value, index) {
+      index.positive?.if_true {
+        buffer.push(separator)
+      }
+
+      buffer.push(value.to_string)
+    }
+
+    buffer.to_string
   }
 }
 
