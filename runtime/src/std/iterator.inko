@@ -220,10 +220,12 @@ trait Iterator!(T) {
   #     Array.new(10, 20, 30).iter.each do (number) {
   #       stdout.print(number)
   #     }
-  def each(block: do (T)) {
+  def each(block: do (T)) -> Self {
     { next? }.while_true {
       block.call(next!)
     }
+
+    self
   }
 
   # Returns the first value for which the supplied `Block` returns `True`.

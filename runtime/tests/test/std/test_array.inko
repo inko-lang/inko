@@ -64,11 +64,11 @@ test.group('std::array::Array.each') do (g) {
   g.test('Iterating over the values of an Array') {
     let input = Array.new(10, 20, 30)
     let output = Array.new
-
-    input.each do (number) {
+    let returned = input.each do (number) {
       output.push(number)
     }
 
+    assert.equal(returned, input)
     assert.equal(output, Array.new(10, 20, 30))
   }
 }
@@ -79,11 +79,12 @@ test.group('std::array::Array.each_with_index') do (g) {
     let output = Array.new
     let indexes = Array.new
 
-    input.each_with_index do (number, index) {
+    let returned = input.each_with_index do (number, index) {
       output.push(number)
       indexes.push(index)
     }
 
+    assert.equal(returned, input)
     assert.equal(output, Array.new(10, 20, 30))
     assert.equal(indexes, Array.new(0, 1, 2))
   }

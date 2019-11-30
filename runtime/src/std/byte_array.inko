@@ -153,7 +153,7 @@ impl ByteArray {
   #     ByteArray.new(10, 20, 30).each do (byte) {
   #       stdout.print(byte)
   #     }
-  def each(block: do (Integer)) {
+  def each(block: do (Integer)) -> Self {
     let mut index = 0
     let max = length
 
@@ -164,6 +164,8 @@ impl ByteArray {
 
       index += 1
     }
+
+    self
   }
 
   # Yields all the values and their indexes in this `ByteArray` to the supplied
@@ -179,7 +181,7 @@ impl ByteArray {
   #     ByteArray.new(10, 20, 30).each_with_index do (byte, index) {
   #       stdout.print(index) # => 0, 1, 2
   #     }
-  def each_with_index(block: do (Integer, Integer)) {
+  def each_with_index(block: do (Integer, Integer)) -> Self {
     let mut index = 0
 
     each do (value) {

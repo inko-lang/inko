@@ -129,7 +129,7 @@ impl Array!(T) {
   #     Array.new(10, 20, 30).each do (number) {
   #       stdout.print(number)
   #     }
-  def each(block: do (T)) {
+  def each(block: do (T)) -> Self {
     let mut index = 0
     let max = length
 
@@ -140,6 +140,8 @@ impl Array!(T) {
 
       index += 1
     }
+
+    self
   }
 
   # Yields all the values and their indexes in this `Array` to the supplied
@@ -154,7 +156,7 @@ impl Array!(T) {
   #     Array.new(10, 20, 30).each_with_index do (number, index) {
   #       stdout.print(index) # => 0, 1, 2
   #     }
-  def each_with_index(block: do (T, Integer)) {
+  def each_with_index(block: do (T, Integer)) -> Self {
     let mut index = 0
 
     each do (value: T) {

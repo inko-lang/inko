@@ -59,10 +59,11 @@ test.group('std::iterator::Iterator.each') do (g) {
     let iter = SimpleIterator.new
     let values = Array.new
 
-    iter.each do (value) {
+    let returned = iter.each do (value) {
       values.push(value)
     }
 
+    assert.equal(returned, iter)
     assert.equal(values, Array.new(10, 20, 30))
   }
 
