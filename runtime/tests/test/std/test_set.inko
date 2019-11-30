@@ -1,0 +1,123 @@
+import std::set::Set
+import std::test
+import std::test::assert
+
+test.group('std::set::Set.insert') do (g) {
+  g.test('Inserting a value into a Set') {
+    let set = Set.new
+
+    assert.true(set.insert(10))
+    assert.false(set.insert(10))
+  }
+}
+
+test.group('std::set::Set.remove') do (g) {
+  g.test('Removing a non-existing value from a Set') {
+    let set = Set.new
+
+    assert.false(set.remove(10))
+  }
+
+  g.test('Removing an existing value from a Set') {
+    let set = Set.new
+
+    set.insert(10)
+
+    assert.true(set.remove(10))
+  }
+}
+
+test.group('std::set::Set.each') do (g) {
+  g.test('Iterating over the values in a Set') {
+    let set = Set.new
+    let mut total = 0
+
+    set.insert(1)
+    set.insert(2)
+
+    set.each do (value) {
+      total += value
+    }
+
+    assert.equal(total, 3)
+  }
+}
+
+test.group('std::set::Set.iter') do (g) {
+  g.test('Iterating over the values in a Set') {
+    let set = Set.new
+
+    set.insert(1)
+
+    let iter = set.iter
+
+    assert.equal(iter.next, 1)
+    assert.equal(iter.next, Nil)
+  }
+}
+
+test.group('std::set::Set.contains?') do (g) {
+  g.test('Checking if a Set contains a value') {
+    let set = Set.new
+
+    assert.false(set.contains?(10))
+
+    set.insert(10)
+
+    assert.true(set.contains?(10))
+  }
+}
+
+test.group('std::set::Set.==') do (g) {
+  g.test('Checking if two Sets are equal') {
+    let set1 = Set.new
+    let set2 = Set.new
+    let set3 = Set.new
+
+    set1.insert(1)
+    set2.insert(1)
+    set3.insert(2)
+
+    assert.equal(set1, set2)
+    assert.not_equal(set1, set3)
+  }
+}
+
+test.group('std::set::Set.length') do (g) {
+  g.test('Obtaining the numer of values in a Set') {
+    let set = Set.new
+
+    assert.equal(set.length, 0)
+
+    set.insert(1)
+    set.insert(2)
+
+    assert.equal(set.length, 2)
+  }
+}
+
+test.group('std::set::Set.inspect') do (g) {
+  g.test('Inspecting an empty Set') {
+    assert.equal(Set.new.inspect, 'Set')
+  }
+
+  g.test('Inspecting a Set with a single value') {
+    let set = Set.new
+
+    set.insert(1)
+
+    assert.equal(set.inspect, 'Set { 1 }')
+  }
+
+  g.test('Inspecting a Set with multiple values') {
+    let set = Set.new
+
+    set.insert(1)
+    set.insert(2)
+
+    let output = set.inspect
+    let valid = (output == 'Set { 1, 2 }').or { output == 'Set { 2, 1 }' }
+
+    assert.true(valid)
+  }
+}

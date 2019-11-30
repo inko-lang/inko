@@ -608,7 +608,7 @@ impl Length for Map!(K, V) {
   #
   # Using a map with one key-value pair:
   #
-  #     let mut map = Map.new
+  #     let map = Map.new
   #
   #     map['name'] = 'Alice'
   #

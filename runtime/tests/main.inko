@@ -35,11 +35,11 @@ import test::std::test_ffi
 import test::std::test_float
 import test::std::test_format
 import test::std::test_fs
-import test::std::test_map
 import test::std::test_integer
 import test::std::test_io
 import test::std::test_iterator
 import test::std::test_length
+import test::std::test_map
 import test::std::test_mirror
 import test::std::test_nil
 import test::std::test_object
@@ -48,6 +48,7 @@ import test::std::test_pair
 import test::std::test_process
 import test::std::test_random
 import test::std::test_range
+import test::std::test_set
 import test::std::test_string
 import test::std::test_string_buffer
 import test::std::test_time
