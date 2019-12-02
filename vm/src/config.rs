@@ -23,8 +23,8 @@ macro_rules! set_from_env {
     }};
 }
 
-const DEFAULT_YOUNG_THRESHOLD: u32 = (8 * 1024 * 1024) / (BLOCK_SIZE as u32);
-const DEFAULT_MATURE_THRESHOLD: u32 = (16 * 1024 * 1024) / (BLOCK_SIZE as u32);
+const DEFAULT_YOUNG_THRESHOLD: u32 = (2 * 1024 * 1024) / (BLOCK_SIZE as u32);
+const DEFAULT_MATURE_THRESHOLD: u32 = (4 * 1024 * 1024) / (BLOCK_SIZE as u32);
 const DEFAULT_GROWTH_FACTOR: f64 = 1.5;
 const DEFAULT_GROWTH_THRESHOLD: f64 = 0.9;
 const DEFAULT_REDUCTIONS: usize = 1000;
