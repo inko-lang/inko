@@ -333,7 +333,7 @@ trait Iterator!(T) {
         .if(true: { true.push(value) }, false: { false.push(value) })
     }
 
-    Pair.new(true, false)
+    Pair.new(first: true, second: false)
   }
 
   # Transforms the `Iterator` into an `Array`.

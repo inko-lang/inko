@@ -28,7 +28,7 @@ object Pair!(A, B) {
   #
   #     import std::pair::Pair
   #
-  #     let pair = Pair.new(10, 'foo')
+  #     let pair = Pair.new(first: 10, second: 'foo')
   #
   #     pair.first # => 10
   def first -> A {
@@ -43,7 +43,7 @@ object Pair!(A, B) {
   #
   #     import std::pair::Pair
   #
-  #     let pair = Pair.new(10, 'foo')
+  #     let pair = Pair.new(first: 10, second: 'foo')
   #
   #     pair.second # => 'foo'
   def second -> B {
@@ -113,7 +113,7 @@ object Triple!(A, B, C) {
   #
   #     import std::pair::Triple
   #
-  #     let triple = Triple.new(10, 'foo', 20)
+  #     let triple = Triple.new(first: 10, second: 'foo', third: 20)
   #
   #     triple.first # => 10
   def first -> A {
@@ -128,7 +128,7 @@ object Triple!(A, B, C) {
   #
   #     import std::pair::Triple
   #
-  #     let triple = Triple.new(10, 'foo', 20)
+  #     let triple = Triple.new(first: 10, second: 'foo', third: 20)
   #
   #     triple.second # => 'foo'
   def second -> B {
@@ -143,7 +143,7 @@ object Triple!(A, B, C) {
   #
   #     import std::pair::Triple
   #
-  #     let triple = Triple.new(10, 'foo', 20)
+  #     let triple = Triple.new(first: 10, second: 'foo', third: 20)
   #
   #     triple.third # => 20
   def third -> C {

@@ -167,7 +167,7 @@ test.group('std::map::Pair.value') do (g) {
 
 test.group('std::map::Pair.hash') do (g) {
   g.test('Obtaining the hash of a Pair') {
-    let pair = Pair.new('key', 'value', 123)
+    let pair = Pair.new(key: 'key', value: 'value', hash: 123)
 
     assert.equal(pair.hash, 123)
   }

@@ -5,20 +5,24 @@ import std::test::assert
 
 test.group('std::pair::Pair.first') do (g) {
   g.test('Obtaining the first value of a Pair') {
-    assert.equal(Pair.new(10, 20).first, 10)
+    assert.equal(Pair.new(first: 10, second: 20).first, 10)
   }
 }
 
 test.group('std::pair::Pair.second') do (g) {
   g.test('Obtaining the second value of a Pair') {
-    assert.equal(Pair.new(10, 20).second, 20)
+    assert.equal(Pair.new(first: 10, second: 20).second, 20)
   }
 }
 
 test.group('std::pair::Pair.==') do (g) {
   g.test('Comparing two Pair objects for equality') {
-    assert.not_equal(Pair.new(1, 2), Pair.new(2, 3))
-    assert.equal(Pair.new(1, 1), Pair.new(1, 1))
+    assert.not_equal(
+      Pair.new(first: 1, second: 2),
+      Pair.new(first: 2, second: 3)
+    )
+
+    assert.equal(Pair.new(first: 1, second: 1), Pair.new(first: 1, second: 1))
   }
 }
 
@@ -26,7 +30,7 @@ test.group('std::pair::Pair.hash') do (g) {
   g.test('Hashing a Pair') {
     let hasher1 = DefaultHasher.new(1, 2)
     let hasher2 = DefaultHasher.new(1, 2)
-    let pair = Pair.new(1, 2)
+    let pair = Pair.new(first: 1, second: 2)
 
     pair.hash(hasher1)
     pair.hash(hasher2)
@@ -37,7 +41,7 @@ test.group('std::pair::Pair.hash') do (g) {
 
 test.group('std::pair::Pair.inspect') do (g) {
   g.test('Inspecting a Pair') {
-    let pair = Pair.new(10, 20)
+    let pair = Pair.new(first: 10, second: 20)
 
     assert.equal(pair.inspect, 'Pair { 10, 20 }')
   }
@@ -45,26 +49,33 @@ test.group('std::pair::Pair.inspect') do (g) {
 
 test.group('std::pair::Triple.first') do (g) {
   g.test('Obtaining the first value of a Triple') {
-    assert.equal(Triple.new(10, 20, 30).first, 10)
+    assert.equal(Triple.new(first: 10, second: 20, third: 30).first, 10)
   }
 }
 
 test.group('std::pair::Triple.second') do (g) {
   g.test('Obtaining the second value of a Triple') {
-    assert.equal(Triple.new(10, 20, 30).second, 20)
+    assert.equal(Triple.new(first: 10, second: 20, third: 30).second, 20)
   }
 }
 
 test.group('std::pair::Triple.third') do (g) {
   g.test('Obtaining the third value of a Triple') {
-    assert.equal(Triple.new(10, 20, 30).third, 30)
+    assert.equal(Triple.new(first: 10, second: 20, third: 30).third, 30)
   }
 }
 
 test.group('std::pair::Triple.==') do (g) {
   g.test('Comparing two Triple objects for equality') {
-    assert.not_equal(Triple.new(1, 2, 3), Triple.new(2, 3, 4))
-    assert.equal(Triple.new(1, 1, 1), Triple.new(1, 1, 1))
+    assert.not_equal(
+      Triple.new(first: 1, second: 2, third: 3),
+      Triple.new(first: 2, second: 3, third: 4)
+    )
+
+    assert.equal(
+      Triple.new(first: 1, second: 1, third: 1),
+      Triple.new(first: 1, second: 1, third: 1)
+    )
   }
 }
 
@@ -72,7 +83,7 @@ test.group('std::pair::Triple.hash') do (g) {
   g.test('Hashing a Triple') {
     let hasher1 = DefaultHasher.new(1, 2)
     let hasher2 = DefaultHasher.new(1, 2)
-    let triple = Triple.new(1, 2, 3)
+    let triple = Triple.new(first: 1, second: 2, third: 3)
 
     triple.hash(hasher1)
     triple.hash(hasher2)
@@ -83,7 +94,7 @@ test.group('std::pair::Triple.hash') do (g) {
 
 test.group('std::pair::Triple.inspect') do (g) {
   g.test('Inspecting a Triple') {
-    let triple = Triple.new(10, 20, 30)
+    let triple = Triple.new(first: 10, second: 20, third: 30)
 
     assert.equal(triple.inspect, 'Triple { 10, 20, 30 }')
   }
