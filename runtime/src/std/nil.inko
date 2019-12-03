@@ -110,7 +110,8 @@ impl UnknownMessage for Nil {
 impl Optional for Nil {}
 
 impl Hash for Nil {
-  def hash(hasher: Hasher) {
+  def hash(hasher: Hasher) -> Nil {
     _INKOC.hasher_write(hasher, self)
+    Nil
   }
 }

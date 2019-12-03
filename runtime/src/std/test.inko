@@ -101,18 +101,20 @@ import std::test::test_group::TestGroup
 let DEFAULT_CLIENT = runner.start
 
 # Defines a new test group and sends it to the default test runner.
-def group(name: String, body: do (TestGroup)) {
+def group(name: String, body: do (TestGroup)) -> TestGroup {
   let group = TestGroup.new(name: name, client: DEFAULT_CLIENT)
 
   body.call(group)
+
+  group
 }
 
 # Sets a configuration option of the default `Client` to the given value.
-def configure(option: String, value: Dynamic) {
+def configure!(T)(option: String, value: T) -> T {
   DEFAULT_CLIENT.configure(option, value)
 }
 
 # Runs all the tests registered with the default `Client`.
-def run {
+def run -> Nil {
   DEFAULT_CLIENT.run
 }

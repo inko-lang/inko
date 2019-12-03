@@ -8,25 +8,25 @@ import std::time::Duration
 # A type for formatting the results of tests.
 trait Formatter {
   # Displays the result of a single test.
-  def test(test: Test) {
+  def test(test: Test) -> Nil {
     test.passed?.if(true: { passed(test) }, false: { failed(test) })
   }
 
   # Displays the result of a passed test.
-  def passed(test: Test)
+  def passed(test: Test) -> Nil
 
   # Displays the result of a failed test.
-  def failed(test: Test)
+  def failed(test: Test) -> Nil
 
   # Displays all of the failed tests after the test suite has finished.
   #
   # The `tests` argument will be passed an `Array` of `Test` objects that
   # did not pass.
-  def failures(tests: Array!(Test))
+  def failures(tests: Array!(Test)) -> Nil
 
   # Displays a summary of all the tests that have been executed.
   #
   # The `tests` argument will be passed an `Array` of all `Test` objects
   # (including failed tests) that were executed.
-  def summary(tests: Array!(Test), duration: Duration)
+  def summary(tests: Array!(Test), duration: Duration) -> Nil
 }

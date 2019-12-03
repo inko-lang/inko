@@ -197,7 +197,7 @@ impl Inspect for Set!(V) {
   }
 
   # Formats this `Set` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) where V: Inspect {
+  def format_for_inspect(formatter: Formatter) -> Nil where V: Inspect {
     let last = length - 1
     let mut index = 0
 
@@ -222,5 +222,7 @@ impl Inspect for Set!(V) {
     }
 
     formatter.push(' }')
+
+    Nil
   }
 }

@@ -11,15 +11,16 @@ let MAX_DEPTH = 31
 # A Formatter can be used to format an object for debugging purposes.
 trait Formatter: ToString {
   # Pushes the given `String` into the underlying buffer.
-  def push(string: String)
+  def push(string: String) -> String
 
   # Descends into a child object, running the supplied block if the object
   # should be formatted.
   #
   # This method can be used to produce a placeholder when formatting an object
   # that is too deeply nested.
-  def descend(block: do) {
+  def descend(block: do) -> Nil {
     block.call
+    Nil
   }
 }
 
@@ -46,7 +47,7 @@ impl ToString for DefaultFormatter {
 
 impl Formatter for DefaultFormatter {
   # Pushes a new `String` into the underlying buffer.
-  def push(string: String) {
+  def push(string: String) -> String {
     @buffer.push(string)
   }
 
@@ -55,19 +56,19 @@ impl Formatter for DefaultFormatter {
   #
   # If nesting _is_ too great, a placeholder value is added to the buffer, and
   # the supplied block is not executed.
-  def descend(block: do) {
-    (@nesting >= MAX_DEPTH).if(
-      true: {
-        push(PLACEHOLDER)
-      },
-      false: {
-        @nesting += 1
+  def descend(block: do) -> Nil {
+    (@nesting >= MAX_DEPTH).if_true {
+      push(PLACEHOLDER)
+      return
+    }
 
-        block.call
+    @nesting += 1
 
-        @nesting -= 1
-      }
-    )
+    block.call
+
+    @nesting -= 1
+
+    Nil
   }
 }
 
@@ -82,7 +83,7 @@ trait Inspect {
   #
   # Objects implementing this method should push their values into the given
   # `Formatter`, instead of immediately returning a `String`.
-  def format_for_inspect(formatter: Formatter)
+  def format_for_inspect(formatter: Formatter) -> Nil
 }
 
 # Returns a human-readable representation of the object.

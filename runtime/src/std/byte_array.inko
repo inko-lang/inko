@@ -390,10 +390,12 @@ impl Length for ByteArray {
 
 impl Inspect for ByteArray {
   # Formats this `ByteArray` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push('ByteArray { ')
     formatter.push(length.to_string)
     formatter.push(' bytes }')
+
+    Nil
   }
 }
 

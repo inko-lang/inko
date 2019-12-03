@@ -23,7 +23,7 @@ def temp_dir(components = Array.new!(String)) -> String {
   buffer.to_string
 }
 
-def with_temp_dir(components = Array.new!(String), block: do (String)) {
+def with_temp_dir(components = Array.new!(String), block: do (String)) -> Nil {
   let root = temp_dir
   let path = temp_dir(components)
 
@@ -38,6 +38,7 @@ def with_temp_dir(components = Array.new!(String), block: do (String)) {
   }
 
   block.call(path)
+  Nil
 }
 
 test.group('std::fs::dir.create') do (g) {

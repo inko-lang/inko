@@ -3,19 +3,22 @@
 import std::format::(self, Formatter, Inspect)
 
 impl Inspect for Boolean {
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push('Boolean')
+    Nil
   }
 }
 
 impl Inspect for True {
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push('True')
+    Nil
   }
 }
 
 impl Inspect for False {
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push('False')
+    Nil
   }
 }

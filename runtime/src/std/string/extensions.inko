@@ -30,8 +30,9 @@ impl Inspect for String {
   #
   #     # This would print "hello" (including quotes) to STDOUT.
   #     stdout.print(fmt.to_string)
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push(_INKOC.string_format_debug(self))
+    Nil
   }
 }
 

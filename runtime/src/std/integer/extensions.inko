@@ -104,7 +104,8 @@ impl ToRange!(Integer) for Integer {
 }
 
 impl Inspect for Integer {
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     formatter.push(to_string)
+    Nil
   }
 }

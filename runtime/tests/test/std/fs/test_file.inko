@@ -21,7 +21,7 @@ def read_string(path: ToPath) -> String {
   try! file.read_string
 }
 
-def close_and_remove_file!(T: Close + Remove)(file: T) {
+def close_and_remove_file!(T: Close + Remove)(file: T) -> Nil {
   file.close
 
   # If the removal fails that's OK, because in the worst case we just leave the
@@ -29,7 +29,7 @@ def close_and_remove_file!(T: Close + Remove)(file: T) {
   try file.remove else Nil
 }
 
-def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) {
+def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) -> Nil {
   let file = try! ::file.read_only(path)
 
   process.defer {
@@ -37,9 +37,10 @@ def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) {
   }
 
   block.call(file)
+  Nil
 }
 
-def write_only_file(block: do (WriteOnlyFile)) {
+def write_only_file(block: do (WriteOnlyFile)) -> Nil {
   let file = try! ::file.write_only(fixtures.temporary_file_path)
 
   process.defer {
@@ -47,9 +48,10 @@ def write_only_file(block: do (WriteOnlyFile)) {
   }
 
   block.call(file)
+  Nil
 }
 
-def read_write_file(block: do (ReadWriteFile)) {
+def read_write_file(block: do (ReadWriteFile)) -> Nil {
   let file = try! ::file.read_write(fixtures.temporary_file_path)
 
   process.defer {
@@ -57,6 +59,7 @@ def read_write_file(block: do (ReadWriteFile)) {
   }
 
   block.call(file)
+  Nil
 }
 
 test.group('std::fs::file::ReadOnlyFile.new') do (g) {

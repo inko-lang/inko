@@ -425,9 +425,11 @@ object LayoutBuilder {
   }
 
   # Disables the padding of members.
-  def disable_padding {
+  def disable_padding -> Nil {
     @padding = False
     @alignment = 1
+
+    Nil
   }
 
   # Creates a new `Layout` based on the current state of this builder.

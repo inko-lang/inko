@@ -385,7 +385,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Resizes and rehashes `self`.
-  def rehash {
+  def rehash -> Nil {
     let old_buckets = @buckets
 
     @capacity = @capacity * 2
@@ -399,6 +399,8 @@ object Map!(K: Hash + Equal, V) {
         rehash_pair(pair!)
       }
     }
+
+    Nil
   }
 
   # Hashes the supplied key using the internal hasher of this `Map`.
@@ -414,7 +416,7 @@ object Map!(K: Hash + Equal, V) {
   #
   # The `Pair` to insert must be pre-hashed using the `Hasher` used internally
   # by this `Map`, otherwise it might not be retrieved later.
-  def insert_pair(mut pair: Pair!(K, V)) {
+  def insert_pair(mut pair: Pair!(K, V)) -> Nil {
     let mut index = desired_bucket(pair.hash)
 
     {
@@ -444,7 +446,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Rehashes an existing pair into the list of buckets.
-  def rehash_pair(mut pair: Pair!(K, V)) {
+  def rehash_pair(mut pair: Pair!(K, V)) -> Nil {
     let mut index = desired_bucket(pair.hash)
 
     {
@@ -507,7 +509,7 @@ object Map!(K: Hash + Equal, V) {
   }
 
   # Shifts all pairs to the left starting at the given bucket index.
-  def backwards_shift(mut index: Integer) {
+  def backwards_shift(mut index: Integer) -> Nil {
     let mut pair = @buckets[index]
 
     { pair.and { pair!.distance.positive? } }.while_true {
@@ -519,6 +521,8 @@ object Map!(K: Hash + Equal, V) {
       index += 1
       pair = @buckets[index]
     }
+
+    Nil
   }
 }
 
@@ -638,7 +642,9 @@ impl Inspect for Map!(K, V) {
   }
 
   # Formats this `Map` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) where K: Inspect, V: Inspect {
+  def format_for_inspect(
+    formatter: Formatter
+  ) -> Nil where K: Inspect, V: Inspect {
     let last = length - 1
     let mut index = 0
 
@@ -669,5 +675,7 @@ impl Inspect for Map!(K, V) {
     }
 
     formatter.push(' }')
+
+    Nil
   }
 }

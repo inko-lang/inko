@@ -76,7 +76,7 @@ impl Inspect for Array!(T) {
   }
 
   # Formats this `Array` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) where T: Inspect {
+  def format_for_inspect(formatter: Formatter) -> Nil where T: Inspect {
     let last = length - 1
 
     formatter.push('Array')
@@ -98,5 +98,7 @@ impl Inspect for Array!(T) {
     }
 
     formatter.push(' }')
+
+    Nil
   }
 }

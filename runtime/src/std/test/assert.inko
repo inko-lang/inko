@@ -48,7 +48,7 @@ object PanicTest {
     @block = block
   }
 
-  def run {
+  def run -> Nil {
     process.panicking do (error) {
       notify_owner(PanicResult.new(panicked: True, error: error))
     }
@@ -56,15 +56,17 @@ object PanicTest {
     @block.call
 
     notify_owner(PanicResult.new(panicked: False))
+    Nil
   }
 
-  def notify_owner(result: PanicResult) {
+  def notify_owner(result: PanicResult) -> Nil {
     @owner.send(result)
+    Nil
   }
 }
 
 # Asserts that the given arguments are equal to each other.
-def equal!(T: Inspect + Equal)(given: T, expected: T) {
+def equal!(T: Inspect + Equal)(given: T, expected: T) -> Nil {
   (given == expected).if_true {
     return
   }
@@ -80,7 +82,7 @@ def equal!(T: Inspect + Equal)(given: T, expected: T) {
 }
 
 # Asserts that the given arguments are not equal to each other.
-def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
+def not_equal!(T: Inspect + Equal)(given: T, expected: T) -> Nil {
   (given == expected).if_false {
     return
   }
@@ -96,7 +98,7 @@ def not_equal!(T: Inspect + Equal)(given: T, expected: T) {
 }
 
 # Asserts that the first argument is greater than the second argument.
-def greater!(T: Inspect + Greater)(given: T, minimum: T) {
+def greater!(T: Inspect + Greater)(given: T, minimum: T) -> Nil {
   (given > minimum).if_true {
     return
   }
@@ -112,7 +114,7 @@ def greater!(T: Inspect + Greater)(given: T, minimum: T) {
 }
 
 # Asserts that the given lambda panics.
-def panic(block: lambda) {
+def panic(block: lambda) -> Nil {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 
@@ -131,7 +133,7 @@ def panic(block: lambda) {
 }
 
 # Asserts that the given lambda does not panic.
-def no_panic(block: lambda) {
+def no_panic(block: lambda) -> Nil {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 
@@ -153,7 +155,7 @@ def no_panic(block: lambda) {
 #
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
-def true!(T: Inspect + Conditional)(value: T) {
+def true!(T: Inspect + Conditional)(value: T) -> Nil {
   value.if_true {
     return
   }
@@ -167,7 +169,7 @@ def true!(T: Inspect + Conditional)(value: T) {
 #
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
-def false!(T: Inspect + Conditional)(value: T) {
+def false!(T: Inspect + Conditional)(value: T) -> Nil {
   value.if_false {
     return
   }

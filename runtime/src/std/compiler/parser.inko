@@ -1197,7 +1197,7 @@ object Parser {
     True
   }
 
-  def require_token_type(token: Token, expected: String) !! ParseError {
+  def require_token_type(token: Token, expected: String) !! ParseError -> Nil {
     (token.type == expected).if_true {
       return
     }
@@ -1331,7 +1331,7 @@ object Parser {
     Nil
   }
 
-  def list_separator_or_terminal(type: String) !! ParseError {
+  def list_separator_or_terminal(type: String) !! ParseError -> Nil {
     let peeked = peek_token
 
     (peeked.type == 'comma').if_true {

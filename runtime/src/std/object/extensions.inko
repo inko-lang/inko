@@ -32,7 +32,7 @@ impl Inspect for Object {
   }
 
   # Formats a human-readable representation of this object.
-  def format_for_inspect(formatter: Formatter) {
+  def format_for_inspect(formatter: Formatter) -> Nil {
     let self_mirror = mirror.reflect_object(self)
     let attributes = self_mirror.instance_attributes
     let last_index = attributes.length - 1
@@ -62,5 +62,7 @@ impl Inspect for Object {
     }
 
     formatter.push(' }')
+
+    Nil
   }
 }

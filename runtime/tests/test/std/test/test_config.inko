@@ -10,10 +10,10 @@ import std::time::Duration
 object DummyFormatter {}
 
 impl Formatter for DummyFormatter {
-  def passed(test: Test) {}
-  def failed(test: Test) {}
-  def failures(test: Array!(Test)) {}
-  def summary(tests: Array!(Test), duration: Duration) {}
+  def passed(test: Test) -> Nil {}
+  def failed(test: Test) -> Nil {}
+  def failures(test: Array!(Test)) -> Nil {}
+  def summary(tests: Array!(Test), duration: Duration) -> Nil {}
 }
 
 test.group('std::test::config::Configuration.concurrency') do (g) {
