@@ -2,20 +2,20 @@
 
 module Inkoc
   module TypeSystem
-    class Void
+    class Never
       include Type
       include NewInstance
 
-      def void?
+      def never?
         true
       end
 
       def type_name
-        Config::VOID_TYPE
+        Config::NEVER_TYPE
       end
 
       def type_compatible?(_other, *)
-        # Void is compatible with everything else because it never returns. This
+        # Never is compatible with everything else because it never returns. This
         # allows one to write code such as:
         #
         #     try { foo } else { vm.panic('oops') }

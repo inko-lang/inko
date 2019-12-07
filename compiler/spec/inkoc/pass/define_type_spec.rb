@@ -1422,7 +1422,7 @@ describe Inkoc::Pass::DefineType do
 
   describe '#on_return' do
     context 'when used inside a method' do
-      it 'returns a Void type' do
+      it 'returns a Never type' do
         # An explicit return statement is a block return, thus the body that
         # contains it won't return anything (unless the body is in a method).
         body = parse_source('def foo { return 10 }')
@@ -1435,7 +1435,7 @@ describe Inkoc::Pass::DefineType do
         pass.define_type(body, type_scope)
         pass.process_deferred_methods
 
-        expect(ret_node.type).to be_void
+        expect(ret_node.type).to be_never
       end
 
       it 'does not produce any errors when the return type is compatible' do
@@ -1458,7 +1458,7 @@ describe Inkoc::Pass::DefineType do
       it 'produces an error' do
         type = expression_type('return 10')
 
-        expect(type).to be_void
+        expect(type).to be_never
         expect(state.diagnostics.errors?).to eq(true)
       end
     end
@@ -1603,10 +1603,10 @@ describe Inkoc::Pass::DefineType do
   end
 
   describe '#on_throw' do
-    it 'returns a void type' do
+    it 'returns a never type' do
       type = expression_type('throw 10')
 
-      expect(type).to be_void
+      expect(type).to be_never
     end
 
     it 'infers the throw type of the surrounding closure' do
@@ -2038,11 +2038,11 @@ describe Inkoc::Pass::DefineType do
       expect(type.return_type.type).to be_self_type
     end
 
-    it 'supports returning Void' do
-      type = expression_type('def foo -> Void {}')
+    it 'supports returning Never' do
+      type = expression_type('def foo -> Never {}')
 
       expect(type).to be_method
-      expect(type.return_type).to be_void
+      expect(type.return_type).to be_never
     end
   end
 

@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-describe Inkoc::TypeSystem::Void do
+describe Inkoc::TypeSystem::Never do
   let(:state) { Inkoc::State.new(Inkoc::Config.new) }
 
   describe '#type_compatible?' do
@@ -14,7 +14,7 @@ describe Inkoc::TypeSystem::Void do
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end
 
-    it 'returns true when comparing with another void type' do
+    it 'returns true when comparing with another never type' do
       theirs = described_class.new
 
       expect(ours.type_compatible?(theirs, state)).to eq(true)
@@ -26,7 +26,7 @@ describe Inkoc::TypeSystem::Void do
       expect(ours.type_compatible?(theirs, state)).to eq(true)
     end
 
-    it 'returns true when comparing with an optional void type' do
+    it 'returns true when comparing with an optional never type' do
       theirs = Inkoc::TypeSystem::Optional.new(described_class.new)
 
       expect(ours.type_compatible?(theirs, state)).to eq(true)

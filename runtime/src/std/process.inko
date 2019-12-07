@@ -235,7 +235,7 @@ def suspend(minimum: ToFloat = 0.0) -> Nil {
 #     # This code will never run because at this point the process has been
 #     # terminated.
 #     stdout.print('after')
-def terminate -> Void {
+def terminate -> Never {
   _INKOC.process_terminate_current
 }
 
@@ -408,6 +408,6 @@ def pinned!(T)(block: do -> T) -> T {
 #     import std::process
 #
 #     process.panic('Uh-oh, something bad happened!')
-def panic(message: ToString) -> Void {
+def panic(message: ToString) -> Never {
   _INKOC.panic(message.to_string)
 }

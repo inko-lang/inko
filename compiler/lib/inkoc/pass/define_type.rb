@@ -132,8 +132,8 @@ module Inkoc
         wrap_optional_type(node, TypeSystem::Dynamic.new)
       end
 
-      def on_void_type(node, _)
-        wrap_optional_type(node, TypeSystem::Void.new)
+      def on_never_type(node, _)
+        wrap_optional_type(node, TypeSystem::Never.new)
       end
 
       def on_type_name(node, scope)
@@ -484,7 +484,7 @@ module Inkoc
         expected_type =
           block_type.return_type.resolve_self_type(scope.self_type)
 
-        if !type.void? && !type.type_compatible?(expected_type, @state)
+        if !type.never? && !type.type_compatible?(expected_type, @state)
           loc = node.location_of_last_expression
 
           diagnostics.return_type_error(expected_type, type, loc)
@@ -514,7 +514,7 @@ module Inkoc
 
         # A "return" statement itself will never return a value. For example,
         # `let x = return 10` would never assign a value to `x`.
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_try(node, scope)
@@ -595,7 +595,7 @@ module Inkoc
 
         scope.block_type.throw_type = type if scope.block_type.infer_throw_type?
 
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_object(node, scope)
@@ -1116,7 +1116,7 @@ module Inkoc
       end
 
       def on_raw_copy_blocks(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_integer_to_string(*)
@@ -1319,7 +1319,7 @@ module Inkoc
       end
 
       def on_raw_array_clear(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_array_remove(node, _)
@@ -1403,11 +1403,11 @@ module Inkoc
       end
 
       def on_raw_process_suspend_current(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_process_terminate_current(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_remove_attribute(node, _)
@@ -1502,11 +1502,11 @@ module Inkoc
       end
 
       def on_raw_panic(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_exit(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_platform(*)
@@ -1568,7 +1568,7 @@ module Inkoc
       end
 
       def on_raw_byte_array_clear(*)
-        TypeSystem::Void.new
+        TypeSystem::Never.new
       end
 
       def on_raw_byte_array_equals(*)

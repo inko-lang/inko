@@ -21,7 +21,7 @@ import std::string_buffer::StringBuffer
 #     import std::vm
 #
 #     vm.exit(1)
-def exit(status: Integer) -> Void {
+def exit(status: Integer) -> Never {
   _INKOC.exit(status)
 }
 

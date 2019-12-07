@@ -41,8 +41,8 @@ module Inkoc
           late_binding? ? :on_self_type_with_late_binding : :on_self_type
         when Config::DYNAMIC_TYPE
           :on_dynamic_type
-        when Config::VOID_TYPE
-          :on_void_type
+        when Config::NEVER_TYPE
+          :on_never_type
         else
           :on_type_name
         end

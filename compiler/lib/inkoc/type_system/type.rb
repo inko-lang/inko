@@ -45,7 +45,7 @@ module Inkoc
         false
       end
 
-      def void?
+      def never?
         false
       end
 

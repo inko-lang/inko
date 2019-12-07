@@ -87,7 +87,7 @@ module Inkoc
         false
       end
 
-      def void_type?
+      def never_type?
         false
       end
 

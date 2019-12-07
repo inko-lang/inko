@@ -223,7 +223,7 @@ object Runner {
   }
 
   # Starts the runner, blocking the calling process.
-  def run -> Void {
+  def run -> Never {
     let command = process.receive as Command
 
     command.run(@state)

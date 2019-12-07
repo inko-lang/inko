@@ -55,7 +55,7 @@ module Inkoc
     MODULE_TYPE = 'Module'
     SELF_TYPE = 'Self'
     DYNAMIC_TYPE = 'Dynamic'
-    VOID_TYPE = 'Void'
+    NEVER_TYPE = 'Never'
     MODULES_ATTRIBUTE = 'Modules'
 
     # The name of the constant to use as the receiver for raw instructions.
@@ -86,7 +86,7 @@ module Inkoc
         MODULE_GLOBAL,
         RAW_INSTRUCTION_RECEIVER,
         SELF_TYPE,
-        VOID_TYPE,
+        NEVER_TYPE,
         DYNAMIC_TYPE
       ]
     ).freeze
