@@ -16,11 +16,6 @@ import std::iterator::(self, Iterator)
 import std::length::Length
 import std::operators::Equal
 
-# A mutable sequence of bytes, similar to an `Array`.
-let ByteArray = _INKOC.get_byte_array_prototype
-
-_INKOC.set_object_name(ByteArray, 'ByteArray')
-
 # A type that can be converted to a `ByteArray`.
 trait ToByteArray {
   # Converts `self` to a `ByteArray`.
@@ -37,13 +32,9 @@ impl ByteArray {
   #
   # Creating an empty `ByteArray`:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     ByteArray.new
   #
   # Creating a `ByteArray` with values:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     ByteArray.new(10, 20, 30)
   static def new(*bytes: Integer) -> Self {
@@ -55,8 +46,6 @@ impl ByteArray {
   # # Examples
   #
   # Removing all values:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new(10, 20, 30)
   #
@@ -72,8 +61,6 @@ impl ByteArray {
   # # Examples
   #
   # Pushing a value into a `ByteArray`:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new
   #
@@ -92,16 +79,12 @@ impl ByteArray {
   #
   # Popping an existing value:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(10)
   #
   #     bytes.pop    # => 10
   #     bytes.length # => 0
   #
   # Popping a value when the `ByteArray` is empty:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new
   #
@@ -118,16 +101,12 @@ impl ByteArray {
   #
   # Removing an existing value:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(10)
   #
   #     bytes.remove_at(0) # => 10
   #     bytes.length       # => 0
   #
   # Removing a non-existing value:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new
   #
@@ -148,7 +127,6 @@ impl ByteArray {
   # Iterating over all the values in a `ByteArray`:
   #
   #     import std::stdio::stdout
-  #     import std::byte_array::ByteArray
   #
   #     ByteArray.new(10, 20, 30).each do (byte) {
   #       stdout.print(byte)
@@ -176,7 +154,6 @@ impl ByteArray {
   # Iterating over the values of an `ByteArray` and their indexes:
   #
   #     import std::stdio::stdout
-  #     import std::byte_array::ByteArray
   #
   #     ByteArray.new(10, 20, 30).each_with_index do (byte, index) {
   #       stdout.print(index) # => 0, 1, 2
@@ -201,8 +178,6 @@ impl ByteArray {
   #
   # Draining a `ByteArray` into a `String`:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(105, 110, 107, 111)
   #
   #     bytes.drain_to_string # => 'inko'
@@ -220,8 +195,6 @@ impl ByteArray {
   # # Examples
   #
   # Slicing a `ByteArray`:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new(1, 2, 3, 4)
   #     let sliced = bytes.slice(start: 1, length: 2)
@@ -256,15 +229,11 @@ impl Index!(Integer, Integer) for ByteArray {
   #
   # Retrieving an existing byte:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(10, 20)
   #
   #     bytes[0] # => 10
   #
   # Using an out of bounds index:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new(10, 20)
   #
@@ -289,8 +258,6 @@ impl SetIndex!(Integer, Integer) for ByteArray {
   #
   # Setting the value of an existing index:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(10, 20)
   #
   #     bytes[0] = 30 # => 30
@@ -310,8 +277,6 @@ impl ToString for ByteArray {
   #
   # Converting a `ByteArray` into a `String`:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     let bytes = ByteArray.new(105, 110, 107, 111)
   #
   #     bytes.to_string # => 'inko'
@@ -330,8 +295,6 @@ impl ToArray!(Integer) for ByteArray {
   # # Examples
   #
   # Converting a `ByteArray`:
-  #
-  #     import std::byte_array::ByteArray
   #
   #     let bytes = ByteArray.new(105, 110, 107, 111)
   #
@@ -363,8 +326,6 @@ impl Equal for ByteArray {
   #
   # Comparing two `ByteArray` objects:
   #
-  #     import std::byte_array::ByteArray
-  #
   #     ByteArray.new(10) == ByteArray.new(10) # => True
   #     ByteArray.new(10) == ByteArray.new(20) # => False
   def ==(other: ByteArray) -> Boolean {
@@ -378,8 +339,6 @@ impl Length for ByteArray {
   # # Examples
   #
   # Obtaining the length of a `ByteArray`
-  #
-  #     import std::byte_array::ByteArray
   #
   #     ByteArray.new.length     # => 0
   #     ByteArray.new(10).length # => 1

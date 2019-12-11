@@ -2,7 +2,6 @@
 #
 # This module should not be used directly, instead one should use
 # `std::net::socket` and `std::net::unix`.
-import std::byte_array::ByteArray
 import std::io::(Error as IoError)
 
 # A marker trait used for values that can be directly sent across a socket.

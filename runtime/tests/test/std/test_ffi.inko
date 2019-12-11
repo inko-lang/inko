@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::ffi::(
   self, Function, Layout, LayoutBuilder, Library, Member, Pointer, Struct
 )

@@ -12,3 +12,4 @@ let Integer = Inko::Integer
 let Float = Inko::Float
 let Block = Inko::Block
 let Array = Inko::Array
+let ByteArray = Inko::ByteArray

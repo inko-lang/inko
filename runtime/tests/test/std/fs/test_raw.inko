@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::Path
 import std::fs::raw::(READ_APPEND, READ_ONLY, READ_WRITE)

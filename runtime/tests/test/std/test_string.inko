@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::fs::path::Path
 import std::map::DefaultHasher
 import std::test

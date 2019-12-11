@@ -100,7 +100,6 @@
 #     let errno = libc.variable('errno')
 #
 #     errno.read(types.i32) # => 0
-import std::byte_array::ByteArray
 import std::ffi::types::Type
 import std::index::(Index, SetIndex)
 import std::io::Close

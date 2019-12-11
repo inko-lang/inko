@@ -8,7 +8,6 @@
 # file is opened in. For example, when opening a file in read-only mode you
 # will be given a `ReadOnlyFile` object while opening a file in write-only mode
 # produces a `WriteOnlyFile` object.
-import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::fs::raw::(self, READ_ONLY)

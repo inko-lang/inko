@@ -2,7 +2,7 @@
 #
 # The types and methods of this module are not part of the public API at this
 # time, meaning they can change at any time.
-import std::byte_array::(ByteArray, ToByteArray)
+import std::byte_array::ToByteArray
 import std::compiler::keywords
 import std::compiler::source_location::SourceLocation
 import std::compiler::token::*

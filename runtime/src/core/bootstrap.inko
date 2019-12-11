@@ -21,6 +21,7 @@ let Integer = _INKOC.get_integer_prototype
 let Float = _INKOC.get_float_prototype
 let Block = _INKOC.get_block_prototype
 let Array = _INKOC.get_array_prototype
+let ByteArray = _INKOC.get_byte_array_prototype
 
 _INKOC.set_object_name(self, 'Inko')
 _INKOC.set_object_name(Boolean, 'Boolean')
@@ -33,6 +34,7 @@ _INKOC.set_object_name(Integer, 'Integer')
 _INKOC.set_object_name(Float, 'Float')
 _INKOC.set_object_name(Array, 'Array')
 _INKOC.set_object_name(Block, 'Block')
+_INKOC.set_object_name(ByteArray, 'ByteArray')
 
 # Now that our core objects are set up we can start defining more of the
 # building blocks of Inko, such as "Object.new" and the bits necessary to allow

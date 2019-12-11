@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::io::(Read, Write)
 import std::os::NEWLINE
 import std::test

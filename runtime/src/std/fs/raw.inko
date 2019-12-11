@@ -2,7 +2,6 @@
 #
 # The methods in this module should not be used directly, instead they serve as
 # building blocks for other modules such as `std::fs::file`.
-import std::byte_array::ByteArray
 import std::io::(Error as IOError)
 import std::process
 import std::time::SystemTime

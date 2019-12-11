@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::format::DefaultFormatter
 import std::test
 import std::test::assert

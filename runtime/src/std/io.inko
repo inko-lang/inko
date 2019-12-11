@@ -3,7 +3,6 @@
 # The IO module provides the basic building blocks for IO operations such as
 # reading from and writing to a file.
 
-import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::error::StandardError
 import std::os::NEWLINE

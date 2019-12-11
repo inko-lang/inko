@@ -1,4 +1,3 @@
-import std::byte_array::ByteArray
 import std::env
 import std::fs
 import std::fs::file::(self, ReadOnlyFile, ReadWriteFile, Remove, WriteOnlyFile)

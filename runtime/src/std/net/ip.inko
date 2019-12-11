@@ -1,4 +1,4 @@
-import std::byte_array::(ByteArray, ToByteArray)
+import std::byte_array::ToByteArray
 import std::conversion::ToString
 import std::error::Error
 import std::operators::Equal

@@ -1,5 +1,4 @@
 # Networking types for Unix domain socket communication.
-import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::io::(Close, Error as IoError, Read, Write)
@@ -269,7 +268,6 @@ object Socket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std::byte_array::ByteArray
   #     import std::net::unix::(Socket, DGRAM)
   #
   #     let socket = try! Socket.new(DGRAM)

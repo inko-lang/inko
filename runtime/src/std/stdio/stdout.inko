@@ -12,7 +12,6 @@
 # STDOUT more convenient as in almost all (if not all) cases a developer
 # doesn't care if a write to STDOUT succeeds or not.
 
-import std::byte_array::ByteArray
 import std::conversion::ToString
 import std::io::Write
 import std::os::NEWLINE

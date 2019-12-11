@@ -1,5 +1,4 @@
 # Networking types for TCP/UDP communication.
-import std::byte_array::ByteArray
 import std::conversion::(ToFloat, ToString)
 import std::io::(Close, Error as IoError, Read, Write)
 import std::net::bits::(
@@ -208,7 +207,6 @@ object Socket {
   #
   # Sending a message to ourselves and receiving it:
   #
-  #     import std::byte_array::ByteArray
   #     import std::net::socket::(Socket, IPV4, DGRAM)
   #
   #     let socket = try! Socket.new(domain: IPV4, kind: DGRAM)

@@ -1,6 +1,6 @@
 # Extensions for the `String` type that can only be defined later on in the
 # bootstrapping process.
-import std::byte_array::(ByteArray, ToByteArray)
+import std::byte_array::ToByteArray
 import std::format::(Formatter, Inspect)
 
 impl Inspect for String {

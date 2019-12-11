@@ -1,7 +1,6 @@
 # Generating of random values.
 #
 # This module provides methods for generating random numbers and bytes.
-import std::byte_array::ByteArray
 import std::conversion::(ToFloat, ToInteger)
 
 # Returns a random `Integer`.

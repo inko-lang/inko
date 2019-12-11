@@ -11,7 +11,6 @@
 # Since this code is based on generated code, changing it may produce
 # unexpected results. For example, the various lookup tables in this module
 # should not have their order changed.
-import std::byte_array::ByteArray
 
 # The associated values for the first and second bytes in a keyword.
 let ASSOCIATED_VALUES = Array.new(
