@@ -1,5 +1,4 @@
 # A hash set implemented using a Map.
-import std::format::(self, Formatter, Inspect)
 import std::hash::Hash
 import std::iterator::Iterator
 import std::length::Length
@@ -176,53 +175,5 @@ impl Length for Set!(V) {
   #     set.length # => 1
   def length -> Integer {
     @map.length
-  }
-}
-
-impl Inspect for Set!(V) {
-  # Returns a human-readable representation of this `Set`.
-  #
-  # # Examples
-  #
-  # Inspecting a `Set`:
-  #
-  #     let set = Set.new
-  #
-  #     set.insert('Alice')
-  #     set.insert('Foo Street')
-  #
-  #     set.inspect # => 'Set { "Alice", "Foo Street" }'
-  def inspect -> String where V: Inspect {
-    ::format.inspect(self)
-  }
-
-  # Formats this `Set` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) -> Nil where V: Inspect {
-    let last = length - 1
-    let mut index = 0
-
-    formatter.push('Set')
-
-    empty?.if_true {
-      return
-    }
-
-    formatter.push(' { ')
-
-    each do (value) {
-      formatter.descend {
-        value.format_for_inspect(formatter)
-      }
-
-      (index < last).if_true {
-        formatter.push(', ')
-      }
-
-      index += 1
-    }
-
-    formatter.push(' }')
-
-    Nil
   }
 }

@@ -12,13 +12,13 @@ import std::compiler::ast::types::*
 import std::compiler::ast::variables::*
 import std::compiler::parser::Parser
 import std::conversion::ToString
-import std::mirror
+import std::mirror::ObjectMirror
 import std::string_buffer::StringBuffer
 import std::test
 import std::test::assert
 
 def instance_of(node: Node, instance_of: Node) -> Boolean {
-  mirror.reflect_object(node).instance_of?(instance_of)
+  ObjectMirror.new(node).instance_of?(instance_of)
 }
 
 def assert_instance_of(node: Node, instance_of: Node) -> Nil {

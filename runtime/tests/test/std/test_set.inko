@@ -96,29 +96,3 @@ test.group('std::set::Set.length') do (g) {
     assert.equal(set.length, 2)
   }
 }
-
-test.group('std::set::Set.inspect') do (g) {
-  g.test('Inspecting an empty Set') {
-    assert.equal(Set.new.inspect, 'Set')
-  }
-
-  g.test('Inspecting a Set with a single value') {
-    let set = Set.new
-
-    set.insert(1)
-
-    assert.equal(set.inspect, 'Set { 1 }')
-  }
-
-  g.test('Inspecting a Set with multiple values') {
-    let set = Set.new
-
-    set.insert(1)
-    set.insert(2)
-
-    let output = set.inspect
-    let valid = (output == 'Set { 1, 2 }').or { output == 'Set { 2, 1 }' }
-
-    assert.true(valid)
-  }
-}

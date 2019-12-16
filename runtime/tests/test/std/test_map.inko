@@ -567,23 +567,3 @@ test.group('std::map::Map.length') do (g) {
     assert.equal(map2.length, 2)
   }
 }
-
-test.group('std::map::Map.inspect') do (g) {
-  g.test('Inspecting an empty Map') {
-    assert.equal(Map.new.inspect, 'Map')
-  }
-
-  g.test('Inspecting a non-empty Map') {
-    let map = Map.new
-
-    map['foo'] = 10
-    map['bar'] = 20
-
-    let ins = map.inspect
-    let valid =
-      (ins == 'Map { "foo": 10, "bar": 20 }')
-        .or { ins == 'Map { "bar": 20, "foo": 10 }' }
-
-    assert.true(valid)
-  }
-}

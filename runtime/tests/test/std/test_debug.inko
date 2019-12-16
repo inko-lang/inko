@@ -1,5 +1,5 @@
 import std::debug::(self, CallFrame)
-import std::mirror
+import std::mirror::ModuleMirror
 import std::test
 import std::test::assert
 
@@ -30,7 +30,7 @@ test.group('std::debug::CallFrame.line') do (g) {
 test.group('std::debug.stacktrace') do (g) {
   g.test('Obtaining a stacktrace to the caller') {
     let trace = debug.stacktrace
-    let mirror = mirror.reflect_module(ThisModule)
+    let mirror = ModuleMirror.new(ThisModule)
     let last = trace[-1]!
 
     assert.true(trace.length > 0)
@@ -47,7 +47,7 @@ test.group('std::debug.stacktrace') do (g) {
 
   g.test('Skipping a number of call frames in a stacktrace') {
     let trace = debug.stacktrace(skip: 2)
-    let mirror = mirror.reflect_module(ThisModule)
+    let mirror = ModuleMirror.new(ThisModule)
 
     assert.true(trace.length > 0)
     assert.not_equal(trace[-1].path, mirror.path)
@@ -56,7 +56,7 @@ test.group('std::debug.stacktrace') do (g) {
 
 test.group('std::debug.last_call_frame_in') do (g) {
   g.test('Obtaining the last call frame of a file') {
-    let mirror = mirror.reflect_module(ThisModule)
+    let mirror = ModuleMirror.new(ThisModule)
     let frame = debug.last_call_frame_in(mirror.path)
 
     assert.equal(frame.name, '<block>')

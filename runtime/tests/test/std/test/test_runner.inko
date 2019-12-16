@@ -1,5 +1,5 @@
 import std::debug::CallFrame
-import std::mirror
+import std::mirror::ObjectMirror
 import std::process::(self, Process)
 import std::test
 import std::test::assert
@@ -53,7 +53,7 @@ test.group('std::test::runner::RunnerState.concurrency') do (g) {
 test.group('std::test::runner::RunnerState.formatter') do (g) {
   g.test('Obtaining the formatter of a RunnerState') {
     let state = RunnerState.new
-    let mirror = mirror.reflect_object(state.formatter)
+    let mirror = ObjectMirror.new(state.formatter)
 
     assert.true(mirror.instance_of?(ProgressFormatter))
   }

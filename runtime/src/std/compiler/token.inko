@@ -1,9 +1,8 @@
 # Types for tokens produced by the lexer.
 import std::compiler::source_location::SourceLocation
-import std::format::Inspect
 
 # A single token produced by a `Lexer`.
-trait Token: Inspect {
+trait Token {
   # Returns the type of the token.
   def type -> String
 

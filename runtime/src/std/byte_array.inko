@@ -10,7 +10,6 @@
 # numbers, you're better off using the `Array` object.
 import std::conversion::ToArray
 import std::conversion::ToString
-import std::format::(self, Formatter, Inspect)
 import std::index::(Index, SetIndex)
 import std::iterator::(self, Iterator)
 import std::length::Length
@@ -344,17 +343,6 @@ impl Length for ByteArray {
   #     ByteArray.new(10).length # => 1
   def length -> Integer {
     _INKOC.byte_array_length(self)
-  }
-}
-
-impl Inspect for ByteArray {
-  # Formats this `ByteArray` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) -> Nil {
-    formatter.push('ByteArray { ')
-    formatter.push(length.to_string)
-    formatter.push(' bytes }')
-
-    Nil
   }
 }
 

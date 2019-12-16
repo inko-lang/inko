@@ -143,16 +143,6 @@ test.group('std::string::String.byte') do (g) {
   }
 }
 
-test.group('std::string::String.inspect') do (g) {
-  g.test('Inspecting an empty String') {
-    assert.equal(''.inspect, '""')
-  }
-
-  g.test('Inspecting a non-empty String') {
-    assert.equal('foo'.inspect, '"foo"')
-  }
-}
-
 test.group('std::string::String.to_byte_array') do (g) {
   g.test('Converting a String to a ByteArray') {
     assert.equal('inko'.to_byte_array, ByteArray.new(105, 110, 107, 111))

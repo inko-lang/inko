@@ -219,17 +219,6 @@ test.group('std::array::Array.contains?') do (g) {
   }
 }
 
-test.group('std::array::Array.inspect') do (g) {
-  g.test('Inspecting an empty Array') {
-    assert.equal(Array.new.inspect, 'Array')
-  }
-
-  g.test('Inspecting a non-empty Array') {
-    assert.equal(Array.new(10).inspect, 'Array { 10 }')
-    assert.equal(Array.new(10, 20).inspect, 'Array { 10, 20 }')
-  }
-}
-
 test.group('std::array::Array.join') do (g) {
   g.test('Joining values in an empty Array') {
     assert.equal(Array.new.join(','), '')

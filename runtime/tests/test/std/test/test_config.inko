@@ -1,4 +1,4 @@
-import std::mirror
+import std::mirror::ObjectMirror
 import std::test
 import std::test::assert
 import std::test::config::(Configuration, DEFAULT_CONCURRENCY)
@@ -25,7 +25,7 @@ test.group('std::test::config::Configuration.concurrency') do (g) {
 test.group('std::test::config::Configuration.formatter') do (g) {
   g.test('Obtaining the formatter to use') {
     let fmt = Configuration.new.formatter
-    let fmt_mirror = mirror.reflect_object(fmt)
+    let fmt_mirror = ObjectMirror.new(fmt)
 
     assert.true(fmt_mirror.instance_of?(ProgressFormatter))
   }

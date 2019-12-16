@@ -1,4 +1,3 @@
-import std::format::DefaultFormatter
 import std::test
 import std::test::assert
 
@@ -187,25 +186,6 @@ test.group('std::byte_array::ByteArray.length') do (g) {
     let bytes = ByteArray.new(10, 20, 30)
 
     assert.equal(bytes.length, 3)
-  }
-}
-
-test.group('std::byte_array::ByteArray.inspect') do (g) {
-  g.test('Inspecting a ByteArray') {
-    let bytes = ByteArray.new(10, 20, 30)
-
-    assert.equal(bytes.inspect, 'ByteArray { 3 bytes }')
-  }
-}
-
-test.group('std::byte_array::ByteArray.format') do (g) {
-  g.test('Formatting a ByteArray') {
-    let formatter = DefaultFormatter.new
-    let bytes = ByteArray.new(10, 20, 30)
-
-    bytes.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'ByteArray { 3 bytes }')
   }
 }
 

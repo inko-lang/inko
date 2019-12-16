@@ -39,14 +39,6 @@ test.group('std::pair::Pair.hash') do (g) {
   }
 }
 
-test.group('std::pair::Pair.inspect') do (g) {
-  g.test('Inspecting a Pair') {
-    let pair = Pair.new(first: 10, second: 20)
-
-    assert.equal(pair.inspect, 'Pair { 10, 20 }')
-  }
-}
-
 test.group('std::pair::Triple.first') do (g) {
   g.test('Obtaining the first value of a Triple') {
     assert.equal(Triple.new(first: 10, second: 20, third: 30).first, 10)
@@ -89,13 +81,5 @@ test.group('std::pair::Triple.hash') do (g) {
     triple.hash(hasher2)
 
     assert.equal(hasher1.to_hash, hasher2.to_hash)
-  }
-}
-
-test.group('std::pair::Triple.inspect') do (g) {
-  g.test('Inspecting a Triple') {
-    let triple = Triple.new(first: 10, second: 20, third: 30)
-
-    assert.equal(triple.inspect, 'Triple { 10, 20, 30 }')
   }
 }

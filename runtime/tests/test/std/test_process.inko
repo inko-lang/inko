@@ -2,11 +2,11 @@ import std::process::(self, Process)
 import std::test
 import std::test::assert
 import std::time::Instant
-import std::mirror
+import std::mirror::ObjectMirror
 
 test.group('std::process.current') do (g) {
   g.test('Obtaining the current Process') {
-    assert.true(mirror.reflect_object(process.current).instance_of?(Process))
+    assert.true(ObjectMirror.new(process.current).instance_of?(Process))
   }
 }
 
@@ -48,7 +48,7 @@ test.group('std::process.spawn') do (g) {
   g.test('Spawning a process') {
     let proc = process.spawn {}
 
-    assert.true(mirror.reflect_object(proc).instance_of?(Process))
+    assert.true(ObjectMirror.new(proc).instance_of?(Process))
   }
 }
 

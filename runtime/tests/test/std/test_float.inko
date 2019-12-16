@@ -1,5 +1,4 @@
 import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
-import std::format::DefaultFormatter
 import std::map::DefaultHasher
 import std::test
 import std::test::assert
@@ -724,59 +723,6 @@ test.group('std::float::Float.to_string') do (g) {
 
   g.test('Converting negative Infinity to a String') {
     assert.equal(NEGATIVE_INFINITY.to_string, '-Infinity')
-  }
-}
-
-test.group('std::float::Float.inspect') do (g) {
-  g.test('Inspecting a Float') {
-    assert.equal(1.5.inspect, '1.5')
-    assert.equal(1.1234.inspect, '1.1234')
-  }
-
-  g.test('Inspecting a NAN') {
-    assert.equal(NAN.inspect, 'NaN')
-  }
-
-  g.test('Inspecting Infinity') {
-    assert.equal(INFINITY.inspect, 'Infinity')
-  }
-
-  g.test('Inspecting negative Infinity') {
-    assert.equal(NEGATIVE_INFINITY.inspect, '-Infinity')
-  }
-}
-
-test.group('std::float::Float.format') do (g) {
-  g.test('Formatting a Float') {
-    let formatter = DefaultFormatter.new
-
-    1.1234.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, '1.1234')
-  }
-
-  g.test('Inspecting a NAN') {
-    let formatter = DefaultFormatter.new
-
-    NAN.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'NaN')
-  }
-
-  g.test('Inspecting Infinity') {
-    let formatter = DefaultFormatter.new
-
-    INFINITY.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'Infinity')
-  }
-
-  g.test('Inspecting negative Infinity') {
-    let formatter = DefaultFormatter.new
-
-    NEGATIVE_INFINITY.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, '-Infinity')
   }
 }
 

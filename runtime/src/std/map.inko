@@ -1,5 +1,4 @@
 # A hash map using linear probing and Robin Hood bucket stealing.
-import std::format::(self, Formatter, Inspect)
 import std::hash::(Hash, Hasher)
 import std::index::(Index, SetIndex)
 import std::iterator::(Enumerator, Iterator)
@@ -621,61 +620,5 @@ impl Length for Map!(K, V) {
   #     map.length # => 1
   def length -> Integer {
     @length
-  }
-}
-
-impl Inspect for Map!(K, V) {
-  # Returns a human-readable representation of this `Map`.
-  #
-  # # Examples
-  #
-  # Inspecting a `Map`:
-  #
-  #     let map = Map.new
-  #
-  #     map['name'] = 'Alice'
-  #     map['address'] = 'Foo Street'
-  #
-  #     map.inspect # => 'Map { "name": "Alice", "address": "Foo Street" }'
-  def inspect -> String where K: Inspect, V: Inspect {
-    ::format.inspect(self)
-  }
-
-  # Formats this `Map` into a human-readable representation.
-  def format_for_inspect(
-    formatter: Formatter
-  ) -> Nil where K: Inspect, V: Inspect {
-    let last = length - 1
-    let mut index = 0
-
-    formatter.push('Map')
-
-    empty?.if_true {
-      return
-    }
-
-    formatter.push(' { ')
-
-    each do (key, value) {
-      formatter.descend {
-        key.format_for_inspect(formatter)
-      }
-
-      formatter.push(': ')
-
-      formatter.descend {
-        value.format_for_inspect(formatter)
-      }
-
-      (index < last).if_true {
-        formatter.push(', ')
-      }
-
-      index += 1
-    }
-
-    formatter.push(' }')
-
-    Nil
   }
 }

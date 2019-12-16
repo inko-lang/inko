@@ -5,7 +5,6 @@
 # would depend on `std::array` while `std::array` would depend on
 # `std::iterator`.
 import std::conversion::ToString
-import std::format::(self, Formatter, Inspect)
 import std::iterator::(self, Iterator)
 import std::string_buffer::StringBuffer
 
@@ -52,53 +51,5 @@ impl Array!(T) {
     }
 
     buffer.to_string
-  }
-}
-
-impl Inspect for Array!(T) {
-  # Returns a human-readable representation of this `Array`.
-  #
-  # # Examples
-  #
-  # Converting an empty `Array`:
-  #
-  #     Array.new.inspect # => 'Array'
-  #
-  # Converting an `Array` with one value:
-  #
-  #     Array.new(10).inspect # => 'Array { 10 }'
-  #
-  # Converting an `Array` containing multiple values:
-  #
-  #     Array.new(10, 20, 30).inspect # => 'Array { 10, 20, 30 }'
-  def inspect -> String where T: Inspect {
-    ::format.inspect(self)
-  }
-
-  # Formats this `Array` into a human-readable representation.
-  def format_for_inspect(formatter: Formatter) -> Nil where T: Inspect {
-    let last = length - 1
-
-    formatter.push('Array')
-
-    empty?.if_true {
-      return
-    }
-
-    formatter.push(' { ')
-
-    each_with_index do (value, index) {
-      formatter.descend {
-        value.format_for_inspect(formatter)
-      }
-
-      (index < last).if_true {
-        formatter.push(', ')
-      }
-    }
-
-    formatter.push(' }')
-
-    Nil
   }
 }

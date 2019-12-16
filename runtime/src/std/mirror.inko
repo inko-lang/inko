@@ -1,9 +1,10 @@
 # ObjectMirror based reflection for objects
 #
 # This module provides a reflection API based on the concept of
-# [Mirrors](https://en.wikipedia.org/wiki/Mirror_(programming)). A "ObjectMirror" is
-# an object that provides a reflection API operating on another object. The use
-# of mirrors for reflection provides several benefits:
+# [Mirrors](https://en.wikipedia.org/wiki/Mirror_(programming)). Mirrors are not
+# exposed unless this module is imported.
+#
+# The use of mirrors for reflection provides several benefits:
 #
 # 1. Reflection is decoupled from the objects reflected upon.
 # 2. Objects won't be polluted with reflection specific attributes.
@@ -45,14 +46,35 @@
 #
 # # Using Mirrors
 #
-# Using mirrors in Inko is very straightforward. To do so you need to take two
-# steps:
+# Using mirrors in Inko is very straightforward. Let's say we want to obtain
+# the value of an attribute using the mirror API. We can do so as follows:
 #
-# 1. Import the `std::mirror` module into your module(s).
-# 2. Use `std::mirror.reflect_object` to obtain a mirror for an object.
+#     import std::mirror::ObjectMirror
 #
-# Let's say we want to obtain the value of an attribute using the mirror API.
-# We can do so as follows:
+#     object Person {
+#       @name: String
+#
+#       def init(name: String) {
+#         @name = name
+#       }
+#     }
+#
+#     let person = Person.new('alice')
+#     let mirror = ObjectMirror.new(person)
+#
+#     mirror.get_attribute('@name') # => 'Alice'
+#
+# Importing the `std::mirror` module also exposes a `mirror` method on a variety
+# of objects. This method can be used to obtain a mirror for an object, without
+# you having to remember what mirror to use for the object:
+#
+#     import std::mirror
+#
+#     10.mirror   # => IntegerMirror
+#     10.5.mirror # => FloatMirror
+#
+# You can also use mirrors to format objects in a human-readable way. This is
+# useful when debugging or using a REPL:
 #
 #     import std::mirror
 #
@@ -65,17 +87,21 @@
 #     }
 #
 #     let person = Person.new('alice')
-#     let mirror = ::mirror.reflect_object(person)
 #
-#     mirror.get_attribute('@name') # => 'Alice'
+#     person.mirror.inspect # => 'Person { @name = "Alice" }'
 #
-# # Overhead
+# # Performance
 #
-# Like most reflection systems mirrors do come with some overhead. In
-# particular a mirror has to be allocated every time you need one. As such we
-# recommend against using reflection in performance critical code.
+# Like most reflection systems mirrors do come with some overhead. In particular
+# a mirror has to be allocated every time you need one. As such we recommend
+# against using mirrors/reflection in performance critical code.
+import std::format::(DefaultFormatter, Format, Formatter)
 import std::fs::path::Path
+import std::hash::Hash
 import std::module::Module
+import std::operators::Equal
+import std::pair::(Triple, Pair)
+import std::set::Set
 import std::trait::(IMPLEMENTED_TRAITS_ATTRIBUTE, Trait)
 
 # The default name to use for objects that don't have an explicit name.
@@ -84,49 +110,22 @@ let DEFAULT_OBJECT_NAME = 'Object'
 # The name of the attribute that contains the name of an object.
 let OBJECT_NAME_ATTRIBUTE = '@_object_name'
 
-# A generic mirror for a regular object.
-object ObjectMirror {
-  # The object that is being mirrored.
-  @subject: Object
-
-  def init(subject: Object) {
-    @subject = subject
-  }
-
+# An object for reflecting upon another object.
+trait Mirror: Format {
   # Returns the object reflected upon.
-  def subject -> Object {
-    @subject
-  }
+  def subject -> Object
 
-  # Returns the prototype of the given object.
+  # Returns the object the subject is an instance of.
   #
   # # Examples
   #
-  # Obtaining the prototype of an object:
+  # Obtaining the object a subject is an instance of:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
-  #     mirror.reflect_object('hello').prototype # => String
-  def prototype -> Object {
-    _INKOC.get_prototype(@subject)
-  }
-
-  # Sets the prototype of an object.
-  #
-  # # Examples
-  #
-  # Setting the prototype of an object:
-  #
-  #     import std::mirror
-  #
-  #     let obj = Object.new
-  #     let obj_mirror = mirror.reflect_object(obj)
-  #
-  #     obj_mirror.prototype          # => Object
-  #     obj_mirror.prototype = String # => String
-  #     obj_mirror.prototype          # => String
-  def prototype=!(P)(prototype: P) -> P {
-    _INKOC.set_prototype(@subject, prototype)
+  #     ObjectMirror.new('hello').instance_of # => String
+  def instance_of -> Object {
+    _INKOC.get_prototype(subject)
   }
 
   # Returns the value of an attribute.
@@ -137,40 +136,24 @@ object ObjectMirror {
   #
   # Getting the value of an undefined attribute:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
   #     let obj = Object.new
-  #     let mirror = ::mirror.reflect_object(obj)
+  #     let mirror = ObjectMirror.new(obj)
   #
   #     mirror.get_attribute(obj, 'name') # => Nil
   #
   # Getting the value of an existing attribute:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
   #     let mut obj = Object.new
-  #     let mirror = ::mirror.reflect_object(obj)
+  #     let mirror = ObjectMirror.new(obj)
   #
   #     mirror.set_attribute('name', 'Alice')
   #     mirror.get_attribute('name') # => 'Alice'
   def get_attribute(name: String) {
-    _INKOC.get_attribute(@subject, name)
-  }
-
-  # Sets the attribute of an object to the given value, returning the stored
-  # value.
-  #
-  # # Examples
-  #
-  # Setting an attribute:
-  #
-  #     import std::mirror
-  #
-  #     let mut obj = Object.new
-  #
-  #     mirror.reflect_object(obj).set_attribute('name', 'Alice') # => 'Alice'
-  def set_attribute!(V)(name: String, value: V) -> V {
-    _INKOC.set_attribute(@subject, name, value)
+    _INKOC.get_attribute(subject, name)
   }
 
   # Returns the names of all the attributes defined directly on the subject.
@@ -179,7 +162,7 @@ object ObjectMirror {
   #
   # Getting the attributes of an object:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
   #     object Person {
   #       @name: String
@@ -190,42 +173,11 @@ object ObjectMirror {
   #     }
   #
   #     let person = Person.new('Alice')
-  #     let mirror = ::mirror.reflect_object(person)
+  #     let mirror = ObjectMirror.new(person)
   #
   #     mirror.attributes # => Array.new('@name')
   def attributes -> Array!(String) {
-    _INKOC.get_attribute_names(@subject)
-  }
-
-  # Returns the names of all instance attributes defined directly on the
-  # subject.
-  #
-  # Getting the attributes of an object:
-  #
-  #     import std::mirror
-  #
-  #     object Person {
-  #       @name: String
-  #
-  #       def init(name: String) {
-  #         @name = name
-  #       }
-  #     }
-  #
-  #     let person = Person.new('Alice')
-  #
-  #     ::mirror.reflect_object(person).attributes # => Array.new('@name')
-  #     ::mirror.reflect_object(Person).attributes # => Array.new('@_object_name')
-  def instance_attributes -> Array!(String) {
-    let mut instance_attributes = Array.new
-
-    attributes.each do (attribute) {
-      attribute.starts_with?('@').if_true {
-        instance_attributes.push(attribute)
-      }
-    }
-
-    instance_attributes
+    _INKOC.get_attribute_names(subject)
   }
 
   # Returns `True` if the subject is an instance of the given object.
@@ -234,14 +186,14 @@ object ObjectMirror {
   #
   # Checking if a `String` is an instance of `String`:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
-  #     let string_mirror = mirror.reflect_object('hello')
+  #     let string_mirror = ObjectMirror.new('hello')
   #
   #     string_mirror.instance_of?(String) # => True
   #     string_mirror.instance_of?(Integer) # => False
   def instance_of?(other: Object) -> Boolean {
-    let mut proto = prototype
+    let mut proto = _INKOC.get_prototype(subject)
 
     {
       proto.equal?(other).if_true {
@@ -250,7 +202,7 @@ object ObjectMirror {
 
       proto = _INKOC.get_prototype(proto) as Object
 
-      proto.equal?(Nil).if_true {
+      proto.nil?.if_true {
         return False
       }
     }.loop
@@ -262,19 +214,19 @@ object ObjectMirror {
   #
   # Checking if an object implements a trait:
   #
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
   #     trait Trait1 {}
   #     trait Trait2 {}
   #
   #     object ExampleObject impl Trait1 {}
   #
-  #     let mirror = mirror.reflect_object(ExampleObject.new)
+  #     let mirror = ObjectMirror.new(ExampleObject.new)
   #
   #     mirror.implements_trait?(Trait1) # => True
   #     mirror.implements_trait?(Trait2) # => False
   def implements_trait?(find: Trait) -> Boolean {
-    let mut subject = @subject
+    let mut subject = subject
 
     {
       let traits = _INKOC.get_attribute(subject, IMPLEMENTED_TRAITS_ATTRIBUTE)
@@ -292,31 +244,10 @@ object ObjectMirror {
       # and "the prototype is Nil", we will just bail out once we hit Nil as the
       # prototype. This works fine for Nil itself, because there is only a
       # single instance of it.
-      subject.equal?(Nil).if_true {
+      subject.nil?.if_true {
         return False
       }
     }.loop
-  }
-
-  # Returns the name of an object.
-  #
-  # If the object doesn't have a name, a default name will be returned instead.
-  #
-  # # Examples
-  #
-  # Returning the name of an object:
-  #
-  #     import std::mirror
-  #
-  #     object Person {}
-  #
-  #     let mirror = ::mirror.reflect_object(Person)
-  #
-  #     mirror.name # => 'Person'
-  def name -> String {
-    let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
-
-    name.if(true: { name! }, false: { DEFAULT_OBJECT_NAME })
   }
 
   # Returns the traits implemented by the subject.
@@ -326,7 +257,7 @@ object ObjectMirror {
   # Obtaining the implemented traits of an object:
   #
   #     import std::conversion::ToString
-  #     import std::mirror
+  #     import std::mirror::ObjectMirror
   #
   #     object Person impl ToString {
   #       def to_string -> String {
@@ -334,7 +265,7 @@ object ObjectMirror {
   #       }
   #     }
   #
-  #     mirror.reflect_object(Person).implemented_traits # => Array.new(ToString)
+  #     ObjectMirror.new(Person).implemented_traits # => Array.new(ToString)
   def implemented_traits -> Array!(Trait) {
     let impl_set = get_attribute(IMPLEMENTED_TRAITS_ATTRIBUTE) as Object
 
@@ -343,6 +274,129 @@ object ObjectMirror {
     }
 
     _INKOC.get_attribute_names(impl_set) as Dynamic as Array!(Trait)
+  }
+
+  # Returns the names of all instance attributes defined directly on the
+  # subject.
+  #
+  # Getting the attributes of an object:
+  #
+  #     import std::mirror::ObjectMirror
+  #
+  #     object Person {
+  #       @name: String
+  #
+  #       def init(name: String) {
+  #         @name = name
+  #       }
+  #     }
+  #
+  #     let person = Person.new('Alice')
+  #
+  #     ObjectMirror.new(person).attributes # => Array.new('@name')
+  #     ObjectMirror.new(Person).attributes # => Array.new('@_object_name')
+  def instance_attributes -> Array!(String) {
+    let instance_attributes = Array.new
+
+    attributes.each do (attribute) {
+      attribute.starts_with?('@').if_true {
+        instance_attributes.push(attribute)
+      }
+    }
+
+    instance_attributes
+  }
+
+  # Formats the mirrored object in a human-readable format for debugging
+  # purposes.
+  def inspect -> String {
+    format(DefaultFormatter.new).to_string
+  }
+}
+
+# An object that can be mirrored.
+trait Mirrored {
+  # Returns a mirror for `self`.
+  def mirror -> Mirror
+}
+
+# A generic mirror for a regular object.
+object ObjectMirror {
+  # The object that is being mirrored.
+  @subject: Object
+
+  def init(subject: Object) {
+    @subject = subject
+  }
+
+  # Sets the attribute of an object to the given value, returning the stored
+  # value.
+  #
+  # # Examples
+  #
+  # Setting an attribute:
+  #
+  #     import std::mirror::ObjectMirror
+  #
+  #     let mut obj = Object.new
+  #
+  #     ObjectMirror.new(obj).set_attribute('name', 'Alice') # => 'Alice'
+  def set_attribute!(V)(name: String, value: V) -> V {
+    _INKOC.set_attribute(@subject, name, value)
+  }
+
+  # Returns the name of the subject.
+  #
+  # # Examples
+  #
+  # Returning the name of an object:
+  #
+  #     import std::mirror::ObjectMirror
+  #
+  #     object Person {}
+  #
+  #     ObjectMirror.new(Person).name # => 'Person'
+  def name -> String {
+    let name = get_attribute(OBJECT_NAME_ATTRIBUTE) as ?String
+
+    name.if(true: { name! }, false: { DEFAULT_OBJECT_NAME })
+  }
+}
+
+impl Format for ObjectMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    let attributes = instance_attributes
+
+    formatter.push(name)
+
+    attributes.empty?.if_true {
+      return formatter
+    }
+
+    formatter.push(' {')
+
+    attributes.each_with_index do (attr_name, index) {
+      index.positive?.if_true {
+        formatter.push(',')
+      }
+
+      formatter.push(' ')
+      formatter.push(attr_name)
+      formatter.push(' = ')
+
+      formatter.descend {
+        (get_attribute(attr_name) as Mirrored).mirror.format(formatter)
+      }
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for ObjectMirror {
+  def subject -> Object {
+    @subject
   }
 }
 
@@ -355,32 +409,16 @@ object BlockMirror {
     @subject = subject
   }
 
-  # Returns the name of the block.
-  #
-  # # Examples
-  #
-  # Returning the name of a method:
-  #
-  #     import std::mirror
-  #
-  #     let method = def example {}
-  #     let mirror = ::mirror.reflect_block(method)
-  #
-  #     mirror.name # => 'example'
-  def name -> String {
-    _INKOC.block_metadata(@subject, 0) as String
-  }
-
   # Returns the file path of the file the block is defined in.
   #
   # # Examples
   #
   # Returning the file path of a method:
   #
-  #     import std::mirror
+  #     import std::mirror::BlockMirror
   #
   #     let method = def example {}
-  #     let mirror = ::mirror.reflect_block(method)
+  #     let mirror = BlockMirror.new(method)
   #
   #     mirror.path # => Path
   def path -> Path {
@@ -395,10 +433,10 @@ object BlockMirror {
   #
   # Returning the line number of a method:
   #
-  #     import std::mirror
+  #     import std::mirror::BlockMirror
   #
   #     let method = def example {}
-  #     let mirror = ::mirror.reflect_block(method)
+  #     let mirror = BlockMirror.new(method)
   #
   #     mirror.line # => 3
   def line -> Integer {
@@ -411,10 +449,10 @@ object BlockMirror {
   #
   # Returning the argument names of a method:
   #
-  #     import std::mirror
+  #     import std::mirror::BlockMirror
   #
   #     let method = def example(number) {}
-  #     let mirror = ::mirror.reflect_block(method)
+  #     let mirror = BlockMirror.new(method)
   #
   #     mirror.argument_names # => Array.new('@subject', 'number')
   def argument_names -> Array!(String) {
@@ -427,10 +465,10 @@ object BlockMirror {
   #
   # Returning the argument names of a method:
   #
-  #     import std::mirror
+  #     import std::mirror::BlockMirror
   #
   #     let method = def example(number) {}
-  #     let mirror = ::mirror.reflect_block(method)
+  #     let mirror = BlockMirror.new(method)
   #
   #     mirror.required_arguments # => 2
   def required_arguments -> Integer {
@@ -443,14 +481,43 @@ object BlockMirror {
   #
   # Checking if a block defines a rest argument:
   #
-  #     import std::mirror
+  #     import std::mirror::BlockMirror
   #
   #     let method = def example(*rest) {}
-  #     let mirror = ::mirror.reflect_block(method)
+  #     let mirror = BlockMirror.new(method)
   #
   #     mirror.rest_argument? # => True
   def rest_argument? -> Boolean {
     _INKOC.block_metadata(@subject, 5) as Boolean
+  }
+
+  # Returns the name of the block.
+  #
+  # # Examples
+  #
+  # Returning the name of a method:
+  #
+  #     import std::mirror::BlockMirror
+  #
+  #     let method = def example {}
+  #     let mirror = BlockMirror.new(method)
+  #
+  #     mirror.name # => 'example'
+  def name -> String {
+    _INKOC.block_metadata(@subject, 0) as String
+  }
+}
+
+impl Format for BlockMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push('Block')
+    formatter
+  }
+}
+
+impl Mirror for BlockMirror {
+  def subject -> Block {
+    @subject
   }
 }
 
@@ -476,17 +543,456 @@ object ModuleMirror {
   }
 }
 
-# Returns a regular mirror for the given object.
-def reflect_object(subject: Object) -> ObjectMirror {
-  ObjectMirror.new(subject)
+impl Format for ModuleMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push('Module { ')
+    formatter.push(name)
+    formatter.push(' }')
+    formatter
+  }
 }
 
-# Returns a mirror for the given `Block`.
-def reflect_block(subject: Block) -> BlockMirror {
-  BlockMirror.new(subject)
+impl Mirror for ModuleMirror {
+  def subject -> Module {
+    @mirror.subject as Module
+  }
 }
 
-# Returns a mirror for the given `Module`.
-def reflect_module(subject: Module) -> ModuleMirror {
-  ModuleMirror.new(subject)
+# A mirror for an `Array`.
+object ArrayMirror!(T) {
+  # The `Array` that is mirrored.
+  @subject: Array!(T)
+
+  def init(subject: Array!(T)) {
+    @subject = subject
+  }
+}
+
+impl Format for ArrayMirror!(T) {
+  def format!(F: Formatter)(formatter: F) -> F where T: Mirrored {
+    formatter.push('Array')
+
+    @subject.empty?.if_true {
+      return formatter
+    }
+
+    formatter.push(' { ')
+
+    @subject.each_with_index do (value, index) {
+      index.positive?.if_true {
+        formatter.push(', ')
+      }
+
+      formatter.descend {
+        value.mirror.format(formatter)
+      }
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for ArrayMirror!(T) {
+  def subject -> Array!(T) {
+    @subject
+  }
+}
+
+# A mirror for a `ByteArray`.
+object ByteArrayMirror {
+  # The `ByteArray` that is mirrored.
+  @subject: ByteArray
+
+  def init(subject: ByteArray) {
+    @subject = subject
+  }
+}
+
+impl Format for ByteArrayMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push('ByteArray { ')
+    formatter.push(@subject.length.to_string)
+    formatter.push(' bytes }')
+    formatter
+  }
+}
+
+impl Mirror for ByteArrayMirror {
+  def subject -> ByteArray {
+    @subject
+  }
+}
+
+# A mirror for a `Map`
+object MapMirror!(K: Hash + Equal, V) {
+  # The `Map` that is mirrored.
+  @subject: Map!(K, V)
+
+  def init(subject: Map!(K, V)) {
+    @subject = subject
+  }
+}
+
+impl Format for MapMirror!(K, V) {
+  def format!(F: Formatter)(formatter: F) -> F where K: Mirrored, V: Mirrored {
+    let mut index = 0
+
+    formatter.push('Map')
+
+    @subject.empty?.if_true {
+      return formatter
+    }
+
+    formatter.push(' { ')
+
+    @subject.each do (key, value) {
+      index.positive?.if_true {
+        formatter.push(', ')
+      }
+
+      formatter.descend {
+        key.mirror.format(formatter)
+      }
+
+      formatter.push(': ')
+
+      formatter.descend {
+        value.mirror.format(formatter)
+      }
+
+      index += 1
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for MapMirror!(K, V) {
+  def subject -> Map!(K, V) {
+    @subject
+  }
+}
+
+# A mirror for a `Set`.
+object SetMirror!(V: Hash + Equal) {
+  # The `Set` that is mirrored.
+  @subject: Set!(V)
+
+  def init(subject: Set!(V)) {
+    @subject = subject
+  }
+}
+
+impl Format for SetMirror!(V) {
+  def format!(F: Formatter)(formatter: F) -> F where V: Mirrored {
+    let mut index = 0
+
+    formatter.push('Set')
+
+    @subject.empty?.if_true {
+      return formatter
+    }
+
+    formatter.push(' { ')
+
+    @subject.each do (value) {
+      index.positive?.if_true {
+        formatter.push(', ')
+      }
+
+      formatter.descend {
+        value.mirror.format(formatter)
+      }
+
+      index += 1
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for SetMirror!(V) {
+  def subject -> Set!(V) {
+    @subject
+  }
+}
+
+# A mirror for a `Pair`.
+object PairMirror!(A, B) {
+  # The `Pair` that is mirrored
+  @subject: Pair!(A, B)
+
+  def init(subject: Pair!(A, B)) {
+    @subject = subject
+  }
+}
+
+impl Format for PairMirror!(A, B) {
+  def format!(F: Formatter)(formatter: F) -> F where A: Mirrored, B: Mirrored {
+    formatter.push('Pair { ')
+
+    formatter.descend {
+      @subject.first.mirror.format(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @subject.second.mirror.format(formatter)
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for PairMirror!(A, B) {
+  def subject -> Pair!(A, B) {
+    @subject
+  }
+}
+
+# A mirror for a `Triple`.
+object TripleMirror!(A, B, C) {
+  # The `Triple` that is mirrored
+  @subject: Triple!(A, B, C)
+
+  def init(subject: Triple!(A, B, C)) {
+    @subject = subject
+  }
+}
+
+impl Format for TripleMirror!(A, B, C) {
+  def format!(F: Formatter)(
+    formatter: F
+  ) -> F where A: Mirrored, B: Mirrored, C: Mirrored {
+    formatter.push('Triple { ')
+
+    formatter.descend {
+      @subject.first.mirror.format(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @subject.second.mirror.format(formatter)
+    }
+
+    formatter.push(', ')
+
+    formatter.descend {
+      @subject.third.mirror.format(formatter)
+    }
+
+    formatter.push(' }')
+    formatter
+  }
+}
+
+impl Mirror for TripleMirror!(A, B, C) {
+  def subject -> Triple!(A, B, C) {
+    @subject
+  }
+}
+
+# A mirror for an `Integer`.
+object IntegerMirror {
+  # The `Integer` that is mirrored.
+  @subject: Integer
+
+  def init(subject: Integer) {
+    @subject = subject
+  }
+}
+
+impl Format for IntegerMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push(@subject.to_string)
+    formatter
+  }
+}
+
+impl Mirror for IntegerMirror {
+  def subject -> Integer {
+    @subject
+  }
+}
+
+# A mirror for a `Float`.
+object FloatMirror {
+  # The `Float` that is mirrored.
+  @subject: Float
+
+  def init(subject: Float) {
+    @subject = subject
+  }
+}
+
+impl Format for FloatMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push(@subject.to_string)
+    formatter
+  }
+}
+
+impl Mirror for FloatMirror {
+  def subject -> Float {
+    @subject
+  }
+}
+
+# A mirror for a `String`.
+object StringMirror {
+  # The `String` that is mirrored.
+  @subject: String
+
+  def init(subject: String) {
+    @subject = subject
+  }
+}
+
+impl Format for StringMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push(_INKOC.string_format_debug(@subject))
+    formatter
+  }
+}
+
+impl Mirror for StringMirror {
+  def subject -> String {
+    @subject
+  }
+}
+
+# A mirror for a `Boolean`
+object BooleanMirror {
+  # The `Boolean` that is mirrored.
+  @subject: Boolean
+
+  def init(subject: Boolean) {
+    @subject = subject
+  }
+}
+
+impl Format for BooleanMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push(@subject.to_string)
+    formatter
+  }
+}
+
+impl Mirror for BooleanMirror {
+  def subject -> Boolean {
+    @subject
+  }
+}
+
+# A mirror for `Nil`
+object NilMirror {
+  # The `Nil` that is mirrored.
+  @subject: Nil
+
+  def init(subject: Nil) {
+    @subject = subject
+  }
+}
+
+impl Format for NilMirror {
+  def format!(F: Formatter)(formatter: F) -> F {
+    formatter.push('Nil')
+    formatter
+  }
+}
+
+impl Mirror for NilMirror {
+  def subject -> Nil {
+    @subject
+  }
+}
+
+impl Mirrored for Object {
+  def mirror -> ObjectMirror {
+    ObjectMirror.new(self)
+  }
+}
+
+impl Mirrored for Array!(T) {
+  def mirror -> ArrayMirror!(T) {
+    ArrayMirror.new(self)
+  }
+}
+
+impl Mirrored for ByteArray {
+  def mirror -> ByteArrayMirror {
+    ByteArrayMirror.new(self)
+  }
+}
+
+impl Mirrored for Map!(K, V) {
+  def mirror -> MapMirror!(K, V) {
+    MapMirror.new(self)
+  }
+}
+
+impl Mirrored for Set!(V) {
+  def mirror -> SetMirror!(V) {
+    SetMirror.new(self)
+  }
+}
+
+impl Mirrored for Module {
+  def mirror -> ModuleMirror {
+    ModuleMirror.new(self)
+  }
+}
+
+impl Mirrored for Integer {
+  def mirror -> IntegerMirror {
+    IntegerMirror.new(self)
+  }
+}
+
+impl Mirrored for Float {
+  def mirror -> FloatMirror {
+    FloatMirror.new(self)
+  }
+}
+
+impl Mirrored for String {
+  def mirror -> StringMirror {
+    StringMirror.new(self)
+  }
+}
+
+impl Mirrored for Block {
+  def mirror -> BlockMirror {
+    BlockMirror.new(self)
+  }
+}
+
+impl Mirrored for Pair!(A, B) {
+  def mirror -> PairMirror!(A, B) {
+    PairMirror.new(self)
+  }
+}
+
+impl Mirrored for Triple!(A, B, C) {
+  def mirror -> TripleMirror!(A, B, C) {
+    TripleMirror.new(self)
+  }
+}
+
+impl Mirrored for Boolean {
+  def mirror -> BooleanMirror {
+    BooleanMirror.new(self)
+  }
+}
+
+impl Mirrored for Nil {
+  def mirror -> NilMirror {
+    NilMirror.new(self)
+  }
 }

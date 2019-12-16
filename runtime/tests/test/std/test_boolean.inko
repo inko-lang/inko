@@ -1,4 +1,3 @@
-import std::format::DefaultFormatter
 import std::map::DefaultHasher
 import std::test
 import std::test::assert
@@ -79,22 +78,6 @@ test.group('std::boolean::Boolean.hash') do (g) {
   }
 }
 
-test.group('std::boolean::Boolean.inspect') do (g) {
-  g.test('Inspecting a Boolean') {
-    assert.equal(Boolean.inspect, 'Boolean')
-  }
-}
-
-test.group('std::boolean::Boolean.format') do (g) {
-  g.test('Formatting a Boolean') {
-    let formatter = DefaultFormatter.new
-
-    Boolean.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'Boolean')
-  }
-}
-
 test.group('std::boolean::True.not') do (g) {
   g.test('Returning the opposite of True') {
     assert.false(True.not)
@@ -171,22 +154,6 @@ test.group('std::boolean::True.hash') do (g) {
   }
 }
 
-test.group('std::boolean::True.inspect') do (g) {
-  g.test('Inspecting True') {
-    assert.equal(True.inspect, 'True')
-  }
-}
-
-test.group('std::boolean::True.format') do (g) {
-  g.test('Formatting a True') {
-    let formatter = DefaultFormatter.new
-
-    True.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'True')
-  }
-}
-
 test.group('std::boolean::False.not') do (g) {
   g.test('Returning the opposite of False') {
     assert.equal(False.not, True)
@@ -260,21 +227,5 @@ test.group('std::boolean::False.hash') do (g) {
     # we can do is assert that the value is the same every time we send `hash`
     # to `True`.
     assert.equal(hasher1.to_hash, hasher2.to_hash)
-  }
-}
-
-test.group('std::boolean::False.inspect') do (g) {
-  g.test('Inspecting False') {
-    assert.equal(False.inspect, 'False')
-  }
-}
-
-test.group('std::boolean::False.format') do (g) {
-  g.test('Formatting a False') {
-    let formatter = DefaultFormatter.new
-
-    False.format_for_inspect(formatter)
-
-    assert.equal(formatter.to_string, 'False')
   }
 }

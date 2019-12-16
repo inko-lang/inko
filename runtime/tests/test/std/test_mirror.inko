@@ -1,9 +1,11 @@
 import std::conversion::ToString
 import std::debug
+import std::float::(NAN, INFINITY, NEGATIVE_INFINITY)
+import std::format::DefaultFormatter
 import std::fs
-import std::mirror::(
-  self, BlockMirror, ModuleMirror, OBJECT_NAME_ATTRIBUTE, ObjectMirror
-)
+import std::mirror::*
+import std::pair::(Triple, Pair)
+import std::set::Set
 import std::test
 import std::test::assert
 import std::trait::(self as trait_mod)
@@ -25,72 +27,67 @@ object Dummy {
 
 impl Trait1 for Dummy {}
 
-test.group('std::mirror::ObjectMirror.subject') do (g) {
+object EmptyObject {}
+
+object OneAttribute {
+  @number: Integer
+
+  def init {
+    @number = 10
+  }
+}
+
+object TwoAttributes {
+  @first: String
+  @second: Integer
+
+  def init {
+    @first = 'first'
+    @second = 10
+  }
+}
+
+object NestedObject {
+  @child: OneAttribute
+
+  def init {
+    @child = OneAttribute.new
+  }
+}
+
+def format(mirror: Mirror) -> String {
+  mirror.format(DefaultFormatter.new).to_string
+}
+
+test.group('std::mirror::Mirror.subject') do (g) {
   g.test('Obtaining the subject of a mirror') {
     let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
 
-    assert.equal(mirror.subject as Dummy, obj)
+    assert.equal(ObjectMirror.new(obj).subject, obj)
   }
 }
 
-test.group('std::mirror::ObjectMirror.prototype') do (g) {
-  g.test('Obtaining the prototype of an object') {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    assert.equal(mirror.prototype as Object, Dummy)
+test.group('std::mirror::Mirror.instance_of') do (g) {
+  g.test('Obtaining the object an object is an instance of') {
+    assert.equal(ObjectMirror.new(Dummy.new).instance_of, Dummy)
   }
 }
 
-test.group('std::mirror::ObjectMirror.prototype=') do (g) {
-  g.test('Setting the prototype of an object') {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    mirror.prototype = 10
-
-    assert.equal(mirror.prototype as Integer, 10)
-  }
-}
-
-test.group('std::mirror::ObjectMirror.get_attribute') do (g) {
+test.group('std::mirror::Mirror.get_attribute') do (g) {
   g.test('Obtaining the value of a non existing attribute') {
     let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
 
-    assert.equal(mirror.get_attribute('foo') as Object, Nil)
+    assert.equal(ObjectMirror.new(obj).get_attribute('foo') as Object, Nil)
   }
 
   g.test('Obtaining the value of an existing attribute') {
     let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
 
-    assert.equal(mirror.get_attribute('@name') as String, 'Alice')
+    assert.equal(ObjectMirror.new(obj).get_attribute('@name') as String, 'Alice')
   }
 }
 
-test.group('std::mirror::ObjectMirror.set_attribute') do (g) {
-  g.test('Setting the value of a non existing attribute') {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    mirror.set_attribute('foo', 10)
-
-    assert.equal(mirror.get_attribute('foo') as Integer, 10)
-  }
-
-  test.group('Setting the value of an existing attribute') do (g) {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    mirror.set_attribute('@name', 'Bob')
-
-    assert.equal(mirror.get_attribute('@name') as String, 'Bob')
-  }
-}
-
-test.group('std::mirror::ObjectMirror.attributes') do (g) {
+test.group('std::mirror::Mirror.attributes') do (g) {
   g.test('Obtaining the attribute names of an object') {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
@@ -101,22 +98,7 @@ test.group('std::mirror::ObjectMirror.attributes') do (g) {
   }
 }
 
-test.group('std::mirror::ObjectMirror.instance_attributes') do (g) {
-  g.test('Obtaining the instances attribute names of an object') {
-    let obj = Dummy.new
-    let mirror = ObjectMirror.new(obj)
-
-    mirror.set_attribute('foo', 'bar')
-
-    let names = mirror.instance_attributes
-
-    assert.true(names.contains?('@name'))
-    assert.true(names.contains?('@age'))
-    assert.false(names.contains?('foo'))
-  }
-}
-
-test.group('std::mirror::ObjectMirror.instance_of?') do (g) {
+test.group('std::mirror::Mirror.instance_of?') do (g) {
   g.test('Checking if an object is an instance of another object') {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
@@ -139,23 +121,13 @@ test.group('std::mirror::ObjectMirror.instance_of?') do (g) {
   }
 }
 
-test.group('std::mirror::ObjectMirror.implements_trait?') do (g) {
+test.group('std::mirror::Mirror.implements_trait?') do (g) {
   g.test('Checking if an object implements a trait') {
     let obj = Dummy.new
     let mirror = ObjectMirror.new(obj)
 
     assert.true(mirror.implements_trait?(Trait1))
     assert.false(mirror.implements_trait?(Trait2))
-  }
-
-  g.test('Checking if a parent object implements a trait') {
-    let obj1 = Dummy.new
-    let obj2 = Object.new
-    let mirror = ObjectMirror.new(obj2)
-
-    mirror.prototype = obj1
-
-    assert.true(mirror.implements_trait?(Trait1))
   }
 
   g.test('Checking if a parent implements a trait for a child with custom implementations') {
@@ -174,6 +146,26 @@ test.group('std::mirror::ObjectMirror.implements_trait?') do (g) {
 
     assert.true(mirror.implements_trait?(ToString))
     assert.false(mirror.implements_trait?(Trait1))
+  }
+}
+
+test.group('std::mirror::Mirror.implemented_traits') do (g) {
+  g.test('Obtaining the traits implemented by an object') {
+    let traits = ObjectMirror.new(Dummy).implemented_traits
+
+    assert.equal(traits, Array.new(Trait1))
+  }
+
+  g.test('Obtaining the traits implemented by an object instance') {
+    let traits = ObjectMirror.new(Dummy.new).implemented_traits
+
+    assert.equal(traits, Array.new(Trait1))
+  }
+}
+
+test.group('std::mirror::Mirror.inspect') do (g) {
+  g.test('Inspecting a mirrored object') {
+    assert.equal(ObjectMirror.new(EmptyObject.new).inspect, 'EmptyObject')
   }
 }
 
@@ -207,17 +199,71 @@ test.group('std::mirror::ObjectMirror.name') do (g) {
   }
 }
 
-test.group('std::mirror::ObjectMirror.implemented_traits') do (g) {
-  g.test('Obtaining the traits implemented by an object') {
-    let traits = ObjectMirror.new(Dummy).implemented_traits
+test.group('std::mirror::ObjectMirror.set_attribute') do (g) {
+  g.test('Setting the value of a non existing attribute') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
 
-    assert.equal(traits, Array.new(Trait1))
+    mirror.set_attribute('foo', 10)
+
+    assert.equal(mirror.get_attribute('foo') as Integer, 10)
   }
 
-  g.test('Obtaining the traits implemented by an object instance') {
-    let traits = ObjectMirror.new(Dummy.new).implemented_traits
+  test.group('Setting the value of an existing attribute') do (g) {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
 
-    assert.equal(traits, Array.new(Trait1))
+    mirror.set_attribute('@name', 'Bob')
+
+    assert.equal(mirror.get_attribute('@name') as String, 'Bob')
+  }
+}
+
+test.group('std::mirror::ObjectMirror.format') do (g) {
+  g.test('Formatting an empty Object') {
+    assert.equal(format(ObjectMirror.new(EmptyObject.new)), 'EmptyObject')
+  }
+
+  g.test('Formatting an Object with one attribute') {
+    let obj = OneAttribute.new
+
+    assert.equal(format(ObjectMirror.new(obj)), 'OneAttribute { @number = 10 }')
+  }
+
+  g.test('Formatting an Object with multiple attributes') {
+    let obj = TwoAttributes.new
+    let possible = Array.new(
+      'TwoAttributes { @first = "first", @second = 10 }',
+      'TwoAttributes { @second = 10, @first = "first" }'
+    )
+
+    # The order of attributes is not guaranteed, so we can't perform an equality
+    # comparison as such a test would randomly fail.
+    assert.true(possible.contains?(format(ObjectMirror.new(obj))))
+  }
+
+  g.test('Formatting an Object containing another Object') {
+    let obj = NestedObject.new
+
+    assert.equal(
+      format(ObjectMirror.new(obj)),
+      'NestedObject { @child = OneAttribute { @number = 10 } }'
+    )
+  }
+}
+
+test.group('std::mirror::Mirror.instance_attributes') do (g) {
+  g.test('Obtaining the instances attribute names of an object') {
+    let obj = Dummy.new
+    let mirror = ObjectMirror.new(obj)
+
+    mirror.set_attribute('foo', 'bar')
+
+    let names = mirror.instance_attributes
+
+    assert.true(names.contains?('@name'))
+    assert.true(names.contains?('@age'))
+    assert.false(names.contains?('foo'))
   }
 }
 
@@ -302,26 +348,151 @@ test.group('std::mirror::ModuleMirror.path') do (g) {
   }
 }
 
-test.group('std::mirror.reflect_object') do (g) {
-  g.test('Obtaining a mirror for an object') {
-    let mirror = mirror.reflect_object(Dummy.new)
+test.group('std::mirror::ArrayMirror.format') do (g) {
+  g.test('Formatting an empty Array') {
+    assert.equal(format(ArrayMirror.new(Array.new)), 'Array')
+  }
 
-    assert.equal(mirror.name, 'Dummy')
+  g.test('Formatting an Array with values') {
+    assert.equal(format(ArrayMirror.new(Array.new(10))), 'Array { 10 }')
+    assert.equal(format(ArrayMirror.new(Array.new(10, 20))), 'Array { 10, 20 }')
   }
 }
 
-test.group('std::mirror.reflect_block') do (g) {
-  g.test('Obtaining a mirror for a block') {
-    let mirror = mirror.reflect_block({})
+test.group('std::mirror::ByteArrayMirror.format') do (g) {
+  g.test('Formatting a ByteArray') {
+    let bytes = ByteArray.new(10, 20, 30)
 
-    assert.equal(mirror.name, '<block>')
+    assert.equal(format(ByteArrayMirror.new(bytes)), 'ByteArray { 3 bytes }')
   }
 }
 
-test.group('std::mirror.reflect_module') do (g) {
-  g.test('Obtaining a mirror for a module') {
-    let mirror = mirror.reflect_module(ThisModule)
+test.group('std::mirror::MapMirror.format') do (g) {
+  g.test('Formatting an empty Map') {
+    let map: Map!(Nil, Nil) = Map.new
 
-    assert.equal(mirror.name, 'test::std::test_mirror')
+    assert.equal(format(MapMirror.new(map)), 'Map')
+  }
+
+  g.test('Formatting a Map with values') {
+    let map = Map.new
+
+    map['foo'] = 10
+    map['bar'] = 20
+
+    let output = format(MapMirror.new(map))
+    let valid =
+      (output == 'Map { "foo": 10, "bar": 20 }')
+        .or { output == 'Map { "bar": 20, "foo": 10 }' }
+
+    assert.true(valid)
+  }
+}
+
+test.group('std::mirror::SetMirror.format') do (g) {
+  g.test('Formatting an empty Set') {
+    let set: Set!(Nil) = Set.new
+
+    assert.equal(format(SetMirror.new(set)), 'Set')
+  }
+
+  g.test('Formatting a Set with a single value') {
+    let set = Set.new
+
+    set.insert(1)
+
+    assert.equal(format(SetMirror.new(set)), 'Set { 1 }')
+  }
+
+  g.test('Formatting a Set with multiple values') {
+    let set = Set.new
+
+    set.insert(1)
+    set.insert(2)
+
+    let output = format(SetMirror.new(set))
+    let valid = (output == 'Set { 1, 2 }').or { output == 'Set { 2, 1 }' }
+
+    assert.true(valid)
+  }
+}
+
+test.group('std::mirror::PairMirror.format') do (g) {
+  g.test('Formatting a Pair') {
+    let pair = Pair.new(first: 10, second: 20)
+
+    assert.equal(format(PairMirror.new(pair)), 'Pair { 10, 20 }')
+  }
+}
+
+test.group('std::mirror::TripleMirror.format') do (g) {
+  g.test('Formatting a Triple') {
+    let triple = Triple.new(first: 10, second: 20, third: 30)
+
+    assert.equal(format(TripleMirror.new(triple)), 'Triple { 10, 20, 30 }')
+  }
+}
+
+test.group('std::mirror::IntegerMirror.format') do (g) {
+  g.test('Formatting an Integer') {
+    assert.equal(format(IntegerMirror.new(10)), '10')
+    assert.equal(format(IntegerMirror.new(-10)), '-10')
+  }
+}
+
+test.group('std::mirror::FloatMirror.format') do (g) {
+  g.test('Formatting a Float') {
+    assert.equal(format(FloatMirror.new(1.5)), '1.5')
+    assert.equal(format(FloatMirror.new(1.1234)), '1.1234')
+  }
+
+  g.test('Formatting a NAN') {
+    assert.equal(format(FloatMirror.new(NAN)), 'NaN')
+  }
+
+  g.test('Formatting Infinity') {
+    assert.equal(format(FloatMirror.new(INFINITY)), 'Infinity')
+  }
+
+  g.test('Formatting negative Infinity') {
+    assert.equal(format(FloatMirror.new(NEGATIVE_INFINITY)), '-Infinity')
+  }
+}
+
+test.group('std::mirror::StringMirror.format') do (g) {
+  g.test('Formatting an empty String') {
+    assert.equal(format(StringMirror.new('')), '""')
+  }
+
+  g.test('Formatting a String with characters') {
+    assert.equal(format(StringMirror.new('foo')), '"foo"')
+  }
+}
+
+test.group('std::mirror::BlockMirror.format') do (g) {
+  g.test('Formatting a Block') {
+    let block = { 10 }
+
+    assert.equal(format(BlockMirror.new(block)), 'Block')
+  }
+}
+
+test.group('std::mirror::BooleanMirror.format') do (g) {
+  g.test('Formatting Boolean') {
+    assert.equal(format(BooleanMirror.new(Boolean)), 'Boolean')
+  }
+
+  g.test('Formatting True') {
+    assert.equal(format(BooleanMirror.new(True)), 'True')
+  }
+
+  g.test('Formatting False') {
+    assert.equal(format(BooleanMirror.new(False)), 'False')
+  }
+}
+
+test.group('std::mirror::NilMirror.format') do (g) {
+  g.test('Formatting Nil') {
+    assert.equal(format(NilMirror.new(Nil)), 'Nil')
   }
 }

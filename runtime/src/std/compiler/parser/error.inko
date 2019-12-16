@@ -3,7 +3,6 @@ import std::compiler::source_location::SourceLocation
 import std::compiler::token::Token
 import std::conversion::ToString
 import std::error::Error
-import std::string_buffer::StringBuffer
 
 # An error that may occur when parsing source code.
 trait ParseError: Error {
@@ -23,9 +22,7 @@ object TokenError {
     @message = token.null?.if(
       true: { 'More input was expected, but we ran out of input' },
       false: {
-        StringBuffer
-          .new(token.value.inspect, " can't be used here")
-          .to_string
+        'The following unexpected input was encountered: ' + token.value
       }
     )
 

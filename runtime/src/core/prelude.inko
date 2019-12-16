@@ -34,11 +34,7 @@ import std::byte_array
 # set up. We extend such types using these extensions modules. By importing
 # `self` as `_` we ensure no globals are created in this module, as the names of
 # these globals would conflict.
-import std::boolean::extensions::(self as _)
 import std::integer::extensions::(self as _)
-import std::float::extensions::(self as _)
-import std::nil::extensions::(self as _)
-import std::object::extensions::(self as _)
 import std::string::extensions::(self as _)
 import std::array::extensions::(self as _)
 

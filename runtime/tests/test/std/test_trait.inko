@@ -1,4 +1,4 @@
-import std::mirror
+import std::mirror::ObjectMirror
 import std::test
 import std::test::assert
 import std::trait::(self as trait_mod)
@@ -12,20 +12,19 @@ trait Example {
 test.group('std::trait::Trait.implement') do (g) {
   g.test('Copying the default methods of a Trait to the Object') {
     let obj = Object.new
-    let obj_mirror = mirror.reflect_object(obj)
+    let obj_mirror = ObjectMirror.new(obj)
 
     Example.implement(obj)
 
     let method_impl = obj_mirror.get_attribute('pass') as Block
-    let method_exp =
-      mirror.reflect_object(Example).get_attribute('pass') as Block
+    let method_exp = ObjectMirror.new(Example).get_attribute('pass') as Block
 
     assert.equal(method_impl, method_exp)
   }
 
   g.test('Tracking the implemented trait') {
     let obj = Object.new
-    let obj_mirror = mirror.reflect_object(obj)
+    let obj_mirror = ObjectMirror.new(obj)
 
     Example.implement(obj)
 

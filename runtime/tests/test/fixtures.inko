@@ -1,12 +1,12 @@
 import std::env
 import std::fs::path::(Path, SEPARATOR)
-import std::mirror
+import std::mirror::ModuleMirror
 import std::process
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
 
 # A `Path` to an existing file.
-let VALID_FILE = mirror.reflect_module(ThisModule).path
+let VALID_FILE = ModuleMirror.new(ThisModule).path
 
 # A `Path` to an existing directory.
 let VALID_DIRECTORY = env.temporary_directory

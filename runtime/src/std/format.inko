@@ -1,3 +1,4 @@
+# Types for formatting objects in a human-readable manner.
 import std::conversion::ToString
 import std::string_buffer::StringBuffer
 
@@ -72,28 +73,13 @@ impl Formatter for DefaultFormatter {
   }
 }
 
-# A Trait that can be implemented to format an object for debugging purposes.
-trait Inspect {
-  # Returns a human-readable representation of the object.
-  def inspect -> String {
-    ThisModule.inspect(self)
-  }
-
-  # Formats an object using the given formatter.
+# A type that can be formatted into a human-readable format for debugging
+# purposes.
+trait Format {
+  # Formats `self` in a human-readable format for debugging purposes.
   #
-  # Objects implementing this method should push their values into the given
-  # `Formatter`, instead of immediately returning a `String`.
-  def format_for_inspect(formatter: Formatter) -> Nil
-}
-
-# Returns a human-readable representation of the object.
-#
-# This method provides a default implementation of "inspect", allowing objects
-# to redefine this method, without having to redefine all logic from scratch.
-def inspect(value: Inspect) -> String {
-  let formatter = DefaultFormatter.new
-
-  value.format_for_inspect(formatter)
-
-  formatter.to_string
+  # The returned value is the formatter used to format the object. To obtain the
+  # formatting output as a `String`, simply send `to_string` to the returned
+  # `Formatter`.
+  def format!(F: Formatter)(formatter: F) -> F
 }

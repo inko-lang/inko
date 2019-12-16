@@ -32,6 +32,12 @@ test.group('std::net::ip.parse') do (g) {
       try! ip.parse('foo')
     }
   }
+
+  g.test('Parsing an empty address') {
+    assert.panic {
+      try! ip.parse('')
+    }
+  }
 }
 
 test.group('std::net::ip.Ipv4Address.parse') do (g) {

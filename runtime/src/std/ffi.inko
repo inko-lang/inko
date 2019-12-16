@@ -500,8 +500,8 @@ impl SetIndex!(String, Type) for LayoutBuilder {
   # Trying to redefine a member will result in a panic.
   def []=(name: String, type: Type) -> Type {
     @existing[name].if_true {
-      let error = StringBuffer
-        .new('The member ', name.inspect, ' has already been defined')
+      let error =
+        StringBuffer.new('The member ', name, ' has already been defined')
 
       process.panic(error)
     }

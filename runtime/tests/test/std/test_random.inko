@@ -1,4 +1,4 @@
-import std::mirror
+import std::mirror::ObjectMirror
 import std::process
 import std::random
 import std::test
@@ -7,7 +7,7 @@ import std::test::assert
 test.group('std::random.integer') do (g) {
   g.test('Generating a random Integer') {
     let int = random.integer
-    let int_mirror = mirror.reflect_object(int)
+    let int_mirror = ObjectMirror.new(int)
 
     # There isn't much we can test, other than making sure the value is indeed
     # an Integer.
@@ -32,7 +32,7 @@ test.group('std::random.incremental_integer') do (g) {
 test.group('std::random.float') do (g) {
   g.test('Generating a random Float') {
     let float = random.float
-    let float_mirror = mirror.reflect_object(float)
+    let float_mirror = ObjectMirror.new(float)
 
     # There isn't much we can test, other than making sure the value is indeed
     # a Float.

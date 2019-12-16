@@ -1,4 +1,4 @@
-import std::format::(self, DefaultFormatter, MAX_DEPTH, PLACEHOLDER)
+import std::format::(DefaultFormatter, MAX_DEPTH, PLACEHOLDER)
 import std::test
 import std::test::assert
 
@@ -49,11 +49,5 @@ test.group('std::format::DefaultFormatter.descend') do (g) {
     fmt.descend(block)
 
     assert.equal(fmt.to_string, PLACEHOLDER)
-  }
-}
-
-test.group('std::format.inspect') do (g) {
-  g.test('Inspecting an object') {
-    assert.equal(::format.inspect(Array.new(10)), 'Array { 10 }')
   }
 }

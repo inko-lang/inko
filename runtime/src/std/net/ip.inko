@@ -56,7 +56,10 @@ impl ToString for AddressParseError {
 
 impl Error for AddressParseError {
   def message -> String {
-    @address.inspect + ' is not a valid IP address'
+    @address.empty?.if(
+      true: { 'The String to parse into an IP address is empty' },
+      false: { @address + ' is not a valid IP address' }
+    )
   }
 }
 

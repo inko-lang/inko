@@ -1,4 +1,4 @@
-import std::mirror
+import std::mirror::ModuleMirror
 import std::process
 import std::test
 import std::test::assert
@@ -32,7 +32,7 @@ test.group('std::test::test_group::TestGroup.test') do (g) {
   }
 
   g.test('Setting the location of the test') {
-    let mod_mirror = mirror.reflect_module(ThisModule)
+    let mod_mirror = ModuleMirror.new(ThisModule)
     let test = add_test
 
     assert.equal(test.location.path, mod_mirror.path)

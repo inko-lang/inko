@@ -1,6 +1,5 @@
 # Extensions for the `Integer` type that can only be defined later on in the
 # bootstrapping process.
-import std::format::(Formatter, Inspect)
 import std::iterator::(Enumerator, Iterator)
 import std::process
 import std::range::(Range, ToRange)
@@ -100,12 +99,5 @@ impl ToRange!(Integer) for Integer {
   #     range.end   # => 10
   def ..(other: Self) -> Range!(Self) {
     Range.new(start: self, end: other)
-  }
-}
-
-impl Inspect for Integer {
-  def format_for_inspect(formatter: Formatter) -> Nil {
-    formatter.push(to_string)
-    Nil
   }
 }

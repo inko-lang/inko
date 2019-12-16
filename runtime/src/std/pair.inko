@@ -3,7 +3,6 @@
 # This module only offers types for binary and ternary tuples. If you need a
 # combination of more values (e.g. a 4-arity tuple), it's best to define your
 # own type instead.
-import std::format::(Formatter, Inspect)
 import std::hash::*
 import std::operators::Equal
 
@@ -48,28 +47,6 @@ object Pair!(A, B) {
   #     pair.second # => 'foo'
   def second -> B {
     @second
-  }
-}
-
-impl Inspect for Pair!(A, B) {
-  def format_for_inspect(
-    formatter: Formatter
-  ) -> Nil where A: Inspect, B: Inspect {
-    formatter.push('Pair { ')
-
-    formatter.descend {
-      @first.format_for_inspect(formatter)
-    }
-
-    formatter.push(', ')
-
-    formatter.descend {
-      @second.format_for_inspect(formatter)
-    }
-
-    formatter.push(' }')
-
-    Nil
   }
 }
 
@@ -151,35 +128,6 @@ object Triple!(A, B, C) {
   }
 }
 
-
-impl Inspect for Triple!(A, B, C) {
-  def format_for_inspect(
-    formatter: Formatter
-  ) -> Nil where A: Inspect, B: Inspect, C: Inspect {
-    formatter.push('Triple { ')
-
-    formatter.descend {
-      @first.format_for_inspect(formatter)
-    }
-
-    formatter.push(', ')
-
-    formatter.descend {
-      @second.format_for_inspect(formatter)
-    }
-
-    formatter.push(', ')
-
-    formatter.descend {
-      @third.format_for_inspect(formatter)
-    }
-
-    formatter.push(' }')
-
-    Nil
-  }
-}
-
 impl Equal for Triple!(A, B, C) {
   def ==(other: Self) -> Boolean where A: Equal, B: Equal, C: Equal {
     (@first == other.first)
@@ -197,4 +145,3 @@ impl Hash for Triple!(A, B, C) {
     Nil
   }
 }
-

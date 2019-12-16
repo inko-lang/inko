@@ -87,6 +87,6 @@ impl SetIndex!(String, Dynamic) for Configuration {
       return
     }
 
-    process.panic(key.inspect + ' is not a valid configuration option')
+    process.panic(key + ' is not a valid configuration option')
   }
 }
