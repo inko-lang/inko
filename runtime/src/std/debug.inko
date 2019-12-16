@@ -2,7 +2,6 @@
 #
 # This module provides various facilities for debugging programs during
 # runtime, such as obtaining stack traces.
-import std::conversion::ToString
 import std::fs::path::(Path, ToPath)
 import std::string_buffer::StringBuffer
 
@@ -36,21 +35,6 @@ object CallFrame {
   # Returns the line number of the frame.
   def line -> Integer {
     @line
-  }
-}
-
-impl ToString for CallFrame {
-  # Formats the CallFrame as a String
-  def to_string -> String {
-    let buffer = StringBuffer.new(
-      @path.to_string.inspect,
-      ', line ',
-      @line.to_string,
-      ', in ',
-      @name.inspect,
-    )
-
-    buffer.to_string
   }
 }
 
