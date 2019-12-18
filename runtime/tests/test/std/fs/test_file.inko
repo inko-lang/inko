@@ -491,7 +491,7 @@ test.group('std::fs::file.remove') do (g) {
 test.group('std::fs::file.copy') do (g) {
   g.test('Copying an existing file') {
     write_only_file do (f) {
-      let new_path = f.path.to_string + process.current.identifier
+      let new_path = f.path.to_string + process.current.identifier.to_string
 
       process.defer {
         try file.remove(new_path) else Nil

@@ -1652,7 +1652,7 @@ module Inkoc
       end
 
       def on_raw_process_identifier(*)
-        typedb.string_type.new_instance
+        typedb.integer_type.new_instance
       end
 
       def on_raw_library_open(node, _)

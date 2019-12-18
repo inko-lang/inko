@@ -81,11 +81,8 @@ object Process {
   # Returns the identifier associated with this process.
   #
   # The identifier is unique for every process, but might be different between
-  # program invocations even for processes spawned in the same order. The
-  # format of the identifier is also unspecified, and might change
-  # unexpectedly. Process identifiers should only be used for debugging
-  # purposes.
-  def identifier -> String {
+  # program invocations even for processes spawned in the same order.
+  def identifier -> Integer {
     _INKOC.process_identifier(self)
   }
 }

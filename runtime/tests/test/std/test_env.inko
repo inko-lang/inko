@@ -4,7 +4,7 @@ import std::process
 import std::test::assert
 
 def temporary_environment_variable!(R)(block: do (String) -> R) -> R {
-  let name = 'INKO_ENV_' + process.current.identifier
+  let name = 'INKO_ENV_' + process.current.identifier.to_string
 
   process.defer {
     env.remove(name)

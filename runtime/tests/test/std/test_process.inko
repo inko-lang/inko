@@ -20,6 +20,12 @@ test.group('std::process::Process.send') do (g) {
   }
 }
 
+test.group('std::process::Process.identifier') do (g) {
+  g.test('Obtaining the identifier of a process') {
+    assert.true(process.current.identifier.positive?)
+  }
+}
+
 test.group('std::process.receive') do (g) {
   g.test('Receiving a message without a timeout') {
     process.current.send('testing')

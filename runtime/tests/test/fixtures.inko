@@ -26,7 +26,7 @@ def temporary_file_path -> Path {
       env.temporary_directory.to_string,
       SEPARATOR,
       'inko-temporary-file-path-',
-      process.current.identifier,
+      process.current.identifier.to_string,
     )
     .to_string
 

@@ -238,9 +238,9 @@ pub fn identifier(
 ) -> Result<ObjectPointer, String> {
     let proc = process_ptr.process_value()?;
     let proto = state.string_prototype;
-    let identifier = format!("{:#x}", proc.identifier());
+    let identifier = current_process.allocate_usize(proc.identifier(), proto);
 
-    Ok(current_process.allocate(object_value::string(identifier), proto))
+    Ok(identifier)
 }
 
 pub fn unwind_until_defining_scope(process: &RcProcess) {

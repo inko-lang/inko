@@ -78,8 +78,8 @@ panicking lambda (error) {
     }
   }
 
-  output.push("\nProcess ")
-  output.push(process.current.identifier)
+  output.push("\nProcess 0x")
+  output.push(process.current.identifier.format(radix: 16))
   output.push(' panicked: ')
   output.push(error)
 
