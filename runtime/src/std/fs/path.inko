@@ -45,15 +45,10 @@ import std::operators::Equal
 import std::os
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
+import std::fs::path::bits::(self, SEPARATOR as _SEPARATOR)
 
 # The primary separator of path components.
-let SEPARATOR = os.windows?.if(true: { '\\' }, false: { '/' })
-
-# The byte range for lowercase Windows drive letters (a..z)
-let WINDOWS_LOWER_DRIVE_LETTERS = 97..122
-
-# The byte range for uppercase Windows drive letters (A..Z)
-let WINDOWS_UPPER_DRIVE_LETTERS = 65..90
+let SEPARATOR = _SEPARATOR
 
 # A path to a file or directory.
 #
@@ -153,26 +148,9 @@ object Path {
   #     Path.new('foo').absolute?  # => False
   #     Path.new('/foo').absolute? # => True
   def absolute? -> Boolean {
-    @path.starts_with?(SEPARATOR).if_true {
-      return True
-    }
-
-    os.windows?.if_false {
-     return False
-    }
-
-    let first_byte = @path.byte(index: 0)
-
-    WINDOWS_LOWER_DRIVE_LETTERS.cover?(first_byte)
-      .or { WINDOWS_UPPER_DRIVE_LETTERS.cover?(first_byte) }
-      .and {
-        # 58 is the byte for ":"
-        @path.byte(index: 1) == 58
-      }
-      .and {
-        # 92 is the byte for "\"
-        @path.byte(index: 2) == 92
-      }
+    bits
+      .path_separator?(@path.byte(index: 0))
+      .or { os.windows?.and { bits.starts_with_windows_drive_name?(@path) } }
   }
 
   # Returns `True` if this `Path` is a relative path.
@@ -222,6 +200,34 @@ object Path {
     buffer.push(path_str)
 
     Path.new(buffer.to_string)
+  }
+
+  # Returns a `Path` to the directory of the current `Path`.
+  #
+  # This method does not touch the filesystem, and thus does not resolve paths
+  # like `..` and symbolic links to their real paths.
+  #
+  # # Examples
+  #
+  # Obtaining the directory of a path:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('/foo/bar').directory # => Path.new('/foo')
+  #
+  # Obtaining the directory of the root directory:
+  #
+  #     import std::fs::path::Path
+  #
+  #     Path.new('/').directory # Path.new('/')
+  def directory -> Path {
+    let length = bits.bytes_before_last_separator(@path)
+
+    length.negative?.if_true {
+      return Path.new('.')
+    }
+
+    Path.new(@path.slice_bytes(start: 0, length: length).drain_to_string)
   }
 }
 
