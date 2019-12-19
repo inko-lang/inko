@@ -1,10 +1,134 @@
 # Extensions for the `String` type that can only be defined later on in the
 # bootstrapping process.
 import std::byte_array::ToByteArray
+import std::process
+
+# Returns `True` if a string separator starts at the given byte position.
+#
+# The `string` argument is the `String` to split, using the separator (as a
+# sequence of bytes) specified in `separator`.
+#
+# The `start` argument specifies the byte position (in the `String`) to check
+# for the separator.
+def split_at?(
+  string: String,
+  separator: ByteArray,
+  start: Integer
+) -> Boolean {
+  (string.bytesize - start < separator.length).if_true {
+    return False
+  }
+
+  separator.each_with_index do (byte, index) {
+    (byte == string.byte(start + index)).if_false {
+      return False
+    }
+  }
+
+  True
+}
 
 impl ToByteArray for String {
   # Returns a `ByteArray` containing the bytes of this `String`.
   def to_byte_array -> ByteArray {
     _INKOC.string_to_byte_array(self) as ByteArray
+  }
+}
+
+impl String {
+  # Slices `self` into a `ByteArray`.
+  #
+  # The returned `ByteArray` will contain all _bytes_ starting at the _byte_
+  # position specified in `start`, and will contain up to `length` _bytes_.
+  #
+  # Just like `String.slice` the starting position can be negative, meaning the
+  # slicing starts from the end of the `String`.
+  #
+  # This method will panic if the `length` argument is negative.
+  #
+  # # Examples
+  #
+  # Slicing a `String` into a `ByteArray`:
+  #
+  #     'inko'.slice_bytes(start: 0, length: 4).to_string # => 'inko'
+  #
+  # Slicing a `String` into a `ByteArray` using a negative start index:
+  #
+  #     'inko'.slice_bytes(start: -4, length: 4).to_string # => 'inko'
+  def slice_bytes(start: Integer, length: Integer) -> ByteArray {
+    length.negative?.if_true {
+      process.panic('The slice length must be zero or greater')
+    }
+
+    let bytes = ByteArray.new
+    let total_bytes = bytesize
+    let mut index =
+      start.negative?.if(true: { start % total_bytes }, false: { start })
+
+    let mut end_at = index + length
+    let max_index = total_bytes
+
+    (end_at > total_bytes).if_true {
+      end_at = total_bytes
+    }
+
+    { index < end_at }.while_true {
+      bytes.push(byte(index))
+      index += 1
+    }
+
+    bytes
+  }
+
+  # Splits `self` into an `Array` of `Strings`, each separated by the given
+  # separator.
+  #
+  # # Examples
+  #
+  # Splitting a `String` using a single character as the separator:
+  #
+  #     'foo/bar/baz'.split('/') # => Array.new('foo', 'bar', 'baz')
+  #
+  # Splitting a `String` using multiple characters as the separator:
+  #
+  #     'foo::bar::baz'.split('::') # => Array.new('foo', 'bar', 'baz')
+  def split(separator: String) -> Array!(String) {
+    empty?.if_true {
+      return Array.new
+    }
+
+    separator.empty?.or { separator.length >= length }.if_true {
+      return Array.new(self)
+    }
+
+    let segments = Array.new
+    let buffer = ByteArray.new
+    let sep_bytes = separator.to_byte_array
+    let sep_start = sep_bytes[0]!
+    let mut index = 0
+    let max = bytesize
+
+    { index < max }.while_true {
+      let byte = byte(index)
+
+      (byte == sep_start)
+        .and { split_at?(string: self, separator: sep_bytes, start: index) }
+        .if(
+          true: {
+            segments.push(buffer.drain_to_string)
+            index += sep_bytes.length
+          },
+          false: {
+            buffer.push(byte)
+            index += 1
+          }
+        )
+    }
+
+    buffer.empty?.if_false {
+      segments.push(buffer.drain_to_string)
+    }
+
+    segments
   }
 }

@@ -28,11 +28,20 @@ test.group('std::string::String.bytesize') do (g) {
 }
 
 test.group('std::string::String.slice') do (g) {
-  g.test('Slicing a String') {
-    assert.equal('hello_world'.slice(0, 5), 'hello')
-    assert.equal('hello_world'.slice(0, 20), 'hello_world')
-    assert.equal('hello_world'.slice(-5, 5), 'world')
-    assert.equal('hello_world'.slice(-1, 5), 'd')
+  g.test('Slicing a String from the start of the String') {
+    assert.equal('hello_world'.slice(start: 0, length: 5), 'hello')
+    assert.equal('hello_world'.slice(start: 0, length: 20), 'hello_world')
+  }
+
+  g.test('Slicing a String from the end of the String') {
+    assert.equal('hello_world'.slice(start: -5, length: 5), 'world')
+    assert.equal('hello_world'.slice(start: -1, length: 5), 'd')
+  }
+
+  g.test('Slicing a String with a negative length') {
+    assert.panic {
+      'hello'.slice(start: 0, length: -5)
+    }
   }
 }
 
@@ -146,5 +155,97 @@ test.group('std::string::String.byte') do (g) {
 test.group('std::string::String.to_byte_array') do (g) {
   g.test('Converting a String to a ByteArray') {
     assert.equal('inko'.to_byte_array, ByteArray.new(105, 110, 107, 111))
+  }
+}
+
+test.group('std::string::String.slice_bytes') do (g) {
+  g.test('Slicing a String into bytes of the String') {
+    assert.equal(
+      'hello_world'.slice_bytes(start: 0, length: 5),
+      'hello'.to_byte_array
+    )
+
+    assert.equal(
+      'hello_world'.slice_bytes(start: 0, length: 20),
+      'hello_world'.to_byte_array
+    )
+  }
+
+  g.test('Slicing a String into bytes from the end of the String') {
+    assert.equal(
+      'hello_world'.slice_bytes(start: -5, length: 5),
+      'world'.to_byte_array
+    )
+
+    assert.equal(
+      'hello_world'.slice_bytes(start: -1, length: 5),
+      'd'.to_byte_array
+    )
+  }
+
+  g.test('Slicing a String into bytes with a negative length') {
+    assert.panic {
+      'hello'.slice_bytes(start: 0, length: -5)
+    }
+  }
+
+  g.test('Slicing a Unicode String into bytes') {
+    assert.equal(
+      '→foo'.slice_bytes(start: 0, length: 2),
+      ByteArray.new(226, 134)
+    )
+
+    assert.equal('→foo'.slice_bytes(start: 0, length: 6), '→foo'.to_byte_array)
+    assert.equal('→foo'.slice_bytes(start: 0, length: 3), '→'.to_byte_array)
+  }
+}
+
+test.group('std::string::String.split') do (g) {
+  g.test('Splitting a String using a single character separator') {
+    assert.equal('foo/bar/baz'.split('/'), Array.new('foo', 'bar', 'baz'))
+  }
+
+  g.test('Splitting a String using multiple characters as the separator') {
+    assert.equal('foo::bar::baz'.split('::'), Array.new('foo', 'bar', 'baz'))
+  }
+
+  g.test('Splitting a String that does not contain the separator') {
+    assert.equal('foo'.split('/'), Array.new('foo'))
+  }
+
+  g.test('Splitting a String using a multibyte separator') {
+    assert.equal('foo→bar→baz'.split('→'), Array.new('foo', 'bar', 'baz'))
+  }
+
+  g.test('Splitting a String containing multibyte characters') {
+    assert.equal('foo→bar→baz'.split('bar'), Array.new('foo→', '→baz'))
+  }
+
+  g.test('Splitting a String containing multiple separators in a row') {
+    assert.equal('foo//bar/baz'.split('/'), Array.new('foo', '', 'bar', 'baz'))
+  }
+
+  g.test('Splitting a String with an empty String as the separator') {
+    assert.equal('foo/bar/baz'.split(''), Array.new('foo/bar/baz'))
+  }
+
+  g.test('Splitting a String with a separator longer than the String') {
+    assert.equal('foo/bar'.split('///////////////'), Array.new('foo/bar'))
+  }
+
+  g.test('Splitting a String that ends with the separator') {
+    assert.equal('foo/'.split('/'), Array.new('foo'))
+  }
+
+  g.test('Splitting a String that ends with the separator multiple times') {
+    assert.equal('foo//'.split('/'), Array.new('foo', ''))
+    assert.equal('foo///'.split('/'), Array.new('foo', '', ''))
+
+    assert.equal('foo//'.split('//'), Array.new('foo'))
+    assert.equal('foo///'.split('//'), Array.new('foo', '/'))
+  }
+
+  g.test('Splitting an empty String') {
+    assert.equal(''.split('/'), Array.new)
   }
 }

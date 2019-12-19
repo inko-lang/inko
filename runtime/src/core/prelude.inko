@@ -25,6 +25,7 @@ import std::integer
 import std::float
 import std::nil
 import std::block
+import std::process
 import std::string
 import std::array
 import std::iterator
@@ -40,7 +41,6 @@ import std::array::extensions::(self as _)
 
 import std::map::(Map as _Map)
 import std::range::(Range as _Range)
-import std::process
 import std::vm
 import std::module
 

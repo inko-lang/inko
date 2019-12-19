@@ -2,11 +2,11 @@
 #
 # Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
 # UTF-8.
-
 import std::conversion::(ToFloat, ToInteger, ToString)
 import std::hash::(Hasher, Hash)
 import std::length::Length
 import std::operators::(Equal, Add)
+import std::process
 
 impl String {
   # Returns the uppercase equivalent of the current `String`.
@@ -80,21 +80,27 @@ impl String {
   # position and the number of _characters_ to include starting at the start
   # position.
   #
+  # This method will panic if the `length` argument is negative.
+  #
   # # Examples
   #
   # Slicing a `String`:
   #
-  #     'hello_world'.slice(0, 5) # => 'hello'
+  #     'hello_world'.slice(start: 0, length: 5) # => 'hello'
   #
   # If the `length` argument is greater than the available amount of characters
   # we only include the characters until the end of the `String`:
   #
-  #     'hello_world'.slice(0, 100) # => 'hello_world'
+  #     'hello_world'.slice(start: 0, length: 100) # => 'hello_world'
   #
   # Similar to indexing an `Array` you can use a negative `start` position:
   #
-  #     'hello_world'.slice(-1, 5) # => 'world'
+  #     'hello_world'.slice(start: -1, length: 5) # => 'world'
   def slice(start: Integer, length: Integer) -> String {
+    length.negative?.if_true {
+      process.panic('The slice length must be zero or greater')
+    }
+
     _INKOC.string_slice(self, start, length)
   }
 
