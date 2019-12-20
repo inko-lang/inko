@@ -11,7 +11,7 @@ use nix::sys::event::{
 };
 use nix::unistd::close;
 use std::io;
-use std::mem;
+use std::mem::MaybeUninit;
 use std::ops::Drop;
 use std::os::unix::io::{AsRawFd, RawFd};
 
@@ -114,7 +114,8 @@ impl NetworkPoller {
             kevent!(fd, EVFILT_WRITE, flags | write_flag, id),
         ];
 
-        let mut changed: [KEvent; 2] = unsafe { mem::uninitialized() };
+        let mut changed: [KEvent; 2] =
+            unsafe { MaybeUninit::uninit().assume_init() };
 
         map_error(kevent_ts(self.fd, &changes, &mut changed, None))?;
 
