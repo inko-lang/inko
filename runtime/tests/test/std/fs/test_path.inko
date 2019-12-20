@@ -14,6 +14,13 @@ let WINDOWS_DRIVES = Array.new(
   'A:\\', 'B:\\', 'C:\\', 'D:\\', 'E:\\', 'F:\\', 'G:\\', 'H:\\', 'I:\\',
   'J:\\', 'K:\\', 'L:\\', 'M:\\', 'N:\\', 'O:\\', 'P:\\', 'Q:\\', 'R:\\',
   'S:\\', 'T:\\', 'U:\\', 'V:\\', 'W:\\', 'X:\\', 'Y:\\', 'Z:\\',
+
+  'a:/', 'b:/', 'c:/', 'd:/', 'e:/', 'f:/', 'g:/', 'h:/', 'i:/',
+  'j:/', 'k:/', 'l:/', 'm:/', 'n:/', 'o:/', 'p:/', 'q:/', 'r:/',
+  's:/', 't:/', 'u:/', 'v:/', 'w:/', 'x:/', 'y:/', 'z:/',
+  'A:/', 'B:/', 'C:/', 'D:/', 'E:/', 'F:/', 'G:/', 'H:/', 'I:/',
+  'J:/', 'K:/', 'L:/', 'M:/', 'N:/', 'O:/', 'P:/', 'Q:/', 'R:/',
+  'S:/', 'T:/', 'U:/', 'V:/', 'W:/', 'X:/', 'Y:/', 'Z:/',
 )
 
 test.group('std::fs::Path.file?') do (g) {
@@ -98,6 +105,9 @@ test.group('std::fs::path::Path.absolute?') do (g) {
     assert.false(Path.new('foo').absolute?)
     assert.false(Path.new('..').absolute?)
     assert.true(Path.new(SEPARATOR + 'foo').absolute?)
+
+    # On Windows /foo (or any path starting with /) is also absolute.
+    assert.true(Path.new('/foo').absolute?)
   }
 
   os.windows?.if_true {
@@ -184,5 +194,61 @@ test.group('std::fs::path::Path.join') do (g) {
     )
 
     assert.equal(path.join('bar'), expected)
+  }
+}
+
+test.group('std::path::Path.directory') do (g) {
+  g.test('Obtaining the directory of an absolute Path') {
+    os.windows?.if_true {
+      assert.equal(Path.new('C:/foo/bar').directory, Path.new('C:/foo'))
+      assert.equal(Path.new('C:/foo').directory, Path.new('C:/'))
+      assert.equal(Path.new('C:/').directory, Path.new('C:/'))
+
+      assert.equal(Path.new('C:\\foo\\bar').directory, Path.new('C:\\foo'))
+      assert.equal(Path.new('C:\\foo').directory, Path.new('C:\\'))
+      assert.equal(Path.new('C:\\').directory, Path.new('C:\\'))
+    }
+
+    assert.equal(Path.new('/foo/bar').directory, Path.new('/foo'))
+    assert.equal(Path.new('/foo/bar/..').directory, Path.new('/foo/bar'))
+    assert.equal(Path.new('/foo').directory, Path.new('/'))
+    assert.equal(Path.new('/').directory, Path.new('/'))
+  }
+
+  g.test('Obtaining the directory of a Path with trailing separators') {
+    os.windows?.if_true {
+      assert.equal(Path.new('C:\\foo\\bar\\').directory, Path.new('C:\\foo'))
+      assert.equal(Path.new('C:\\foo\\').directory, Path.new('C:\\'))
+
+      assert.equal(Path.new('C:/foo/bar/').directory, Path.new('C:/foo'))
+      assert.equal(Path.new('C:/foo/').directory, Path.new('C:/'))
+    }
+
+    assert.equal(Path.new('/foo/bar/').directory, Path.new('/foo'))
+    assert.equal(Path.new('/foo/').directory, Path.new('/'))
+  }
+
+  g.test('Obtaining the directory of a Path containing multiple separators') {
+    os.windows?.if_true {
+      assert.equal(
+        Path.new('C:\\foo\\\\bar\\\\baz').directory,
+        Path.new('C:\\foo\\\\bar')
+      )
+    }
+
+    assert.equal(Path.new('/foo//bar//').directory, Path.new('/foo'))
+    assert.equal(Path.new('/foo//bar//baz').directory, Path.new('/foo//bar'))
+  }
+
+  g.test('Obtaining the directory of a relative Path') {
+    os.windows?.if_true {
+      assert.equal(Path.new('foo\\bar').directory, Path.new('foo'))
+    }
+
+    assert.equal(Path.new('foo/bar').directory, Path.new('foo'))
+    assert.equal(Path.new('foo').directory, Path.new('.'))
+    assert.equal(Path.new('.').directory, Path.new('.'))
+    assert.equal(Path.new('./foo').directory, Path.new('.'))
+    assert.equal(Path.new('').directory, Path.new('.'))
   }
 }
