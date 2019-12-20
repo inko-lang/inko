@@ -9,8 +9,8 @@
 # will be given a `ReadOnlyFile` object while opening a file in write-only mode
 # produces a `WriteOnlyFile` object.
 import std::conversion::ToString
+import std::fs::bits::(self, READ_ONLY)
 import std::fs::path::(Path, ToPath)
-import std::fs::raw::(self, READ_ONLY)
 import std::io::(Close, Error as IOError, Read, Seek, Size, Write)
 import std::process
 
@@ -43,7 +43,7 @@ object ReadOnlyFile {
   static def new(path: ToPath) !! IOError -> Self {
     let conv_path = path.to_path
     let instance =
-      try raw.open(type: self, path: conv_path.to_string, mode: READ_ONLY)
+      try bits.open(type: self, path: conv_path.to_string, mode: READ_ONLY)
 
     instance.init(conv_path)
     instance
@@ -56,19 +56,19 @@ object ReadOnlyFile {
 
 impl Read for ReadOnlyFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
-    try raw.read_bytes(file: self, bytes: bytes, size: size)
+    try bits.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
 
 impl Seek for ReadOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: self, position: position)
+    try bits.seek(file: self, position: position)
   }
 }
 
 impl Size for ReadOnlyFile {
   def size !! IOError -> Integer {
-    try raw.size(@path.to_string)
+    try bits.size(@path.to_string)
   }
 }
 
@@ -99,10 +99,10 @@ object WriteOnlyFile {
   #
   #     let handle = try! WriteOnlyFile.new('/dev/null')
   static def new(path: ToPath, append = False) !! IOError -> Self {
-    let mode = raw.mode_for_write(append)
+    let mode = bits.mode_for_write(append)
     let conv_path = path.to_path
     let instance =
-      try raw.open(type: self, path: conv_path.to_string, mode: mode)
+      try bits.open(type: self, path: conv_path.to_string, mode: mode)
 
     instance.init(conv_path)
     instance
@@ -115,27 +115,27 @@ object WriteOnlyFile {
 
 impl Write for WriteOnlyFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
-    try raw.write_bytes(file: self, bytes: bytes)
+    try bits.write_bytes(file: self, bytes: bytes)
   }
 
   def write_string(data: ToString) !! IOError -> Integer {
-    try raw.write_string(file: self, data: data.to_string)
+    try bits.write_string(file: self, data: data.to_string)
   }
 
   def flush !! IOError -> Nil {
-    try raw.flush(self)
+    try bits.flush(self)
   }
 }
 
 impl Seek for WriteOnlyFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: self, position: position)
+    try bits.seek(file: self, position: position)
   }
 }
 
 impl Size for WriteOnlyFile {
   def size !! IOError -> Integer {
-    try raw.size(@path.to_string)
+    try bits.size(@path.to_string)
   }
 }
 
@@ -172,10 +172,10 @@ object ReadWriteFile {
   #
   #     let handle = try! ReadWriteFile.new('/dev/null')
   static def new(path: ToPath, append = False) !! IOError -> Self {
-    let mode = raw.mode_for_read_write(append)
+    let mode = bits.mode_for_read_write(append)
     let conv_path = path.to_path
     let instance =
-      try raw.open(type: self, path: conv_path.to_string, mode: mode)
+      try bits.open(type: self, path: conv_path.to_string, mode: mode)
 
     instance.init(conv_path)
     instance
@@ -188,33 +188,33 @@ object ReadWriteFile {
 
 impl Read for ReadWriteFile {
   def read_bytes(bytes: ByteArray, size: ?Integer = Nil) !! IOError -> Integer {
-    try raw.read_bytes(file: self, bytes: bytes, size: size)
+    try bits.read_bytes(file: self, bytes: bytes, size: size)
   }
 }
 
 impl Write for ReadWriteFile {
   def write_bytes(bytes: ByteArray) !! IOError -> Integer {
-    try raw.write_bytes(file: self, bytes: bytes)
+    try bits.write_bytes(file: self, bytes: bytes)
   }
 
   def write_string(data: ToString) !! IOError -> Integer {
-    try raw.write_string(file: self, data: data.to_string)
+    try bits.write_string(file: self, data: data.to_string)
   }
 
   def flush !! IOError -> Nil {
-    try raw.flush(self)
+    try bits.flush(self)
   }
 }
 
 impl Seek for ReadWriteFile {
   def seek(position: Integer) !! IOError -> Integer {
-    try raw.seek(file: self, position: position)
+    try bits.seek(file: self, position: position)
   }
 }
 
 impl Size for ReadWriteFile {
   def size !! IOError -> Integer {
-    try raw.size(@path.to_string)
+    try bits.size(@path.to_string)
   }
 }
 
@@ -249,7 +249,7 @@ impl Remove for ReadWriteFile {
 #     try! handle.write('hello')
 #     try! file.remove('/tmp/test.txt') # => Nil
 def remove(path: ToPath) !! IOError -> Nil {
-  try raw.remove(path.to_path.to_string)
+  try bits.remove(path.to_path.to_string)
 }
 
 # Copies a file from the source destination to the target destination,
@@ -266,7 +266,7 @@ def remove(path: ToPath) !! IOError -> Nil {
 #     try! handle.write('hello')
 #     try! file.copy(from: '/tmp/test.txt', to: '/tmp/test2.txt')
 def copy(from: ToPath, to: ToPath) !! IOError -> Integer {
-  try raw.copy(from: from.to_path.to_string, to: to.to_path.to_string)
+  try bits.copy(from: from.to_path.to_string, to: to.to_path.to_string)
 }
 
 # Opens a file that can only be used for reading data.

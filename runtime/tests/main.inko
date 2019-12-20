@@ -12,13 +12,13 @@ import test::std::ffi::test_types
 import test::std::fs::test_dir
 import test::std::fs::test_file
 import test::std::fs::test_path
-import test::std::fs::test_raw
+import test::std::fs::test_bits::(self as _)
 import test::std::net::test_ip
 import test::std::net::test_socket
 import test::std::net::test_unix
 import test::std::test::test_assert
 import test::std::test::test_config
-import test::std::test::test_error::(self as test_test_error)
+import test::std::test::test_error::(self as _)
 import test::std::test::test_formatters
 import test::std::test::test_runner
 import test::std::test::test_test

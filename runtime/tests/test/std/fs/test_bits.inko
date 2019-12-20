@@ -1,7 +1,8 @@
 import std::conversion::ToString
 import std::fs::path::Path
-import std::fs::raw::(READ_APPEND, READ_ONLY, READ_WRITE)
-import std::fs::raw::(self, MODIFIED_AT, APPEND_ONLY, WRITE_ONLY)
+import std::fs::bits::(
+  self, APPEND_ONLY, MODIFIED_AT, READ_APPEND, READ_ONLY, READ_WRITE, WRITE_ONLY
+)
 import std::process
 import std::test
 import std::test::assert
@@ -12,13 +13,13 @@ import test::fixtures::(self, INVALID_TIME, INVALID_DIRECTORY, INVALID_FILE)
 object DummyFile {}
 
 def remove(path: ToString) -> Nil {
-  try raw.remove(path.to_string) else Nil
+  try bits.remove(path.to_string) else Nil
 }
 
-test.group('std::fs::raw.open') do (g) {
+test.group('std::fs::bits.open') do (g) {
   g.test('Opening a valid file') {
     assert.no_panic {
-      try! raw.open(
+      try! bits.open(
         type: DummyFile,
         path: VALID_FILE.to_string,
         mode: READ_ONLY
@@ -28,7 +29,7 @@ test.group('std::fs::raw.open') do (g) {
 
   g.test('Opening an invalid file') {
     assert.panic {
-      try! raw.open(
+      try! bits.open(
         type: DummyFile,
         path: INVALID_FILE.to_string,
         mode: READ_ONLY
@@ -37,27 +38,27 @@ test.group('std::fs::raw.open') do (g) {
   }
 }
 
-test.group('std::fs::raw.mode_for_write') do (g) {
+test.group('std::fs::bits.mode_for_write') do (g) {
   g.test('Obtaining the mode for opening a file as write-only') {
-    assert.equal(raw.mode_for_write, WRITE_ONLY)
+    assert.equal(bits.mode_for_write, WRITE_ONLY)
   }
 
   g.test('Obtaining the mode for opening a file as append-only') {
-    assert.equal(raw.mode_for_write(append: True), APPEND_ONLY)
+    assert.equal(bits.mode_for_write(append: True), APPEND_ONLY)
   }
 }
 
-test.group('std::fs::raw.mode_for_read_write') do (g) {
+test.group('std::fs::bits.mode_for_read_write') do (g) {
   g.test('Obtaining the mode for opening a file as read-write') {
-    assert.equal(raw.mode_for_read_write, READ_WRITE)
+    assert.equal(bits.mode_for_read_write, READ_WRITE)
   }
 
   g.test('Obtaining the mode for opening a file as read-append') {
-    assert.equal(raw.mode_for_read_write(append: True), READ_APPEND)
+    assert.equal(bits.mode_for_read_write(append: True), READ_APPEND)
   }
 }
 
-test.group('std::fs::raw.copy') do (g) {
+test.group('std::fs::bits.copy') do (g) {
   g.test('Copying a valid file') {
     let orig = VALID_FILE
     let copy = fixtures.temporary_file_path
@@ -66,109 +67,109 @@ test.group('std::fs::raw.copy') do (g) {
       remove(copy)
     }
 
-    try! raw.copy(from: orig.to_string, to: copy.to_string)
+    try! bits.copy(from: orig.to_string, to: copy.to_string)
 
-    assert.true(raw.file?(copy.to_string))
+    assert.true(bits.file?(copy.to_string))
   }
 
   g.test('Copying an invalid file') {
     let orig = INVALID_FILE
     let copy = fixtures.temporary_file_path
-    let size = try raw.copy(from: orig.to_string, to: copy.to_string) else -1
+    let size = try bits.copy(from: orig.to_string, to: copy.to_string) else -1
 
     assert.equal(size, -1)
   }
 }
 
-test.group('std::fs::raw.size') do (g) {
+test.group('std::fs::bits.size') do (g) {
   g.test('Obtaining the size of a valid file') {
-    let size = try raw.size(VALID_FILE.to_string) else -1
+    let size = try bits.size(VALID_FILE.to_string) else -1
 
     assert.greater(size, 0)
   }
 
   g.test('Obtaining the size of an invalid file') {
-    let size = try raw.size(INVALID_FILE.to_string) else -1
+    let size = try bits.size(INVALID_FILE.to_string) else -1
 
     assert.equal(size, -1)
   }
 }
 
-test.group('std::fs::raw.remove') do (g) {
+test.group('std::fs::bits.remove') do (g) {
   g.test('Removing a valid file') {
     let path = fixtures.temporary_file_path.to_string
 
-    try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
-    try! raw.remove(path)
+    try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    try! bits.remove(path)
 
-    assert.false(raw.file?(path))
+    assert.false(bits.file?(path))
   }
 
   g.test('Removing an invalid file') {
     assert.panic {
-      try! raw.remove(INVALID_FILE.to_string)
+      try! bits.remove(INVALID_FILE.to_string)
     }
   }
 }
 
-test.group('std::fs::raw.file?') do (g) {
+test.group('std::fs::bits.file?') do (g) {
   g.test('Checking if a valid file is a file') {
-    assert.true(raw.file?(VALID_FILE.to_string))
+    assert.true(bits.file?(VALID_FILE.to_string))
   }
 
   g.test('Checking if an invalid file is a file') {
-    assert.false(raw.file?(INVALID_FILE.to_string))
+    assert.false(bits.file?(INVALID_FILE.to_string))
   }
 
   g.test('Checking if a valid directory is a file') {
-    assert.false(raw.file?(VALID_DIRECTORY.to_string))
+    assert.false(bits.file?(VALID_DIRECTORY.to_string))
   }
 
   g.test('Checking if an invalid directory is a file') {
-    assert.false(raw.file?(INVALID_DIRECTORY.to_string))
+    assert.false(bits.file?(INVALID_DIRECTORY.to_string))
   }
 }
 
-test.group('std::fs::raw.directory?') do (g) {
+test.group('std::fs::bits.directory?') do (g) {
   g.test('Checking if a valid file is a directory') {
-    assert.false(raw.directory?(VALID_FILE.to_string))
+    assert.false(bits.directory?(VALID_FILE.to_string))
   }
 
   g.test('Checking if an invalid file is a directory') {
-    assert.false(raw.directory?(INVALID_FILE.to_string))
+    assert.false(bits.directory?(INVALID_FILE.to_string))
   }
 
   g.test('Checking if a valid directory is a directory') {
-    assert.true(raw.directory?(VALID_DIRECTORY.to_string))
+    assert.true(bits.directory?(VALID_DIRECTORY.to_string))
   }
 
   g.test('Checking if an invalid directory is a directory') {
-    assert.false(raw.directory?(INVALID_DIRECTORY.to_string))
+    assert.false(bits.directory?(INVALID_DIRECTORY.to_string))
   }
 }
 
-test.group('std::fs::raw.exists?') do (g) {
+test.group('std::fs::bits.exists?') do (g) {
   g.test('Checking if a valid file exists') {
-    assert.true(raw.exists?(VALID_FILE.to_string))
+    assert.true(bits.exists?(VALID_FILE.to_string))
   }
 
   g.test('Checking if an invalid file exists') {
-    assert.false(raw.exists?(INVALID_FILE.to_string))
+    assert.false(bits.exists?(INVALID_FILE.to_string))
   }
 
   g.test('Checking if a valid directory exists') {
-    assert.true(raw.exists?(VALID_DIRECTORY.to_string))
+    assert.true(bits.exists?(VALID_DIRECTORY.to_string))
   }
 
   g.test('Checking if an invalid directory exists') {
-    assert.false(raw.exists?(INVALID_DIRECTORY.to_string))
+    assert.false(bits.exists?(INVALID_DIRECTORY.to_string))
   }
 }
 
-test.group('std::fs::raw.file_time') do (g) {
+test.group('std::fs::bits.file_time') do (g) {
   g.test('Obtaining the modification time of a valid file') {
     let time = try {
-      raw.file_time(path: VALID_FILE.to_string, kind: MODIFIED_AT)
+      bits.file_time(path: VALID_FILE.to_string, kind: MODIFIED_AT)
     } else {
       INVALID_TIME
     }
@@ -178,15 +179,15 @@ test.group('std::fs::raw.file_time') do (g) {
 }
 
 features.creation_time?.if_true {
-  test.group('std::fs::raw.created_at') do (g) {
+  test.group('std::fs::bits.created_at') do (g) {
     g.test('Obtaining the creation time of a valid file') {
-      let time = try raw.created_at(VALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.created_at(VALID_FILE.to_string) else INVALID_TIME
 
       assert.not_equal(time, INVALID_TIME)
     }
 
     g.test('Obtaining the creation time of an invalid file') {
-      let time = try raw.created_at(INVALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.created_at(INVALID_FILE.to_string) else INVALID_TIME
 
       assert.equal(time, INVALID_TIME)
     }
@@ -194,15 +195,15 @@ features.creation_time?.if_true {
 }
 
 features.modification_time?.if_true {
-  test.group('std::fs::raw.modified_at') do (g) {
+  test.group('std::fs::bits.modified_at') do (g) {
     g.test('Obtaining the modification time of a valid file') {
-      let time = try raw.modified_at(VALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.modified_at(VALID_FILE.to_string) else INVALID_TIME
 
       assert.not_equal(time, INVALID_TIME)
     }
 
     g.test('Obtaining the modification time of an invalid file') {
-      let time = try raw.modified_at(INVALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.modified_at(INVALID_FILE.to_string) else INVALID_TIME
 
       assert.equal(time, INVALID_TIME)
     }
@@ -210,31 +211,31 @@ features.modification_time?.if_true {
 }
 
 features.access_time?.if_true {
-  test.group('std::fs::raw.accessed_at') do (g) {
+  test.group('std::fs::bits.accessed_at') do (g) {
     g.test('Obtaining the access time of a valid file') {
-      let time = try raw.accessed_at(VALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.accessed_at(VALID_FILE.to_string) else INVALID_TIME
 
       assert.not_equal(time, INVALID_TIME)
     }
 
     g.test('Obtaining the access time of an invalid file') {
-      let time = try raw.accessed_at(INVALID_FILE.to_string) else INVALID_TIME
+      let time = try bits.accessed_at(INVALID_FILE.to_string) else INVALID_TIME
 
       assert.equal(time, INVALID_TIME)
     }
   }
 }
 
-test.group('std::fs::raw.read_bytes') do (g) {
+test.group('std::fs::bits.read_bytes') do (g) {
   g.test('Reading a valid number of bytes from a file') {
-    let file = try! raw.open(
+    let file = try! bits.open(
       type: DummyFile,
       path: VALID_FILE.to_string,
       mode: READ_ONLY
     )
 
     let bytes = ByteArray.new
-    let read = try! raw.read_bytes(file: file, bytes: bytes, size: 2)
+    let read = try! bits.read_bytes(file: file, bytes: bytes, size: 2)
 
     assert.equal(bytes.length, 2)
     assert.equal(read, 2)
@@ -242,19 +243,19 @@ test.group('std::fs::raw.read_bytes') do (g) {
 
   g.test('Reading an invalid number of bytes from a file') {
     assert.panic {
-      let file = try! raw.open(
+      let file = try! bits.open(
         type: DummyFile,
         path: VALID_FILE.to_string,
         mode: READ_ONLY
       )
 
       let bytes = ByteArray.new
-      let read = try! raw.read_bytes(file: file, bytes: bytes, size: -1)
+      let read = try! bits.read_bytes(file: file, bytes: bytes, size: -1)
     }
   }
 }
 
-test.group('std::fs::raw.write_string') do (g) {
+test.group('std::fs::bits.write_string') do (g) {
   g.test('Writing a String to a file') {
     let path = fixtures.temporary_file_path.to_string
 
@@ -262,26 +263,26 @@ test.group('std::fs::raw.write_string') do (g) {
       remove(path)
     }
 
-    let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
-    let written = try! raw.write_string(file: file, data: 'abc')
+    let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    let written = try! bits.write_string(file: file, data: 'abc')
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a String to a file that is opened in read-only mode') {
-    let file = try! raw.open(
+    let file = try! bits.open(
       type: DummyFile,
       path: VALID_FILE.to_string,
       mode: READ_ONLY
     )
 
-    let written = try raw.write_string(file: file, data: 'abc') else -1
+    let written = try bits.write_string(file: file, data: 'abc') else -1
 
     assert.equal(written, -1)
   }
 }
 
-test.group('std::fs::raw.write_bytes') do (g) {
+test.group('std::fs::bits.write_bytes') do (g) {
   g.test('Writing a ByteArray to a file') {
     let path = fixtures.temporary_file_path.to_string
 
@@ -289,21 +290,21 @@ test.group('std::fs::raw.write_bytes') do (g) {
       remove(path)
     }
 
-    let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
-    let written = try! raw.write_bytes(file: file, bytes: 'abc'.to_byte_array)
+    let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+    let written = try! bits.write_bytes(file: file, bytes: 'abc'.to_byte_array)
 
     assert.equal(written, 3)
   }
 
   g.test('Writing a ByteArray to a file that is opened in read-only mode') {
-    let file = try! raw.open(
+    let file = try! bits.open(
       type: DummyFile,
       path: VALID_FILE.to_string,
       mode: READ_ONLY
     )
 
     let written = try {
-      raw.write_bytes(file: file, bytes: 'abc'.to_byte_array)
+      bits.write_bytes(file: file, bytes: 'abc'.to_byte_array)
     } else {
       -1
     }
@@ -312,7 +313,7 @@ test.group('std::fs::raw.write_bytes') do (g) {
   }
 }
 
-test.group('std::fs::raw.flush') do (g) {
+test.group('std::fs::bits.flush') do (g) {
   g.test('Flushing any pending writes to disk') {
     assert.no_panic {
       let path = fixtures.temporary_file_path.to_string
@@ -321,22 +322,22 @@ test.group('std::fs::raw.flush') do (g) {
         remove(path)
       }
 
-      let file = try! raw.open(type: DummyFile, path: path, mode: WRITE_ONLY)
+      let file = try! bits.open(type: DummyFile, path: path, mode: WRITE_ONLY)
 
-      try! raw.flush(file)
+      try! bits.flush(file)
     }
   }
 }
 
-test.group('std::fs::raw.seek') do (g) {
+test.group('std::fs::bits.seek') do (g) {
   g.test('Seeking to a valid position') {
-    let file = try! raw.open(
+    let file = try! bits.open(
       type: DummyFile,
       path: VALID_FILE.to_string,
       mode: READ_ONLY
     )
 
-    let pos = try! raw.seek(file: file, position: 4)
+    let pos = try! bits.seek(file: file, position: 4)
 
     assert.equal(pos, 4)
   }

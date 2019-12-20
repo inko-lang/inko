@@ -39,13 +39,13 @@
 #     file.read_only('/dev/urandom')
 #     file.read_only(Path.new('/dev/urandom'))
 import std::conversion::ToString
-import std::fs::raw
+import std::fs::bits::(self as fs_bits)
+import std::fs::path::bits::(self, SEPARATOR as _SEPARATOR)
 import std::io::(Error as IOError, Size)
 import std::operators::Equal
 import std::os
 import std::string_buffer::StringBuffer
 import std::time::SystemTime
-import std::fs::path::bits::(self, SEPARATOR as _SEPARATOR)
 
 # The primary separator of path components.
 let SEPARATOR = _SEPARATOR
@@ -79,17 +79,17 @@ object Path {
 
   # Returns `True` if the path points to a file.
   def file? -> Boolean {
-    raw.file?(@path)
+    fs_bits.file?(@path)
   }
 
   # Returns `True` if the path points to a directory.
   def directory? -> Boolean {
-    raw.directory?(@path)
+    fs_bits.directory?(@path)
   }
 
   # Returns `True` if the path points to an existing file or directory.
   def exists? -> Boolean {
-    raw.exists?(@path)
+    fs_bits.exists?(@path)
   }
 
   # Returns the creation time of `self`.
@@ -104,7 +104,7 @@ object Path {
   #
   #     try! path.created_at # => SystemTime { ... }
   def created_at !! IOError -> SystemTime {
-    try raw.created_at(@path)
+    try fs_bits.created_at(@path)
   }
 
   # Returns the modification time of `self`.
@@ -119,7 +119,7 @@ object Path {
   #
   #     try! path.modified_at # => SystemTime { ... }
   def modified_at !! IOError -> SystemTime {
-    try raw.modified_at(@path)
+    try fs_bits.modified_at(@path)
   }
 
   # Returns the access time of `self`.
@@ -134,7 +134,7 @@ object Path {
   #
   #     try! path.accessed_at # => SystemTime { ... }
   def accessed_at !! IOError -> SystemTime {
-    try raw.accessed_at(@path)
+    try fs_bits.accessed_at(@path)
   }
 
   # Returns `True` if this `Path` is an absolute path.
@@ -279,7 +279,7 @@ impl Size for Path {
   #
   #     try! path.size # => 0
   def size !! IOError -> Integer {
-    try raw.size(@path)
+    try fs_bits.size(@path)
   }
 }
 
