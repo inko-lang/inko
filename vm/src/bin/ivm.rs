@@ -11,7 +11,7 @@ use libinko::vm::machine::Machine;
 use libinko::vm::state::State;
 
 fn print_usage(options: &Options) {
-    print_stderr(&options.usage("Usage: ivm FILE [OPTIONS]").to_string());
+    print_stderr(&options.usage("Usage: ivm FILE [OPTIONS]"));
 }
 
 fn print_stderr(message: &str) {

@@ -43,7 +43,8 @@ clippy:
 	${CARGO_CMD} clippy -- -Dwarnings \
 		-Arenamed_and_removed_lints \
 		-Aclippy::new_without_default \
-		-Aclippy::needless_range_loop
+		-Aclippy::needless_range_loop \
+		-Aclippy::missing_safety_doc
 
 rustfmt-check:
 	rustfmt --check src/lib.rs src/bin/ivm.rs

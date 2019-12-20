@@ -124,7 +124,7 @@ impl Process {
         config: &Config,
     ) -> RcProcess {
         let local_data = LocalData {
-            allocator: LocalAllocator::new(global_allocator.clone(), config),
+            allocator: LocalAllocator::new(global_allocator, config),
             context: Box::new(context),
             panic_handler: ObjectPointer::null(),
             thread_id: None,
