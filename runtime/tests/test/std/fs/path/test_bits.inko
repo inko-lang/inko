@@ -1,0 +1,63 @@
+import std::fs::path::bits::(self, SEPARATOR, SEPARATOR_BYTE, ALT_SEPARATOR_BYTE)
+import std::os
+import std::test
+import std::test::assert
+
+os.windows?.if_true {
+  test.group('std::fs::path::bits.starts_with_windows_drive_name?') do (g) {
+    g.test('Checking if a path starts with a Windows drive name') {
+      assert.true(bits.starts_with_windows_drive_name?('C:/'))
+      assert.true(bits.starts_with_windows_drive_name?('C:\\'))
+
+      assert.false(bits.starts_with_windows_drive_name?('C:'))
+      assert.false(bits.starts_with_windows_drive_name?('C/'))
+      assert.false(bits.starts_with_windows_drive_name?('C\\'))
+    }
+  }
+}
+
+test.group('std::fs::path::bits.path_separator?') do (g) {
+  g.test('Checking if a byte is a valid path separator') {
+    assert.true(bits.path_separator?(SEPARATOR_BYTE))
+
+    ALT_SEPARATOR_BYTE.negative?.if_false {
+      assert.true(bits.path_separator?(ALT_SEPARATOR_BYTE))
+    }
+  }
+}
+
+test.group('std::fs::path::bits.bytes_before_last_separator') do (g) {
+  g.test('Obtaining the number of bytes without a path separator') {
+    assert.equal(bits.bytes_before_last_separator('foo'), -1)
+  }
+
+  g.test('Obtaining the number of bytes with a path separator') {
+    let path = 'foo' + SEPARATOR + 'bar'
+
+    assert.equal(bits.bytes_before_last_separator(path), 3)
+  }
+
+  g.test('Obtaining the number of bytes with a trailing path separator') {
+    let path = 'foo' + SEPARATOR + 'bar' + SEPARATOR
+
+    assert.equal(bits.bytes_before_last_separator(path), 3)
+  }
+
+  g.test('Obtaining the number of bytes with a leading path separator') {
+    let path = SEPARATOR + 'bar' + SEPARATOR
+
+    assert.equal(bits.bytes_before_last_separator(path), 1)
+  }
+
+  g.test('Obtaining the number of bytes with multiple path separators') {
+    let path = SEPARATOR + 'bar' + SEPARATOR + SEPARATOR
+
+    assert.equal(bits.bytes_before_last_separator(path), 1)
+  }
+
+  os.windows?.if_true {
+    g.test('Obtaining the number of bytes using a Windows drive name') {
+      assert.equal(bits.bytes_before_last_separator('C:/foo'), 3)
+    }
+  }
+}

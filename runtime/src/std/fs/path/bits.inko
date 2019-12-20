@@ -33,6 +33,10 @@ let COLON_BYTE = 58
 def starts_with_windows_drive_name?(path: String) -> Boolean {
   let first_byte = path.byte(index: 0)
 
+  (path.length < 3).if_true {
+    return False
+  }
+
   WINDOWS_LOWER_DRIVE_LETTERS.cover?(first_byte)
     .or { WINDOWS_UPPER_DRIVE_LETTERS.cover?(first_byte) }
     .and { path.byte(index: 1) == COLON_BYTE }

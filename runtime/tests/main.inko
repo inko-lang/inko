@@ -9,10 +9,11 @@ import test::std::compiler::test_parser
 import test::std::compiler::test_source_location
 import test::std::compiler::test_token
 import test::std::ffi::test_types
+import test::std::fs::path::test_bits::(self as _)
+import test::std::fs::test_bits::(self as _)
 import test::std::fs::test_dir
 import test::std::fs::test_file
 import test::std::fs::test_path
-import test::std::fs::test_bits::(self as _)
 import test::std::net::test_ip
 import test::std::net::test_socket
 import test::std::net::test_unix
