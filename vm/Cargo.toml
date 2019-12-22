@@ -19,20 +19,20 @@ test = false
 
 [dependencies]
 getopts = "^0.2"
-num_cpus = "^1.10"
-parking_lot = "^0.7"
+num_cpus = "^1.11"
+parking_lot = "^0.10"
 fnv = "^1.0"
 time = "^0.1"
 num-integer = "^0.1"
-float-cmp = "^0.4"
+float-cmp = "^0.6"
 num-traits = "^0.2"
-dirs = "^1.0"
+dirs = "^2.0"
 libloading = "^0.5"
-libffi = "^0.8"
+libffi = "^0.9"
 crossbeam-deque = "^0.7"
-crossbeam-channel = "^0.3"
+crossbeam-channel = "^0.4"
 libc = "^0.2"
-jemallocator = { version = "^0.1", optional = true }
+jemallocator = { version = "^0.3", optional = true }
 siphasher = "^0.3"
 rand = "^0.6"
 

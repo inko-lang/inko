@@ -752,7 +752,7 @@ mod tests {
     fn test_process_type_size() {
         // This test is put in place to ensure the type size doesn't change
         // unintentionally.
-        assert_eq!(mem::size_of::<Process>(), 392);
+        assert_eq!(mem::size_of::<Process>(), 360);
     }
 
     #[test]
