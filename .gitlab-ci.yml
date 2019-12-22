@@ -5,6 +5,7 @@ variables:
   AWS_REGION: eu-west-1
   # Ensure Windows builds fail when Powershell detects an error.
   ErrorActionPreference: 'STOP'
+  LICENSE_FINDER_CLI_OPTS: '--aggregate-paths=". vm compiler"'
 
 stages:
   - test
@@ -18,3 +19,4 @@ include:
   - local: .gitlab/ci/linux.yml
   - local: .gitlab/ci/lints.yml
   - local: .gitlab/ci/releases.yml
+  - template: License-Management.gitlab-ci.yml
