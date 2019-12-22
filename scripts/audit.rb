@@ -9,9 +9,10 @@ stdout, _, _ = Open3.capture3('cargo audit -f vm/Cargo.lock --json')
 json = stdout.strip
 
 report = {
-  version: '2.1',
+  version: '2.3',
   vulnerabilities: [],
-  remediations: []
+  remediations: [],
+  dependency_files: []
 }
 
 unless json.empty?
@@ -20,18 +21,20 @@ unless json.empty?
   raw_report['vulnerabilities']['list'].each do |vuln|
     advisory = vuln['advisory']
 
+    rustsec_url = "https://github.com/RustSec/advisory-db/blob/master/crates/#{advisory['package']}/#{advisory['id']}.toml"
+
     report[:vulnerabilities] << {
       category: 'dependency_scanning',
       name: advisory['title'],
       message: advisory['title'],
       description: advisory['description'],
-      cve: "Cargo.lock:#{advisory['package']}:#{advisory['id']}",
+      cve: "vm/Cargo.lock:#{advisory['package']}:#{advisory['id']}",
       severity: 'High',
       confidence: 'Confirmed',
       solution: "Upgrade to #{advisory['patched_versions'].join(', ')}",
       scanner: {
-        id: 'rustsec',
-        name: 'RustSec'
+        id: 'cargo-audit',
+        name: 'cargo audit'
       },
       location: {
         file: raw_report['lockfile']['path'],
@@ -47,19 +50,22 @@ unless json.empty?
           type: 'rustsec',
           name: advisory['id'],
           value: advisory['id'],
-          url: "https://github.com/RustSec/advisory-db/blob/master/crates/#{advisory['package']}/#{advisory['id']}.toml"
+          url: rustsec_url
         }
       ],
       links: [
         {
           name: 'RustSec advisory',
-          url: "https://github.com/RustSec/advisory-db/blob/master/crates/#{advisory['package']}/#{advisory['id']}.toml"
+          url: rustsec_url
         },
         {
           name: 'Issue',
           url: advisory['url']
         }
-      ]
+      ],
+      file: 'vm/Cargo.lock',
+      url: rustsec_url,
+      tool: 'cargo-audit'
     }
   end
 end
