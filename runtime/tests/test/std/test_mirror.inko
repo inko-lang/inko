@@ -478,10 +478,6 @@ test.group('std::mirror::BlockMirror.format') do (g) {
 }
 
 test.group('std::mirror::BooleanMirror.format') do (g) {
-  g.test('Formatting Boolean') {
-    assert.equal(format(BooleanMirror.new(Boolean)), 'Boolean')
-  }
-
   g.test('Formatting True') {
     assert.equal(format(BooleanMirror.new(True)), 'True')
   }

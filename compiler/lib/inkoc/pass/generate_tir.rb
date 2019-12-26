@@ -1491,6 +1491,33 @@ module Inkoc
         raw_unary_instruction(:RandomBytes, node, body)
       end
 
+      def on_raw_if(node, body)
+        loc = node.location
+        rec_node = node.arguments.fetch(0)
+        result = body.register(rec_node.type)
+
+        receiver = process_node(rec_node, body)
+
+        body.instruct(:GotoNextBlockIfTrue, receiver, loc)
+
+        # The block used for the "false" argument.
+        if_false = process_node(node.arguments.fetch(2), body)
+
+        body.instruct(:Unary, :SetRegister, result, if_false, loc)
+        body.instruct(:SkipNextBlock, loc)
+
+        # The block used for the "true" argument.
+        body.add_connected_basic_block
+
+        if_true = process_node(node.arguments.fetch(1), body)
+
+        body.instruct(:Unary, :SetRegister, result, if_true, loc)
+
+        body.add_connected_basic_block
+
+        result
+      end
+
       def on_return(node, body)
         location = node.location
         register =
