@@ -8,62 +8,34 @@ import std::conversion::ToString
 impl Boolean {
   # Returns the `Boolean` that is the opposite of `self`.
   def not -> Boolean {
-    False
+    _INKOC.if(self, False, True)
   }
 }
 
 impl Conditional for Boolean {
+  def if!(R)(true: do -> R, false: do -> R) -> R {
+    _INKOC.if(self, true, false).call
+  }
+
   def if_true!(R)(block: do -> R) -> ?R {
-    block.call
+    _INKOC.if(self, block.call, Nil)
   }
 
   def if_false!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    true.call
+    _INKOC.if(self, Nil, block.call)
   }
 
   def and(other: do -> Boolean) -> Boolean {
-    other.call
+    _INKOC.if(self, other.call, False)
   }
 
   def or(other: do -> Boolean) -> Boolean {
-    True
+    _INKOC.if(self, True, other.call)
   }
 }
 
 impl ToString for Boolean {
   def to_string -> String {
-    _INKOC.get_attribute(self, '@_object_name') as String
-  }
-}
-
-impl Conditional for False {
-  def if_true!(R)(block: do -> R) -> ?R {
-    Nil
-  }
-
-  def if_false!(R)(block: do -> R) -> ?R {
-    block.call
-  }
-
-  def if!(R)(true: do -> R, false: do -> R) -> R {
-    false.call
-  }
-
-  def and(other: do -> Boolean) -> Boolean {
-    False
-  }
-
-  def or(other: do -> Boolean) -> Boolean {
-    other.call
-  }
-}
-
-impl False {
-  def not -> Boolean {
-    True
+    _INKOC.if(self, 'True', 'False')
   }
 }

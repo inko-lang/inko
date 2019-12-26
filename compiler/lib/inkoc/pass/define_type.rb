@@ -1583,6 +1583,10 @@ module Inkoc
         typedb.byte_array_type.new_instance
       end
 
+      def on_raw_if(node, _)
+        node.arguments.fetch(1).type.new_instance
+      end
+
       def define_block_signature(node, scope, expected_block = nil)
         define_type_parameters(node, scope)
         define_argument_types(node, scope, expected_block)
