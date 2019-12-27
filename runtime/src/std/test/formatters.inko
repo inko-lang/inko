@@ -99,12 +99,12 @@ object ProgressFormatter {
 }
 
 impl Formatter for ProgressFormatter {
-  def passed(test: Test) -> Nil {
+  def passed(test: Test) -> NilType {
     stdout.write_string(green('.'))
     Nil
   }
 
-  def failed(test: Test) -> Nil {
+  def failed(test: Test) -> NilType {
     @failed += 1
 
     stdout.write_string(red('F'))
@@ -112,7 +112,7 @@ impl Formatter for ProgressFormatter {
   }
 
   # Displays a list of all the failed tests.
-  def failures(tests: Array!(Test)) -> Nil {
+  def failures(tests: Array!(Test)) -> NilType {
     stdout.write_string("\n\nFailures:")
 
     tests.each_with_index do (test, index) {
@@ -143,7 +143,7 @@ impl Formatter for ProgressFormatter {
   }
 
   # Displays a summary of the test suite, once the suite has finished running.
-  def summary(tests: Array!(Test), duration: Duration) -> Nil {
+  def summary(tests: Array!(Test), duration: Duration) -> NilType {
     let buffer = StringBuffer.new(
       "\n\nFinished running in ",
       test_suite_duration_time(duration).to_string,

@@ -101,7 +101,7 @@ def address(socket, peer = False) !! IoError -> Array!(Dynamic) {
   }
 }
 
-def bind(socket, address: String, port: Integer) !! IoError -> Nil {
+def bind(socket, address: String, port: Integer) !! IoError -> NilType {
   try {
     _INKOC.socket_bind(socket, address, port)
   } else (error) {
@@ -111,7 +111,7 @@ def bind(socket, address: String, port: Integer) !! IoError -> Nil {
   Nil
 }
 
-def connect(socket, address: String, port: Integer) !! IoError -> Nil {
+def connect(socket, address: String, port: Integer) !! IoError -> NilType {
   try {
     _INKOC.socket_connect(socket, address, port)
   } else (error) {
@@ -182,7 +182,7 @@ def write_string(socket, string: String) !! IoError -> Integer {
   }
 }
 
-def close(socket) -> Nil {
+def close(socket) -> NilType {
   _INKOC.drop(socket)
 }
 
@@ -197,7 +197,7 @@ def to_stream(socket, prototype) {
   stream
 }
 
-def shutdown_read(socket) !! IoError -> Nil {
+def shutdown_read(socket) !! IoError -> NilType {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_READ)
   } else (error) {
@@ -205,7 +205,7 @@ def shutdown_read(socket) !! IoError -> Nil {
   }
 }
 
-def shutdown_write(socket) !! IoError -> Nil {
+def shutdown_write(socket) !! IoError -> NilType {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_WRITE)
   } else (error) {
@@ -213,7 +213,7 @@ def shutdown_write(socket) !! IoError -> Nil {
   }
 }
 
-def shutdown(socket) !! IoError -> Nil {
+def shutdown(socket) !! IoError -> NilType {
   try {
     _INKOC.socket_shutdown(socket, SHUTDOWN_BOTH)
   } else (error) {

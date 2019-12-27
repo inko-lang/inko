@@ -13,7 +13,7 @@
 let Boolean = _INKOC.get_boolean_prototype
 let True = _INKOC.get_true
 let False = _INKOC.get_false
-let Nil = _INKOC.get_nil
+let NilType = _INKOC.get_nil_prototype
 
 let Object = _INKOC.get_object_prototype
 let String = _INKOC.get_string_prototype
@@ -25,9 +25,7 @@ let ByteArray = _INKOC.get_byte_array_prototype
 
 _INKOC.set_object_name(self, 'Inko')
 _INKOC.set_object_name(Boolean, 'Boolean')
-_INKOC.set_object_name(True, 'True')
-_INKOC.set_object_name(False, 'False')
-_INKOC.set_object_name(Nil, 'Nil')
+_INKOC.set_object_name(NilType, 'NilType')
 _INKOC.set_object_name(Object, 'Object')
 _INKOC.set_object_name(String, 'String')
 _INKOC.set_object_name(Integer, 'Integer')

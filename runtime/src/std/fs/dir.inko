@@ -32,7 +32,7 @@ import std::process
 #     import std::fs::dir
 #
 #     try! dir.create(path: '/tmp/test/hello/world', recursive: True)
-def create(path: ToPath, recursive = False) !! IOError -> Nil {
+def create(path: ToPath, recursive = False) !! IOError -> NilType {
   process.blocking {
     try {
       _INKOC.directory_create(path.to_path.to_string, recursive)
@@ -67,7 +67,7 @@ def create(path: ToPath, recursive = False) !! IOError -> Nil {
 #
 #     try! dir.create(path: '/tmp/foo/bar', recursive: True)
 #     try! dir.remove(path: '/tmp/foo', recursive: True)
-def remove(path: ToPath, recursive = False) !! IOError -> Nil {
+def remove(path: ToPath, recursive = False) !! IOError -> NilType {
   process.blocking {
     try {
       _INKOC.directory_remove(path.to_path.to_string, recursive)

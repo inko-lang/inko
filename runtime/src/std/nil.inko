@@ -3,20 +3,22 @@
 # Nil is used to represent nothingness. Unlike the usual `NULL` value found
 # elsewhere `Nil` is an actual object you can send messages to.
 #
+# The global `Nil` is a singleton instance of the object `NilType`. This object
+# is called `NilType` so it does not conflict with the instance called `Nil`.
+#
 # # Sending Messages
 #
 # `Nil` implements a variety of methods, but sending any unknown messages to
 # `Nil` will return another `Nil`. This makes it easy to work with methods that
 # may return `Nil` without having to include checks for `Nil` values all over
 # the place.
-
 import std::conditional::Conditional
 import std::conversion::(ToString, ToFloat, ToInteger)
 import std::hash::(Hasher, Hash)
 import std::marker::Optional
 import std::unknown_message::UnknownMessage
 
-impl Nil {
+impl NilType {
   # Always returns `Nil` itself.
   #
   # # Examples
@@ -29,7 +31,7 @@ impl Nil {
   }
 }
 
-impl ToInteger for Nil {
+impl ToInteger for NilType {
   # Always return `0`.
   #
   # # Examples
@@ -42,7 +44,7 @@ impl ToInteger for Nil {
   }
 }
 
-impl ToFloat for Nil {
+impl ToFloat for NilType {
   # Always returns `0.0`.
   #
   # # Examples
@@ -55,14 +57,14 @@ impl ToFloat for Nil {
   }
 }
 
-impl ToString for Nil {
+impl ToString for NilType {
   # Always returns an empty string.
   def to_string -> String {
     ''
   }
 }
 
-impl Conditional for Nil {
+impl Conditional for NilType {
   # Always returns `Nil`.
   def if_true!(R)(block: do -> R) -> ?R {
     Nil
@@ -90,7 +92,7 @@ impl Conditional for Nil {
   }
 }
 
-impl UnknownMessage for Nil {
+impl UnknownMessage for NilType {
   # Always returns `Nil`.
   #
   # By always returning `Nil` we can safely work with methods that produce
@@ -107,9 +109,9 @@ impl UnknownMessage for Nil {
   }
 }
 
-impl Optional for Nil {}
+impl Optional for NilType {}
 
-impl Hash for Nil {
+impl Hash for NilType {
   def hash(hasher: Hasher) -> Nil {
     _INKOC.hasher_write(hasher, self)
     Nil

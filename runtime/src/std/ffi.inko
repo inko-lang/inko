@@ -181,7 +181,7 @@ object Library {
 
 impl Close for Library {
   # Disposes of the current library.
-  def close -> Nil {
+  def close -> NilType {
     _INKOC.drop(self)
   }
 }
@@ -424,7 +424,7 @@ object LayoutBuilder {
   }
 
   # Disables the padding of members.
-  def disable_padding -> Nil {
+  def disable_padding -> NilType {
     @padding = False
     @alignment = 1
 

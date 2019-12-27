@@ -23,7 +23,7 @@ trait FilePath {
 # An object that allows the removal of an associated file on the filesystem.
 trait Remove {
   # Removes the file from the underlying file system.
-  def remove !! IOError -> Nil
+  def remove !! IOError -> NilType
 }
 
 # A file that can only be used for read operations.
@@ -79,7 +79,7 @@ impl FilePath for ReadOnlyFile {
 }
 
 impl Close for ReadOnlyFile {
-  def close -> Nil {
+  def close -> NilType {
     _INKOC.drop(self)
   }
 }
@@ -122,7 +122,7 @@ impl Write for WriteOnlyFile {
     try bits.write_string(file: self, data: data.to_string)
   }
 
-  def flush !! IOError -> Nil {
+  def flush !! IOError -> NilType {
     try bits.flush(self)
   }
 }
@@ -146,13 +146,13 @@ impl FilePath for WriteOnlyFile {
 }
 
 impl Close for WriteOnlyFile {
-  def close -> Nil {
+  def close -> NilType {
     _INKOC.drop(self)
   }
 }
 
 impl Remove for WriteOnlyFile {
-  def remove !! IOError -> Nil {
+  def remove !! IOError -> NilType {
     try ThisModule.remove(@path)
   }
 }
@@ -201,7 +201,7 @@ impl Write for ReadWriteFile {
     try bits.write_string(file: self, data: data.to_string)
   }
 
-  def flush !! IOError -> Nil {
+  def flush !! IOError -> NilType {
     try bits.flush(self)
   }
 }
@@ -225,13 +225,13 @@ impl FilePath for ReadWriteFile {
 }
 
 impl Close for ReadWriteFile {
-  def close -> Nil {
+  def close -> NilType {
     _INKOC.drop(self)
   }
 }
 
 impl Remove for ReadWriteFile {
-  def remove !! IOError -> Nil {
+  def remove !! IOError -> NilType {
     try ThisModule.remove(@path)
   }
 }
@@ -248,7 +248,7 @@ impl Remove for ReadWriteFile {
 #
 #     try! handle.write('hello')
 #     try! file.remove('/tmp/test.txt') # => Nil
-def remove(path: ToPath) !! IOError -> Nil {
+def remove(path: ToPath) !! IOError -> NilType {
   try bits.remove(path.to_path.to_string)
 }
 

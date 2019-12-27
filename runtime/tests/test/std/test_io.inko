@@ -38,7 +38,7 @@ impl Write for Writer {
     0
   }
 
-  def flush -> Nil {
+  def flush -> NilType {
     Nil
   }
 

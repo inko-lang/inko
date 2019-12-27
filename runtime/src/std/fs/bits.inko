@@ -54,7 +54,7 @@ def size(path: String) !! IOError -> Integer {
 }
 
 # Removes the file for the given path.
-def remove(path: String) !! IOError -> Nil {
+def remove(path: String) !! IOError -> NilType {
   process.blocking {
     try _INKOC.file_remove(path) else (err) throw IOError.new(err as String)
   }
@@ -147,7 +147,7 @@ def write_bytes(file, bytes: ByteArray) !! IOError -> Integer {
 }
 
 # Flushes the contents of a file to disk.
-def flush(file) !! IOError -> Nil {
+def flush(file) !! IOError -> NilType {
   process.blocking {
     try _INKOC.file_flush(file) else (err) throw IOError.new(err as String)
   }

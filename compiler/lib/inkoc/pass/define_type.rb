@@ -1299,6 +1299,10 @@ module Inkoc
         typedb.block_type.new_instance
       end
 
+      def on_raw_get_nil_prototype(*)
+        typedb.nil_type.new_instance
+      end
+
       def optional_array_element_value(array)
         param = array.lookup_type_parameter(Config::ARRAY_TYPE_PARAMETER)
         type = array.lookup_type_parameter_instance(param) || param

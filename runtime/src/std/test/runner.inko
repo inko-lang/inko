@@ -104,7 +104,7 @@ object AddTest {
 }
 
 impl Command for AddTest {
-  def run(state: RunnerState) -> Nil {
+  def run(state: RunnerState) -> NilType {
     state.add_test(@test)
     Nil
   }
@@ -119,7 +119,7 @@ object RunTests {
     @notify = notify
   }
 
-  def notify_client(failures: Boolean) -> Nil {
+  def notify_client(failures: Boolean) -> NilType {
     let finished_message = RunnerFinished
       .new(runner: process.current, failures: failures)
 
@@ -134,7 +134,7 @@ impl Command for RunTests {
   # completed.
   #
   # Once this method has been called, no new tests can be registered.
-  def run(state: RunnerState) -> Nil {
+  def run(state: RunnerState) -> NilType {
     let mut pending = 0
     let start_time = Instant.new
     let last_index = state.tests.length - 1
@@ -262,7 +262,7 @@ object Client {
   }
 
   # Adds a new test to the `Runner`.
-  def add_test(test: Test) -> Nil {
+  def add_test(test: Test) -> NilType {
     running?.if_true {
       process.panic('New tests can not be added to a running test suite')
     }
@@ -273,7 +273,7 @@ object Client {
   }
 
   # Schedules all tests for execution and waits for them to complete.
-  def run -> Nil {
+  def run -> NilType {
     mark_as_running
 
     @runner.send(RunTests.new(process.current))
@@ -285,7 +285,7 @@ object Client {
   #
   # If any tests failed to run, this method will terminate the VM with exit
   # status code 1.
-  def wait_for_tests -> Nil {
+  def wait_for_tests -> NilType {
     let message = process.receive as RunnerFinished
 
     message.failures?.if_true {

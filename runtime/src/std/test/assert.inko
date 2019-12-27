@@ -48,7 +48,7 @@ object PanicTest {
     @block = block
   }
 
-  def run -> Nil {
+  def run -> NilType {
     process.panicking do (error) {
       notify_owner(PanicResult.new(panicked: True, error: error))
     }
@@ -59,14 +59,14 @@ object PanicTest {
     Nil
   }
 
-  def notify_owner(result: PanicResult) -> Nil {
+  def notify_owner(result: PanicResult) -> NilType {
     @owner.send(result)
     Nil
   }
 }
 
 # Asserts that the given arguments are equal to each other.
-def equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
+def equal!(T: Mirrored + Equal)(given: T, expected: T) -> NilType {
   (given == expected).if_true {
     return
   }
@@ -82,7 +82,7 @@ def equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
 }
 
 # Asserts that the given arguments are not equal to each other.
-def not_equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
+def not_equal!(T: Mirrored + Equal)(given: T, expected: T) -> NilType {
   (given == expected).if_false {
     return
   }
@@ -98,7 +98,7 @@ def not_equal!(T: Mirrored + Equal)(given: T, expected: T) -> Nil {
 }
 
 # Asserts that the first argument is greater than the second argument.
-def greater!(T: Mirrored + Greater)(given: T, minimum: T) -> Nil {
+def greater!(T: Mirrored + Greater)(given: T, minimum: T) -> NilType {
   (given > minimum).if_true {
     return
   }
@@ -114,7 +114,7 @@ def greater!(T: Mirrored + Greater)(given: T, minimum: T) -> Nil {
 }
 
 # Asserts that the given lambda panics.
-def panic(block: lambda) -> Nil {
+def panic(block: lambda) -> NilType {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 
@@ -133,7 +133,7 @@ def panic(block: lambda) -> Nil {
 }
 
 # Asserts that the given lambda does not panic.
-def no_panic(block: lambda) -> Nil {
+def no_panic(block: lambda) -> NilType {
   let proc = process.spawn {
     let test = process.receive as PanicTest
 
@@ -155,7 +155,7 @@ def no_panic(block: lambda) -> Nil {
 #
 # Something is considered to be truthy when its implementation of `if_true`
 # calls the supplied block.
-def true!(T: Mirrored + Conditional)(value: T) -> Nil {
+def true!(T: Mirrored + Conditional)(value: T) -> NilType {
   value.if_true {
     return
   }
@@ -170,7 +170,7 @@ def true!(T: Mirrored + Conditional)(value: T) -> Nil {
 #
 # Something is considered to be falsy when its implementation of `if_false`
 # calls the supplied block.
-def false!(T: Mirrored + Conditional)(value: T) -> Nil {
+def false!(T: Mirrored + Conditional)(value: T) -> NilType {
   value.if_false {
     return
   }

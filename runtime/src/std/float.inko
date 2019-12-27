@@ -347,7 +347,7 @@ impl ToString for Float {
 }
 
 impl Hash for Float {
-  def hash(hasher: Hasher) -> Nil {
+  def hash(hasher: Hasher) -> NilType {
     hasher.write_float(self)
     Nil
   }

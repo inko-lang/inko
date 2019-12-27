@@ -211,7 +211,7 @@ def blocking!(R)(block: do -> R) -> R {
 #     import std::process
 #
 #     process.suspend(5) # => Nil
-def suspend(minimum: ToFloat = 0.0) -> Nil {
+def suspend(minimum: ToFloat = 0.0) -> NilType {
   _INKOC.process_suspend_current(minimum.to_float)
   Nil
 }
@@ -261,7 +261,7 @@ def terminate -> Never {
 #     }
 #
 #     process.panic('This will run the above panick handler')
-def panicking(block: do (String)) -> Nil {
+def panicking(block: do (String)) -> NilType {
   _INKOC.process_set_panic_handler(block)
   Nil
 }
@@ -330,7 +330,7 @@ def panicking(block: do (String)) -> Nil {
 #     process.defer {
 #       readme.close
 #     }
-def defer(block: do) -> Nil {
+def defer(block: do) -> NilType {
   _INKOC.process_add_defer_to_caller(block)
   Nil
 }

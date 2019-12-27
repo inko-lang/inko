@@ -42,7 +42,7 @@ impl ToString for Boolean {
 }
 
 impl Hash for Boolean {
-  def hash(hasher: Hasher) -> Nil {
+  def hash(hasher: Hasher) -> NilType {
     hasher.write_boolean(self)
     Nil
   }

@@ -146,7 +146,7 @@ impl Numeric for Integer {
 }
 
 impl Hash for Integer {
-  def hash(hasher: Hasher) -> Nil {
+  def hash(hasher: Hasher) -> NilType {
     hasher.write_integer(self)
     Nil
   }

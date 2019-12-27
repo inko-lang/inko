@@ -165,7 +165,7 @@ impl Block {
   #     }
   #
   #     number # => 0
-  def while_false(block: do) -> Nil {
+  def while_false(block: do) -> NilType {
     call.if_true { return }
     block.call
     while_false(block)
@@ -185,7 +185,7 @@ impl Block {
   #     }
   #
   #     number # => 10
-  def while_true(block: do) -> Nil {
+  def while_true(block: do) -> NilType {
     call.if_false { return }
     block.call
     while_true(block)

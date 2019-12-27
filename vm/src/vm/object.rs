@@ -52,6 +52,7 @@ pub fn prototype_for_identifier(
         5 => state.block_prototype,
         6 => state.boolean_prototype,
         7 => state.byte_array_prototype,
+        8 => state.nil_prototype,
         _ => return Err(format!("Invalid prototype identifier: {}", id_int)),
     };
 

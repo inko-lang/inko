@@ -237,7 +237,7 @@ impl Add!(String) for String {
 }
 
 impl Hash for String {
-  def hash(hasher: Hasher) -> Nil {
+  def hash(hasher: Hasher) -> NilType {
     hasher.write_string(self)
     Nil
   }

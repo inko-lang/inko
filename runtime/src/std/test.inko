@@ -115,6 +115,6 @@ def configure!(T)(option: String, value: T) -> T {
 }
 
 # Runs all the tests registered with the default `Client`.
-def run -> Nil {
+def run -> NilType {
   DEFAULT_CLIENT.run
 }

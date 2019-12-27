@@ -33,5 +33,5 @@ trait Hasher {
 # A value that can be hashed.
 trait Hash: Equal {
   # Writes the hash for `self` into the given `Hasher`.
-  def hash(hasher: Hasher) -> Nil
+  def hash(hasher: Hasher) -> NilType
 }

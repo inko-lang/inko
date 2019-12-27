@@ -23,7 +23,7 @@ def temp_dir(components = Array.new!(String)) -> String {
   buffer.to_string
 }
 
-def with_temp_dir(components = Array.new!(String), block: do (String)) -> Nil {
+def with_temp_dir(components = Array.new!(String), block: do (String)) -> NilType {
   let root = temp_dir
   let path = temp_dir(components)
 
