@@ -20,7 +20,7 @@ def read_string(path: ToPath) -> String {
   try! file.read_string
 }
 
-def close_and_remove_file!(T: Close + Remove)(file: T) -> NilType {
+def close_and_remove_file!(T: Close + Remove)(file: T) -> Nil {
   file.close
 
   # If the removal fails that's OK, because in the worst case we just leave the
@@ -28,7 +28,7 @@ def close_and_remove_file!(T: Close + Remove)(file: T) -> NilType {
   try file.remove else Nil
 }
 
-def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) -> NilType {
+def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) -> Nil {
   let file = try! ::file.read_only(path)
 
   process.defer {
@@ -39,7 +39,7 @@ def read_only_file(block: do (ReadOnlyFile), path: ToPath = VALID_FILE) -> NilTy
   Nil
 }
 
-def write_only_file(block: do (WriteOnlyFile)) -> NilType {
+def write_only_file(block: do (WriteOnlyFile)) -> Nil {
   let file = try! ::file.write_only(fixtures.temporary_file_path)
 
   process.defer {
@@ -50,7 +50,7 @@ def write_only_file(block: do (WriteOnlyFile)) -> NilType {
   Nil
 }
 
-def read_write_file(block: do (ReadWriteFile)) -> NilType {
+def read_write_file(block: do (ReadWriteFile)) -> Nil {
   let file = try! ::file.read_write(fixtures.temporary_file_path)
 
   process.defer {

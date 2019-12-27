@@ -11,7 +11,7 @@ import std::test
 import std::test::assert
 import test::fixtures
 
-def with_path(block: do (Path)) -> NilType {
+def with_path(block: do (Path)) -> Nil {
   let path = fixtures.temporary_file_path
 
   process.defer {
@@ -22,7 +22,7 @@ def with_path(block: do (Path)) -> NilType {
   Nil
 }
 
-def with_paths(block: do (Path, Path)) -> NilType {
+def with_paths(block: do (Path, Path)) -> Nil {
   let path1 = fixtures.temporary_file_path
   let path2 = (path1.to_string + '2').to_path
 

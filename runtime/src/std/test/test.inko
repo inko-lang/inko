@@ -72,7 +72,7 @@ object Test {
   # Runs the test, and notifies a `Runner` of the result.
   #
   # The message sent to a `Runner` is this `Test` itself.
-  def run -> NilType {
+  def run -> Nil {
     process.panicking do (error) {
       @failure = TestFailure.new(
         message: error,
@@ -87,7 +87,7 @@ object Test {
     Nil
   }
 
-  def notify_runner -> NilType {
+  def notify_runner -> Nil {
     @runner.send(self)
     Nil
   }

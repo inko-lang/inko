@@ -19,7 +19,7 @@ trait Formatter: ToString {
   #
   # This method can be used to produce a placeholder when formatting an object
   # that is too deeply nested.
-  def descend(block: do) -> NilType {
+  def descend(block: do) -> Nil {
     block.call
     Nil
   }
@@ -57,7 +57,7 @@ impl Formatter for DefaultFormatter {
   #
   # If nesting _is_ too great, a placeholder value is added to the buffer, and
   # the supplied block is not executed.
-  def descend(block: do) -> NilType {
+  def descend(block: do) -> Nil {
     (@nesting >= MAX_DEPTH).if_true {
       push(PLACEHOLDER)
       return

@@ -12,7 +12,7 @@ import test::fixtures::(self, INVALID_TIME, INVALID_DIRECTORY, INVALID_FILE)
 
 object DummyFile {}
 
-def remove(path: ToString) -> NilType {
+def remove(path: ToString) -> Nil {
   try bits.remove(path.to_string) else Nil
 }
 

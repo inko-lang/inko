@@ -163,7 +163,7 @@ object Socket {
   #     let socket = try! Socket.new(DGRAM)
   #
   #     try! socket.bind('/tmp/test.sock')
-  def bind(path: ToString) !! IoError -> NilType {
+  def bind(path: ToString) !! IoError -> Nil {
     try bits.bind(socket: self, address: path.to_string, port: 0)
   }
 
@@ -182,7 +182,7 @@ object Socket {
   #     try! listener.listen
   #
   #     try! stream.connect('/tmp/test.sock')
-  def connect(path: ToString) !! IoError -> NilType {
+  def connect(path: ToString) !! IoError -> Nil {
     try bits.connect(socket: self, address: path.to_string, port: 0)
   }
 
@@ -323,17 +323,17 @@ object Socket {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> NilType {
+  def shutdown_read !! IoError -> Nil {
     try bits.shutdown_read(self)
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> NilType {
+  def shutdown_write !! IoError -> Nil {
     try bits.shutdown_write(self)
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> NilType {
+  def shutdown !! IoError -> Nil {
     try bits.shutdown(self)
   }
 }
@@ -353,14 +353,14 @@ impl Write for Socket {
     try bits.write_string(socket: self, string: string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     # Sockets can't be flushed, so this method is just a noop.
     Nil
   }
 }
 
 impl Close for Socket {
-  def close -> NilType {
+  def close -> Nil {
     bits.close(self)
   }
 }
@@ -401,7 +401,7 @@ object UnixDatagram {
   #     let socket2 = try! UnixDatagram.new('/tmp/test2.sock')
   #
   #     try! socket1.connect('/tmp/test2.sock')
-  def connect(address: ToString) !! IoError -> NilType {
+  def connect(address: ToString) !! IoError -> Nil {
     try @socket.connect(address)
   }
 
@@ -464,13 +464,13 @@ impl Write for UnixDatagram {
     try @socket.write_string(string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     @socket.flush
   }
 }
 
 impl Close for UnixDatagram {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }
@@ -520,17 +520,17 @@ object UnixStream {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> NilType {
+  def shutdown_read !! IoError -> Nil {
     try @socket.shutdown_read
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> NilType {
+  def shutdown_write !! IoError -> Nil {
     try @socket.shutdown_write
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> NilType {
+  def shutdown !! IoError -> Nil {
     try @socket.shutdown
   }
 }
@@ -550,13 +550,13 @@ impl Write for UnixStream {
     try @socket.write_string(string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     @socket.flush
   }
 }
 
 impl Close for UnixStream {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }
@@ -632,7 +632,7 @@ object UnixListener {
 }
 
 impl Close for UnixListener {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }

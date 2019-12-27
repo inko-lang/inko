@@ -63,7 +63,7 @@ impl Write for ThisModule {
     }
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     process.blocking {
       try _INKOC.stderr_flush else Nil
     }

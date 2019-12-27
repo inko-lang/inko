@@ -1299,10 +1299,6 @@ module Inkoc
         typedb.block_type.new_instance
       end
 
-      def on_raw_get_nil_prototype(*)
-        typedb.nil_type.new_instance
-      end
-
       def optional_array_element_value(array)
         param = array.lookup_type_parameter(Config::ARRAY_TYPE_PARAMETER)
         type = array.lookup_type_parameter_instance(param) || param
@@ -1773,10 +1769,6 @@ module Inkoc
 
       def on_raw_random_bytes(*)
         typedb.byte_array_type.new_instance
-      end
-
-      def on_raw_if(node, _)
-        node.arguments.fetch(1).type.new_instance
       end
 
       def define_block_signature(node, scope, expected_block = nil)

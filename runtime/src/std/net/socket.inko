@@ -95,7 +95,7 @@ object Socket {
   #     let socket = try! Socket.new(domain: IPV4, kind: DGRAM)
   #
   #     try! socket.bind(ip: '0.0.0.0', port: 9999)
-  def bind(ip: ToIpAddress, port: Integer) !! IoError -> NilType {
+  def bind(ip: ToIpAddress, port: Integer) !! IoError -> Nil {
     try bits.bind(socket: self, address: ip.to_ip_address.to_string, port: port)
   }
 
@@ -113,7 +113,7 @@ object Socket {
   #     try! socket.bind(ip: '0.0.0.0', port: 9999)
   #     try! socket.listen
   #     try! client.connect(ip: '0.0.0.0', port: 9999)
-  def connect(ip: ToIpAddress, port: Integer) !! IoError -> NilType {
+  def connect(ip: ToIpAddress, port: Integer) !! IoError -> Nil {
     try bits.connect(
       socket: self,
       address: ip.to_ip_address.to_string,
@@ -430,17 +430,17 @@ object Socket {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> NilType {
+  def shutdown_read !! IoError -> Nil {
     try bits.shutdown_read(self)
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> NilType {
+  def shutdown_write !! IoError -> Nil {
     try bits.shutdown_write(self)
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> NilType {
+  def shutdown !! IoError -> Nil {
     try bits.shutdown(self)
   }
 }
@@ -460,14 +460,14 @@ impl Write for Socket {
     try bits.write_string(socket: self, string: string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     # Sockets can't be flushed, so this method is just a noop.
     Nil
   }
 }
 
 impl Close for Socket {
-  def close -> NilType {
+  def close -> Nil {
     bits.close(self)
   }
 }
@@ -525,7 +525,7 @@ object UdpSocket {
   #     let socket2 = try! UdpSocket.new(ip: '0.0.0.0', port: 41_000)
   #
   #     try! socket1.connect(ip: '0.0.0.0', port: 41_000)
-  def connect(ip: ToIpAddress, port: Integer) !! IoError -> NilType {
+  def connect(ip: ToIpAddress, port: Integer) !! IoError -> Nil {
     try @socket.connect(ip: ip, port: port)
   }
 
@@ -592,13 +592,13 @@ impl Write for UdpSocket {
     try @socket.write_string(string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     @socket.flush
   }
 }
 
 impl Close for UdpSocket {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }
@@ -652,17 +652,17 @@ object TcpStream {
   }
 
   # Shuts down the reading half of this socket.
-  def shutdown_read !! IoError -> NilType {
+  def shutdown_read !! IoError -> Nil {
     try @socket.shutdown_read
   }
 
   # Shuts down the writing half of this socket.
-  def shutdown_write !! IoError -> NilType {
+  def shutdown_write !! IoError -> Nil {
     try @socket.shutdown_write
   }
 
   # Shuts down both the reading and writing half of this socket.
-  def shutdown !! IoError -> NilType {
+  def shutdown !! IoError -> Nil {
     try @socket.shutdown
   }
 }
@@ -682,13 +682,13 @@ impl Write for TcpStream {
     try @socket.write_string(string)
   }
 
-  def flush -> NilType {
+  def flush -> Nil {
     @socket.flush
   }
 }
 
 impl Close for TcpStream {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }
@@ -794,7 +794,7 @@ object TcpListener {
 }
 
 impl Close for TcpListener {
-  def close -> NilType {
+  def close -> Nil {
     @socket.close
   }
 }

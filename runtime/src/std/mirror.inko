@@ -893,9 +893,9 @@ impl Mirror for BooleanMirror {
 # A mirror for `Nil`
 object NilMirror {
   # The `Nil` that is mirrored.
-  @subject: NilType
+  @subject: Nil
 
-  def init(subject: NilType) {
+  def init(subject: Nil) {
     @subject = subject
   }
 }
@@ -908,7 +908,7 @@ impl Format for NilMirror {
 }
 
 impl Mirror for NilMirror {
-  def subject -> NilType {
+  def subject -> Nil {
     @subject
   }
 }
@@ -991,7 +991,7 @@ impl Mirrored for Boolean {
   }
 }
 
-impl Mirrored for NilType {
+impl Mirrored for Nil {
   def mirror -> NilMirror {
     NilMirror.new(self)
   }

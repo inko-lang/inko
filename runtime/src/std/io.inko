@@ -19,7 +19,7 @@ trait Close {
   # Closes the stream.
   #
   # After a stream is closed, any reads or writes might panic.
-  def close -> NilType
+  def close -> Nil
 }
 
 # Trait for retrieving the size of an IO object.
@@ -60,7 +60,7 @@ trait Write {
   def write_string(string: ToString) !! Error -> Integer
 
   # Flushes any pending writes.
-  def flush !! Error -> NilType
+  def flush !! Error -> Nil
 
   # Writes the given `String` to the stream, followed by a line separator.
   #

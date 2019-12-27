@@ -2,6 +2,82 @@ import std::map::DefaultHasher
 import std::test
 import std::test::assert
 
+test.group('std::boolean::Boolean.not') do (g) {
+  g.test('Returning the opposite of Boolean') {
+    assert.false(Boolean.not)
+  }
+}
+
+
+test.group('std::boolean::Boolean.if_true') do (g) {
+  g.test('The supplied Block is always executed') {
+    let number = Boolean.if_true {
+      10
+    }
+
+    assert.equal(number, 10)
+  }
+}
+
+test.group('std::boolean::Boolean.if_false') do (g) {
+  g.test('The supplied Block is never executed') {
+    let number = Boolean.if_false {
+      10
+    }
+
+    assert.equal(number, Nil)
+  }
+}
+
+test.group('std::boolean::Boolean.if') do (g) {
+  g.test('The Block passed to the "true" argument is always executed') {
+    let number = Boolean.if(true: { 10 }, false: { 20 })
+
+    assert.equal(number, 10)
+  }
+}
+
+test.group('std::boolean::Boolean.and') do (g) {
+  g.test('The supplied Block is always executed') {
+    assert.equal(Boolean.and({ True }), True)
+  }
+}
+
+test.group('std::boolean::Boolean.or') do (g) {
+  g.test('The return value is always True') {
+    assert.equal(Boolean.or({ False }), True)
+  }
+}
+
+test.group('std::boolean::Boolean.==') do (g) {
+  g.test('Comparing Boolean with other booleans') {
+    assert.equal(Boolean, Boolean)
+    assert.not_equal(Boolean, True)
+    assert.not_equal(Boolean, False)
+  }
+}
+
+test.group('std::boolean::Boolean.to_string') do (g) {
+  g.test('Converting Boolean to a String') {
+    assert.equal(Boolean.to_string, 'Boolean')
+  }
+}
+
+test.group('std::boolean::Boolean.hash') do (g) {
+  g.test('Hashing a Boolean') {
+    let hasher1 = DefaultHasher.new(1, 2)
+    let hasher2 = DefaultHasher.new(1, 2)
+
+    Boolean.hash(hasher1)
+    Boolean.hash(hasher2)
+
+    # The exact hash value may change between OS processes or releases, so all
+    # we can do is assert that the value is the same every time we send `hash`
+    # to `Boolean`.
+    assert.equal(hasher1.to_hash, hasher2.to_hash)
+  }
+}
+
 test.group('std::boolean::True.not') do (g) {
   g.test('Returning the opposite of True') {
     assert.false(True.not)

@@ -774,7 +774,7 @@ object Lexer {
   }
 
   # Consumes any whitespace, until reaching the first non-whitespace character.
-  def consume_whitespace -> NilType {
+  def consume_whitespace -> Nil {
     whitespace?.if_false {
       return
     }
@@ -790,7 +790,7 @@ object Lexer {
     consume_whitespace
   }
 
-  def advance_line -> NilType {
+  def advance_line -> Nil {
     @position += 1
     @column = 1
     @line += 1
@@ -798,7 +798,7 @@ object Lexer {
     Nil
   }
 
-  def advance_one_byte -> NilType {
+  def advance_one_byte -> Nil {
     @position += 1
     @column += 1
 
