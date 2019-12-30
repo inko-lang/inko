@@ -34,11 +34,28 @@ this time. Inko only supports 64-bits architectures.
 
 ## Requirements
 
+Building from source requires the following software to be available:
+
 * Ruby 2.3 or newer and RubyGems, for the compiler
 * Rust 1.34 or newer, using the 2018 edition
 * Make 4.0 or newer
 
+For Unix systems or MSYS2 on Windows you also need the following software:
+
+* autoconf
+* automake
+* clang
+* libtool
+
 ## Installation
+
+Detailed installation instructions about the installation process can be found
+at [Installing Inko](https://inko-lang.org/install/) on the Inko website.
+
+### For users
+
+If you want to install Inko from source and just use it (instead of hacking on
+the code), follow the steps outlined below.
 
 Installing all components can be done as follows:
 
@@ -67,6 +84,22 @@ Instead, use either the full path or use the `$HOME` variable:
 
     make install PREFIX=$HOME/.local/share/inko
     make install PREFIX=/home/alice/.local/share/inko
+
+### For developers
+
+Assuming you have cloned the repository, run the following:
+
+    make -C vm profile
+
+This will compile the VM in release mode, with debugging symbols included. You
+can then run Inko programs as follows:
+
+    env RUBYLIB=./compiler/lib ./compiler/bin/inko \
+        --vm vm/target/release/ivm \
+        -i runtime/src/ \
+        PATH/TO/FILE.inko
+
+Here `PATH/TO/FILE.inko` would be the program to run.
 
 ## License
 
