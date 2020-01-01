@@ -3,7 +3,6 @@
 # Strings are UTF-8 encoded and immutable. A String must _always_ contain valid
 # UTF-8.
 import std::conversion::(ToFloat, ToInteger, ToString)
-import std::hash::(Hasher, Hash)
 import std::length::Length
 import std::operators::(Equal, Add)
 import std::process
@@ -233,12 +232,5 @@ impl Add!(String) for String {
   #     'hello ' + 'world' # => 'hello world'
   def +(other: String) -> Self {
     _INKOC.string_concat(self, other)
-  }
-}
-
-impl Hash for String {
-  def hash(hasher: Hasher) -> Nil {
-    hasher.write_string(self)
-    Nil
   }
 }

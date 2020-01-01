@@ -32,19 +32,7 @@ object DefaultHasher {
 }
 
 impl Hasher for DefaultHasher {
-  def write_integer(value: Integer) -> Integer {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def write_float(value: Float) -> Float {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def write_string(value: String) -> String {
-    _INKOC.hasher_write(self, value)
-  }
-
-  def write_boolean(value: Boolean) -> Boolean {
+  def write(value: Object) -> Self {
     _INKOC.hasher_write(self, value)
   }
 

@@ -2,7 +2,6 @@
 
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
-import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
 import std::successor::Successor
@@ -142,13 +141,6 @@ impl Numeric for Integer {
     }
 
     self - (self * 2)
-  }
-}
-
-impl Hash for Integer {
-  def hash(hasher: Hasher) -> Nil {
-    hasher.write_integer(self)
-    Nil
   }
 }
 

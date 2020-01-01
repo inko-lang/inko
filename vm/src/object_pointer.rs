@@ -591,13 +591,7 @@ impl ObjectPointer {
                     hasher.write_string(val)
                 }
                 _ => {
-                    if !self.is_permanent() {
-                        return Err(
-                            "the provided object can not be hashed".to_string()
-                        );
-                    }
-
-                    hasher.write_unsigned_integer(self.raw.untagged() as usize);
+                    hasher.write_unsigned_integer(self.raw.untagged() as usize)
                 }
             };
         }

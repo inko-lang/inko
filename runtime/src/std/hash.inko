@@ -9,17 +9,8 @@ import std::operators::Equal
 # hashed value. This approach makes it easier to hash multiple values together
 # such as the bytes in a `String`.
 trait Hasher {
-  # Writes the given `Integer` into this hasher.
-  def write_integer(value: Integer) -> Integer
-
-  # Writes the given `Float` into this hasher.
-  def write_float(value: Float) -> Float
-
-  # Writes the given `String` into this hasher.
-  def write_string(value: String) -> String
-
-  # Writes the given `Boolean` into this hasher.
-  def write_boolean(value: Boolean) -> Boolean
+  # Writes the given object into this hasher.
+  def write(value: Object) -> Self
 
   # Returns the hash for the values written so far.
   #

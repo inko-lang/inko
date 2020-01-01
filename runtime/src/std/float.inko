@@ -4,7 +4,6 @@
 
 import std::conversion::(ToInteger, ToString, ToFloat)
 import std::error::StandardError
-import std::hash::(Hasher, Hash)
 import std::numeric::Numeric
 import std::operators::*
 
@@ -343,13 +342,6 @@ impl ToString for Float {
     }
 
     _INKOC.float_to_string(self)
-  }
-}
-
-impl Hash for Float {
-  def hash(hasher: Hasher) -> Nil {
-    hasher.write_float(self)
-    Nil
   }
 }
 

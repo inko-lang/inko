@@ -3,6 +3,7 @@
 # All objects in Inko are an instance of `Object`, and thus all its methods are
 # available to all objects.
 import std::conditional::Conditional
+import std::hash::(Hasher, Hash)
 import std::operators::Equal
 
 impl Conditional for Object {
@@ -40,5 +41,12 @@ impl Object {
   #     Nil.not_nil? # => False
   def not_nil? -> Boolean {
     _INKOC.object_equals(nil?, False)
+  }
+}
+
+impl Hash for Object {
+  def hash(hasher: Hasher) -> Nil {
+    hasher.write(self)
+    Nil
   }
 }

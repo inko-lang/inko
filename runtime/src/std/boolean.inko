@@ -4,7 +4,6 @@
 # `False`. Both are regular objects that are instances of the `Boolean` object.
 import std::conditional::Conditional
 import std::conversion::ToString
-import std::hash::(Hasher, Hash)
 
 impl Boolean {
   # Returns the `Boolean` that is the opposite of `self`.
@@ -38,13 +37,6 @@ impl Conditional for Boolean {
 impl ToString for Boolean {
   def to_string -> String {
     _INKOC.get_attribute(self, '@_object_name') as String
-  }
-}
-
-impl Hash for Boolean {
-  def hash(hasher: Hasher) -> Nil {
-    hasher.write_boolean(self)
-    Nil
   }
 }
 

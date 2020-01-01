@@ -24,7 +24,7 @@ pub fn write(
 ) -> Result<ObjectPointer, String> {
     value.hash_object(hasher.hasher_value_mut()?)?;
 
-    Ok(value)
+    Ok(hasher)
 }
 
 pub fn to_hash(

@@ -1518,7 +1518,7 @@ module Inkoc
       end
 
       def on_raw_hasher_write(node, _)
-        node.arguments.fetch(1).type
+        node.arguments.fetch(0).type
       end
 
       def on_raw_hasher_to_hash(*)
