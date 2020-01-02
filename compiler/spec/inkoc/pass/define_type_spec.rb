@@ -1836,34 +1836,6 @@ describe Inkoc::Pass::DefineType do
       expect(type.implements_trait?(to_string, state)).to eq(true)
     end
 
-    it 'supports extending of an existing empty trait' do
-      to_string = state.typedb.new_trait_type('ToString')
-      inspect = state.typedb.new_trait_type('Inspect')
-
-      type_scope.self_type.define_attribute(inspect.name, inspect)
-      type_scope.self_type.define_attribute(to_string.name, to_string)
-
-      type = expression_type('trait Inspect: ToString { def inspect {} }')
-
-      expect(type).to eq(inspect)
-
-      expect(inspect.implements_trait?(to_string, state)).to eq(true)
-      expect(inspect.attributes['inspect']).to be_any
-    end
-
-    it 'does not redefine type parameters when extending an existing trait' do
-      inspect = state.typedb.new_trait_type('Inspect')
-
-      inspect.define_type_parameter('T')
-
-      type_scope.self_type.define_attribute(inspect.name, inspect)
-
-      type = expression_type('trait Inspect!(T) { def inspect }')
-
-      expect(type).to eq(inspect)
-      expect(type.type_parameters.length).to eq(1)
-    end
-
     it 'errors when extending a non-empty trait' do
       to_string = state.typedb.new_trait_type('ToString')
       inspect = state.typedb.new_trait_type('Inspect')

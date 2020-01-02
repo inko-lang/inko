@@ -383,11 +383,7 @@ module Inkoc
       end
 
       def on_trait(node, body)
-        if node.redefines
-          redefine_trait(node, body)
-        else
-          define_object(node, body, Config::TRAIT_CONST)
-        end
+        define_object(node, body, Config::TRAIT_CONST)
       end
 
       def redefine_trait(node, body)

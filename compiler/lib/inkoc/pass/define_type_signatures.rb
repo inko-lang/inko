@@ -24,7 +24,8 @@ module Inkoc
 
       def on_trait(node, scope)
         if (existing = scope.lookup_type(node.name))
-          return extend_trait(existing, node, scope)
+          return diagnostics
+            .redefine_existing_constant_error(existing, node.location)
         end
 
         type = typedb.new_trait_type(node.name)
@@ -32,20 +33,6 @@ module Inkoc
         define_object_name_attribute(type)
         define_required_traits(node, type, scope)
         define_named_type(node, type, scope)
-      end
-
-      def extend_trait(trait, node, scope)
-        unless trait.empty?
-          return diagnostics.extend_trait_error(trait, node.location)
-        end
-
-        return TypeSystem::Error.new unless same_type_parameters?(node, trait)
-
-        node.redefines = true
-
-        define_required_traits(node, trait, scope)
-
-        trait
       end
 
       def on_define_type_parameter(node, scope)

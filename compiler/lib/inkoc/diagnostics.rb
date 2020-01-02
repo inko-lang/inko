@@ -319,17 +319,6 @@ module Inkoc
       )
     end
 
-    def extend_trait_error(type, location)
-      tname = type.type_name
-
-      error(
-        "The trait #{tname} can not be extended because it is not empty",
-        location
-      )
-
-      TypeSystem::Error.new
-    end
-
     def dereference_error(type, location)
       tname = type.type_name
 

@@ -499,26 +499,9 @@ module Inkoc
       end
 
       def on_trait(node, scope)
-        return extend_trait(node.type, node, scope) if node.redefines
-
         body_scope = scope_for_object_body(node)
 
         define_type(node.body, body_scope)
-      end
-
-      def extend_trait(trait, node, scope)
-        body_type = TypeSystem::Block.closure(typedb.block_type)
-
-        body_scope = TypeScope
-          .new(trait, body_type, @module, locals: node.body.locals)
-
-        body_scope.define_receiver_type
-
-        node.block_type = body_type
-
-        define_type(node.body, body_scope)
-
-        trait
       end
 
       def on_reopen_object(node, scope)
