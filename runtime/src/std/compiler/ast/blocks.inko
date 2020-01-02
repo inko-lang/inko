@@ -235,7 +235,7 @@ impl Node for Lambda {
 }
 
 # A method created using the `def` keyword.
-object MethodDefinition {
+object DefineMethod {
   # The name of the method.
   @name: String
 
@@ -317,14 +317,14 @@ object MethodDefinition {
   }
 }
 
-impl Node for MethodDefinition {
+impl Node for DefineMethod {
   def location -> SourceLocation {
     @location
   }
 }
 
 # A required method created using the `def` keyword.
-object RequiredMethodDefinition {
+object DefineRequiredMethod {
   # The name of the method.
   @name: String
 
@@ -396,7 +396,7 @@ object RequiredMethodDefinition {
   }
 }
 
-impl Node for RequiredMethodDefinition {
+impl Node for DefineRequiredMethod {
   def location -> SourceLocation {
     @location
   }

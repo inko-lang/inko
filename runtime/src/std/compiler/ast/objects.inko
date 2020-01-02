@@ -6,7 +6,7 @@ import std::compiler::ast::variables::Constant
 import std::compiler::source_location::SourceLocation
 
 # A named object defined using the "object" keyword.
-object ObjectDefinition {
+object DefineObject {
   # The name of the defined object.
   @name: Constant
 
@@ -47,14 +47,14 @@ object ObjectDefinition {
   }
 }
 
-impl Node for ObjectDefinition {
+impl Node for DefineObject {
   def location -> SourceLocation {
     @location
   }
 }
 
 # The definition of an attribute in an object.
-object AttributeDefinition {
+object DefineAttribute {
   # The name of the attribute.
   @name: String
 
@@ -81,14 +81,14 @@ object AttributeDefinition {
   }
 }
 
-impl Node for AttributeDefinition {
+impl Node for DefineAttribute {
   def location -> SourceLocation {
     @location
   }
 }
 
 # A trait defined using the "trait" keyword.
-object TraitDefinition {
+object DefineTrait {
   # The name of the trait that is defined.
   @name: Constant
 
@@ -139,7 +139,7 @@ object TraitDefinition {
   }
 }
 
-impl Node for TraitDefinition {
+impl Node for DefineTrait {
   def location -> SourceLocation {
     @location
   }

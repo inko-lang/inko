@@ -226,7 +226,7 @@ test.group('Parsing literls') do (g) {
 
 test.group('Parsing object definitions') do (g) {
   g.test('Parsing an empty body') {
-    let node = parse_as(input: 'object A {}', type: ObjectDefinition)
+    let node = parse_as(input: 'object A {}', type: DefineObject)
 
     assert.equal(node.name.name, 'A')
     assert.equal(node.name.location.column, 8)
@@ -238,7 +238,7 @@ test.group('Parsing object definitions') do (g) {
   g.test('Parsing an object definition with type parameters') {
     let node = parse_as(
       input: 'object A!(One: A, Two: B + C) {}',
-      type: ObjectDefinition
+      type: DefineObject
     )
 
     let params = node.type_parameters
@@ -287,19 +287,19 @@ test.group('Parsing object definitions') do (g) {
 
   g.test('Parsing an object containing a method') {
     let node =
-      parse_as(input: 'object A { def foo {} }', type: ObjectDefinition)
+      parse_as(input: 'object A { def foo {} }', type: DefineObject)
 
-    assert_instance_of(node.body.children[0]!, MethodDefinition)
+    assert_instance_of(node.body.children[0]!, DefineMethod)
   }
 
   g.test('Parsing an object containing attribute definitions') {
     let node =
-      parse_as(input: 'object A { @a: A @b: B }', type: ObjectDefinition)
+      parse_as(input: 'object A { @a: A @b: B }', type: DefineObject)
 
     assert.equal(node.body.children.length, 2)
 
-    let attr1 = node.body.children[0] as AttributeDefinition
-    let attr2 = node.body.children[1] as AttributeDefinition
+    let attr1 = node.body.children[0] as DefineAttribute
+    let attr2 = node.body.children[1] as DefineAttribute
 
     assert.equal(attr1.name, '@a')
     assert.equal((attr1.type as Constant).name, 'A')
@@ -311,7 +311,7 @@ test.group('Parsing object definitions') do (g) {
 
 test.group('Parsing trait definitions') do (g) {
   g.test('Parsing an empty body') {
-    let node = parse_as(input: 'trait A {}', type: TraitDefinition)
+    let node = parse_as(input: 'trait A {}', type: DefineTrait)
 
     assert.equal(node.name.name, 'A')
     assert.equal(node.name.location.column, 7)
@@ -323,7 +323,7 @@ test.group('Parsing trait definitions') do (g) {
   g.test('Parsing a trait definition with type parameters') {
     let node = parse_as(
       input: 'trait A!(One: A, Two: B + C) {}',
-      type: TraitDefinition
+      type: DefineTrait
     )
 
     let params = node.type_parameters
@@ -347,7 +347,7 @@ test.group('Parsing trait definitions') do (g) {
   }
 
   g.test('Parsing a list of required traits') {
-    let node = parse_as(input: 'trait A: B + C {}', type: TraitDefinition)
+    let node = parse_as(input: 'trait A: B + C {}', type: DefineTrait)
 
     let traits = node.required_traits
 
@@ -386,20 +386,20 @@ test.group('Parsing trait definitions') do (g) {
 
   g.test('Parsing a trait containing a method') {
     let node =
-      parse_as(input: 'trait A { def foo {} }', type: TraitDefinition)
+      parse_as(input: 'trait A { def foo {} }', type: DefineTrait)
 
-    assert_instance_of(node.body.children[0]!, MethodDefinition)
+    assert_instance_of(node.body.children[0]!, DefineMethod)
   }
 
   g.test('Parsing a trait with a required method') {
     let node = parse_as(
       input: 'trait A { def foo(a: A) !! B -> C }',
-      type: TraitDefinition
+      type: DefineTrait
     )
 
-    let method = node.body.children[0]! as RequiredMethodDefinition
+    let method = node.body.children[0]! as DefineRequiredMethod
 
-    assert_instance_of(method, RequiredMethodDefinition)
+    assert_instance_of(method, DefineRequiredMethod)
     assert.equal(method.name, 'foo')
 
     assert.equal(method.arguments.length, 1)
@@ -503,7 +503,7 @@ test.group('Parsing implementation blocks') do (g) {
     let node =
       parse_as(input: 'impl A { def foo {} }', type: ReopenObject)
 
-    assert_instance_of(node.body.children[0]!, MethodDefinition)
+    assert_instance_of(node.body.children[0]!, DefineMethod)
   }
 }
 
@@ -1290,7 +1290,7 @@ test.group('Parsing variable definitions') do (g) {
 
 test.group('Parsing method definitions') do (g) {
   g.test('Parsing a simple method') {
-    let node = parse_as(input: 'def foo { 10 }', type: MethodDefinition)
+    let node = parse_as(input: 'def foo { 10 }', type: DefineMethod)
 
     assert.equal(node.name, 'foo')
     assert.equal(node.body.children.length, 1)
@@ -1304,7 +1304,7 @@ test.group('Parsing method definitions') do (g) {
   }
 
   g.test('Parsing a method with dynamically typed arguments') {
-    let node = parse_as(input: 'def foo(a, b) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo(a, b) {}', type: DefineMethod)
 
     assert.equal(node.arguments.length, 2)
 
@@ -1316,7 +1316,7 @@ test.group('Parsing method definitions') do (g) {
   }
 
   g.test('Parsing a method with statically typed arguments') {
-    let node = parse_as(input: 'def foo(a: A, b: B) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo(a: A, b: B) {}', type: DefineMethod)
 
     assert.equal(node.arguments.length, 2)
 
@@ -1328,26 +1328,26 @@ test.group('Parsing method definitions') do (g) {
   }
 
   g.test('Parsing a method with a throw type') {
-    let node = parse_as(input: 'def foo !! A {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo !! A {}', type: DefineMethod)
 
     assert.equal((node.throw_type as Constant).name, 'A')
   }
 
   g.test('Parsing a method with a return type') {
-    let node = parse_as(input: 'def foo -> A {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo -> A {}', type: DefineMethod)
 
     assert.equal((node.return_type as Constant).name, 'A')
   }
 
   g.test('Parsing a method with a throw and return type') {
-    let node = parse_as(input: 'def foo !! A -> B {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo !! A -> B {}', type: DefineMethod)
 
     assert.equal((node.throw_type as Constant).name, 'A')
     assert.equal((node.return_type as Constant).name, 'B')
   }
 
   g.test('Parsing a method with type parameters') {
-    let node = parse_as(input: 'def foo!(A, B) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo!(A, B) {}', type: DefineMethod)
 
     assert.equal(node.type_parameters.length, 2)
     assert.equal(node.type_parameters[0].name, 'A')
@@ -1355,28 +1355,28 @@ test.group('Parsing method definitions') do (g) {
   }
 
   g.test('Parsing a static method') {
-    let node = parse_as(input: 'static def foo {}', type: MethodDefinition)
+    let node = parse_as(input: 'static def foo {}', type: DefineMethod)
 
     assert.equal(node.name, 'foo')
     assert.true(node.static_method?)
   }
 
   g.test('Parsing a method with a mutable argument') {
-    let node = parse_as(input: 'def foo(mut a) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo(mut a) {}', type: DefineMethod)
 
     assert.equal(node.arguments[0].name, 'a')
     assert.true(node.arguments[0].mutable?)
   }
 
   g.test('Parsing a method with a rest argument') {
-    let node = parse_as(input: 'def foo(*a) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo(*a) {}', type: DefineMethod)
 
     assert.equal(node.arguments[0].name, 'a')
     assert.true(node.arguments[0].rest?)
   }
 
   g.test('Parsing a method with a mutable rest argument') {
-    let node = parse_as(input: 'def foo(mut *a) {}', type: MethodDefinition)
+    let node = parse_as(input: 'def foo(mut *a) {}', type: DefineMethod)
 
     assert.equal(node.arguments[0].name, 'a')
     assert.true(node.arguments[0].rest?)

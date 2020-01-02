@@ -215,12 +215,12 @@ object Parser {
     ImportAlias.new(name: token.value, location: token.location)
   }
 
-  def object_definition(token: Token) !! ParseError -> ObjectDefinition {
+  def object_definition(token: Token) !! ParseError -> DefineObject {
     let name = constant_from_token(try token_of_type('constant'))
     let params = try type_parameter_definitions
     let body = try next_as_restricted_body
 
-    ObjectDefinition.new(
+    DefineObject.new(
       name: name,
       type_parameters: params,
       body: body,
@@ -228,22 +228,22 @@ object Parser {
     )
   }
 
-  def attribute_definition(token: Token) !! ParseError -> AttributeDefinition {
+  def attribute_definition(token: Token) !! ParseError -> DefineAttribute {
     try token_of_type('colon')
 
     let type = try type(next_token)
 
-    AttributeDefinition
+    DefineAttribute
       .new(name: token.value, type: type, location: token.location)
   }
 
-  def trait_definition(token: Token) !! ParseError -> TraitDefinition {
+  def trait_definition(token: Token) !! ParseError -> DefineTrait {
     let name = constant_from_token(try token_of_type('constant'))
     let params = try type_parameter_definitions
     let required_traits = try required_traits
     let body = try next_as_restricted_body
 
-    TraitDefinition.new(
+    DefineTrait.new(
       name: name,
       type_parameters: params,
       required_traits: required_traits,
@@ -302,7 +302,7 @@ object Parser {
     let return_type = try optional_return_type
 
     (peek_token.type == 'curly_open').if_false {
-      return RequiredMethodDefinition.new(
+      return DefineRequiredMethod.new(
         name: name,
         type_parameters: type_params,
         arguments: arguments,
@@ -313,7 +313,7 @@ object Parser {
       )
     }
 
-    MethodDefinition.new(
+    DefineMethod.new(
       name: name,
       type_parameters: type_params,
       arguments: arguments,
