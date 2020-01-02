@@ -63,15 +63,13 @@ impl Error for AddressParseError {
   }
 }
 
-# An IPv4 or IPv6 address.
-trait IpAddress {}
-
 # A type that can be converted to an `IpAddress`.
 trait ToIpAddress {
   # Converts `self` to an IPv4 or IPv6 address.
   def to_ip_address !! AddressParseError -> IpAddress
 }
 
+# An IPv4 or IPv6 address.
 trait IpAddress: Equal + ToString + ToIpAddress {
   # Parses an IP address.
   static def parse(input: ToByteArray) !! AddressParseError -> Self
