@@ -17,6 +17,8 @@ module Inkoc
       Pass::RefineModuleType,
       Pass::DefineThisModuleType,
       Pass::DefineImportTypes,
+      Pass::DefineTypeSignatures,
+      Pass::ImplementTraits,
       Pass::DefineType,
       Pass::ValidateThrow,
       Pass::OptimizeKeywordArguments,

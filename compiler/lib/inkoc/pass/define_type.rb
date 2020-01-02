@@ -12,7 +12,6 @@ module Inkoc
       def initialize(mod, state)
         super
 
-        @constant_resolver = ConstantResolver.new(diagnostics)
         @deferred_methods = []
       end
 
@@ -20,17 +19,6 @@ module Inkoc
         @deferred_methods.each do |method|
           on_deferred_method(method.node, method.scope)
         end
-      end
-
-      def define_type_instance(node, scope, *extra)
-        type = define_type(node, scope, *extra)
-
-        unless type.type_instance?
-          type = type.new_instance
-          node.type = type
-        end
-
-        type
       end
 
       def on_module_body(node, scope)
@@ -51,34 +39,6 @@ module Inkoc
 
       def on_string(*)
         typedb.string_type.new_instance
-      end
-
-      def on_constant(node, scope)
-        @constant_resolver.resolve(node, scope)
-      end
-
-      def on_type_name_reference(node, scope)
-        type = define_type(node.name, scope)
-
-        return type if type.error?
-
-        if same_type_parameters?(node, type)
-          wrap_optional_type(node, type)
-        else
-          TypeSystem::Error.new
-        end
-      end
-
-      def same_type_parameters?(node, type)
-        node_names = node.type_parameters.map(&:type_name)
-        type_names = type.type_parameters.map(&:name)
-
-        if node_names == type_names
-          true
-        else
-          diagnostics.invalid_type_parameters(type, node_names, node.location)
-          false
-        end
       end
 
       def on_block_type(node, scope)
@@ -110,72 +70,6 @@ module Inkoc
         wrap_optional_type(node, type)
       end
       alias on_lambda_type on_block_type
-
-      def on_self_type_with_late_binding(node, _)
-        wrap_optional_type(node, TypeSystem::SelfType.new)
-      end
-
-      def on_self_type(node, scope)
-        self_type = scope.self_type
-
-        # When "Self" translates to a generic type, e.g. Array!(T), we want to
-        # return a type in the form of `Array!(T -> T)`, and not just `Array`.
-        # This ensures that any arguments passed to a method returning "Self"
-        # can properly initialise the type.
-        type_arguments =
-          self_type.generic_type? ? self_type.type_parameters.to_a : []
-
-        wrap_optional_type(node, self_type.new_instance(type_arguments))
-      end
-
-      def on_dynamic_type(node, _)
-        wrap_optional_type(node, TypeSystem::Dynamic.new)
-      end
-
-      def on_never_type(node, _)
-        wrap_optional_type(node, TypeSystem::Never.new)
-      end
-
-      def on_type_name(node, scope)
-        type = define_type(node.name, scope)
-
-        return type if type.error?
-        return wrap_optional_type(node, type) unless type.generic_type?
-
-        # When our type is a generic type we need to initialise it according to
-        # the passed type parameters.
-        type_arguments = node
-          .type_parameters
-          .zip(type.type_parameters)
-          .map do |param_node, param|
-            param_instance = define_type_instance(param_node, scope)
-
-            if param && !param_instance.type_compatible?(param, @state)
-              return diagnostics
-                  .type_error(param, param_instance, param_node.location)
-            end
-
-            param_instance
-          end
-
-        num_given = type_arguments.length
-        num_expected = type.type_parameters.length
-
-        if num_given != num_expected
-          return diagnostics.type_parameter_count_error(
-            num_given,
-            num_expected,
-            node.location
-          )
-        end
-
-        # Simply referencing a constant should not lead to it being initialised,
-        # unless there are any type parameters to initialise.
-        wrap_optional_type(
-          node,
-          type.new_instance_for_reference(type_arguments)
-        )
-      end
 
       def on_attribute(node, scope)
         name = node.name
@@ -599,35 +493,20 @@ module Inkoc
       end
 
       def on_object(node, scope)
-        type = typedb.new_object_type(node.name)
+        body_scope = scope_for_object_body(node)
 
-        define_object_name_attribute(type)
-        define_named_type(node, type, scope)
+        define_type(node.body, body_scope)
       end
 
       def on_trait(node, scope)
-        if (existing = scope.lookup_type(node.name))
-          extend_trait(existing, node, scope)
-        else
-          type = typedb.new_trait_type(node.name)
+        return extend_trait(node.type, node, scope) if node.redefines
 
-          define_object_name_attribute(type)
-          define_required_traits(node, type, scope)
-          define_named_type(node, type, scope)
-        end
+        body_scope = scope_for_object_body(node)
+
+        define_type(node.body, body_scope)
       end
 
       def extend_trait(trait, node, scope)
-        unless trait.empty?
-          return diagnostics.extend_trait_error(trait, node.location)
-        end
-
-        return TypeSystem::Error.new unless same_type_parameters?(node, trait)
-
-        node.redefines = true
-
-        define_required_traits(node, trait, scope)
-
         body_type = TypeSystem::Block.closure(typedb.block_type)
 
         body_scope = TypeScope
@@ -640,38 +519,6 @@ module Inkoc
         define_type(node.body, body_scope)
 
         trait
-      end
-
-      def define_object_name_attribute(type)
-        type.define_attribute(
-          Config::OBJECT_NAME_INSTANCE_ATTRIBUTE,
-          typedb.string_type.new_instance
-        )
-      end
-
-      def define_required_traits(node, trait, scope)
-        node.required_traits.each do |req_node|
-          req = define_type_instance(req_node, scope)
-
-          trait.add_required_trait(req) unless req.error?
-        end
-      end
-
-      def define_named_type(node, new_type, scope)
-        body_type = TypeSystem::Block.closure(typedb.block_type)
-
-        body_scope = TypeScope
-          .new(new_type, body_type, @module, locals: node.body.locals)
-
-        body_scope.define_receiver_type
-
-        node.block_type = body_type
-
-        define_types(node.type_parameters, body_scope)
-        store_type(new_type, scope, node.location)
-        define_type(node.body, body_scope)
-
-        new_type
       end
 
       def on_reopen_object(node, scope)
@@ -718,10 +565,6 @@ module Inkoc
         trait = define_type(node.trait_name, impl_scope)
 
         return trait if trait.error?
-
-        object.implement_trait(trait)
-
-        node.block_type = impl_block
 
         define_type(node.body, impl_scope)
 
@@ -824,20 +667,6 @@ module Inkoc
           next if assigned.include?(attr.name)
 
           diagnostics.unassigned_attribute(attr.name, node.location)
-        end
-      end
-
-      def store_type(type, scope, location)
-        scope.self_type.define_attribute(type.name, type)
-
-        store_type_as_global(type.name, type, scope, location)
-      end
-
-      def store_type_as_global(name, type, scope, location)
-        if Config::RESERVED_CONSTANTS.include?(name)
-          diagnostics.redefine_reserved_constant_error(name, location)
-        elsif scope.module_scope?
-          @module.globals.define(name, type)
         end
       end
 
@@ -1917,14 +1746,6 @@ module Inkoc
       end
       # rubocop: enable Metrics/PerceivedComplexity
       # rubocop: enable Metrics/CyclomaticComplexity
-
-      def wrap_optional_type(node, type)
-        if node.optional?
-          TypeSystem::Optional.wrap(type)
-        else
-          type
-        end
-      end
     end
     # rubocop: enable Metrics/ClassLength
   end

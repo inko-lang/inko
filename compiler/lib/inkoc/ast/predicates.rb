@@ -107,11 +107,19 @@ module Inkoc
         false
       end
 
+      def trait?
+        false
+      end
+
       def reassign_attribute?
         false
       end
 
       def attribute?
+        false
+      end
+
+      def trait_implementation?
         false
       end
     end

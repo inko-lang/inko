@@ -26,6 +26,10 @@ module Inkoc
       def visitor_method
         :on_trait_implementation
       end
+
+      def trait_implementation?
+        true
+      end
     end
   end
 end

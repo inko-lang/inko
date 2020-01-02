@@ -316,7 +316,7 @@ describe Inkoc::Pass::DefineType do
 
   let(:state) { Inkoc::State.new(Inkoc::Config.new) }
   let(:pass) { described_class.new(tir_module, state) }
-  let(:self_type) { Inkoc::TypeSystem::Object.new }
+  let(:self_type) { tir_module.type }
 
   let(:type_scope) do
     Inkoc::TypeScope.new(
@@ -338,7 +338,17 @@ describe Inkoc::Pass::DefineType do
       .new(tir_module, state)
       .run(node)
 
-    pass.on_module_body(node, scope)
+    Inkoc::Pass::DefineTypeSignatures
+      .new(tir_module, state)
+      .run(node)
+
+    unless state.diagnostics.errors?
+      Inkoc::Pass::ImplementTraits
+        .new(tir_module, state)
+        .run(node)
+
+      pass.on_module_body(node, scope)
+    end
 
     node.expressions[0].type
   end
