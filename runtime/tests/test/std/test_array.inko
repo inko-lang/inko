@@ -200,13 +200,25 @@ test.group('std::array::Array.==') do (g) {
 }
 
 test.group('std::array::Array.iter') do (g) {
-  g.test('Obtaining an Iterator from an Array') {
+  g.test('Iterating over an Array') {
     let numbers = Array.new(10, 20, 30)
     let iter = numbers.iter
 
     assert.equal(iter.next, 10)
     assert.equal(iter.next, 20)
     assert.equal(iter.next, 30)
+    assert.equal(iter.next, Nil)
+  }
+}
+
+test.group('std::array::Array.reverse_iter') do (g) {
+  g.test('Iterating over an Array in reverse order') {
+    let numbers = Array.new(10, 20, 30)
+    let iter = numbers.reverse_iter
+
+    assert.equal(iter.next, 30)
+    assert.equal(iter.next, 20)
+    assert.equal(iter.next, 10)
     assert.equal(iter.next, Nil)
   }
 }

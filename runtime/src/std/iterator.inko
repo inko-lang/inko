@@ -438,3 +438,43 @@ def index_enumerator!(T)(
     }
   )
 }
+
+# Returns an `Enumerator` that can be used to easily enumerate over an index
+# based collection in reverse order.
+#
+# This `Enumerator` will start the maximum index, and reduce the index until
+# reaching the start of the collection. For every value, the supplied block is
+# called and its return value will be the value produced by the `Enumerator`.
+#
+# # Examples
+#
+# Iterating over an `Array`:
+#
+#     import std::iterator::(self, Enumerator)
+#
+#     let numbers = Array.new(10, 20, 30)
+#     let enum: Enumerator!(Integer) =
+#       iterator.reverse_index_enumerator(numbers.length) do (index) {
+#         numbers[index]
+#       }
+#
+#     enum.next # => 30
+#     enum.next # => 20
+#     enum.next # => 10
+def reverse_index_enumerator!(T)(
+  length: Integer,
+  block: do (Integer) -> ?T
+) -> Enumerator!(T) {
+  let mut index = length - 1
+
+  Enumerator.new(
+    while: { index > -1 },
+    yield: {
+      let value = block.call(index)
+
+      index -= 1
+
+      value
+    }
+  )
+}

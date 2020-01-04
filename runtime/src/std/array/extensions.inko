@@ -28,6 +28,26 @@ impl Array!(T) {
     }
   }
 
+  # Returns an `Iterator` that iterates over all values in `self` in reverse
+  # order.
+  #
+  # # Examples
+  #
+  # Iterating over an `Array` in reverse order:
+  #
+  #     let numbers = Array.new(10, 20, 30)
+  #     let iter = numbers.iter
+  #
+  #     iter.next # => 30
+  #     iter.next # => 20
+  #     iter.next # => 10
+  #     iter.next # => Nil
+  def reverse_iter -> Iterator!(T) {
+    iterator.reverse_index_enumerator(length) do (index) {
+      self[index]
+    }
+  }
+
   # Joins the values of `self` together using the separator.
   #
   # # Examples

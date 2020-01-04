@@ -209,3 +209,18 @@ test.group('std::iterator.index_enumerator') do (g) {
     assert.equal(enum.next, Nil)
   }
 }
+
+test.group('std::iterator.reverse_index_enumerator') do (g) {
+  g.test('Iterating over an Array in reverse order') {
+    let numbers = Array.new(10, 20, 30)
+    let enum: Enumerator!(Integer) =
+      iterator.reverse_index_enumerator(numbers.length) do (index) {
+        numbers[index]
+      }
+
+    assert.equal(enum.next, 30)
+    assert.equal(enum.next, 20)
+    assert.equal(enum.next, 10)
+    assert.equal(enum.next, Nil)
+  }
+}
