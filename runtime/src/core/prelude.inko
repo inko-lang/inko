@@ -1,26 +1,11 @@
-# The prelude module imports various modules of which the contents should be
-# available to every other module. Any globals that should be exposed to every
-# module must be defined in std::globals instead.
-
-# The order in which modules are imported is important as some modules may
-# depend on types / methods defined in other modules.
-
-# The very first module we have to import is std::trait. This module defines a
-# few methods that _must_ exist before we can import any other methods.
+# The prelude module imports various modules of which the contents (e.g. types
+# and type extensions) should be available to every other module.
+#
+# The order in which modules are imported is important, as some modules may
+# depend on types/methods defined in other modules.
 import std::trait
-
-# Next up we import std::object, which defines a few methods other modules
-# depend on.
 import std::object
-
-# The std::boolean module must be imported next since many other modules depend
-# on the methods it defines. This module also refines the "Boolean" trait
-# defined earlier in std::bootstrap.
 import std::boolean
-
-# Now that most of the crucial bits and pieces are in place we can start
-# importing other modules. At this point the order of the imports doesn't matter
-# much any more.
 import std::integer
 import std::float
 import std::nil
@@ -30,6 +15,7 @@ import std::string
 import std::array
 import std::iterator
 import std::byte_array
+import std::module
 
 # Various types can not have their methods defined until other types have been
 # set up. We extend such types using these extensions modules. By importing
@@ -42,7 +28,6 @@ import std::array::extensions::(self as _)
 import std::map::(Map as _Map)
 import std::range::(Range as _Range)
 import std::vm
-import std::module
 
 # These constants are re-exported so they're available to all modules by
 # default. Core types such as String should be exposed in std::globals instead.
