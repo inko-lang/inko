@@ -27,7 +27,6 @@ import std::array::extensions::(self as _)
 
 import std::map::(Map as _Map)
 import std::range::(Range as _Range)
-import std::vm
 
 # These constants are re-exported so they're available to all modules by
 # default. Core types such as String should be exposed in std::globals instead.

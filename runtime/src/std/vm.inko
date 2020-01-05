@@ -1,9 +1,4 @@
 # Methods for interacting with the Inko virtual machine.
-import std::conversion::ToString
-import std::debug
-import std::process
-import std::stdio::stderr
-import std::string_buffer::StringBuffer
 
 # Terminates the VM immediately with the given exit status.
 #
@@ -47,43 +42,4 @@ def exit(status: Integer) -> Never {
 def panicking(block: lambda (String)) -> Nil {
   _INKOC.set_default_panic_handler(block)
   Nil
-}
-
-# Registers the default panic handler.
-#
-# When this handler is invoked, an error and stacktrace is printed, followed by
-# terminating the _entire_ program. The program will be terminated with exit
-# status code 1.
-panicking lambda (error) {
-  # We use a single buffer for the entire error, instead of writing to STDERR
-  # multiple times. This ensures the output does not get messed up by other
-  # processes writing to STDERR concurrently.
-  let output =
-    StringBuffer.new('Stack trace (the most recent call comes last):')
-
-  let module_path = _INKOC.current_file_path
-
-  debug.stacktrace(skip: 2).each_with_index do (frame, index) {
-    # If the frame originates from this particular module, we ignore it. This
-    # way we ignore any frames produced by this handler itself.
-    (frame.path.to_string == module_path).if_false {
-      output.push("\n  ")
-      output.push(index.to_string)
-      output.push(': ')
-      output.push(frame.path.to_string)
-      output.push(' line ')
-      output.push(frame.line.to_string)
-      output.push(', in ')
-      output.push(frame.name)
-    }
-  }
-
-  output.push("\nProcess 0x")
-  output.push(process.current.identifier.format(radix: 16))
-  output.push(' panicked: ')
-  output.push(error)
-
-  stderr.print(output)
-
-  exit(1)
 }
