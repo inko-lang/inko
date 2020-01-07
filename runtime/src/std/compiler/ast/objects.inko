@@ -8,7 +8,7 @@ import std::compiler::source_location::SourceLocation
 # A named object defined using the "object" keyword.
 object DefineObject {
   # The name of the defined object.
-  @name: Constant
+  @name: String
 
   # The type parameters of the defined object.
   @type_parameters: Array!(TypeParameter)
@@ -20,7 +20,7 @@ object DefineObject {
   @location: SourceLocation
 
   def init(
-    name: Constant,
+    name: String,
     type_parameters: Array!(TypeParameter),
     body: Body,
     location: SourceLocation
@@ -32,7 +32,7 @@ object DefineObject {
   }
 
   # Returns the name of this object.
-  def name -> Constant {
+  def name -> String {
     @name
   }
 
@@ -90,7 +90,7 @@ impl Node for DefineAttribute {
 # A trait defined using the "trait" keyword.
 object DefineTrait {
   # The name of the trait that is defined.
-  @name: Constant
+  @name: String
 
   # The type parameters of the trait.
   @type_parameters: Array!(TypeParameter)
@@ -105,7 +105,7 @@ object DefineTrait {
   @location: SourceLocation
 
   def init(
-    name: Constant,
+    name: String,
     type_parameters: Array!(TypeParameter),
     required_traits: Array!(Constant),
     body: Body,
@@ -119,7 +119,7 @@ object DefineTrait {
   }
 
   # Returns the name of this object.
-  def name -> Constant {
+  def name -> String {
     @name
   }
 

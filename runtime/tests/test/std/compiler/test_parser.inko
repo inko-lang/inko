@@ -228,9 +228,7 @@ test.group('Parsing object definitions') do (g) {
   g.test('Parsing an empty body') {
     let node = parse_as(input: 'object A {}', type: DefineObject)
 
-    assert.equal(node.name.name, 'A')
-    assert.equal(node.name.location.column, 8)
-
+    assert.equal(node.name, 'A')
     assert.true(node.body.children.empty?)
     assert.equal(node.body.location.column, 10)
   }
@@ -313,9 +311,7 @@ test.group('Parsing trait definitions') do (g) {
   g.test('Parsing an empty body') {
     let node = parse_as(input: 'trait A {}', type: DefineTrait)
 
-    assert.equal(node.name.name, 'A')
-    assert.equal(node.name.location.column, 7)
-
+    assert.equal(node.name, 'A')
     assert.true(node.body.children.empty?)
     assert.equal(node.body.location.column, 9)
   }

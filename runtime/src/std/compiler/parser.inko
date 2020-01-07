@@ -216,12 +216,12 @@ object Parser {
   }
 
   def object_definition(token: Token) !! ParseError -> DefineObject {
-    let name = constant_from_token(try token_of_type('constant'))
+    let name = try token_of_type('constant')
     let params = try type_parameter_definitions
     let body = try next_as_restricted_body
 
     DefineObject.new(
-      name: name,
+      name: name.value,
       type_parameters: params,
       body: body,
       location: token.location
@@ -238,13 +238,13 @@ object Parser {
   }
 
   def trait_definition(token: Token) !! ParseError -> DefineTrait {
-    let name = constant_from_token(try token_of_type('constant'))
+    let name = try token_of_type('constant')
     let params = try type_parameter_definitions
     let required_traits = try required_traits
     let body = try next_as_restricted_body
 
     DefineTrait.new(
-      name: name,
+      name: name.value,
       type_parameters: params,
       required_traits: required_traits,
       body: body,
