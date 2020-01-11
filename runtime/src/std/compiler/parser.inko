@@ -855,17 +855,7 @@ object Parser {
   }
 
   def constant(token: Token) !! ParseError -> Constant {
-    let mut node = constant_from_token(token)
-
-    { peek_token.type == 'colon_colon' }.while_true {
-      # Skip the ":"
-      next_token
-
-      node = constant_from_token(
-        token: try token_of_type('constant'),
-        receiver: node
-      )
-    }
+    let node = Constant.new(name: token.value, location: token.location)
 
     (peek_token.type == 'type_args_open').if_true {
       # Skip the "!("
@@ -917,7 +907,7 @@ object Parser {
     }
 
     (token.type == 'constant').if_true {
-      return constant_from_token(token)
+      return Constant.new(name: token.value, location: token.location)
     }
 
     throw TokenError.new(token)
@@ -1167,11 +1157,6 @@ object Parser {
 
   def identifier_from_token(token: Token) -> Identifier {
     Identifier.new(name: token.value, location: token.location)
-  }
-
-  def constant_from_token(token: Token, receiver: ?Constant = Nil) -> Constant {
-    Constant
-      .new(name: token.value, location: token.location, receiver: receiver)
   }
 
   def next_token_is_argument?(start_token: Token) -> Boolean {

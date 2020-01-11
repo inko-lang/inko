@@ -511,7 +511,7 @@ module Inkoc
 
         unless type.object?
           return diagnostics.reopen_invalid_object_error(
-            node.name.qualified_name,
+            node.name.name,
             node.location
           )
         end

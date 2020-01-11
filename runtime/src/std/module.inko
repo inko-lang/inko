@@ -6,4 +6,4 @@
 # contains data such as the methods defined in the module.
 #
 # Modules are permanent objects, and are never garbage collected.
-let Module = Inko::Module
+let Module = _INKOC.get_attribute(Inko, 'Module')

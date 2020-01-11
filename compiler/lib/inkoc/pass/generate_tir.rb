@@ -243,17 +243,11 @@ module Inkoc
       def on_constant(node, body)
         name = node.name
         loc = node.location
-
-        source =
-          if node.receiver
-            process_node(node.receiver, body)
-          else
-            get_self(body, loc)
-          end
+        source = get_self(body, loc)
 
         if source.type.lookup_attribute(name).any?
           get_attribute(source, name, body, loc)
-        elsif !node.receiver && @module.globals.defined?(name)
+        elsif @module.globals.defined?(name)
           get_global(name, body, loc)
         else
           get_nil(body, loc)

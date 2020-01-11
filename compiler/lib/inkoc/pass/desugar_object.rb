@@ -60,7 +60,7 @@ module Inkoc
         body = AST::Body.new(exprs, loc)
 
         new_return_type = AST::TypeName
-          .new(AST::Constant.new(Config::SELF_TYPE, nil, loc), [], loc)
+          .new(AST::Constant.new(Config::SELF_TYPE, loc), [], loc)
 
         AST::Method.new(
           Config::NEW_MESSAGE,
@@ -104,7 +104,7 @@ module Inkoc
         body = AST::Body.new(exprs, loc)
 
         new_return_type = AST::TypeName
-          .new(AST::Constant.new(Config::SELF_TYPE, nil, loc), [], loc)
+          .new(AST::Constant.new(Config::SELF_TYPE, loc), [], loc)
 
         AST::Method.new(
           Config::NEW_MESSAGE,
@@ -125,10 +125,10 @@ module Inkoc
           AST::Identifier.new('obj', loc),
           AST::Send.new(
             'set_object',
-            AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
+            AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, loc),
             [],
             [
-              AST::Constant.new(Config::FALSE_CONST, nil, loc),
+              AST::Constant.new(Config::FALSE_CONST, loc),
               AST::Self.new(loc)
             ],
             loc

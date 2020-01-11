@@ -638,16 +638,7 @@ module Inkoc
     #     Foo
     #     Foo::Bar
     def constant(start)
-      node = constant_from_token(start)
-
-      while @lexer.next_type_is?(:colon_colon)
-        skip_one
-
-        start = advance_and_expect!(:constant)
-        node = constant_from_token(start, node)
-      end
-
-      node
+      constant_from_token(start)
     end
 
     # Parses a reference to a module global.
@@ -1276,7 +1267,7 @@ module Inkoc
         # _INKOC.panic(error.to_string)
         AST::Send.new(
           Config::PANIC_MESSAGE,
-          AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, nil, loc),
+          AST::Constant.new(Config::RAW_INSTRUCTION_RECEIVER, loc),
           [],
           [AST::Send.new(Config::TO_STRING_MESSAGE, arg, [], [], loc)],
           loc
@@ -1373,8 +1364,8 @@ module Inkoc
       values
     end
 
-    def constant_from_token(token, receiver = nil)
-      AST::Constant.new(token.value, receiver, token.location)
+    def constant_from_token(token)
+      AST::Constant.new(token.value, token.location)
     end
 
     def identifier_from_token(token, type_arguments = [])

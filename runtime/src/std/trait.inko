@@ -1,7 +1,7 @@
 # Methods for `Trait` that should be available before defining other types.
 
 # The object traits are instances of.
-let Trait = Inko::Trait
+let Trait = _INKOC.get_attribute(Inko, 'Trait')
 
 # The name of the attribute that stores all the implemented traits.
 let IMPLEMENTED_TRAITS_ATTRIBUTE = '@_implemented_traits'

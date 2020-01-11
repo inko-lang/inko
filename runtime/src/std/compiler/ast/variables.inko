@@ -35,23 +35,15 @@ object Constant {
   # The source location of the constant.
   @location: SourceLocation
 
-  # The receiver of the constant, if any.
-  @receiver: ?Constant
-
   # The type arguments passed to the constant.
   @type_arguments: Array!(Node)
 
   # A boolean indicating if the constant is an optional type or not.
   @optional: Boolean
 
-  def init(
-    name: String,
-    location: SourceLocation,
-    receiver: ?Constant = Nil
-  ) {
+  def init(name: String, location: SourceLocation,) {
     @name = name
     @location = location
-    @receiver = receiver
     @type_arguments = Array.new
     @optional = False
   }
@@ -61,24 +53,9 @@ object Constant {
     @name
   }
 
-  # Returns the receiver of this constant.
-  def receiver -> ?Constant {
-    @receiver
-  }
-
   # Returns the type arguments to use for initialising the constant.
   def type_arguments -> Array!(Node) {
     @type_arguments
-  }
-
-  # Returns `True` if this constant is optional.
-  def optional? -> Boolean {
-    @optional
-  }
-
-  # Marks this constant as optional.
-  def optional -> Boolean {
-    @optional = True
   }
 }
 

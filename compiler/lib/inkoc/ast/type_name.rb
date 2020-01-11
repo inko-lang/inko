@@ -31,10 +31,6 @@ module Inkoc
         @late_binding
       end
 
-      def qualified_name
-        name.qualified_name
-      end
-
       def visitor_method
         case name.name
         when Config::SELF_TYPE

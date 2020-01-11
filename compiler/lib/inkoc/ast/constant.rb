@@ -7,33 +7,17 @@ module Inkoc
       include Predicates
       include Inspect
 
-      attr_reader :name, :location, :receiver
+      attr_reader :name, :location
 
       # name - The name of the constant as a String.
       # location - The SourceLocation of the constant.
-      # receiver - The object to search for the constant.
-      def initialize(name, receiver, location)
+      def initialize(name, location)
         @name = name
-        @receiver = receiver
         @location = location
       end
 
       def constant?
         true
-      end
-
-      def qualified_name
-        segments = []
-        source = self
-
-        while source
-          segments << source.name
-          source = source.receiver
-        end
-
-        segments
-          .reverse
-          .join(Config::MODULE_SEPARATOR)
       end
 
       def self_type?

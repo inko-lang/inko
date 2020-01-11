@@ -1180,23 +1180,15 @@ test.group('Parsing constants') do (g) {
     let node = parse_as(input: 'Foo', type: Constant)
 
     assert.equal(node.name, 'Foo')
-    assert.equal(node.receiver, Nil)
-  }
-
-  g.test('Parsing a constant with a receiver') {
-    let node = parse_as(input: 'A::B', type: Constant)
-
-    assert.equal(node.name, 'B')
-    assert.equal(node.receiver.name, 'A')
-    assert.equal(node.receiver.receiver, Nil)
-    assert.equal(node.location.column, 4)
+    assert.true(node.type_arguments.empty?)
   }
 
   g.test('Parsing a constant with type arguments') {
-    let node = parse_as(input: 'A::B!(C)', type: Constant)
+    let node = parse_as(input: 'A!(B)', type: Constant)
 
+    assert.equal(node.name, 'A')
     assert.equal(node.type_arguments.length, 1)
-    assert.equal((node.type_arguments[0] as Constant).name, 'C')
+    assert.equal((node.type_arguments[0] as Constant).name, 'B')
   }
 }
 
