@@ -430,18 +430,6 @@ describe Inkoc::Pass::DefineType do
 
         expect(type).to eq(type_a)
       end
-
-      it 'supports looking up nested constants' do
-        type_a = Inkoc::TypeSystem::Object.new(name: 'A')
-        type_b = Inkoc::TypeSystem::Object.new(name: 'B')
-
-        type_a.define_attribute('B', type_b)
-        tir_module.type.define_attribute('A', type_a)
-
-        type = constant_type('A::B')
-
-        expect(type).to eq(type_b)
-      end
     end
 
     context 'when using a defined constant that accepts type parameters' do
